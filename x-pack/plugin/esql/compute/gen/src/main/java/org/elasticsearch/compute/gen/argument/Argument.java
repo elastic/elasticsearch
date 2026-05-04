@@ -17,6 +17,7 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.gen.Types;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
@@ -171,11 +172,11 @@ public interface Argument {
     void closeEvalToBlock(MethodSpec.Builder builder);
 
     /**
-     * Emits code to check if this parameter is a vector or a block, and to
-     * call the block flavored evaluator if this is a block. Noop if the
-     * parameter is {@link Fixed}.
+     * Emits code to call {@code onBlock} if this is parameter is a block.
+     * @param onAllNull If this is non-null then this method emits code to call this
+     *                  if all values in the block are null
      */
-    void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval);
+    void resolveVectors(MethodSpec.Builder builder, Consumer<MethodSpec.Builder> onBlock, Consumer<MethodSpec.Builder> onAllNull);
 
     /**
      * Create any scratch structures needed by {@code eval}.

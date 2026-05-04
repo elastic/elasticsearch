@@ -2163,6 +2163,15 @@ public class TopNOperatorTests extends OperatorTestCase {
             maxPageSize += PageCacheRecycler.PAGE_SIZE_IN_BYTES;
         }
         int[] gk = groupKeys();
+        if (gk.length > 0) {
+            /*
+             * Grouped TopN initializes builders sized to total rows remaining,
+             * not maxPageSize. That inflates estimatedBytes() above jumboPageBytes
+             * before any data is written, so the first row always triggers an
+             * early break. A single-row page holds at minimum byteLength bytes.
+             */
+            minPageSize = Math.min(minPageSize, byteLength);
+        }
         int expectedTotal = gk.length > 0 ? inputPageRows * inputPageCount : topCount;
         try (
             Operator op = createTopNOperatorFactory(

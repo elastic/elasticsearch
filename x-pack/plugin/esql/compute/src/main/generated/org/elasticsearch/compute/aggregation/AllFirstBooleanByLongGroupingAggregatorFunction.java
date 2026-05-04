@@ -198,9 +198,19 @@ public final class AllFirstBooleanByLongGroupingAggregatorFunction implements Gr
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BooleanBlock valuesBlock,
       LongBlock timestampsBlock) {
     if (valuesBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
     if (timestampsBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
   }

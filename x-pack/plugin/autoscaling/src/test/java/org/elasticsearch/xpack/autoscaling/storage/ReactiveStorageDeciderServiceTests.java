@@ -31,9 +31,12 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationQueryContext;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -72,6 +75,9 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests the primitive methods in {@link ReactiveStorageDeciderService}. Tests of higher level methods are in
@@ -242,14 +248,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         int shardId = randomInt(indexMetadata.getNumberOfShards() - 1);
         IndexShardRoutingTable subjectRoutings = initialClusterState.routingTable(projectId)
             .shardRoutingTable(indexMetadata.getIndex().getName(), shardId);
-        RoutingAllocation allocation = new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            initialClusterState.mutableRoutingNodes(),
-            initialClusterState,
-            null,
-            null,
-            System.nanoTime()
-        );
+        RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(initialClusterState).mutable();
         ShardRouting primaryShard = subjectRoutings.primaryShard();
         ShardRouting replicaShard = subjectRoutings.replicaShards().get(0);
         DiscoveryNode[] nodes = initialClusterState.nodes().getAllNodes().toArray(DiscoveryNode[]::new);
@@ -665,9 +664,10 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
     public boolean canRemainWithNoNodes(ClusterState clusterState, ShardRouting shardRouting, AllocationDecider... deciders) {
         AllocationDeciders allocationDeciders = new AllocationDeciders(Arrays.asList(deciders));
+        AllocationService allocationService = mockAllocationService(allocationDeciders);
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
-            allocationDeciders,
+            allocationService,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             new DiskThresholdSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             ClusterInfo.EMPTY,
@@ -676,8 +676,10 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
         );
 
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, randomLong());
-        return allocationState.canRemainOnlyHighestTierPreference(shardRouting, allocation);
+        return allocationState.canRemainOnlyHighestTierPreference(
+            shardRouting,
+            allocationService.createAllocationQueryContext(clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY)
+        );
     }
 
     public void testNeedsThisTier() {
@@ -771,9 +773,10 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         AllocationDecider... deciders
     ) {
         AllocationDeciders allocationDeciders = new AllocationDeciders(Arrays.asList(deciders));
+        AllocationService allocationService = mockAllocationService(allocationDeciders);
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
-            allocationDeciders,
+            allocationService,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             new DiskThresholdSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             ClusterInfo.EMPTY,
@@ -782,9 +785,13 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
         );
 
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, randomLong());
-
-        assertThat(allocationState.needsThisTier(shardRouting, allocation), is(expected));
+        assertThat(
+            allocationState.needsThisTier(
+                shardRouting,
+                allocationService.createAllocationQueryContext(clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY)
+            ),
+            is(expected)
+        );
     }
 
     public void testMessage() {
@@ -810,5 +817,27 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         assert newRoutingTable.validate(newMetadata); // validates the routing table is coherent with the cluster state metadata
 
         return ClusterState.builder(oldState).routingTable(newRoutingTable).metadata(newMetadata).build();
+    }
+
+    /**
+     * Returns a mock AllocationService, with a functioning
+     * {@link AllocationService#createAllocationQueryContext(ClusterState, ClusterInfo, SnapshotShardSizeInfo)} method.
+     *
+     * @param allocationDeciders The allocation deciders to be effective in the {@link AllocationQueryContext}
+     * @return the mocked AllocationService
+     */
+    public static AllocationService mockAllocationService(AllocationDeciders allocationDeciders) {
+        AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.createAllocationQueryContext(any(ClusterState.class), any(), any())).thenAnswer(
+            iom -> new AllocationQueryContext(
+                TestRoutingAllocationFactory.forClusterState(iom.getArgument(0))
+                    .clusterInfo(iom.getArgument(1))
+                    .shardSizeInfo(iom.getArgument(2))
+                    .allocationDeciders(allocationDeciders)
+                    .build(),
+                allocationDeciders
+            )
+        );
+        return allocationService;
     }
 }

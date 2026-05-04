@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -80,6 +81,12 @@ public final class ConstantNullVector extends AbstractVector
 
     @Override
     public BytesRef getBytesRef(int position, BytesRef dest) {
+        assert false : "null vector";
+        throw new UnsupportedOperationException("null vector");
+    }
+
+    @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
         assert false : "null vector";
         throw new UnsupportedOperationException("null vector");
     }

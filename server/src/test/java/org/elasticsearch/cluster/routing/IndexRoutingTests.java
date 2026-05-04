@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -491,6 +492,19 @@ public class IndexRoutingTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("routing is required for [test]/[id]"));
     }
 
+    public void testRequiredRoutingUsesSliceMessageWhenSliceEnabled() {
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), true).build())
+                .numberOfShards(2)
+                .numberOfReplicas(1)
+                .putMapping("{\"_routing\":{\"required\": true}}")
+                .build()
+        );
+        Exception e = expectThrows(SliceMissingException.class, () -> shardIdFromSimple(indexRouting, "id", null));
+        assertThat(e.getMessage(), equalTo("_slice is required for [test]/[id]"));
+    }
+
     /**
      * Extract a shardId from a "simple" {@link IndexRouting} using a randomly
      * chosen method. All of the random methods <strong>should</strong> return the
@@ -665,8 +679,7 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathBwc() throws IOException {
-        boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
-        TimeSeriesRoutingFixture fixture = indexRoutingForRoutingPath(IndexVersion.current(), 8, "dim.*,other.*,top", useSyntheticId);
+        TimeSeriesRoutingFixture fixture = indexRoutingForRoutingPath(IndexVersion.current(), 8, "dim.*,other.*,top", randomBoolean());
         /*
          * These are the expected shards when we first added routing_path. If these values change
          * time series will be routed to unexpected shards. You may modify
@@ -685,7 +698,6 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathBwcAfterTsidBasedRouting() throws IOException {
-        boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
         TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
             IndexVersionUtils.randomVersionBetween(
                 IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
@@ -693,7 +705,7 @@ public class IndexRoutingTests extends ESTestCase {
             ),
             8,
             "dim.*,other.*,top",
-            useSyntheticId
+            randomBoolean()
         );
         assertFalse(TsidBuilder.useSingleBytePrefixLayout(fixture.routing.creationVersion));
         /*
@@ -718,12 +730,11 @@ public class IndexRoutingTests extends ESTestCase {
     }
 
     public void testRoutingPathWithSingleBytePrefixTsid() throws IOException {
-        boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
         TimeSeriesRoutingFixture fixture = indexRoutingForTimeSeriesDimensions(
             IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG),
             8,
             "dim.*,other.*,top",
-            useSyntheticId
+            randomBoolean()
         );
         assumeTrue("require single-byte-prefix tsid", TsidBuilder.useSingleBytePrefixLayout(fixture.routing.creationVersion));
         assertIndexShard(fixture, Map.of("dim", Map.of("a", "a")), 5);
@@ -816,10 +827,8 @@ public class IndexRoutingTests extends ESTestCase {
     public void testRerouteToTargetTsid() {
         int shards = between(2, 500);
         Settings.Builder settingsBuilder = settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "top")
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-            settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
-        }
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         IndexMetadata startingMetadata = IndexMetadata.builder("test")
             .settings(settingsBuilder)
             .numberOfShards(shards)
@@ -1096,8 +1105,7 @@ public class IndexRoutingTests extends ESTestCase {
         // old way of routing paths created during routing
         // current way of routing paths created during routing via tsid
         String setting = randomBoolean() ? IndexMetadata.INDEX_DIMENSIONS.getKey() : IndexMetadata.INDEX_ROUTING_PATH.getKey();
-        boolean useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean();
-        return getIndexRoutingWithSetting(IndexVersion.current(), shards, path, setting, useSyntheticId);
+        return getIndexRoutingWithSetting(IndexVersion.current(), shards, path, setting, randomBoolean());
     }
 
     private TimeSeriesRoutingFixture indexRoutingForRoutingPath(
@@ -1130,11 +1138,10 @@ public class IndexRoutingTests extends ESTestCase {
     ) {
         if (useSyntheticId) {
             assert indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94) : "Can't use synthetic id with this index version";
-            assert IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG : "Can't use synthetic id without feature flag";
         }
         Settings.Builder settingsBuilder = settings(indexVersion).put(setting, path)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)) {
+        if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94)) {
             settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
         }
         return new TimeSeriesRoutingFixture(

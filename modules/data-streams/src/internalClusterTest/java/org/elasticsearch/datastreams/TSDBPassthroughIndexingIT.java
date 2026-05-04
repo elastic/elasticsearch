@@ -149,10 +149,8 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
 
     public void testIndexingGettingAndSearching() throws Exception {
         var templateSettings = indexSettings(randomIntBetween(2, 10), 0).put("index.mode", "time_series");
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
-            templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
-        }
-        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean()) {
+        templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+        if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
 
@@ -235,10 +233,8 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
     public void testIndexingGettingAndSearchingShrunkIndex() throws Exception {
         String dataStreamName = "k8s";
         var templateSettings = indexSettings(8, 0).put("index.mode", "time_series");
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && randomBoolean()) {
-            templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), true);
-        }
-        if (IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG && randomBoolean()) {
+        templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+        if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
 

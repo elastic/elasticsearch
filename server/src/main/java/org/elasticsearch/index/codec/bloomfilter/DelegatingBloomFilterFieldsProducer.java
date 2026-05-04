@@ -16,10 +16,14 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * A FieldsProducer that uses a Bloom filter for fast term existence checks before
@@ -28,17 +32,50 @@ import java.util.Set;
  */
 public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
     private static final Set<String> FIELD_NAMES = Set.of(IdFieldMapper.NAME);
-    private final FieldsProducer delegate;
-    private final BloomFilter bloomFilter;
+    private static final Logger logger = LogManager.getLogger(DelegatingBloomFilterFieldsProducer.class);
 
-    public DelegatingBloomFilterFieldsProducer(FieldsProducer delegate, BloomFilter bloomFilter) {
+    private static final LongAdder NO_OP = new LongAdder() {
+        @Override
+        public void increment() {}
+
+        @Override
+        public void add(long x) {}
+
+        @Override
+        public long sum() {
+            return 0L;
+        }
+    };
+
+    private final FieldsProducer delegate;
+    private final IdBloomFilterSupplier idBloomFilterSupplier;
+    private final LongAdder checks;
+    private final LongAdder falsePositives;
+
+    public DelegatingBloomFilterFieldsProducer(FieldsProducer delegate, IdBloomFilterSupplier idBloomFilterSupplier) {
         this.delegate = delegate;
-        this.bloomFilter = bloomFilter;
+        this.idBloomFilterSupplier = idBloomFilterSupplier;
+        boolean trace = logger.isTraceEnabled();
+        this.checks = trace ? new LongAdder() : NO_OP;
+        this.falsePositives = trace ? new LongAdder() : NO_OP;
     }
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(delegate, bloomFilter);
+        if (logger.isTraceEnabled() && checks != NO_OP) {
+            long totalChecks = checks.sum();
+            long totalFalsePositives = falsePositives.sum();
+            var bloomFilter = idBloomFilterSupplier.createBloomFilterInstance();
+            logger.trace(
+                "bloom filter [{}]: saturation={} checks={} false_positives={} fpr={}",
+                bloomFilter,
+                String.format(Locale.ROOT, "%.2f%%", bloomFilter.saturation() * 100),
+                totalChecks,
+                totalFalsePositives,
+                totalChecks > 0 ? String.format(Locale.ROOT, "%.2e", (double) totalFalsePositives / totalChecks) : "n/a"
+            );
+        }
+        IOUtils.close(delegate, idBloomFilterSupplier);
     }
 
     @Override
@@ -55,6 +92,7 @@ public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
     public Terms terms(String field) throws IOException {
         assert FIELD_NAMES.contains(field) : "Expected one of " + FIELD_NAMES + " but got " + field;
         final Terms terms = delegate.terms(field);
+        final BloomFilter bloomFilter = idBloomFilterSupplier.createBloomFilterInstance();
         return new FilterLeafReader.FilterTerms(terms) {
             @Override
             public TermsEnum iterator() throws IOException {
@@ -71,10 +109,15 @@ public class DelegatingBloomFilterFieldsProducer extends FieldsProducer {
 
                     @Override
                     public boolean seekExact(BytesRef text) throws IOException {
+                        checks.increment();
                         if (bloomFilter.mayContainValue(field, text) == false) {
                             return false;
                         }
-                        return getDelegate().seekExact(text);
+                        var exists = getDelegate().seekExact(text);
+                        if (exists == false) {
+                            falsePositives.increment();
+                        }
+                        return exists;
                     }
                 };
             }

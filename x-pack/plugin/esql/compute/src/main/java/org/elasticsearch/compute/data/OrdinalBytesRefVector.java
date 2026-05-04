@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -77,6 +78,11 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     @Override
     public BytesRef getBytesRef(int position, BytesRef dest) {
         return bytes.getBytesRef(ordinals.getInt(position), dest);
+    }
+
+    @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        return bytes.get(ordinals.getInt(position), scratch);
     }
 
     @Override

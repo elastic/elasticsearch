@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownConjunctions
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFilterAndLimitIntoUnionAll;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFiltersIntoFork;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownJoinPastProject;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownLimitAndOrderByIntoFork;
@@ -73,6 +74,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFiltered
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SetAsOptimized;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyAggregateOverArithmetic;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnEmptyMappings;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnLimitZero;
@@ -168,6 +170,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new TranslateTimeSeriesAggregate(),
             new ApplyWindowFilter(),
             new PruneUnusedIndexMode(),
+            // simplify aggregations over arithmetic expressions (e.g. SUM(col + K) -> SUM(col) + K * COUNT(*))
+            // must run before ReplaceAggregateNestedExpressionWithEval which would extract the arithmetic into a pre-eval
+            new SimplifyAggregateOverArithmetic(),
             // first extract nested expressions inside aggs
             new ReplaceAggregateNestedExpressionWithEval(),
             // then extract nested aggs top-level
@@ -251,6 +256,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownAndCombineOrderBy(),
             new PushDownFilterAndLimitIntoUnionAll(),
             new PushDownLimitAndOrderByIntoFork(),
+            new PushDownFiltersIntoFork(),
             new PruneRedundantOrderBy(),
             new PruneRedundantSortClauses(),
             new PruneLeftJoinOnNullMatchingField(),

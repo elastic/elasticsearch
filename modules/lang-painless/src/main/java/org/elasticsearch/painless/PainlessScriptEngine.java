@@ -9,7 +9,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.painless.Compiler.Loader;
@@ -28,7 +27,6 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
-import java.security.Permissions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,14 +46,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * Standard name of the Painless language.
      */
     public static final String NAME = "painless";
-
-    /*
-     * Setup the allowed permissions.
-     */
-    static {
-        final Permissions none = new Permissions();
-        none.setReadOnly();
-    }
 
     /**
      * Default compiler settings to be used. Note that {@link CompilerSettings} is mutable but this instance shouldn't be mutated outside
@@ -110,10 +100,6 @@ public final class PainlessScriptEngine implements ScriptEngine {
     public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
         Compiler compiler = contextsToCompilers.get(context);
 
-        // Check we ourselves are not being called by unprivileged code.
-        SpecialPermission.check();
-
-        // Create our loader (which loads compiled code with no permissions).
         final Loader loader = compiler.createLoader(getClass().getClassLoader());
 
         ScriptScope scriptScope = compile(contextsToCompilers.get(context), loader, scriptName, scriptSource, params);

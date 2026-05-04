@@ -291,13 +291,9 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
         private CloseableIterator<Page> openFileSplit(ExternalSplit split) throws IOException {
             if (split instanceof FileSplit fileSplit) {
                 currentSplitPath = fileSplit.path();
-                StorageObject obj = storageProvider.newObject(fileSplit.path(), fileSplit.length());
-                boolean firstSplit = true;
+                StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
+                boolean firstSplit = fileSplit.offset() == 0 || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
                 boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
-                if (fileSplit.offset() > 0) {
-                    obj = new RangeStorageObject(obj, fileSplit.offset(), fileSplit.length());
-                    firstSplit = "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-                }
 
                 SchemaReconciliation.ColumnMapping columnMapping = fileSplit.columnMapping();
                 List<String> effectiveProjection = projectedColumns;

@@ -35,13 +35,13 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.InputTypeTests;
+import org.elasticsearch.xpack.inference.TaskTypeTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -379,7 +379,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             var embeddingSize = randomNonNegativeInt();
             var model = AlibabaCloudSearchEmbeddingsModelTests.createModel(
                 randomAlphaOfLength(10),
-                randomFrom(TaskType.values()),
+                TaskTypeTests.randomTaskTypeOtherThanAny(),
                 AlibabaCloudSearchEmbeddingsServiceSettingsTests.createRandom(),
                 AlibabaCloudSearchEmbeddingsTaskSettingsTests.createRandom(),
                 null
@@ -415,18 +415,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.CLASSIFICATION,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of(""), false, new HashMap<>(), InputType.CLASSIFICATION, null, listener);
 
             var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -459,18 +448,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.CLASSIFICATION,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of(""), false, new HashMap<>(), InputType.CLASSIFICATION, null, listener);
 
             var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -503,18 +481,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            service.infer(
-                model,
-                "hi",
-                Boolean.TRUE,
-                10,
-                List.of("a"),
-                false,
-                new HashMap<>(),
-                null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, "hi", Boolean.TRUE, 10, List.of("a"), false, new HashMap<>(), null, null, listener);
 
             var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -550,15 +517,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = createModelForTaskType(randomFrom(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING), null);
 
-            service.chunkedInfer(
-                model,
-                null,
-                List.of(),
-                new HashMap<>(),
-                InputTypeTests.randomWithIngestAndSearch(),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputTypeTests.randomWithIngestAndSearch(), null, listener);
 
         }
         assertThat(listener.actionGet(TIMEOUT), empty());
@@ -573,15 +532,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             var model = createModelForTaskType(taskType, chunkingSettings);
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                input,
-                new HashMap<>(),
-                InputTypeTests.randomWithIngestAndSearch(),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, input, new HashMap<>(), InputTypeTests.randomWithIngestAndSearch(), null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, instanceOf(List.class));

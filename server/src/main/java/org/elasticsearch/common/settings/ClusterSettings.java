@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.cluster.allocation.TransportGetAllocationS
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
-import org.elasticsearch.action.bulk.WriteAckDelay;
+import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
 import org.elasticsearch.action.search.SearchTaskWatchdog;
@@ -48,8 +48,9 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
-import org.elasticsearch.cluster.routing.allocation.ShardWriteLoadDistributionMetrics;
+import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundSummaryService;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer;
@@ -81,6 +82,7 @@ import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.discovery.PeerFinder;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
@@ -139,6 +141,7 @@ import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShutdownProgressTracker;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RemoteClusterSettings;
@@ -270,6 +273,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING,
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
         IncrementalBulkService.INCREMENTAL_BULK,
+        ShardBatchIndexer.BATCH_INDEXING,
         RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
         RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
         RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING,
@@ -630,8 +634,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         LocalHealthMonitor.POLL_INTERVAL_SETTING,
         TransportHealthNodeAction.HEALTH_NODE_TRANSPORT_ACTION_TIMEOUT,
         SimulatePipelineTransportAction.INGEST_NODE_TRANSPORT_ACTION_TIMEOUT,
-        WriteAckDelay.WRITE_ACK_DELAY_INTERVAL,
-        WriteAckDelay.WRITE_ACK_DELAY_RANDOMNESS_BOUND,
         RemoteClusterSettings.REMOTE_CLUSTER_CREDENTIALS,
         RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED,
         RemoteClusterPortSettings.HOST,
@@ -667,8 +669,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
         DataStreamGlobalRetentionSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING,
         DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING,
         DataStreamGlobalRetentionSettings.FAILURE_STORE_DEFAULT_RETENTION_SETTING,
-        ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME,
+        ShardsAvailabilityHealthIndicatorService.PRIMARY_INACTIVE_BUFFER_TIME,
+        ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME,
         DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING,
+        DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING,
         IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_SETTING,
         SearchStatsSettings.RECENT_READ_LOAD_HALF_LIFE_SETTING,
         TransportGetAllocationStatsAction.CACHE_TTL_SETTING,
@@ -677,10 +681,14 @@ public final class ClusterSettings extends AbstractScopedSettings {
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING,
+        WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING,
-        ShardWriteLoadDistributionMetrics.SHARD_WRITE_LOAD_METRICS_ENABLED_SETTING,
+        WriteLoadConstraintSettings.CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING,
+        WriteLoadMetrics.SHARD_WRITE_LOAD_METRICS_ENABLED_SETTING,
         IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING,
         IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_EXCESS_SHARDS,
+        IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_ENABLED_SETTING,
+        IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_REFRESH_INTERVAL_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_MINIMUM_LOGGING_INTERVAL,
         BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING,
         ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW,
@@ -689,6 +697,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         QueryLogger.QUERY_LOGGER_THRESHOLD,
         QueryLogger.QUERY_LOGGER_LEVEL,
         QueryLogger.QUERY_LOGGER_INCLUDE_USER,
-        QueryLogger.QUERY_LOGGER_LOG_SYSTEM
+        QueryLogger.QUERY_LOGGER_LOG_SYSTEM,
+        SynonymsManagementAPIService.MAX_SYNONYM_RULES_SETTING
     );
 }

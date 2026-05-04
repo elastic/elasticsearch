@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry.apm.internal;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
 public class TestAPMMeterService extends APMMeterService {
 

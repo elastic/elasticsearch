@@ -1,0 +1,153 @@
+embedding using a row source operator
+required_capability: embedding_function
+required_capability: dense_vector_field_type_released
+
+ROW input="Who is Victor Hugo?"
+| EVAL embedding = EMBEDDING("Who is Victor Hugo?", "test_embedding_inference")
+;
+
+input:keyword       | embedding:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+
+embedding using a row source operator with query build using CONCAT
+required_capability: embedding_function
+required_capability: dense_vector_field_type_released
+
+ROW input="Who is Victor Hugo?"
+| EVAL embedding = EMBEDDING(CONCAT("Who is ", "Victor Hugo?"), "test_embedding_inference")
+;
+
+input:keyword       | embedding:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+
+embedding with knn on dense vector field
+required_capability: embedding_function
+required_capability: dense_vector_field_type_released
+required_capability: knn_function_v5
+
+// tag::embedding-knn[]
+FROM dense_vector_text METADATA _score
+| EVAL query_embedding = EMBEDDING("be excellent to each other", "test_embedding_inference")
+| WHERE KNN(text_embedding_field, query_embedding)
+| SORT _score DESC
+| LIMIT 10
+// end::embedding-knn[]
+| KEEP text_field, query_embedding
+;
+
+text_field:text                                                      | query_embedding:dense_vector
+be excellent to each other                                            | [45.0, 55.0, 54.0]
+live long and prosper                                                 | [45.0, 55.0, 54.0]
+all we have to decide is what to do with the time that is given to us | [45.0, 55.0, 54.0]
+;
+
+
+embedding with knn (inline) on dense vector field
+required_capability: embedding_function
+required_capability: dense_vector_field_type_released
+required_capability: knn_function_v5
+
+FROM dense_vector_text METADATA _score
+| WHERE KNN(text_embedding_field, EMBEDDING("be excellent to each other", "test_embedding_inference"))
+| SORT _score DESC
+| LIMIT 10
+| KEEP text_field
+;
+
+text_field:text
+be excellent to each other
+live long and prosper
+all we have to decide is what to do with the time that is given to us
+;
+
+
+embedding with multiple knn queries
+required_capability: embedding_function
+required_capability: dense_vector_field_type_released
+required_capability: knn_function_v5
+
+FROM dense_vector_text METADATA _score, _id
+| WHERE KNN(text_embedding_field, EMBEDDING("be excellent to each other", "test_embedding_inference")) OR KNN(text_embedding_field, EMBEDDING("live long and prosper", "test_embedding_inference"))
+| SORT _score DESC, _id
+| LIMIT 10
+| KEEP text_field
+;
+
+text_field:text
+live long and prosper
+be excellent to each other
+all we have to decide is what to do with the time that is given to us
+;
+
+
+embedding with multiple knn queries in fork#[skip:-9.4.99,reason:vector scoring order differs on older versions]
+required_capability: embedding_function
+required_capability: dense_vector_field_type_released
+required_capability: knn_function_v5
+required_capability: fork_v9
+
+FROM dense_vector_text METADATA _score
+| FORK (EVAL query_embedding = EMBEDDING("be excellent to each other", "test_embedding_inference") 
+    | WHERE KNN(text_embedding_field, query_embedding)
+    | SORT _score DESC
+    | LIMIT 10)
+       (EVAL query_embedding = EMBEDDING("live long and prosper", "test_embedding_inference") 
+       | WHERE KNN(text_embedding_field, query_embedding)
+       | SORT _score DESC
+       | LIMIT 10)
+| SORT text_field DESC, _fork ASC
+| KEEP text_field, query_embedding, _fork, _score
+;
+
+text_field:text                                                       | query_embedding:dense_vector | _fork:keyword | _score:double
+live long and prosper                                                 | [45.0, 55.0, 54.0]           | fork1         | 0.02..0.3
+live long and prosper                                                 | [50.0, 57.0, 56.0]           | fork2         | 0.9..1.0
+be excellent to each other                                            | [45.0, 55.0, 54.0]           | fork1         | 0.9..1.0
+be excellent to each other                                            | [50.0, 57.0, 56.0]           | fork2         | 0.02..0.3
+all we have to decide is what to do with the time that is given to us | [45.0, 55.0, 54.0]           | fork1         | 0.02..0.03
+all we have to decide is what to do with the time that is given to us | [50.0, 57.0, 56.0]           | fork2         | 0.01..0.02
+;
+
+embedding with explicit text type option
+required_capability: embedding_function
+required_capability: dense_vector_field_type_released
+
+ROW input="Who is Victor Hugo?"
+| EVAL embedding = EMBEDDING("Who is Victor Hugo?", "test_embedding_inference", {"type": "text"})
+;
+
+input:keyword       | embedding:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;
+
+embedding with image type option
+required_capability: embedding_function
+required_capability: dense_vector_field_type_released
+
+// Base64 encoding of "This is an image" is "VGhpcyBpcyBhbiBpbWFnZQ==". Using image as type multiplies embeddings by -1
+// tag::embedding-image[]
+ROW b64_input="This is an image"
+| EVAL embedding = EMBEDDING("data:image/jpeg;base64,VGhpcyBpcyBhbiBpbWFnZQ==", "test_embedding_inference", {"type": "image"})
+// end::embedding-image[]
+;
+
+b64_input:keyword          | embedding:dense_vector
+This is an image           | [-45.0, -50.0, -56.0]
+;
+
+
+embedding with timeout option
+required_capability: embedding_function
+required_capability: dense_vector_field_type_released
+
+ROW input="Who is Victor Hugo?"
+| EVAL embedding = EMBEDDING("Who is Victor Hugo?", "test_embedding_inference", {"timeout": "30s"})
+;
+
+input:keyword       | embedding:dense_vector
+Who is Victor Hugo? | [56.0, 50.0, 48.0]
+;

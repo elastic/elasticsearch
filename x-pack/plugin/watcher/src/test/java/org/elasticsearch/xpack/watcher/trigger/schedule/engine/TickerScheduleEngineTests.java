@@ -33,9 +33,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.stream.Collectors.toSet;
+import static java.util.stream.IntStream.range;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.daily;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.weekly;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
@@ -103,6 +107,72 @@ public class TickerScheduleEngineTests extends ESTestCase {
             fail("waiting too long for all watches to be triggered");
         }
         assertThat(bits.cardinality(), is(count));
+    }
+
+    /**
+     * When a cluster state changes and watches are restarted, the engine should clean up any previous watches because they may change
+     * the node they are running on. When not cleaned up, they may start triggering on more nodes than they should.
+     */
+    public void testStartsShouldCleanUpPreviousWatches() {
+        final List<Watch> initialWatches = createRandomWatches(2);
+        engine.start(initialWatches);
+        assertThat(
+            "Assumed initial watches added",
+            engine.getSchedules().keySet(),
+            is(initialWatches.stream().map(Watch::id).collect(toSet()))
+        );
+
+        final List<Watch> newWatches = createRandomWatches(3);
+
+        engine.start(newWatches);
+        assertThat(
+            "Only new watches should be visible after engine restart",
+            engine.getSchedules().keySet(),
+            is(newWatches.stream().map(Watch::id).collect(toSet()))
+        );
+    }
+
+    /**
+     * When the .watches index is first created, the index creation triggers a reload while the document indexing runs concurrently.
+     * WatcherIndexingListener.postIndex() calls add() while the engine is paused. These watches must survive the subsequent start()
+     * call even if loadWatches() returns an empty set due to the race.
+     */
+    public void testWatchesAddedWhilePausedSurviveStart() {
+        engine.start(List.of());
+        engine.pauseExecution();
+
+        Watch watch = createWatch("concurrently_indexed", interval("1s"));
+        engine.add(watch);
+
+        // start() with empty list simulates loadWatches() finding nothing due to the race
+        engine.start(List.of());
+
+        assertThat("Watch added while paused should be present after start", engine.getSchedules(), hasKey("concurrently_indexed"));
+    }
+
+    /**
+     * Watches added while paused should not override watches loaded by start() if they share the same id.
+     * The loaded version is authoritative since it comes from the index.
+     */
+    public void testConcurrentlyAddedTakesPrecedenceOverLoadedWatch() {
+        final String watchName = "watch_name";
+        engine.start(List.of());
+        engine.pauseExecution();
+
+        Watch addedWatch = createWatch(watchName, interval("1s"));
+        engine.add(addedWatch);
+
+        Watch loadedWatch = createWatch(watchName, interval("5s"));
+        engine.start(List.of(loadedWatch));
+
+        var schedules = engine.getSchedules();
+        assertThat("Loaded watch should be present", schedules, hasKey(watchName));
+        assertThat(schedules, aMapWithSize(1));
+        assertThat(schedules.get(watchName).getSchedule(), is(interval("1s")));
+    }
+
+    private List<Watch> createRandomWatches(int watchesToCreate) {
+        return range(0, watchesToCreate).mapToObj(__ -> createWatch(randomAlphanumericOfLength(5), interval("1s"))).toList();
     }
 
     public void testAddHourly() throws Exception {

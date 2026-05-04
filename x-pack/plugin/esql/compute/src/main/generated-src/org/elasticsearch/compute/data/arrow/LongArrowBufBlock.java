@@ -18,7 +18,8 @@ import org.elasticsearch.core.Nullable;
 // end generated imports
 
 /**
- * Arrow buffer backed LongBlock.
+ * Implementation of LongBlock backed by an Arrow buffer holding 64 bits signed integers.
+ * <p>
  * This class is generated. Edit {@code X-ArrowBufBlock.java.st} instead.
  */
 public final class LongArrowBufBlock extends AbstractArrowBufBlock<LongVector, LongBlock> implements LongBlock {

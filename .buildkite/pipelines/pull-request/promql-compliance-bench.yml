@@ -1,6 +1,7 @@
 # This pipeline detects regressions in PromQL query coverage.
 
 config:
+  auto-retry: false
   allow-labels: ":StorageEngine/PromQL"
   trigger-phrase: '.*run\W+elasticsearch-ci/promql-compliance-bench.*'
 steps:

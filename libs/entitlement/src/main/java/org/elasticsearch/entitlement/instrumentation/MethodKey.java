@@ -12,10 +12,22 @@ package org.elasticsearch.entitlement.instrumentation;
 import java.util.List;
 
 /**
- * A structure to use as a key/lookup for a method target of instrumentation
+ * A structure to use as a key/lookup for a method target of instrumentation.
  *
- * @param className      the "internal name" of the class: includes the package info, but with periods replaced by slashes
- * @param methodName     the method name
- * @param parameterTypes a list of "internal names" for the parameter types that appear in the method's descriptor (not the receiver)
+ * @param className       the "internal name" of the class: includes the package info, but with periods replaced by slashes
+ * @param methodSignature the method signature (name and parameter types)
  */
-public record MethodKey(String className, String methodName, List<String> parameterTypes) {}
+public record MethodKey(String className, MethodSignature methodSignature) {
+
+    public MethodKey(String className, String methodName, List<String> parameterTypes) {
+        this(className, new MethodSignature(methodName, parameterTypes));
+    }
+
+    public String methodName() {
+        return methodSignature.methodName();
+    }
+
+    public List<String> parameterTypes() {
+        return methodSignature.parameterTypes();
+    }
+}

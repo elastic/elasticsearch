@@ -11,14 +11,18 @@ package org.elasticsearch.simdvec;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.internal.vectorization.BaseVectorizationTests;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.function.ToLongBiFunction;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
@@ -28,6 +32,48 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
     static final ESVectorizationProvider defaultedProvider = BaseVectorizationTests.defaultProvider();
     static final ESVectorizationProvider defOrPanamaProvider = BaseVectorizationTests.maybePanamaProvider();
+
+    public void testMaxSimDotProductFloatDefaultEqualsPanama() {
+        int dims = randomIntBetween(1, 512);
+        int numDocVectors = randomIntBetween(1, 256);
+        int numQueryVectors = randomIntBetween(1, 64);
+        float[][] docVectors = generateRandomFloatVectors(numDocVectors, dims);
+        float[][] queryVectors = generateRandomFloatVectors(numQueryVectors, dims);
+        MultiFloatVectorsSource source = new TestMultiFloatVectorsSource(docVectors, encodeFloatVectors(docVectors), dims);
+        float[] defaultScoresScratch = new float[numDocVectors];
+        float[] defOrPanamaScoresScratch = new float[numDocVectors];
+        float expected = defaultedProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defaultScoresScratch);
+        float actual = defOrPanamaProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defOrPanamaScoresScratch);
+        assertEquals(expected, actual, 1e-3f * dims * numQueryVectors);
+    }
+
+    public void testMaxSimDotProductBFloat16DefaultEqualsPanama() {
+        int dims = randomIntBetween(1, 512);
+        int numDocVectors = randomIntBetween(1, 256);
+        int numQueryVectors = randomIntBetween(1, 64);
+        float[][] docVectors = generateRandomBFloat16Vectors(numDocVectors, dims);
+        float[][] queryVectors = generateRandomFloatVectors(numQueryVectors, dims);
+        MultiBFloat16VectorsSource source = new TestMultiBFloat16VectorsSource(docVectors, encodeBFloat16Vectors(docVectors), dims);
+        float[] defaultScoresScratch = new float[numDocVectors];
+        float[] defOrPanamaScoresScratch = new float[numDocVectors];
+        float expected = defaultedProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defaultScoresScratch);
+        float actual = defOrPanamaProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defOrPanamaScoresScratch);
+        assertEquals(expected, actual, 1e-3f * dims * numQueryVectors);
+    }
+
+    public void testMaxSimDotProductByteDefaultEqualsPanama() {
+        int dims = randomIntBetween(1, 512);
+        int numDocVectors = randomIntBetween(1, 256);
+        int numQueryVectors = randomIntBetween(1, 64);
+        byte[][] docVectors = generateRandomByteVectors(numDocVectors, dims);
+        byte[][] queryVectors = generateRandomByteVectors(numQueryVectors, dims);
+        MultiByteVectorsSource source = new TestMultiByteVectorsSource(docVectors, encodeByteVectors(docVectors), dims);
+        float[] defaultScoresScratch = new float[numDocVectors];
+        float[] defOrPanamaScoresScratch = new float[numDocVectors];
+        float expected = defaultedProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defaultScoresScratch);
+        float actual = defOrPanamaProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defOrPanamaScoresScratch);
+        assertEquals(expected, actual, 1e-3f * dims * numQueryVectors);
+    }
 
     public void testIpByteBit() {
         byte[] d = new byte[random().nextInt(128)];
@@ -337,8 +383,8 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float[] v3 = generateRandomVector(vectorSize);
         float[] expectedDistances = new float[4];
         float[] panamaDistances = new float[4];
-        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, expectedDistances);
-        defOrPanamaProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, panamaDistances);
+        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, 0, expectedDistances);
+        defOrPanamaProvider.getVectorUtilSupport().squareDistanceBulk(query, v0, v1, v2, v3, 0, panamaDistances);
         assertArrayEquals(expectedDistances, panamaDistances, 1e-3f);
     }
 
@@ -364,8 +410,8 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float[] v3 = generateRandomVector(vectorSize);
         float[] expectedDistances = new float[4];
         float[] panamaDistances = new float[4];
-        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, expectedDistances);
-        defOrPanamaProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, panamaDistances);
+        defaultedProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, 0, expectedDistances);
+        defOrPanamaProvider.getVectorUtilSupport().squareDistanceBulk(query, offset, length, v0, v1, v2, v3, 0, panamaDistances);
         assertArrayEquals(expectedDistances, panamaDistances, 1e-3f * length);
     }
 
@@ -475,7 +521,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         for (int i = 0; i < dims; i++) {
             toPack[i] = randomInt(3);
         }
-        int length = ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
+        int length = ES940DiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
         ;
         byte[] packed = new byte[length];
         byte[] packedLegacy = new byte[length];
@@ -510,6 +556,176 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
             vector[i] = random().nextFloat();
         }
         return vector;
+    }
+
+    private float[][] generateRandomFloatVectors(int vectorCount, int dims) {
+        float[][] vectors = new float[vectorCount][dims];
+        for (int i = 0; i < vectorCount; i++) {
+            for (int j = 0; j < dims; j++) {
+                vectors[i][j] = randomFloat() * 2f - 1f;
+            }
+        }
+        return vectors;
+    }
+
+    private float[][] generateRandomBFloat16Vectors(int vectorCount, int dims) {
+        float[][] vectors = new float[vectorCount][dims];
+        for (int i = 0; i < vectorCount; i++) {
+            for (int j = 0; j < dims; j++) {
+                vectors[i][j] = BFloat16.truncateToBFloat16(randomFloat() * 2f - 1f);
+            }
+        }
+        return vectors;
+    }
+
+    private byte[][] generateRandomByteVectors(int vectorCount, int dims) {
+        byte[][] vectors = new byte[vectorCount][dims];
+        for (int i = 0; i < vectorCount; i++) {
+            vectors[i] = randomByteArrayOfLength(dims);
+        }
+        return vectors;
+    }
+
+    private static BytesRef encodeFloatVectors(float[][] vectors) {
+        int dims = vectors[0].length;
+        ByteBuffer buffer = ByteBuffer.allocate(vectors.length * dims * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        var floatBuffer = buffer.asFloatBuffer();
+        for (float[] vector : vectors) {
+            floatBuffer.put(vector);
+        }
+        return new BytesRef(buffer.array());
+    }
+
+    private static BytesRef encodeByteVectors(byte[][] vectors) {
+        int dims = vectors[0].length;
+        byte[] bytes = new byte[vectors.length * dims];
+        int offset = 0;
+        for (byte[] vector : vectors) {
+            System.arraycopy(vector, 0, bytes, offset, dims);
+            offset += dims;
+        }
+        return new BytesRef(bytes);
+    }
+
+    private static BytesRef encodeBFloat16Vectors(float[][] vectors) {
+        int dims = vectors[0].length;
+        ByteBuffer buffer = ByteBuffer.allocate(vectors.length * dims * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        var bFloat16Buffer = buffer.asShortBuffer();
+        for (float[] vector : vectors) {
+            BFloat16.floatToBFloat16(vector, bFloat16Buffer);
+        }
+        return new BytesRef(buffer.array());
+    }
+
+    private static class TestMultiFloatVectorsSource implements MultiFloatVectorsSource {
+        private final float[][] vectors;
+        private final BytesRef vectorBytes;
+        private final int dims;
+
+        TestMultiFloatVectorsSource(float[][] vectors, BytesRef vectorBytes, int dims) {
+            this.vectors = vectors;
+            this.vectorBytes = vectorBytes;
+            this.dims = dims;
+        }
+
+        @Override
+        public BytesRef vectorBytes() {
+            return vectorBytes;
+        }
+
+        @Override
+        public int vectorCount() {
+            return vectors.length;
+        }
+
+        @Override
+        public int vectorDims() {
+            return dims;
+        }
+
+        @Override
+        public int vectorByteSize() {
+            return dims * Float.BYTES;
+        }
+
+        @Override
+        public Iterator<float[]> vectorValues() {
+            return Arrays.asList(vectors).iterator();
+        }
+    }
+
+    private static class TestMultiBFloat16VectorsSource implements MultiBFloat16VectorsSource {
+        private final float[][] vectors;
+        private final BytesRef vectorBytes;
+        private final int dims;
+
+        TestMultiBFloat16VectorsSource(float[][] vectors, BytesRef vectorBytes, int dims) {
+            this.vectors = vectors;
+            this.vectorBytes = vectorBytes;
+            this.dims = dims;
+        }
+
+        @Override
+        public BytesRef vectorBytes() {
+            return vectorBytes;
+        }
+
+        @Override
+        public int vectorCount() {
+            return vectors.length;
+        }
+
+        @Override
+        public int vectorDims() {
+            return dims;
+        }
+
+        @Override
+        public int vectorByteSize() {
+            return dims * BFloat16.BYTES;
+        }
+
+        @Override
+        public Iterator<float[]> vectorValues() {
+            return Arrays.asList(vectors).iterator();
+        }
+    }
+
+    private static class TestMultiByteVectorsSource implements MultiByteVectorsSource {
+        private final byte[][] vectors;
+        private final BytesRef vectorBytes;
+        private final int dims;
+
+        TestMultiByteVectorsSource(byte[][] vectors, BytesRef vectorBytes, int dims) {
+            this.vectors = vectors;
+            this.vectorBytes = vectorBytes;
+            this.dims = dims;
+        }
+
+        @Override
+        public BytesRef vectorBytes() {
+            return vectorBytes;
+        }
+
+        @Override
+        public int vectorCount() {
+            return vectors.length;
+        }
+
+        @Override
+        public int vectorDims() {
+            return dims;
+        }
+
+        @Override
+        public int vectorByteSize() {
+            return dims;
+        }
+
+        @Override
+        public Iterator<byte[]> vectorValues() {
+            return Arrays.asList(vectors).iterator();
+        }
     }
 
     void testIpByteBinImpl(ToLongBiFunction<byte[], byte[]> ipByteBinFunc) {
@@ -817,4 +1033,70 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
     }
 
+    public void testLogSumExpNQT() {
+        // Choosing 19 dimensions so that it is a rugged number that does not align with any SIMD length
+        float[] x = new float[19];
+        for (int i = 0; i < x.length; i++) {
+            x[i] = randomFloat();
+        }
+
+        float referenceResult = defaultedProvider.getVectorUtilSupport().logSumExpNQT(x);
+        assertEquals(referenceResult, defOrPanamaProvider.getVectorUtilSupport().logSumExpNQT(x), 1e-2 * referenceResult);
+    }
+
+    public void testLinearCombination() {
+        float[] x = new float[19];
+        float[] y1 = new float[19];
+
+        for (int i = 0; i < x.length; i++) {
+            x[i] = randomFloat();
+            y1[i] = randomFloat();
+        }
+        float[] y2 = new float[19];
+        System.arraycopy(y1, 0, y2, 0, 19);
+
+        float scaleX = randomFloat();
+        float scaleY = randomFloat();
+
+        defaultedProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y1);
+        defOrPanamaProvider.getVectorUtilSupport().linearCombination(scaleX, x, scaleY, y2);
+
+        assertArrayEquals(y1, y2, 1e-5f);
+    }
+
+    public void testLogSumExpDiff() {
+        // Choosing 19 dimensions so that it is a rugged number that does not align with any SIMD length
+        float[] x = new float[19];
+        float[] y = new float[19];
+        for (int i = 0; i < x.length; i++) {
+            x[i] = randomFloat();
+            y[i] = randomFloat();
+        }
+
+        float eps = randomFloat();
+
+        float referenceResult = defaultedProvider.getVectorUtilSupport().logSumExpNQTDiff(x, y, eps);
+        assertEquals(referenceResult, defOrPanamaProvider.getVectorUtilSupport().logSumExpNQTDiff(x, y, eps), 3.5e-2 * referenceResult);
+    }
+
+    public void testPow2DiffAndScale() {
+        // Choosing 19 dimensions so that it is a rugged number that does not align with any SIMD length
+        float[] x = new float[19];
+        float[] y = new float[19];
+        for (int i = 0; i < x.length; i++) {
+            x[i] = randomFloat();
+            y[i] = randomFloat();
+        }
+
+        float a = randomFloat();
+        float eps = randomFloat();
+
+        float[] result1 = new float[19];
+        float[] result2 = new float[19];
+
+        defaultedProvider.getVectorUtilSupport().pow2DiffAndScaleNQT(x, y, a, eps, result1);
+        defOrPanamaProvider.getVectorUtilSupport().pow2DiffAndScaleNQT(x, y, a, eps, result2);
+
+        assertArrayEqualsPercent(result1, result2, 0.15f);
+    }
 }

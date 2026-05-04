@@ -35,6 +35,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.persistent.PersistentTaskLifecycleManager;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
@@ -217,6 +218,11 @@ public abstract class Plugin implements Closeable {
 
         /** A service to determine whether Cross-Project Search applies to a request */
         CrossProjectModeDecider crossProjectModeDecider();
+
+        /// Manages the lifecycle of persistent tasks controlled by a [Setting].
+        /// Plugins can register cluster-scoped or project-scoped tasks here so that the master node automatically
+        /// reconciles the task's presence in the cluster state on every cluster state update.
+        PersistentTaskLifecycleManager taskLifecycleManager();
 
         /** A utility for recording lifecycle errors for data stream lifecycles */
         DataStreamLifecycleErrorStore dlmErrorStore();

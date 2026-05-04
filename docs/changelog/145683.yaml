@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 145683
+summary: AVX-512 int8 kernels with cascade unrolling
+type: enhancement

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -65,6 +66,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 public class Knn extends SingleFieldFullTextFunction implements OptionalArgument, VectorFunction, PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class).ternary(Knn::new).name("knn");
 
     // Implicit k is not serialized as it's already included in the query builder on the rewrite step before being sent to data nodes
     private final transient Integer implicitK;

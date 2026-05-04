@@ -179,4 +179,10 @@ public interface VectorSimilarityFunctions {
     MethodHandle applyCorrectionsMaxInnerProductBulk();
 
     MethodHandle applyCorrectionsDotProductBulk();
+
+    MethodHandle bbqApplyCorrectionsEuclideanBulk();
+
+    MethodHandle bbqApplyCorrectionsMaxInnerProductBulk();
+
+    MethodHandle bbqApplyCorrectionsDotProductBulk();
 }

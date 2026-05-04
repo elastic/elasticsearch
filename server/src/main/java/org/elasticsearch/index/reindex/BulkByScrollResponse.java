@@ -11,6 +11,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -39,6 +40,8 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     private boolean timedOut;
     @Nullable
     private final ResumeInfo resumeInfo; // only used on the local node so not serialized in transport
+    @Nullable
+    private final BytesReference pitId; // only used on the local node for PIT close, not serialized in transport
 
     static final String TOOK_FIELD = "took";
     static final String TIMED_OUT_FIELD = "timed_out";
@@ -51,6 +54,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         searchFailures = in.readCollectionAsList(PaginatedSearchFailure::new);
         timedOut = in.readBoolean();
         resumeInfo = null;
+        pitId = null;
     }
 
     public BulkByScrollResponse(
@@ -71,15 +75,33 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         boolean timedOut,
         @Nullable ResumeInfo resumeInfo
     ) {
+        this(took, status, bulkFailures, searchFailures, timedOut, resumeInfo, null);
+    }
+
+    public BulkByScrollResponse(
+        TimeValue took,
+        BulkByScrollTask.Status status,
+        List<Failure> bulkFailures,
+        List<PaginatedSearchFailure> searchFailures,
+        boolean timedOut,
+        @Nullable ResumeInfo resumeInfo,
+        @Nullable BytesReference pitId
+    ) {
         this.took = took;
         this.status = requireNonNull(status, "Null status not supported");
         this.bulkFailures = bulkFailures;
         this.searchFailures = searchFailures;
         this.timedOut = timedOut;
         this.resumeInfo = resumeInfo;
+        this.pitId = pitId;
     }
 
-    public BulkByScrollResponse(Iterable<BulkByScrollResponse> toMerge, @Nullable String reasonCancelled) {
+    public BulkByScrollResponse(
+        Iterable<BulkByScrollResponse> toMerge,
+        @Nullable String reasonCancelled,
+        @Nullable BytesReference pitId,
+        float requestsPerSecond
+    ) {
         long mergedTook = 0;
         List<BulkByScrollTask.StatusOrException> statuses = new ArrayList<>();
         bulkFailures = new ArrayList<>();
@@ -92,8 +114,9 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
             timedOut |= response.isTimedOut();
         }
         took = timeValueMillis(mergedTook);
-        status = new BulkByScrollTask.Status(statuses, reasonCancelled);
+        status = new BulkByScrollTask.Status(statuses, reasonCancelled, requestsPerSecond);
         resumeInfo = null;
+        this.pitId = pitId;
     }
 
     public TimeValue getTook() {
@@ -180,6 +203,14 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
      * */
     public Optional<ResumeInfo> getTaskResumeInfo() {
         return Optional.ofNullable(resumeInfo);
+    }
+
+    /**
+     * The latest PIT ID from search responses. Used when closing the PIT to ensure we close the most recent context.
+     * Only present for PIT-based operations; not serialized in transport.
+     */
+    public Optional<BytesReference> getPitId() {
+        return Optional.ofNullable(pitId);
     }
 
     @Override

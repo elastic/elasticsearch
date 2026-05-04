@@ -24,6 +24,7 @@ public class ReindexMetrics {
 
     public static final String REINDEX_TIME_HISTOGRAM = "es.reindex.duration.histogram";
     public static final String REINDEX_COMPLETION_COUNTER = "es.reindex.completion.total";
+    public static final String REINDEX_RELOCATION_COUNTER = "es.reindex.relocation.total";
 
     // refers to https://opentelemetry.io/docs/specs/semconv/registry/attributes/error/#error-type
     public static final String ATTRIBUTE_NAME_ERROR_TYPE = "error_type";
@@ -36,12 +37,18 @@ public class ReindexMetrics {
 
     private final LongHistogram reindexTimeSecsHistogram;
     private final LongCounter reindexCompletionCounter;
+    private final LongCounter reindexRelocationCounter;
 
     public ReindexMetrics(MeterRegistry meterRegistry) {
         this.reindexTimeSecsHistogram = meterRegistry.registerLongHistogram(REINDEX_TIME_HISTOGRAM, "Time to reindex by search", "seconds");
         this.reindexCompletionCounter = meterRegistry.registerLongCounter(
             REINDEX_COMPLETION_COUNTER,
             "Number of completed reindex operations",
+            "unit"
+        );
+        this.reindexRelocationCounter = meterRegistry.registerLongCounter(
+            REINDEX_RELOCATION_COUNTER,
+            "Number of attempted reindex relocations",
             "unit"
         );
     }
@@ -77,6 +84,17 @@ public class ReindexMetrics {
         assert attributes.get(ATTRIBUTE_NAME_ERROR_TYPE) != null : "error.type attribute must be present for failures";
 
         reindexCompletionCounter.incrementBy(1, attributes);
+    }
+
+    public void recordRelocationSuccess() {
+        // attribute ATTRIBUTE_ERROR_TYPE being absent indicates success
+        reindexRelocationCounter.incrementBy(1);
+    }
+
+    public void recordRelocationFailure(final Throwable e) {
+        // attribute ATTRIBUTE_ERROR_TYPE being present indicates failure
+        final Map<String, Object> attributes = Map.of(ATTRIBUTE_NAME_ERROR_TYPE, e.getClass().getTypeName());
+        reindexRelocationCounter.incrementBy(1, attributes);
     }
 
     public enum SlicingMode {

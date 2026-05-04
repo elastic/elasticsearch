@@ -46,7 +46,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -298,7 +297,6 @@ public abstract class TransportWriteAction<
         public final IndexShard primary;
         private final Logger logger;
         private final PostWriteRefresh postWriteRefresh;
-        private final Consumer<Runnable> postWriteAction;
 
         public WritePrimaryResult(
             ReplicaRequest request,
@@ -308,24 +306,11 @@ public abstract class TransportWriteAction<
             Logger logger,
             PostWriteRefresh postWriteRefresh
         ) {
-            this(request, finalResponse, location, primary, logger, postWriteRefresh, null);
-        }
-
-        public WritePrimaryResult(
-            ReplicaRequest request,
-            @Nullable Response finalResponse,
-            @Nullable Location location,
-            IndexShard primary,
-            Logger logger,
-            PostWriteRefresh postWriteRefresh,
-            @Nullable Consumer<Runnable> postWriteAction
-        ) {
             super(request, finalResponse);
             this.location = location;
             this.primary = primary;
             this.logger = logger;
             this.postWriteRefresh = postWriteRefresh;
-            this.postWriteAction = postWriteAction;
         }
 
         @Override
@@ -345,7 +330,7 @@ public abstract class TransportWriteAction<
                 public void onFailure(Exception ex) {
                     listener.onFailure(ex);
                 }
-            }, logger, postWriteRefresh, postWriteAction).run();
+            }, logger, postWriteRefresh).run();
         }
     }
 
@@ -357,7 +342,6 @@ public abstract class TransportWriteAction<
         private final ReplicaRequest request;
         private final IndexShard replica;
         private final Logger logger;
-        private final Consumer<Runnable> postWriteAction;
 
         public WriteReplicaResult(
             ReplicaRequest request,
@@ -366,23 +350,11 @@ public abstract class TransportWriteAction<
             IndexShard replica,
             Logger logger
         ) {
-            this(request, location, operationFailure, replica, logger, null);
-        }
-
-        public WriteReplicaResult(
-            ReplicaRequest request,
-            @Nullable Location location,
-            @Nullable Exception operationFailure,
-            IndexShard replica,
-            Logger logger,
-            Consumer<Runnable> postWriteAction
-        ) {
             super(operationFailure);
             this.location = location;
             this.request = request;
             this.replica = replica;
             this.logger = logger;
-            this.postWriteAction = postWriteAction;
         }
 
         @Override
@@ -400,7 +372,7 @@ public abstract class TransportWriteAction<
                     public void onFailure(Exception ex) {
                         listener.onFailure(ex);
                     }
-                }, logger, null, postWriteAction).run();
+                }, logger, null).run();
             }
         }
     }
@@ -451,7 +423,6 @@ public abstract class TransportWriteAction<
         private final WriteRequest<?> request;
         private final Logger logger;
         private final PostWriteRefresh postWriteRefresh;
-        private final Consumer<Runnable> postWriteAction;
         private final TimeValue postWriteRefreshTimeout;
 
         AsyncAfterWriteAction(
@@ -460,8 +431,7 @@ public abstract class TransportWriteAction<
             @Nullable final Translog.Location location,
             final RespondingWriteResult respond,
             final Logger logger,
-            @Nullable final PostWriteRefresh postWriteRefresh,
-            @Nullable final Consumer<Runnable> postWriteAction
+            @Nullable final PostWriteRefresh postWriteRefresh
         ) {
             this.indexShard = indexShard;
             this.request = request;
@@ -469,14 +439,10 @@ public abstract class TransportWriteAction<
             this.respond = respond;
             this.location = location;
             this.postWriteRefresh = postWriteRefresh;
-            this.postWriteAction = postWriteAction;
             if (needsRefreshAction) {
                 pendingOps.incrementAndGet();
             }
             if ((sync = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null)) {
-                pendingOps.incrementAndGet();
-            }
-            if (postWriteAction != null) {
                 pendingOps.incrementAndGet();
             }
             this.logger = logger;
@@ -549,9 +515,6 @@ public abstract class TransportWriteAction<
                     syncFailure.set(e);
                     maybeFinish();
                 });
-            }
-            if (postWriteAction != null) {
-                postWriteAction.accept(this::maybeFinish);
             }
         }
     }

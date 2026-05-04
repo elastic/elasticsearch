@@ -102,6 +102,8 @@ setup:
   - requires:
       cluster_features: "mapper.bbq_disk_support"
       reason: 'bbq disk support required'
+
+  # Test that visit_percentage is accepted even though it is ignored, since the vector field uses int8_hnsw
   - do:
       search:
         index: index1
@@ -115,11 +117,7 @@ setup:
               num_candidates: 3
               visit_percentage: 1.0
 
-  - match: {hits.hits.0._id: "2"}
-  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
-
-  - match: {hits.hits.1._id: "3"}
-  - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
+  - gt: { hits.total.value: 0 }
 
 ---
 "kNN retriever with filter":

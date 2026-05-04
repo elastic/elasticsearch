@@ -33,6 +33,11 @@ public final class ES819TSDBDocValuesFormatFactory {
         false,
         false
     );
+    static final DocValuesFormat ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_AND_BINARY_BLOCK = new ES819Version3TSDBDocValuesFormat(
+        true,
+        true,
+        false
+    );
 
     static final DocValuesFormat ES_819_4_TSDB_DOC_VALUES_FORMAT = new ES819Version3TSDBDocValuesFormat(false, false, true);
     static final DocValuesFormat ES_819_4_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK = new ES819Version3TSDBDocValuesFormat(
@@ -43,6 +48,11 @@ public final class ES819TSDBDocValuesFormatFactory {
     static final DocValuesFormat ES_819_4_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK = new ES819Version3TSDBDocValuesFormat(
         true,
         false,
+        true
+    );
+    static final DocValuesFormat ES_819_4_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_AND_BINARY_BLOCK = new ES819Version3TSDBDocValuesFormat(
+        true,
+        true,
         true
     );
 
@@ -66,14 +76,16 @@ public final class ES819TSDBDocValuesFormatFactory {
         boolean writePrefixPartitions
     ) {
         if (writePrefixPartitions) {
-            if (useLargeBinaryBlockSize) {
+            if (useLargeNumericBlockSize && useLargeBinaryBlockSize) {
+                return ES_819_4_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_AND_BINARY_BLOCK;
+            } else if (useLargeBinaryBlockSize) {
                 return ES_819_4_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK;
             }
             return useLargeNumericBlockSize ? ES_819_4_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK : ES_819_4_TSDB_DOC_VALUES_FORMAT;
         } else if (indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3)) {
-            if (useLargeBinaryBlockSize) {
-                // At this stage, we don't need large numeric blocks if large binary block is requested:
-                assert useLargeNumericBlockSize == false;
+            if (useLargeNumericBlockSize && useLargeBinaryBlockSize) {
+                return ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_AND_BINARY_BLOCK;
+            } else if (useLargeBinaryBlockSize) {
                 return ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK;
             }
             return useLargeNumericBlockSize ? ES_819_3_TSDB_DOC_VALUES_FORMAT_LARGE_NUMERIC_BLOCK : ES_819_3_TSDB_DOC_VALUES_FORMAT;

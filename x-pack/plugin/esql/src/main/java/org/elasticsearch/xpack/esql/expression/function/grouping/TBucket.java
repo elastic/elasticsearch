@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -40,6 +40,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.expression.function.grouping.Bucket.isStringOrDate;
 
 /**
  * Splits dates into buckets based on the {@code @timestamp} field.
@@ -67,6 +68,10 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
     private final Expression from;
     @Nullable
     private final Expression to;
+
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(TBucket.class)
+        .quaternaryConfig(TBucket::new)
+        .name("tbucket");
 
     @FunctionInfo(
         returnType = { "date", "date_nanos" },
@@ -241,10 +246,6 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
             return new TypeResolution("[from] and [to] in [" + sourceText() + "] must both be provided or both omitted");
         }
         return resolution;
-    }
-
-    private static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return isType(e, exp -> DataType.isString(exp) || DataType.isDateTime(exp), operationName, paramOrd, "datetime", "string");
     }
 
     @Override

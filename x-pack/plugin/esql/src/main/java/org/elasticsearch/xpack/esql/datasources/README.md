@@ -336,14 +336,11 @@ x-pack/plugin/
 │       ├── GcsDataSourcePlugin.java
 │       └── GcsStorageProvider.java
 │
-<<<<<<< HEAD
 ├── esql-datasource-azure/             # Azure Blob Storage plugin
 │   └── src/main/java/.../azure/
 │       ├── AzureDataSourcePlugin.java
 │       └── AzureStorageProvider.java
 │
-=======
->>>>>>> upstream/main
 └── esql-datasource-iceberg/           # Iceberg table catalog plugin
     ├── build.gradle                   # Iceberg, Arrow, AWS SDK dependencies
     └── src/main/java/.../iceberg/
@@ -381,11 +378,7 @@ Run tests:
 
 ## Future Enhancements
 
-<<<<<<< HEAD
 1. **Additional Storage Providers** - HDFS
-=======
-1. **Additional Storage Providers** - HDFS, Azure Blob
->>>>>>> upstream/main
 2. **Additional Format Readers** - ORC, Avro, JSON Lines
 3. **Additional Table Catalogs** - Delta Lake, Apache Hudi
 4. **Performance Optimizations** - File splitting, parallel reads, caching

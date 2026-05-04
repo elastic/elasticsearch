@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
@@ -158,14 +159,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             }
         }
 
-        final var routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            routingNodes,
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            0L
-        );
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).routingNodes(routingNodes).mutable();
 
         for (ShardRouting shardRouting : routingAllocation.routingNodes().unassigned()) {
             assertTrue(shardRouting.toString(), shardRouting.unassigned());
@@ -1666,14 +1660,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     }
 
     private static RoutingAllocation createRoutingAllocationFrom(ClusterState clusterState, AllocationDecider... deciders) {
-        return new RoutingAllocation(
-            new AllocationDeciders(List.of(deciders)),
-            clusterState.mutableRoutingNodes(),
-            clusterState,
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            0L
-        );
+        return TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(deciders).mutable();
     }
 
     private static AllocationService createTestAllocationService(

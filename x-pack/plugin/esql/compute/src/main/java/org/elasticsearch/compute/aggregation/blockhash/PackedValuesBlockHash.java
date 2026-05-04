@@ -265,7 +265,7 @@ final class PackedValuesBlockHash extends BlockHash {
                         ords.appendInt(Math.toIntExact(found));
                         count++;
                         if (count > Block.MAX_LOOKUP) {
-                            // TODO replace this with a warning and break
+                            // TODO replace this with a warning and break and remove the accepted error from GenerativeRestTest
                             throw new IllegalArgumentException("Found a single entry with " + count + " entries");
                         }
                     }

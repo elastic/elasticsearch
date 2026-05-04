@@ -43,7 +43,7 @@ import java.util.Locale;
  */
 public class CsvSchemaInferrer {
 
-    static final int DEFAULT_SAMPLE_SIZE = 100;
+    static final int DEFAULT_SAMPLE_SIZE = 20_000;
 
     private static final DataType[] TYPE_CANDIDATES = {
         DataType.BOOLEAN,

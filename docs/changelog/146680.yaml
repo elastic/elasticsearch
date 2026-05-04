@@ -1,0 +1,5 @@
+area: Codec
+issues: []
+pr: 146680
+summary: '`ZstdDecompressor:` fall back to copy path on `AlreadyClosedException`'
+type: bug

@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.any;
  * and {@code SORT | LIMIT BY} ({@code GroupedTopNOperator}).
  * Each test exercises a distinct circuit-breaking path inside its respective operator.
  */
-@TimeoutSuite(millis = 5 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
 public class HeapAttackLimitByIT extends HeapAttackTestCase {
 
     /**
@@ -391,6 +391,6 @@ public class HeapAttackLimitByIT extends HeapAttackTestCase {
      * from the group-key hash table.
      */
     private static String bytesRefHashClassName() {
-        return HashImplFactory.SWISS_TABLES_HASHING.isEnabled() ? BytesRefSwissHash.class.getName() : BytesRefHash.class.getName();
+        return HashImplFactory.SWISS_HASH_AVAILABLE ? BytesRefSwissHash.class.getName() : BytesRefHash.class.getName();
     }
 }

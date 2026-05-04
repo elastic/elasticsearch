@@ -73,11 +73,35 @@ public final class SpatialCentroidShapeCombinedDocValuesAggregatorFunction imple
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     DoubleBlock valuesBlock = page.getBlock(channels.get(0));
+    if (valuesBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
     addRawBlock(valuesBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
     DoubleBlock valuesBlock = page.getBlock(channels.get(0));
+    if (valuesBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
+      return;
+    }
     addRawBlock(valuesBlock);
   }
 
@@ -102,36 +126,90 @@ public final class SpatialCentroidShapeCombinedDocValuesAggregatorFunction imple
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
     Block xValUncast = page.getBlock(channels.get(0));
     if (xValUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     DoubleVector xVal = ((DoubleBlock) xValUncast).asVector();
     assert xVal.getPositionCount() == 1;
     Block xDelUncast = page.getBlock(channels.get(1));
     if (xDelUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     DoubleVector xDel = ((DoubleBlock) xDelUncast).asVector();
     assert xDel.getPositionCount() == 1;
     Block yValUncast = page.getBlock(channels.get(2));
     if (yValUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     DoubleVector yVal = ((DoubleBlock) yValUncast).asVector();
     assert yVal.getPositionCount() == 1;
     Block yDelUncast = page.getBlock(channels.get(3));
     if (yDelUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     DoubleVector yDel = ((DoubleBlock) yDelUncast).asVector();
     assert yDel.getPositionCount() == 1;
     Block weightUncast = page.getBlock(channels.get(4));
     if (weightUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     DoubleVector weight = ((DoubleBlock) weightUncast).asVector();
     assert weight.getPositionCount() == 1;
     Block shapeTypeUncast = page.getBlock(channels.get(5));
     if (shapeTypeUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     IntVector shapeType = ((IntBlock) shapeTypeUncast).asVector();

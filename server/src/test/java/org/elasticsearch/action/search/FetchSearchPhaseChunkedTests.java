@@ -84,7 +84,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
     /**
      * Test that chunked fetch is used when all conditions are met:
      * - fetchPhaseChunked is true
-     * - data node supports CHUNKED_FETCH_PHASE
+     * - data node supports CHUNKED_FETCH_DOC_ID_ORDER
      * - not a CCS query (no cluster alias)
      * - not a scroll or reindex query
      */
@@ -657,7 +657,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
         MockTransportService transportService = MockTransportService.createNewService(
             Settings.EMPTY,
             VersionInformation.CURRENT,
-            TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE,
+            TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_DOC_ID_ORDER,
             threadPool
         );
 
@@ -701,7 +701,7 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
 
             Transport.Connection delegateConnection = transportService.getConnection(transportService.getLocalNode());
             TransportVersion unsupportedVersion = TransportVersion.fromId(
-                TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE.id() - 1
+                TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_DOC_ID_ORDER.id() - 1
             );
             Transport.Connection oldVersionConnection = withTransportVersion(delegateConnection, unsupportedVersion);
 

@@ -568,8 +568,12 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 createdByAnalyticsCount++;
             }
             estimatedOperations.add(trainedModelConfig.getEstimatedOperations());
-            if (statsToModelId.containsKey(trainedModelConfig.getModelId())) {
-                estimatedMemoryUsageBytes.add(statsToModelId.get(trainedModelConfig.getModelId()).getModelSizeStats().getModelSizeBytes());
+            var modelStats = statsToModelId.get(trainedModelConfig.getModelId());
+            if (modelStats != null) {
+                var modelSizeStats = modelStats.getModelSizeStats();
+                if (modelSizeStats != null) {
+                    estimatedMemoryUsageBytes.add(modelSizeStats.getModelSizeBytes());
+                }
             }
         }
 

@@ -28,6 +28,7 @@ module org.elasticsearch.xcore {
     requires org.slf4j;
     requires com.ibm.icu;
     requires org.elasticsearch.exponentialhistogram;
+    requires org.elasticsearch.logging;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;
@@ -82,6 +83,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ilm.step.info;
     exports org.elasticsearch.xpack.core.ilm;
     exports org.elasticsearch.xpack.core.indexing;
+    exports org.elasticsearch.xpack.core.crypto;
     exports org.elasticsearch.xpack.core.inference.action;
     exports org.elasticsearch.xpack.core.inference.results;
     exports org.elasticsearch.xpack.core.inference.usage;

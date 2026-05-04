@@ -9,9 +9,14 @@
 
 package org.elasticsearch.action.explain;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.RetryableSplitAwareRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +34,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Explain request encapsulating the explain query and document identifier to get an explanation for.
  */
-public class ExplainRequest extends SingleShardRequest<ExplainRequest> implements ToXContentObject {
+public class ExplainRequest extends SingleShardRequest<ExplainRequest> implements ToXContentObject, RetryableSplitAwareRequest {
+    private static final TransportVersion SPLIT_SHARD_COUNT_SUMMARY = TransportVersion.fromName("explain_split_shard_count_summary");
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
 
@@ -43,6 +49,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     private AliasFilter filteringAlias = AliasFilter.EMPTY;
 
     long nowInMillis;
+    private SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.UNSET;
 
     public ExplainRequest() {}
 
@@ -61,6 +68,9 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
         storedFields = in.readOptionalStringArray();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         nowInMillis = in.readVLong();
+        if (in.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            this.splitShardCountSummary = new SplitShardCountSummary(in);
+        }
     }
 
     public String id() {
@@ -140,6 +150,17 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
         return this;
     }
 
+    public SplitShardCountSummary getSplitShardCountSummary() {
+        return splitShardCountSummary;
+    }
+
+    public void setSplitShardCountSummary(ProjectMetadata projectMetadata, String index) {
+        final var indexMetadata = projectMetadata.index(index);
+        final var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        final var shardId = indexRouting.getShard(id(), routing());
+        this.splitShardCountSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validateNonNullIndex();
@@ -163,6 +184,9 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
         out.writeOptionalStringArray(storedFields);
         out.writeOptionalWriteable(fetchSourceContext);
         out.writeVLong(nowInMillis);
+        if (out.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            splitShardCountSummary.writeTo(out);
+        }
     }
 
     @Override

@@ -29,8 +29,10 @@ import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
@@ -94,10 +96,16 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     // SearchHits from top_hits aggs to release when this response is released.
     private final List<SearchHits> topHitsToRelease;
 
+    /**
+     * Completion suggestion option hits to release when this response is released (1 ref per hit).
+     * Never null; empty when there are no such hits to release.
+     */
+    private final List<SearchHit> completionOptionHitsToRelease;
+
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
     public SearchResponse(StreamInput in) throws IOException {
-        this.hits = SearchHits.readFrom(in, true);
+        this.hits = SearchHits.readFrom(in);
         if (in.readBoolean()) {
             // deserialize the aggregations trying to deduplicate the object created
             // TODO: use DelayableWriteable instead.
@@ -110,6 +118,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.topHitsToRelease = List.of();
         }
         this.suggest = in.readBoolean() ? new Suggest(in) : null;
+        this.completionOptionHitsToRelease = this.suggest != null
+            ? Objects.requireNonNullElse(this.suggest.collectCompletionOptionHits(false), List.of())
+            : List.of();
         this.timedOut = in.readBoolean();
         this.terminatedEarly = in.readOptionalBoolean();
         this.profileResults = in.readOptionalWriteable(SearchProfileResults::new);
@@ -164,6 +175,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             shardFailures,
             clusters,
             null,
+            null,
             null
         );
     }
@@ -177,7 +189,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         long tookInMillis,
         ShardSearchFailure[] shardFailures,
         Clusters clusters,
-        BytesReference pointInTimeId
+        BytesReference pointInTimeId,
+        SearchSourceBuilder source,
+        String[] indices
     ) {
         this(
             searchResponseSections.hits,
@@ -195,9 +209,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             shardFailures,
             clusters,
             pointInTimeId,
-            searchResponseSections.transferTopHitsToRelease()
+            searchResponseSections.transferTopHitsToRelease(),
+            searchResponseSections.transferCompletionOptionHitsToRelease()
         );
         this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
+        if (this.profileResults != null) {
+            this.profileResults.setOriginalSource(source);
+            this.profileResults.setRequestIndices(indices);
+        }
     }
 
     public SearchResponse(
@@ -216,7 +235,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         ShardSearchFailure[] shardFailures,
         Clusters clusters,
         BytesReference pointInTimeId,
-        @Nullable List<SearchHits> topHitsToRelease
+        @Nullable List<SearchHits> topHitsToRelease,
+        @Nullable List<SearchHit> completionOptionHitsToRelease
     ) {
         this.hits = hits;
         hits.incRef();
@@ -229,6 +249,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             this.topHitsToRelease = List.of();
         }
         this.suggest = suggest;
+        this.completionOptionHitsToRelease = Objects.requireNonNullElse(
+            completionOptionHitsToRelease != null
+                ? completionOptionHitsToRelease
+                : (suggest != null ? suggest.collectCompletionOptionHits(true) : null),
+            List.of()
+        );
         this.profileResults = profileResults;
         this.timedOut = timedOut;
         this.terminatedEarly = terminatedEarly;
@@ -270,6 +296,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         if (refCounted.decRef()) {
             for (SearchHits h : topHitsToRelease) {
                 h.decRef();
+            }
+            for (SearchHit hit : completionOptionHitsToRelease) {
+                hit.decRef();
             }
             hits.decRef();
             return true;
@@ -397,16 +426,28 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     /**
      * If profiling was enabled, this returns an object containing the profile results from
-     * each shard.  If profiling was not enabled, this will return null
+     * each shard.  If profiling was not enabled, this will return an empty map.
      *
      * @return The profile results or an empty map
      */
     @Nullable
-    public Map<String, SearchProfileShardResult> getProfileResults() {
+    public Map<String, SearchProfileShardResult> getSearchProfileShardResults() {
         if (profileResults == null) {
             return Collections.emptyMap();
         }
         return profileResults.getShardResults();
+    }
+
+    /**
+     * The {@link SearchProfileResults} backing this response, including coordinator request metadata when attached
+     * ({@link SearchProfileResults#getOriginalSource()} / {@link SearchProfileResults#getRequestIndices()}).
+     * {@code null} when profiling did not produce a profile object.
+     * <p>
+     * For per-shard timings only, {@link #getSearchProfileShardResults()} returns the shard map (empty when profiling was off).
+     */
+    @Nullable
+    public SearchProfileResults getSearchProfileResults() {
+        return profileResults;
     }
 
     /**
@@ -501,7 +542,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     @Override
     public String toString() {
-        return hasReferences() == false ? "SearchResponse[released]" : Strings.toString(this);
+        return hasReferences() == false ? "SearchResponse[released]" : Strings.toTruncatedString(this);
     }
 
     /**
@@ -1255,6 +1296,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             tookInMillisSupplier.get(),
             ShardSearchFailure.EMPTY_ARRAY,
             clusters,
+            null,
             null,
             null
         );

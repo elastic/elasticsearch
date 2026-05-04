@@ -10,6 +10,9 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+$if(BytesRef)$
+import org.elasticsearch.common.bytes.PagedBytesCursor;
+$endif$
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -127,6 +130,11 @@ $if(BytesRef)$
     @Override
     public BytesRef getBytesRef(int position, BytesRef dest) {
         return values.get(position, dest);
+    }
+
+    @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        return values.get(position, scratch);
     }
 
 $else$

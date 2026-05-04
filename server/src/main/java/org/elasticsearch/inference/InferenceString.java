@@ -9,11 +9,14 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -22,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -30,7 +34,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * This class represents a String which may be raw text, or the String representation of some other data such as an image in base64
  */
 public record InferenceString(DataType dataType, DataFormat dataFormat, String value) implements Writeable, ToXContentObject {
-    static final String TYPE_FIELD = "type";
+    public static final TransportVersion EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED = TransportVersion.fromName(
+        "inference_api_audio_video_pdf_support"
+    );
+
+    private static final Pattern DATA_URI_PATTERN = Pattern.compile("^data:.*/.*;base64,");
+
+    public static final String TYPE_FIELD = "type";
     static final String FORMAT_FIELD = "format";
     static final String VALUE_FIELD = "value";
 
@@ -67,6 +77,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         this.dataFormat = Objects.requireNonNullElse(dataFormat, this.dataType.getDefaultFormat());
         validateTypeAndFormat();
         this.value = Objects.requireNonNull(value);
+        validateDataURIFormat();
     }
 
     private void validateTypeAndFormat() {
@@ -82,16 +93,43 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         }
     }
 
+    private void validateDataURIFormat() {
+        if (dataFormat == DataFormat.BASE64) {
+            var endOfURIPart = value.indexOf(',');
+            if (endOfURIPart < 0 || DATA_URI_PATTERN.matcher(value.substring(0, endOfURIPart + 1)).matches() == false) {
+                throw new IllegalArgumentException(
+                    "base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]"
+                );
+            }
+        }
+    }
+
     public InferenceString(StreamInput in) throws IOException {
         this(in.readEnum(DataType.class), in.readEnum(DataFormat.class), in.readString());
+    }
+
+    public boolean isText() {
+        return DataType.TEXT.equals(dataType);
     }
 
     public boolean isImage() {
         return DataType.IMAGE.equals(dataType);
     }
 
-    public boolean isText() {
-        return DataType.TEXT.equals(dataType);
+    public boolean isAudio() {
+        return DataType.AUDIO.equals(dataType);
+    }
+
+    public boolean isVideo() {
+        return DataType.VIDEO.equals(dataType);
+    }
+
+    public boolean isPdf() {
+        return DataType.PDF.equals(dataType);
+    }
+
+    public boolean isNonText() {
+        return isText() == false;
     }
 
     /**
@@ -127,6 +165,14 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED) == false
+            && (dataType.equals(DataType.AUDIO) || dataType.equals(DataType.VIDEO) || dataType.equals(DataType.PDF))) {
+            throw new ElasticsearchStatusException(
+                "Cannot send an inference request with audio, video or pdf inputs to an older node. "
+                    + "Please wait until all nodes are upgraded before using audio, video or pdf inputs",
+                RestStatus.BAD_REQUEST
+            );
+        }
         out.writeEnum(dataType);
         out.writeEnum(dataFormat);
         out.writeString(value);

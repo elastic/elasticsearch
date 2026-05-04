@@ -1,4 +1,4 @@
 Limit[1000[INTEGER],false,false]
-\_Aggregate[[],[SUM($$LENGTH(last_nam>$SUM$0{r$}#0,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS last_name#1, SUM($$LENGTH(first_na>$SUM$1{r$}#2,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS first_name#3]]
+\_Aggregate[[],[SUM($$LENGTH(last_nam>$SUM$0{r$}#0,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS last_name#1, SUM($$LENGTH(first_na>$SUM$1{r$}#2,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS first_name#3]]
   \_Eval[[LENGTH(last_name{f}#4) AS $$LENGTH(last_nam>$SUM$0#0, LENGTH(first_name{f}#5) AS $$LENGTH(first_na>$SUM$1#2]]
     \_EsRelation[employees][avg_worked_seconds{f}#6, birth_date{f}#7, emp_no{f}#8, first_name{f}#5, gender{f}#9, height{f}#10, height.float{f}#11, height.half_float{f}#12, height.scaled_float{f}#13, hire_date{f}#14, is_rehired{f}#15, job_positions{f}#16, languages{f}#17, languages.byte{f}#18, languages.long{f}#19, languages.short{f}#20, last_name{f}#4, salary{f}#21, salary_change{f}#22, salary_change.int{f}#23, salary_change.keyword{f}#24, salary_change.long{f}#25, still_hired{f}#26]

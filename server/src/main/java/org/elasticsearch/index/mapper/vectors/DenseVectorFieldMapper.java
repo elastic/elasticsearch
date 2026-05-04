@@ -523,6 +523,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 builderParams(this, context),
                 indexOptions.getValue(),
                 indexVersionCreated,
+                isExcludeSourceVectors,
                 isExcludeSourceVectorsFinal,
                 experimentalFeaturesEnabled,
                 vectorsFormatProviders
@@ -1452,7 +1453,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType);
     }
 
-    public abstract static class DenseVectorIndexOptions implements IndexOptions {
+    public abstract static class DenseVectorIndexOptions extends IndexOptions {
         final VectorIndexType type;
 
         DenseVectorIndexOptions(VectorIndexType type) {
@@ -1979,8 +1980,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
@@ -1988,8 +1988,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (confidenceInterval != null) {
                 builder.field("confidence_interval", confidenceInterval);
             }
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -2033,11 +2031,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -2107,8 +2102,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
@@ -2124,8 +2118,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (flatIndexThreshold >= 0) {
                 builder.field("flat_index_threshold", flatIndexThreshold);
             }
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -2200,8 +2192,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
@@ -2209,8 +2200,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (confidenceInterval != null) {
                 builder.field("confidence_interval", confidenceInterval);
             }
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -2289,8 +2278,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
@@ -2306,8 +2294,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (flatIndexThreshold >= 0) {
                 builder.field("flat_index_threshold", flatIndexThreshold);
             }
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -2413,16 +2399,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
             if (flatIndexThreshold >= 0) {
                 builder.field("flat_index_threshold", flatIndexThreshold);
             }
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -2527,8 +2510,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
@@ -2541,8 +2523,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (flatIndexThreshold >= 0) {
                 builder.field("flat_index_threshold", flatIndexThreshold);
             }
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -2591,14 +2571,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }
-            builder.endObject();
-            return builder;
         }
 
         @Override
@@ -2624,7 +2601,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
 
-        BBQIVFIndexOptions(
+        public BBQIVFIndexOptions(
             int clusterSize,
             int flatIndexThreshold,
             double defaultVisitPercentage,
@@ -2668,7 +2645,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     numMergeWorkers,
                     doPrecondition,
                     ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                    flatIndexThreshold
+                    flatIndexThreshold,
+                    null
                 );
             } else {
                 return new ES940DiskBBQVectorsFormat(
@@ -2688,7 +2666,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public boolean updatableTo(DenseVectorIndexOptions update) {
-            return update.type.equals(this.type);
+            if (update.type.equals(this.type) == false) {
+                return false;
+            }
+            BBQIVFIndexOptions that = (BBQIVFIndexOptions) update;
+            return this.doPrecondition == that.doPrecondition;
         }
 
         @Override
@@ -2699,12 +2681,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && defaultVisitPercentage == that.defaultVisitPercentage
                 && onDiskRescore == that.onDiskRescore
                 && bits == that.bits
+                && doPrecondition == that.doPrecondition
                 && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(clusterSize, flatIndexThreshold, defaultVisitPercentage, onDiskRescore, rescoreVector);
+            return Objects.hash(clusterSize, flatIndexThreshold, defaultVisitPercentage, onDiskRescore, doPrecondition, rescoreVector);
         }
 
         @Override
@@ -2713,8 +2696,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             builder.field("type", type);
             builder.field("cluster_size", clusterSize);
             builder.field("flat_index_threshold", flatIndexThreshold);
@@ -2729,8 +2711,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (doPrecondition) {
                 builder.field("precondition", doPrecondition);
             }
-            builder.endObject();
-            return builder;
         }
 
         public int getClusterSize() {
@@ -2755,6 +2735,27 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public int getBits() {
             return bits;
+        }
+
+        @Override
+        public String toString() {
+            return "{type="
+                + type
+                + ", cluster_size="
+                + clusterSize
+                + ", flat_index_threshold="
+                + flatIndexThreshold
+                + ", default_visit_percentage="
+                + defaultVisitPercentage
+                + ", on_disk_rescore="
+                + onDiskRescore
+                + ", rescore_vector="
+                + (rescoreVector == null ? "none" : rescoreVector)
+                + ", precondition="
+                + doPrecondition
+                + ", bits="
+                + bits
+                + "}";
         }
     }
 
@@ -3248,14 +3249,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, knnSearchStrategy, hnswEarlyTermination);
             }
             if (rescore) {
-                knnQuery = RescoreKnnVectorQuery.fromInnerQuery(
-                    name(),
-                    queryVector,
-                    similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.FLOAT),
-                    k,
-                    adjustedK,
-                    knnQuery
-                );
+                knnQuery = RescoreKnnVectorQuery.fromInnerQuery(name(), queryVector, k, adjustedK, knnQuery);
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -3412,7 +3406,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     private final DenseVectorIndexOptions indexOptions;
     private final IndexVersion indexCreatedVersion;
-    private final boolean isExcludeSourceVectors;
+    private final boolean excludeSourceVectorsSetting;
+    private final boolean excludeSourceVectors;
     private final boolean experimentalFeaturesEnabled;
     private final List<VectorsFormatProvider> extraVectorsFormatProviders;
 
@@ -3422,14 +3417,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
         BuilderParams params,
         DenseVectorIndexOptions indexOptions,
         IndexVersion indexCreatedVersion,
-        boolean isExcludeSourceVectorsFinal,
+        boolean excludeSourceVectorsSetting,
+        boolean excludeSourceVectors,
         boolean experimentalFeaturesEnabled,
         List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
         this.indexCreatedVersion = indexCreatedVersion;
-        this.isExcludeSourceVectors = isExcludeSourceVectorsFinal;
+        this.excludeSourceVectorsSetting = excludeSourceVectorsSetting;
+        this.excludeSourceVectors = excludeSourceVectors;
         this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
         this.extraVectorsFormatProviders = vectorsFormatProviders;
     }
@@ -3555,7 +3552,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         return new Builder(
             leafName(),
             indexCreatedVersion,
-            isExcludeSourceVectors,
+            excludeSourceVectorsSetting,
             experimentalFeaturesEnabled,
             extraVectorsFormatProviders
         ).init(this);
@@ -3680,7 +3677,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        if (isExcludeSourceVectors) {
+        if (excludeSourceVectors) {
             return new SyntheticVectorsPatchFieldLoader<>(
                 // Recreate the object for each leaf so that different segments can be searched concurrently.
                 () -> new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity),

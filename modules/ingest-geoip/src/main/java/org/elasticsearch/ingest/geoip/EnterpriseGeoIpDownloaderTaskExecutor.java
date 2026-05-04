@@ -144,11 +144,6 @@ public class EnterpriseGeoIpDownloaderTaskExecutor extends PersistentTasksExecut
     }
 
     @Override
-    public boolean automaticReassignmentOnShutdown() {
-        return false;
-    }
-
-    @Override
     protected void nodeOperation(AllocatedPersistentTask task, EnterpriseGeoIpTaskParams params, PersistentTaskState state) {
         EnterpriseGeoIpDownloader downloader = (EnterpriseGeoIpDownloader) task;
         EnterpriseGeoIpTaskState geoIpTaskState = (state == null) ? EnterpriseGeoIpTaskState.EMPTY : (EnterpriseGeoIpTaskState) state;

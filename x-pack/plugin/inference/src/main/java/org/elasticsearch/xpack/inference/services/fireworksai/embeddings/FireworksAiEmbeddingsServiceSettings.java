@@ -34,10 +34,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiService.INFERENCE_API_FIREWORKS_AI_SERVICE_ADDED;
@@ -63,17 +62,20 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
         ValidationException validationException = new ValidationException();
 
         // Extract common fields
-        String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer maxInputTokens = extractOptionalPositiveInteger(
+        var uri = Objects.requireNonNullElseGet(
+            extractOptionalUri(map, URL, validationException),
+            () -> ServiceUtils.createUri(DEFAULT_URL)
+        );
+        var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(
             map,
             MAX_INPUT_TOKENS,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
@@ -81,18 +83,13 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
             context
         );
 
-        // Optimize URI conversion - only convert if URL is provided, otherwise use default
-        URI uri = url != null
-            ? convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException)
-            : ServiceUtils.createUri(DEFAULT_URL);
-
         // Handle dimensionsSetByUser based on context
         boolean dimensionsSetByUser = switch (context) {
             case PERSISTENT -> {
                 Boolean value = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
                 yield value != null ? value : false;
             }
-            case REQUEST -> dims != null;
+            case REQUEST -> dimensions != null;
         };
 
         validationException.throwIfValidationErrorsExist();
@@ -101,7 +98,7 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
             modelId,
             uri,
             similarity,
-            dims,
+            dimensions,
             maxInputTokens,
             dimensionsSetByUser,
             rateLimitSettings
@@ -142,6 +139,37 @@ public class FireworksAiEmbeddingsServiceSettings extends FilteredXContentObject
         this.maxInputTokens = in.readOptionalVInt();
         this.dimensionsSetByUser = in.readBoolean();
         this.rateLimitSettings = new RateLimitSettings(in);
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            FireworksAiService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new FireworksAiEmbeddingsServiceSettings(
+            this.modelId,
+            this.uri,
+            this.similarity,
+            this.dimensions,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            this.dimensionsSetByUser,
+            extractedRateLimitSettings
+        );
     }
 
     public String modelId() {

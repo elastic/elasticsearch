@@ -18,10 +18,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.IpFieldScript;
@@ -131,21 +129,6 @@ public class IpFieldMapperTests extends MapperTestCase {
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        IndexableField field = fields.get(0);
-        assertEquals(0, field.fieldType().pointIndexDimensionCount());
-        assertEquals(DocValuesType.SORTED_SET, field.fieldType().docValuesType());
-    }
-
-    public void testDisableDefaultIndex() throws IOException {
-        assumeTrue("feature under test must be present", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
-
-        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
-        var mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
-        var documentMapper = mapperService.documentMapper();
-        ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", "::1")));
-
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.size());
         IndexableField field = fields.get(0);

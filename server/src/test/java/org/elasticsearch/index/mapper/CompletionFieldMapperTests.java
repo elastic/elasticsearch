@@ -148,6 +148,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         );
     }
 
+    @Override
+    public void testDisableDefaultIndex() {
+        throw new AssumptionViolatedException("mapper must support the 'index' parameter");
+    }
+
     public void testPostingsFormat() throws IOException {
         final Class<?> latestLuceneCPClass = Completion104PostingsFormat.class;
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));

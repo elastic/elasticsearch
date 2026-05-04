@@ -417,6 +417,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.BINARY, keyedFields.get(0).fieldType().docValuesType());
     }
 
+    @Override
     public void testDisableDefaultIndex() throws IOException {
         var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
         var mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "flattened")));

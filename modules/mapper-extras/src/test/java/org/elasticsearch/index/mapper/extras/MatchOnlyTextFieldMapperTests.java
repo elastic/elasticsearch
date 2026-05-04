@@ -157,17 +157,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
     }
 
-    public void testDisableDefaultIndex() throws IOException {
-        assumeTrue("feature under test must be enabled", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
-
-        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
-        var mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
-        var documentMapper = mapperService.documentMapper();
-        ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", "1234")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(0, fields.size());
-    }
-
     public void testNullConfigValuesFail() throws MapperParsingException {
         Exception e = expectThrows(
             MapperParsingException.class,

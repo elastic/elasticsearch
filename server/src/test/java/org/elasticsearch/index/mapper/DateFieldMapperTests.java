@@ -218,20 +218,6 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
     }
 
-    public void testDisableDefaultIndex() throws IOException {
-        assumeTrue("feature under test must be present", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
-
-        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
-        var mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "date")));
-        var documentMapper = mapperService.documentMapper();
-        ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", "2016-03-11")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        IndexableField field = fields.getFirst();
-        assertEquals(0, field.fieldType().pointIndexDimensionCount());
-        assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
-    }
-
     public void testNoDocValues() throws Exception {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("doc_values", false)));

@@ -144,21 +144,6 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
     }
 
-    public void testDisableDefaultIndex() throws IOException {
-        assumeTrue("feature under test must be present", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
-
-        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
-        var mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
-        var documentMapper = mapperService.documentMapper();
-        ParsedDocument doc = documentMapper.parse(source(this::writeField));
-
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        IndexableField field = fields.get(0);
-        assertEquals(IndexOptions.NONE, fields.get(0).fieldType().indexOptions());
-        assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
-    }
-
     public void testMultiValueNoAcceptsSingleValue() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {

@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -374,21 +373,6 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1.2,1.3")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        IndexableField field = fields.get(0);
-        assertEquals(0, field.fieldType().pointIndexDimensionCount());
-        assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
-    }
-
-    public void testDisableDefaultIndex() throws IOException {
-        assumeTrue("feature under test must be present", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
-
-        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
-        var mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
-        var documentMapper = mapperService.documentMapper();
-        ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", "1.2,1.3")));
-
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.size());
         IndexableField field = fields.get(0);

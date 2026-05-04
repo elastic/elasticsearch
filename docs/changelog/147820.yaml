@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 147820
+summary: Add `dense_vector` query for exact NN scoring
+type: feature

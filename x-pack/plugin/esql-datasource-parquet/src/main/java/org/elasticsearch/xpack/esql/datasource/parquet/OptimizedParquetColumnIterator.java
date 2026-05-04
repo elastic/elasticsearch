@@ -12,6 +12,7 @@ import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
 import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.compression.CompressionCodecFactory;
+import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -62,6 +63,13 @@ import java.util.concurrent.CompletableFuture;
  * {@link BlockFactory#breaker()}) before async I/O starts. The reservation is released
  * when prefetched data is consumed and cleared. If the breaker would trip, prefetch is
  * skipped and the query falls back to synchronous I/O for that row group.
+ *
+ * <p><b>Trivially-passes guard:</b> when late materialization is enabled and row-group
+ * statistics prove every row satisfies the pushed filter ({@link TriviallyPassesChecker}),
+ * the iterator routes that row group through {@code nextStandard} for the remainder of the
+ * row group, skipping per-row filter evaluation and survivor compaction. This benefits queries
+ * that mix selective and non-selective row groups (e.g., time-bucketed data with skewed
+ * filter selectivity).
  */
 final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
 
@@ -111,8 +119,22 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     private final boolean lateMaterialization;
     private final boolean[] isPredicateColumn;
     private final ParquetPushedExpressions pushedExpressions;
+    /**
+     * Cached parquet-mr {@link FilterPredicate} translated from {@link #pushedExpressions} once at
+     * construction. Reused per row group by the trivially-passes check so we don't re-translate
+     * the predicate tree for every row group.
+     */
+    private final FilterPredicate cachedFilterPredicate;
     private final WordMask survivorMask;
     private long rowsEliminatedByLateMaterialization;
+    /**
+     * When {@code true}, row-group statistics prove every row in the current row group satisfies
+     * the pushed filter, so late materialization is bypassed for this row group: filter
+     * evaluation and survivor compaction are skipped, and the standard read path is used.
+     */
+    private boolean currentRowGroupTriviallyPasses;
+    /** Diagnostic counter: number of row groups for which the filter was proven to trivially pass. */
+    private long rowGroupsWithTrivialFilter;
 
     OptimizedParquetColumnIterator(
         ParquetFileReader reader,
@@ -151,6 +173,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         this.isPredicateColumn = classifyPredicateColumns(attributes, columnInfos, pushedExpressions);
         this.lateMaterialization = pushedExpressions != null && hasProjectionOnlyColumns(isPredicateColumn, columnInfos);
         this.survivorMask = lateMaterialization ? new WordMask() : null;
+        this.cachedFilterPredicate = lateMaterialization
+            ? translateFilterPredicate(pushedExpressions, projectedSchema, fileLocation)
+            : null;
 
         this.projectedColumnPaths = buildProjectedColumnPaths(columnInfos);
         this.prefetchDepth = computePrefetchDepth(reader.getRowGroups(), this.projectedColumnPaths);
@@ -291,6 +316,28 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         return false;
     }
 
+    /**
+     * Translates the pushed expressions to a parquet-mr {@link FilterPredicate} once for the
+     * lifetime of this iterator. Returns {@code null} when translation fails or yields no
+     * predicate; the iterator gracefully degrades to non-trivial late-materialization in that
+     * case.
+     */
+    private static FilterPredicate translateFilterPredicate(
+        ParquetPushedExpressions pushed,
+        MessageType projectedSchema,
+        String fileLocation
+    ) {
+        if (pushed == null) {
+            return null;
+        }
+        try {
+            return pushed.toFilterPredicate(projectedSchema);
+        } catch (RuntimeException e) {
+            logger.debug("Disabling trivially-passes guard for [{}]: predicate translation failed: {}", fileLocation, e.getMessage());
+            return null;
+        }
+    }
+
     @Override
     public boolean hasNext() {
         if (exhausted) {
@@ -333,18 +380,36 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             if (rowsEliminatedByLateMaterialization > 0) {
                 logger.debug("Late materialization eliminated [{}] rows in [{}]", rowsEliminatedByLateMaterialization, fileLocation);
             }
+            if (rowGroupsWithTrivialFilter > 0) {
+                logger.debug(
+                    "Trivially-passes guard skipped late-materialization for [{}] row groups in [{}]",
+                    rowGroupsWithTrivialFilter,
+                    fileLocation
+                );
+            }
             return false;
         }
         rowGroupOrdinal = nextOrdinal;
         pageBatchIndexInRowGroup = 0;
 
         BlockMetaData block = reader.getRowGroups().get(rowGroupOrdinal);
+        // Per-row-group trivially-passes check: when stats prove every row matches the filter,
+        // the late-materialization machinery (decode predicate columns → evaluate filter → compact
+        // survivors) is pure overhead. Switching to the standard path eliminates filter evaluation.
+        currentRowGroupTriviallyPasses = lateMaterialization
+            && cachedFilterPredicate != null
+            && TriviallyPassesChecker.check(cachedFilterPredicate, block);
+        if (currentRowGroupTriviallyPasses) {
+            rowGroupsWithTrivialFilter++;
+        }
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = takePendingPrefetch(rowGroupOrdinal);
         try {
             RowRanges currentRowRanges = resolveCurrentRowRanges(block);
             // When late materialization is active, skip ColumnIndex page filtering — late-mat handles
             // row-level filtering itself via the survivor mask. Applying both ColumnIndex RowRanges
             // AND late-mat evaluation causes double-filtering that drops rows incorrectly.
+            // The trivially-passes case is handled the same way: we already know all rows match,
+            // so leaving page filtering off is consistent and safe (RowRanges would be all() anyway).
             RowRanges buildRowRanges = lateMaterialization ? null : currentRowRanges;
             rowGroup = PrefetchedRowGroupBuilder.build(
                 block,
@@ -551,12 +616,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         }
         int rowsToRead = (int) Math.min(effectiveBatch, rowsRemainingInGroup);
 
-        Page result = lateMaterialization ? nextWithLateMaterialization(rowsToRead) : nextStandard(rowsToRead);
+        boolean useLateMaterialization = lateMaterialization && currentRowGroupTriviallyPasses == false;
+        Page result = useLateMaterialization ? nextWithLateMaterialization(rowsToRead) : nextStandard(rowsToRead);
 
         pageBatchIndexInRowGroup++;
         rowsRemainingInGroup -= rowsToRead;
         if (rowBudget != FormatReader.NO_LIMIT) {
-            rowBudget -= lateMaterialization ? result.getPositionCount() : rowsToRead;
+            rowBudget -= useLateMaterialization ? result.getPositionCount() : rowsToRead;
         }
         return result;
     }

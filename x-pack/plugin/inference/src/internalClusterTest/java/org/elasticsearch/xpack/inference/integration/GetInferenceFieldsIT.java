@@ -103,7 +103,8 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         new InferenceFieldWithTestMetadata(INFERENCE_FIELD_4, TEXT_EMBEDDING_INFERENCE_ID, 1.0f)
     );
     private static final Set<InferenceFieldWithTestMetadata> EMBEDDING_INDEX_EXPECTED_INFERENCE_FIELDS = Set.of(
-        new InferenceFieldWithTestMetadata(EMBEDDING_FIELD, EMBEDDING_INFERENCE_ID, 1.0f)
+        new InferenceFieldWithTestMetadata(EMBEDDING_FIELD, EMBEDDING_INFERENCE_ID, 1.0f),
+        new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, EMBEDDING_INFERENCE_ID, 1.0f)
     );
 
     private static final Map<String, Class<? extends InferenceResults>> ALL_EXPECTED_INFERENCE_RESULTS = Map.of(
@@ -195,9 +196,9 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
                 INDEX_2,
                 Set.of(new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, TEXT_EMBEDDING_INFERENCE_ID, 2.0f)),
                 EMBEDDING_INDEX,
-                Set.of()
+                Set.of(new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, EMBEDDING_INFERENCE_ID, 2.0f))
             ),
-            ALL_EXPECTED_INFERENCE_RESULTS
+            ALL_INDICES_EXPECTED_INFERENCE_RESULTS
         );
     }
 
@@ -249,9 +250,9 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
                     new InferenceFieldWithTestMetadata(INFERENCE_FIELD_3, SPARSE_EMBEDDING_INFERENCE_ID, 2.0f)
                 ),
                 EMBEDDING_INDEX,
-                Set.of()
+                Set.of(new InferenceFieldWithTestMetadata(INFERENCE_FIELD_1, EMBEDDING_INFERENCE_ID, 3.5f))
             ),
-            ALL_EXPECTED_INFERENCE_RESULTS
+            ALL_INDICES_EXPECTED_INFERENCE_RESULTS
         );
     }
 
@@ -572,6 +573,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
     private void createEmbeddingIndex() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties");
         addSemanticTextField(EMBEDDING_FIELD, EMBEDDING_INFERENCE_ID, mapping);
+        addSemanticTextField(INFERENCE_FIELD_1, EMBEDDING_INFERENCE_ID, mapping);
         mapping.endObject().endObject();
         assertAcked(prepareCreate(EMBEDDING_INDEX).setMapping(mapping));
     }

@@ -215,22 +215,14 @@ public class ChangePointOperator implements Operator {
             "change-point-group-key-encoder",
             64
         );
-        boolean success = false;
-        try {
-            encoder = new GroupKeyEncoder(groupingChannels, elementTypes, encoderRow);
-            currentGroupKeyStorage = new PagedBytesBuilder(
-                blockFactory.bigArrays().recycler(),
-                blockFactory.breaker(),
-                "change-point-current-group-key",
-                64
-            );
-            currentGroupKeyCursor = new PagedBytesCursor();
-            success = true;
-        } finally {
-            if (success == false) {
-                Releasables.closeExpectNoException(encoderRow);
-            }
-        }
+        encoder = new GroupKeyEncoder(groupingChannels, elementTypes, encoderRow);
+        currentGroupKeyStorage = new PagedBytesBuilder(
+            blockFactory.bigArrays().recycler(),
+            blockFactory.breaker(),
+            "change-point-current-group-key",
+            64
+        );
+        currentGroupKeyCursor = new PagedBytesCursor();
     }
 
     /**

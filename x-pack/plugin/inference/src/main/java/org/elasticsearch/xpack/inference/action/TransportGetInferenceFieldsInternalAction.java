@@ -186,7 +186,7 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
                 new GetInferenceModelAction.Request(inferenceId, TaskType.ANY),
                 gal.delegateFailureAndWrap((l, modelResponse) -> {
                     var endpoints = modelResponse.getEndpoints();
-                    if (endpoints.size() > 1) {
+                    if (endpoints.size() != 1) {
                         throw new IllegalStateException(
                             endpoints.size() + " inference endpoints found for inference ID [" + inferenceId + "]"
                         );

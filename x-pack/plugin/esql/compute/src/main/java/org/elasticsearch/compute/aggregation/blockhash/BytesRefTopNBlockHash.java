@@ -168,6 +168,13 @@ final class BytesRefTopNBlockHash extends BlockHash {
 
     /**
      * Adds the vector values to the hash, and returns a new vector with the group IDs for those positions.
+     * <p>
+     *     TODO: when an {@code OrdinalBytesRefVector} reaches this method (e.g. once a Parquet reader emits
+     *     dictionary-encoded blocks), short-circuit by running the two-pass logic over the dictionary entries
+     *     and looking up rows via the ordinal index, mirroring {@code BytesRefBlockHash#addOrdinalsVector}.
+     *     The current implementation correctly resolves ordinals to bytes per row, but loses the dictionary
+     *     speed-up that the upstream block already paid for.
+     * </p>
      */
     IntBlock add(BytesRefVector vector) {
         int positions = vector.getPositionCount();

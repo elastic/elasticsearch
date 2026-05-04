@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.List;
 
@@ -36,6 +38,8 @@ import java.util.List;
  *   <li>The sort has exactly one {@link Order}.</li>
  *   <li>The sort key references one of the aggregate's grouping attributes (not an aggregation output).</li>
  *   <li>The aggregate has exactly one grouping (multi-key Top-N is deferred).</li>
+ *   <li>The grouping element type is supported by a Top-N {@link BlockHash} implementation
+ *       (currently {@link ElementType#LONG} and {@link ElementType#BYTES_REF}).</li>
  *   <li>The limit is a non-negative integer literal.</li>
  *   <li>The aggregate's child subtree contains an {@link ExternalSourceExec}.</li>
  * </ul>
@@ -76,6 +80,13 @@ public class PushTopNIntoExternalSource extends PhysicalOptimizerRules.Parameter
         }
         Attribute groupAttr = Expressions.attribute(aggregate.groupings().get(0));
         if (groupAttr == null) {
+            return null;
+        }
+        // Skip the annotation when the grouping type is not yet handled by a Top-N BlockHash. This keeps the
+        // hint as a strict promise that BlockHash#build will honor it; downstream code can rely on a non-null
+        // pushedTopN to mean "Top-N pruning is wired in".
+        ElementType groupingElementType = PlannerUtils.toElementType(groupAttr.dataType());
+        if (groupingElementType != ElementType.LONG && groupingElementType != ElementType.BYTES_REF) {
             return null;
         }
         Order order = orders.get(0);

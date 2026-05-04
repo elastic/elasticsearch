@@ -479,9 +479,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        // pushedTopN is intentionally excluded — it is a transient local-execution hint, set on each node
-        // independently. Including it would cause golden tests for external-source plans to diff whenever the
-        // local optimizer chooses to (or not to) annotate.
+        // pushedTopN is intentionally excluded from info(): it is a transient local-execution hint set after the
+        // plan has been distributed, and including it here would (a) require a public 13-arg ctor that breaks the
+        // node-reflection invariant in EsqlNodeSubclassTests#testInfoParameters and (b) leak the hint into any
+        // generic transform-based plan rewrite. The hint is preserved by the explicit with* methods that need it
+        // and is rendered in nodeString() for debuggability.
         return NodeInfo.create(
             this,
             ExternalSourceExec::new,
@@ -550,6 +552,17 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         }
         if (pushedLimit != FormatReader.NO_LIMIT) {
             sb.append("[limit=").append(pushedLimit).append("]");
+        }
+        if (pushedTopN != null) {
+            sb.append("[topN=order:")
+                .append(pushedTopN.order())
+                .append(",asc:")
+                .append(pushedTopN.asc())
+                .append(",nullsFirst:")
+                .append(pushedTopN.nullsFirst())
+                .append(",limit:")
+                .append(pushedTopN.limit())
+                .append("]");
         }
         if (splits.isEmpty() == false) {
             sb.append("[splits=").append(splits.size()).append("]");

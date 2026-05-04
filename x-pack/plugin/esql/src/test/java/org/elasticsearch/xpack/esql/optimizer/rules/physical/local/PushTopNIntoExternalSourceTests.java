@@ -39,6 +39,7 @@ public class PushTopNIntoExternalSourceTests extends ESTestCase {
 
     private static final ReferenceAttribute USER_ID = new ReferenceAttribute(Source.EMPTY, "user_id", DataType.KEYWORD);
     private static final ReferenceAttribute REGION = new ReferenceAttribute(Source.EMPTY, "region", DataType.KEYWORD);
+    private static final ReferenceAttribute COUNTER = new ReferenceAttribute(Source.EMPTY, "counter", DataType.INTEGER);
 
     public void testTopNPushedAscLimit10() {
         TopNExec topN = topN(USER_ID, Order.OrderDirection.ASC, 10, externalAggregate());
@@ -91,6 +92,19 @@ public class PushTopNIntoExternalSourceTests extends ESTestCase {
         Order primary = new Order(Source.EMPTY, USER_ID, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         Order secondary = new Order(Source.EMPTY, REGION, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         TopNExec topN = new TopNExec(Source.EMPTY, aggregate, List.of(primary, secondary), literal(10), null);
+
+        TopNExec result = (TopNExec) applyRule(topN);
+        assertNull(unwrap(result).pushedTopN());
+    }
+
+    /**
+     * Only LONG and BYTES_REF groupings have a Top-N {@link BlockHash} implementation today. Other element
+     * types (e.g. INT) must not receive the hint, otherwise it would be silently dropped at runtime by
+     * {@code BlockHash#build}, masking the absence of the optimization.
+     */
+    public void testTopNNotPushedForUnsupportedGroupingType() {
+        AggregateExec aggregate = aggregateExec(COUNTER, externalSource(), countStarAlias());
+        TopNExec topN = topN(COUNTER, Order.OrderDirection.ASC, 10, aggregate);
 
         TopNExec result = (TopNExec) applyRule(topN);
         assertNull(unwrap(result).pushedTopN());

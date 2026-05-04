@@ -251,6 +251,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveRefs(),
             new ImplicitCasting(),
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
+            new ResolveTwoLeggedPunks(),
             new InsertDefaultInnerTimeSeriesAggregate(),
             new ImplicitCastAggregateMetricDoubles(),
             new InsertFromAggregateMetricDouble(),
@@ -2589,29 +2590,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * Return an {@link UnsupportedAttribute} so the verifier can flag illegal use of fields with type conflicts.
-         * <p>
-         * If the field is mapped to a single type in some indices but unmapped in others: Instead return a regular field attribute with a
-         * single type so that values are loaded from the indices where it is mapped (and null is returned from unmapped indices).
-         * This is a temporary solution until https://github.com/elastic/elasticsearch/issues/141995 is implemented.
          */
         private static Attribute cleanTypeConflicts(FieldAttribute fa) {
-            EsField field = fa.field();
-            if (field instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped() && imf.types().size() == 1) {
-                DataType type = imf.types().iterator().next();
-                var restoredField = new EsField(imf.getName(), type, imf.getProperties(), false, imf.getTimeSeriesFieldType());
-                // TODO: add test where not passing on the parent name fails the test
-                // TODO: add TS tests and tests with different time series field types
-                return new FieldAttribute(
-                    fa.source(),
-                    fa.parentName(),
-                    fa.qualifier(),
-                    fa.name(),
-                    restoredField,
-                    fa.nullable(),
-                    fa.id(),
-                    fa.synthetic()
-                );
-            }
             return fa.flagTypeConflicts();
         }
 
@@ -2677,6 +2657,86 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return false;
             }
             return true;
+        }
+    }
+
+    /**
+     * When {@code SET unmapped_fields="load"}, this analyzer rule walks the plan and applies auto-casting to any field meeting the
+     * criteria below, by re-writing it as {@code MultiTypeEsField}.
+     * <ol>
+     *     <li>Field is a PUNK (partially unmapped non-KEYWORD)</li>
+     *     <li>Field's type is unique where mapped. It can't be mapped as two different non-KEYWORD types.</li>
+     *     <li>Field is not referenced inside a ConvertFunction</li>
+     *     <li>There exists a converter function to cast KEYWORD to the mapped type</li>
+     * </ol>
+     */
+    private static class ResolveTwoLeggedPunks extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            if (context.unmappedResolution() != UnmappedResolution.LOAD) {
+                return plan;
+            }
+
+            // Collect fields inside ConvertFunction so they can be skipped. These are handled by ResolveUnionType.
+            Set<NameId> convertFunctionFieldIds = new HashSet<>();
+            plan.forEachExpressionDown(AbstractConvertFunction.class, cf -> {
+                if (cf.field() instanceof FieldAttribute fa) {
+                    convertFunctionFieldIds.add(fa.id());
+                }
+            });
+
+            return plan.transformUp(LogicalPlan.class, p -> {
+                if (p instanceof EsRelation rel && rel.indexMode() == IndexMode.LOOKUP) {
+                    return p;
+                }
+
+                return p.transformExpressionsUp(FieldAttribute.class, fa -> {
+                    if (convertFunctionFieldIds.contains(fa.id())) {
+                        // Skip implicit casting: These fields are handled by ResolveUnionType.
+                        return fa;
+                    }
+
+                    // We're looking for partuially unmapped fields with exactly one mapped type, i.e.: two-legged PUNKs
+                    if (fa.field() instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped() && imf.types().size() == 1) {
+                        DataType mappedType = imf.types().iterator().next();
+
+                        // We need a "KEYWORD to mapped type" converted
+                        var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
+                        if (convertFactory == null) {
+                            // Skip implicit casting: no such converter function exists
+                            return fa;
+                        }
+                        ConvertFunction convert = convertFactory.apply(fa.source(), fa, context.configuration());
+                        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                        typeResolutions(fa, convert, mappedType, imf, typeResolutions);
+
+                        Expression potentiallyUnmappedConversion = ResolveUnionTypes.typeSpecificConvert(
+                            convert,
+                            fa.source(),
+                            KEYWORD,
+                            imf
+                        );
+
+                        MultiTypeEsField resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(
+                            fa,
+                            typeResolutions,
+                            potentiallyUnmappedConversion
+                        );
+
+                        return new FieldAttribute(
+                            fa.source(),
+                            fa.parentName(),
+                            fa.qualifier(),
+                            fa.name(),
+                            resolvedField,
+                            fa.nullable(),
+                            fa.id(),
+                            fa.synthetic()
+                        );
+                    }
+                    return fa;
+                });
+            });
         }
     }
 

@@ -179,7 +179,7 @@ public class ImplicitPrivilegesIT extends ESRestTestCase {
         assertThat(implicit.query(), containsString("clearance"));
     }
 
-    public void testWildcardApplicationPrivilegeDoesNotResolveStoredPrivilegesForProvider() throws Exception {
+    public void testWildcardApplicationPrivilegeStillTriggersImplicitGrantViaRawRolePatterns() throws Exception {
         putShieldAgentApplicationPrivilege();
         final String roleName = "wildcard-app-role";
         final Request put = new Request("PUT", "/_security/role/" + roleName);
@@ -195,8 +195,18 @@ public class ImplicitPrivilegesIT extends ESRestTestCase {
             }
             """);
         assertOK(client().performRequest(put));
+
         final RoleResponse response = getRole(roleName, true);
         assertThat(response.indices(), hasSize(2));
+
+        final IndicesEntry explicit = response.findExplicit();
+        assertThat(explicit.names(), equalTo(List.of("logs-*")));
+
+        final IndicesEntry implicit = response.findImplicit();
+        assertThat(implicit.names(), equalTo(List.of(HELICARRIER_INDEX_PATTERN)));
+        assertThat(implicit.privileges(), equalTo(List.of("read")));
+        assertThat(implicit.query(), notNullValue());
+        assertThat(implicit.query(), containsString("clearance"));
     }
 
     private void putShieldAgentApplicationPrivilege() throws Exception {

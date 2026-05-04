@@ -122,7 +122,8 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             responses::add,
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
-            createPitSearchRequest()
+            createPitSearchRequest(),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
 
         paginatedHitSource.resume(resumeInfo);
@@ -157,7 +158,8 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             responses::add,
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
-            createPitSearchRequest()
+            createPitSearchRequest(),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
 
         paginatedHitSource.start();
@@ -188,7 +190,8 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             r -> fail(),
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
-            createPitSearchRequest()
+            createPitSearchRequest(),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
 
         // Initially: no search_after -> false
@@ -212,7 +215,8 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             r -> fail(),
             e -> fail(),
             new ParentTaskAssigningClient(new MockClient(threadPool), new TaskId("n", randomInt())),
-            createPitSearchRequest()
+            createPitSearchRequest(),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
         assertThat(paginatedHitSource.getPitId(), equalTo(PIT_ID));
     }
@@ -232,7 +236,8 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             responses::add,
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
-            createPitSearchRequest()
+            createPitSearchRequest(),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
 
         paginatedHitSource.start();
@@ -264,7 +269,8 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             responses::add,
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
-            createPitSearchRequest()
+            createPitSearchRequest(),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
 
         paginatedHitSource.setSearchAfterValues(searchAfterValues);
@@ -303,7 +309,8 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
                     r -> {},
                     e -> {},
                     assigningClient,
-                    request
+                    request,
+                    new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
                 )
             );
         }
@@ -345,7 +352,8 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
                         super.doExecute(action, request, listener);
                     }
                 },
-                createPitSearchRequest()
+                createPitSearchRequest(),
+                new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
             );
         }
 
@@ -452,7 +460,7 @@ public class ClientPitPaginatedHitSourceTests extends ESTestCase {
             }
             return new BulkByScrollTask.StatusOrException(randomWorkingStatus(i));
         }).collect(toList());
-        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null);
+        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null, 0f);
     }
 
     private static BulkByScrollTask.Status randomWorkingStatus(Integer sliceId) {

@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
@@ -213,12 +215,16 @@ public abstract class IndexRouting {
     private abstract static class IdAndRoutingOnly extends IndexRouting {
         private final boolean routingRequired;
         private final IndexMode indexMode;
+        private final boolean sliceEnabled;
+        private final String requiredRoutingParameterName;
 
         IdAndRoutingOnly(IndexMetadata metadata) {
             super(metadata);
             MappingMetadata mapping = metadata.mapping();
             this.routingRequired = mapping == null ? false : mapping.routingRequired();
             this.indexMode = metadata.getIndexMode();
+            this.sliceEnabled = IndexSettings.SLICE_ENABLED.get(metadata.getSettings());
+            this.requiredRoutingParameterName = sliceEnabled ? "_slice" : "routing";
         }
 
         protected abstract int shardId(String id, @Nullable String routing);
@@ -288,8 +294,15 @@ public abstract class IndexRouting {
 
         private void checkRoutingRequired(String id, @Nullable String routing) {
             if (routingRequired && routing == null) {
+                if (sliceEnabled) {
+                    throw new SliceMissingException(indexName, id);
+                }
                 throw new RoutingMissingException(indexName, id);
             }
+        }
+
+        protected String requiredRoutingParameterName() {
+            return requiredRoutingParameterName;
         }
 
         @Override
@@ -336,7 +349,9 @@ public abstract class IndexRouting {
         @Override
         protected int shardId(String id, @Nullable String routing) {
             if (routing == null) {
-                throw new IllegalArgumentException("A routing value is required for gets from a partitioned index");
+                throw new IllegalArgumentException(
+                    "A " + requiredRoutingParameterName() + " value is required for gets from a partitioned index"
+                );
             }
             int offset = Math.floorMod(effectiveRoutingToHash(id), routingPartitionSize);
             return hashToShardId(effectiveRoutingToHash(routing) + offset);
@@ -412,6 +427,15 @@ public abstract class IndexRouting {
         }
 
         protected abstract int hashSource(IndexRequest indexRequest);
+
+        /**
+         * Returns true if dimension fields on this index should write to {@link org.elasticsearch.index.mapper.RoutingFields}
+         * during document mapping. Returns false for {@link ForIndexDimensions}, which builds the tsid during routing
+         * on the coordinating node and attaches it to the index request, so the data node does not need to re-extract dimensions.
+         */
+        public boolean extractDimensionsWhileMapping() {
+            return true;
+        }
 
         private static int defaultOnEmpty() {
             throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
@@ -572,6 +596,11 @@ public abstract class IndexRouting {
                     indexRequest.tsid(tsid);
                 }
                 return hash(tsid);
+            }
+
+            @Override
+            public boolean extractDimensionsWhileMapping() {
+                return false;
             }
 
             public BytesRef buildTsid(XContentType sourceType, BytesReference source) {

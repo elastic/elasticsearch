@@ -28,11 +28,7 @@ import org.ietf.jgss.GSSName;
 import org.ietf.jgss.Oid;
 
 import java.io.IOException;
-import java.security.AccessControlContext;
-import java.security.AccessController;
 import java.security.Principal;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
@@ -129,16 +125,14 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
         try {
             final GSSName gssUserPrincipalName = gssManager.createName(userPrincipalName, GSSName.NT_USER_NAME);
             login();
-            final AccessControlContext acc = AccessController.getContext();
-            final GSSCredential credential = doAsPrivilegedWrapper(
+            final GSSCredential credential = Subject.callAs(
                 loginContext.getSubject(),
-                (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(
+                () -> gssManager.createCredential(
                     gssUserPrincipalName,
                     GSSCredential.DEFAULT_LIFETIME,
                     SPNEGO_OID,
                     GSSCredential.INITIATE_ONLY
-                ),
-                acc
+                )
             );
 
             final KerberosCredentialsProvider credentialsProvider = new KerberosCredentialsProvider();
@@ -147,10 +141,8 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
                 new KerberosCredentials(credential)
             );
             httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
-        } catch (GSSException e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
-        } catch (PrivilegedActionException e) {
-            throw new RuntimeException(e.getCause());
         }
         httpClientBuilder.setDefaultAuthSchemeRegistry(authSchemeRegistry);
     }
@@ -160,57 +152,29 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
      * returns {@link LoginContext}
      *
      * @return {@link LoginContext}
-     * @throws PrivilegedActionException if the login triggers a checked exception
+     * @throws LoginException if the login fails
      */
-    public synchronized LoginContext login() throws PrivilegedActionException {
+    public synchronized LoginContext login() throws LoginException {
         if (this.loginContext == null) {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                final Subject subject = new Subject(
-                    false,
-                    Collections.singleton(new KerberosPrincipal(userPrincipalName)),
-                    Collections.emptySet(),
-                    Collections.emptySet()
-                );
-                Configuration conf = null;
-                final CallbackHandler callback;
-                if (password != null) {
-                    conf = new PasswordJaasConf(userPrincipalName, enableDebugLogs);
-                    callback = new KrbCallbackHandler(userPrincipalName, password);
-                } else {
-                    conf = new KeytabJaasConf(userPrincipalName, keytabPath, enableDebugLogs);
-                    callback = null;
-                }
-                loginContext = new LoginContext(CRED_CONF_NAME, subject, callback, conf);
-                loginContext.login();
-                return null;
-            });
+            final Subject subject = new Subject(
+                false,
+                Collections.singleton(new KerberosPrincipal(userPrincipalName)),
+                Collections.emptySet(),
+                Collections.emptySet()
+            );
+            Configuration conf;
+            final CallbackHandler callback;
+            if (password != null) {
+                conf = new PasswordJaasConf(userPrincipalName, enableDebugLogs);
+                callback = new KrbCallbackHandler(userPrincipalName, password);
+            } else {
+                conf = new KeytabJaasConf(userPrincipalName, keytabPath, enableDebugLogs);
+                callback = null;
+            }
+            loginContext = new LoginContext(CRED_CONF_NAME, subject, callback, conf);
+            loginContext.login();
         }
         return loginContext;
-    }
-
-    /**
-     * Privileged Wrapper that invokes action with Subject.doAs to perform work as
-     * given subject.
-     *
-     * @param subject {@link Subject} to be used for this work
-     * @param action {@link PrivilegedExceptionAction} action for performing inside
-     *            Subject.doAs
-     * @param acc the {@link AccessControlContext} to be tied to the specified
-     *            subject and action see
-     *            {@link Subject#doAsPrivileged(Subject, PrivilegedExceptionAction, AccessControlContext)}
-     * @return the value returned by the PrivilegedExceptionAction's run method
-     * @throws PrivilegedActionException if the specified action's run method threw a checked exception
-     */
-    static <T> T doAsPrivilegedWrapper(final Subject subject, final PrivilegedExceptionAction<T> action, final AccessControlContext acc)
-        throws PrivilegedActionException {
-        try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<T>) () -> Subject.doAsPrivileged(subject, action, acc));
-        } catch (PrivilegedActionException pae) {
-            if (pae.getCause() instanceof PrivilegedActionException privilegedActionException) {
-                throw privilegedActionException;
-            }
-            throw pae;
-        }
     }
 
     /**
@@ -345,34 +309,22 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
      * base64 encoded token to be sent to server.
      *
      * @return Base64 encoded token
-     * @throws PrivilegedActionException when privileged action threw exception
      * @throws GSSException when GSS context creation fails
+     * @throws LoginException when login fails
      */
-    String getBase64EncodedTokenForSpnegoHeader(final String serviceHost) throws PrivilegedActionException, GSSException {
+    String getBase64EncodedTokenForSpnegoHeader(final String serviceHost) throws GSSException, LoginException {
         final GSSManager gssManager = GSSManager.getInstance();
-        final GSSName gssServicePrincipalName = AccessController.doPrivileged(
-            (PrivilegedExceptionAction<GSSName>) () -> gssManager.createName("HTTP/" + serviceHost, null)
-        );
+        final GSSName gssServicePrincipalName = gssManager.createName("HTTP/" + serviceHost, null);
         final GSSName gssUserPrincipalName = gssManager.createName(userPrincipalName, GSSName.NT_USER_NAME);
-        loginContext = AccessController.doPrivileged(
-            (PrivilegedExceptionAction<LoginContext>) () -> loginUsingPassword(userPrincipalName, password)
-        );
-        final GSSCredential userCreds = doAsWrapper(
+        loginContext = loginUsingPassword(userPrincipalName, password);
+        final GSSCredential userCreds = Subject.callAs(
             loginContext.getSubject(),
-            (PrivilegedExceptionAction<GSSCredential>) () -> gssManager.createCredential(
-                gssUserPrincipalName,
-                GSSCredential.DEFAULT_LIFETIME,
-                SPNEGO_OID,
-                GSSCredential.INITIATE_ONLY
-            )
+            () -> gssManager.createCredential(gssUserPrincipalName, GSSCredential.DEFAULT_LIFETIME, SPNEGO_OID, GSSCredential.INITIATE_ONLY)
         );
         gssContext = gssManager.createContext(gssServicePrincipalName, SPNEGO_OID, userCreds, GSSCredential.DEFAULT_LIFETIME);
         gssContext.requestMutualAuth(true);
 
-        final byte[] outToken = doAsWrapper(
-            loginContext.getSubject(),
-            (PrivilegedExceptionAction<byte[]>) () -> gssContext.initSecContext(new byte[0], 0, 0)
-        );
+        final byte[] outToken = Subject.callAs(loginContext.getSubject(), () -> gssContext.initSecContext(new byte[0], 0, 0));
         return Base64.getEncoder().encodeToString(outToken);
     }
 
@@ -395,17 +347,13 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
      *            gss negotiation
      * @return Base64 encoded token to be sent to server. May return {@code null} if
      *         nothing to be sent.
-     * @throws PrivilegedActionException when privileged action threw exception
      */
-    String handleResponse(final String base64Token) throws PrivilegedActionException {
+    String handleResponse(final String base64Token) {
         if (gssContext.isEstablished()) {
             throw new IllegalStateException("GSS Context has already been established");
         }
         final byte[] token = Base64.getDecoder().decode(base64Token);
-        final byte[] outToken = doAsWrapper(
-            loginContext.getSubject(),
-            (PrivilegedExceptionAction<byte[]>) () -> gssContext.initSecContext(token, 0, token.length)
-        );
+        final byte[] outToken = Subject.callAs(loginContext.getSubject(), () -> gssContext.initSecContext(token, 0, token.length));
         if (outToken == null || outToken.length == 0) {
             return null;
         }
@@ -417,9 +365,5 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
      */
     boolean isEstablished() {
         return gssContext.isEstablished();
-    }
-
-    static <T> T doAsWrapper(final Subject subject, final PrivilegedExceptionAction<T> action) throws PrivilegedActionException {
-        return AccessController.doPrivileged((PrivilegedExceptionAction<T>) () -> Subject.doAs(subject, action));
     }
 }

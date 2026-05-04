@@ -55,6 +55,7 @@ public class RestReindexRethrottleAction extends BaseRestHandler {
             throw new IllegalArgumentException("requests_per_second is a required parameter");
         }
         internalRequest.setRequestsPerSecond(requestsPerSecond);
+        internalRequest.setFollowRelocations(true);
         // This ListTasksResponse will only ever contain a single task, so grouping them is not very useful.
         // In stateful, we allow the group_by parameter and default to "nodes", for historical reasons.
         // In stateless, we don't allow group_by, we never group, so that we don't include the unwanted layers and node info.

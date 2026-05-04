@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.deepseek;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
@@ -440,23 +439,14 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    private DeepSeekChatCompletionModel createModel(DeepSeekService service, TaskType taskType) throws URISyntaxException, IOException {
-        var model = service.parsePersistedConfig(new UnparsedModel("inference-id", taskType, DeepSeekService.NAME, map(Strings.format("""
-            {
-              "service_settings": {
-                "model_id": "some-cool-model",
-                "url": "%s"
-              }
-            }
-            """, webServer.getUri(null).toString())), map("""
-            {
-              "secret_settings": {
-                "api_key": "12345"
-              }
-            }
-            """)));
-        assertThat(model, isA(DeepSeekChatCompletionModel.class));
-        return model;
+    private DeepSeekChatCompletionModel createModel(DeepSeekService service, TaskType taskType) throws URISyntaxException {
+        return new DeepSeekChatCompletionModel(
+            "inference-id",
+            taskType,
+            service.name(),
+            new DeepSeekServiceSettings("some-cool-model", webServer.getUri(null)),
+            new DefaultSecretSettings(new SecureString("12345"))
+        );
     }
 
     public void testBuildModelFromConfigAndSecrets_ChatCompletion() throws IOException {
@@ -465,7 +455,7 @@ public class DeepSeekServiceTests extends InferenceServiceTestCase {
                 INFERENCE_ENTITY_ID_VALUE,
                 TaskType.CHAT_COMPLETION,
                 DEEPSEEK_SERVICE_NAME,
-                new DeepSeekChatCompletionModel.DeepSeekServiceSettings(MODEL_ID_VALUE, null)
+                new DeepSeekServiceSettings(MODEL_ID_VALUE, null)
             ),
             new ModelSecrets(new DefaultSecretSettings(new SecureString(API_KEY_VALUE.toCharArray())))
         );

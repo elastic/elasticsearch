@@ -42,11 +42,17 @@ public class Lucene90CompoundEntriesReaderTests extends ESTestCase {
             var infos = Lucene.readSegmentInfos(directory);
             var si = infos.info(0).info;
 
-            var actualSegmentEntries = Set.of(si.getCodec().compoundFormat().getCompoundReader(directory, si).listAll());
-            var parsedSegmentEntries = prependSegmentName(
-                si.name,
-                Lucene90CompoundEntriesReader.readEntries(directory.openInput(si.name + ".cfe", IOContext.DEFAULT)).keySet()
-            );
+            Set<String> actualSegmentEntries;
+            try (var compoundReader = si.getCodec().compoundFormat().getCompoundReader(directory, si)) {
+                actualSegmentEntries = Set.of(compoundReader.listAll());
+            }
+            Set<String> parsedSegmentEntries;
+            try (var cfeInput = directory.openInput(si.name + ".cfe", IOContext.DEFAULT)) {
+                parsedSegmentEntries = prependSegmentName(
+                    si.name,
+                    Lucene90CompoundEntriesReader.readEntries(cfeInput).keySet()
+                );
+            }
 
             assertThat(parsedSegmentEntries, equalTo(actualSegmentEntries));
         }

@@ -343,7 +343,7 @@ public abstract class ViewResolutionBenchmarkBase {
             boolean enabled,
             ViewResolutionService viewResolutionService
         ) {
-            super(clusterService, projectResolver, null, CrossProjectModeDecider.NOOP);
+            super(null, clusterService, projectResolver, null, CrossProjectModeDecider.NOOP);
             this.enabled = enabled;
             this.viewResolutionService = viewResolutionService;
             this.benchmarkClusterService = clusterService;

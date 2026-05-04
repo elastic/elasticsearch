@@ -836,6 +836,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         setReplicaCount(1, restoredIndexName);
         ensureGreen(restoredIndexName);
         assertHitCount(client().prepareSearch(restoredIndexName).setSize(0).setTrackTotalHits(true), clusterInfo.numDocs);
+
+        // Ensure we can continue index into the restored index
+        indexDocs(restoredIndexName, 10);
+        flush(restoredIndexName);
     }
 
     public void testSnapshotShardsAfterUnhollowing() throws Exception {

@@ -165,9 +165,9 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         final DataType tsType = timestamp().dataType();
         final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         return switch (type) {
-            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(isDateNanos);
-            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(isDateNanos);
-            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(isDateNanos);
+            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(source(), isDateNanos);
+            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(source(), isDateNanos);
+            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(source(), isDateNanos);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

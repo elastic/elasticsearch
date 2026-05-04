@@ -502,7 +502,7 @@ public class StaleIndicesGCIT extends AbstractStatelessPluginIntegTestCase {
         for (var indexName : indexNames) {
             var indexMetadata = state.metadata().getProject().index(indexName);
             if (indexMetadata == null) {
-                logger.warn("Index [{}] is not found in cluster state: {}", indexName, Strings.toString(state, true, true));
+                logger.warn("Index [{}] is not found in cluster state: {}", indexName, Strings.toTruncatedString(state, true, true));
             }
             indexUUIDs.add(indexMetadata.getIndexUUID());
         }

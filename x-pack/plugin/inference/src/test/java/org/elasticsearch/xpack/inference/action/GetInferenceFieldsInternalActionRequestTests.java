@@ -189,10 +189,19 @@ public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWir
     }
 
     private static InferenceStringGroup randomInput() {
-        return switch (between(0, 2)) {
+        return switch (between(0, 3)) {
             case 0 -> null;
             case 1 -> new InferenceStringGroup(randomAlphaOfLengthBetween(5, 10));
             case 2 -> new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,aGVsbG8="));
+            case 3 -> new InferenceStringGroup(
+                randomList(
+                    2,
+                    4,
+                    () -> randomBoolean()
+                        ? new InferenceString(DataType.TEXT, randomAlphaOfLengthBetween(5, 10))
+                        : new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,aGVsbG8=")
+                )
+            );
             default -> throw new AssertionError("Invalid value");
         };
     }

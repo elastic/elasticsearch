@@ -373,7 +373,11 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         } else {
             ReducedState state = getOrInitializeReducedState(group);
             for (int pos = from; pos < to; pos++) {
-                state.appendDeltaValue(timestampVector.getLong(pos), valueBlock.getLong(pos));
+                if (valueBlock.isNull(pos)) {
+                    continue;
+                }
+                assert valueBlock.getValueCount(pos) == 1 : "expected single-valued block " + valueBlock;
+                state.appendDeltaValue(timestampVector.getLong(pos), valueBlock.getLong(valueBlock.getFirstValueIndex(pos)));
             }
         }
     }

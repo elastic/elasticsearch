@@ -553,6 +553,7 @@ public class KnnSearcher {
         finalResults.overSamplingFactor = searchParameters.overSamplingFactor();
         finalResults.filterSelectivity = searchParameters.filterSelectivity();
         finalResults.numCandidates = searchParameters.numCandidates();
+        finalResults.topK = searchParameters.topK();
         finalResults.earlyTermination = searchParameters.earlyTermination();
         if (finalResults.totalIndexVectors > 0) {
             finalResults.actualVisitPercentage = (finalResults.averageVisited / finalResults.totalIndexVectors) * 100.0;
@@ -726,14 +727,7 @@ public class KnnSearcher {
         }
         if (searchParameters.overSamplingFactor() > 1f) {
             // oversample the topK results to get more candidates for the final result
-            knnQuery = RescoreKnnVectorQuery.fromInnerQuery(
-                VECTOR_FIELD,
-                vector,
-                similarityFunction,
-                searchParameters.topK(),
-                overSampledTopK,
-                knnQuery
-            );
+            knnQuery = RescoreKnnVectorQuery.fromInnerQuery(VECTOR_FIELD, vector, searchParameters.topK(), overSampledTopK, knnQuery);
         }
         QueryProfiler profiler = new QueryProfiler();
         TopDocs docs = searcher.search(knnQuery, searchParameters.topK());

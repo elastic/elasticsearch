@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.IOUtils;
@@ -22,11 +21,13 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
@@ -110,11 +111,13 @@ public abstract class SenderService<M extends Model> implements InferenceService
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((inferListener) -> {
+        try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
             var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
-            doInfer(model, inferenceInput, taskSettings, resolvedInferenceTimeout, inferListener);
-        }).addListener(listener);
+            doInfer(model, inferenceInput, taskSettings, resolvedInferenceTimeout, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     @Override
@@ -270,13 +273,15 @@ public abstract class SenderService<M extends Model> implements InferenceService
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((completionInferListener) -> {
+        try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, CHAT_COMPLETION);
             if (supportsChatCompletionReasoning() == false && request.containsChatCompletionReasoning()) {
                 throwUnsupportedReasoningUnifiedCompletionOperation(name());
             }
-            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), resolvedInferenceTimeout, completionInferListener);
-        }).addListener(listener);
+            doUnifiedCompletionInfer(model, new UnifiedChatInput(request, true), resolvedInferenceTimeout, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     protected boolean supportsChatCompletionReasoning() {
@@ -285,7 +290,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
 
     @Override
     public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        SubscribableListener.newForked(this::init).<InferenceServiceResults>andThen((embeddingInferListener) -> {
+        try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, request.inputType(), clusterService, model.getTaskType());
             if (supportsImageEmbeddingContent() == false && containsNonTextEntry(request.inputs())) {
                 listener.onFailure(
@@ -297,11 +302,11 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 return;
             }
             if (supportsMultipleItemsPerContent()) {
-                doEmbeddingInfer(model, request, resolvedInferenceTimeout, embeddingInferListener);
+                doEmbeddingInfer(model, request, resolvedInferenceTimeout, listener);
             } else {
                 var index = indexContainingMultipleInferenceStrings(request.inputs());
                 if (index == null) {
-                    doEmbeddingInfer(model, request, resolvedInferenceTimeout, embeddingInferListener);
+                    doEmbeddingInfer(model, request, resolvedInferenceTimeout, listener);
                 } else {
                     listener.onFailure(
                         new ElasticsearchStatusException(
@@ -318,7 +323,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
                     );
                 }
             }
-        }).addListener(listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -338,6 +345,39 @@ public abstract class SenderService<M extends Model> implements InferenceService
     }
 
     @Override
+    public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        try {
+            var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, model.getTaskType());
+            if (supportsMultimodalRerank() == false
+                && (request.query().isNonText() || request.inputs().stream().anyMatch(InferenceString::isNonText))) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        Strings.format("The %s service does not support rerank with non-text inputs or queries", name()),
+                        RestStatus.BAD_REQUEST
+                    )
+                );
+                return;
+            }
+
+            ValidationException validationException = new ValidationException();
+            validateRerankParameters(request.returnDocuments(), request.topN(), validationException);
+            validationException.throwIfValidationErrorsExist();
+
+            doRerankInfer(model, request, resolvedInferenceTimeout, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Override as necessary for services which support images in rerank inputs and queries
+     * @return true if the service supports images in rerank inputs and queries
+     */
+    protected boolean supportsMultimodalRerank() {
+        return false;
+    }
+
+    @Override
     public void chunkedInfer(
         Model model,
         @Nullable String query,
@@ -347,14 +387,14 @@ public abstract class SenderService<M extends Model> implements InferenceService
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
-        SubscribableListener.newForked(this::init).<List<ChunkedInference>>andThen((chunkedInferListener) -> {
+        try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
             ValidationException validationException = new ValidationException();
             validateInputType(inputType, model, validationException);
             validationException.throwIfValidationErrorsExist();
             if (supportsChunkedInfer()) {
                 if (input.isEmpty()) {
-                    chunkedInferListener.onResponse(List.of());
+                    listener.onResponse(List.of());
                 } else {
                     if (supportsImageEmbeddingContent() == false
                         && containsNonTextEntry(input.stream().map(ChunkInferenceInput::input).toList())) {
@@ -367,14 +407,16 @@ public abstract class SenderService<M extends Model> implements InferenceService
                         return;
                     }
                     // a non-null query is not supported and is dropped by all providers
-                    doChunkedInfer(model, input, taskSettings, inputType, resolvedInferenceTimeout, chunkedInferListener);
+                    doChunkedInfer(model, input, taskSettings, inputType, resolvedInferenceTimeout, listener);
                 }
             } else {
-                chunkedInferListener.onFailure(
+                listener.onFailure(
                     new UnsupportedOperationException(Strings.format("%s service does not support chunked inference", name()))
                 );
             }
-        }).addListener(listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     protected abstract void doInfer(
@@ -405,6 +447,10 @@ public abstract class SenderService<M extends Model> implements InferenceService
         throwUnsupportedEmbeddingOperation(model.getConfigurations().getService());
     }
 
+    protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        throw new IllegalStateException(Strings.format("New rerank code path invoked for %s service that does not support it", name()));
+    }
+
     protected abstract void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,
@@ -418,23 +464,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
         return true;
     }
 
-    public void start(Model model, ActionListener<Boolean> listener) {
-        SubscribableListener.newForked(this::init)
-            .<Boolean>andThen((doStartListener) -> doStart(model, doStartListener))
-            .addListener(listener);
-    }
-
     @Override
-    public void start(Model model, @Nullable TimeValue unused, ActionListener<Boolean> listener) {
-        start(model, listener);
-    }
-
-    protected void doStart(Model model, ActionListener<Boolean> listener) {
-        listener.onResponse(true);
-    }
-
-    private void init(ActionListener<Void> listener) {
-        sender.startAsynchronously(listener);
+    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Boolean> listener) {
+        listener.onResponse(Boolean.TRUE);
     }
 
     @Override

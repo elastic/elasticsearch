@@ -59,8 +59,8 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
     }
 
     @Override
-    protected Self doForSlice(Self request, TaskId slicingTask, int totalSlices) {
-        return super.doForSlice(request, slicingTask, totalSlices).setScript(script);
+    protected Self doForSlice(Self request, TaskId slicingTask, int totalSlices, int activeSlices) {
+        return super.doForSlice(request, slicingTask, totalSlices, activeSlices).setScript(script);
     }
 
     @Override

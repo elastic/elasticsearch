@@ -78,4 +78,13 @@ public sealed interface LongRangeBlock extends Block permits LongRangeArrayBlock
     LongBlock getFromBlock();
 
     LongBlock getToBlock();
+
+    /**
+     * Returns the long range at the given value index, mutating {@code scratch} in place.
+     *
+     * @param valueIndex the value-offset (use {@link #getFirstValueIndex(int)} to translate from a position)
+     * @param scratch    the reusable container to populate
+     * @return {@code scratch}, populated with {@code from}/{@code to} for the value at {@code valueIndex}
+     */
+    LongRangeBlockBuilder.LongRange getLongRange(int valueIndex, LongRangeBlockBuilder.LongRange scratch);
 }

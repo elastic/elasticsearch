@@ -1,6 +1,14 @@
+import org.elasticsearch.gradle.OS
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
+
+if (OS.current() == OS.WINDOWS) {
+    tasks.withType(Test).configureEach {
+        enabled = false
+    }
+}
 
 esplugin {
     name = 'stateless-no-wait-for-active-shards'

@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.RequestExecutor;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
@@ -434,7 +434,7 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
-            var request = mock(Request.class);
+            var request = mock(OutboundRequest.class);
             when(request.getInferenceEntityId()).thenReturn(INFERENCE_ID);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             sender.sendWithoutQueuing(mock(Logger.class), request, mock(ResponseHandler.class), TimeValue.timeValueNanos(1), listener);
@@ -484,7 +484,7 @@ public class HttpRequestSenderTests extends ESTestCase {
             var sender = new HttpRequestSender(smallThreadPool, mockManager, mock(RequestSender.class), mock(RequestExecutor.class));
 
             runConcurrentSendTest(mockManager, maxUtilityThreads, (barrier, future) -> {
-                var request = mock(Request.class);
+                var request = mock(OutboundRequest.class);
                 when(request.getInferenceEntityId()).thenReturn(INFERENCE_ID);
                 return new Thread(() -> {
                     safeAwait(barrier);

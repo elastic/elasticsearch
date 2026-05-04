@@ -44,6 +44,7 @@ import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.reindex.PaginatedHitSource;
 import org.elasticsearch.reindex.PaginatedHitSource.Response;
+import org.elasticsearch.reindex.SearchContextKeepaliveDeadline;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -660,7 +661,8 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
             restClient,
             remoteInfo(),
             searchRequest,
-            initialRemoteVersion
+            initialRemoteVersion,
+            keepaliveDeadline()
         );
     }
 
@@ -699,9 +701,14 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
                 client,
                 remoteInfo,
                 RemoteScrollablePaginatedHitSourceTests.this.searchRequest,
-                randomBoolean() ? Version.CURRENT : null
+                randomBoolean() ? Version.CURRENT : null,
+                keepaliveDeadline()
             );
         }
+    }
+
+    private SearchContextKeepaliveDeadline keepaliveDeadline() {
+        return new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis);
     }
 
     private <T> RejectAwareActionListener<T> wrapAsListener(Consumer<T> consumer) {

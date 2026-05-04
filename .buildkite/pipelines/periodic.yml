@@ -401,8 +401,8 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 8.19.15 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.19.15#bwcTest
+      - label: 8.19.16 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.19.16#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -411,7 +411,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.19.15
+          BWC_VERSION: 8.19.16
         retry:
           automatic:
             - exit_status: "-1"
@@ -485,8 +485,8 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 9.3.4 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.3.4#bwcTest
+      - label: 9.3.5 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.3.5#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -495,7 +495,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.3.4
+          BWC_VERSION: 9.3.5
         retry:
           automatic:
             - exit_status: "-1"
@@ -632,7 +632,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.19.15", "9.2.9", "9.3.4", "9.4.0", "9.5.0"]
+            BWC_VERSION: ["8.19.16", "9.2.9", "9.3.5", "9.4.0", "9.5.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -699,7 +699,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.19.15", "9.2.9", "9.3.4", "9.4.0", "9.5.0"]
+            BWC_VERSION: ["8.19.16", "9.2.9", "9.3.5", "9.4.0", "9.5.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -758,7 +758,7 @@ steps:
               - openjdk21
               - openjdk25
               - openjdk26
-            BWC_VERSION: ["8.19.15", "9.2.9", "9.3.4", "9.4.0", "9.5.0"]
+            BWC_VERSION: ["8.19.16", "9.2.9", "9.3.5", "9.4.0", "9.5.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

@@ -13,11 +13,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 class DocTrackingCollectorManager implements KnnCollectorManager {
 
@@ -26,20 +25,20 @@ class DocTrackingCollectorManager implements KnnCollectorManager {
     public static final int MAX_DOCS_TRACKED = 1000;
 
     private final KnnCollectorManager delegate;
-    private final Map<Integer, DocTrackingMeta> collectors;
+    private final AtomicArray<DocTrackingMeta> collectors;
     private final int docsTracked;
 
-    DocTrackingCollectorManager(KnnCollectorManager delegate, int docsTracked) {
+    DocTrackingCollectorManager(KnnCollectorManager delegate, int docsTracked, int numLeaves) {
         this.delegate = delegate;
         this.docsTracked = Math.min(docsTracked, MAX_DOCS_TRACKED);
-        this.collectors = new ConcurrentHashMap<>();
+        this.collectors = new AtomicArray<>(numLeaves);
     }
 
     @Override
     public KnnCollector newCollector(int visitLimit, KnnSearchStrategy searchStrategy, LeafReaderContext ctx) throws IOException {
         var baseCollector = delegate.newCollector(visitLimit, searchStrategy, ctx);
         var docTrackingCollector = new DocTrackingCollector(baseCollector, docsTracked);
-        collectors.put(ctx.ord, new DocTrackingMeta(docTrackingCollector, ctx.docBase));
+        collectors.set(ctx.ord, new DocTrackingMeta(docTrackingCollector, ctx.docBase));
         return docTrackingCollector;
     }
 
@@ -48,7 +47,7 @@ class DocTrackingCollectorManager implements KnnCollectorManager {
         throws IOException {
         var baseCollector = delegate.newOptimisticCollector(visitLimit, searchStrategy, ctx, k);
         var docTrackingCollector = new DocTrackingCollector(baseCollector, docsTracked);
-        collectors.put(ctx.ord, new DocTrackingMeta(docTrackingCollector, ctx.docBase));
+        collectors.set(ctx.ord, new DocTrackingMeta(docTrackingCollector, ctx.docBase));
         return docTrackingCollector;
     }
 
@@ -59,7 +58,7 @@ class DocTrackingCollectorManager implements KnnCollectorManager {
 
     public int[] getTrackedDocs() {
         NeighborQueue mergeQueue = new NeighborQueue(docsTracked, false);
-        for (DocTrackingMeta meta : collectors.values()) {
+        for (DocTrackingMeta meta : collectors.asList()) {
             DocTrackingCollector collector = meta.collector();
             int docBase = meta.docBase();
             while (collector.trackedDocsSize() > 0) {
@@ -79,7 +78,7 @@ class DocTrackingCollectorManager implements KnnCollectorManager {
         return result;
     }
 
-    public static DocTrackingCollectorManager wrap(KnnCollectorManager delegate, int docsTracked) {
-        return new DocTrackingCollectorManager(delegate, docsTracked);
+    public static DocTrackingCollectorManager wrap(KnnCollectorManager delegate, int docsTracked, int numLeaves) {
+        return new DocTrackingCollectorManager(delegate, docsTracked, numLeaves);
     }
 }

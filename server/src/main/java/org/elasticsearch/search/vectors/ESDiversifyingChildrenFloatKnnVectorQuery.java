@@ -99,8 +99,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         // Derive retry numCands from this query's k/numCands ratio so HNSW beam scales with retry K.
         int retryNumCands = (int) Math.clamp(Math.ceil((double) remainingK * numCandsParam / kParam), remainingK, NUM_CANDS_LIMIT);
-        var managerHolder = new DocTrackingKnnQuery.Holder<DocTrackingCollectorManager>();
-        var knnQuery = new ESDiversifyingChildrenFloatKnnVectorQuery(
+        return new ESDiversifyingChildrenFloatKnnVectorQuery(
             field,
             getTargetCopy(),
             filter,
@@ -110,18 +109,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
             searchStrategy,
             earlyTermination,
             seedDocs
-        ) {
-            @Override
-            protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-                // super already applies SeededRetryCollectorManager (if seedDocs set) and PatienceCollectorManager
-                // (if earlyTermination); we only need to layer DocTracking on top.
-                var base = super.getKnnCollectorManager(k, searcher);
-                var knnCollectorManager = DocTrackingCollectorManager.wrap(base, k);
-                managerHolder.value = knnCollectorManager;
-                return knnCollectorManager;
-            }
-        };
-        return new DocTrackingKnnQuery<>(knnQuery, managerHolder);
+        );
     }
 
     @Override
@@ -148,7 +136,7 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
             @Override
             protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
                 var base = super.getKnnCollectorManager(k, searcher);
-                var knnCollectorManager = DocTrackingCollectorManager.wrap(base, k);
+                var knnCollectorManager = DocTrackingCollectorManager.wrap(base, k, searcher.getIndexReader().leaves().size());
                 managerHolder.value = knnCollectorManager;
                 return knnCollectorManager;
             }

@@ -99,8 +99,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         // Derive retry numCands from this query's k/numCands ratio so HNSW beam scales with retry K.
         int retryNumCands = (int) Math.clamp(Math.ceil((double) remainingK * numCandsParam / kParam), remainingK, NUM_CANDS_LIMIT);
-        var managerHolder = new DocTrackingKnnQuery.Holder<DocTrackingCollectorManager>();
-        var knnQuery = new ESDiversifyingChildrenByteKnnVectorQuery(
+        return new ESDiversifyingChildrenByteKnnVectorQuery(
             field,
             getTargetCopy(),
             filter,
@@ -110,17 +109,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
             searchStrategy,
             earlyTermination,
             seedDocs
-        ) {
-            @Override
-            protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-                // super already applies SeededRetryCollectorManager (if seedDocs set) and PatienceCollectorManager
-                var base = super.getKnnCollectorManager(k, searcher);
-                var knnCollectorManager = DocTrackingCollectorManager.wrap(base, k);
-                managerHolder.value = knnCollectorManager;
-                return knnCollectorManager;
-            }
-        };
-        return new DocTrackingKnnQuery<>(knnQuery, managerHolder);
+        );
     }
 
     @Override
@@ -148,7 +137,7 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
             @Override
             protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
                 var base = super.getKnnCollectorManager(k, searcher);
-                var knnCollectorManager = DocTrackingCollectorManager.wrap(base, k);
+                var knnCollectorManager = DocTrackingCollectorManager.wrap(base, k, searcher.getIndexReader().leaves().size());
                 managerHolder.value = knnCollectorManager;
                 return knnCollectorManager;
             }

@@ -82,8 +82,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         // Derive retry numCands from this query's k/numCands ratio so HNSW beam scales with retry K.
         int retryNumCands = (int) Math.clamp(Math.ceil((double) remainingK * numCandsParam / kParam), remainingK, NUM_CANDS_LIMIT);
-        var managerHolder = new DocTrackingKnnQuery.Holder<DocTrackingCollectorManager>();
-        var knnQuery = new ESKnnByteVectorQuery(
+        return new ESKnnByteVectorQuery(
             field,
             getTargetCopy(),
             remainingK,
@@ -92,17 +91,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
             searchStrategy,
             earlyTermination,
             seedDocs
-        ) {
-            @Override
-            protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-                // super already applies SeededRetryCollectorManager (if seedDocs set) and PatienceCollectorManager
-                var base = super.getKnnCollectorManager(k, searcher);
-                var knnCollectorManager = DocTrackingCollectorManager.wrap(base, k);
-                managerHolder.value = knnCollectorManager;
-                return knnCollectorManager;
-            }
-        };
-        return new DocTrackingKnnQuery<>(knnQuery, managerHolder);
+        );
     }
 
     @Override
@@ -128,7 +117,7 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
             @Override
             protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
                 var base = super.getKnnCollectorManager(k, searcher);
-                var knnCollectorManager = DocTrackingCollectorManager.wrap(base, k);
+                var knnCollectorManager = DocTrackingCollectorManager.wrap(base, k, searcher.getIndexReader().leaves().size());
                 managerHolder.value = knnCollectorManager;
                 return knnCollectorManager;
             }

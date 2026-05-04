@@ -82,26 +82,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         // Derive retry numCands from this query's k/numCands ratio so HNSW beam scales with retry K.
         int retryNumCands = (int) Math.clamp(Math.ceil((double) remainingK * numCandsParam / kParam), remainingK, NUM_CANDS_LIMIT);
-        var managerHolder = new DocTrackingKnnQuery.Holder<DocTrackingCollectorManager>();
-        var knnQuery = new ESKnnFloatVectorQuery(
-            field,
-            target,
-            remainingK,
-            retryNumCands,
-            filter,
-            searchStrategy,
-            earlyTermination,
-            seedDocs
-        ) {
-            @Override
-            protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-                var base = super.getKnnCollectorManager(k, searcher);
-                var knnCollectorManager = DocTrackingCollectorManager.wrap(base, k);
-                managerHolder.value = knnCollectorManager;
-                return knnCollectorManager;
-            }
-        };
-        return new DocTrackingKnnQuery<>(knnQuery, managerHolder);
+        return new ESKnnFloatVectorQuery(field, target, remainingK, retryNumCands, filter, searchStrategy, earlyTermination, seedDocs);
     }
 
     @Override
@@ -118,7 +99,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
             @Override
             protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
                 var base = super.getKnnCollectorManager(k, searcher);
-                var knnCollectorManager = DocTrackingCollectorManager.wrap(base, k);
+                var knnCollectorManager = DocTrackingCollectorManager.wrap(base, k, searcher.getIndexReader().leaves().size());
                 managerHolder.value = knnCollectorManager;
                 return knnCollectorManager;
             }

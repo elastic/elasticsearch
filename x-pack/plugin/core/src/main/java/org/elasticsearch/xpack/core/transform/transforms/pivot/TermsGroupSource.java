@@ -111,7 +111,7 @@ public class TermsGroupSource extends SingleGroupSource {
     @Override
     ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         validationException = super.validate(validationException);
-        if (maxTermsForChangeDetection != null && maxTermsForChangeDetection != -1 && maxTermsForChangeDetection < 0) {
+        if (maxTermsForChangeDetection != null && maxTermsForChangeDetection < -1) {
             validationException = addValidationError(
                 "max_terms_for_change_detection ["
                     + maxTermsForChangeDetection
@@ -136,6 +136,10 @@ public class TermsGroupSource extends SingleGroupSource {
         }
     }
 
+    // Pivot builds the composite aggregation by serializing group sources to XContent and re-parsing
+    // them with CompositeAggregationBuilder's strict parser. Transform-only fields like
+    // max_terms_for_change_detection must be suppressed during that serialization path, otherwise the
+    // parser rejects them as unknown. Pivot passes EXCLUDE_TRANSFORM_METADATA=true for this purpose.
     private static boolean excludeTransformMetadata(Params params) {
         return Boolean.parseBoolean(params.param(TransformField.EXCLUDE_TRANSFORM_METADATA, "false"));
     }

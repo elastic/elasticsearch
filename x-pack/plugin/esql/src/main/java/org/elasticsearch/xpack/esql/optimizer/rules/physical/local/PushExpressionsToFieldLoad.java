@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -173,6 +174,9 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
         private Expression transformExpression(PhysicalPlan nodeWithExpression, Expression e, BlockLoaderExpression ble) {
             BlockLoaderExpression.PushedBlockLoaderExpression fuse = ble.tryPushToFieldLoading(context.searchStats());
             if (fuse == null) {
+                return e;
+            }
+            if (fuse.field().field() instanceof MultiTypeEsField) {
                 return e;
             }
             if (primaries.canPush(nodeWithExpression) == false) {

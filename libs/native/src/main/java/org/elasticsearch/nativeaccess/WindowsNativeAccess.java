@@ -226,6 +226,11 @@ public class WindowsNativeAccess extends AbstractNativeAccess {
     }
 
     @Override
+    public Optional<ParquetRsFunctions> getParquetRsFunctions() {
+        return Optional.empty(); // not supported yet
+    }
+
+    @Override
     public CloseableMappedByteBuffer map(FileChannel fileChannel, FileChannel.MapMode mode, long position, long size) throws IOException {
         return JdkCloseableMappedByteBuffer.ofShared(fileChannel, mode, position, size);
     }

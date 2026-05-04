@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -173,7 +174,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             responseListener.onResponse(
                 new BulkByScrollResponse(
                     TimeValue.ZERO,
-                    new BulkByScrollTask.Status(Collections.emptyList(), null),
+                    new BulkByScrollTask.Status(Collections.emptyList(), null, 0f),
                     Collections.emptyList(),
                     Collections.emptyList(),
                     false
@@ -373,7 +374,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             responseListener.onResponse(
                 new BulkByScrollResponse(
                     TimeValue.ZERO,
-                    new BulkByScrollTask.Status(Collections.emptyList(), null),
+                    new BulkByScrollTask.Status(Collections.emptyList(), null, 0f),
                     Collections.emptyList(),
                     Collections.emptyList(),
                     false
@@ -840,7 +841,8 @@ public class TransformIndexerStateTests extends ESTestCase {
                 new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
                 mock(TransformNode.class),
                 mock(CrossProjectModeDecider.class),
-                projectId -> false
+                projectId -> false,
+                mock(ProjectResolver.class)
             ),
             new MockTimebasedCheckpointProvider(config),
             config,
@@ -1060,7 +1062,8 @@ public class TransformIndexerStateTests extends ESTestCase {
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
-            projectId -> false
+            projectId -> false,
+            mock(ProjectResolver.class)
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(
@@ -1097,7 +1100,8 @@ public class TransformIndexerStateTests extends ESTestCase {
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
             mock(TransformNode.class),
             mock(CrossProjectModeDecider.class),
-            projectId -> false
+            projectId -> false,
+            mock(ProjectResolver.class)
         );
 
         MockedTransformIndexerForStatePersistenceTesting indexer = new MockedTransformIndexerForStatePersistenceTesting(

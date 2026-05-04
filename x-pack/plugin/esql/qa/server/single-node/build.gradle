@@ -27,6 +27,7 @@ dependencies {
   clusterPlugins project(xpackModule('esql-datasource-csv'))
   clusterPlugins project(xpackModule('esql-datasource-ndjson'))
   clusterPlugins project(xpackModule('esql-datasource-http'))
+  clusterPlugins project(xpackModule('esql-datasource-s3'))
 }
 
 restResources {

@@ -53,7 +53,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     private static final int WORKFLOWS_EXECUTION_LOGS_MAPPINGS_VERSION = 1;
 
     /** Log data stream registered in {@link #workflowsEventsSystemDataStreamDescriptor()}. */
-    public static final String WORKFLOWS_EVENTS_DATA_STREAM_NAME = ".workflows-events*";
+    public static final String WORKFLOWS_EVENTS_DATA_STREAM_NAME = ".workflows-events";
 
     /** Composable index template resource for {@value #WORKFLOWS_EVENTS_DATA_STREAM_NAME}. */
     public static final String WORKFLOWS_EVENTS_COMPOSABLE_TEMPLATE_RESOURCE = "workflows-events.json";
@@ -62,7 +62,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
     public static final String WORKFLOWS_EVENTS_MANAGED_INDEX_VERSION_VARIABLE = "kibana.workflows.events.managed.index.version";
 
     /** Log data stream registered in {@link #workflowsExecutionDataStreamLogsSystemDataStreamDescriptor()}. */
-    public static final String WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME = ".workflows-execution-data-stream-logs*";
+    public static final String WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME = ".workflows-execution-data-stream-logs";
 
     /** Composable index template resource for {@value #WORKFLOWS_EXECUTION_LOGS_DATA_STREAM_NAME}. */
     public static final String WORKFLOWS_EXECUTION_LOGS_COMPOSABLE_TEMPLATE_RESOURCE = "workflows-execution-data-stream-logs.json";

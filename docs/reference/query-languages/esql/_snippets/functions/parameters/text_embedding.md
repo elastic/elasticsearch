@@ -8,3 +8,6 @@
 `inference_id`
 :   Identifier of an existing inference endpoint that will generate the embeddings. The inference endpoint must have the `text_embedding` task type and should use the same model that was used to embed your indexed data.
 
+`options` {applies_to}`{"stack": "ga 9.5+", "serverless": "ga"}`
+:   (Optional) Options for the inference request.
+

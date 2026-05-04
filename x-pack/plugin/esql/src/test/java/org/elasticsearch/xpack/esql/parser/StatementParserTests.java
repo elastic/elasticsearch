@@ -3979,7 +3979,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError(
             "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
-            "line 1:42: Invalid option [unknown_option] in RERANK, expected one of [[inference_id]]"
+            "line 1:42: Invalid option [unknown_option] in RERANK, expected one of [[inference_id, timeout]]"
         );
         expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: extraneous input 'ON' expecting {QUOTED_STRING");
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
@@ -3987,6 +3987,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(
             "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": { \"a\": 123 } }",
             "Option [inference_id] must be a valid string, found [{ \"a\": 123 }]"
+        );
+        expectError(
+            "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": \"my_inference_id\", \"timeout\": \"a long one\" }",
+            "Invalid timeout value [a long one] for option [timeout] in RERANK: [failed to parse setting [timeout]"
         );
     }
 
@@ -4090,7 +4094,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
-            "line 1:31: Invalid option [unknown_option] in COMPLETION, expected one of [[inference_id, task_settings]]"
+            "line 1:31: Invalid option [unknown_option] in COMPLETION, expected one of [[inference_id, task_settings, timeout]]"
         );
 
         expectError("FROM foo* | COMPLETION WITH inferenceId", "line 1:24: extraneous input 'WITH' expecting {");
@@ -4100,6 +4104,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": { \"a\": 123 } }",
             "line 1:54: Option [inference_id] must be a valid string, found [{ \"a\": 123 }]"
+        );
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"timeout\": \"a long one\" }",
+            "Invalid timeout value [a long one] for option [timeout] in COMPLETION: [failed to parse setting [timeout]"
         );
     }
 
@@ -4398,7 +4406,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         try (XContentBuilder report = JsonXContent.contentBuilder().humanReadable(true).prettyPrint().lfAtEnd()) {
             report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
-            if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V2.isEnabled() == false) {
+            if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V3.isEnabled() == false) {
                 // Some types do not have a converter function if the capability is disabled
                 namesAndAliases.removeAll(List.of("date_range"));
             }

@@ -20,6 +20,7 @@ module org.elasticsearch.nativeaccess {
         to
             org.elasticsearch.server,
             org.elasticsearch.blobcache,
+            org.elasticsearch.parquetrs,
             org.elasticsearch.searchablesnapshots,
             org.elasticsearch.simdvec,
             org.elasticsearch.systemd,

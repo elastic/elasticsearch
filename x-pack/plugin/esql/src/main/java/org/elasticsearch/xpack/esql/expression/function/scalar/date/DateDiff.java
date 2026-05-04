@@ -41,7 +41,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
+import java.util.function.ToLongBiFunction;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -72,32 +72,32 @@ public class DateDiff extends EsqlConfigurationFunction {
      */
     public enum Part implements DateTimeField {
 
-        YEAR((start, end) -> safeToInt(ChronoUnit.YEARS.between(start, end)), "years", "yyyy", "yy"),
-        QUARTER((start, end) -> safeToInt(IsoFields.QUARTER_YEARS.between(start, end)), "quarters", "qq", "q"),
-        MONTH((start, end) -> safeToInt(ChronoUnit.MONTHS.between(start, end)), "months", "mm", "m"),
-        DAYOFYEAR((start, end) -> safeToInt(ChronoUnit.DAYS.between(start, end)), "dy", "y"),
-        DAY(DAYOFYEAR::diff, "days", "dd", "d"),
-        WEEK((start, end) -> safeToInt(ChronoUnit.WEEKS.between(start, end)), "weeks", "wk", "ww"),
-        WEEKDAY(DAYOFYEAR::diff, "weekdays", "dw"),
-        HOUR((start, end) -> safeToInt(ChronoUnit.HOURS.between(start, end)), "hours", "hh"),
-        MINUTE((start, end) -> safeToInt(ChronoUnit.MINUTES.between(start, end)), "minutes", "mi", "n"),
-        SECOND((start, end) -> safeToInt(ChronoUnit.SECONDS.between(start, end)), "seconds", "ss", "s"),
-        MILLISECOND((start, end) -> safeToInt(ChronoUnit.MILLIS.between(start, end)), "milliseconds", "ms"),
-        MICROSECOND((start, end) -> safeToInt(ChronoUnit.MICROS.between(start, end)), "microseconds", "mcs"),
-        NANOSECOND((start, end) -> safeToInt(ChronoUnit.NANOS.between(start, end)), "nanoseconds", "ns");
+        YEAR(ChronoUnit.YEARS::between, "years", "yyyy", "yy"),
+        QUARTER(IsoFields.QUARTER_YEARS::between, "quarters", "qq", "q"),
+        MONTH(ChronoUnit.MONTHS::between, "months", "mm", "m"),
+        DAYOFYEAR(ChronoUnit.DAYS::between, "dy", "y"),
+        DAY(ChronoUnit.DAYS::between, "days", "dd", "d"),
+        WEEK(ChronoUnit.WEEKS::between, "weeks", "wk", "ww"),
+        WEEKDAY(ChronoUnit.DAYS::between, "weekdays", "dw"),
+        HOUR(ChronoUnit.HOURS::between, "hours", "hh"),
+        MINUTE(ChronoUnit.MINUTES::between, "minutes", "mi", "n"),
+        SECOND(ChronoUnit.SECONDS::between, "seconds", "ss", "s"),
+        MILLISECOND(ChronoUnit.MILLIS::between, "milliseconds", "ms"),
+        MICROSECOND(ChronoUnit.MICROS::between, "microseconds", "mcs"),
+        NANOSECOND(ChronoUnit.NANOS::between, "nanoseconds", "ns");
 
         private static final Map<String, Part> NAME_TO_PART = DateTimeField.initializeResolutionMap(values());
 
-        private final BiFunction<ZonedDateTime, ZonedDateTime, Integer> diffFunction;
+        private final ToLongBiFunction<ZonedDateTime, ZonedDateTime> longDiffFunction;
         private final Set<String> aliases;
 
-        Part(BiFunction<ZonedDateTime, ZonedDateTime, Integer> diffFunction, String... aliases) {
-            this.diffFunction = diffFunction;
+        Part(ToLongBiFunction<ZonedDateTime, ZonedDateTime> longDiffFunction, String... aliases) {
+            this.longDiffFunction = longDiffFunction;
             this.aliases = Set.of(aliases);
         }
 
-        public Integer diff(ZonedDateTime startTimestamp, ZonedDateTime endTimestamp) {
-            return diffFunction.apply(startTimestamp, endTimestamp);
+        public long diff(ZonedDateTime startTimestamp, ZonedDateTime endTimestamp) {
+            return longDiffFunction.applyAsLong(startTimestamp, endTimestamp);
         }
 
         @Override
@@ -227,7 +227,7 @@ public class DateDiff extends EsqlConfigurationFunction {
         throws IllegalArgumentException {
         ZonedDateTime zdtStart = ZonedDateTime.ofInstant(Instant.ofEpochMilli(startTimestamp), zoneId);
         ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(Instant.ofEpochMilli(endTimestamp), zoneId);
-        return datePartFieldUnit.diff(zdtStart, zdtEnd);
+        return safeToInt(datePartFieldUnit.diff(zdtStart, zdtEnd));
     }
 
     @Evaluator(extraName = "Millis", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
@@ -240,7 +240,7 @@ public class DateDiff extends EsqlConfigurationFunction {
         throws IllegalArgumentException {
         ZonedDateTime zdtStart = ZonedDateTime.ofInstant(DateUtils.toInstant(startTimestamp), zoneId);
         ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(DateUtils.toInstant(endTimestamp), zoneId);
-        return datePartFieldUnit.diff(zdtStart, zdtEnd);
+        return safeToInt(datePartFieldUnit.diff(zdtStart, zdtEnd));
     }
 
     @Evaluator(extraName = "Nanos", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
@@ -253,7 +253,7 @@ public class DateDiff extends EsqlConfigurationFunction {
         throws IllegalArgumentException {
         ZonedDateTime zdtStart = ZonedDateTime.ofInstant(DateUtils.toInstant(startTimestampNanos), zoneId);
         ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(Instant.ofEpochMilli(endTimestampMillis), zoneId);
-        return datePartFieldUnit.diff(zdtStart, zdtEnd);
+        return safeToInt(datePartFieldUnit.diff(zdtStart, zdtEnd));
     }
 
     @Evaluator(extraName = "NanosMillis", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })
@@ -267,7 +267,7 @@ public class DateDiff extends EsqlConfigurationFunction {
         throws IllegalArgumentException {
         ZonedDateTime zdtStart = ZonedDateTime.ofInstant(Instant.ofEpochMilli(startTimestampMillis), zoneId);
         ZonedDateTime zdtEnd = ZonedDateTime.ofInstant(DateUtils.toInstant(endTimestampNanos), zoneId);
-        return datePartFieldUnit.diff(zdtStart, zdtEnd);
+        return safeToInt(datePartFieldUnit.diff(zdtStart, zdtEnd));
     }
 
     @Evaluator(extraName = "MillisNanos", warnExceptions = { IllegalArgumentException.class, InvalidArgumentException.class })

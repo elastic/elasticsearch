@@ -1,0 +1,38 @@
+{
+  "esql.put_dataset": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-dataset-put",
+      "description": "Creates or replaces an ES|QL dataset referencing a parent data source."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query/dataset/{name}",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the dataset to create or update"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "Dataset definition: parent data_source name, resource path, optional description, and type-specific settings.",
+      "required": true
+    }
+  }
+}

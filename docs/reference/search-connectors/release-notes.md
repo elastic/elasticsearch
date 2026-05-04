@@ -13,6 +13,9 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.3.4 [connectors-9.3.4-release-notes]
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
 ## 9.3.3 [connectors-9.3.3-release-notes]
 * Fixed a bug in Network Drive connector where users from different domains with the same RID could inherit each other's document permissions. [#3973]https://github.com/elastic/connectors/pull/3973
 

@@ -41,13 +41,13 @@ import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestU
 
 /**
  * Bare-bones bulk operation benchmark for int4 packed-nibble vector dot product.
- * Calls the three native bulk implementations directly via VectorSimilarityFunctions,
- * bypassing the Lucene scorer / corrective-terms infrastructure so the inner SIMD
- * kernel cost is the dominant signal:
+ * Dispatches directly to the native BULK / BULK_OFFSETS / BULK_SPARSE implementations
+ * via {@link VectorSimilarityFunctions}, bypassing the Lucene scorer / corrective-terms
+ * infrastructure so the inner SIMD kernel cost is the dominant signal:
  * <ul>
- *   <li>{@code scoreBulk} — contiguous slice ({@code vec_doti4_bulk_2}), sequential by construction</li>
- *   <li>{@code scoreBulkOffsets} — scattered access via offsets array ({@code vec_doti4_bulk_offsets_2})</li>
- *   <li>{@code scoreBulkSparse} — scattered access via pre-resolved address array ({@code vec_doti4_bulk_sparse_2})</li>
+ *   <li>{@code scoreBulk} — contiguous slice (sequential by construction)</li>
+ *   <li>{@code scoreBulkOffsets} — scattered access via int32 offsets array</li>
+ *   <li>{@code scoreBulkSparse} — scattered access via pre-resolved address array</li>
  * </ul>
  * {@code scoreSequential} and {@code scoreRandom} are single-pair controls.
  * <p>
@@ -188,7 +188,6 @@ public class VectorScorerInt4BulkOperationBenchmark {
             while (v < numVectorsToScore) {
                 for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
                     MemorySegment vec = dataset.asSlice((long) ids[v] * packedLen, packedLen);
-                    // vec_doti4_2(unpacked_query, packed_doc, packed_len) -> int
                     scores[i] = (int) singleImpl.invokeExact(query, vec, packedLen);
                 }
             }
@@ -222,7 +221,6 @@ public class VectorScorerInt4BulkOperationBenchmark {
             for (int i = 0; i < numVectorsToScore; i += bulkSize) {
                 int count = Math.min(bulkSize, numVectorsToScore - i);
                 MemorySegment slice = dataset.asSlice((long) i * packedLen, (long) count * packedLen);
-                // vec_doti4_bulk_2(docs, query, packed_len, count, results) -> void
                 bulkImpl.invokeExact(slice, query, packedLen, count, resultsSeg);
             }
         } catch (Throwable t) {
@@ -239,7 +237,6 @@ public class VectorScorerInt4BulkOperationBenchmark {
             for (int i = 0; i < numVectorsToScore; i += bulkSize) {
                 int count = Math.min(bulkSize, numVectorsToScore - i);
                 MemorySegment.copy(ordinals, i, ordinalsSeg, ValueLayout.JAVA_INT, 0L, count);
-                // vec_doti4_bulk_offsets_2(docs, query, packed_len, pitch, offsets, count, results) -> void
                 bulkOffsetsImpl.invokeExact(dataset, query, packedLen, packedLen, ordinalsSeg, count, resultsSeg);
             }
         } catch (Throwable t) {
@@ -249,10 +246,7 @@ public class VectorScorerInt4BulkOperationBenchmark {
         return scores;
     }
 
-    /**
-     * BULK_SPARSE: scattered access driven by a pre-resolved address array.
-     * Mirrors the Lucene scorer's {@code IndexInputUtils.withSliceAddresses} fast path.
-     */
+    /** BULK_SPARSE: scattered access driven by a pre-resolved address array. */
     @Benchmark
     public float[] scoreBulkSparse() {
         try {
@@ -262,7 +256,6 @@ public class VectorScorerInt4BulkOperationBenchmark {
                     long addr = datasetAddress + (long) ordinals[i + j] * packedLen;
                     addressesSeg.set(ValueLayout.JAVA_LONG, (long) j * Long.BYTES, addr);
                 }
-                // vec_doti4_bulk_sparse_2(addresses, query, packed_len, count, results) -> void
                 bulkSparseImpl.invokeExact(addressesSeg, query, packedLen, count, resultsSeg);
             }
         } catch (Throwable t) {

@@ -40,8 +40,15 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 
 /**
  * Bare-bones bulk operation benchmark for int8 vector similarity functions.
- * Calls the native bulk_offsets operation directly via VectorSimilarityFunctions,
- * bypassing Lucene scorer infrastructure.
+ * Dispatches directly to the native BULK / BULK_OFFSETS / BULK_SPARSE implementations
+ * via {@link VectorSimilarityFunctions}, bypassing the Lucene scorer infrastructure
+ * so the inner SIMD kernel cost is the dominant signal:
+ * <ul>
+ *   <li>{@code scoreBulk} — contiguous slice (sequential by construction)</li>
+ *   <li>{@code scoreBulkOffsets} — scattered access via int32 offsets array</li>
+ *   <li>{@code scoreBulkSparse} — scattered access via pre-resolved address array</li>
+ * </ul>
+ * {@code scoreSequential} and {@code scoreRandom} are single-pair controls.
  * <p>
  * Run with: {@code ./gradlew -p benchmarks run --args 'VectorScorerInt8BulkOperationBenchmark'}
  */

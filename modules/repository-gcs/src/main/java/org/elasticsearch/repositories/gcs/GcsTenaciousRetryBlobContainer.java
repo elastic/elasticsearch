@@ -57,6 +57,7 @@ public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer 
     }
 
     private static final EnumMap<RetryMethod, StorageOperation> METHODS_TO_OPERATIONS;
+
     static {
         METHODS_TO_OPERATIONS = new EnumMap<>(
             Map.ofEntries(

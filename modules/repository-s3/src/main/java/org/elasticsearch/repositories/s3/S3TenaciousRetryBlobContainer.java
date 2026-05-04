@@ -18,6 +18,7 @@ import org.elasticsearch.common.blobstore.support.TenaciousRetryBlobContainer;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
 
 import static software.amazon.awssdk.http.HttpStatusCode.FORBIDDEN;
@@ -63,11 +64,17 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
         return METHODS_TO_OPERATIONS.get(method).getKey();
     }
 
-    private static final EnumMap<RetryMethod, S3BlobStore.Operation> METHODS_TO_OPERATIONS = new EnumMap<>(
-        Map.ofEntries(
-            Map.entry(RetryMethod.LIST_BLOBS, S3BlobStore.Operation.LIST_OBJECTS),
-            Map.entry(RetryMethod.LIST_BLOBS_BY_PREFIX, S3BlobStore.Operation.LIST_OBJECTS),
-            Map.entry(RetryMethod.CHILDREN, S3BlobStore.Operation.LIST_OBJECTS)
-        )
-    );
+    private static final EnumMap<RetryMethod, S3BlobStore.Operation> METHODS_TO_OPERATIONS;
+
+    static {
+        METHODS_TO_OPERATIONS = new EnumMap<>(
+            Map.ofEntries(
+                Map.entry(RetryMethod.LIST_BLOBS, S3BlobStore.Operation.LIST_OBJECTS),
+                Map.entry(RetryMethod.LIST_BLOBS_BY_PREFIX, S3BlobStore.Operation.LIST_OBJECTS),
+                Map.entry(RetryMethod.CHILDREN, S3BlobStore.Operation.LIST_OBJECTS)
+            )
+        );
+        assert METHODS_TO_OPERATIONS.keySet().containsAll(EnumSet.allOf(RetryMethod.class));
+    }
+
 }

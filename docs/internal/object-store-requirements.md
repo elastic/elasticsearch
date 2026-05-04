@@ -123,7 +123,7 @@ This requirement covers the multipart operations needed for regular large blob u
 
 **Description:** A blob must be either fully visible or not visible at all. Readers must never see a partially-written blob.
 
-**Why:** Snapshot metadata and data blobs must be fully written before they are visible to readers. A partially-written index file or snapshot metadata blob would corrupt the repository state and could cause data loss during restore. In stateless Elasticsearch, ObjectStoreService uses writeBlobAtomic for batched compound commits (merged Lucene index files up to ~15 MB) and writeBlob for translog files — partial visibility of a commit would cause shard recovery to read corrupted Lucene data.
+**Why:** Snapshot metadata and data blobs must be fully written before they are visible to readers. A partially-written index file or snapshot metadata blob would corrupt the repository state and could cause data loss during restore. In stateless Elasticsearch, ObjectStoreService uses writeBlobAtomic for batched compound commits and writeBlob for translog files — partial visibility of a commit would cause shard recovery to read corrupted Lucene data.
 
 ---
 

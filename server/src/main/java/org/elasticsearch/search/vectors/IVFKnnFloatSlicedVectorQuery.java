@@ -181,7 +181,6 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
 
     @Override
     public IVFKnnFloatSlicedVectorQuery createPostFilterDelegate(float filterSelectivity) {
-        // Round-1 K oversample: max of a 20% floor and the binomial-variance approximation.
         double zMargin = PostFilterableKnnQuery.zMargin(k, filterSelectivity);
         int scaledK = (int) Math.clamp(
             Math.ceil((k + zMargin) / filterSelectivity),

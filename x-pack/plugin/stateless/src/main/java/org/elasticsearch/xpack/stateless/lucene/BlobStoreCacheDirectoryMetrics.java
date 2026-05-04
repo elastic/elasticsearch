@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.lucene;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -16,13 +17,19 @@ import java.util.function.Supplier;
 
 public class BlobStoreCacheDirectoryMetrics implements DirectoryMetrics.PluggableMetrics<BlobStoreCacheDirectoryMetrics> {
 
-    private static final String NAME = "blob_store_cache";
+    public static final String NAME = "blob_store_cache";
 
     private long waitTime;
     private long waits;
     private long waitBytes;
 
     public BlobStoreCacheDirectoryMetrics() {}
+
+    public BlobStoreCacheDirectoryMetrics(StreamInput in) throws IOException {
+        this.waitTime = in.readLong();
+        this.waits = in.readLong();
+        this.waitBytes = in.readLong();
+    }
 
     private BlobStoreCacheDirectoryMetrics(long waitTime, long waits, long waitBytes) {
         this.waitTime = waitTime;

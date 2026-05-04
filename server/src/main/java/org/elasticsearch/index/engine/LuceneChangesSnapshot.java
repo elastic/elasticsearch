@@ -11,6 +11,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.ArrayUtil;
@@ -20,6 +21,7 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceLoader.SyntheticVectorsLoader;
@@ -29,6 +31,7 @@ import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
@@ -48,6 +51,8 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
     private StoredFieldsReader storedFieldsReader = null;
     private final SyntheticVectorsLoader syntheticVectorPatchLoader;
     private SyntheticVectorsLoader.Leaf syntheticVectorPatchLoaderLeaf;
+
+    private final DocValuesOrdinalToRoutingLookup ordinalToRoutingLookup;
 
     private final Thread creationThread; // for assertion
 
@@ -81,6 +86,9 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         final TopDocs topDocs = nextTopDocs();
         this.maxDocIndex = topDocs.scoreDocs.length;
         this.syntheticVectorPatchLoader = mapperService.mappingLookup().getMapping().syntheticVectorsLoader(null);
+        RoutingFieldMapper routingMapper = (RoutingFieldMapper) mapperService.mappingLookup().getMapper(RoutingFieldMapper.NAME);
+        boolean routingStoredAsDocValues = routingMapper != null && routingMapper.docValues();
+        this.ordinalToRoutingLookup = routingStoredAsDocValues ? new DocValuesOrdinalToRoutingLookup() : null;
         fillParallelArray(topDocs.scoreDocs, parallelArray);
     }
 
@@ -158,6 +166,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             int readerIndex = 0;
             CombinedDocValues combinedDocValues = null;
             LeafReaderContext leaf = null;
+            SortedDocValues routingDocValues = null;
             for (ScoreDoc scoreDoc : scoreDocs) {
                 if (scoreDoc.doc >= docBase + maxDoc) {
                     do {
@@ -166,6 +175,9 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                         maxDoc = leaf.reader().maxDoc();
                     } while (scoreDoc.doc >= docBase + maxDoc);
                     combinedDocValues = new CombinedDocValues(leaf.reader());
+                    if (ordinalToRoutingLookup != null) {
+                        routingDocValues = leaf.reader().getSortedDocValues(RoutingFieldMapper.NAME);
+                    }
                 }
                 final int segmentDocID = scoreDoc.doc - docBase;
                 final int index = scoreDoc.shardIndex;
@@ -176,6 +188,11 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                 parallelArray.version[index] = combinedDocValues.docVersion(segmentDocID);
                 parallelArray.isTombStone[index] = combinedDocValues.isTombstone(segmentDocID);
                 parallelArray.hasRecoverySource[index] = combinedDocValues.hasRecoverySource(segmentDocID);
+                // If _routing isn't configured to be required then isn't guaranteed that all documents have a routing value.
+                // This why this docId check is required here.
+                if (routingDocValues != null && routingDocValues.advanceExact(segmentDocID)) {
+                    parallelArray.routingOrdinals[index] = routingDocValues.ordValue();
+                }
             }
             // now sort back based on the shardIndex. we use this to store the previous index
             if (parallelArray.useSequentialStoredFieldsReader == false) {
@@ -244,6 +261,15 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             ? addSyntheticFields(Source.fromBytes(fields.source()), segmentDocID).internalSourceRef()
             : fields.source();
 
+        String routing;
+        if (ordinalToRoutingLookup != null) {
+            assert fields.routing() == null : "routing shouldn't exist in stored fields if doc_values is enabled for routing field";
+            int routingOrdinal = parallelArray.routingOrdinals[docIndex];
+            routing = ordinalToRoutingLookup.lookupRoutingOrdinal(leaf, routingOrdinal);
+        } else {
+            routing = fields.routing();
+        }
+
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];
         if (isTombstone && fields.id() == null) {
@@ -270,7 +296,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
                 }
                 // TODO: pass the latest timestamp from engine.
                 final long autoGeneratedIdTimestamp = -1;
-                op = new Translog.Index(id, seqNo, primaryTerm, version, source, fields.routing(), autoGeneratedIdTimestamp);
+                op = new Translog.Index(id, seqNo, primaryTerm, version, source, routing, autoGeneratedIdTimestamp);
             }
         }
         assert fromSeqNo <= op.seqNo() && op.seqNo() <= toSeqNo && lastSeenSeqNo < op.seqNo()
@@ -310,6 +336,27 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         return super.addSyntheticFields(newSource, segmentDocID);
     }
 
+    private static final class DocValuesOrdinalToRoutingLookup {
+
+        private int routingDocValuesOrd = -1;
+        private SortedDocValues routingDocValuesReader;
+
+        String lookupRoutingOrdinal(LeafReaderContext leaf, int routingOrdinal) throws IOException {
+            if (routingOrdinal == -1) {
+                return null;
+            }
+
+            if (routingDocValuesOrd != leaf.ord) {
+                routingDocValuesReader = leaf.reader().getSortedDocValues(RoutingFieldMapper.NAME);
+                routingDocValuesOrd = leaf.ord;
+            }
+            if (routingDocValuesReader != null) {
+                return routingDocValuesReader.lookupOrd(routingOrdinal).utf8ToString();
+            }
+            return null;
+        }
+    }
+
     private static final class ParallelArray {
         final LeafReaderContext[] leafReaderContexts;
         final int[] docID;
@@ -318,6 +365,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         final long[] primaryTerm;
         final boolean[] isTombStone;
         final boolean[] hasRecoverySource;
+        final int[] routingOrdinals;
         boolean useSequentialStoredFieldsReader = false;
 
         ParallelArray(int size) {
@@ -327,6 +375,8 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
             primaryTerm = new long[size];
             isTombStone = new boolean[size];
             hasRecoverySource = new boolean[size];
+            routingOrdinals = new int[size];
+            Arrays.fill(routingOrdinals, -1);
             leafReaderContexts = new LeafReaderContext[size];
         }
     }

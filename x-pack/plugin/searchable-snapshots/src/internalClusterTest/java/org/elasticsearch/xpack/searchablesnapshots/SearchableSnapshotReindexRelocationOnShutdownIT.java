@@ -75,6 +75,7 @@ public class SearchableSnapshotReindexRelocationOnShutdownIT extends BaseSearcha
      * and not the data node holding the search shards needed by PIT.
      */
     public void testReindexRelocatesWithSearchableSnapshotSource() throws Exception {
+        disableRepoConsistencyCheck("When the assumeTrue below fails for REINDEX_RESILIENCE_ENABLED, no node has been started");
         assumeTrue("reindex resilience must be enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         assumeTrue("pit relocation must be enabled", SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled());

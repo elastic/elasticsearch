@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -29,6 +31,8 @@ import java.util.function.BiFunction;
 // (a IS NOT NULL OR p) AND a IS NULL -> OR(false, p) AND a IS NULL (BooleanSimplification then yields p AND a IS NULL)
 // (a IS NULL OR p) AND a IS NOT NULL -> OR(false, p) AND a IS NOT NULL (BooleanSimplification then yields p AND a IS NOT NULL)
 public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<And> {
+
+    private static final Logger logger = LogManager.getLogger(PropagateNullable.class);
 
     public PropagateNullable() {
         super(OptimizerRules.TransformDirection.DOWN);
@@ -65,6 +69,21 @@ public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<An
         // first against all nullable expressions
         // followed by all not-nullable expressions
         boolean modified = replace(nullExpressions, others, splits, this::nullify);
+        // Diagnostic for https://github.com/elastic/elasticsearch/issues/141579
+        // The second replace() call NPEs with "pattern is null" on CI despite notNullExpressions being a local
+        // LinkedHashSet that is never reassigned. This check captures the state if a JIT bug nullifies the reference.
+        if (notNullExpressions == null) {
+            logger.error(
+                "notNullExpressions is null before second replace() call. " + "nullExpressions={}, others={}, splits={}, and={}",
+                nullExpressions,
+                others,
+                splits,
+                and
+            );
+            throw new IllegalStateException(
+                "PropagateNullable: notNullExpressions is null before second replace() call [#141579]. and=" + and
+            );
+        }
         modified |= replace(notNullExpressions, others, splits, this::nonNullify);
         if (modified) {
             // reconstruct the expression
@@ -84,6 +103,14 @@ public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<An
         List<Expression> originalExpressions,
         BiFunction<Expression, Expression, Expression> replacer
     ) {
+        // Diagnostic for https://github.com/elastic/elasticsearch/issues/141579
+        // CI reports NPE at the foreach below with "pattern is null", which should be impossible since callers pass
+        // freshly allocated LinkedHashSets. If both this guard AND the foreach still NPE, C2 is miscompiling.
+        if (pattern == null) {
+            throw new IllegalStateException(
+                "PropagateNullable.replace: pattern is null [#141579]. target=" + target + ", origExprs=" + originalExpressions
+            );
+        }
         boolean modified = false;
         for (Expression s : pattern) {
             for (int i = 0; i < target.size(); i++) {

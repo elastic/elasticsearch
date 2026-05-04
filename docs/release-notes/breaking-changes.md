@@ -32,19 +32,7 @@ Sequence numbers have significant storage footprint in metrics applications (up 
 The downside is that [Optimistic Concurrency Control](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/optimistic-concurrency-control) is no longer applicable to these indices. Index, update and delete operations using `if_seq_no` error out, and search calls with `seq_no_primary_term` set return sentinel values for sequence numbers. Moreover, `update_by_query` and `delete_by_query` operations proceed without conflict detection, so concurrent modifications may silently overwrite the affected docs without triggering version conflict errors.
 This is largely a favorable tradeoff as concurrent modifications are rather rare in metrics applications and the storage savings are substantial. Still, users requiring OCC support can restore the old behavior by setting `index.disable_sequence_numbers` to `false` in their time-series index templates. [#145737](https://github.com/elastic/elasticsearch/pull/145737) (issue: [#136305](https://github.com/elastic/elasticsearch/issues/136305))
 
-
-
-```{applies_to}
-stack: ga 9.3.4
-```
 ## 9.3.4 [elasticsearch-9.3.4-breaking-changes]
-
-There are no breaking changes associated with this release.
-
-```{applies_to}
-stack: ga 9.3.2
-```
-## 9.3.2 [elasticsearch-9.3.2-breaking-changes]
 
 There are no breaking changes associated with this release.
 
@@ -57,6 +45,10 @@ There are no breaking changes associated with this release.
 There are no breaking changes associated with this release.
 
 ## 9.2.7 [elasticsearch-9.2.7-breaking-changes]
+
+There are no breaking changes associated with this release.
+
+## 9.3.2 [elasticsearch-9.3.2-breaking-changes]
 
 There are no breaking changes associated with this release.
 

@@ -74,4 +74,11 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
+    /** Best-effort upper bound on time spent flushing buffered metrics or spans to the exporter. */
+    public static final Setting<TimeValue> TELEMETRY_OTEL_FLUSH_TIMEOUT = Setting.timeSetting(
+        "telemetry.otel.flush_timeout",
+        TimeValue.timeValueSeconds(10),
+        NodeScope
+    );
+
 }

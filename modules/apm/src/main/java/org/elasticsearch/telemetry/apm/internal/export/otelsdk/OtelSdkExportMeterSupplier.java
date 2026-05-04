@@ -126,12 +126,13 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     public void attemptFlushMetrics() {
         synchronized (mutex) {
             if (resources != null) {
-                resources.systemMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
-                resources.meterHealthMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
+                long timeoutMillis = OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT.get(settings).millis();
+                resources.systemMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
+                resources.meterHealthMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
                 // PeriodicMetricReader records collection.duration after
                 // each collection, so a second cycle is required to collect and export it.
-                resources.systemMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
-                resources.meterHealthMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
+                resources.systemMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
+                resources.meterHealthMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
             }
         }
     }

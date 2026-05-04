@@ -37,6 +37,7 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
 
     private final SdkTracerProvider tracerProvider;
     private final OpenTelemetrySdk openTelemetrySdk;
+    private final TimeValue flushTimeout;
 
     public OtelSdkExportTracerSupplier(Settings settings) {
         String endpoint = OtelSdkSettings.TELEMETRY_OTEL_TRACES_ENDPOINT.get(settings);
@@ -47,6 +48,7 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
         }
 
         TimeValue interval = OtelSdkSettings.TELEMETRY_OTEL_TRACES_INTERVAL.get(settings);
+        this.flushTimeout = OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT.get(settings);
 
         OtlpHttpSpanExporterBuilder builder = OtlpHttpSpanExporter.builder().setEndpoint(endpoint);
         String authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
@@ -72,10 +74,10 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
         return openTelemetrySdk;
     }
 
-    /** Forces an immediate export of any buffered spans. Blocks up to 10 seconds. */
+    /** Forces an immediate export of any buffered spans. Blocks up to {@code telemetry.otel.flush_timeout} (default 10s). */
     @Override
     public void attemptFlushTraces() {
-        tracerProvider.forceFlush().join(10, TimeUnit.SECONDS);
+        tracerProvider.forceFlush().join(flushTimeout.millis(), TimeUnit.MILLISECONDS);
     }
 
     @Override

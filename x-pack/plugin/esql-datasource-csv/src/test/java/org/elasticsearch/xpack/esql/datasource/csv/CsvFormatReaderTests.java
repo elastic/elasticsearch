@@ -3447,6 +3447,60 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Regression for elastic#148162: a single-shot whole-file read (firstSplit=true,
+     * recordAligned=false) must NOT use {@code resolvedSchema} as the iterator's positional
+     * schema. The planner calls {@code withSchema(context.attributes())} at operator-factory
+     * time with the projected output attributes, not the file's column layout. Treating that
+     * list as the file schema would mis-align column indices and trigger spurious
+     * "row has [N] columns but schema defines [M] columns" errors on every data row.
+     *
+     * <p>The bound-schema fast path is reserved for streaming-coordinator dispatch where
+     * {@code recordAligned=true} signals that the upstream caller has bound the FULL file
+     * schema. For non-streaming reads, the iterator must re-parse the header itself, exactly
+     * like the legacy non-bound path.
+     */
+    public void testFirstSplitWithoutRecordAlignedIgnoresProjectedBoundSchema() throws IOException {
+        // 4 columns in the file, projection asks for 2 of them. The planner-bound schema
+        // mirrors the projected output; if read() used it as the file schema, every data row
+        // (4 cols) would trip the row-shape check against schemaSize=2.
+        String csv = """
+            id:long,name:keyword,score:double,city:keyword
+            1,Alice,10.5,NYC
+            2,Bob,20.5,LON
+            """;
+        StorageObject object = createStorageObject(csv);
+
+        List<Attribute> projectedAttrs = List.of(
+            new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
+            new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
+        );
+        FormatReader boundReader = new CsvFormatReader(blockFactory).withSchema(projectedAttrs);
+
+        try (
+            CloseableIterator<Page> iterator = boundReader.read(
+                object,
+                // firstSplit=true, recordAligned=false: matches AsyncExternalSourceOperatorFactory's
+                // single-shot whole-file read context.
+                FormatReadContext.builder()
+                    .projectedColumns(List.of("id", "name"))
+                    .firstSplit(true)
+                    .recordAligned(false)
+                    .batchSize(10)
+                    .build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("Alice"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
+            assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    /**
      * Schema sampling honours skip_row the same way the data path does. The malformed row in
      * the middle is dropped, sampling continues, schema is inferred from the surrounding good
      * rows. This exercises the Jackson {@code RuntimeException}-wrapping path (multi_value

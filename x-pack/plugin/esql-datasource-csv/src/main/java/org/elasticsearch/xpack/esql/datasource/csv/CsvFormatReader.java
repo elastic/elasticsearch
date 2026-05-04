@@ -703,12 +703,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
         List<Attribute> effectiveSchema;
         if (context.firstSplit()) {
             // First split carries the file's leading bytes, including the header (if any).
-            // Two sub-cases:
-            // 1. resolvedSchema bound (upstream withSchema): use it; just consume the header line so
-            // Jackson does not see it as a data row. Avoids re-running schema inference on chunk 0
-            // bytes (which can crash on a single malformed row long before any data is emitted).
-            // 2. No bound schema: let the iterator parse the header / infer types itself.
-            if (resolvedSchema != null) {
+            // The chunk-0 bound-schema fast path only applies when an upstream coordinator has
+            // pre-bound the FULL file schema — signalled by recordAligned=true. The streaming
+            // parallel coordinator infers the schema from chunk 0 on its own thread and calls
+            // withSchema(...) before any chunk is dispatched; binding is observed here so the
+            // iterator can skip its own per-chunk inference (which would otherwise re-sample on
+            // potentially malformed bytes and crash before any data is emitted).
+            //
+            // For single-shot reads (firstSplit=true, recordAligned=false), resolvedSchema may
+            // still be non-null because the planner calls withSchema(projectedAttributes) at
+            // operator-factory time; that list is the projected output, not the file's column
+            // layout, and using it as the iterator's positional schema would mis-align column
+            // indices and trigger spurious row-shape errors. Treat the whole-file read like
+            // main: ignore resolvedSchema and let the iterator parse the header itself.
+            if (context.recordAligned() && resolvedSchema != null) {
                 if (options.headerRow()) {
                     skipHeaderLine(reader);
                 }

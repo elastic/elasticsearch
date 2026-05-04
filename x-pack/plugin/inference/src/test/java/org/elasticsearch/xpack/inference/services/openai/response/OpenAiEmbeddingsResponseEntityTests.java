@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -142,7 +142,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             IllegalArgumentException.class,
             () -> OpenAiEmbeddingsResponseEntity.fromResponse(
-                mock(Request.class),
+                mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -175,7 +175,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             XContentParseException.class,
             () -> OpenAiEmbeddingsResponseEntity.fromResponse(
-                mock(Request.class),
+                mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -208,7 +208,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             XContentParseException.class,
             () -> OpenAiEmbeddingsResponseEntity.fromResponse(
-                mock(Request.class),
+                mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -240,7 +240,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             XContentParseException.class,
             () -> OpenAiEmbeddingsResponseEntity.fromResponse(
-                mock(Request.class),
+                mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -340,7 +340,7 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             XContentParseException.class,
             () -> OpenAiEmbeddingsResponseEntity.fromResponse(
-                mock(Request.class),
+                mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -413,10 +413,10 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
     }
 
     private static EmbeddingFloatResults getEmbeddingFloatResultsAndAssertType(TaskType taskType, String response) throws IOException {
-        Request requestMock = mock(Request.class);
-        when(requestMock.getTaskType()).thenReturn(taskType);
+        OutboundRequest outboundRequestMock = mock(OutboundRequest.class);
+        when(outboundRequestMock.getTaskType()).thenReturn(taskType);
         EmbeddingFloatResults parsedResults = OpenAiEmbeddingsResponseEntity.fromResponse(
-            requestMock,
+            outboundRequestMock,
             new HttpResult(mock(HttpResponse.class), response.getBytes(StandardCharsets.UTF_8))
         );
 

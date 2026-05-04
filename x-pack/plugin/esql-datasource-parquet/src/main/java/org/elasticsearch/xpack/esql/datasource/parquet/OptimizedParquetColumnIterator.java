@@ -33,8 +33,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.Set;
@@ -106,6 +108,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     private int rowGroupOrdinal = -1;
     private int pageBatchIndexInRowGroup = 0;
 
+    private final boolean lateMaterialization;
+    private final boolean[] isPredicateColumn;
+    private final ParquetPushedExpressions pushedExpressions;
+    private final WordMask survivorMask;
+    private long rowsEliminatedByLateMaterialization;
+
     OptimizedParquetColumnIterator(
         ParquetFileReader reader,
         MessageType projectedSchema,
@@ -120,7 +128,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         StorageObject storageObject,
         RowRanges[] allRowRanges,
         boolean[] survivingRowGroups,
-        CompressionCodecFactory codecFactory
+        CompressionCodecFactory codecFactory,
+        ParquetPushedExpressions pushedExpressions
     ) {
         this.reader = reader;
         this.projectedSchema = projectedSchema;
@@ -138,6 +147,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         this.survivingRowGroups = survivingRowGroups;
         this.nextSurvivor = buildNextSurvivorLookup(survivingRowGroups);
         this.codecFactory = codecFactory;
+        this.pushedExpressions = pushedExpressions;
+        this.isPredicateColumn = classifyPredicateColumns(attributes, columnInfos, pushedExpressions);
+        this.lateMaterialization = pushedExpressions != null && hasProjectionOnlyColumns(isPredicateColumn, columnInfos);
+        this.survivorMask = lateMaterialization ? new WordMask() : null;
 
         this.projectedColumnPaths = buildProjectedColumnPaths(columnInfos);
         this.prefetchDepth = computePrefetchDepth(reader.getRowGroups(), this.projectedColumnPaths);
@@ -188,6 +201,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             }
             try {
                 RowRanges nextRowRanges = allRowRanges != null && nextOrdinal < allRowRanges.length ? allRowRanges[nextOrdinal] : null;
+                if (lateMaterialization) {
+                    nextRowRanges = null;
+                }
                 CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future;
                 if (nextRowRanges != null) {
                     future = ColumnChunkPrefetcher.prefetchAsync(
@@ -248,6 +264,33 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         return paths;
     }
 
+    private static boolean[] classifyPredicateColumns(
+        List<Attribute> attributes,
+        ColumnInfo[] columnInfos,
+        ParquetPushedExpressions pushed
+    ) {
+        boolean[] predicate = new boolean[columnInfos.length];
+        if (pushed == null) {
+            return predicate;
+        }
+        Set<String> predicateNames = pushed.predicateColumnNames();
+        for (int i = 0; i < columnInfos.length; i++) {
+            if (columnInfos[i] != null && predicateNames.contains(attributes.get(i).name())) {
+                predicate[i] = true;
+            }
+        }
+        return predicate;
+    }
+
+    private static boolean hasProjectionOnlyColumns(boolean[] isPredicateColumn, ColumnInfo[] columnInfos) {
+        for (int i = 0; i < columnInfos.length; i++) {
+            if (columnInfos[i] != null && isPredicateColumn[i] == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public boolean hasNext() {
         if (exhausted) {
@@ -287,6 +330,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             exhausted = true;
             cancelPendingPrefetch();
             releaseCurrentReservation();
+            if (rowsEliminatedByLateMaterialization > 0) {
+                logger.debug("Late materialization eliminated [{}] rows in [{}]", rowsEliminatedByLateMaterialization, fileLocation);
+            }
             return false;
         }
         rowGroupOrdinal = nextOrdinal;
@@ -296,24 +342,24 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = takePendingPrefetch(rowGroupOrdinal);
         try {
             RowRanges currentRowRanges = resolveCurrentRowRanges(block);
+            // When late materialization is active, skip ColumnIndex page filtering — late-mat handles
+            // row-level filtering itself via the survivor mask. Applying both ColumnIndex RowRanges
+            // AND late-mat evaluation causes double-filtering that drops rows incorrectly.
+            RowRanges buildRowRanges = lateMaterialization ? null : currentRowRanges;
             rowGroup = PrefetchedRowGroupBuilder.build(
                 block,
                 rowGroupOrdinal,
                 projectedSchema,
                 projectedColumnPaths,
-                currentRowRanges,
+                buildRowRanges,
                 preloadedMetadata,
                 chunks,
                 storageObject,
                 codecFactory
             );
-            // When RowRanges narrow the row group, only the surviving row count is consumed -
-            // mirrors parquet-mr's filtered PageReadStore.getRowCount(). The PageReader's per-page
-            // value count is unchanged; PageColumnReader caps at maxRows on each readBatch call so
-            // columns whose pages span more rows than the filtered count return aligned blocks.
-            rowsRemainingInGroup = currentRowRanges != null ? currentRowRanges.selectedRowCount() : rowGroup.getRowCount();
+            rowsRemainingInGroup = buildRowRanges != null ? buildRowRanges.selectedRowCount() : rowGroup.getRowCount();
             triggerNextRowGroupPrefetch();
-            initColumnReaders(currentRowRanges);
+            initColumnReaders(buildRowRanges);
             return rowsRemainingInGroup > 0;
         } catch (Exception e) {
             releaseCurrentReservation();
@@ -505,12 +551,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         }
         int rowsToRead = (int) Math.min(effectiveBatch, rowsRemainingInGroup);
 
-        Page result = nextStandard(rowsToRead);
+        Page result = lateMaterialization ? nextWithLateMaterialization(rowsToRead) : nextStandard(rowsToRead);
 
         pageBatchIndexInRowGroup++;
         rowsRemainingInGroup -= rowsToRead;
         if (rowBudget != FormatReader.NO_LIMIT) {
-            rowBudget -= rowsToRead;
+            rowBudget -= lateMaterialization ? result.getPositionCount() : rowsToRead;
         }
         return result;
     }
@@ -580,6 +626,122 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             );
         }
         return new Page(blocks);
+    }
+
+    private Page nextWithLateMaterialization(int rowsToRead) {
+        Block[] blocks = new Block[attributes.size()];
+        try {
+            // Phase 1: decode predicate columns
+            Map<String, Block> predicateBlockMap = new HashMap<>();
+            for (int col = 0; col < columnInfos.length; col++) {
+                if (isPredicateColumn[col]) {
+                    ColumnInfo info = columnInfos[col];
+                    if (info == null) {
+                        blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
+                    } else {
+                        blocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                    }
+                    predicateBlockMap.put(attributes.get(col).name(), blocks[col]);
+                }
+            }
+
+            // Phase 2: evaluate filter
+            WordMask mask = pushedExpressions.evaluateFilter(predicateBlockMap, rowsToRead, survivorMask);
+
+            int survivorCount = rowsToRead;
+            int[] positions = null;
+            if (mask != null) {
+                survivorCount = mask.popCount();
+                rowsEliminatedByLateMaterialization += (rowsToRead - survivorCount);
+                if (survivorCount < rowsToRead) {
+                    positions = mask.survivingPositions();
+                    // Compact predicate blocks
+                    for (int col = 0; col < columnInfos.length; col++) {
+                        if (isPredicateColumn[col] && blocks[col] != null) {
+                            blocks[col] = PageColumnReader.filterBlock(blocks[col], positions, survivorCount, blockFactory);
+                        }
+                    }
+                }
+            }
+
+            // Phase 3: decode projection-only columns
+            for (int col = 0; col < columnInfos.length; col++) {
+                if (isPredicateColumn[col]) {
+                    continue;
+                }
+                ColumnInfo info = columnInfos[col];
+                if (info == null) {
+                    blocks[col] = blockFactory.newConstantNullBlock(survivorCount);
+                } else if (survivorCount == 0) {
+                    // Skip entirely
+                    if (pageColumnReaders != null && pageColumnReaders[col] != null) {
+                        pageColumnReaders[col].skipRows(rowsToRead);
+                    } else if (columnReaders != null && columnReaders[col] != null) {
+                        ParquetColumnDecoding.skipValues(columnReaders[col], rowsToRead);
+                    }
+                    blocks[col] = blockFactory.newConstantNullBlock(0);
+                } else if (positions == null) {
+                    blocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
+                    blocks[col] = pageColumnReaders[col].readBatchFiltered(rowsToRead, blockFactory, positions, survivorCount);
+                } else {
+                    Block fullBlock = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                    blocks[col] = PageColumnReader.filterBlock(fullBlock, positions, survivorCount, blockFactory);
+                }
+            }
+
+            // Fill any remaining null slots
+            for (int col = 0; col < columnInfos.length; col++) {
+                if (blocks[col] == null) {
+                    blocks[col] = blockFactory.newConstantNullBlock(survivorCount);
+                }
+            }
+
+            return new Page(blocks);
+        } catch (ElasticsearchException e) {
+            Releasables.closeExpectNoException(blocks);
+            throw e;
+        } catch (Exception e) {
+            Releasables.closeExpectNoException(blocks);
+            throw new ElasticsearchException(
+                "Failed to create late-materialized Page at row group ["
+                    + (rowGroupOrdinal + 1)
+                    + "] page batch ["
+                    + pageBatchIndexInRowGroup
+                    + "] in file ["
+                    + fileLocation
+                    + "]: "
+                    + e.getMessage(),
+                e
+            );
+        }
+    }
+
+    private Block readColumnBlockWithAttribution(int colIndex, ColumnInfo info, int rowsToRead, Block[] blocks) {
+        try {
+            return readColumnBlock(colIndex, info, rowsToRead);
+        } catch (CircuitBreakingException e) {
+            Releasables.closeExpectNoException(blocks);
+            throw e;
+        } catch (Exception e) {
+            Releasables.closeExpectNoException(blocks);
+            Attribute attr = attributes.get(colIndex);
+            throw new ElasticsearchException(
+                "Failed to read Parquet column ["
+                    + attr.name()
+                    + "] (type "
+                    + attr.dataType()
+                    + ") at row group ["
+                    + (rowGroupOrdinal + 1)
+                    + "] page batch ["
+                    + pageBatchIndexInRowGroup
+                    + "] in file ["
+                    + fileLocation
+                    + "]: "
+                    + e.getMessage(),
+                e
+            );
+        }
     }
 
     private Block readColumnBlock(int colIndex, ColumnInfo info, int rowsToRead) {

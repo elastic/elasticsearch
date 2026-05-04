@@ -53,6 +53,7 @@ public class RestUpdateAndDeleteByQueryRethrottleAction extends BaseRestHandler 
             throw new IllegalArgumentException("requests_per_second is a required parameter");
         }
         internalRequest.setRequestsPerSecond(requestsPerSecond);
+        // TODO: set followRelocations(true) if UBQ/DBQ tasks become relocatable
         final String groupBy = request.param("group_by", "nodes");
         return channel -> client.execute(
             ReindexPlugin.RETHROTTLE_ACTION,

@@ -109,12 +109,13 @@ EXPORT int32_t vec_doti4_2(const int8_t* query, const int8_t* doc, int32_t packe
 }
 
 template <
-    const int8_t*(*mapper)(const int8_t*, const int32_t, const int32_t*, const int32_t),
+    typename TData,
+    const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
     int batches = 2,
     int unroll_dim = 1
 >
 static inline void doti4_bulk_impl_avx512(
-    const int8_t* docs,
+    const TData* docs,
     const int8_t* query,
     int32_t packed_len,
     int32_t pitch,
@@ -134,7 +135,7 @@ static inline void doti4_bulk_impl_avx512(
     int c = 0;
 
     const int8_t* current_doc_ptrs[batches];
-    init_pointers<batches, int8_t, int8_t, mapper>(current_doc_ptrs, docs, pitch, offsets, 0, count);
+    init_pointers<batches, TData, int8_t, mapper>(current_doc_ptrs, docs, pitch, offsets, 0, count);
 
     for (; c + batches - 1 < count; c += batches) {
         const int8_t* next_doc_ptrs[batches];
@@ -232,7 +233,7 @@ static inline void doti4_bulk_impl_avx512(
 }
 
 EXPORT void vec_doti4_bulk_2(const int8_t* docs, const int8_t* query, int32_t packed_len, int32_t count, f32_t* results) {
-    doti4_bulk_impl_avx512<sequential_mapper, 2, 1>(docs, query, packed_len, packed_len, NULL, count, results);
+    doti4_bulk_impl_avx512<int8_t, sequential_mapper, 2, 1>(docs, query, packed_len, packed_len, NULL, count, results);
 }
 
 EXPORT void vec_doti4_bulk_offsets_2(
@@ -244,5 +245,16 @@ EXPORT void vec_doti4_bulk_offsets_2(
     int32_t count,
     f32_t* results
 ) {
-    doti4_bulk_impl_avx512<offsets_mapper, 2, 1>(docs, query, packed_len, pitch, offsets, count, results);
+    doti4_bulk_impl_avx512<int8_t, offsets_mapper, 2, 1>(docs, query, packed_len, pitch, offsets, count, results);
+}
+
+EXPORT void vec_doti4_bulk_sparse_2(
+    const void* const* addresses,
+    const int8_t* query,
+    int32_t packed_len,
+    int32_t count,
+    f32_t* results
+) {
+    doti4_bulk_impl_avx512<const int8_t*, sparse_mapper, 2, 1>(
+        (const int8_t* const*)addresses, query, packed_len, 0, NULL, count, results);
 }

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.IrateDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.IrateIntAggregatorFunctionSupplier;
@@ -117,14 +116,7 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         Expression filter = in.readNamedWriteable(Expression.class);
         Expression window = readWindow(in);
         List<Expression> parameters = in.readNamedWriteableCollectionAsList(Expression.class);
-        Expression timestamp = parameters.getFirst();
-        Expression temporality = parameters.size() > 1 ? parameters.get(1) : null;
-        return new Irate(source, field, filter, window, timestamp, temporality);
-    }
-
-    @Override
-    protected void writeParametersTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableCollection(temporality == null ? List.of(timestamp) : List.of(timestamp, temporality));
+        return new Irate(source, field, filter, window, parameters.getFirst(), parameters.size() > 1 ? parameters.get(1) : null);
     }
 
     @Override

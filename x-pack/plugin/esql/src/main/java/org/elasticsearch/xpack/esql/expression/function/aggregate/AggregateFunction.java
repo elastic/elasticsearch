@@ -115,10 +115,6 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
             out.writeNamedWriteable(window);
         }
-        writeParametersTo(out);
-    }
-
-    protected void writeParametersTo(StreamOutput out) throws IOException {
         out.writeNamedWriteableCollection(parameters);
     }
 

@@ -145,7 +145,7 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
         try {
             client().execute(
                 DeleteDataStreamAction.INSTANCE,
-                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { DATA_STREAM_NAME })
+                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME)
             ).actionGet();
         } catch (Exception e) {
             logger.warn("Failed to delete data stream during cleanup", e);

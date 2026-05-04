@@ -92,5 +92,4 @@ public class VoyageAIRerankModelTests {
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
-
 }

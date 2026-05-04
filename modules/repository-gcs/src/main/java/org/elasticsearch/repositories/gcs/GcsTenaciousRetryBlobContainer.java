@@ -17,6 +17,7 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 
 import java.net.UnknownHostException;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
 
 public class GcsTenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {

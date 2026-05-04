@@ -101,10 +101,13 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
                             connection,
                             shardFetchRequest,
                             task,
-                            new SearchActionListener<>(querySearchResult.getSearchShardTarget(), index) {
+                            new SearchActionListener<>(
+                                querySearchResult.getSearchShardTarget(),
+                                index,
+                                SearchScrollQueryThenFetchAsyncAction.this::accumulateDirectoryMetrics
+                            ) {
                                 @Override
                                 protected void innerOnResponse(FetchSearchResult response) {
-                                    accumulateDirectoryMetrics(response.getDirectoryMetrics());
                                     fetchResults.setOnce(response.getShardIndex(), response);
                                     response.incRef();
                                     consumeResponse(counter, reducedQueryPhase);

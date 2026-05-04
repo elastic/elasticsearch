@@ -212,12 +212,11 @@ class FetchSearchPhase extends SearchPhase {
         final ShardSearchContextId contextId = shardPhaseResult.queryResult() != null
             ? shardPhaseResult.queryResult().getContextId()
             : shardPhaseResult.rankFeatureResult().getContextId();
-        var listener = new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
+        var listener = new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex, context::accumulateDirectoryMetrics) {
             @Override
             public void innerOnResponse(FetchSearchResult result) {
                 try {
                     progressListener.notifyFetchResult(shardIndex);
-                    context.accumulateDirectoryMetrics(result.getDirectoryMetrics());
                     counter.onResult(result);
                 } catch (Exception e) {
                     context.onPhaseFailure(NAME, "", e);

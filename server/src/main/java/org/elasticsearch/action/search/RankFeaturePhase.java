@@ -136,12 +136,11 @@ public class RankFeaturePhase extends SearchPhase {
         final SearchShardTarget shardTarget = queryResult.queryResult().getSearchShardTarget();
         final ShardSearchContextId contextId = queryResult.queryResult().getContextId();
         final int shardIndex = queryResult.getShardIndex();
-        var listener = new SearchActionListener<RankFeatureResult>(shardTarget, shardIndex) {
+        var listener = new SearchActionListener<RankFeatureResult>(shardTarget, shardIndex, context::accumulateDirectoryMetrics) {
             @Override
             protected void innerOnResponse(RankFeatureResult response) {
                 try {
                     progressListener.notifyRankFeatureResult(shardIndex);
-                    context.accumulateDirectoryMetrics(response.getDirectoryMetrics());
                     rankRequestCounter.onResult(response);
                 } catch (Exception e) {
                     context.onPhaseFailure(NAME, "", e);

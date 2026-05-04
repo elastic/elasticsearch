@@ -282,6 +282,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void doPerformPhaseOnShard(int shardIndex, SearchShardIterator shardIt, SearchShardTarget shard, Releasable releasable) {
+        // NB: no accumulator passed to the listener here on purpose -- {@link #onShardResult} accumulates the metrics itself,
+        // which also covers the batched data-node response path that bypasses this listener (see SearchQueryThenFetchAsyncAction).
         var shardListener = new SearchActionListener<Result>(shard, shardIndex) {
             @Override
             public void innerOnResponse(Result result) {

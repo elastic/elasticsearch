@@ -179,6 +179,24 @@ final class DefinitionLevelDecoder {
                 remaining--;
                 packedRemaining--;
             }
+            // Bulk path: read 8 bytes (= 64 def levels) at a time and OR the inverted bits
+            // straight into the WordMask's underlying long[]. Parquet packs def levels LSB-first
+            // within each byte, and reading 8 bytes as little-endian gives a long whose bit i
+            // matches def level i in the 64-level group — same convention as WordMask.set, so
+            // the inverted long can be OR-ed at any bit position via WordMask.orLongAt.
+            while (remaining >= 64) {
+                long packedLong = readLittleEndianLong(packedBytes, packedByteOffset);
+                packedByteOffset += 8;
+                long nullLong = ~packedLong;
+                if (nullLong != 0) {
+                    nullCount += 64 - Long.bitCount(packedLong);
+                    mask.orLongAt(outOffset, nullLong);
+                }
+                outOffset += 64;
+                remaining -= 64;
+                packedRemaining -= 64;
+            }
+            // Per-byte path: drains the [0, 64) byte tail of the bulk loop above.
             while (remaining >= 8) {
                 int packed = packedBytes[packedByteOffset++] & 0xFF;
                 int nullByte = ~packed & 0xFF;
@@ -247,6 +265,14 @@ final class DefinitionLevelDecoder {
                 groupNext++;
                 remaining--;
                 packedRemaining--;
+            }
+            // Bulk path: pop 64 def levels per iteration (popcount on the inverted long).
+            while (remaining >= 64) {
+                long packedLong = readLittleEndianLong(packedBytes, packedByteOffset);
+                packedByteOffset += 8;
+                nullCount += 64 - Long.bitCount(packedLong);
+                remaining -= 64;
+                packedRemaining -= 64;
             }
             while (remaining >= 8) {
                 int packed = packedBytes[packedByteOffset++] & 0xFF;
@@ -329,6 +355,16 @@ final class DefinitionLevelDecoder {
             shift += 7;
             Check.isTrue(shift <= 35, "Varint overflow in definition level stream");
         }
+    }
+
+    /**
+     * Reads 8 bytes from {@code data} starting at {@code offset} as a little-endian {@code long}.
+     * The caller must ensure {@code offset + 8 <= data.length}.
+     */
+    private static long readLittleEndianLong(byte[] data, int offset) {
+        return (data[offset] & 0xFFL) | ((data[offset + 1] & 0xFFL) << 8) | ((data[offset + 2] & 0xFFL) << 16) | ((data[offset + 3] & 0xFFL)
+            << 24) | ((data[offset + 4] & 0xFFL) << 32) | ((data[offset + 5] & 0xFFL) << 40) | ((data[offset + 6] & 0xFFL) << 48)
+            | ((data[offset + 7] & 0xFFL) << 56);
     }
 
     private int readIntLittleEndianPadded() {

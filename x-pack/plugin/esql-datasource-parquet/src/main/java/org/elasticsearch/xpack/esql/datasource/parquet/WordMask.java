@@ -57,6 +57,27 @@ final class WordMask {
     }
 
     /**
+     * Bitwise-ORs a 64-bit chunk of bits into the mask starting at bit position {@code bitOffset}.
+     * Bit {@code i} of {@code bits} (i.e. {@code (bits >>> i) & 1}) is OR-ed into bit
+     * {@code bitOffset + i} of the mask. The chunk may straddle a word boundary, in which case
+     * both adjacent words are updated.
+     *
+     * <p>The caller must ensure {@code bitOffset + 64 <= numBits}; this is the bulk-write companion
+     * to {@link #set(int)} for hot decode loops that produce 64 bits at a time (e.g. Parquet
+     * def-level decoding, where 8 packed bytes give 64 def levels in one read).
+     */
+    void orLongAt(int bitOffset, long bits) {
+        int wordIdx = bitOffset >>> 6;
+        int shift = bitOffset & 63;
+        if (shift == 0) {
+            words[wordIdx] |= bits;
+        } else {
+            words[wordIdx] |= bits << shift;
+            words[wordIdx + 1] |= bits >>> (64 - shift);
+        }
+    }
+
+    /**
      * Sets all bits in the half-open range {@code [from, to)} using word-level operations.
      * This is significantly faster than calling {@link #set(int)} in a loop for long runs,
      * which is the common case when bulk-decoding RLE def-level streams of all-null rows.

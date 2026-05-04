@@ -55,6 +55,84 @@ public class WordMaskTests extends ESTestCase {
         assertThat(full.popCount(), equalTo(256));
     }
 
+    public void testOrLongAtWordAligned() {
+        WordMask mask = new WordMask();
+        mask.reset(192);
+        long bits = 0xCAFEBABEDEADBEEFL;
+        mask.orLongAt(64, bits);
+        for (int i = 0; i < 192; i++) {
+            boolean expected = i >= 64 && i < 128 && ((bits >>> (i - 64)) & 1L) != 0;
+            assertEquals("bit " + i, expected, mask.get(i));
+        }
+    }
+
+    public void testOrLongAtMisaligned() {
+        WordMask mask = new WordMask();
+        mask.reset(256);
+        long bits = 0xF0F0F0F0F0F0F0F0L;
+        int offset = 17;
+        mask.orLongAt(offset, bits);
+        for (int i = 0; i < 256; i++) {
+            boolean expected = i >= offset && i < offset + 64 && ((bits >>> (i - offset)) & 1L) != 0;
+            assertEquals("bit " + i, expected, mask.get(i));
+        }
+    }
+
+    public void testOrLongAtPreservesExistingBits() {
+        WordMask mask = new WordMask();
+        mask.reset(192);
+        mask.set(5);
+        mask.set(70);
+        mask.set(150);
+        long bits = 0x00000000FFFFFFFFL; // low 32 bits set
+        int offset = 60; // straddles word boundary at bit 64
+        mask.orLongAt(offset, bits);
+        // expected: bits 60..91 set (from the OR), plus pre-existing 5, 70, 150
+        for (int i = 0; i < 192; i++) {
+            boolean fromOr = i >= offset && i < offset + 64 && ((bits >>> (i - offset)) & 1L) != 0;
+            boolean preexisting = i == 5 || i == 70 || i == 150;
+            assertEquals("bit " + i, fromOr || preexisting, mask.get(i));
+        }
+    }
+
+    public void testOrLongAtAllOnesStraddling() {
+        WordMask mask = new WordMask();
+        mask.reset(256);
+        // 64 bits set at offset 30 → covers bits 30..93
+        mask.orLongAt(30, ~0L);
+        for (int i = 0; i < 256; i++) {
+            assertEquals("bit " + i, i >= 30 && i < 94, mask.get(i));
+        }
+    }
+
+    public void testOrLongAtRandomized() {
+        for (int trial = 0; trial < 50; trial++) {
+            int numBits = randomIntBetween(64, 512);
+            int offset = randomIntBetween(0, numBits - 64);
+            long bits = randomLong();
+            WordMask mask = new WordMask();
+            mask.reset(numBits);
+            // pre-set a few random bits to verify OR semantics
+            int[] preset = new int[randomIntBetween(0, 5)];
+            for (int i = 0; i < preset.length; i++) {
+                preset[i] = randomIntBetween(0, numBits - 1);
+                mask.set(preset[i]);
+            }
+            mask.orLongAt(offset, bits);
+            for (int i = 0; i < numBits; i++) {
+                boolean fromOr = i >= offset && i < offset + 64 && ((bits >>> (i - offset)) & 1L) != 0;
+                boolean wasPreset = false;
+                for (int p : preset) {
+                    if (p == i) {
+                        wasPreset = true;
+                        break;
+                    }
+                }
+                assertEquals("trial=" + trial + " bit=" + i, fromOr || wasPreset, mask.get(i));
+            }
+        }
+    }
+
     public void testSetRangeWithinSingleWord() {
         WordMask mask = new WordMask();
         mask.reset(128);

@@ -12,18 +12,10 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.benchmark.Utils;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.BeforeClass;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Random;
 
-import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
-
-public class VectorScorerBQBenchmarkTests extends ESTestCase {
+public class VectorScorerBQBenchmarkTests extends BenchmarkTest {
 
     private static final int REPETITIONS = 10;
     private static final int NUM_VECTORS = VectorScorerBQBenchmark.NUM_VECTORS;
@@ -42,11 +34,6 @@ public class VectorScorerBQBenchmarkTests extends ESTestCase {
         this.dims = dims;
         this.directoryType = directoryType;
         this.similarityFunction = similarityFunction;
-    }
-
-    @BeforeClass
-    public static void skipWindows() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
     public void testSingleScalarVsVectorized() throws Exception {
@@ -128,12 +115,11 @@ public class VectorScorerBQBenchmarkTests extends ESTestCase {
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        String[] dims = Utils.possibleValues(VectorScorerOSQBenchmark.class, "dims").toArray(new String[0]);
-        return () -> Arrays.stream(dims)
-            .map(Integer::parseInt)
-            .flatMap(d -> Arrays.stream(VectorScorerBQBenchmark.DirectoryType.values()).map(dir -> List.<Object>of(d, dir)))
-            .flatMap(params -> Arrays.stream(VectorSimilarityFunction.values()).map(f -> appendToCopy(params, f).toArray()))
-            .iterator();
+    public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
+        return generateParameters(
+            VectorScorerBQBenchmark.class.getField("dims"),
+            VectorScorerBQBenchmark.class.getField("directoryType"),
+            VectorScorerBQBenchmark.class.getField("similarityFunction")
+        );
     }
 }

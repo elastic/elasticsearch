@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitStats;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -56,6 +59,7 @@ public class CoalescedSplit implements ExternalSplit {
     private final String sourceType;
     private final List<ExternalSplit> children;
     private final long estimatedSizeInBytes;
+    private final SplitStats cachedStats;
 
     public CoalescedSplit(String sourceType, List<ExternalSplit> children) {
         if (sourceType == null) {
@@ -67,12 +71,14 @@ public class CoalescedSplit implements ExternalSplit {
         this.sourceType = sourceType;
         this.children = List.copyOf(children);
         this.estimatedSizeInBytes = computeEstimatedSize(this.children);
+        this.cachedStats = computeSplitStats();
     }
 
     public CoalescedSplit(StreamInput in) throws IOException {
         this.sourceType = in.readString();
         this.children = in.readNamedWriteableCollectionAsList(ExternalSplit.class);
         this.estimatedSizeInBytes = computeEstimatedSize(this.children);
+        this.cachedStats = computeSplitStats();
     }
 
     private static long computeEstimatedSize(List<ExternalSplit> children) {
@@ -112,6 +118,34 @@ public class CoalescedSplit implements ExternalSplit {
         return estimatedSizeInBytes;
     }
 
+    /**
+     * Returns merged statistics for all children. The result is computed once in the constructor
+     * and cached — CoalescedSplit is immutable so re-computation is unnecessary.
+     * Returns {@code null} if any child has no statistics, since a partial aggregate
+     * would produce incorrect optimizer decisions.
+     */
+    @Override
+    @Nullable
+    public SplitStats splitStats() {
+        return cachedStats;
+    }
+
+    @Nullable
+    private SplitStats computeSplitStats() {
+        if (children.size() == 1) {
+            return children.getFirst().splitStats();
+        }
+        List<SplitStats> childStats = new ArrayList<>(children.size());
+        for (ExternalSplit child : children) {
+            SplitStats cs = child.splitStats();
+            if (cs == null) {
+                return null;
+            }
+            childStats.add(cs);
+        }
+        return new MergedSplitStats(childStats);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -127,6 +161,34 @@ public class CoalescedSplit implements ExternalSplit {
     @Override
     public int hashCode() {
         return Objects.hash(sourceType, children);
+    }
+
+    /**
+     * Flattens a split list by unwrapping any {@link CoalescedSplit} into its children.
+     * Returns the original list unchanged when no coalesced splits are present.
+     */
+    public static List<ExternalSplit> flatten(List<? extends ExternalSplit> splits) {
+        boolean hasCoalesced = false;
+        for (ExternalSplit split : splits) {
+            if (split instanceof CoalescedSplit) {
+                hasCoalesced = true;
+                break;
+            }
+        }
+        if (hasCoalesced == false) {
+            @SuppressWarnings("unchecked")
+            List<ExternalSplit> unchanged = (List<ExternalSplit>) splits;
+            return unchanged;
+        }
+        List<ExternalSplit> flat = new ArrayList<>();
+        for (ExternalSplit split : splits) {
+            if (split instanceof CoalescedSplit cs) {
+                flat.addAll(cs.children());
+            } else {
+                flat.add(split);
+            }
+        }
+        return flat;
     }
 
     @Override

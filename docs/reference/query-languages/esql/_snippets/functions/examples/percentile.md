@@ -36,4 +36,16 @@ TS exp_histo_sample
 | --- |
 | 1.0433 |
 
+`PERCENTILE` can also operate on `tdigest` and casted `histogram` fields, approximating the percentile of the values which were used to construct the digests.
+
+```esql
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS p95 = ROUND(PERCENTILE(responseTime::tdigest, 95), 2)
+```
+
+| p95:double |
+| --- |
+| 0.7 |
+
 

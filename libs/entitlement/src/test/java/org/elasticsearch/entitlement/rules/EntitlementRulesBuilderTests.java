@@ -10,6 +10,10 @@
 package org.elasticsearch.entitlement.rules;
 
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.entitlement.instrumentation.MethodSignature;
+import org.elasticsearch.entitlement.rules.function.CheckMethod;
+import org.elasticsearch.entitlement.rules.function.VarargCall;
+import org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo;
 import org.elasticsearch.entitlement.runtime.registry.InstrumentationRegistryImpl;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -19,8 +23,12 @@ import java.util.Map;
 
 import static org.elasticsearch.entitlement.rules.DslTestTypes.AbstractSub;
 import static org.elasticsearch.entitlement.rules.DslTestTypes.Concrete;
+import static org.elasticsearch.entitlement.rules.DslTestTypes.ConcreteWithDefault;
 import static org.elasticsearch.entitlement.rules.DslTestTypes.DummyWithGeneric;
+import static org.elasticsearch.entitlement.rules.DslTestTypes.InterfaceWithDefault;
 import static org.elasticsearch.entitlement.rules.DslTestTypes.OtherDummy;
+import static org.elasticsearch.entitlement.rules.DslTestTypes.SubWithoutOverride;
+import static org.elasticsearch.entitlement.rules.DslTestTypes.SuperWithMethod;
 import static org.elasticsearch.entitlement.rules.DslTestTypes.TargetInterface;
 
 /**
@@ -33,6 +41,9 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
     private static final String ABSTRACT_SUB_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$AbstractSub";
     private static final String TARGET_IFACE_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$TargetInterface";
     private static final String OTHER_DUMMY_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$OtherDummy";
+    private static final String IFACE_WITH_DEFAULT_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$InterfaceWithDefault";
+    private static final String CONCRETE_WITH_DEFAULT_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$ConcreteWithDefault";
+    private static final String SUPER_WITH_METHOD_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$SuperWithMethod";
     private static final String DUMMY_WITH_GENERIC_INTERNAL = "org/elasticsearch/entitlement/rules/DslTestTypes$DummyWithGeneric";
 
     private InternalInstrumentationRegistry newRegistry() {
@@ -44,14 +55,16 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
     }
 
     private void assertHasRule(InternalInstrumentationRegistry registry, MethodKey expectedKey) {
+        var rulesByClass = registry.getInstrumentedMethods();
+        Map<MethodSignature, InstrumentationInfo> classRules = rulesByClass.get(expectedKey.className());
         assertTrue(
-            "Expected registry to contain " + expectedKey + " but had: " + registry.getInstrumentedMethods().keySet(),
-            registry.getInstrumentedMethods().containsKey(expectedKey)
+            "Expected registry to contain " + expectedKey + " but had: " + rulesByClass,
+            classRules != null && classRules.containsKey(expectedKey.methodSignature())
         );
     }
 
-    private Map<MethodKey, ?> methods(InternalInstrumentationRegistry registry) {
-        return registry.getInstrumentedMethods();
+    private long ruleCount(InternalInstrumentationRegistry registry) {
+        return registry.getInstrumentedMethods().values().stream().mapToInt(Map::size).sum();
     }
 
     public void testOnConcreteClassInstanceMethod() {
@@ -171,13 +184,6 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
         assertHasRule(registry, new MethodKey(DUMMY_WITH_GENERIC_INTERNAL, "takeOne", List.of("java.lang.Integer")));
     }
 
-    public void testOnClassName() {
-        var registry = newRegistry();
-        var className = Concrete.class.getName();
-        newBuilder(registry).on(className, Concrete.class).calling(Concrete::noArg).enforce(Policies::empty).elseThrowNotEntitled();
-        assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "noArg", List.of()));
-    }
-
     public void testOnClassWithConsumer() {
         var registry = newRegistry();
         newBuilder(registry).on(Concrete.class, b -> b.calling(Concrete::noArg).enforce(Policies::empty).elseThrowNotEntitled());
@@ -191,7 +197,7 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
         builder.on(OtherDummy.class).calling(OtherDummy::noArg).enforce(Policies::empty).elseThrowNotEntitled();
         assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "noArg", List.of()));
         assertHasRule(registry, new MethodKey(OTHER_DUMMY_INTERNAL, "noArg", List.of()));
-        assertEquals(2, methods(registry).size());
+        assertEquals(2, ruleCount(registry));
     }
 
     public void testMultipleRulesSameClass() {
@@ -205,7 +211,7 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
             .elseThrowNotEntitled();
         assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "noArg", List.of()));
         assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "withArg", List.of("java.lang.String")));
-        assertEquals(2, methods(registry).size());
+        assertEquals(2, ruleCount(registry));
     }
 
     public void testOverloadedMethodDifferentKeys() {
@@ -219,7 +225,7 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
             .elseThrowNotEntitled();
         assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "overloaded", List.of("java.lang.Integer")));
         assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "overloaded", List.of("java.lang.String")));
-        assertEquals(2, methods(registry).size());
+        assertEquals(2, ruleCount(registry));
     }
 
     public void testPrimitiveParam() {
@@ -232,5 +238,60 @@ public class EntitlementRulesBuilderTests extends ESTestCase {
         var registry = newRegistry();
         newBuilder(registry).on(Concrete.class).calling(Concrete::withArray, byte[].class).enforce(Policies::empty).elseThrowNotEntitled();
         assertHasRule(registry, new MethodKey(CONCRETE_INTERNAL, "withArray", List.of("byte[]")));
+    }
+
+    public void testDefaultInterfaceMethodResolvesToInterface() {
+        var registry = newRegistry();
+        newBuilder(registry).on(ConcreteWithDefault.class)
+            .calling(InterfaceWithDefault::defaultMethod)
+            .enforce(Policies::empty)
+            .elseThrowNotEntitled();
+        assertHasRule(registry, new MethodKey(IFACE_WITH_DEFAULT_INTERNAL, "defaultMethod", List.of()));
+    }
+
+    public void testInheritedSuperclassMethodResolvesToSuperclass() {
+        var registry = newRegistry();
+        newBuilder(registry).on(SubWithoutOverride.class)
+            .calling(SuperWithMethod::inheritedMethod)
+            .enforce(Policies::empty)
+            .elseThrowNotEntitled();
+        assertHasRule(registry, new MethodKey(SUPER_WITH_METHOD_INTERNAL, "inheritedMethod", List.of()));
+    }
+
+    public void testValidateThrowsForAncestorAndDescendantRules() {
+        var registry = newRegistry();
+        registry.registerRule(dummyRule(IFACE_WITH_DEFAULT_INTERNAL, "defaultMethod"));
+        registry.registerRule(dummyRule(CONCRETE_WITH_DEFAULT_INTERNAL, "defaultMethod"));
+
+        var e = expectThrows(IllegalStateException.class, registry::validate);
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("Overlapping rules for method"));
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("defaultMethod"));
+    }
+
+    public void testValidatePassesForUnrelatedTypesWithSameMethodName() {
+        var registry = newRegistry();
+        var builder = newBuilder(registry);
+        builder.on(Concrete.class).calling(Concrete::noArg).enforce(Policies::empty).elseThrowNotEntitled();
+        builder.on(OtherDummy.class).calling(OtherDummy::noArg).enforce(Policies::empty).elseThrowNotEntitled();
+
+        registry.validate();
+    }
+
+    public void testValidateSkipsConstructors() {
+        var registry = newRegistry();
+        var builder = newBuilder(registry);
+        builder.on(SuperWithMethod.class).protectedCtor().enforce(Policies::empty).elseThrowNotEntitled();
+        builder.on(SubWithoutOverride.class).protectedCtor().enforce(Policies::empty).elseThrowNotEntitled();
+
+        registry.validate();
+    }
+
+    private static EntitlementRule dummyRule(String className, String methodName) {
+        VarargCall<CheckMethod> noopCheck = args -> (callerClass, policyChecker) -> {};
+        return new EntitlementRule(
+            new MethodKey(className, methodName, List.of()),
+            noopCheck,
+            new DeniedEntitlementStrategy.NotEntitledDeniedEntitlementStrategy()
+        );
     }
 }

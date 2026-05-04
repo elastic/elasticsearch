@@ -9,14 +9,17 @@ package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.FloatBlock;
@@ -24,26 +27,53 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * A rate grouping aggregation definition for long. This implementation supports the `irate` and `idelta` functions.
+ * An irate grouping aggregation definition for long.
  * This class is generated. Edit `X-IrateAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "LONG_BLOCK") }
+    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "LONG_BLOCK") },
+    processNulls = true
 )
 public class IrateLongAggregator {
-    public static LongIrateGroupingState initGrouping(DriverContext driverContext, boolean isDelta, boolean isDateNanos) {
+
+    public static final String DELTA_UNSUPPORTED_WARNING =
+        "Some nodes in your cluster don't support delta temporality yet, delta temporality series will be ignored. Upgrade your cluster to fix this.";
+
+    public static LongIrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos, Warnings warnings) {
         final int dateFactor = isDateNanos ? 1_000_000_000 : 1000;
-        return new LongIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), isDelta, dateFactor);
+        return new LongIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor, warnings);
     }
 
-    public static void combine(LongIrateGroupingState current, int groupId, long value, long timestamp) {
-        current.ensureCapacity(groupId);
-        current.append(groupId, timestamp, value);
+    public static void combine(
+        LongIrateGroupingState current,
+        int groupId,
+        long value,
+        long timestamp,
+        @Position int position,
+        BytesRefBlock temporality
+    ) {
+        if (current.cachedTemporalityAccessor == null || current.cachedTemporalityAccessor.block() != temporality) {
+            current.cachedTemporalityAccessor = TemporalityAccessor.create(temporality, Temporality.CUMULATIVE);
+            assert current.cachedTemporalityAccessor.block() == temporality;
+        }
+        try {
+            if (current.cachedTemporalityAccessor.get(position) == Temporality.CUMULATIVE) {
+                current.ensureCapacity(groupId);
+                current.append(groupId, timestamp, value);
+            } else {
+                current.warnings.registerException(IllegalArgumentException.class, DELTA_UNSUPPORTED_WARNING);
+            }
+        } catch (InvalidTemporalityException e) {
+            // We can't use @GroupingAggregator(warnExceptions=..) here because that would require a breaking change to the
+            // intermediate state
+            current.warnings.registerException(e);
+        }
     }
 
     public static String describe() {
@@ -84,19 +114,20 @@ public class IrateLongAggregator {
     }
 
     public static final class LongIrateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
+        private TemporalityAccessor cachedTemporalityAccessor;
         private ObjectArray<LongIrateState> states;
+        private final Warnings warnings;
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
-        private final boolean isDelta;
         private final int dateFactor;
 
-        LongIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, boolean isDelta, int dateFactor) {
+        LongIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor, Warnings warnings) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
-            this.isDelta = isDelta;
             this.dateFactor = dateFactor;
+            this.warnings = warnings;
         }
 
         void ensureCapacity(int groupId) {
@@ -104,7 +135,7 @@ public class IrateLongAggregator {
         }
 
         void adjustBreaker(long bytes) {
-            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<rate aggregation>>");
+            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<irate aggregation>>");
             stateBytes += bytes;
             assert stateBytes >= 0 : stateBytes;
         }
@@ -203,18 +234,13 @@ public class IrateLongAggregator {
                         rates.appendNull();
                         continue;
                     }
-                    if (isDelta) {
-                        // delta: just return the difference
-                        rates.appendDouble(state.lastValue - state.secondLastValue);
-                    } else {
-                        // When the last value is less than the previous one, we assume a reset
-                        // and use the last value directly.
-                        final double ydiff = state.lastValue >= state.secondLastValue
-                            ? state.lastValue - state.secondLastValue
-                            : state.lastValue;
-                        final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
-                        rates.appendDouble(ydiff / xdiff * dateFactor);
-                    }
+                    // When the last value is less than the previous one, we assume a reset
+                    // and use the last value directly.
+                    final double ydiff = state.lastValue >= state.secondLastValue
+                        ? state.lastValue - state.secondLastValue
+                        : state.lastValue;
+                    final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
+                    rates.appendDouble(ydiff / xdiff * dateFactor);
                 }
                 return rates.build();
             }

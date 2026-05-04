@@ -144,7 +144,7 @@ class LateMaterializationPlanner {
 
         // The TopN reduction plan should not be further optimized locally on the node reduce driver, since we took great pains to
         // preplan in advance, including all the necessary field extractions!
-        return Optional.of(new ReductionPlan(reductionPlanWithSize, updatedDataPlan, LocalPhysicalOptimization.DISABLED));
+        return Optional.of(new ReductionPlan(reductionPlanWithSize, updatedDataPlan));
     }
 
     /**

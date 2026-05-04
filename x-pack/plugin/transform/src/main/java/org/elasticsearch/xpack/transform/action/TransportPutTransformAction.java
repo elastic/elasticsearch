@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 
 import java.time.Instant;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
 
@@ -67,6 +68,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
     private final TransformConfigAutoMigration transformConfigAutoMigration;
+    private final BooleanSupplier hasLinkedProjects;
     private final ProjectResolver projectResolver;
 
     @Inject
@@ -100,6 +102,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             : null;
         this.auditor = transformServices.auditor();
         this.transformConfigAutoMigration = transformConfigAutoMigration;
+        this.hasLinkedProjects = () -> transformServices.hasLinkedProjects().apply(projectResolver.getProjectId());
         this.projectResolver = projectResolver;
     }
 
@@ -160,6 +163,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
                 client,
                 config,
                 true,
+                hasLinkedProjects.getAsBoolean(),
                 ActionListener.wrap(
                     aVoid -> AuthorizationStatePersistenceUtils.persistAuthState(
                         settings,

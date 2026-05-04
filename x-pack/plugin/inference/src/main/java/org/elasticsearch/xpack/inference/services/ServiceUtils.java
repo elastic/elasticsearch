@@ -23,7 +23,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
@@ -46,6 +46,7 @@ import static org.elasticsearch.xpack.core.inference.InferenceUtils.missingSetti
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeAPositiveIntegerErrorMessage;
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeGreaterThanOrEqualNumberErrorMessage;
 import static org.elasticsearch.xpack.core.inference.InferenceUtils.mustBeLessThanOrEqualNumberErrorMessage;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.ENABLED;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MIN_NUMBER_OF_ALLOCATIONS;
@@ -222,15 +223,6 @@ public final class ServiceUtils {
         );
     }
 
-    public static ElasticsearchStatusException invalidModelTypeForUpdateModelWithChatCompletionDetails(
-        Class<? extends Model> invalidModelType
-    ) {
-        throw new ElasticsearchStatusException(
-            Strings.format("Can't update chat completion details for model with unexpected type %s", invalidModelType),
-            RestStatus.BAD_REQUEST
-        );
-    }
-
     public static String missingOneOfSettingsErrorMsg(List<String> settingNames, String scope) {
         return Strings.format("[%s] does not contain one of the required settings [%s]", scope, String.join(", ", settingNames));
     }
@@ -301,6 +293,7 @@ public final class ServiceUtils {
 
     /**
      * Extracts an optional URI from the map. If the field is not present, null is returned. If the field is present but invalid,
+     * an error is added to the validation exception.
      * @param map the map to extract the URI from
      * @param fieldName the field name to extract
      * @param validationException the validation exception to add errors to
@@ -1082,19 +1075,39 @@ public final class ServiceUtils {
     }
 
     /**
-     * Resolves the inference timeout based on input type and cluster settings.
+     * Resolves the inference timeout based on input type, task type and cluster settings. If the supplied timeout is not {@code null} or
+     * {@link BaseInferenceActionRequest#TIMEOUT_NOT_DETERMINED}, the supplied timeout is returned.
+     * <p>
+     * If the supplied timeout is {@code null} or {@link BaseInferenceActionRequest#TIMEOUT_NOT_DETERMINED} <b>and</b> the {@link InputType}
+     * is {@link InputType#SEARCH} or {@link InputType#INTERNAL_SEARCH}, the configured {@link InferencePlugin#INFERENCE_QUERY_TIMEOUT}
+     * from the cluster settings is returned.
+     * <p>
+     * If the {@link InputType} is not {@link InputType#SEARCH} or {@link InputType#INTERNAL_SEARCH}, the default timeout for the
+     * {@link TaskType} is returned.
      *
-     * @param timeout The provided timeout value, may be null
-     * @param inputType The input type for the inference request
+     * @param timeout        The provided timeout value, may be null
+     * @param inputType      The input type for the inference request
      * @param clusterService The cluster service to get timeout settings from
+     * @param taskType       The task type of the request
      * @return The resolved timeout value
      */
-    public static TimeValue resolveInferenceTimeout(@Nullable TimeValue timeout, InputType inputType, ClusterService clusterService) {
-        if (timeout == null) {
+    public static TimeValue resolveInferenceTimeout(
+        @Nullable TimeValue timeout,
+        InputType inputType,
+        ClusterService clusterService,
+        TaskType taskType
+    ) {
+        if (timeout == null || timeout.equals(TIMEOUT_NOT_DETERMINED)) {
             if (inputType == InputType.SEARCH || inputType == InputType.INTERNAL_SEARCH) {
                 return clusterService.getClusterSettings().get(InferencePlugin.INFERENCE_QUERY_TIMEOUT);
             } else {
-                return InferenceAction.Request.DEFAULT_TIMEOUT;
+                var defaultTimeoutForTaskType = BaseInferenceActionRequest.getDefaultTimeoutForTaskType(taskType);
+                if (defaultTimeoutForTaskType.equals(TIMEOUT_NOT_DETERMINED)) {
+                    throw new IllegalArgumentException(
+                        Strings.format("Default inference timeout could not be determined for task type [%s]", taskType)
+                    );
+                }
+                return defaultTimeoutForTaskType;
             }
         }
         return timeout;

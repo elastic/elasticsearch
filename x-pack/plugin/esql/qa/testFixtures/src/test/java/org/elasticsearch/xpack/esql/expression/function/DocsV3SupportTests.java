@@ -23,7 +23,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class DocsV3SupportTests extends ESTestCase {
     private static DocsV3Support docs = DocsV3Support.forFunctions("test", DocsV3SupportTests.class, null);
@@ -433,6 +435,137 @@ public class DocsV3SupportTests extends ESTestCase {
             }
         }
         return constructors[0];
+    }
+
+    public void testRenderingParamWithAppliesTo() throws Exception {
+        TestCallbacks callbacks = renderTestClassWithMapParamDocs();
+        String rendered = callbacks.rendered.get("parameters/test_map_func.md");
+        assertNotNull("parameters should be rendered", rendered);
+        // Param without applies_to should not have the annotation
+        assertThat(rendered, containsString("`field`\n:   "));
+        assertThat(rendered, not(containsString("`field` {applies_to}")));
+        // Param with applies_to should have the annotation inline next to the name
+        assertThat(rendered, containsString("`query` {applies_to}`stack: preview 9.4.0`\n:   "));
+        // MapParam with applies_to should have the annotation inline next to the name
+        assertThat(rendered, containsString("`options` {applies_to}`stack: preview 9.5.0`\n:   "));
+    }
+
+    public void testRenderingFunctionNamedParamsWithAppliesTo() throws Exception {
+        TestCallbacks callbacks = renderTestClassWithMapParamDocs();
+        String rendered = callbacks.rendered.get("functionNamedParams/test_map_func.md");
+        assertNotNull("functionNamedParams should be rendered for functions with MapParam", rendered);
+        // Params without applies_to should not have the annotation
+        assertThat(rendered, containsString("`count`\n:   (integer) Number of items."));
+        // Params with applies_to should have the annotation inline next to the name
+        assertThat(rendered, containsString("`mode` {applies_to}`stack: preview 9.4.0`\n:   (keyword) The mode to use."));
+    }
+
+    public void testRenderingFunctionNamedParamsWithoutAppliesTo() throws Exception {
+        TestCallbacks callbacks = renderTestClassWithMapParamDocs();
+        String rendered = callbacks.rendered.get("functionNamedParams/test_map_func.md");
+        // The `count` param line should NOT contain {applies_to}
+        String[] lines = rendered.split("\n");
+        for (String line : lines) {
+            if (line.startsWith("`count`")) {
+                assertThat(line, not(containsString("{applies_to}")));
+                break;
+            }
+        }
+    }
+
+    private TestCallbacks renderTestClassWithMapParamDocs() throws Exception {
+        FunctionInfo info = functionInfo(TestClassWithMapParam.class);
+        assert info != null;
+        FunctionDefinition definition = FunctionDefinition.def(TestClassWithMapParam.class)
+            .ternary(TestClassWithMapParam::new)
+            .name("test_map_func");
+        TestCallbacks callbacks = new TestCallbacks();
+        var docsSupport = new DocsV3Support.FunctionDocsSupport(
+            "test_map_func",
+            TestClassWithMapParam.class,
+            definition,
+            TestClassWithMapParam::signatures,
+            callbacks
+        );
+        docsSupport.renderDocs();
+        return callbacks;
+    }
+
+    public static class TestClassWithMapParam extends Function implements OptionalArgument {
+        @FunctionInfo(
+            returnType = "keyword",
+            description = "A test function with map parameters.",
+            examples = { @Example(file = "stats", tag = "count") },
+            appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
+            preview = true
+        )
+        public TestClassWithMapParam(
+            Source source,
+            @Param(name = "field", type = { "keyword" }, description = "The field.") Expression field,
+            @Param(name = "query", type = { "keyword" }, description = "The query.", applies_to = "stack: preview 9.4.0") Expression query,
+            @MapParam(
+                name = "options",
+                description = "Optional parameters.",
+                optional = true,
+                applies_to = "stack: preview 9.5.0",
+                params = {
+                    @MapParam.MapParamEntry(name = "count", type = "integer", description = "Number of items.", valueHint = { "3" }),
+                    @MapParam.MapParamEntry(
+                        name = "mode",
+                        type = "keyword",
+                        description = "The mode to use.",
+                        valueHint = { "fast" },
+                        applies_to = "stack: preview 9.4.0"
+                    ) }
+            ) Expression options
+        ) {
+            super(source, options == null ? List.of(field, query) : List.of(field, query, options));
+        }
+
+        public static Set<DocsV3Support.TypeSignature> signatures() {
+            return Set.of(
+                new DocsV3Support.TypeSignature(
+                    List.of(new DocsV3Support.Param(DataType.KEYWORD, List.of()), new DocsV3Support.Param(DataType.KEYWORD, List.of())),
+                    DataType.KEYWORD
+                )
+            );
+        }
+
+        @Override
+        public DataType dataType() {
+            return DataType.KEYWORD;
+        }
+
+        @Override
+        public Expression replaceChildren(List<Expression> newChildren) {
+            return new TestClassWithMapParam(
+                source(),
+                newChildren.get(0),
+                newChildren.get(1),
+                newChildren.size() > 2 ? newChildren.get(2) : null
+            );
+        }
+
+        @Override
+        protected NodeInfo<? extends Expression> info() {
+            return NodeInfo.create(
+                this,
+                TestClassWithMapParam::new,
+                children().get(0),
+                children().get(1),
+                children().size() > 2 ? children().get(2) : null
+            );
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
     }
 
     public static class TestClass extends Function {

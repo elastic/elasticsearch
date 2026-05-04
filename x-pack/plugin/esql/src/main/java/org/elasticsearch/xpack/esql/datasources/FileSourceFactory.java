@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -21,9 +22,13 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Framework-internal factory that bridges the building-block registries
@@ -40,6 +45,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
     private final FormatReaderRegistry formatRegistry;
     private final DecompressionCodecRegistry codecRegistry;
     private final Settings settings;
+    @Nullable
+    private final ExecutorService splitDiscoveryExecutor;
 
     FileSourceFactory(
         StorageProviderRegistry storageRegistry,
@@ -47,12 +54,23 @@ final class FileSourceFactory implements ExternalSourceFactory {
         DecompressionCodecRegistry codecRegistry,
         Settings settings
     ) {
+        this(storageRegistry, formatRegistry, codecRegistry, settings, null);
+    }
+
+    FileSourceFactory(
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        DecompressionCodecRegistry codecRegistry,
+        Settings settings,
+        @Nullable ExecutorService splitDiscoveryExecutor
+    ) {
         Check.notNull(storageRegistry, "storageRegistry cannot be null");
         Check.notNull(formatRegistry, "formatRegistry cannot be null");
         this.storageRegistry = storageRegistry;
         this.formatRegistry = formatRegistry;
         this.codecRegistry = codecRegistry != null ? codecRegistry : new DecompressionCodecRegistry();
         this.settings = settings != null ? settings : Settings.EMPTY;
+        this.splitDiscoveryExecutor = splitDiscoveryExecutor;
     }
 
     @Override
@@ -106,6 +124,9 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
 
             StorageObject storageObject = provider.newObject(storagePath);
+            if (storageObject.exists() == false) {
+                throw new IOException("File does not exist: " + location);
+            }
             FormatReader reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
             return reader.metadata(storageObject);
         } catch (IOException e) {
@@ -115,7 +136,14 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     @Override
     public SplitProvider splitProvider() {
-        return new FileSplitProvider(FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE, codecRegistry, storageRegistry, formatRegistry, settings);
+        return new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            codecRegistry,
+            storageRegistry,
+            formatRegistry,
+            settings,
+            splitDiscoveryExecutor
+        );
     }
 
     @Override
@@ -146,25 +174,35 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 ? format.filterPushdownSupport()
                 : null;
 
-            return new AsyncExternalSourceOperatorFactory(
+            Closeable onClose = null;
+            ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
+            if (allocator != null) {
+                QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
+                storage = budgeted;
+                onClose = budgeted;
+            }
+
+            Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
+            return AsyncExternalSourceOperatorFactory.builder(
                 storage,
                 format,
                 path,
                 context.attributes(),
                 context.batchSize(),
                 context.maxBufferSize(),
-                context.rowLimit(),
-                context.executor(),
-                context.fileList(),
-                context.partitionColumnNames(),
-                partitionValues,
-                context.sliceQueue(),
-                errorPolicy,
-                context.parsingParallelism(),
-                null,
-                pushedExpressions,
-                pushdownSupport
-            );
+                readExecutor
+            )
+                .rowLimit(context.rowLimit())
+                .fileList(context.fileList())
+                .partitionColumnNames(context.partitionColumnNames())
+                .partitionValues(partitionValues)
+                .sliceQueue(context.sliceQueue())
+                .errorPolicy(errorPolicy)
+                .parsingParallelism(context.parsingParallelism())
+                .pushedExpressions(pushedExpressions)
+                .pushdownSupport(pushdownSupport)
+                .onClose(onClose)
+                .build();
         };
     }
 

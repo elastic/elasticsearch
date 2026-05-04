@@ -45,7 +45,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
      * @param startOrd        the first vector ordinal (inclusive) to process
      * @param endOrd          the last vector ordinal (exclusive) to process
      * @param centroids       the centroid vectors to compare against
-     * @param ordTranslator  translate the vector ord to the position of the vector on the result array
+     * @param ordTranslator   translate the vector ord to the position of the vector on the result array
      * @param centroidChanged a bitset tracking which centroids had assignments change;
      *                        bits are set for both the old and new centroid when a vector is reassigned
      * @param results         input/output array indexed by document ordinal; on entry holds the
@@ -91,10 +91,10 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
      * Find the closest centroid for a batch of contiguous vectors, restricting the search to each
      * vector's current centroid and its pre-computed neighborhood of nearby centroids.
      *
-     * @param startOrd            the first vector ordinal (inclusive) to process
-     * @param endOrd              the last vector ordinal (exclusive) to process
+     * @param startOrd        the first vector ordinal (inclusive) to process
+     * @param endOrd          the last vector ordinal (exclusive) to process
      * @param centroids       the centroid vectors to compare against
-     * @param ordTranslator  translate the vector ord to the position of the vector on the result array
+     * @param ordTranslator   translate the vector ord to the position of the vector on the result array
      * @param centroidChanged a bitset tracking which centroids had assignments change;
      *                        bits are set for both the old and new centroid when a vector is reassigned
      * @param neighborhoods   per-centroid neighborhoods; {@code neighborhoods[c]} contains the
@@ -193,6 +193,53 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
     }
 
     /**
+     * Compute the squared distances between a batch of contiguous vectors and all centroids.
+     *
+     * @param startOrd         the first vector ordinal (inclusive) to process
+     * @param endOrd           the last vector ordinal (exclusive) to process
+     * @param centroids        the centroid vectors to compare against
+     * @param squaredDistances array of distances indexed by document ordinal
+     */
+    final void computeSquaredDistances(int startOrd, int endOrd, float[][] centroids, float[][] squaredDistances) throws IOException {
+        for (int i = startOrd; i < endOrd; i++) {
+            float[] vector = vectorValue(i);
+            computeSquaredDistances(vector, centroids, squaredDistances[i]);
+        }
+    }
+
+    /**
+     * Compute the squared distances between a batch of contiguous vectors and all centroids, restricting the search to each
+     * vector's current centroid and its pre-computed neighborhood of nearby centroids.
+     *
+     * @param startOrd         the first vector ordinal (inclusive) to process
+     * @param endOrd           the last vector ordinal (exclusive) to process
+     * @param centroids        the centroid vectors to compare against
+     * @param assigner         a function that given the vector ID, returns the vector's current centroid
+     * @param neighborhoods    per-centroid neighborhoods; {@code neighborhoods[c]} contains the
+     *                         neighboring centroid indices and maximum intra-cluster distance for centroid {@code c}
+     * @param squaredDistances array of distances indexed by document ordinal
+     */
+    final void computeSquaredDistancesFromNeighbors(
+        int startOrd,
+        int endOrd,
+        float[][] centroids,
+        IntToIntFunction assigner,
+        NeighborHood[] neighborhoods,
+        float[][] squaredDistances
+    ) throws IOException {
+        for (int i = startOrd; i < endOrd; i++) {
+            float[] vector = vectorValue(i);
+            final int bestCentroid = assigner.apply(i);
+            squaredDistances[i][0] = ESVectorUtil.squareDistance(vector, centroids[bestCentroid]);
+            int[] neighbors = neighborhoods[bestCentroid].neighbors();
+            for (int j = 0; j < neighbors.length; j++) {
+                int neigh = neighbors[j];
+                squaredDistances[i][j + 1] = ESVectorUtil.squareDistance(vector, centroids[neigh]);
+            }
+        }
+    }
+
+    /**
      * Assign a secondary ("spilled") centroid to each vector in the given ordinal range using the
      * <a href="https://arxiv.org/abs/2404.18984">SOAR</a> adjusted distance. The SOAR distance for
      * a vector {@code x} with primary centroid {@code c_1} to a candidate centroid {@code c} is:
@@ -282,7 +329,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         float minDsq = Float.MAX_VALUE;
         int i = 0;
         for (; i < limit; i += 4) {
-            ESVectorUtil.squareDistanceBulk(vector, centroids[i], centroids[i + 1], centroids[i + 2], centroids[i + 3], distances);
+            ESVectorUtil.squareDistanceBulk(vector, centroids[i], centroids[i + 1], centroids[i + 2], centroids[i + 3], 0, distances);
             for (int j = 0; j < distances.length; j++) {
                 float dsq = distances[j];
                 if (dsq < minDsq) {
@@ -299,6 +346,24 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
             }
         }
         return bestCentroidOffset;
+    }
+
+    /**
+     * Computes the squared distances between a materialized vector and all centroids.
+     *
+     * @param vector    the vector to assign
+     * @param centroids the centroid vectors to compare against
+     * @param distances the computed distances
+     */
+    private static void computeSquaredDistances(float[] vector, float[][] centroids, float[] distances) {
+        final int limit = centroids.length - 3;
+        int i = 0;
+        for (; i < limit; i += 4) {
+            ESVectorUtil.squareDistanceBulk(vector, centroids[i], centroids[i + 1], centroids[i + 2], centroids[i + 3], i, distances);
+        }
+        for (; i < centroids.length; i++) {
+            distances[i] = ESVectorUtil.squareDistance(vector, centroids[i]);
+        }
     }
 
     /**
@@ -342,6 +407,7 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
                 centroids[neighborhood.neighbors()[i + 1]],
                 centroids[neighborhood.neighbors()[i + 2]],
                 centroids[neighborhood.neighbors()[i + 3]],
+                0,
                 distances
             );
             for (int j = 0; j < distances.length; j++) {

@@ -63,6 +63,7 @@ setup:
             - registered_domain_command
             - user_agent_command
             - fn_json_extract
+            - esql_limit_by
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
@@ -78,6 +79,7 @@ setup:
   - set: { esql.features.grok: grok_counter }
   - set: { esql.features.keep: keep_counter }
   - set: { esql.features.limit: limit_counter }
+  - set: { esql.features.limit_by: limit_by_counter }
   - set: { esql.features.mv_expand: mv_expand_counter }
   - set: { esql.features.rename: rename_counter }
   - set: { esql.features.row: row_counter }
@@ -138,6 +140,7 @@ setup:
   - match: { esql.features.registered_domain: $registered_domain_counter }
   - match: { esql.features.user_agent: $user_agent_counter }
   - gt: { esql.features.limit: $limit_counter }
+  - match: { esql.features.limit_by: $limit_by_counter }
   - gt: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
   - gt: { esql.features.where: $where_counter }
@@ -194,6 +197,7 @@ setup:
   - match: { esql.features.registered_domain: $registered_domain_counter }
   - match: { esql.features.user_agent: $user_agent_counter }
   - match: { esql.features.limit: $limit_counter }
+  - match: { esql.features.limit_by: $limit_by_counter }
   - match: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
   - match: { esql.features.where: $where_counter }
@@ -225,6 +229,19 @@ setup:
   - exists: esql.functions.mv_sum
   - exists: esql.functions.to_dateperiod
 
+  - set: { esql.features.limit_by: limit_by_counter }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test
+            | sort count desc
+            | limit 3 by message
+            | limit 100'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.features.limit_by: $limit_by_counter }
+
 ---
 "Basic ESQL usage output (telemetry) non-snapshot version":
   - requires:
@@ -233,7 +250,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains, promql_command_v0 ]
+          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains, promql_command_v0, esql_limit_by ]
       reason: "Test that should only be executed on release versions"
 
   - do: { xpack.usage: { } }
@@ -248,6 +265,7 @@ setup:
   - set: { esql.features.grok: grok_counter }
   - set: { esql.features.keep: keep_counter }
   - set: { esql.features.limit: limit_counter }
+  - set: { esql.features.limit_by: limit_by_counter }
   - set: { esql.features.mv_expand: mv_expand_counter }
   - set: { esql.features.rename: rename_counter }
   - set: { esql.features.row: row_counter }
@@ -306,6 +324,7 @@ setup:
   - match: { esql.features.registered_domain: $registered_domain_counter }
   - match: { esql.features.user_agent: $user_agent_counter }
   - gt: { esql.features.limit: $limit_counter }
+  - match: { esql.features.limit_by: $limit_by_counter }
   - gt: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
   - match: { esql.features.promql: $promql_counter }
@@ -361,6 +380,7 @@ setup:
   - match: { esql.features.uri_parts: $uri_parts_counter }
   - match: { esql.features.registered_domain: $registered_domain_counter }
   - match: { esql.features.limit: $limit_counter }
+  - match: { esql.features.limit_by: $limit_by_counter }
   - match: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
   - match: { esql.features.where: $where_counter }
@@ -392,6 +412,19 @@ setup:
   - exists: esql.functions.idelta
   - exists: esql.functions.mv_sum
   - exists: esql.functions.to_dateperiod
+
+  - set: { esql.features.limit_by: limit_by_counter }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test
+            | sort count desc
+            | limit 3 by message
+            | limit 100'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.features.limit_by: $limit_by_counter }
 
 ---
 took:

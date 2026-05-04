@@ -53,7 +53,7 @@ public class S3TenaciousRetryBlobContainer extends TenaciousRetryBlobContainer {
         return Map.of(
             "repo_type",
             S3Repository.TYPE,
-            "operation_purpose",
+            "purpose",
             purpose.getKey(),
             "operation",
             lookUpOperationNameByMethod(method)

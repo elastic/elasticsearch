@@ -147,7 +147,9 @@ public class ApproximationPlan {
 
         @Override
         public Nullability nullable() {
-            return Nullability.TRUE;
+            // This placeholder is always replaced with a concrete non-null double value before execution,
+            // so it must not be treated as nullable by optimizer rules (e.g. FoldNull, PropagateNullable).
+            return Nullability.FALSE;
         }
 
         @Override

@@ -56,7 +56,6 @@ public class CacheFileReader {
 
     private final StatelessSharedBlobCacheService.CacheFile cacheFile;
     private final CacheBlobReader cacheBlobReader;
-    private final CacheBlobReader prefetchCacheBlobReader;
     private final BlobFileRanges blobFileRanges;
     private final BlobCacheMetrics blobCacheMetrics;
     private final LongSupplier relativeTimeInMillisSupplier;
@@ -66,7 +65,6 @@ public class CacheFileReader {
     public CacheFileReader(
         StatelessSharedBlobCacheService.CacheFile cacheFile,
         CacheBlobReader cacheBlobReader,
-        CacheBlobReader prefetchCacheBlobReader,
         BlobFileRanges blobFileRanges,
         BlobCacheMetrics blobCacheMetrics,
         LongSupplier relativeTimeInMillisSupplier,
@@ -74,22 +72,10 @@ public class CacheFileReader {
     ) {
         this.cacheFile = Objects.requireNonNull(cacheFile);
         this.cacheBlobReader = Objects.requireNonNull(cacheBlobReader);
-        this.prefetchCacheBlobReader = Objects.requireNonNull(prefetchCacheBlobReader);
         this.blobFileRanges = Objects.requireNonNull(blobFileRanges);
         this.blobCacheMetrics = blobCacheMetrics;
         this.relativeTimeInMillisSupplier = relativeTimeInMillisSupplier;
         this.cacheService = cacheService;
-    }
-
-    public CacheFileReader(
-        StatelessSharedBlobCacheService.CacheFile cacheFile,
-        CacheBlobReader cacheBlobReader,
-        BlobFileRanges blobFileRanges,
-        BlobCacheMetrics blobCacheMetrics,
-        LongSupplier relativeTimeInMillisSupplier,
-        @Nullable StatelessSharedBlobCacheService cacheService
-    ) {
-        this(cacheFile, cacheBlobReader, cacheBlobReader, blobFileRanges, blobCacheMetrics, relativeTimeInMillisSupplier, cacheService);
     }
 
     /**
@@ -99,7 +85,6 @@ public class CacheFileReader {
         return new CacheFileReader(
             cacheFile.copy(),
             cacheBlobReader,
-            prefetchCacheBlobReader,
             blobFileRanges,
             blobCacheMetrics,
             relativeTimeInMillisSupplier,
@@ -130,7 +115,7 @@ public class CacheFileReader {
                 cacheFile.getLength(),
                 offset,
                 length,
-                prefetchCacheBlobReader,
+                cacheBlobReader,
                 ActionListener.wrap(v -> {}, e -> logger.debug("async prefetch failed for [{}]", cacheFile.getCacheKey(), e))
             );
         }

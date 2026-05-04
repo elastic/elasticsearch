@@ -1462,13 +1462,11 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         when(cacheFile.getLength()).thenReturn(fileLength);
 
         final CacheBlobReader cacheBlobReader = mock(CacheBlobReader.class);
-        final CacheBlobReader prefetchCacheBlobReader = mock(CacheBlobReader.class);
         final StatelessSharedBlobCacheService mockCacheService = mock(StatelessSharedBlobCacheService.class);
 
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
-            prefetchCacheBlobReader,
             createBlobFileRanges(randomNonNegativeLong(), 0L, 0, (int) fileLength),
             null,
             System::currentTimeMillis,
@@ -1493,7 +1491,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             eq(fileLength),
             eq(offset),
             eq(length),
-            eq(prefetchCacheBlobReader),
+            eq(cacheBlobReader),
             any(ActionListener.class)
         );
     }

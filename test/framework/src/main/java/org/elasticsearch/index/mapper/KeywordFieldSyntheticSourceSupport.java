@@ -48,12 +48,16 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
         if (Build.current().isSnapshot() == false) {
             if (allowIgnoredSource && ESTestCase.randomBoolean()) {
-                return FieldMapper.DocValuesParameter.Values.DISABLED;
+                return new FieldMapper.DocValuesParameter.Values(
+                    false,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                    FieldMapper.DocValuesParameter.Values.MultiValue.TRUE
+                );
             } else {
                 return new FieldMapper.DocValuesParameter.Values(
                     true,
                     FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
+                    FieldMapper.DocValuesParameter.Values.MultiValue.TRUE
                 );
             }
         }
@@ -62,14 +66,18 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             case 0 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
+                FieldMapper.DocValuesParameter.Values.MultiValue.TRUE
             );
             case 1 -> new FieldMapper.DocValuesParameter.Values(
                 true,
                 FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-                FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
+                FieldMapper.DocValuesParameter.Values.MultiValue.TRUE
             );
-            case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
+            case 2 -> new FieldMapper.DocValuesParameter.Values(
+                false,
+                FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                FieldMapper.DocValuesParameter.Values.MultiValue.TRUE
+            );
             default -> throw new IllegalStateException();
         };
     }

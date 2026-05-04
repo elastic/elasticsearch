@@ -84,22 +84,15 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     static final BigInteger BIGINTEGER_2_64_MINUS_ONE = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE); // 2^64 -1
     private static final BigDecimal BIGDECIMAL_2_64_MINUS_ONE = new BigDecimal(BIGINTEGER_2_64_MINUS_ONE);
 
-    public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
-        true,
-        FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-        FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
-    );
-
     private static UnsignedLongFieldMapper toType(FieldMapper in) {
         return (UnsignedLongFieldMapper) in;
     }
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
         private final Parameter<Boolean> indexed;
-        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.sorted(
-            DEFAULT_DOC_VALUES_PARAMS,
+        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.builder(
             m -> toType(m).docValuesParameters()
-        );
+        ).enabled(true).multiValue(FieldMapper.DocValuesParameter.Values.MultiValue.TRUE).build();
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<String> nullValue;

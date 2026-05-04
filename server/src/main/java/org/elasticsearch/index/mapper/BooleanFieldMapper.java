@@ -78,18 +78,12 @@ public class BooleanFieldMapper extends FieldMapper {
         return (BooleanFieldMapper) in;
     }
 
-    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
-        true,
-        DocValuesParameter.Values.Cardinality.LOW,
-        DocValuesParameter.Values.MultiValue.SORTED
-    );
-
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.sorted(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParameters()
-        );
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.builder(m -> toType(m).docValuesParameters())
+            .enabled(true)
+            .multiValue(DocValuesParameter.Values.MultiValue.TRUE)
+            .build();
         private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Explicit<Boolean>> ignoreMalformed;

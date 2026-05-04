@@ -106,19 +106,13 @@ public class NumberFieldMapper extends FieldMapper {
         return (NumberFieldMapper) in;
     }
 
-    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
-        true,
-        DocValuesParameter.Values.Cardinality.LOW,
-        DocValuesParameter.Values.MultiValue.SORTED
-    );
-
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.sorted(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParameters()
-        );
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.builder(m -> toType(m).docValuesParameters())
+            .enabled(true)
+            .multiValue(DocValuesParameter.Values.MultiValue.TRUE)
+            .build();
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
@@ -237,7 +231,8 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Deprecated
         public Builder docValues(boolean hasDocValues) {
-            this.docValuesParameters.setValue(hasDocValues ? DEFAULT_DOC_VALUES_PARAMS : DocValuesParameter.Values.DISABLED);
+            DocValuesParameter.Values defaults = this.docValuesParameters.getDefaultValue();
+            this.docValuesParameters.setValue(new DocValuesParameter.Values(hasDocValues, defaults.cardinality(), defaults.multiValue()));
             return this;
         }
 
@@ -1745,7 +1740,7 @@ public class NumberFieldMapper extends FieldMapper {
         /**
          * Maps the given {@code value} to one or more Lucene field values ands them to the given {@code document} under the given
          * {@code name}. Delegates to {@link #addFields(LuceneDocument, String, Number, IndexType, boolean, DocValuesFieldFactory)}
-         * with a {@link DocValuesParameter.Values.MultiValue#SORTED}-configured factory — kept so test callers and other non-mapper
+         * with a {@link DocValuesParameter.Values.MultiValue#TRUE}-configured factory — kept so test callers and other non-mapper
          * callers don't need to thread a {@code DocValuesFieldFactory} through when they only care about the default multi-valued behavior.
          */
         public final void addFields(LuceneDocument document, String name, Number value, IndexType indexType, boolean stored) {
@@ -1756,7 +1751,7 @@ public class NumberFieldMapper extends FieldMapper {
                 indexType,
                 stored,
                 new DocValuesFieldFactory(
-                    DocValuesParameter.Values.MultiValue.SORTED,
+                    DocValuesParameter.Values.MultiValue.TRUE,
                     indexType.hasDocValuesSkipper(),
                     IndexVersion.current()
                 )

@@ -20,9 +20,9 @@ import org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.Mult
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ValueOrdering;
 
 /**
- * Centralizes doc values field creation, branching between single-valued (multi_value=no) and multi-valued Lucene types.
+ * Centralizes doc values field creation, branching between single-valued (multi_value=false) and multi-valued Lucene types.
  * <p>
- * For {@link MultiValue#NO}, uses single-valued Lucene types ({@link NumericDocValuesField}, {@link SortedDocValuesField},
+ * For {@link MultiValue#FALSE}, uses single-valued Lucene types ({@link NumericDocValuesField}, {@link SortedDocValuesField},
  * {@link BinaryDocValuesField}) which enforce single-valuedness natively and enable storage optimizations.
  * For other multi-value modes, uses multi-valued types ({@link SortedNumericDocValuesField}, {@link SortedSetDocValuesField},
  * {@link MultiValuedBinaryDocValuesField}).
@@ -48,7 +48,7 @@ public class DocValuesFieldFactory {
     }
 
     /**
-     * Adds a numeric doc values field. For {@code multi_value=no}, creates a {@link NumericDocValuesField} (single-valued).
+     * Adds a numeric doc values field. For {@code multi_value=false}, creates a {@link NumericDocValuesField} (single-valued).
      * Otherwise, creates a {@link SortedNumericDocValuesField} (multi-valued).
      */
     public void addNumericField(LuceneDocument doc, String name, long value) {
@@ -60,7 +60,7 @@ public class DocValuesFieldFactory {
     }
 
     /**
-     * Adds a sorted (bytes) doc values field. For {@code multi_value=no}, creates a {@link SortedDocValuesField} (single-valued).
+     * Adds a sorted (bytes) doc values field. For {@code multi_value=false}, creates a {@link SortedDocValuesField} (single-valued).
      * Otherwise, creates a {@link SortedSetDocValuesField} (multi-valued).
      */
     public void addSortedField(LuceneDocument doc, String name, BytesRef value) {

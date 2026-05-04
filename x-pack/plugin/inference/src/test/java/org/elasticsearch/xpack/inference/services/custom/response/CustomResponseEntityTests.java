@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.custom.response;
 
 import org.apache.http.HttpResponse;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
@@ -173,8 +172,8 @@ public class CustomResponseEntityTests extends ESTestCase {
         var request = new CustomRequest(
             RerankParameters.of(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, "query"),
-                    List.of("doc1", "doc2").stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList()
+                    new InferenceString(DataType.TEXT, "query"),
+                    List.of("doc1", "doc2").stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
                 )
             ),
             model

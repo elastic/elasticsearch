@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
@@ -127,11 +126,8 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, TEST_QUERY),
-                    TEST_DOCUMENTS.stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
-                    null,
-                    null,
-                    false
+                    new InferenceString(DataType.TEXT, TEST_QUERY),
+                    TEST_DOCUMENTS.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
                 ),
                 null,
                 listener
@@ -174,11 +170,8 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, TEST_QUERY),
-                    TEST_DOCUMENTS.stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
-                    null,
-                    null,
-                    false
+                    new InferenceString(DataType.TEXT, TEST_QUERY),
+                    TEST_DOCUMENTS.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
                 ),
                 null,
                 listener
@@ -218,11 +211,8 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, TEST_QUERY),
-                    TEST_DOCUMENTS.stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
-                    null,
-                    null,
-                    false
+                    new InferenceString(DataType.TEXT, TEST_QUERY),
+                    TEST_DOCUMENTS.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
                 ),
                 null,
                 listener
@@ -255,8 +245,8 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, TEST_QUERY),
-                    TEST_DOCUMENTS.stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
+                    new InferenceString(DataType.TEXT, TEST_QUERY),
+                    TEST_DOCUMENTS.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList(),
                     null,
                     NEW_TEST_TOP_N,
                     false
@@ -300,11 +290,8 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, TEST_QUERY),
-                    TEST_DOCUMENTS.stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
-                    null,
-                    null,
-                    false
+                    new InferenceString(DataType.TEXT, TEST_QUERY),
+                    TEST_DOCUMENTS.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
                 ),
                 null,
                 listener

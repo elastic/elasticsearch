@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
@@ -295,8 +294,8 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, query),
-                    documents.stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
+                    new InferenceString(DataType.TEXT, query),
+                    documents.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList(),
                     null,
                     topN,
                     false
@@ -373,8 +372,8 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, query),
-                    documents.stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
+                    new InferenceString(DataType.TEXT, query),
+                    documents.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList(),
                     null,
                     topN,
                     false

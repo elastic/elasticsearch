@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
@@ -252,8 +251,8 @@ public class CustomRequestTests extends ESTestCase {
         var request = new CustomRequest(
             RerankParameters.of(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, "query string"),
-                    List.of("abc", "123").stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList()
+                    new InferenceString(DataType.TEXT, "query string"),
+                    List.of("abc", "123").stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
                 )
             ),
             model
@@ -305,8 +304,8 @@ public class CustomRequestTests extends ESTestCase {
         var request = new CustomRequest(
             RerankParameters.of(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, "query string"),
-                    List.of("abc", "123").stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
+                    new InferenceString(DataType.TEXT, "query string"),
+                    List.of("abc", "123").stream().map(i -> new InferenceString(DataType.TEXT, i)).toList(),
                     false,
                     2,
                     false
@@ -360,8 +359,8 @@ public class CustomRequestTests extends ESTestCase {
         var request = new CustomRequest(
             RerankParameters.of(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, "query string"),
-                    List.of("abc", "123").stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList()
+                    new InferenceString(DataType.TEXT, "query string"),
+                    List.of("abc", "123").stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
                 )
             ),
             model
@@ -407,8 +406,8 @@ public class CustomRequestTests extends ESTestCase {
             () -> new CustomRequest(
                 RerankParameters.of(
                     new QueryAndDocsInputs(
-                        new InferenceString(DataType.TEXT, DataFormat.TEXT, "query string"),
-                        List.of("abc", "123").stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList()
+                        new InferenceString(DataType.TEXT, "query string"),
+                        List.of("abc", "123").stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
                     )
                 ),
                 model

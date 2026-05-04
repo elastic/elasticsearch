@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
@@ -191,8 +190,8 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
             new QueryAndDocsInputs(
-                new InferenceString(DataType.TEXT, DataFormat.TEXT, "query"),
-                List.of(new InferenceString(DataType.TEXT, DataFormat.TEXT, randomAlphaOfLength(10)))
+                new InferenceString(DataType.TEXT, "query"),
+                List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10)))
             ),
             null,
             listener
@@ -216,8 +215,8 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
             new QueryAndDocsInputs(
-                new InferenceString(DataType.TEXT, DataFormat.TEXT, "query"),
-                List.of(new InferenceString(DataType.TEXT, DataFormat.TEXT, randomAlphaOfLength(10)))
+                new InferenceString(DataType.TEXT, "query"),
+                List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10)))
             ),
             null,
             listener
@@ -234,8 +233,8 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
             new QueryAndDocsInputs(
-                new InferenceString(DataType.TEXT, DataFormat.TEXT, "query"),
-                List.of(new InferenceString(DataType.TEXT, DataFormat.TEXT, randomAlphaOfLength(10)))
+                new InferenceString(DataType.TEXT, "query"),
+                List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10)))
             ),
             null,
             listener

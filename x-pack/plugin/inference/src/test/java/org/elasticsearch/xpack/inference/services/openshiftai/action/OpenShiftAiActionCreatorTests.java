@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
@@ -627,11 +626,8 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, QUERY_VALUE),
-                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
-                    null,
-                    null,
-                    false
+                    new InferenceString(DataType.TEXT, QUERY_VALUE),
+                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
                 ),
                 null,
                 listener
@@ -691,11 +687,8 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, QUERY_VALUE),
-                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
-                    null,
-                    null,
-                    false
+                    new InferenceString(DataType.TEXT, QUERY_VALUE),
+                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
                 ),
                 null,
                 listener
@@ -749,11 +742,8 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, QUERY_VALUE),
-                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
-                    null,
-                    null,
-                    false
+                    new InferenceString(DataType.TEXT, QUERY_VALUE),
+                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
                 ),
                 null,
                 listener
@@ -807,11 +797,8 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, QUERY_VALUE),
-                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
-                    null,
-                    null,
-                    false
+                    new InferenceString(DataType.TEXT, QUERY_VALUE),
+                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
                 ),
                 null,
                 listener
@@ -865,8 +852,8 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, QUERY_VALUE),
-                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
+                    new InferenceString(DataType.TEXT, QUERY_VALUE),
+                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList(),
                     RETURN_DOCUMENTS_DEFAULT_VALUE,
                     TOP_N_DEFAULT_VALUE,
                     false
@@ -919,8 +906,8 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, QUERY_VALUE),
-                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
+                    new InferenceString(DataType.TEXT, QUERY_VALUE),
+                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList(),
                     RETURN_DOCUMENTS_OVERRIDDEN_VALUE,
                     TOP_N_OVERRIDDEN_VALUE,
                     false
@@ -983,11 +970,8 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, QUERY_VALUE),
-                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, DataFormat.TEXT, i)).toList(),
-                    null,
-                    null,
-                    false
+                    new InferenceString(DataType.TEXT, QUERY_VALUE),
+                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
                 ),
                 null,
                 listener

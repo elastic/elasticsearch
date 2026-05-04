@@ -12,7 +12,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
@@ -87,8 +86,8 @@ public class CustomModelCreator implements ModelCreator<CustomModel> {
         return switch (model.getTaskType()) {
             case RERANK -> RerankParameters.of(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, "test query"),
-                    List.of(new InferenceString(DataType.TEXT, DataFormat.TEXT, "test input"))
+                    new InferenceString(DataType.TEXT, "test query"),
+                    List.of(new InferenceString(DataType.TEXT, "test input"))
                 )
             );
             case COMPLETION -> CompletionParameters.of(new ChatCompletionInput(List.of("test input")));

@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
@@ -326,8 +325,8 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
                 new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, "popular name"),
-                    List.of(new InferenceString(DataType.TEXT, DataFormat.TEXT, "Luke")),
+                    new InferenceString(DataType.TEXT, "popular name"),
+                    List.of(new InferenceString(DataType.TEXT, "Luke")),
                     null,
                     null,
                     false

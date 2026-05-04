@@ -44,6 +44,7 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBui
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -250,14 +251,18 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         final var recorder = meterRegistry.getRecorder();
 
         final var shardId = new ShardId("test-index", "_na_", 0);
-        final var startedShard = shardRoutingBuilder(shardId, "node-1", true, ShardRoutingState.STARTED).build();
-        final var targetShard = shardRoutingBuilder(shardId, "node-2", true, ShardRoutingState.INITIALIZING).build();
+        final var primary = randomBoolean();
+        final var startedShard = shardRoutingBuilder(shardId, "node-1", primary, ShardRoutingState.STARTED).build();
+        final var targetShard = shardRoutingBuilder(shardId, "node-2", primary, ShardRoutingState.INITIALIZING).build();
+        final var cachedAttributes = primary
+            ? ShardChangesObserver.PRIMARY_RELOCATION_ATTRIBUTES
+            : ShardChangesObserver.REPLICA_RELOCATION_ATTRIBUTES;
 
         assertThat(recorder.getMeasurements(InstrumentType.LONG_COUNTER, ShardChangesObserver.RELOCATION_STARTED_METRIC), hasSize(0));
 
         // known reasons
         final var moveCounts = new HashMap<String, Integer>();
-        for (final var reason : ShardChangesObserver.RELOCATION_ATTRIBUTES.keySet()) {
+        for (final var reason : cachedAttributes.keySet()) {
             final int moveCount = randomIntBetween(0, 10);
             moveCounts.put(reason, moveCount);
             for (int i = 0; i < moveCount; i++) {
@@ -270,13 +275,12 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         );
         for (final var entry : moveCounts.entrySet()) {
             assertMovementCountForReason(measurements, entry.getKey(), entry.getValue());
-            assertThat(
-                measurements.stream()
-                    .map(Measurement::attributes)
-                    .filter(attributes -> attributes.get("es_relocation_reason").equals(entry.getKey()))
-                    .toList(),
-                everyItem(sameInstance(ShardChangesObserver.RELOCATION_ATTRIBUTES.get(entry.getKey())))
-            );
+            final var matchingAttributes = measurements.stream()
+                .map(Measurement::attributes)
+                .filter(attributes -> attributes.get("es_relocation_reason").equals(entry.getKey()))
+                .toList();
+            assertThat(matchingAttributes, everyItem(sameInstance(cachedAttributes.get(entry.getKey()))));
+            assertThat(matchingAttributes, everyItem(hasEntry("es_shard_primary", primary)));
         }
 
         // unknown reason: falls back to dynamic Map.of
@@ -287,6 +291,13 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         }
         measurements = recorder.getMeasurements(InstrumentType.LONG_COUNTER, ShardChangesObserver.RELOCATION_STARTED_METRIC);
         assertMovementCountForReason(measurements, unknownReason, movements);
+        assertThat(
+            measurements.stream()
+                .map(Measurement::attributes)
+                .filter(attributes -> attributes.get("es_relocation_reason").equals(unknownReason))
+                .toList(),
+            everyItem(hasEntry("es_shard_primary", primary))
+        );
     }
 
     private void assertMovementCountForReason(List<Measurement> measurements, String reason, long expectedCount) {

@@ -34,10 +34,6 @@ public class ESTestCaseLeakTrackerTests extends ESTestCase {
         new UnclosedWrapFixture().assertMessageContainsCreatedAt();
     }
 
-    public void testEnableLeakTrackerCheckOptOut() throws Exception {
-        new LeakCheckOptOutFixture().leakAndTeardown();
-    }
-
     public void testSearchHitDecRefSatisfiesTeardown() {
         SearchHit hit = new SearchHit(0);
         assertTrue(hit.decRef());
@@ -47,21 +43,10 @@ public class ESTestCaseLeakTrackerTests extends ESTestCase {
         new UnclosedSearchHitFixture().assertTeardownDetectsLeak();
     }
 
-    /**
-     * {@link LeakCheckOptOutFixture} intentionally leaves a wrapped resource untracked (collector never installed).
-     * After it finishes, a fresh collector must be empty — the leak must not appear as if it were registered in a
-     * subsequent tracked phase on the same thread.
-     */
-    public void testPriorOptOutDoesNotBleedIntoNextTrackedCollector() throws Exception {
-        // LeakCheckOptOutFixture.before() clears the outer test's collector (enableLeakTrackerCheck==false),
-        // so its wrapped resource finds no collector and is not registered anywhere. After leakAndTeardown()
-        // returns, the ThreadLocal is null — we install a fresh collector and verify it is empty.
-        new LeakCheckOptOutFixture().leakAndTeardown();
-
+    public void testFreshCollectorAfterClearIsEmpty() {
+        LeakTracker.clearTestLeakCollector();
         LeakTracker.installTestLeakCollector();
         try {
-            LeakTracker.verifyNoLeaksAndClear();
-            LeakTracker.installTestLeakCollector();
             SearchHit hit = new SearchHit(0);
             assertTrue(hit.decRef());
             LeakTracker.verifyNoLeaksAndClear();
@@ -96,30 +81,6 @@ public class ESTestCaseLeakTrackerTests extends ESTestCase {
                 AssertionError e = expectThrows(AssertionError.class, this::verifyNoOutstandingLeakTrackerLeaks);
                 assertThat(e.getMessage(), containsString("Leaked resources"));
                 assertThat(e.getMessage(), containsString("Created at:"));
-            } finally {
-                LeakTracker.clearTestLeakCollector();
-            }
-        }
-    }
-
-    /**
-     * Opt-out: intentional leak must not fail {@link #verifyNoOutstandingLeakTrackerLeaks}.
-     */
-    private static final class LeakCheckOptOutFixture extends ESTestCase {
-        @Override
-        protected boolean enableLeakTrackerCheck() {
-            return false;
-        }
-
-        void leakAndTeardown() throws Exception {
-            before();
-            try {
-                LeakTracker.wrap(new AbstractRefCounted() {
-                    @Override
-                    protected void closeInternal() {}
-                });
-                after();
-                verifyNoOutstandingLeakTrackerLeaks();
             } finally {
                 LeakTracker.clearTestLeakCollector();
             }

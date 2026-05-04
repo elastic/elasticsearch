@@ -622,13 +622,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     @Before
     public final void before() {
         LeakTracker.setContextHint(getTestName());
-        if (enableLeakTrackerCheck()) {
-            LeakTracker.installTestLeakCollector();
-        } else {
-            // Do not inherit a collector from a nested/outer ESTestCase on the same thread; otherwise
-            // LeakTracker.wrap() in this test would register into the outer collector.
-            LeakTracker.clearTestLeakCollector();
-        }
+        LeakTracker.installTestLeakCollector();
         logger.info("{}before test", getTestParamsForLogging());
         assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
@@ -663,18 +657,17 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Asserts that no {@link LeakTracker}-tracked resources remain open at end of test.
-     * Runs before {@link #after()} (reverse declaration order in JUnit 4).
+     * Declared before {@link #after()} so that under JUnit 4's reverse-declaration ordering it executes after
+     * {@link #after()}, giving {@link #after()} a chance to complete first.
      * <p>
-     * If a subclass {@code @After} releases tracked resources, those run after this check (subclass before superclass),
-     * causing false positives. Override {@link #enableLeakTrackerCheck()} to return false and call
-     * {@link LeakTracker#verifyNoLeaksAndClear()} manually in the subclass {@code @After} after releasing resources.
+     * Resources released in a subclass {@code @After} are already deregistered from the collector before this fires,
+     * because JUnit 4 runs subclass {@code @After} methods before superclass ones. If tracked resources cannot be
+     * released synchronously before teardown ends (e.g. async close), ensure the resource is closed before test-method
+     * end (e.g. via try-finally), or use {@link LeakTracker#clearTestLeakCollector()} and
+     * {@link LeakTracker#verifyNoLeaksAndClear()} directly.
      */
     @After
     public final void verifyNoOutstandingLeakTrackerLeaks() {
-        if (enableLeakTrackerCheck() == false) {
-            LeakTracker.clearTestLeakCollector();
-            return;
-        }
         LeakTracker.verifyNoLeaksAndClear();
     }
 
@@ -683,27 +676,6 @@ public abstract class ESTestCase extends LuceneTestCase {
      * was used by the test and the test didn't assert on it using {@link #assertWarnings(String...)}.
      */
     protected boolean enableWarningsCheck() {
-        return true;
-    }
-
-    /**
-     * When false, per-test {@link LeakTracker} collection and {@link #verifyNoOutstandingLeakTrackerLeaks()} are skipped.
-     * Override (and document why) when either of the following applies:
-     * <ul>
-     *   <li><b>Async release:</b> {@link LeakTracker.Leak#close()} deregisters from the collector on whichever thread
-     *       calls it. If a resource is released on a thread other than the test thread, the deregistration is missed
-     *       and the test fails as a false positive. Await async work before {@code @After}, or disable this check and
-     *       rely on the {@link LeakTracker} Cleaner backstop.</li>
-     *   <li><b>Subclass {@code @After} ordering:</b> JUnit 4 runs subclass {@code @After} methods before superclass
-     *       ones. If a subclass {@code @After} releases tracked resources, {@link #verifyNoOutstandingLeakTrackerLeaks()}
-     *       fires first (false positive). Return false here and call {@link LeakTracker#verifyNoLeaksAndClear()} manually
-     *       after releasing resources in the subclass {@code @After}.</li>
-     * </ul>
-     * {@link #before()} clears any inherited per-thread collector when this returns false, so resources created in this
-     * test do not register into an outer test's collector. If a nested opt-out block runs and tracking is needed again,
-     * call {@link LeakTracker#installTestLeakCollector()} explicitly.
-     */
-    protected boolean enableLeakTrackerCheck() {
         return true;
     }
 

@@ -1,0 +1,51 @@
+---
+"Routing with doc_values enabled":
+ - requires:
+    cluster_features: [ "mapper.routing_as_doc_values" ]
+    reason: "Requires routing to be stored as doc values"
+
+ - do:
+     indices.create:
+       index:    test_1
+       body:
+         settings:
+           index:
+             number_of_shards: 5
+             number_of_routing_shards: 5
+         mappings:
+           _routing:
+             doc_values: true
+
+ - do:
+      index:
+          index:   test_1
+          id:      "1"
+          routing: "5"
+          body:    { foo: bar }
+
+# routing is not returned in the get response metadata when stored as doc values
+ - do:
+      get:
+          index:   test_1
+          id:      "1"
+          routing: "5"
+
+ - match:   { _id: "1"}
+ - is_false: _routing
+
+# routing is not returned via stored_fields, because it is stored as doc values
+ - do:
+      get:
+          index:   test_1
+          id:      "1"
+          routing: "5"
+          stored_fields:  [_routing]
+
+ - match:   { _id: "1"}
+ - is_false: fields
+
+ - do:
+      catch: missing
+      get:
+          index:   test_1
+          id:      "1"

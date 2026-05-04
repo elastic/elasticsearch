@@ -324,6 +324,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     private interface Cache<K, T> extends Releasable {
         CacheEntry<T> get(K cacheKey, long fileLength, int region);
 
+        /// Returns the entry for the provided `cacheKey` and `region` if it exists and is fully initialized
+        /// (i.e. its IO slot has been assigned), or `null` otherwise.
+        ///
+        /// Unlike [#get], this method will not allocate a new region slot if the entry does not exist.
+        @Nullable
+        CacheEntry<T> getIfPresent(K cacheKey, int region);
+
         int forceEvict(Predicate<K> cacheKeyPredicate);
 
         void forceEvictAsync(Predicate<K> cacheKey);
@@ -1335,11 +1342,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     // nothing to read, skip
                     continue;
                 }
-                var fileRegion = lastAccessedRegion;
-                try {
-                    fileRegion = cache.get(cacheKey, this.length, region);
-                } catch (AlreadyClosedException exc) {
-                    // consider missing
+                final CacheEntry<CacheFileRegion<KeyType>> fileRegion = cache.getIfPresent(cacheKey, region);
+                if (fileRegion == null) {
                     continue;
                 }
                 final var chunk = fileRegion.chunk;
@@ -1366,9 +1370,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
                 // existing item, check if we need to promote item
                 fileRegion.touch();
-
             } else {
-                fileRegion = cache.get(cacheKey, length, startRegion);
+                fileRegion = cache.getIfPresent(cacheKey, startRegion);
+                if (fileRegion == null) {
+                    return false;
+                }
                 incrementReads = true;
             }
             final var region = fileRegion.chunk;
@@ -1397,11 +1403,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (startRegion != endRegion) {
                 return false;
             }
-            var fileRegion = lastAccessedRegion;
+            CacheEntry<CacheFileRegion<KeyType>> fileRegion = lastAccessedRegion;
             if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
                 fileRegion.touch();
             } else {
-                fileRegion = cache.get(cacheKey, this.length, startRegion);
+                fileRegion = cache.getIfPresent(cacheKey, startRegion);
+                if (fileRegion == null) {
+                    return false;
+                }
             }
             final var region = fileRegion.chunk;
             if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
@@ -1437,7 +1446,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         return false;
                     }
 
-                    final var entry = cache.get(cacheKey, this.length, regionIdx);
+                    final var entry = cache.getIfPresent(cacheKey, regionIdx);
+                    if (entry == null) {
+                        return false;
+                    }
                     final var region = entry.chunk;
 
                     final long regionEnd = offset + length - getRegionStart(regionIdx);
@@ -1941,7 +1953,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         @Override
         public LFUCacheEntry get(KeyType cacheKey, long fileLength, int region) {
-            final RegionKey<KeyType> regionKey = new RegionKey<>(cacheKey, region);
+            final var regionKey = new RegionKey<>(cacheKey, region);
             final long now = epoch.get();
             // try to just get from the map on the fast-path to save instantiating the capturing lambda needed on the slow path
             // if we did not find an entry
@@ -1964,7 +1976,31 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
             assert assertChunkActiveOrEvicted(entry);
 
-            // existing item, check if we need to promote item
+            // existing item, check if we need to promote it
+            if (now > entry.lastAccessedEpoch) {
+                maybePromote(now, entry);
+            }
+
+            return entry;
+        }
+
+        @Override
+        @Nullable
+        public LFUCacheEntry getIfPresent(KeyType cacheKey, int region) {
+            final var regionKey = new RegionKey<>(cacheKey, region);
+            final long now = epoch.get();
+            var entry = keyMapping.get(cacheKey.shardId(), regionKey);
+            if (entry == null) {
+                return null;
+            }
+            // If the IO slot has not been assigned yet, the entry is still being initialized.
+            // Treat it as absent.
+            if (entry.chunk.volatileIO() == null) {
+                return null;
+            }
+            assert assertChunkActiveOrEvicted(entry);
+
+            // existing item, check if we need to promote it
             if (now > entry.lastAccessedEpoch) {
                 maybePromote(now, entry);
             }

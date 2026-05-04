@@ -219,7 +219,7 @@ public final class ParallelParsingCoordinator {
                 final int segIdx = i;
                 final long[] seg = segments.get(i);
                 try {
-                    executor.execute(() -> parseSegment(segIdx, seg[0], seg[1], segments.size()));
+                    executor.execute(() -> parseSegment(segIdx, seg[0], seg[1]));
                 } catch (RejectedExecutionException e) {
                     firstError.compareAndSet(null, e);
                     enqueuePoison(segmentQueues.get(segIdx));
@@ -228,20 +228,27 @@ public final class ParallelParsingCoordinator {
             }
         }
 
-        private void parseSegment(int segmentIndex, long offset, long length, int totalSegments) {
+        private void parseSegment(int segmentIndex, long offset, long length) {
             BlockingQueue<Page> queue = segmentQueues.get(segmentIndex);
             try {
-                boolean lastSplit = segmentIndex == totalSegments - 1;
                 StorageObject segObj = new RangeStorageObject(storageObject, offset, length);
 
-                // All segments start at record boundaries (probed by computeSegments),
-                // so firstSplit is true for every segment: no line needs to be skipped.
+                // Both record-boundary flags are true for every segment:
+                // - firstSplit: computeSegments probes the next record boundary, so each segment
+                // starts on a complete record; no leading partial line to skip.
+                // - lastSplit: each non-final segment's length runs through the full record
+                // terminator that the next segment starts after (LF, CRLF, or lone CR for formats
+                // that handle it), so the segment's final byte is the last byte of a terminator.
+                // The final segment runs to fileLength; behavior there is unchanged from the
+                // previous code which also marked it lastSplit=true. Setting this everywhere lets
+                // line-oriented readers (e.g. NDJSON) skip the byte-by-byte trailing-partial-line
+                // scan that the format would otherwise apply per chunk.
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(projectedColumns)
                     .batchSize(batchSize)
                     .errorPolicy(errorPolicy)
                     .firstSplit(true)
-                    .lastSplit(lastSplit)
+                    .lastSplit(true)
                     .build();
                 CloseableIterator<Page> pages = reader.read(segObj, ctx);
                 try (pages) {

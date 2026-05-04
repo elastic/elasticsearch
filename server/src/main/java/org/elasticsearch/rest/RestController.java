@@ -570,9 +570,18 @@ public class RestController implements HttpServerTransport.Dispatcher {
         String resolvedMethod = Objects.requireNonNullElse(method, "<unknown>");
         String resolvedUri = Objects.requireNonNullElse(req.uri(), "<unknown>");
         attributes.put("http.method", resolvedMethod);
-        attributes.put("http.request.method", resolvedMethod);
+        // SemConv: http.request.method MUST be "_OTHER" when the method is not known to the instrumentation.
+        // ES sets method to null when req.method() throws IllegalArgumentException (unparsable method).
+        attributes.put("http.request.method", method != null ? method : "_OTHER");
         attributes.put("http.url", resolvedUri);
         attributes.put("url.full", resolvedUri);
+        int queryIdx = resolvedUri.indexOf('?');
+        if (queryIdx >= 0) {
+            attributes.put("url.path", resolvedUri.substring(0, queryIdx));
+            attributes.put("url.query", resolvedUri.substring(queryIdx + 1));
+        } else {
+            attributes.put("url.path", resolvedUri);
+        }
         switch (req.getHttpRequest().protocolVersion()) {
             case HTTP_1_0 -> {
                 attributes.put("http.flavour", "1.0");

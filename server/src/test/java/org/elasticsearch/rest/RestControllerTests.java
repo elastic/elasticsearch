@@ -333,6 +333,8 @@ public class RestControllerTests extends ESTestCase {
                     "http.url",
                     "/",
                     "url.full",
+                    "/",
+                    "url.path",
                     "/"
                 )
             )

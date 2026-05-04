@@ -361,9 +361,12 @@ public class ChangePointOperator implements Operator {
 
     private void emitWarnings() {
         if (tooManyValues) {
-            logger.debug(() -> Strings.format("Too many values: limit is %d, some values were ignored", INPUT_VALUE_COUNT_LIMIT));
+            logger.debug(() -> Strings.format("Too many values: limit is %d (per group), some values were ignored", INPUT_VALUE_COUNT_LIMIT));
+            String message = groupingChannels.length > 0
+                ? "too many values in a group; keeping only first " + INPUT_VALUE_COUNT_LIMIT + " values per group"
+                : "too many values; keeping only first " + INPUT_VALUE_COUNT_LIMIT + " values";
             warnings(true).registerException(
-                new IllegalArgumentException("too many values; keeping only first " + INPUT_VALUE_COUNT_LIMIT + " values")
+                new IllegalArgumentException(message)
             );
         }
         if (hasIndeterminableChangePoint) {

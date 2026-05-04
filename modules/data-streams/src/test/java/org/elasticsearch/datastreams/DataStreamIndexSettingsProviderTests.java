@@ -53,6 +53,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     private boolean expectedIndexDimensionsTsidOptimizationEnabled;
     private IndexVersion indexVersion;
     private boolean expectedDisabledSequenceNumbers;
+    private boolean expectedSyntheticId;
 
     @Before
     public void setup() {
@@ -67,14 +68,23 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             indexVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.TSID_CREATED_DURING_ROUTING);
         }
         expectedDisabledSequenceNumbers = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT);
+        expectedSyntheticId = indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD);
         indexDimensionsTsidStrategyEnabledSetting = usually();
         expectedIndexDimensionsTsidOptimizationEnabled = indexDimensionsTsidStrategyEnabledSetting
             && indexVersion.onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING);
     }
 
     int maybeAdjustIndexSettingCount(int baseCount) {
-        // We need to adjust to account for the seq_no removal and synthetic id settings
-        return expectedDisabledSequenceNumbers ? baseCount + 2 : baseCount;
+        // Adjust count independently: DISABLE_SEQUENCE_NUMBERS and SYNTHETIC_ID use different version thresholds
+        // (TIME_SERIES_DISABLE_SEQUENCE_NUMBERS_DEFAULT and TIME_SERIES_USE_SYNTHETIC_ID_DEFAULT_PROD respectively)
+        int count = baseCount;
+        if (expectedDisabledSequenceNumbers) {
+            count++;
+        }
+        if (expectedSyntheticId) {
+            count++;
+        }
+        return count;
     }
 
     public void testGetAdditionalIndexSettings() throws Exception {

@@ -43,7 +43,6 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -101,7 +100,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -837,18 +835,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
 
         try (var service = new CohereService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                mockModel,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -857,7 +844,6 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -907,18 +893,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -972,7 +947,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1016,18 +991,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             var queryString = "a query";
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                queryString,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, queryString, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1111,18 +1075,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -1173,18 +1126,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1266,7 +1208,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 false,
                 CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH, null),
                 InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1340,18 +1282,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 CohereServiceSettings.CohereApiVersion.V1
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1409,18 +1340,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 CohereServiceSettings.CohereApiVersion.V2
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             listener.actionGet(TIMEOUT);
 
@@ -1480,15 +1400,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
 
         try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                List.of(),
-                new HashMap<>(),
-                InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.UNSPECIFIED, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, empty());
@@ -1541,7 +1453,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1648,7 +1560,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1728,18 +1640,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
         try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = CohereCompletionModelTests.createModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                true,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
 
             return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }

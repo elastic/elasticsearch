@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 
@@ -57,7 +58,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
     }
 
     @Override
-    public Map<String, DataSourceStoredSetting> validateDatasource(Map<String, Object> datasourceSettings) {
+    public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
         if (datasourceSettings == null || datasourceSettings.isEmpty()) {
             return Map.of();
         }
@@ -67,7 +68,7 @@ public class FileDataSourceValidator implements DataSourceValidator {
 
     @Override
     public Map<String, Object> validateDataset(
-        Map<String, DataSourceStoredSetting> datasourceSettings,
+        Map<String, DataSourceSetting> datasourceSettings,
         String resource,
         Map<String, Object> datasetSettings
     ) {

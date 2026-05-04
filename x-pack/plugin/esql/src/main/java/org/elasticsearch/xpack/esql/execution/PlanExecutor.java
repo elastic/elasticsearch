@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -103,7 +102,7 @@ public class PlanExecutor {
         final ExternalSourceResolver externalSourceResolver = new ExternalSourceResolver(
             services.transportService().getThreadPool().executor(org.elasticsearch.threadpool.ThreadPool.Names.SEARCH),
             dataSourceModule,
-            Settings.EMPTY,
+            services.clusterService().getSettings(),
             cacheService
         );
         final var session = new EsqlSession(

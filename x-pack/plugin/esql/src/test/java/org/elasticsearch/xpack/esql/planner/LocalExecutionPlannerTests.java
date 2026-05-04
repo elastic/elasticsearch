@@ -91,12 +91,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
@@ -340,6 +342,104 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(captured.get(), notNullValue());
         assertThat(captured.get().sliceQueue(), notNullValue());
         assertThat(captured.get().sliceQueue().totalSlices(), equalTo(1));
+    }
+
+    /**
+     * {@link LocalExecutionPlanner} must pass {@link OperatorFactoryRegistry#executor()} and
+     * {@link OperatorFactoryRegistry#fileReadExecutor()} into {@link SourceOperatorContext} separately.
+     * Production wires the main executor to external-source work and {@code fileReadExecutor} to
+     * {@link org.elasticsearch.threadpool.ThreadPool.Names#GENERIC} via
+     * {@link org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction}.
+     */
+    public void testPlanExternalSourcePassesDistinctExecutorsToSourceOperatorContext() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        SourceOperatorFactoryProvider provider = context -> {
+            captured.set(context);
+            return new SourceOperator.SourceOperatorFactory() {
+                @Override
+                public SourceOperator get(DriverContext driverContext) {
+                    return new SourceOperator() {
+                        @Override
+                        public Page getOutput() {
+                            return null;
+                        }
+
+                        @Override
+                        public boolean isFinished() {
+                            return true;
+                        }
+
+                        @Override
+                        public void finish() {}
+
+                        @Override
+                        public void close() {}
+                    };
+                }
+
+                @Override
+                public String describe() {
+                    return "test-source";
+                }
+            };
+        };
+        Executor mainExecutor = r -> r.run();
+        Executor fileReadExecutor = r -> r.run();
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(
+            Map.of(),
+            Map.of("file", provider),
+            mainExecutor,
+            fileReadExecutor
+        );
+
+        List<Attribute> attrs = List.of(
+            new FieldAttribute(Source.EMPTY, "a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+        );
+        ExternalSplit child1 = new FileSplit(
+            "file",
+            StoragePath.of("s3://test-bucket/warehouse/stress/part-00000.csv"),
+            0,
+            10,
+            ".csv",
+            Map.of(),
+            Map.of()
+        );
+        ExternalSplit child2 = new FileSplit(
+            "file",
+            StoragePath.of("s3://test-bucket/warehouse/stress/part-00001.csv"),
+            0,
+            10,
+            ".csv",
+            Map.of(),
+            Map.of()
+        );
+        ExternalSplit coalesced = new CoalescedSplit("file", List.of(child1, child2));
+
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://test-bucket/warehouse/stress/*.csv",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(),
+            null,
+            FormatReader.NO_LIMIT,
+            10,
+            null,
+            List.of(coalesced)
+        );
+
+        planner(operatorFactoryRegistry).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance()
+        );
+
+        assertThat(captured.get(), notNullValue());
+        assertThat(captured.get().executor(), sameInstance(mainExecutor));
+        assertThat(captured.get().fileReadExecutor(), sameInstance(fileReadExecutor));
     }
 
     public void testPlanUnmappedFieldExtractStoredSource() throws Exception {

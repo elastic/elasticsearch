@@ -34,4 +34,16 @@ TS exp_histo_sample
 | --- |
 | 2.0E-4 |
 
+`MIN` can also operate on `tdigest` and casted `histogram` fields, returning the minimum of the values which were used to construct the digests.
+
+```esql
+TS histogram_timeseries_index
+| WHERE instance == "instance-0"
+| STATS minimum = ROUND(MIN(responseTime::tdigest), 4)
+```
+
+| minimum:double |
+| --- |
+| 2.0E-4 |
+
 

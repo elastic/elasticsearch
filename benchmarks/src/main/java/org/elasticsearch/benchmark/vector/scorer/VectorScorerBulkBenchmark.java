@@ -32,11 +32,8 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
@@ -88,10 +85,7 @@ public abstract class VectorScorerBulkBenchmark {
         VectorData(int numVectors, int numVectorsToScore, Random random) {
             this.numVectorsToScore = numVectorsToScore;
 
-            List<Integer> list = IntStream.range(0, numVectors).boxed().collect(Collectors.toList());
-            Collections.shuffle(list, random);
-            ordinals = list.stream().limit(numVectorsToScore).mapToInt(Integer::intValue).toArray();
-
+            ordinals = BenchmarkUtils.generateRandomOrdinals(numVectors, numVectorsToScore, random);
             targetOrd = random.nextInt(numVectors);
         }
 

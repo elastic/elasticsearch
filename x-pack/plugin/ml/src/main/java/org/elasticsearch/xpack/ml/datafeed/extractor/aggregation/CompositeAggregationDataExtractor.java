@@ -156,7 +156,10 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         try {
             LOGGER.trace("[{}] Search composite response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-            lastLinkedClusterStates = DataExtractorUtils.extractLinkedClusterStates(searchResponse);
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                DataExtractorUtils.extractLinkedClusterStates(searchResponse)
+            );
             InternalAggregations aggregations = searchResponse.getAggregations();
             if (aggregations == null) {
                 return null;

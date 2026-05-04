@@ -32,7 +32,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
             false,
             randomOrigin()
         );
-        task.setWorkerCount(randomIntBetween(1, 20));
+        task.setWorkerCount(randomIntBetween(1, 20), Float.POSITIVE_INFINITY);
         ShutdownPrepareService.maybeRequestRelocationForBulkByScroll(task);
         assertThat(task.isRelocationRequested(), is(false));
     }
@@ -48,7 +48,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
             true,
             randomOrigin()
         );
-        task.setWorkerCount(randomIntBetween(1, 20));
+        task.setWorkerCount(randomIntBetween(1, 20), Float.POSITIVE_INFINITY);
         ShutdownPrepareService.maybeRequestRelocationForBulkByScroll(task);
         assertThat(task.isRelocationRequested(), is(true));
     }

@@ -44,7 +44,12 @@ public class DynamicInstrumentationUtils {
         return instrumentationRegistry.getInstrumentedMethods()
             .entrySet()
             .stream()
-            .map(entry -> new Descriptor(entry.getKey().className(), entry.getKey().methodName(), entry.getKey().parameterTypes()))
+            .flatMap(
+                classEntry -> classEntry.getValue()
+                    .keySet()
+                    .stream()
+                    .map(sig -> new Descriptor(classEntry.getKey(), sig.methodName(), sig.parameterTypes()))
+            )
             .toList();
     }
 

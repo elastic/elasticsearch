@@ -53,7 +53,8 @@ public class InferenceStats {
      * @param inferenceDurationInstrument  long histogram for inference request latency
      * @param deploymentDurationInstrument long histogram for trained model deployment wait time
      * @param constantAttributes           attributes to be included with every metric recorded by this instance,
-     *                                     such as the node's stack version and whether it's a production release (i.e. not a snapshot, alpha, etc.)
+     *                                     such as the node's stack version and whether it's a production release
+     *                                     (i.e. not a snapshot, alpha, etc.)
      */
     public InferenceStats(
         LongCounter requestCountInstrument,
@@ -89,8 +90,9 @@ public class InferenceStats {
     }
 
     /**
-     * Returns a request counter instrument builder. Call {@link CounterBuilder#withSuccess()} or {@link CounterBuilder#withThrowable(Throwable)}
-     * to set the outcome before calling the terminal {@link CounterBuilder#incrementBy}. Omitting both records no {@code status_code},
+     * Returns a request counter instrument builder. Call {@link CounterBuilder#withSuccess()}
+     * or {@link CounterBuilder#withThrowable(Throwable)} to set the outcome before calling the terminal
+     * {@link CounterBuilder#incrementBy}. Omitting both records no {@code status_code},
      * which is appropriate when counting a request attempt before the outcome is known.
      */
     public CounterBuilder requestCount() {

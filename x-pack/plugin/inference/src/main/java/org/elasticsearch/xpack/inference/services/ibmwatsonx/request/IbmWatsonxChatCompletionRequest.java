@@ -15,16 +15,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.external.request.ChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModel;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class IbmWatsonxChatCompletionRequest implements ChatCompletionRequest {
+public class IbmWatsonxChatCompletionRequest implements OutboundUnifiedCompletionRequest {
     private final IbmWatsonxChatCompletionModel model;
     private final UnifiedChatInput chatInput;
 
@@ -59,7 +59,7 @@ public class IbmWatsonxChatCompletionRequest implements ChatCompletionRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // No truncation for IBM watsonx chat completions
         return this;
     }

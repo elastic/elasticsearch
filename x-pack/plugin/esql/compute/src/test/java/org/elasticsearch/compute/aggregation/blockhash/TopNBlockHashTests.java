@@ -10,8 +10,11 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -282,6 +285,201 @@ public class TopNBlockHashTests extends BlockHashTestCase {
         }
     }
 
+    public void testBytesRefHash() {
+        String[] values = { "b", "a", "d", "b", "d", "a", "c", "d" };
+
+        hash(ordsAndKeys -> {
+            if (forcePackedHash) {
+                // TODO: Not tested yet
+            } else {
+                assertThat(
+                    ordsAndKeys.description(),
+                    equalTo("BytesRefTopNBlockHash{channel=0, " + topNParametersString(4, 0) + ", hasNull=false}")
+                );
+                if (limit == LIMIT_HIGH) {
+                    assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { "b", "a", "d", "c" });
+                    assertOrds(ordsAndKeys.ords(), 1, 2, 3, 1, 3, 2, 4, 3);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 5)));
+                } else {
+                    if (asc) {
+                        assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { "b", "a" });
+                        assertOrds(ordsAndKeys.ords(), 1, 2, null, 1, null, 2, null, null);
+                        assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1, 2)));
+                    } else {
+                        assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { "d", "c" });
+                        assertOrds(ordsAndKeys.ords(), null, null, 1, null, 1, null, 2, 1);
+                        assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1, 2)));
+                    }
+                }
+            }
+        }, bytesRefBlock(values));
+    }
+
+    public void testBytesRefHashWithNulls() {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(new BytesRef("a"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("c"));
+            builder.appendNull();
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    // TODO: Not tested yet
+                } else {
+                    boolean hasTwoNonNullValues = nullsFirst == false || limit == LIMIT_HIGH;
+                    boolean hasNull = nullsFirst || limit == LIMIT_HIGH;
+                    assertThat(
+                        ordsAndKeys.description(),
+                        equalTo(
+                            "BytesRefTopNBlockHash{channel=0, "
+                                + topNParametersString(hasTwoNonNullValues ? 2 : 1, 0)
+                                + ", hasNull="
+                                + hasNull
+                                + "}"
+                        )
+                    );
+                    if (limit == LIMIT_HIGH) {
+                        assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { null, "a", "c" });
+                        assertOrds(ordsAndKeys.ords(), 1, 0, 2, 0);
+                        assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(0, 1, 2)));
+                    } else {
+                        if (nullsFirst) {
+                            if (asc) {
+                                assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { null, "a" });
+                                assertOrds(ordsAndKeys.ords(), 1, 0, null, 0);
+                                assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(0, 1)));
+                            } else {
+                                assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { null, "c" });
+                                assertOrds(ordsAndKeys.ords(), null, 0, 1, 0);
+                                assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(0, 1)));
+                            }
+                        } else {
+                            assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { "a", "c" });
+                            assertOrds(ordsAndKeys.ords(), 1, null, 2, null);
+                            assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1, 2)));
+                        }
+                    }
+                }
+            }, builder);
+        }
+    }
+
+    public void testBytesRefHashWithMultiValuedFields() {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(8)) {
+            builder.appendBytesRef(new BytesRef("a"));
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("a"));
+            builder.appendBytesRef(new BytesRef("b"));
+            builder.appendBytesRef(new BytesRef("c"));
+            builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("a"));
+            builder.appendBytesRef(new BytesRef("a"));
+            builder.endPositionEntry();
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("c"));
+            builder.endPositionEntry();
+            builder.appendNull();
+            builder.beginPositionEntry();
+            builder.appendBytesRef(new BytesRef("c"));
+            builder.appendBytesRef(new BytesRef("b"));
+            builder.appendBytesRef(new BytesRef("a"));
+            builder.endPositionEntry();
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    // TODO: Not tested yet
+                } else {
+                    if (limit == LIMIT_HIGH) {
+                        assertThat(
+                            ordsAndKeys.description(),
+                            equalTo("BytesRefTopNBlockHash{channel=0, " + topNParametersString(3, 0) + ", hasNull=true}")
+                        );
+                        assertOrds(
+                            ordsAndKeys.ords(),
+                            new int[] { 1 },
+                            new int[] { 1, 2, 3 },
+                            new int[] { 1 },
+                            new int[] { 3 },
+                            new int[] { 0 },
+                            new int[] { 3, 2, 1 }
+                        );
+                        assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { null, "a", "b", "c" });
+                    } else {
+                        assertThat(
+                            ordsAndKeys.description(),
+                            equalTo(
+                                "BytesRefTopNBlockHash{channel=0, "
+                                    + topNParametersString(nullsFirst ? 1 : 2, 0)
+                                    + ", hasNull="
+                                    + nullsFirst
+                                    + "}"
+                            )
+                        );
+                        if (nullsFirst) {
+                            if (asc) {
+                                assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { null, "a" });
+                                assertOrds(
+                                    ordsAndKeys.ords(),
+                                    new int[] { 1 },
+                                    new int[] { 1 },
+                                    new int[] { 1 },
+                                    null,
+                                    new int[] { 0 },
+                                    new int[] { 1 }
+                                );
+                                assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(0, 1)));
+                            } else {
+                                assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { null, "c" });
+                                assertOrds(
+                                    ordsAndKeys.ords(),
+                                    null,
+                                    new int[] { 1 },
+                                    null,
+                                    new int[] { 1 },
+                                    new int[] { 0 },
+                                    new int[] { 1 }
+                                );
+                                assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(0, 1)));
+                            }
+                        } else {
+                            if (asc) {
+                                assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { "a", "b" });
+                                assertOrds(
+                                    ordsAndKeys.ords(),
+                                    new int[] { 1 },
+                                    new int[] { 1, 2 },
+                                    new int[] { 1 },
+                                    null,
+                                    null,
+                                    new int[] { 2, 1 }
+                                );
+                                assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1, 2)));
+                            } else {
+                                assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { "b", "c" });
+                                assertOrds(ordsAndKeys.ords(), null, new int[] { 1, 2 }, null, new int[] { 2 }, null, new int[] { 2, 1 });
+                                assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1, 2)));
+                            }
+                        }
+                    }
+                }
+            }, builder);
+        }
+    }
+
+    private BytesRefBlock bytesRefBlock(String[] values) {
+        try (BytesRefBlock.Builder b = blockFactory.newBytesRefBlockBuilder(values.length)) {
+            for (String v : values) {
+                if (v == null) {
+                    b.appendNull();
+                } else {
+                    b.appendBytesRef(new BytesRef(v));
+                }
+            }
+            return b.build();
+        }
+    }
+
     // TODO: Test adding multiple blocks, as it triggers different logics like:
     // - Keeping older unused ords
     // - Returning nonEmpty ords greater than 1
@@ -370,7 +568,11 @@ public class TopNBlockHashTests extends BlockHashTestCase {
             ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
             : BlockHash.build(specs, blockFactory, emitBatchSize, true);*/
 
-        return new LongTopNBlockHash(specs.get(0).channel(), asc, nullsFirst, limit, blockFactory);
+        BlockHash.GroupSpec spec = specs.get(0);
+        if (spec.elementType() == ElementType.BYTES_REF) {
+            return new BytesRefTopNBlockHash(spec.channel(), asc, nullsFirst, limit, blockFactory);
+        }
+        return new LongTopNBlockHash(spec.channel(), asc, nullsFirst, limit, blockFactory);
     }
 
     /**

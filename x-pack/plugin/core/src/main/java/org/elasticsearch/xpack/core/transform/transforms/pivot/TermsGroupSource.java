@@ -129,14 +129,15 @@ public class TermsGroupSource extends SingleGroupSource {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        innerXContent(builder, params);
-        if (maxTermsForChangeDetection != null) {
+    protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
+        super.innerXContent(builder, params);
+        if (maxTermsForChangeDetection != null && excludeTransformMetadata(params) == false) {
             builder.field(TransformField.MAX_TERMS_FOR_CHANGE_DETECTION.getPreferredName(), maxTermsForChangeDetection);
         }
-        builder.endObject();
-        return builder;
+    }
+
+    private static boolean excludeTransformMetadata(Params params) {
+        return Boolean.parseBoolean(params.param(TransformField.EXCLUDE_TRANSFORM_METADATA, "false"));
     }
 
     @Override

@@ -110,7 +110,7 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         return builder;
     }
 
-    public void innerXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         if (field != null) {
             builder.field(FIELD.getPreferredName(), field);
         }

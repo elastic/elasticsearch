@@ -28,7 +28,7 @@ public interface PostFilterableKnnQuery {
      * the target count, regardless of what the binomial variance formula computes. Active
      * when selectivity is near 1, where the variance term collapses to ≈ 0.
      */
-    float POST_FILTER_OVERSAMPLE_FLOOR = 1.2f;
+    float POST_FILTER_OVERSAMPLE_FLOOR = 1.3f;
 
     /**
      * Confidence-level Z-score for the binomial variance term in round-1 sizing.
@@ -48,15 +48,15 @@ public interface PostFilterableKnnQuery {
      * effective variance can exceed binomial; the retry mechanism is the safety net for queries
      * where round 1 falls short despite this margin.
      */
-    float POST_FILTER_OVERSAMPLE_Z_SCORE = 2.0f;
+    float POST_FILTER_OVERSAMPLE_Z_SCORE = 2.5f;
 
     /**
-     * IVF visit-ratio multiplier for round 1: {@code visitRatio_round1 = FACTOR / selectivity}.
-     * Visit ratio is a different concept from candidate-count oversampling — it controls how
-     * many posting lists the codec scans, not how many candidates are scored — so it doesn't
-     * follow the same binomial sizing. Empirically tuned.
+     * Variance buffer term {@code Z · √(k · (1 - p) / p)} from the binomial-variance round-1
+     * sizing.
      */
-    float POST_FILTER_IVF_VISIT_OVERSAMPLE = 1.44f;
+    static double zMargin(int k, float selectivity) {
+        return POST_FILTER_OVERSAMPLE_Z_SCORE * Math.sqrt(k * (1.0f - selectivity) / selectivity);
+    }
 
     /**
      * Creates a new query for the next retry round.
@@ -71,10 +71,9 @@ public interface PostFilterableKnnQuery {
      * @param reader           the index reader
      * @param excludedDocs     all docs returned across previous rounds, sorted (skip from results)
      * @param seedDocs         filter-passing docs from previous rounds, sorted (HNSW seeding only)
-     * @param requestK         how many top results to keep in the retry's collector heap
-     * @param requestNumCands  KNN beam width / collector candidate budget for the retry
+     * @param remainingK       how many top results we aim to return after retrying
      */
-    Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int requestK, int requestNumCands);
+    Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK);
 
     /**
      * Creates a filter-less delegate query for post-filtering. Subclasses provide

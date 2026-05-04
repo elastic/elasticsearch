@@ -96,15 +96,17 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
     }
 
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int requestK, int requestNumCands) {
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
+        // Derive retry numCands from this query's k/numCands ratio so HNSW beam scales with retry K.
+        int retryNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.max(remainingK, Math.ceil((double) remainingK * numCandsParam / kParam)));
         AtomicReference<DocTrackingCollectorManager> knnCollectorManagerRef = new AtomicReference<>();
         var knnQuery = new ESDiversifyingChildrenFloatKnnVectorQuery(
             field,
             getTargetCopy(),
             filter,
-            requestK,
-            requestNumCands,
+            remainingK,
+            retryNumCands,
             parentsFilter,
             searchStrategy,
             earlyTermination,
@@ -125,14 +127,11 @@ public class ESDiversifyingChildrenFloatKnnVectorQuery extends DiversifyingChild
 
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
-        // Round-1 oversample: max of a 20% floor and the binomial-variance approximation
-        // m ≈ (k + Z · √(k · (1 - p) / p)) / p, which makes P(X ≥ k) ≈ Φ(Z).
-        double zMargin = POST_FILTER_OVERSAMPLE_Z_SCORE * Math.sqrt(kParam * (1.0f - filterSelectivity) / filterSelectivity);
+        double zMargin = PostFilterableKnnQuery.zMargin(kParam, filterSelectivity);
         int scaledK = (int) Math.min(
             NUM_CANDS_LIMIT,
             Math.max(Math.ceil(kParam * POST_FILTER_OVERSAMPLE_FLOOR), Math.ceil((kParam + zMargin) / filterSelectivity))
         );
-        // Maintain the configured numCands/k ratio so HNSW exploration scales with K.
         int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) scaledK * numCandsParam / kParam));
         AtomicReference<DocTrackingCollectorManager> knnCollectorManagerRef = new AtomicReference<>();
         var knnQuery = new ESDiversifyingChildrenFloatKnnVectorQuery(

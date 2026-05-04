@@ -61,8 +61,8 @@ class DocTrackingKnnQuery<T extends Query & PostFilterableKnnQuery> extends Quer
     }
 
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int requestK, int requestNumCands) {
-        return delegate.createRetryQuery(reader, excludedDocs, seedDocs, requestK, requestNumCands);
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
+        return delegate.createRetryQuery(reader, excludedDocs, seedDocs, remainingK);
     }
 
     @Override

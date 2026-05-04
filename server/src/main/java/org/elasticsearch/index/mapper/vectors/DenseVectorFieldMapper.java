@@ -3088,6 +3088,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean hasIndexSort
         ) {
             element.checkDimensions(dims, queryVector.length);
+            // Force the filter to be cacheable because it will be eagerly transformed into a bitset.
+            // Simple filters (e.g., term queries) are normally considered too cheap to cache by the
+            // default strategy, but once materialized as a bitset on every execution they become
+            // significantly more expensive, making caching essential.
             // Pre-filter consumers eagerly materialize the filter into a bitset; PostFilterKnnQuery
             // gets the raw filter to avoid an unnecessary cache build.
             Query cachedFilter = filter == null ? null : new CachingEnableFilterQuery(filter);
@@ -3116,7 +3120,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, searchStrategy, hnswEarlyTermination);
             }
             if (filter != null && hasIndexSort == false && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
-                knnQuery = new PostFilterKnnQuery(pfknnQuery, cachedFilter, k, name(), parentFilter, postFilterSelectivityThreshold);
+                knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -3146,6 +3150,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
                 element.checkVectorMagnitude(similarity, ByteElement.errorElementsAppender(queryVector), squaredMagnitude);
             }
+            // Force the filter to be cacheable because it will be eagerly transformed into a bitset.
+            // Simple filters (e.g., term queries) are normally considered too cheap to cache by the
+            // default strategy, but once materialized as a bitset on every execution they become
+            // significantly more expensive, making caching essential.
             // Pre-filter consumers eagerly materialize the filter into a bitset; PostFilterKnnQuery
             // gets the raw filter to avoid an unnecessary cache build.
             Query cachedFilter = filter == null ? null : new CachingEnableFilterQuery(filter);
@@ -3174,7 +3182,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     : new ESKnnByteVectorQuery(name(), queryVector, k, numCands, cachedFilter, searchStrategy, hnswEarlyTermination);
             }
             if (filter != null && hasIndexSort == false && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
-                knnQuery = new PostFilterKnnQuery(pfknnQuery, cachedFilter, k, name(), parentFilter, postFilterSelectivityThreshold);
+                knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, k, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (similarityThreshold != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -3229,6 +3237,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 adjustedK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
                 numCands = Math.max(adjustedK, numCands);
             }
+            // Force the filter to be cacheable because it will be eagerly transformed into a bitset.
+            // Simple filters (e.g., term queries) are normally considered too cheap to cache by the
+            // default strategy, but once materialized as a bitset on every execution they become
+            // significantly more expensive, making caching essential.
             // Pre-filter consumers (HNSW graph traversal, IVF posting-list iteration) eagerly materialize
             // the filter into a bitset, so we force the cache wrapper. PostFilterKnnQuery (below) only
             // evaluates the filter against a small candidate set per query and gets the raw filter so
@@ -3290,14 +3302,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     );
             }
             if (filter != null && hasIndexSort == false && knnQuery instanceof PostFilterableKnnQuery pfknnQuery) {
-                knnQuery = new PostFilterKnnQuery(
-                    pfknnQuery,
-                    cachedFilter,
-                    adjustedK,
-                    name(),
-                    parentFilter,
-                    postFilterSelectivityThreshold
-                );
+                knnQuery = new PostFilterKnnQuery(pfknnQuery, filter, adjustedK, name(), parentFilter, postFilterSelectivityThreshold);
             }
             if (rescore) {
                 knnQuery = RescoreKnnVectorQuery.fromInnerQuery(

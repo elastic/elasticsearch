@@ -2306,10 +2306,6 @@ public final class IndexSettings {
         this.earlyTermination = earlyTermination;
     }
 
-    /**
-     * Selectivity threshold above which a filtered knn query routes through the post-filter
-     * pipeline. See {@link DenseVectorFieldMapper#POST_FILTER_SELECTIVITY_THRESHOLD}.
-     */
     public float getPostFilterSelectivityThreshold() {
         return this.postFilterSelectivityThreshold;
     }

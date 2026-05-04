@@ -88,7 +88,7 @@ public class IVFKnnSearchStrategy extends KnnSearchStrategy {
     /**
      * Returns true if the centroid with the given ordinal should be skipped (was visited in a
      * previous round AND contributed no doc to that round's collector heap — see hybrid skip in
-     * {@link IVFKnnFloatVectorQuery#mergeSkipCentroids}).
+     * {@link IVFKnnFloatVectorQuery#buildSkipCentroids}).
      */
     public boolean shouldSkipCentroid(int centroidOrd) {
         return skipCentroids != null && centroidOrd >= 0 && centroidOrd < skipCentroids.length() && skipCentroids.get(centroidOrd);

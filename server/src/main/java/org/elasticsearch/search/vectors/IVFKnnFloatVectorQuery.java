@@ -43,10 +43,10 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     private final Map<Integer, FixedBitSet> visitedCentroidsPerLeaf = new ConcurrentHashMap<>();
     private final Map<Integer, FixedBitSet> competitiveCentroidsPerLeaf = new ConcurrentHashMap<>();
     /**
-     * True only when this query is the round-1 post-filter delegate (created by
-     * {@link #createPostFilterDelegate}); a subsequent retry round may consume the per-centroid
-     * tracking. False for the user-facing query, the post-filter fallback path, and round-2+
-     * retries (no further retry possible with {@code MAX_ROUNDS = 2}).
+     * True only when this query is the round-0 post-filter delegate (created by
+     * {@link #createPostFilterDelegate}); the round-1 retry consumes the per-centroid tracking
+     * via {@link #buildSkipCentroids}. False for the user-facing query, the post-filter fallback
+     * path, and the round-1 retry instance itself (no further retry rounds beyond round 1).
      */
     private final boolean trackCentroidsForRetry;
 
@@ -259,55 +259,46 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     /**
-     * Build the per-leaf cluster-skip set for the next retry round, applying the user's
-     * "competitive" hybrid heuristic: skip centroids that were visited in any prior round but
-     * contributed zero docs to the round's collector heap (non-competitive). Visited centroids
-     * with at least one competitive doc remain visitable in retry — their evicted docs may yet
-     * be recoverable now that the heap composition will differ. Doc-level exclusion (via the
-     * {@code excludedDocs} acceptDocs path) prevents re-collection of already-returned docs.
+     * Build the per-leaf cluster-skip set for the round-1 retry: skip centroids that were visited
+     * in round 0 but contributed zero docs to the collector heap (non-competitive). Visited
+     * centroids with at least one competitive doc remain visitable on retry — their evicted docs
+     * may yet be recoverable now that the heap composition will differ. Doc-level exclusion (via
+     * {@code excludedDocs} acceptDocs) prevents re-collection of already-returned docs.
      */
-    Map<Integer, FixedBitSet> mergeSkipCentroids() {
-        Map<Integer, FixedBitSet> mergedSkip = new HashMap<>();
-        // Carry forward any prior round's skip set.
-        if (skipCentroidsPerLeaf != null) {
-            for (var entry : skipCentroidsPerLeaf.entrySet()) {
-                mergedSkip.put(entry.getKey(), entry.getValue().clone());
-            }
-        }
-        // Add visited-and-non-competitive centroids from this round's tracking.
+    Map<Integer, FixedBitSet> buildSkipCentroids() {
+        Map<Integer, FixedBitSet> skip = new HashMap<>();
         for (var entry : visitedCentroidsPerLeaf.entrySet()) {
             int leafOrd = entry.getKey();
             FixedBitSet visited = entry.getValue().clone();
             FixedBitSet competitive = competitiveCentroidsPerLeaf.get(leafOrd);
             if (competitive != null) {
-                // visited AND NOT competitive -> drop the competitive bits from `visited`
+                // visited AND NOT competitive -> keep only the non-contributors
                 visited.andNot(competitive);
             }
-            mergedSkip.merge(leafOrd, visited, (existing, addition) -> {
-                existing.or(addition);
-                return existing;
-            });
+            skip.put(leafOrd, visited);
         }
-        return mergedSkip;
+        return skip;
     }
 
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
-        // Round-1 K oversample: max of a 20% floor and the binomial-variance approximation
-        // m ≈ (k + Z · √(k · (1 - p) / p)) / p, which makes P(X ≥ k) ≈ Φ(Z).
-        double zMargin = POST_FILTER_OVERSAMPLE_Z_SCORE * Math.sqrt(k * (1.0f - filterSelectivity) / filterSelectivity);
+        double zMargin = PostFilterableKnnQuery.zMargin(k, filterSelectivity);
         int scaledK = (int) Math.min(
             NUM_CANDS_LIMIT,
             Math.max(Math.ceil(k * POST_FILTER_OVERSAMPLE_FLOOR), Math.ceil((k + zMargin) / filterSelectivity))
         );
-        // Visit ratio: separate empirical multiplier (different from candidate-count oversampling).
-        float visitOversampling = POST_FILTER_IVF_VISIT_OVERSAMPLE / filterSelectivity;
-        float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitOversampling) : 0f;
+        // numCands and visit ratio share the same scaledK/k multiplier so heap width and posting-list
+        // coverage grow together. When providedVisitRatio is 0 (DYNAMIC_VISIT_RATIO), the codec
+        // computes the visit ratio at search time from (numCands, k) — scaling numCands up is enough
+        // to widen dynamic coverage without overriding the auto path.
+        int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.max(scaledK, Math.ceil((double) scaledK * numCands / k)));
+        double oversampleMultiplier = (double) scaledK / k;
+        float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, (float) (providedVisitRatio * oversampleMultiplier)) : 0f;
         return new IVFKnnFloatVectorQuery(
             field,
             originalQuery,
             scaledK,
-            Math.max(numCands, scaledK),
+            scaledNumCands,
             null,
             scaledVisitRatio,
             doPrecondition,
@@ -317,31 +308,27 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
-    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int requestK, int requestNumCands) {
-        // Cluster-level skip: visited-but-non-competitive centroids merged across rounds.
-        Map<Integer, FixedBitSet> mergedSkip = mergeSkipCentroids();
+    public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
+        // Cluster-level skip: visited-but-non-competitive centroids from round 0.
+        Map<Integer, FixedBitSet> skipCentroids = buildSkipCentroids();
         // Doc-level skip: previously-returned docs go through the AcceptDocs path via an
         // ExcludeDocsQuery filter (composed by createFilterWeight in AbstractIVFKnnVectorQuery.rewrite).
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
-        // Expand the visit ratio for retry rounds proportional to the prior round's coverage,
-        // capped at 1.0. We re-use the same dynamic-oversampling heuristic from createPostFilterDelegate
-        // by computing an effective ratio from the request scale.
-        // Floor at SAFETY_FACTOR so retry rounds always widen coverage by ≥20% vs round 1
-        // (without the floor, requestK/k is typically <1 when round 1 was almost successful,
-        // and the retry just shifts laterally rather than exploring more).
-        float visitRatioScale = requestK > 0 && k > 0
-            ? Math.max(POST_FILTER_OVERSAMPLE_FLOOR, (float) requestK / k)
-            : POST_FILTER_OVERSAMPLE_FLOOR;
-        float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * visitRatioScale) : 0f;
+        // Derive retry numCands from this query's k/numCands ratio so the IVF beam scales with retry K.
+        int retryNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.max(remainingK, Math.ceil((double) remainingK * numCands / k)));
+        // Widen the visit ratio by POST_FILTER_OVERSAMPLE_FLOOR so the retry explores more
+        // posting-list coverage than round 0 (round 1 also starts skipping non-competitive
+        // centroids, so the extra coverage lands on previously-unvisited clusters).
+        float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * POST_FILTER_OVERSAMPLE_FLOOR) : 0f;
         return new IVFKnnFloatVectorQuery(
             field,
             originalQuery,
-            requestK,
-            Math.max(requestNumCands, requestK),
+            remainingK,
+            retryNumCands,
             filter,
             scaledVisitRatio,
             doPrecondition,
-            mergedSkip
+            skipCentroids
         );
     }
 }

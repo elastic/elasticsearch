@@ -117,11 +117,11 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
                 Metadata.builder(initialClusterState.metadata())
                     .putCustom(
                         ClusterPersistentTasksCustomMetadata.TYPE,
-                        createAssignedPersistedTask(leastLoadedNodeWithShard.getId(), randomIntBetween(0, 2))
+                        createAssignedPersistedTasks(leastLoadedNodeWithShard.getId(), randomIntBetween(0, 2))
                     )
                     .putCustom(
                         ClusterPersistentTasksCustomMetadata.TYPE,
-                        createAssignedPersistedTask(loadedNodeWithShard.getId(), randomIntBetween(3, 5))
+                        createAssignedPersistedTasks(loadedNodeWithShard.getId(), randomIntBetween(3, 5))
                     )
             )
             .nodes(new DiscoveryNodes.Builder().add(leastLoadedNodeWithShard).add(loadedNodeWithShard).add(otherNode).build())
@@ -261,7 +261,7 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
         );
     }
 
-    private static ClusterPersistentTasksCustomMetadata createAssignedPersistedTask(String nodeId, int count) {
+    private static ClusterPersistentTasksCustomMetadata createAssignedPersistedTasks(String nodeId, int count) {
         ClusterPersistentTasksCustomMetadata.Builder builder = ClusterPersistentTasksCustomMetadata.builder();
         Index index = new Index(randomAlphaOfLength(10), randomUUID());
         for (int i = 0; i < count; i++) {

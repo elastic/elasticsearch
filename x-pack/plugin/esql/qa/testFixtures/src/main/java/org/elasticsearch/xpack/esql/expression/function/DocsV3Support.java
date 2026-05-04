@@ -769,9 +769,7 @@ public abstract class DocsV3Support {
          * snippet.
          */
         private boolean renderGeometryDiagrams() throws Exception {
-            if (callbacks.supportsRendering() == false) {
-                return false;
-            }
+            // TODO: callbacks.supportsRendering() is used when we need to render text to SVG, but so far these diagrams do not
             List<GeometryDiagram> diagrams;
             try {
                 java.lang.reflect.Method m = testClass.getMethod("geometryDiagrams");

@@ -18,17 +18,26 @@ import org.apache.lucene.search.QueryVisitor;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 
 class DocTrackingKnnQuery<T extends Query & PostFilterableKnnQuery> extends Query implements PostFilterableKnnQuery {
 
+    /**
+     * Single-set mailbox used to bridge the {@link DocTrackingCollectorManager} created lazily by
+     * the delegate's {@code getKnnCollectorManager} hook back to this wrapper, where it's drained
+     * by {@link #rewrite}. Caller fills {@link #value} from the override; this query reads it
+     * after {@code delegate.rewrite} returns.
+     */
+    static final class Holder<T> {
+        T value;
+    }
+
     private final T delegate;
-    private final AtomicReference<DocTrackingCollectorManager> collectorManagerRef;
+    private final Holder<DocTrackingCollectorManager> collectorManagerHolder;
     private int[] trackedDocs = new int[0];
 
-    public DocTrackingKnnQuery(T delegate, AtomicReference<DocTrackingCollectorManager> collectorManagerRef) {
+    public DocTrackingKnnQuery(T delegate, Holder<DocTrackingCollectorManager> collectorManagerHolder) {
         this.delegate = delegate;
-        this.collectorManagerRef = collectorManagerRef;
+        this.collectorManagerHolder = collectorManagerHolder;
     }
 
     @Override
@@ -44,7 +53,7 @@ class DocTrackingKnnQuery<T extends Query & PostFilterableKnnQuery> extends Quer
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         var rewritten = delegate.rewrite(searcher);
-        trackedDocs = collectorManagerRef.get().getTrackedDocs();
+        trackedDocs = collectorManagerHolder.value.getTrackedDocs();
         return rewritten;
     }
 

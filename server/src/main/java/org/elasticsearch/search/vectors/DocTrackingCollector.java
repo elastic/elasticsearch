@@ -14,12 +14,12 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 
-public class DocTrackingHnswCollector implements KnnCollector {
+public class DocTrackingCollector implements KnnCollector {
 
     private final KnnCollector delegate;
     private final NeighborQueue trackedDocs;
 
-    public DocTrackingHnswCollector(KnnCollector delegate, int maxCapacity) {
+    public DocTrackingCollector(KnnCollector delegate, int maxCapacity) {
         this.delegate = delegate;
         this.trackedDocs = new NeighborQueue(maxCapacity, false);
     }

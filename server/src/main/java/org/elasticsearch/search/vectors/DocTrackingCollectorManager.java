@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 class DocTrackingCollectorManager implements KnnCollectorManager {
 
-    record DocTrackingMeta(DocTrackingHnswCollector collector, int docBase) {}
+    record DocTrackingMeta(DocTrackingCollector collector, int docBase) {}
 
     public static final int MAX_DOCS_TRACKED = 1000;
 
@@ -38,7 +38,7 @@ class DocTrackingCollectorManager implements KnnCollectorManager {
     @Override
     public KnnCollector newCollector(int visitLimit, KnnSearchStrategy searchStrategy, LeafReaderContext ctx) throws IOException {
         var baseCollector = delegate.newCollector(visitLimit, searchStrategy, ctx);
-        var docTrackingCollector = new DocTrackingHnswCollector(baseCollector, docsTracked);
+        var docTrackingCollector = new DocTrackingCollector(baseCollector, docsTracked);
         collectors.put(ctx.ord, new DocTrackingMeta(docTrackingCollector, ctx.docBase));
         return docTrackingCollector;
     }
@@ -47,7 +47,7 @@ class DocTrackingCollectorManager implements KnnCollectorManager {
     public KnnCollector newOptimisticCollector(int visitLimit, KnnSearchStrategy searchStrategy, LeafReaderContext ctx, int k)
         throws IOException {
         var baseCollector = delegate.newOptimisticCollector(visitLimit, searchStrategy, ctx, k);
-        var docTrackingCollector = new DocTrackingHnswCollector(baseCollector, docsTracked);
+        var docTrackingCollector = new DocTrackingCollector(baseCollector, docsTracked);
         collectors.put(ctx.ord, new DocTrackingMeta(docTrackingCollector, ctx.docBase));
         return docTrackingCollector;
     }
@@ -60,7 +60,7 @@ class DocTrackingCollectorManager implements KnnCollectorManager {
     public int[] getTrackedDocs() {
         NeighborQueue mergeQueue = new NeighborQueue(docsTracked, false);
         for (DocTrackingMeta meta : collectors.values()) {
-            DocTrackingHnswCollector collector = meta.collector();
+            DocTrackingCollector collector = meta.collector();
             int docBase = meta.docBase();
             while (collector.trackedDocsSize() > 0) {
                 float score = collector.topTrackedScore();

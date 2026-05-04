@@ -155,16 +155,15 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     }
 
     /**
-     * Drains the per-leaf doc trackers from a {@link DocTrackingKnnQuery} delegate into a sorted
-     * docId array (used as both excludedDocs and seedDocs source for the retry round). Falls back
-     * to {@code topDocs.scoreDocs} when the trackers are empty (e.g. the search returned the
-     * collector heap directly without invoking the tracker hook).
+     * Returns round-0's collected docs as a sorted docId array (used as both excludedDocs and
+     * seedDocs source for the retry round). Prefers the per-leaf trackers exposed by
+     * {@link DocTrackingKnnQuery}; otherwise — and for non-tracked delegates such as IVF — falls
+     * back to {@code topDocs.scoreDocs} (round-0's top-K). The fallback gives IVF retry a
+     * non-empty {@code excludedDocs} so the {@code ExcludeDocsQuery} branch in IVF
+     * {@code createRetryQuery} actually fires.
      */
     private static int[] trackedDocs(Query delegate, TopDocs topDocs) {
-        if (delegate instanceof DocTrackingKnnQuery == false) {
-            return new int[0];
-        }
-        int[] roundDocs = ((DocTrackingKnnQuery<?>) delegate).getTrackedDocs();
+        int[] roundDocs = delegate instanceof DocTrackingKnnQuery<?> dtkq ? dtkq.getTrackedDocs() : new int[0];
         if (roundDocs.length == 0) {
             roundDocs = new int[topDocs.scoreDocs.length];
             for (int i = 0; i < roundDocs.length; i++) {

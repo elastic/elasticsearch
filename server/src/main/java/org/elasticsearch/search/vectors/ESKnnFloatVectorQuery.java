@@ -22,7 +22,6 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_LIMIT;
 
@@ -83,7 +82,7 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
         // Derive retry numCands from this query's k/numCands ratio so HNSW beam scales with retry K.
         int retryNumCands = (int) Math.clamp(Math.ceil((double) remainingK * numCandsParam / kParam), remainingK, NUM_CANDS_LIMIT);
-        AtomicReference<DocTrackingCollectorManager> knnCollectorManagerRef = new AtomicReference<>();
+        var managerHolder = new DocTrackingKnnQuery.Holder<DocTrackingCollectorManager>();
         var knnQuery = new ESKnnFloatVectorQuery(
             field,
             target,
@@ -97,12 +96,12 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
             @Override
             protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
                 var base = super.getKnnCollectorManager(k, searcher);
-                DocTrackingCollectorManager knnCollectorManager = DocTrackingCollectorManager.wrap(base, k);
-                knnCollectorManagerRef.set(knnCollectorManager);
+                var knnCollectorManager = DocTrackingCollectorManager.wrap(base, k);
+                managerHolder.value = knnCollectorManager;
                 return knnCollectorManager;
             }
         };
-        return new DocTrackingKnnQuery<>(knnQuery, knnCollectorManagerRef);
+        return new DocTrackingKnnQuery<>(knnQuery, managerHolder);
     }
 
     @Override
@@ -114,17 +113,17 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
             NUM_CANDS_LIMIT
         );
         int scaledNumCands = (int) Math.min(NUM_CANDS_LIMIT, Math.ceil((double) scaledK * numCandsParam / kParam));
-        AtomicReference<DocTrackingCollectorManager> knnCollectorManagerRef = new AtomicReference<>();
+        var managerHolder = new DocTrackingKnnQuery.Holder<DocTrackingCollectorManager>();
         var knnQuery = new ESKnnFloatVectorQuery(field, target, scaledK, scaledNumCands, null, searchStrategy, earlyTermination, null) {
             @Override
             protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
                 var base = super.getKnnCollectorManager(k, searcher);
-                DocTrackingCollectorManager knnCollectorManager = DocTrackingCollectorManager.wrap(base, k);
-                knnCollectorManagerRef.set(knnCollectorManager);
+                var knnCollectorManager = DocTrackingCollectorManager.wrap(base, k);
+                managerHolder.value = knnCollectorManager;
                 return knnCollectorManager;
             }
         };
-        return new DocTrackingKnnQuery<>(knnQuery, knnCollectorManagerRef);
+        return new DocTrackingKnnQuery<>(knnQuery, managerHolder);
     }
 
     @Override

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
@@ -379,8 +381,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         FoldContext foldCtx = toEvaluator.foldCtx();
 
         // Constants
-        Object originFolded = origin.fold(foldCtx);
-        Object scaleFolded = getFoldedScale(foldCtx, valueDataType);
+        Object originFolded = convertNumericParam(origin.fold(foldCtx), origin.dataType(), valueDataType);
+        Object scaleFolded = convertNumericParam(getFoldedScale(foldCtx, valueDataType), scale.dataType(), valueDataType);
         Object offsetFolded = getOffset(foldCtx, valueDataType, offsetExpr);
         double decayFolded = decayExpr != null ? ((Number) decayExpr.fold(foldCtx)).doubleValue() : DEFAULT_DECAY;
         DecayFunction decayFunction = DecayFunction.fromBytesRef(typeExpr != null ? (BytesRef) typeExpr.fold(foldCtx) : DEFAULT_FUNCTION);
@@ -416,9 +418,9 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             case UNSIGNED_LONG -> new DecayUnsignedLongEvaluator.Factory(
                 source(),
                 valueFactory,
-                asUnsignedLongParameter(originFolded, origin.dataType()),
-                asUnsignedLongParameter(scaleFolded, scale.dataType()),
-                asUnsignedLongParameter(offsetFolded, offsetExpr != null ? offsetExpr.dataType() : UNSIGNED_LONG),
+                ((Number) originFolded).longValue(),
+                ((Number) scaleFolded).longValue(),
+                ((Number) offsetFolded).longValue(),
                 decayFolded,
                 decayFunction
             );
@@ -718,7 +720,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         }
 
         if (isTimeDuration(offset.dataType()) == false) {
-            return offset.fold(foldCtx);
+            return convertNumericParam(offset.fold(foldCtx), offset.dataType(), valueDataType);
         }
 
         if (isDateNanos(valueDataType)) {
@@ -753,16 +755,28 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         return offsetDuration.toNanos();
     }
 
-    private static long asUnsignedLongParameter(Object value, DataType dataType) {
-        if (dataType == UNSIGNED_LONG) {
-            return ((Number) value).longValue();
+    private static Object convertNumericParam(Object value, DataType valueType, DataType targetType) {
+        if (!targetType.isNumeric()) {
+            // Non-numeric values should pass through unchanged.
+            return value;
         }
 
-        Number number = (Number) value;
-        if (dataType == DOUBLE) {
-            return NumericUtils.asLongUnsigned(safeToUnsignedLong(Double.valueOf(number.doubleValue())));
+        if (valueType == targetType) {
+            // Value already matches target type.
+            return value;
         }
-        return NumericUtils.asLongUnsigned(safeToUnsignedLong(Long.valueOf(number.longValue())));
+        Object normalized = value;
+        if (valueType == UNSIGNED_LONG) {
+            // UNSIGNED_LONG is stored as encoded signed long in blocks.
+            // Decode it to a regular numeric magnitude before generic conversion.
+            normalized = NumericUtils.unsignedLongToDouble(((Number) value).longValue());
+        }
+        Object converted = DataTypeConverter.convert(normalized, targetType);
+        if (targetType == UNSIGNED_LONG && converted instanceof BigInteger bi) {
+            // Re-encode BigInteger result back into internal representation.
+            return NumericUtils.asLongUnsigned(bi);
+        }
+        return converted;
     }
 
     private Object getDefaultOffset(DataType valueDataType) {

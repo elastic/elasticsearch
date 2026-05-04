@@ -832,7 +832,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                 long randomScale = NumericUtils.asLongUnsigned(randomScaleBig);
                 long randomOffset = NumericUtils.asLongUnsigned(randomOffsetBig);
 
-                double randomDecay = randomDouble();
+                double randomDecay = randomDecayOpenUnitInterval();
                 String randomType = randomFrom("linear", "gauss", "exp");
 
                 double scoreScriptNumericResult = unsignedLongDecayWithScoreScript(
@@ -1339,6 +1339,10 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         return randomDoubleBetween(1e-12, Math.nextDown(1.0), true);
     }
 
+    private static Literal unsignedLongLiteral(BigInteger value) {
+        return new Literal(Source.EMPTY, asLongUnsigned(value), DataType.UNSIGNED_LONG);
+    }
+
     private static MapExpression createOptionsMap(Object offset, Double decay, String functionType) {
         List<Expression> keyValuePairs = new ArrayList<>();
 
@@ -1348,7 +1352,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             switch (offset) {
                 case Integer value -> keyValuePairs.add(Literal.integer(Source.EMPTY, value));
                 case Long value -> keyValuePairs.add(Literal.fromLong(Source.EMPTY, value));
-                case BigInteger value -> keyValuePairs.add(new Literal(Source.EMPTY, asLongUnsigned(value), DataType.UNSIGNED_LONG));
+                case BigInteger value -> keyValuePairs.add(unsignedLongLiteral(value));
                 case Double value -> keyValuePairs.add(Literal.fromDouble(Source.EMPTY, value));
                 case String value -> keyValuePairs.add(Literal.text(Source.EMPTY, value));
                 case Duration value -> keyValuePairs.add(Literal.timeDuration(Source.EMPTY, value));

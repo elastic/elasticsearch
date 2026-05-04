@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148070
+summary: Simplify aggregations over linear arithmetic expressions
+type: enhancement

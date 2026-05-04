@@ -97,7 +97,7 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
         description = "The values representing the y-axis values of a sparkline graph for a given aggregation over a period of time.",
         type = FunctionType.AGGREGATE,
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         examples = { @Example(file = "stats_sparkline", tag = "sparkline") }
     )
     public Sparkline(

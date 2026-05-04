@@ -58,30 +58,32 @@ public class ESTestCaseLeakTrackerTests extends ESTestCase {
     private static final class UnclosedWrapFixture extends ESTestCase {
         void assertTeardownDetectsLeak() throws Exception {
             before();
+            var rc = LeakTracker.wrap(new AbstractRefCounted() {
+                @Override
+                protected void closeInternal() {}
+            });
             try {
-                LeakTracker.wrap(new AbstractRefCounted() {
-                    @Override
-                    protected void closeInternal() {}
-                });
                 after();
                 expectThrows(AssertionError.class, this::verifyNoOutstandingLeakTrackerLeaks);
             } finally {
+                rc.decRef(); // cancel the Cleaner to avoid spurious LEAK log after GC
                 LeakTracker.clearTestLeakCollector();
             }
         }
 
         void assertMessageContainsCreatedAt() throws Exception {
             before();
+            var rc = LeakTracker.wrap(new AbstractRefCounted() {
+                @Override
+                protected void closeInternal() {}
+            });
             try {
-                LeakTracker.wrap(new AbstractRefCounted() {
-                    @Override
-                    protected void closeInternal() {}
-                });
                 after();
                 AssertionError e = expectThrows(AssertionError.class, this::verifyNoOutstandingLeakTrackerLeaks);
                 assertThat(e.getMessage(), containsString("Leaked resources"));
                 assertThat(e.getMessage(), containsString("Created at:"));
             } finally {
+                rc.decRef(); // cancel the Cleaner to avoid spurious LEAK log after GC
                 LeakTracker.clearTestLeakCollector();
             }
         }
@@ -92,12 +94,13 @@ public class ESTestCaseLeakTrackerTests extends ESTestCase {
     private static final class UnclosedSearchHitFixture extends ESTestCase {
         void assertTeardownDetectsLeak() throws Exception {
             before();
+            SearchHit hit = new SearchHit(0);
             try {
-                new SearchHit(0);
                 after();
                 AssertionError e = expectThrows(AssertionError.class, this::verifyNoOutstandingLeakTrackerLeaks);
                 assertThat(e.getMessage(), containsString("Leaked resources"));
             } finally {
+                hit.decRef(); // cancel the Cleaner to avoid spurious LEAK log after GC
                 LeakTracker.clearTestLeakCollector();
             }
         }

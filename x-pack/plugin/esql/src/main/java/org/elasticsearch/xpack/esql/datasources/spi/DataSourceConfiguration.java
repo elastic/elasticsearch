@@ -86,22 +86,26 @@ public abstract class DataSourceConfiguration {
      * Returns a copy of {@code raw} containing only entries whose key is in {@code fieldDefs}.
      * Used at query time where the WITH clause carries a mix of storage and format options;
      * the storage plugin must ignore keys it does not own rather than reject them as unknown.
-     * Returns null/empty unchanged.
+     * Returns {@code null}/empty unchanged.
      *
-     * <p>Dropped keys are logged at {@code DEBUG} (names only — values may be secrets) so a user
-     * who misspells e.g. {@code accout} can find out why the storage config came back with
-     * defaults. Format keys (like {@code header_row}) will appear here too, which is expected.
+     * <p>Dropped keys are logged at {@code DEBUG} so a user who misspells e.g. {@code accout} can
+     * find out why the storage config came back with defaults. Only key <em>names</em> are
+     * logged — values are never emitted, since this method is unaware of which keys are secrets.
+     * Format keys (like {@code header_row}) will appear here too, which is expected.
      */
     protected static Map<String, Object> filterKnown(Map<String, Object> raw, Map<String, DataSourceConfigDefinition> fieldDefs) {
         if (raw == null || raw.isEmpty()) {
             return raw;
         }
         Map<String, Object> filtered = new HashMap<>(raw.size());
+        // Cache the debug flag so we don't re-check on every entry; an in-flight log-level change
+        // is not worth tracking precisely here.
+        boolean debug = logger.isDebugEnabled();
         List<String> dropped = null;
         for (Map.Entry<String, Object> entry : raw.entrySet()) {
             if (fieldDefs.containsKey(entry.getKey())) {
                 filtered.put(entry.getKey(), entry.getValue());
-            } else if (logger.isDebugEnabled()) {
+            } else if (debug) {
                 if (dropped == null) {
                     dropped = new ArrayList<>();
                 }

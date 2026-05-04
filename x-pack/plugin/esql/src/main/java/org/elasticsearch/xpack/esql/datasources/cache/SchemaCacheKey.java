@@ -25,8 +25,20 @@ public record SchemaCacheKey(
     String region
 ) {
     // Keep this set in sync with every option keyed off the WITH map by a FormatReader's
-    // parseOptionsFromConfig / withConfig: any option that changes the inferred schema must
-    // appear here, or two queries with different formatting will collide on the same cache entry.
+    // parseOptionsFromConfig / withConfig. The intent is broader than "changes the inferred
+    // schema": any option that changes either the schema or whether schema inference fails on
+    // the same input must appear here, or two queries with different formatting will collide on
+    // the same cache entry.
+    //
+    // Notes on the less-obvious entries:
+    // - max_field_size: a runtime parsing limit; doesn't change inferred types but can flip
+    // schema inference between success and failure on the same bytes.
+    // - schema_sample_size: bounds how many rows feed type inference; smaller samples can
+    // widen/narrow the inferred type for borderline columns.
+    // - column_prefix: only changes column NAMES (when header_row=false), but names are part
+    // of the schema.
+    // Runtime-only options that don't affect schema (e.g. multi_value_syntax — bracket parsing
+    // happens after schema inference) are intentionally NOT included.
     private static final Set<String> FORMAT_AFFECTING_PARAMS = Set.of(
         "delimiter",
         "quote",
@@ -43,7 +55,6 @@ public record SchemaCacheKey(
         "column_prefix",
         "comment",
         "max_field_size",
-        "multi_value_syntax",
         "schema_sample_size",
         "skip_rows",
         "trim_whitespace"

@@ -303,6 +303,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
+    /**
+     * Parse a WITH-clause boolean option leniently:
+     * <ul>
+     *   <li>{@code null} → {@code defaultValue} (option absent).</li>
+     *   <li>Native {@link Boolean} (e.g. JSON {@code true}/{@code false}) is returned as-is.</li>
+     *   <li>String values are {@link String#trim() trimmed} (so {@code " true "} is accepted) and
+     *       lowercased, then delegated to {@link Booleans#parseBoolean(String)}, which itself
+     *       accepts only {@code "true"} or {@code "false"}; the lowercase normalization here is
+     *       what gives us case-insensitive matching ({@code "TRUE"}, {@code "False"}, ...).</li>
+     *   <li>An empty/whitespace-only string falls back to {@code defaultValue} so users can write
+     *       {@code "header_row": ""} to explicitly request the default.</li>
+     * </ul>
+     * Anything else throws {@link IllegalArgumentException} naming the offending option key.
+     */
     private static boolean parseBooleanOption(String key, Object value, boolean defaultValue) {
         if (value == null) {
             return defaultValue;
@@ -441,12 +455,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /**
      * Build a schema for a headerless CSV: count the widest sample row, synthesize names from
      * {@code prefix}, and run type inference. Pure on its inputs — does not touch the circuit
-     * breaker.
+     * breaker. Both call sites must guarantee {@code sampleRows} is non-empty (and surface the
+     * user-facing "CSV file has no data rows" {@link IOException} themselves); the assertion is
+     * just a programmer-error guard.
      */
     static List<Attribute> inferSyntheticSchema(List<String[]> sampleRows, String prefix) {
-        if (sampleRows.isEmpty()) {
-            throw new IllegalArgumentException("sampleRows must be non-empty for synthetic schema inference");
-        }
+        assert sampleRows.isEmpty() == false : "sampleRows must be non-empty for synthetic schema inference";
         int columnCount = 0;
         for (String[] row : sampleRows) {
             if (row.length > columnCount) {

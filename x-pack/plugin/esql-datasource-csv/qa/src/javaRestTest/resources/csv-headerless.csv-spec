@@ -1,4 +1,11 @@
 // CSV-only spec: exercises options that are specific to the CSV format reader.
+//
+// employees.csv has a typed header line ("birth_date:date,emp_no:integer,first_name:keyword,...").
+// With header_row=false, that line becomes data row 0, so synthesized columns are 0-based:
+//   col0 = birth_date column (row 0 cell = "birth_date:date")
+//   col1 = emp_no column     (row 0 cell = "emp_no:integer", row 1 cell = "10001", ...)
+// The schema widens to KEYWORD because col1 mixes the literal string "emp_no:integer" with
+// integer-looking values like "10001".
 
 headerRowFalse
 required_capability: external_command

@@ -47,12 +47,23 @@ public class FixtureUtilsTests extends ESTestCase {
     }
 
     public void testInjectWithEntriesEmptyEntriesNoExistingWith() {
+        // Nothing to inject and no existing WITH: return the input unchanged rather than
+        // synthesizing an empty WITH { } that the parser may reject.
         String result = FixtureUtils.injectWithEntries("EXTERNAL \"s3://b/f.csv\"", "");
-        assertEquals("EXTERNAL \"s3://b/f.csv\" WITH { }", result);
+        assertEquals("EXTERNAL \"s3://b/f.csv\"", result);
     }
 
     public void testInjectWithEntriesEmptyEntriesWithExistingWith() {
         String result = FixtureUtils.injectWithEntries("EXTERNAL \"s3://b/f.csv\" WITH { \"header_row\": false }", "");
         assertEquals("EXTERNAL \"s3://b/f.csv\" WITH { \"header_row\": false }", result);
+    }
+
+    public void testInjectWithEntriesIgnoresWithAsIdentifierPrefix() {
+        // "with_credentials" has WITH as a prefix but is part of a longer identifier — must not match.
+        String result = FixtureUtils.injectWithEntries(
+            "EXTERNAL \"s3://b/f.csv\" with_credentials = 1",
+            "\"endpoint\": \"http://localhost\""
+        );
+        assertEquals("EXTERNAL \"s3://b/f.csv\" with_credentials = 1 WITH { \"endpoint\": \"http://localhost\" }", result);
     }
 }

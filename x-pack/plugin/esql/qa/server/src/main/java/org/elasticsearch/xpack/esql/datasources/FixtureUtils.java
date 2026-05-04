@@ -177,8 +177,15 @@ public class FixtureUtils {
      * Inject the given comma-separated map entries into the EXTERNAL clause of {@code externalPart}.
      * <ul>
      *   <li>If {@code externalPart} already ends with {@code WITH { ... }}, the new entries are
-     *       merged into the existing map (after its opening {@code &#123;}).</li>
+     *       merged into the existing map immediately after the opening {@code &#123;}, i.e. they
+     *       appear <em>before</em> the entries already present. The fixture-injected credentials
+     *       therefore come first; if a spec author intentionally writes a key that the fixture also
+     *       provides (e.g. {@code endpoint}), the spec value will win in maps that take
+     *       last-wins semantics, but please avoid relying on this — the precedence is a
+     *       consequence of the merge order rather than a contract.</li>
      *   <li>Otherwise a fresh {@code WITH &#123; ... &#125;} is appended.</li>
+     *   <li>If both {@code entries} is empty and there is no existing {@code WITH} clause, the
+     *       input is returned unchanged (no synthetic empty {@code WITH &#123; &#125;} is emitted).</li>
      * </ul>
      * The entries string must be valid map content (e.g. {@code "endpoint": "x", "key": "y"}) — it
      * is inserted verbatim.
@@ -186,7 +193,7 @@ public class FixtureUtils {
     public static String injectWithEntries(String externalPart, String entries) {
         int withBrace = findOpenBraceOfTrailingWith(externalPart);
         if (withBrace < 0) {
-            return entries.isEmpty() ? externalPart + " WITH { }" : externalPart + " WITH { " + entries + " }";
+            return entries.isEmpty() ? externalPart : externalPart + " WITH { " + entries + " }";
         }
         if (entries.isEmpty()) {
             return externalPart;

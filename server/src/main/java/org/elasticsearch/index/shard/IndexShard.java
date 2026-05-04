@@ -5125,7 +5125,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
          * invocation. This is safe because {@code thread_pool.search.queue_size} is a static node-level setting.
          */
         static IntSupplier defaultMaxPendingSupplier(ThreadPool threadPool) {
-            Long queueSizeRaw = threadPool.info(ThreadPool.Names.SEARCH).getQueueSize();
+            return defaultMaxPendingSupplier(threadPool.info(ThreadPool.Names.SEARCH).getQueueSize());
+        }
+
+        // package-private for tests: lets callers exercise the formula directly without standing up a ThreadPool.
+        static IntSupplier defaultMaxPendingSupplier(@Nullable Long queueSizeRaw) {
             int queueSize = queueSizeRaw == null || queueSizeRaw <= 0 ? UNBOUNDED_QUEUE_FALLBACK : Math.toIntExact(queueSizeRaw);
             return () -> Math.max(1, queueSize / Math.max(1, RECOVERING_SHARDS_ON_NODE.get()));
         }

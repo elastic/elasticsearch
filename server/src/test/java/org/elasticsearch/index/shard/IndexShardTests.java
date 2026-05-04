@@ -215,9 +215,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -3524,42 +3522,31 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testDefaultMaxPendingSupplierUsesFallbackForUnboundedQueue() {
-        ThreadPool tp = mock(ThreadPool.class);
-        ThreadPool.Info info = mock(ThreadPool.Info.class);
-        when(tp.info(ThreadPool.Names.SEARCH)).thenReturn(info);
-
         // Anchor on what the formula yields with an explicit queue size equal to the fallback constant. Asserting
         // against this value (rather than UNBOUNDED_QUEUE_FALLBACK directly) keeps the test order-independent: the
         // formula reads the node-global recovering-shard counter, which other tests may transiently bump.
-        when(info.getQueueSize()).thenReturn((long) IndexShard.SearchReadyGate.UNBOUNDED_QUEUE_FALLBACK);
-        int expected = IndexShard.SearchReadyGate.defaultMaxPendingSupplier(tp).getAsInt();
+        int expected = IndexShard.SearchReadyGate.defaultMaxPendingSupplier((long) IndexShard.SearchReadyGate.UNBOUNDED_QUEUE_FALLBACK)
+            .getAsInt();
 
         // null queue size (unbounded scaling pool): supplier must use UNBOUNDED_QUEUE_FALLBACK as a queue-size substitute.
-        when(info.getQueueSize()).thenReturn(null);
-        assertThat(IndexShard.SearchReadyGate.defaultMaxPendingSupplier(tp).getAsInt(), equalTo(expected));
+        assertThat(IndexShard.SearchReadyGate.defaultMaxPendingSupplier((Long) null).getAsInt(), equalTo(expected));
 
         // Zero queue size: treated the same as unbounded.
-        when(info.getQueueSize()).thenReturn(0L);
-        assertThat(IndexShard.SearchReadyGate.defaultMaxPendingSupplier(tp).getAsInt(), equalTo(expected));
+        assertThat(IndexShard.SearchReadyGate.defaultMaxPendingSupplier(0L).getAsInt(), equalTo(expected));
     }
 
     /**
      * Exercises {@code onShardStateChanged} idempotency and the full RECOVERING lifecycle by observing the
-     * node-global counter through {@link IndexShard.SearchReadyGate#defaultMaxPendingSupplier}: with a known queue
-     * size, the supplier's output is a pure function of the recovering-shard count, so relative changes to its
+     * node-global counter through {@link IndexShard.SearchReadyGate#defaultMaxPendingSupplier(Long)}: with a known
+     * queue size, the supplier's output is a pure function of the recovering-shard count, so relative changes to its
      * output reflect counter changes without needing to read the counter directly.
      * <p>
      * Uses two gates so the counter crosses {@code >= 2}: the formula clamps divisor to 1, so a single
      * increment from 0 to 1 leaves the cap unchanged — only the second concurrently-recovering shard drops it.
      */
     public void testOnShardStateChangedIdempotencyAndLifecycleViaSupplier() {
-        ThreadPool tp = mock(ThreadPool.class);
-        ThreadPool.Info info = mock(ThreadPool.Info.class);
-        when(tp.info(ThreadPool.Names.SEARCH)).thenReturn(info);
         // Large queue size keeps the supplier well above the per-shard minimum across the counter range exercised here.
-        when(info.getQueueSize()).thenReturn(100_000L);
-
-        IntSupplier supplier = IndexShard.SearchReadyGate.defaultMaxPendingSupplier(tp);
+        IntSupplier supplier = IndexShard.SearchReadyGate.defaultMaxPendingSupplier(100_000L);
         int baseline = supplier.getAsInt();
 
         IndexShard.SearchReadyGate gateA = new IndexShard.SearchReadyGate(() -> Integer.MAX_VALUE);

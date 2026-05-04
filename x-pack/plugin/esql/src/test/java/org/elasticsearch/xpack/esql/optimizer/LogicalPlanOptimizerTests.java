@@ -4402,9 +4402,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | stats count(salary + 1), max(salary   +  23) by languages   + 1, emp_no %  3
             """);
 
-        var limit = as(plan, Limit.class);
-        var agg = as(limit.child(), Aggregate.class);
-        assertThat(Expressions.names(agg.output()), contains("count(salary + 1)", "max(salary   +  23)", "languages   + 1", "emp_no %  3"));
+        // SimplifyAggregateOverArithmetic may insert Project + Eval above the Limit
+        // for MAX(salary + 23) → MAX(salary) + 23 correction. Verify output names
+        // at the top of the plan regardless of the intermediate structure.
+        assertThat(
+            Expressions.names(plan.output()),
+            contains("count(salary + 1)", "max(salary   +  23)", "languages   + 1", "emp_no %  3")
+        );
     }
 
     /**

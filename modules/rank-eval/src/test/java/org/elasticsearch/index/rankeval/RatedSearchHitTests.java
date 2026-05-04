@@ -29,11 +29,12 @@ import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashC
 
 public class RatedSearchHitTests extends ESTestCase {
 
-    private static final ConstructingObjectParser<RatedSearchHit, Void> PARSER = new ConstructingObjectParser<>(
-        "rated_hit",
-        true,
-        a -> new RatedSearchHit((SearchHit) a[0], (OptionalInt) a[1])
-    );
+    private static final ConstructingObjectParser<RatedSearchHit, Void> PARSER = new ConstructingObjectParser<>("rated_hit", true, a -> {
+        SearchHit hit = (SearchHit) a[0];
+        RatedSearchHit result = new RatedSearchHit(hit, (OptionalInt) a[1]);
+        hit.decRef();
+        return result;
+    });
 
     static {
         PARSER.declareObject(
@@ -92,17 +93,21 @@ public class RatedSearchHitTests extends ESTestCase {
 
     public void testXContentRoundtrip() throws IOException {
         RatedSearchHit testItem = randomRatedSearchHit();
+        RatedSearchHit parsedItem = null;
         try {
             XContentType xContentType = randomFrom(XContentType.values());
             BytesReference originalBytes = toShuffledXContent(testItem, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-                RatedSearchHit parsedItem = parseInstance(parser);
+                parsedItem = parseInstance(parser);
                 assertNotSame(testItem, parsedItem);
                 assertEquals(testItem, parsedItem);
                 assertEquals(testItem.hashCode(), parsedItem.hashCode());
             }
         } finally {
             releasePooledSearchHitCompletely(testItem.getSearchHit());
+            if (parsedItem != null) {
+                parsedItem.getSearchHit().decRef();
+            }
         }
     }
 

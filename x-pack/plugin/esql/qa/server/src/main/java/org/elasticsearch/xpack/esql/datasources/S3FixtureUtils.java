@@ -312,14 +312,12 @@ public final class S3FixtureUtils {
                 restOfQuery = " " + trimmed.substring(pipeIndex);
             }
 
-            StringBuilder params = new StringBuilder();
-            params.append(" WITH { ");
-            params.append("\"endpoint\": \"").append(getAddress()).append("\", ");
-            params.append("\"access_key\": \"").append(ACCESS_KEY).append("\", ");
-            params.append("\"secret_key\": \"").append(SECRET_KEY).append("\"");
-            params.append(" }");
+            StringBuilder entries = new StringBuilder();
+            entries.append("\"endpoint\": \"").append(getAddress()).append("\", ");
+            entries.append("\"access_key\": \"").append(ACCESS_KEY).append("\", ");
+            entries.append("\"secret_key\": \"").append(SECRET_KEY).append("\"");
 
-            return externalPart + params + restOfQuery;
+            return FixtureUtils.injectWithEntries(externalPart, entries.toString()) + restOfQuery;
         }
 
         /**

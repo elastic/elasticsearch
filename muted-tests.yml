@@ -205,8 +205,6 @@ tests:
 - class: org.elasticsearch.reindex.ReindexBasicTests
   method: testReindexFailsWhenSourceIndexIsClosed
   issue: https://github.com/elastic/elasticsearch/issues/146466
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
-  issue: https://github.com/elastic/elasticsearch/issues/146545
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/146650

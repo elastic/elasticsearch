@@ -434,10 +434,12 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            sender.sendWithoutQueuing(mock(Logger.class), mock(Request.class), mock(ResponseHandler.class), ONE_NANOSECOND, listener);
+            var request = mock(Request.class);
+            when(request.getInferenceEntityId()).thenReturn(INFERENCE_ID);
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
+            sender.sendWithoutQueuing(mock(Logger.class), request, mock(ResponseHandler.class), ONE_NANOSECOND, listener);
 
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
 
             assertThat(
                 thrownException.getMessage(),

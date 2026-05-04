@@ -43,6 +43,12 @@ tasks.named("javaRestTest") {
   exclude '**/RemoteClusterSecurityBWCToRCS2ClusterRestIT.class'
 }
 
+tasks.named("bcUpgradeTest") {
+  // This test does not exercise the BWC distribution — it builds its own current-version clusters —
+  // so running it under bcUpgradeTest adds no coverage and just doubles the failure surface.
+  exclude '**/RemoteClusterSecurityWithApmTracingRestIT.class'
+}
+
 buildParams.bwcVersions.withWireCompatible() { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)

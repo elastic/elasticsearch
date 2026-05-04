@@ -779,16 +779,17 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                 }, task)
             );
 
-        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, searchNode, Type.SEARCH);
-
         setReplicaCount(1, indexName);
         ensureGreen(indexName);
         assertTrue(flushed.get());
         assertHitCount(prepareSearch(indexName).setSize(0), totalDocs);
-
-        stopFailingObjectStore(searchNode);
-        disableTransportBlocking(searchNode);
         ensureSearchHits(indexName, totalDocs);
+        // Note: unlike testCacheIsWarmedBeforeSearchShardRecovery, we cannot use
+        // failObjectStoreAndFetchFromIndexingNodeAfterPrewarming here to assert that the engine
+        // opens without needing the object store. The flush mid-warming advances the commit
+        // generation, and the recovery's prepare-shard phase has in-flight object store reads for
+        // the new commit that race with the warming completion callback. Blocking the object store
+        // in that callback kills those reads and prevents recovery from completing.
     }
 
     public void testIdLookupPreWarmRequestsMetric() throws Exception {

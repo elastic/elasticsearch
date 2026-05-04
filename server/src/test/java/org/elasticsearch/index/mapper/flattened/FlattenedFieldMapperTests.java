@@ -339,7 +339,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     public void testDisableIndex() throws Exception {
-        assumeTrue("feature under test must be present", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled())d;
+        assumeTrue("feature under test must be present", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "flattened");

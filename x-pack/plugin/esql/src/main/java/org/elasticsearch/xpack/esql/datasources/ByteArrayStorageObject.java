@@ -27,7 +27,18 @@ final class ByteArrayStorageObject implements StorageObject {
     private final int length;
 
     ByteArrayStorageObject(StoragePath path, byte[] data, int offset, int length) {
-        if (offset < 0 || length < 0 || offset + length > data.length) {
+        if (offset < 0 || length < 0) {
+            throw new IllegalArgumentException("Invalid region: offset=" + offset + ", length=" + length);
+        }
+        // Math.addExact rejects the corner case where both ints are large positives and `offset + length`
+        // silently wraps to a negative value, which would let the < data.length check pass.
+        int end;
+        try {
+            end = Math.addExact(offset, length);
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("offset + length overflows int: offset=" + offset + ", length=" + length, e);
+        }
+        if (end > data.length) {
             throw new IllegalArgumentException("Invalid region: offset=" + offset + ", length=" + length + ", data.length=" + data.length);
         }
         this.path = path;
@@ -45,6 +56,14 @@ final class ByteArrayStorageObject implements StorageObject {
     public InputStream newStream(long position, long len) {
         int pos = Math.toIntExact(position);
         int l = Math.toIntExact(len);
+        // Validate the sub-region against the logical [0, length) window: ByteArrayInputStream itself
+        // would only catch a read past data.length, so without this guard a caller could read into
+        // bytes that belong to an adjacent region of the same backing array.
+        if (pos < 0 || l < 0 || Math.addExact(pos, l) > length) {
+            throw new IllegalArgumentException(
+                "Invalid sub-region: position=" + position + ", length=" + len + ", region length=" + length
+            );
+        }
         return new ByteArrayInputStream(data, offset + pos, l);
     }
 

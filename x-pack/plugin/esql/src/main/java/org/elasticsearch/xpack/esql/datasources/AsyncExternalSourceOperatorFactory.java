@@ -960,12 +960,35 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return null;
     }
 
-    static boolean isStreamOnlyCompressed(FormatReader reader) {
+    /**
+     * Single source of truth for how a {@link FormatReader} should be dispatched against parsing parallelism.
+     * Both {@link #openWithParallelism} and {@link #describe} resolve the same enum so the runtime path
+     * and the diagnostic string cannot drift.
+     */
+    enum ParallelDispatchMode {
+        /** Reader is a {@link SegmentableFormatReader} over an uncompressed input. */
+        SEGMENTABLE_UNCOMPRESSED,
+        /** Reader wraps a stream-only codec (gzip, zstd); use the streaming-parallel coordinator. */
+        STREAM_ONLY_COMPRESSED,
+        /** Reader wraps a splittable / indexed codec (bzip2); falls back to single-threaded reads for now. */
+        SPLITTABLE_OR_INDEXED_COMPRESSED,
+        /** Reader is not segmentable; parallel parsing does not apply. */
+        NOT_PARALLELIZABLE
+    }
+
+    static ParallelDispatchMode resolveDispatchMode(FormatReader reader) {
+        SegmentableFormatReader seg = resolveSegmentableReader(reader);
+        if (seg == null) {
+            return ParallelDispatchMode.NOT_PARALLELIZABLE;
+        }
         if (reader instanceof CompressionDelegatingFormatReader cdr) {
             DecompressionCodec codec = cdr.codec();
-            return (codec instanceof SplittableDecompressionCodec) == false && (codec instanceof IndexedDecompressionCodec) == false;
+            if (codec instanceof SplittableDecompressionCodec || codec instanceof IndexedDecompressionCodec) {
+                return ParallelDispatchMode.SPLITTABLE_OR_INDEXED_COMPRESSED;
+            }
+            return ParallelDispatchMode.STREAM_ONLY_COMPRESSED;
         }
-        return false;
+        return ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED;
     }
 
     CloseableIterator<Page> openWithParallelism(FormatReader reader, StorageObject obj, List<String> cols, ErrorPolicy policy)
@@ -973,13 +996,19 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
         }
-        SegmentableFormatReader seg = resolveSegmentableReader(reader);
-        if (seg == null) {
-            return null;
-        }
-        if (reader instanceof CompressionDelegatingFormatReader cdr) {
-            DecompressionCodec codec = cdr.codec();
-            if ((codec instanceof SplittableDecompressionCodec) == false && (codec instanceof IndexedDecompressionCodec) == false) {
+        ParallelDispatchMode mode = resolveDispatchMode(reader);
+        switch (mode) {
+            case NOT_PARALLELIZABLE -> {
+                return null;
+            }
+            case SEGMENTABLE_UNCOMPRESSED -> {
+                SegmentableFormatReader seg = resolveSegmentableReader(reader);
+                return ParallelParsingCoordinator.parallelRead(seg, obj, cols, batchSize, parsingParallelism, executor, policy);
+            }
+            case STREAM_ONLY_COMPRESSED -> {
+                CompressionDelegatingFormatReader cdr = (CompressionDelegatingFormatReader) reader;
+                SegmentableFormatReader seg = resolveSegmentableReader(reader);
+                DecompressionCodec codec = cdr.codec();
                 InputStream raw = obj.newStream();
                 InputStream decompressed;
                 try {
@@ -1007,19 +1036,23 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     throw e;
                 }
             }
-            // Splittable / indexed codecs (e.g. bzip2) need codec-aware segmenting because
-            // ParallelParsingCoordinator works in raw-file byte space and would feed the inner
-            // line-oriented reader compressed bytes (yielding "Unrecognized token 'BZh91A...'"
-            // for bzip2). Until we wire splittable parallel decompression here, fall back to
-            // the single-threaded path through the CompressionDelegatingFormatReader, which
-            // wraps the StorageObject in a DecompressingStorageObject before reading.
-            logger.debug(
-                "falling back to single-threaded read for splittable/indexed codec [{}]: codec-aware parallel decompression not yet wired",
-                codec.name()
-            );
-            return null;
+            case SPLITTABLE_OR_INDEXED_COMPRESSED -> {
+                // Splittable / indexed codecs (e.g. bzip2) need codec-aware segmenting because
+                // ParallelParsingCoordinator works in raw-file byte space and would feed the inner
+                // line-oriented reader compressed bytes (yielding "Unrecognized token 'BZh91A...'"
+                // for bzip2). Until we wire splittable parallel decompression here, fall back to
+                // the single-threaded path through the CompressionDelegatingFormatReader, which
+                // wraps the StorageObject in a DecompressingStorageObject before reading.
+                CompressionDelegatingFormatReader cdr = (CompressionDelegatingFormatReader) reader;
+                logger.debug(
+                    "falling back to single-threaded read for splittable/indexed codec [{}]: "
+                        + "codec-aware parallel decompression not yet wired",
+                    cdr.codec().name()
+                );
+                return null;
+            }
+            default -> throw new IllegalStateException("Unhandled dispatch mode: " + mode);
         }
-        return ParallelParsingCoordinator.parallelRead(seg, obj, cols, batchSize, parsingParallelism, executor, policy);
     }
 
     @Override
@@ -1027,16 +1060,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         String asyncMode;
         if (formatReader instanceof RangeAwareFormatReader) {
             asyncMode = "range-split";
-        } else if (resolveSegmentableReader(formatReader) != null && parsingParallelism > 1) {
-            if (isStreamOnlyCompressed(formatReader)) {
-                asyncMode = "streaming-parallel-parse(" + parsingParallelism + ")";
-            } else if (formatReader instanceof CompressionDelegatingFormatReader) {
+        } else if (parsingParallelism > 1) {
+            asyncMode = switch (resolveDispatchMode(formatReader)) {
+                case SEGMENTABLE_UNCOMPRESSED -> "parallel-parse(" + parsingParallelism + ")";
+                case STREAM_ONLY_COMPRESSED -> "streaming-parallel-parse(" + parsingParallelism + ")";
                 // Splittable / indexed compressed paths fall back to single-threaded reads
                 // until codec-aware parallel decompression is wired in openWithParallelism.
-                asyncMode = "sync-wrapper";
-            } else {
-                asyncMode = "parallel-parse(" + parsingParallelism + ")";
-            }
+                case SPLITTABLE_OR_INDEXED_COMPRESSED -> "sync-wrapper";
+                case NOT_PARALLELIZABLE -> formatReader.supportsNativeAsync() ? "native-async" : "sync-wrapper";
+            };
         } else if (formatReader.supportsNativeAsync()) {
             asyncMode = "native-async";
         } else {

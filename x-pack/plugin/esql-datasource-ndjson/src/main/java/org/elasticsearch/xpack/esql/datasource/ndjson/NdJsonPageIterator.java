@@ -11,6 +11,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -33,6 +35,8 @@ import java.util.NoSuchElementException;
  * from the split data, avoiding the risk of schema divergence across splits.
  */
 final class NdJsonPageIterator implements CloseableIterator<Page> {
+
+    private static final Logger logger = LogManager.getLogger(NdJsonPageIterator.class);
 
     private final NdJsonPageDecoder pageDecoder;
     private final int rowLimit;
@@ -112,6 +116,10 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         } catch (UnsupportedOperationException e) {
             return false;
         } catch (IOException e) {
+            // Surface the metadata hiccup at DEBUG so a transient S3 head-object failure is not
+            // completely invisible during diagnosis. The streaming path will surface the same
+            // condition on read if the data itself is unreachable.
+            logger.debug(() -> "byte-array fast path disabled for [" + object.path() + "]: object length unavailable", e);
             return false;
         }
     }

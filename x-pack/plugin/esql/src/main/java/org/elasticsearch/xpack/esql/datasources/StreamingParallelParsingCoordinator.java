@@ -32,6 +32,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -257,8 +258,12 @@ public final class StreamingParallelParsingCoordinator {
                                 break;
                             }
                         } else {
-                            // Single record larger than chunk size — grow a temporary buffer
+                            // Single record larger than chunk size — grow a temporary buffer.
+                            // {@link #growUntilNewline} only copies from {@code buf}; the original pool buffer
+                            // is independent of {@code grown} and must be returned to the pool here so the
+                            // pool does not leak one entry per oversized record.
                             byte[] grown = growUntilNewline(stream, buf, totalBytes, chunkSize);
+                            recycleBuffer(buf);
                             int grownNewline = findLastNewline(grown, grown.length);
                             if (grownNewline < 0) {
                                 if (chunkIndex == 0) {
@@ -267,7 +272,6 @@ public final class StreamingParallelParsingCoordinator {
                                 if (dispatchChunk(chunkIndex, grown, grown.length, true)) {
                                     chunkIndex++;
                                 } else {
-                                    recycleBuffer(buf);
                                     recycleBuffer(grown);
                                     break;
                                 }
@@ -282,12 +286,10 @@ public final class StreamingParallelParsingCoordinator {
                                 if (dispatchChunk(chunkIndex, grown, validLen, false)) {
                                     chunkIndex++;
                                 } else {
-                                    recycleBuffer(buf);
                                     recycleBuffer(grown);
                                     break;
                                 }
                             }
-                            // The original buffer was consumed by grow; don't recycle it
                         }
                         if (isEof) break;
                         continue;
@@ -599,6 +601,24 @@ public final class StreamingParallelParsingCoordinator {
             return dispatchPermits.hasQueuedThreads();
         }
 
+        /**
+         * Two-phase shutdown sequenced to drain pages a parser thread may publish after the first drain
+         * but before {@link #allDone} fires.
+         * <p>
+         * Phase 1: set {@code closed=true} (causes parser threads to exit their inner loop and the
+         * segmentator to bail on its next post-acquire check), wake any segmentator parked on
+         * {@link #dispatchPermits}, and drain whatever is already queued.
+         * <p>
+         * Phase 2: wait up to {@link #CLOSE_TIMEOUT_SECONDS} for {@link #allDone}, then drain again
+         * to catch pages a parser put into a queue between the first drain and the latch fire.
+         * <p>
+         * <strong>Timeout contract:</strong> if {@code allDone.await} times out we log a warning and
+         * run the second drain anyway, but parser threads may still be alive at return time. Any pages
+         * they publish after that — and any blocks those pages reference — are leaked. We do not
+         * interrupt the parser executor: it is shared (typically {@code esql_worker}) and an interrupt
+         * could disrupt unrelated tasks. The timeout is intentionally generous (60s) to make the leak
+         * window an exceptional condition; production workloads should not hit it under normal pressure.
+         */
         @Override
         public void close() throws IOException {
             if (closed) {
@@ -611,7 +631,11 @@ public final class StreamingParallelParsingCoordinator {
             drainAllQueues();
             try {
                 if (allDone.await(CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS) == false) {
-                    logger.warn("Timed out waiting for streaming parallel parsing threads to finish after [{}]s", CLOSE_TIMEOUT_SECONDS);
+                    logger.warn(
+                        "Timed out waiting for streaming parallel parsing threads to finish after [{}]s; "
+                            + "any pages published by still-running parsers after this point will leak their blocks",
+                        CLOSE_TIMEOUT_SECONDS
+                    );
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -645,9 +669,16 @@ public final class StreamingParallelParsingCoordinator {
 
     /**
      * Minimal StorageObject wrapping an InputStream for the parallelism=1 fallback path.
+     * <p>
+     * <strong>Single-use:</strong> the wrapped stream is sequential and cannot be re-opened, so
+     * {@link #newStream()} hands out the same underlying stream exactly once. Callers that need
+     * to consume the stream twice (e.g. metadata inference followed by a separate read pass)
+     * must buffer the data themselves; the production path here calls {@code newStream()} only
+     * once via {@code reader.read(...)}.
      */
     private static final class InputStreamStorageObject implements StorageObject {
         private final InputStream stream;
+        private final AtomicBoolean handedOut = new AtomicBoolean(false);
 
         InputStreamStorageObject(InputStream stream) {
             this.stream = stream;
@@ -655,6 +686,11 @@ public final class StreamingParallelParsingCoordinator {
 
         @Override
         public InputStream newStream() {
+            if (handedOut.compareAndSet(false, true) == false) {
+                throw new IllegalStateException(
+                    "InputStreamStorageObject is single-use; the wrapped sequential stream cannot be re-opened"
+                );
+            }
             return stream;
         }
 

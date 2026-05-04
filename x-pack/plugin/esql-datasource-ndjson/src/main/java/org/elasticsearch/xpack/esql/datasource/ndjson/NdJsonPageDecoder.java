@@ -158,8 +158,14 @@ public class NdJsonPageDecoder implements Closeable {
             int end = Math.addExact(sourceOffset, sourceLength);
             Check.isTrue(end <= sourceBytes.length, "byte slice [{}, {}) exceeds buffer length {}", sourceOffset, end, sourceBytes.length);
             this.sourceEnd = end;
+            this.parserSliceStart = sourceOffset;
         } else {
+            // The default-zero values are unreachable on the InputStream path: every read of these
+            // fields is gated on {@code sourceBytes != null}. Assign explicitly so the dependency is
+            // self-documenting and a future refactor that lifts the gate fails at the source rather
+            // than reading silently from a zero-initialized field.
             this.sourceEnd = 0;
+            this.parserSliceStart = 0;
         }
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.errorPolicy = errorPolicy;
@@ -208,7 +214,6 @@ public class NdJsonPageDecoder implements Closeable {
         this.blockTracker = new BitSet(projectedAttributes.size());
 
         if (sourceBytes != null) {
-            this.parserSliceStart = sourceOffset;
             this.parser = NdJsonUtils.JSON_FACTORY.createParser(sourceBytes, sourceOffset, sourceLength);
         } else {
             this.parser = NdJsonUtils.JSON_FACTORY.createParser(input);
@@ -511,8 +516,12 @@ public class NdJsonPageDecoder implements Closeable {
     @Override
     public void close() throws IOException {
         // input may be null on the byte-array fast path; IOUtils.close tolerates null entries.
-        IOUtils.close(input);
+        // We also close `parser` so its internal buffers (small but real) are released on the byte-array
+        // path, where there is no `input` to close. AUTO_CLOSE_SOURCE is disabled on the shared
+        // JsonFactory, so closing the parser does not double-close the wrapping codec stream.
+        IOUtils.close(parser, input);
         input = null;
+        parser = null;
     }
 
     // ---------------------------------------------------------------------------------------------

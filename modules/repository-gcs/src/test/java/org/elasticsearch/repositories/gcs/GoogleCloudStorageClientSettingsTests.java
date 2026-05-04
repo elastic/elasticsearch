@@ -15,14 +15,21 @@ import org.apache.http.HttpResponse;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.protocol.HttpContext;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -36,6 +43,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING;
@@ -200,6 +208,49 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             assertNotNull(credentials);
             assertEquals("proxy_access_token", credentials.refreshAccessToken().getTokenValue());
         }
+    }
+
+    public void testTenaciousRetriesFromClientSettingsIsAppliedToBlobStore() throws Exception {
+        final String clientName = randomAlphaOfLength(5);
+        final Tuple<ServiceAccountCredentials, byte[]> credentials = randomCredential(clientName);
+
+        final GoogleCloudStorageClientSettings clientSettings = new GoogleCloudStorageClientSettings(
+            credentials.v1(),
+            ENDPOINT_SETTING.getDefault(Settings.EMPTY),
+            PROJECT_ID_SETTING.getDefault(Settings.EMPTY),
+            CONNECT_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
+            READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
+            APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
+            new URI(""),
+            null,
+            MAX_RETRIES_SETTING.getDefault(Settings.EMPTY),
+            MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY),
+            true
+        );
+        ThreadPool threadPool = new TestThreadPool(getTestClass().getName());
+        GoogleCloudStorageService googleCloudStorageService = new GoogleCloudStorageService(
+            ClusterServiceUtils.createClusterService(threadPool),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+        );
+
+        googleCloudStorageService.refreshAndClearCache(Map.of(clientName, clientSettings));
+
+        final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore(
+            ProjectId.DEFAULT,
+            "BUCKET",
+            clientName,
+            "repo",
+            googleCloudStorageService,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            randomIntBetween(128, 256),
+            BackoffPolicy.constantBackoff(TimeValue.timeValueMillis(10), 10),
+            new GcsRepositoryStatsCollector()
+        );
+
+        var setting = GoogleCloudStorageBlobStore.class.getDeclaredField("tenaciousRetriesEnabled");
+        setting.setAccessible(true);
+        assertTrue((Boolean) setting.get(blobStore));
+        ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
     }
 
     public void testEqualsAndHashCode() throws Exception {

@@ -419,9 +419,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
   method: testGenerationalFileBlobReferenceIsRetainedCorrectly
   issue: https://github.com/elastic/elasticsearch/issues/147858
-- class: org.elasticsearch.xpack.stateless.engine.SoftDeletesRetentionIT
-  method: testRetentionLeasesIgnoredForSoftDeletesPolicy
-  issue: https://github.com/elastic/elasticsearch/issues/147859
 - class: org.elasticsearch.search.internal.CancellableBulkScorerTests
   method: testIntervalGrowsGeometrically
   issue: https://github.com/elastic/elasticsearch/issues/147872
@@ -542,3 +539,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
   method: testRandomActivitiesStatelessSnapshotDisabled
   issue: https://github.com/elastic/elasticsearch/issues/148219
+- class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
+  method: testSyntheticId
+  issue: https://github.com/elastic/elasticsearch/issues/148235
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testSnapshotShardsWhileHollowing
+  issue: https://github.com/elastic/elasticsearch/issues/148236

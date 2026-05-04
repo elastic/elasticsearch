@@ -1266,7 +1266,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     private boolean syntheticSourceByDefault() {
         return switch (indexMode) {
             case TIME_SERIES, LOGSDB, COLUMNAR, COLUMNAR_LOGSDB -> true;
-            case STANDARD, LOOKUP -> false;
+            case STANDARD, LOOKUP, VECTOR -> false;
         };
     }
 

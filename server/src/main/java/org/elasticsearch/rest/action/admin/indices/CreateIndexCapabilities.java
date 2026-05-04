@@ -34,6 +34,11 @@ public class CreateIndexCapabilities {
      */
     private static final String COLUMNAR_INDEX_MODES_CAPABILITY = "columnar_index_modes";
 
+    /**
+     * Support vector index mode
+     */
+    private static final String VECTOR_INDEX_MODE_CAPABILITY = "vector_index_mode";
+
     private static final String NESTED_DENSE_VECTOR_SYNTHETIC_TEST = "nested_dense_vector_synthetic_test";
 
     private static final String POORLY_FORMATTED_BAD_REQUEST = "poorly_formatted_bad_request";
@@ -57,6 +62,9 @@ public class CreateIndexCapabilities {
         );
         if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
             caps.add(COLUMNAR_INDEX_MODES_CAPABILITY);
+        }
+        if (IndexMode.VECTOR_FEATURE_FLAG.isEnabled()) {
+            caps.add(VECTOR_INDEX_MODE_CAPABILITY);
         }
         CAPABILITIES = Set.copyOf(caps);
     }

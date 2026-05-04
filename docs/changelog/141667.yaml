@@ -15,17 +15,19 @@ highlight:
 
     For example, list metrics sorted by name:
 
-    ```esql
+    [source,esql]
+    ----
     TS my_data_stream
     | METRICS_INFO
     | SORT metric_name
-    ```
+    ----
 
     Or filter to counters only:
 
-    ```esql
+    [source,esql]
+    ----
     TS my_data_stream
     | METRICS_INFO
     | WHERE metric_type == "counter"
     | SORT metric_name
-    ```
+    ----

@@ -150,6 +150,16 @@ $elseif(boolean)$
 $endif$
 
     /**
+     * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
+$if(BytesRef)$
+     * Scans all positions to find the maximum.
+$else$
+     * Always {@code $BYTES$} since all $type$ values encode to the same number of bytes.
+$endif$
+     */
+    int valueMaxByteSize();
+
+    /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
      * given object is a $Type$Vector, and both vectors are {@link #equals($Type$Vector, $Type$Vector) equal}.
      */

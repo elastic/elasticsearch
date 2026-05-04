@@ -16,16 +16,16 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
-import org.elasticsearch.xpack.inference.external.request.CompletionRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundCompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModel;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class GoogleAiStudioCompletionRequest implements CompletionRequest {
+public class GoogleAiStudioCompletionRequest implements OutboundCompletionRequest {
     private static final String ALT_PARAM = "alt";
     private static final String SSE_VALUE = "sse";
 
@@ -73,7 +73,7 @@ public class GoogleAiStudioCompletionRequest implements CompletionRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // No truncation for Google AI Studio completion
         return this;
     }

@@ -395,8 +395,7 @@ public class HttpRequestSenderTests extends ESTestCase {
     }
 
     public void testHttpRequestSender_Throws_WhenATimeoutOccurs() throws Exception {
-        var mockManager = mock(HttpClientManager.class);
-        when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
+        var mockManager = createMockHttpClientManager();
 
         var senderFactory = new HttpRequestSender.Factory(
             ServiceComponentsTests.createWithEmptySettings(threadPool),
@@ -409,7 +408,7 @@ public class HttpRequestSenderTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             sender.send(
-                RequestManagerTests.createMockWithRateLimitingEnabled(),
+                RequestManagerTests.createMockWithRateLimitingEnabled(INFERENCE_ID),
                 new EmbeddingsInput(List.of(), null),
                 TimeValue.timeValueNanos(1),
                 listener
@@ -417,8 +416,11 @@ public class HttpRequestSenderTests extends ESTestCase {
 
             var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
 
-            assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
-            assertThat(thrownException.status().getStatus(), is(408));
+            assertThat(
+                thrownException.getMessage(),
+                is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID))
+            );
+            assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
         }
     }
 
@@ -437,8 +439,11 @@ public class HttpRequestSenderTests extends ESTestCase {
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
 
-            assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", ONE_NANOSECOND)));
-            assertThat(thrownException.status().getStatus(), is(408));
+            assertThat(
+                thrownException.getMessage(),
+                is(format("Request timed out after [%s] for inference id [%s]", ONE_NANOSECOND, INFERENCE_ID))
+            );
+            assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
         }
     }
 

@@ -338,7 +338,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "indices:admin/forcemerge*"
                     )
                     .build(),
-
+                // Read access for all OTEL metrics/traces data
+                RoleDescriptor.IndicesPrivileges.builder().indices("traces-*.otel-*", "metrics-*.otel-*").privileges("read").build(),
                 // Kibana Security Solution EDR workflows team
                 // - `.endpoint-script-file*`:
                 // indexes are used internally within Kibana in support of Elastic Defend scripts library.

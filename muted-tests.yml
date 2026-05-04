@@ -475,9 +475,6 @@ tests:
 - class: org.elasticsearch.search.sort.NestedSortBuilderTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/148039
-- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
-  method: testRandomActivitiesStatelessSnapshotAndRelocationEnabled
-  issue: https://github.com/elastic/elasticsearch/issues/148041
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056

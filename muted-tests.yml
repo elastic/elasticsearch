@@ -473,12 +473,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/148096
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testUnsupportedGroupKeyTypesNotAllowedInStatsBy
-  issue: https://github.com/elastic/elasticsearch/issues/148112
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testUnsupportedGroupKeyTypesNotAllowedInLimitBy
-  issue: https://github.com/elastic/elasticsearch/issues/148113
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationFailures
   issue: https://github.com/elastic/elasticsearch/issues/148129
@@ -545,3 +539,18 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testSnapshotShardsWhileHollowing
   issue: https://github.com/elastic/elasticsearch/issues/148236
+- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
+  method: testEstimatedHeapHighWatermarkMonitorTriggersReroute
+  issue: https://github.com/elastic/elasticsearch/issues/148246
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:exponential_histogram.All aggs grouped by Date Trunc and Instance (time series mode)}
+  issue: https://github.com/elastic/elasticsearch/issues/148250
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:spatial.centroidFromAirportsAfterIntersectsCompoundPredicateNotIndexed}
+  issue: https://github.com/elastic/elasticsearch/issues/148251
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:date.monthNameTruncate}
+  issue: https://github.com/elastic/elasticsearch/issues/148252
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:tdigest.Group Aggs By Bucket and Instance (standard mode)}
+  issue: https://github.com/elastic/elasticsearch/issues/148254

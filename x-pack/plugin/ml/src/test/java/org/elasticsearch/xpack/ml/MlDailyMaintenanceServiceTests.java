@@ -556,10 +556,11 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
                 sourceBuilder.startObject();
                 sourceBuilder.field("latest_record_timestamp", latestRecordTimestamp);
                 sourceBuilder.endObject();
-                SearchHit hit = SearchHit.unpooled(0);
+                SearchHit hit = new SearchHit(0);
                 hit.sourceRef(BytesReference.bytes(sourceBuilder));
-                SearchHits hits = SearchHits.unpooled(new SearchHit[] { hit }, null, 1.0f);
+                SearchHits hits = new SearchHits(new SearchHit[] { hit }, null, 1.0f);
                 SearchResponse response = SearchResponseUtils.successfulResponse(hits);
+                hits.decRef(); // transfer ownership to response
                 try {
                     listener.onResponse(response);
                 } finally {

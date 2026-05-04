@@ -456,6 +456,102 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
         );
     }
 
+    public void testNonTextInputWithTextEmbedding() {
+        // INFERENCE_FIELD_2 in INDEX_1 is backed by TEXT_EMBEDDING_INFERENCE_ID
+        assertFailedRequest(
+            new GetInferenceFieldsInternalAction.Request(
+                new String[] { INDEX_1 },
+                generateDefaultWeightFieldMap(Set.of(INFERENCE_FIELD_2)),
+                false,
+                false,
+                new InferenceStringGroup(new InferenceString(DataType.IMAGE, TEST_DATA_URI)),
+                null
+            ),
+            IllegalArgumentException.class,
+            e -> assertThat(
+                e.getMessage(),
+                containsString(
+                    "Non-text input is not supported for [text_embedding] inference endpoints for inference_id ["
+                        + TEXT_EMBEDDING_INFERENCE_ID
+                        + "]"
+                )
+            )
+        );
+    }
+
+    public void testNonTextInputWithSparseEmbedding() {
+        // INFERENCE_FIELD_1 in INDEX_1 is backed by SPARSE_EMBEDDING_INFERENCE_ID
+        assertFailedRequest(
+            new GetInferenceFieldsInternalAction.Request(
+                new String[] { INDEX_1 },
+                generateDefaultWeightFieldMap(Set.of(INFERENCE_FIELD_1)),
+                false,
+                false,
+                new InferenceStringGroup(new InferenceString(DataType.IMAGE, TEST_DATA_URI)),
+                null
+            ),
+            IllegalArgumentException.class,
+            e -> assertThat(
+                e.getMessage(),
+                containsString(
+                    "Non-text input is not supported for [sparse_embedding] inference endpoints for inference_id ["
+                        + SPARSE_EMBEDDING_INFERENCE_ID
+                        + "]"
+                )
+            )
+        );
+    }
+
+    public void testMultipleInputsWithTextEmbedding() {
+        // INFERENCE_FIELD_2 in INDEX_1 is backed by TEXT_EMBEDDING_INFERENCE_ID
+        assertFailedRequest(
+            new GetInferenceFieldsInternalAction.Request(
+                new String[] { INDEX_1 },
+                generateDefaultWeightFieldMap(Set.of(INFERENCE_FIELD_2)),
+                false,
+                false,
+                new InferenceStringGroup(
+                    List.of(new InferenceString(DataType.TEXT, "first"), new InferenceString(DataType.TEXT, "second"))
+                ),
+                null
+            ),
+            IllegalArgumentException.class,
+            e -> assertThat(
+                e.getMessage(),
+                containsString(
+                    "Multiple text inputs are not supported for [text_embedding] inference endpoints for inference_id ["
+                        + TEXT_EMBEDDING_INFERENCE_ID
+                        + "]"
+                )
+            )
+        );
+    }
+
+    public void testMultipleInputsWithSparseEmbedding() {
+        // INFERENCE_FIELD_1 in INDEX_1 is backed by SPARSE_EMBEDDING_INFERENCE_ID
+        assertFailedRequest(
+            new GetInferenceFieldsInternalAction.Request(
+                new String[] { INDEX_1 },
+                generateDefaultWeightFieldMap(Set.of(INFERENCE_FIELD_1)),
+                false,
+                false,
+                new InferenceStringGroup(
+                    List.of(new InferenceString(DataType.TEXT, "first"), new InferenceString(DataType.TEXT, "second"))
+                ),
+                null
+            ),
+            IllegalArgumentException.class,
+            e -> assertThat(
+                e.getMessage(),
+                containsString(
+                    "Multiple text inputs are not supported for [sparse_embedding] inference endpoints for inference_id ["
+                        + SPARSE_EMBEDDING_INFERENCE_ID
+                        + "]"
+                )
+            )
+        );
+    }
+
     public void testInvalidRequest() {
         final BiConsumer<ActionRequestValidationException, List<String>> validator = (e, l) -> l.forEach(
             s -> assertThat(e.getMessage(), containsString(s))

@@ -41,6 +41,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.xpack.inference.FakeMlPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 
@@ -269,6 +270,10 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
 
     protected static Map<String, Object> semanticTextMapping(String inferenceId) {
         return Map.of("type", SemanticTextFieldMapper.CONTENT_TYPE, "inference_id", inferenceId);
+    }
+
+    protected static Map<String, Object> semanticFieldMapping(String inferenceId) {
+        return Map.of("type", SemanticFieldMapper.CONTENT_TYPE, "inference_id", inferenceId);
     }
 
     protected static Map<String, Object> textMapping() {

@@ -19,10 +19,12 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.LookupQueryVectorBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.queries.GenericQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 import org.junit.Before;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +37,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
     private static final String MIXED_TYPE_FIELD_2 = "mixed-type-field-2";
     private static final String DENSE_VECTOR_FIELD = "dense-vector-field";
     private static final String EMBEDDING_FIELD = "embedding-field";
+    private static final String SEMANTIC_FIELD = "semantic-field";
 
     private static final String COMMON_INFERENCE_ID = "common-inference-id";
     private static final String LOCAL_INFERENCE_ID = "local-inference-id";
@@ -434,6 +437,32 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         }
     }
 
+    public void testKnnQueryWithSemanticFieldTypeOmittingInferenceId() throws Exception {
+        assumeTrue("Test requires semantic field support", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
+        List<Boolean> ccsMinimizeRoundTripsValues = List.of(true, false);
+        for (Boolean ccsMinimizeRoundTrips : ccsMinimizeRoundTripsValues) {
+            final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
+            final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
+            assertSearchResponse(
+                new KnnVectorQueryBuilder(
+                    SEMANTIC_FIELD,
+                    new EmbeddingQueryVectorBuilder(null, new InferenceStringGroup("hello"), null),
+                    10,
+                    100,
+                    10f,
+                    null
+                ),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(SEMANTIC_FIELD)),
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(SEMANTIC_FIELD))
+                ),
+                null,
+                searchRequestModifier
+            );
+        }
+    }
+
     private void knnQueryBaseTestCases(boolean ccsMinimizeRoundTrips) throws Exception {
         final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
         final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
@@ -558,16 +587,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
     }
 
     private void configureClusters() throws Exception {
-        final TestIndexInfo localIndexInfo = new TestIndexInfo(
-            LOCAL_INDEX_NAME,
-            Map.of(
-                COMMON_INFERENCE_ID,
-                textEmbeddingServiceSettings(256, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
-                LOCAL_INFERENCE_ID,
-                textEmbeddingServiceSettings(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
-                EMBEDDING_INFERENCE_ID,
-                embeddingServiceSettings(EMBEDDING_FIELD_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
-            ),
+        Map<String, Object> localFieldMappings = new HashMap<>(
             Map.of(
                 COMMON_INFERENCE_ID_FIELD,
                 semanticTextMapping(COMMON_INFERENCE_ID),
@@ -581,7 +601,9 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                 denseVectorMapping(DENSE_VECTOR_FIELD_DIMENSIONS),
                 EMBEDDING_FIELD,
                 semanticTextMapping(EMBEDDING_INFERENCE_ID)
-            ),
+            )
+        );
+        Map<String, Map<String, Object>> localDocs = new HashMap<>(
             Map.of(
                 getDocId(COMMON_INFERENCE_ID_FIELD),
                 Map.of(COMMON_INFERENCE_ID_FIELD, "a"),
@@ -600,16 +622,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                 Map.of(EMBEDDING_FIELD, "hello")
             )
         );
-        final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
-            REMOTE_INDEX_NAME,
-            Map.of(
-                COMMON_INFERENCE_ID,
-                textEmbeddingServiceSettings(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
-                REMOTE_INFERENCE_ID,
-                textEmbeddingServiceSettings(256, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
-                EMBEDDING_INFERENCE_ID,
-                embeddingServiceSettings(EMBEDDING_FIELD_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
-            ),
+        Map<String, Object> remoteFieldMappings = new HashMap<>(
             Map.of(
                 COMMON_INFERENCE_ID_FIELD,
                 semanticTextMapping(COMMON_INFERENCE_ID),
@@ -623,7 +636,9 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                 denseVectorMapping(DENSE_VECTOR_FIELD_DIMENSIONS),
                 EMBEDDING_FIELD,
                 semanticTextMapping(EMBEDDING_INFERENCE_ID)
-            ),
+            )
+        );
+        Map<String, Map<String, Object>> remoteDocs = new HashMap<>(
             Map.of(
                 getDocId(COMMON_INFERENCE_ID_FIELD),
                 Map.of(COMMON_INFERENCE_ID_FIELD, "x"),
@@ -641,6 +656,38 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                 getDocId(EMBEDDING_FIELD),
                 Map.of(EMBEDDING_FIELD, "hello")
             )
+        );
+        if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
+            localFieldMappings.put(SEMANTIC_FIELD, semanticFieldMapping(EMBEDDING_INFERENCE_ID));
+            localDocs.put(getDocId(SEMANTIC_FIELD), Map.of(SEMANTIC_FIELD, "hello"));
+            remoteFieldMappings.put(SEMANTIC_FIELD, semanticFieldMapping(EMBEDDING_INFERENCE_ID));
+            remoteDocs.put(getDocId(SEMANTIC_FIELD), Map.of(SEMANTIC_FIELD, "hello"));
+        }
+        final TestIndexInfo localIndexInfo = new TestIndexInfo(
+            LOCAL_INDEX_NAME,
+            Map.of(
+                COMMON_INFERENCE_ID,
+                textEmbeddingServiceSettings(256, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                LOCAL_INFERENCE_ID,
+                textEmbeddingServiceSettings(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                EMBEDDING_INFERENCE_ID,
+                embeddingServiceSettings(EMBEDDING_FIELD_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
+            ),
+            localFieldMappings,
+            localDocs
+        );
+        final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
+            REMOTE_INDEX_NAME,
+            Map.of(
+                COMMON_INFERENCE_ID,
+                textEmbeddingServiceSettings(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                REMOTE_INFERENCE_ID,
+                textEmbeddingServiceSettings(256, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                EMBEDDING_INFERENCE_ID,
+                embeddingServiceSettings(EMBEDDING_FIELD_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
+            ),
+            remoteFieldMappings,
+            remoteDocs
         );
         setupTwoClusters(localIndexInfo, remoteIndexInfo);
     }

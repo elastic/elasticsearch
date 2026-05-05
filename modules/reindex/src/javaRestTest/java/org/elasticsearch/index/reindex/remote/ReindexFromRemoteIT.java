@@ -106,7 +106,7 @@ public class ReindexFromRemoteIT extends ESRestTestCase {
         }
     }
 
-    /** Remote is 7.9.x; the reindex client uses scroll search. */
+    /** Remote is 7.9.x, so the reindex client uses scroll search. */
     public void testReindexFromRemote79() throws IOException {
         assumeTrue(
             "test is disabled (windows, path with spaces, or fixtures not wired)",
@@ -119,7 +119,7 @@ public class ReindexFromRemoteIT extends ESRestTestCase {
         reindexFromRemoteCluster("es79.port", "reindex_remote_79_src", "reindex_remote_79_dest");
     }
 
-    /** Remote is 7.10.0; the reindex client uses PIT search. */
+    /** Remote is 7.10.0, so the reindex client uses PIT search. */
     public void testReindexFromRemote710() throws IOException {
         assumeTrue(
             "test is disabled (windows, path with spaces, or fixtures not wired)",
@@ -133,7 +133,7 @@ public class ReindexFromRemoteIT extends ESRestTestCase {
     }
 
     /**
-     * Remote is 8.12.x; the reindex client uses PIT search. Open PIT may include {@code index_filter} when applicable.
+     * Remote is 8.12.x. The reindex client uses PIT search. Open PIT may include {@code index_filter} when applicable.
      */
     public void testReindexFromRemote812() throws IOException {
         assumeTrue(

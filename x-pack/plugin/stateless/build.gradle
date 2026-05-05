@@ -35,6 +35,7 @@ dependencies {
   testImplementation project(':modules:repository-s3')
   testImplementation project(':modules:repository-gcs')
   testImplementation project(':modules:repository-azure')
+  testImplementation project(':modules:reindex')
   testImplementation testArtifact(project(':server'))
   internalClusterTestImplementation testArtifact(project(xpackModule('core')))
   internalClusterTestImplementation project(xpackModule('shutdown'))

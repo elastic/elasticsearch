@@ -129,6 +129,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -174,6 +175,7 @@ import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
+import static org.elasticsearch.index.IndexVersions.SHARD_OBLIVIOUS_SLICING;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.search.rank.feature.RankFeatureShardPhase.EMPTY_RESULT;
 
@@ -2091,7 +2093,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         if (source.slice() != null) {
-            context.sliceBuilder(source.slice());
+            context.sliceBuilder(
+                // search with PIT is documented to require a shared PIT for consistency, and reindex currently still uses
+                // scroll for manual slicing (checked in StatelessReshardSliceIT). So we can continue to use shard optimization for PIT
+                // slices.
+                context.request().scroll() != null && searchExecutionContext.indexVersionCreated().onOrAfter(SHARD_OBLIVIOUS_SLICING)
+                    ? SliceBuilder.withoutShardOptimization(source.slice())
+                    : source.slice()
+            );
         }
 
         if (source.storedFields() != null) {

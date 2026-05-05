@@ -158,7 +158,8 @@ public class TransportPutServiceAccountAction extends HandledTransportAction<Put
         }
         if (roleDescriptor.hasRemoteIndicesPrivileges() || roleDescriptor.hasRemoteClusterPermissions()) {
             return new ElasticsearchSecurityException(
-                "role_descriptor with remote indices or remote cluster privileges is not supported for user-defined service accounts in this POC",
+                "role_descriptor with remote indices or remote cluster privileges is not supported "
+                    + "for user-defined service accounts in this POC",
                 RestStatus.BAD_REQUEST
             );
         }

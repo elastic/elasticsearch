@@ -182,6 +182,19 @@ public class BytesRefArrayTests extends ESTestCase {
         }
     }
 
+    public void testValueMaxByteSize() {
+        int size = randomIntBetween(0, 100);
+        try (BytesRefArray array = new BytesRefArray(size, mockBigArrays())) {
+            int expectedMax = 0;
+            for (int i = 0; i < size; i++) {
+                BytesRef value = new BytesRef(randomByteArrayOfLength(between(0, 20)));
+                array.append(value);
+                expectedMax = Math.max(expectedMax, value.length);
+            }
+            assertThat(array.valueMaxByteSize(), equalTo(expectedMax));
+        }
+    }
+
     public void testAppendPagedBytesCursorSinglePage() {
         try (BytesRefArray array = new BytesRefArray(0, mockBigArrays())) {
             byte[] data = randomByteArrayOfLength(between(1, 100));

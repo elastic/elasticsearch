@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
@@ -47,6 +48,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
     private final String queryText;
     private final int batchSize;
     private final int totalPositions;
+    private final TimeValue timeout;
 
     /**
      * Current position being processed in the input block.
@@ -72,14 +74,16 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
      * @param queryText   The query text to use for reranking.
      * @param inputBlocks The input blocks containing text to rerank.
      * @param batchSize   The maximum number of documents to include in a single inference request.
+     * @param timeout     Timeout for each inference request.
      */
-    RerankRequestIterator(String inferenceId, String queryText, BytesRefBlock[] inputBlocks, int batchSize) {
+    RerankRequestIterator(String inferenceId, String queryText, BytesRefBlock[] inputBlocks, int batchSize, TimeValue timeout) {
         assert inputBlocks.length > 0 : "inputBlocks must not be empty";
         assert inputBlocks[0] != null : "inputBlocks[0] must not be null";
         this.inferenceId = inferenceId;
         this.queryText = queryText;
         this.inputBlocks = inputBlocks;
         this.batchSize = batchSize;
+        this.timeout = timeout;
         this.totalPositions = inputBlocks[0].getPositionCount();
         this.inputBuffer = new ArrayList<>(batchSize);
         this.positionValueCountsBuilder = BulkInferenceRequestItem.positionValueCountsBuilder(batchSize);
@@ -202,7 +206,13 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
         }
 
         // Create a defensive copy since the inputBuffer is reused for subsequent batches
-        return InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(List.copyOf(inputs)).setQuery(queryText).build();
+        InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, TaskType.RERANK)
+            .setInput(List.copyOf(inputs))
+            .setQuery(queryText);
+        if (timeout != null) {
+            builder.setInferenceTimeout(timeout);
+        }
+        return builder.build();
     }
 
     @Override
@@ -219,7 +229,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
     /**
      * Factory for creating {@link RerankRequestIterator} instances.
      */
-    record Factory(String inferenceId, String queryText, ExpressionEvaluator[] inputEvaluators, int batchSize)
+    record Factory(String inferenceId, String queryText, ExpressionEvaluator[] inputEvaluators, int batchSize, TimeValue timeout)
         implements
             BulkInferenceRequestItemIterator.Factory {
 
@@ -231,7 +241,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
                     inputBlocks[i] = (BytesRefBlock) inputEvaluators[i].eval(inputPage);
                 }
 
-                return new RerankRequestIterator(inferenceId, queryText, inputBlocks, batchSize);
+                return new RerankRequestIterator(inferenceId, queryText, inputBlocks, batchSize, timeout);
             } catch (Exception e) {
                 Releasables.closeExpectNoException(inputBlocks);
                 throw e;

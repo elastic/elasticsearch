@@ -144,7 +144,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         return createMapperService(fieldMapping(b -> b.field("type", "date")));
     }
 
-    private static List<SourceToParse> docsWithDatesBetween(long min, long max) throws IOException {
+    private List<SourceToParse> docsWithDatesBetween(long min, long max) throws IOException {
         return List.of(source(b -> b.field("field", min)), source(b -> b.field("field", max)));
     }
 }

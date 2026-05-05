@@ -8,13 +8,16 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -25,7 +28,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
@@ -37,9 +43,11 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -57,7 +65,20 @@ public class PromqlCommand extends UnaryPlan
     /**
      * The name of the column containing the step value (aka time bucket) in range queries.
      */
-    private static final String STEP_COLUMN_NAME = "step";
+
+    public static final String TIME = "time";
+    public static final String START = "start";
+    public static final String END = "end";
+    public static final String STEP = "step";
+    public static final String BUCKETS = "buckets";
+    public static final String SCRAPE_INTERVAL = "scrape_interval";
+    public static final String RANGE = "range";
+    public static final String INDEX = "index";
+    public static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, BUCKETS, SCRAPE_INTERVAL, INDEX);
+
+    // TODO make configurable via lookback_delta parameter and (cluster?) setting
+    public static final Duration DEFAULT_LOOKBACK = Duration.ofMinutes(5);
+    public static final int DEFAULT_PROMQL_BUCKETS = 100;
 
     private final LogicalPlan promqlPlan;
     private final Literal start;
@@ -70,9 +91,10 @@ public class PromqlCommand extends UnaryPlan
     private final String valueColumnName;
     private final NameId valueId;
     private final NameId stepId;
+    private final boolean collapsed;
     private List<Attribute> output;
 
-    // Range query constructor
+    // Range query constructor (collapsed=false)
     public PromqlCommand(
         Source source,
         LogicalPlan child,
@@ -85,7 +107,52 @@ public class PromqlCommand extends UnaryPlan
         String valueColumnName,
         Expression timestamp
     ) {
-        this(source, child, promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, new NameId(), new NameId(), timestamp);
+        this(
+            source,
+            child,
+            promqlPlan,
+            start,
+            end,
+            step,
+            buckets,
+            scrapeInterval,
+            valueColumnName,
+            new NameId(),
+            new NameId(),
+            timestamp,
+            false
+        );
+    }
+
+    // Range query constructor with collapsed flag
+    public PromqlCommand(
+        Source source,
+        LogicalPlan child,
+        LogicalPlan promqlPlan,
+        Literal start,
+        Literal end,
+        Literal step,
+        Literal buckets,
+        Literal scrapeInterval,
+        String valueColumnName,
+        Expression timestamp,
+        boolean collapsed
+    ) {
+        this(
+            source,
+            child,
+            promqlPlan,
+            start,
+            end,
+            step,
+            buckets,
+            scrapeInterval,
+            valueColumnName,
+            new NameId(),
+            new NameId(),
+            timestamp,
+            collapsed
+        );
     }
 
     // Range query constructor
@@ -103,6 +170,25 @@ public class PromqlCommand extends UnaryPlan
         NameId stepId,
         Expression timestamp
     ) {
+        this(source, child, promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, valueId, stepId, timestamp, false);
+    }
+
+    // Full constructor with collapsed flag
+    public PromqlCommand(
+        Source source,
+        LogicalPlan child,
+        LogicalPlan promqlPlan,
+        Literal start,
+        Literal end,
+        Literal step,
+        Literal buckets,
+        Literal scrapeInterval,
+        String valueColumnName,
+        NameId valueId,
+        NameId stepId,
+        Expression timestamp,
+        boolean collapsed
+    ) {
         super(source, child);
         this.promqlPlan = promqlPlan;
         this.start = start;
@@ -114,6 +200,7 @@ public class PromqlCommand extends UnaryPlan
         this.valueId = valueId;
         this.stepId = stepId;
         this.timestamp = timestamp;
+        this.collapsed = collapsed;
     }
 
     @Override
@@ -131,7 +218,8 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp()
+            timestamp(),
+            isCollapsed()
         );
     }
 
@@ -149,7 +237,8 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp()
+            timestamp(),
+            collapsed
         );
     }
 
@@ -169,7 +258,8 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp()
+            timestamp(),
+            collapsed
         );
     }
 
@@ -197,8 +287,31 @@ public class PromqlCommand extends UnaryPlan
             valueColumnName(),
             valueId(),
             stepId(),
-            timestamp()
+            timestamp(),
+            collapsed
         );
+    }
+
+    public PromqlCommand withCollapsed(boolean collapsed) {
+        return new PromqlCommand(
+            source(),
+            child(),
+            promqlPlan(),
+            start(),
+            end(),
+            step(),
+            buckets(),
+            scrapeInterval(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp(),
+            collapsed
+        );
+    }
+
+    public boolean isCollapsed() {
+        return collapsed;
     }
 
     @Override
@@ -268,7 +381,7 @@ public class PromqlCommand extends UnaryPlan
     }
 
     public String stepColumnName() {
-        return STEP_COLUMN_NAME;
+        return STEP;
     }
 
     public NameId valueId() {
@@ -306,7 +419,20 @@ public class PromqlCommand extends UnaryPlan
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, valueId, stepId, timestamp);
+        return Objects.hash(
+            child(),
+            promqlPlan,
+            start,
+            end,
+            step,
+            buckets,
+            scrapeInterval,
+            valueColumnName,
+            valueId,
+            stepId,
+            timestamp,
+            collapsed
+        );
     }
 
     @Override
@@ -324,7 +450,8 @@ public class PromqlCommand extends UnaryPlan
                 && Objects.equals(valueColumnName, other.valueColumnName)
                 && Objects.equals(valueId, other.valueId)
                 && Objects.equals(stepId, other.stepId)
-                && Objects.equals(timestamp, other.timestamp);
+                && Objects.equals(timestamp, other.timestamp)
+                && collapsed == other.collapsed;
         }
 
         return false;
@@ -340,7 +467,7 @@ public class PromqlCommand extends UnaryPlan
         sb.append("] scrape_interval=[").append(scrapeInterval);
         sb.append("] valueColumnName=[").append(valueColumnName);
         sb.append("] promql=[<>\n");
-        sb.append(promqlPlan.toString());
+        sb.append(promqlPlan.toString(format));
         sb.append("\n<>]]");
     }
 
@@ -474,6 +601,9 @@ public class PromqlCommand extends UnaryPlan
                                 )
                             );
                         }
+                        if (comp.boolMode() == false && PromqlPlan.returnsScalar(comp.left()) && PromqlPlan.returnsScalar(comp.right())) {
+                            failures.add(fail(comp, "Comparisons [{}] between scalars must use the BOOL modifier", comp.op()));
+                        }
                     }
                     if (binaryOperator instanceof VectorBinarySet) {
                         failures.add(fail(lp, "set operators are not supported at this time [{}]", lp.sourceText()));
@@ -514,7 +644,7 @@ public class PromqlCommand extends UnaryPlan
                 return;
             }
             var counterSupport = metadata.counterSupport();
-            if (DataType.isCounter(seriesType) && counterSupport == PromqlFunctionRegistry.CounterSupport.UNSUPPORTED) {
+            if (DataType.isCounter(seriesType) && counterSupport == PromqlFunctionDefinition.CounterSupport.UNSUPPORTED) {
                 failures.add(
                     fail(
                         functionCall,
@@ -526,7 +656,7 @@ public class PromqlCommand extends UnaryPlan
                         functionCall.sourceText()
                     )
                 );
-            } else if (DataType.isCounter(seriesType) == false && counterSupport == PromqlFunctionRegistry.CounterSupport.REQUIRED) {
+            } else if (DataType.isCounter(seriesType) == false && counterSupport == PromqlFunctionDefinition.CounterSupport.REQUIRED) {
                 failures.add(
                     fail(
                         functionCall,
@@ -539,5 +669,75 @@ public class PromqlCommand extends UnaryPlan
                 );
             }
         }
+    }
+
+    /**
+     * Returns the maximum explicit range-selector window across all function calls in the PromQL plan.
+     * Implicit placeholders are resolved to {@code max(step, scrape_interval)}.
+     * Returns {@link Duration#ZERO} when there are no range selectors.
+     */
+    public Duration maxRangeSelectorWindow() {
+        Duration max = Duration.ZERO;
+        for (var call : promqlPlan().collect(PromqlFunctionCall.class)) {
+            if (call.child() instanceof RangeSelector selector) {
+                var r = selector.range();
+                Duration local;
+                if (isImplicitRangePlaceholder(r)) {
+                    local = foldDuration(resolveImplicitRangeWindow(), RANGE);
+                } else if (r.foldable()) {
+                    local = foldDuration(r, RANGE);
+                } else {
+                    continue;
+                }
+                if (local.compareTo(max) > 0) {
+                    max = local;
+                }
+            }
+        }
+        return max;
+    }
+
+    private static boolean isImplicitRangePlaceholder(Expression range) {
+        return range.foldable()
+            && range.fold(FoldContext.small()) instanceof Duration duration
+            && duration.equals(PromqlLogicalPlanBuilder.IMPLICIT_RANGE_PLACEHOLDER);
+    }
+
+    private static Duration foldDuration(Expression expression, String paramName) {
+        if (expression != null && expression.foldable() && expression.fold(FoldContext.small()) instanceof Duration duration) {
+            return duration;
+        }
+        throw new QlIllegalArgumentException("Expected [{}] to be a duration literal, got [{}]", paramName, expression);
+    }
+
+    /**
+     * Resolves the implicit range placeholder to a concrete duration based on step and scrape interval.
+     * The implicit window is calculated as {@code max(step, scrape_interval)}.
+     */
+    public Literal resolveImplicitRangeWindow() {
+        Duration step = foldDuration(resolveTimeBucketSize(), STEP);
+        Duration scrapeInterval = foldDuration(scrapeInterval(), SCRAPE_INTERVAL);
+        return Literal.timeDuration(source(), step.compareTo(scrapeInterval) >= 0 ? step : scrapeInterval);
+    }
+
+    public Expression resolveTimeBucketSize() {
+        if (isRangeQuery()) {
+            if (step().value() != null) {
+                return step();
+            }
+            return resolveAutoStepFromBuckets();
+        }
+        // use default lookback for instant queries
+        return Literal.timeDuration(source(), DEFAULT_LOOKBACK);
+    }
+
+    private Literal resolveAutoStepFromBuckets() {
+        Bucket autoBucket = new Bucket(buckets().source(), timestamp(), buckets(), start(), end(), ConfigurationAware.CONFIGURATION_MARKER);
+        long rangeStart = ((Number) start().value()).longValue();
+        long rangeEnd = ((Number) end().value()).longValue();
+        var rounding = autoBucket.getDateRounding(FoldContext.small(), rangeStart, rangeEnd);
+        long roundedStart = rounding.round(rangeStart);
+        long nextRoundedValue = rounding.nextRoundingValue(roundedStart);
+        return Literal.timeDuration(source(), Duration.ofMillis(Math.max(1L, nextRoundedValue - roundedStart)));
     }
 }

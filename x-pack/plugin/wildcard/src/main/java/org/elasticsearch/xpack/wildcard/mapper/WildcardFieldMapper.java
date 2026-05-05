@@ -991,7 +991,8 @@ public class WildcardFieldMapper extends FieldMapper {
             return (cache, breakerService) -> new StringBinaryIndexFieldData(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                WildcardDocValuesField::new
+                WildcardDocValuesField::new,
+                indexVersion
             );
         }
 
@@ -1139,10 +1140,10 @@ public class WildcardFieldMapper extends FieldMapper {
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(() -> {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath()));
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexVersionCreated));
             if (ignoreAbove.valuesPotentiallyIgnored()) {
                 if (storeIgnoredFieldsInBinaryDocValues) {
-                    layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(originalName()));
+                    layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(originalName(), indexVersionCreated));
                 } else {
                     layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName()) {
                         @Override

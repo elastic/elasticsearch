@@ -1842,3 +1842,28 @@ setup:
   - match: { hits.hits.1._source._inference_fields.sparse_field.inference.inference_id: sparse-inference-id-2 }
   - match: { hits.hits.1._source._inference_fields.sparse_field.inference.model_settings.service: alternate_sparse_embedding_test_service }
   - exists: hits.hits.1._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+
+---
+"Setting use_legacy_format to true is not allowed for new indices":
+  - requires:
+      cluster_features: "semantic_text.prevent_legacy_format_new_indices"
+      reason: legacy format is forbidden for new indices
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-legacy-format-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "/.*use_legacy_format.*legacy.semantic.text.format.is.not.supported.for.new.indices.*/" }

@@ -73,7 +73,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -510,7 +509,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         String justSmallEnoughModel = "just-small-enough-model";
         long cbBytes = 13;
         withTrainedModel(smallModel1, cbBytes / 2);
-        withTrainedModel(smallModel1, cbBytes / 2);
+        withTrainedModel(smallModel2, cbBytes / 2);
         long justSmallEnoughModelBytes = cbBytes - 1;
         withTrainedModel(justSmallEnoughModel, justSmallEnoughModelBytes);
         CircuitBreaker circuitBreaker = new CustomCircuitBreaker(cbBytes);
@@ -533,8 +532,8 @@ public class ModelLoadingServiceTests extends ESTestCase {
         modelLoadingService.clusterChanged(ingestChangedEvent(smallModel1, smallModel2));
 
         assertBusy(() -> {
-            assertThat(circuitBreaker.getUsed(), greaterThan(0L));
-            assertThat(circuitBreaker.getTrippedCount(), equalTo(0L));
+            assertTrue(modelLoadingService.isModelCached(smallModel1));
+            assertTrue(modelLoadingService.isModelCached(smallModel2));
         }, 2, TimeUnit.SECONDS);
 
         AtomicBoolean modelLoaded = new AtomicBoolean(false);

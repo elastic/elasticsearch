@@ -467,6 +467,15 @@ public class BlockFactory {
         return new BytesRefBlockBuilder(estimatedSize, bigArrays, this);
     }
 
+    /**
+     * Creates a {@link BytesRefBlock.Builder} with a byte-level storage hint. The hint
+     * pre-sizes the internal byte buffer so that columns with known payload size (e.g.
+     * from Parquet column-chunk metadata) avoid repeated grow-on-demand resizes.
+     */
+    public BytesRefBlock.Builder newBytesRefBlockBuilder(int estimatedSize, long byteHint) {
+        return new BytesRefBlockBuilder(estimatedSize, bigArrays, this, byteHint);
+    }
+
     public BytesRefBlock newBytesRefArrayBlock(BytesRefArray values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
         var b = new BytesRefArrayBlock(values, pc, firstValueIndexes, nulls, mvOrdering, this);
         adjustBreaker(b.ramBytesUsed() - values.bigArraysRamBytesUsed());
@@ -597,7 +606,16 @@ public class BlockFactory {
         DoubleBlock zeroThresholds,
         BytesRefBlock encodedHistograms
     ) {
-        return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
+        return new ExponentialHistogramArrayBlock(
+            encodedHistograms,
+            minima,
+            maxima,
+            sums,
+            valueCounts,
+            zeroThresholds,
+            encodedHistograms.getPositionCount(),
+            null
+        );
     }
 
     public BlockLoader.Block newTDigestBlockFromDocValues(
@@ -607,7 +625,7 @@ public class BlockFactory {
         DoubleBlock sums,
         LongBlock counts
     ) {
-        return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, counts);
+        return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, counts, encodedDigests.getPositionCount(), null);
     }
 
     public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
@@ -631,16 +649,7 @@ public class BlockFactory {
     public LongRangeBlock newConstantLongRangeBlock(LongRangeBlockBuilder.LongRange value, int positions) {
         try (var builder = newLongRangeBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
-                if (value.from() == null) {
-                    builder.from().appendNull();
-                } else {
-                    builder.from().appendLong(value.from());
-                }
-                if (value.to() == null) {
-                    builder.to().appendNull();
-                } else {
-                    builder.to().appendLong(value.to());
-                }
+                builder.appendLongRange(value);
             }
             return builder.build();
         }

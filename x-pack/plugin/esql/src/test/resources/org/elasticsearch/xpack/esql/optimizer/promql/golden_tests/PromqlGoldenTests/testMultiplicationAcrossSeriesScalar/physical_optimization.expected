@@ -1,0 +1,11 @@
+ProjectExec[[max_bits{r}#0, step{r}#1]]
+\_LimitExec[10000[INTEGER],null]
+  \_FilterExec[ISNOTNULL(max_bits{r}#0)]
+    \_EvalExec[[TODOUBLE(max_bits{r}#2) * 8.0[DOUBLE] AS max_bits#3, TODOUBLE(max_bits{r}#3) AS max_bits#0]]
+      \_AggregateExec[[step{r}#1],[MAX(LASTOVERTIME_$1{r}#4,true[BOOLEAN],PT0S[TIME_DURATION]) AS max_bits#2, step{r}#1],SINGLE,[step{r}#1, $$max_bits$max{r}#5, $$max_bits$seen{r}#6],null]
+        \_TimeSeriesAggregateExec[[_tsid{m}#7, step{r}#1],[LASTOVERTIME(network.total_bytes_in{f}#8,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#9) AS LASTOVERTIME_$1#4, step{r}#1 AS step#1],FINAL,[_tsid{m}#7, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#10, $$LASTOVERTIME_$1$values{r}#11],null,BUCKET(@timestamp{f}#9,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#9,PT1H[TIME_DURATION]),false]
+          \_ExchangeExec[[_tsid{m}#7, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#10, $$LASTOVERTIME_$1$values{r}#11],true]
+            \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+TimeSeriesAggregate[[_tsid{m}#7, step{r}#1],[LASTOVERTIME(network.total_bytes_in{f}#8,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#9) AS LASTOVERTIME_$1#4, step{r}#1 AS step#1],BUCKET(@timestamp{f}#9,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#9,PT1H[TIME_DURATION]),@timestamp{f}#9,false]
+\_Eval[[BUCKET(@timestamp{f}#9,PT1H[TIME_DURATION]) AS step#1]]
+  \_EsRelation[k8s][@timestamp{f}#9, client.ip{f}#12, cluster{f}#13, event{f}#14, event_city{f}#15, event_city_boundary{f}#16, event_location{f}#17, event_log{f}#18, event_shape{f}#19, events_received{f}#20, network.bytes_in{f}#21, network.cost{f}#22, network.eth0.currently_connected_clients{f}#23, network.eth0.firmware_version{f}#24, network.eth0.last_up{f}#25, network.eth0.rx{f}#26, network.eth0.tx{f}#27, network.eth0.up{f}#28, network.total_bytes_in{f}#8, network.total_bytes_out{f}#29, network.total_cost{f}#30, pod{f}#31, region{f}#32, _tsid{m}#7]<>]]

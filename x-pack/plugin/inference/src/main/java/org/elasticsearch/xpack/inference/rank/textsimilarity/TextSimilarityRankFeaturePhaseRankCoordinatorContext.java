@@ -27,6 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 
 /**
  * A {@code RankFeaturePhaseRankCoordinatorContext} that performs a rerank inference call to determine relevance scores for documents within
@@ -145,7 +146,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             docFeatures,
             Map.of(),
             InputType.INTERNAL_SEARCH,
-            InferenceAction.Request.DEFAULT_TIMEOUT,
+            TIMEOUT_NOT_DETERMINED,
             false
         );
     }

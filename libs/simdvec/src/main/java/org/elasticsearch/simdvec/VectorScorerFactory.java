@@ -37,7 +37,7 @@ public interface VectorScorerFactory {
      * @param values the random access vector values
      * @return an optional containing the vector scorer supplier, or empty
      */
-    Optional<RandomVectorScorerSupplier> getFloatVectorScorerSupplier(
+    Optional<RandomVectorScorerSupplier> getFloat32VectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
         FloatVectorValues values
@@ -71,7 +71,7 @@ public interface VectorScorerFactory {
      * @param values the random access vector values
      * @return an optional containing the vector scorer supplier, or empty
      */
-    Optional<RandomVectorScorerSupplier> getByteVectorScorerSupplier(
+    Optional<RandomVectorScorerSupplier> getInt8VectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
         ByteVectorValues values
@@ -86,7 +86,7 @@ public interface VectorScorerFactory {
      * @param queryVector the query vector
      * @return an optional containing the vector scorer, or empty
      */
-    Optional<RandomVectorScorer> getFloatVectorScorer(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector);
+    Optional<RandomVectorScorer> getFloat32VectorScorer(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector);
 
     /**
      * Returns an optional containing a bfloat16 vector scorer for
@@ -108,7 +108,7 @@ public interface VectorScorerFactory {
      * @param queryVector the query vector
      * @return an optional containing the vector scorer, or empty
      */
-    Optional<RandomVectorScorer> getByteVectorScorer(VectorSimilarityFunction sim, ByteVectorValues values, byte[] queryVector);
+    Optional<RandomVectorScorer> getInt8VectorScorer(VectorSimilarityFunction sim, ByteVectorValues values, byte[] queryVector);
 
     /**
      * Returns an optional containing an int7 scalar quantized vector score supplier

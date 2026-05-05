@@ -214,6 +214,7 @@ public class TestPolicyManager extends PolicyManager {
 
     private static final String[] TEST_FRAMEWORK_PACKAGE_PREFIXES = {
         "org.gradle",
+        "worker.org.gradle", // gradle-worker.jar shades its runtime under a "worker." prefix
 
         "org.jcodings", // A library loaded with SPI that tries to create a CharsetProvider
         "com.google.common.jimfs", // Used on Windows

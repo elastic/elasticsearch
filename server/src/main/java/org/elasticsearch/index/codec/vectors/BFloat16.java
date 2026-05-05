@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
 
 public final class BFloat16 {
@@ -50,7 +51,7 @@ public final class BFloat16 {
 
     public static void bFloat16ToFloat(byte[] bfBytes, float[] floats) {
         assert floats.length * 2 == bfBytes.length;
-        ESVectorUtil.bFloat16ToFloat(ByteBuffer.wrap(bfBytes).asShortBuffer(), floats);
+        ESVectorUtil.bFloat16ToFloat(ByteBuffer.wrap(bfBytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer(), floats);
     }
 
     public static void bFloat16ToFloat(ShortBuffer bFloats, float[] floats) {

@@ -20,10 +20,10 @@ import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.ShortBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.nio.ShortBuffer;
 import java.util.Random;
 import java.util.function.ToLongBiFunction;
 

@@ -1560,6 +1560,57 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return readMultiRegions(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion, endRegion);
         }
 
+        /**
+         * Asynchronous, fire-and-forget method for fetching and calling madvise WILLNEED.
+         * <p>
+         * This method returns as soon as the per-region work has been dispatched.
+         */
+        public void populateAndPrefetch(final ByteRange rangeToWrite, final RangeMissingHandler writer) {
+            assert rangeToWrite.start() >= 0 : rangeToWrite;
+            if (rangeToWrite.isEmpty()) {
+                return;
+            }
+            final int startRegion = getRegion(rangeToWrite.start());
+            final int endRegion = getEndingRegion(rangeToWrite.end());
+            for (int r = startRegion; r <= endRegion; r++) {
+                final int region = r;
+                final ByteRange subRange = mapSubRangeToRegion(rangeToWrite, region);
+                if (subRange.isEmpty()) {
+                    continue;
+                }
+                final CacheFileRegion<KeyType> fileRegion;
+                try {
+                    fileRegion = get(cacheKey, length, region);
+                } catch (AlreadyClosedException e) {
+                    logger.debug(() -> Strings.format("cache region [%d] for [%s] already closed, skipping prefetch", region, cacheKey), e);
+                    continue;
+                }
+                final long regionStart = getRegionStart(region);
+                final RangeAvailableHandler prefetchRangeAvailableHandler = (channel, channelPos, relativePos, len) -> {
+                    channel.prefetch(channelPos, len);
+                    return len;
+                };
+
+                fileRegion.populateAndRead(
+                    subRange,
+                    subRange,
+                    prefetchRangeAvailableHandler,
+                    writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
+                    ioExecutor,
+                    ActionListener.wrap(
+                        bytesRead -> {
+                            // TODO monitoring
+                        },
+                        // TODO monitoring
+                        e -> logger.debug(
+                            () -> Strings.format("failed to prefetch [%s] in region [%d] for [%s]", subRange, region, cacheKey),
+                            e
+                        )
+                    )
+                );
+            }
+        }
+
         private int readSingleRegion(
             ByteRange rangeToWrite,
             ByteRange rangeToRead,

@@ -146,13 +146,14 @@ public final class JdkVectorLibrary implements VectorLibrary {
             functions.forEach(f -> operations.forEach(op -> {
                 String typeName = switch (type) {
                     case INT7U -> "i7u";
+                    case INT2 -> "i2";
                     case INT4 -> "i4";
                     case INT8 -> "i8";
                     case FLOAT32 -> "f32";
                 };
                 FunctionDescriptor descriptor = switch (op) {
                     case SINGLE -> switch (type) {
-                        case INT7U, INT4 -> intSingle;
+                        case INT7U, INT2, INT4 -> intSingle;
                         case INT8, FLOAT32 -> floatSingle;
                     };
                     case BULK, BULK_SPARSE -> bulk;
@@ -256,8 +257,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
             if (finalVecCaps > 0) {
 
                 HANDLES = new NativeFunctions()
-                    // Only DOT_PRODUCT is needed for int4 — other functions are computed by applying correction terms on top of the raw
-                    // dot.
+                    // Only DOT_PRODUCT is needed for int2 / int4 — other functions are computed by applying correction terms on top of
+                    // the raw dot.
+                    .add(DataType.INT2, List.of(Function.DOT_PRODUCT), NativeFunctions.allOperations())
                     .add(DataType.INT4, List.of(Function.DOT_PRODUCT), NativeFunctions.allOperations())
                     .add(DataType.INT7U, List.of(Function.DOT_PRODUCT, Function.SQUARE_DISTANCE), NativeFunctions.allOperations())
                     // Only byte vectors have cosine as other types are normalized to unit length to use dot_product instead
@@ -344,6 +346,11 @@ public final class JdkVectorLibrary implements VectorLibrary {
         return INSTANCE;
     }
 
+    /**
+     * The static {@code dotProduct*}, {@code cosine*}, and {@code squareDistance*} methods on this
+     * inner class are resolved at HANDLES init via {@link java.lang.invoke.MethodHandles.Lookup#findStatic}.
+     */
+    @SuppressWarnings("unused")
     private static final class JdkVectorSimilarityFunctions implements VectorSimilarityFunctions {
 
         /**
@@ -626,6 +633,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
             checkByteSize(a.byteSize(), b.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceInt(squareI7uHandle, a, b, length);
+        }
+
+        private static final MethodHandle dotI2Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT2, Operation.SINGLE)
+        );
+
+        static int dotProductI2(MemorySegment a, MemorySegment b, int elementCount) {
+            Objects.checkFromIndexSize(0L, 4L * elementCount, a.byteSize());
+            Objects.checkFromIndexSize(0L, elementCount, b.byteSize());
+            return callSingleDistanceInt(dotI2Handle, a, b, elementCount);
         }
 
         private static final MethodHandle dotI4Handle = HANDLES.get(
@@ -1009,6 +1026,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                         case INT7U:
                                             type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
                                             checkMethod += "I7u";
+                                            break;
+                                        case INT2:
+                                            type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
+                                            checkMethod += "I2";
                                             break;
                                         case INT4:
                                             type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);

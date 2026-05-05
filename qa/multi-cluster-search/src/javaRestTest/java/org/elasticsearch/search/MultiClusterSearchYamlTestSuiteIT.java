@@ -68,13 +68,6 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         remoteAdmin.close();
     }
 
-    @AfterClass
-    public static void closeSearchClients() throws IOException {
-        if (remoteService != null) {
-            remoteService = null;
-        }
-    }
-
     @Override
     protected ClientYamlTestExecutionContext createRestTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,

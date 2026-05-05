@@ -158,7 +158,7 @@ tasks.register("cargoBuild", Exec) {
   workingDir nativeDir
 
   def cargoPath = org.gradle.internal.os.OperatingSystem.current().findInPath("cargo")
-  commandLine cargoPath.absolutePath, "build", "--release"
+  commandLine cargoPath?.absolutePath ?: "cargo", "build", "--release"
 
   inputs.dir("${nativeDir}/src")
   inputs.file("${nativeDir}/Cargo.toml")

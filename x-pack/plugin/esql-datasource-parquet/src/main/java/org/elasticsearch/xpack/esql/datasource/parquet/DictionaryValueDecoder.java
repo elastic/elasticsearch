@@ -19,6 +19,20 @@ import java.util.Arrays;
  * Bulk decoder for RLE_DICTIONARY-encoded Parquet values. Reads a 1-byte bit width header,
  * then decodes RLE hybrid-encoded dictionary indices and gathers typed values from the
  * {@link Dictionary}.
+ *
+ * <p>In addition to the typed read methods that resolve indices through the dictionary,
+ * the decoder also exposes raw indices via {@code readIndices} and the decoded dictionary
+ * via {@code getDictionaryBytesRefs}, which together let callers emit an ordinal-backed
+ * {@code OrdinalBytesRefBlock} without materializing every value as a separate {@code BytesRef}.
+ *
+ * <p>Lifetime / threading: pages emitted by {@code PageColumnReader} can be consumed
+ * asynchronously by a different driver thread, possibly after the row group has been
+ * released. The cached {@code BytesRef[]} returned by {@code getDictionaryBytesRefs} is built
+ * by calling {@link org.apache.parquet.io.api.Binary#getBytes()}, whose contract in
+ * parquet-mr is to return a JVM-owned, freshly-allocated {@code byte[]} (it does not return a
+ * view into a shared buffer). Downstream consumers that intend to outlive the row group
+ * should still copy the bytes into ESQL-managed storage (e.g. via
+ * {@link org.elasticsearch.common.util.BytesRefArray#append}) before publishing.
  */
 final class DictionaryValueDecoder {
 
@@ -81,20 +95,32 @@ final class DictionaryValueDecoder {
     }
 
     void readBinaries(BytesRef[] values, int offset, int count, Dictionary dict) {
+        BytesRef[] entries = getDictionaryBytesRefs(dict);
+        for (int i = 0; i < count; i++) {
+            values[offset + i] = entries[nextIndex()];
+        }
+    }
+
+    void readIndices(int[] indices, int offset, int count) {
+        for (int i = 0; i < count; i++) {
+            indices[offset + i] = nextIndex();
+        }
+    }
+
+    BytesRef[] getDictionaryBytesRefs(Dictionary dict) {
         Check.notNull(dict, "dictionary");
         assert cachedDict == null || cachedDict == dict;
         if (cachedDictBytesRefs == null) {
             int size = dict.getMaxId() + 1;
-            cachedDictBytesRefs = new BytesRef[size];
+            BytesRef[] entries = new BytesRef[size];
             for (int i = 0; i < size; i++) {
                 byte[] bytes = dict.decodeToBinary(i).getBytes();
-                cachedDictBytesRefs[i] = new BytesRef(bytes, 0, bytes.length);
+                entries[i] = new BytesRef(bytes, 0, bytes.length);
             }
+            cachedDictBytesRefs = entries;
             cachedDict = dict;
         }
-        for (int i = 0; i < count; i++) {
-            values[offset + i] = cachedDictBytesRefs[nextIndex()];
-        }
+        return cachedDictBytesRefs;
     }
 
     void skip(int count) {

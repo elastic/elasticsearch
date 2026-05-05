@@ -827,7 +827,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         assertThat(getAttributes(recordingMeterRegistry).size(), equalTo(3));
         assertThat(getAttributes(recordingMeterRegistry).get("repo_type"), equalTo("gcs"));
         assertThat(getAttributes(recordingMeterRegistry).get("operation"), equalTo("ListObjects"));
-        assertThat(getAttributes(recordingMeterRegistry).get("operation_purpose"), equalTo(OperationPurpose.INDICES.getKey()));
+        assertThat(getAttributes(recordingMeterRegistry).get("purpose"), equalTo(OperationPurpose.INDICES.getKey()));
 
     }
 }

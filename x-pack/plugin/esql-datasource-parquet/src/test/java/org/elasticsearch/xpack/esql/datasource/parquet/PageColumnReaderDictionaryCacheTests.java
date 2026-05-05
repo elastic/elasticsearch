@@ -116,21 +116,37 @@ public class PageColumnReaderDictionaryCacheTests extends ESTestCase {
             assertEquals(numRows, totalRows);
             assertEquals("every page should have hit the ordinal fast path", pages.size(), ordinalPagesSeen);
 
-            // Sharing-by-breaker check. The first-page mark captures one chunk's footprint
-            // (dict array + per-batch wrapper). With sharing, holding all pages alive only adds
-            // wrapper overhead per page (small) on top of that. Without sharing, each page would
-            // pay another full dict-array allocation, which would push usage well past 5x the
-            // first-page mark even at this small dict size. We pick 5x as a generous ceiling.
+            // Sharing-by-breaker check, expressed as the average bytes added per additional
+            // page rather than a multiplicative ratio. The first-page mark captures the full
+            // chunk footprint (dict array + first wrapper + ordinals + page bookkeeping).
+            // With sharing: each subsequent page adds only wrapper + ordinals + page overhead
+            // — observed locally at ~1 KB / page for a 64-entry dict, far below the first-page
+            // mark since the dict array dominates that baseline.
+            // Without sharing (the regression we want to detect): every page deep-copies the
+            // dict, so per-page growth approximates the *entire* first-page mark.
+            // Bounding per-page growth at 1/3 of the first-page mark cleanly separates the two
+            // regimes: shared sits around 0.15x; per-batch deep copy would land near 1.0x.
             long peak = breaker.getUsed();
+            long extraPages = pages.size() - 1;
+            long perPageGrowth = extraPages > 0 ? (peak - usedAfterFirstPage) / extraPages : 0;
+            long perPageCeiling = usedAfterFirstPage / 3;
+            logger.debug(
+                "dict cache test breaker stats: usedAfterFirstPage={}, peak={}, pages={}, perPageGrowth={}, perPageCeiling={}",
+                usedAfterFirstPage,
+                peak,
+                pages.size(),
+                perPageGrowth,
+                perPageCeiling
+            );
             assertTrue(
-                "peak breaker usage ["
-                    + peak
-                    + "] should be bounded relative to first-page footprint ["
-                    + usedAfterFirstPage
-                    + "] given "
+                "average per-page breaker growth ["
+                    + perPageGrowth
+                    + " bytes] should stay below 1/3 of first-page footprint ["
+                    + perPageCeiling
+                    + " bytes] across "
                     + pages.size()
-                    + " pages — a per-batch deep copy would scale linearly",
-                peak < usedAfterFirstPage * 5
+                    + " pages — a per-batch deep copy of the dictionary would push this near 1.0x",
+                perPageGrowth < perPageCeiling
             );
         } finally {
             List<Page> shuffled = new ArrayList<>(pages);

@@ -1136,9 +1136,11 @@ final class PageColumnReader implements Releasable {
 
     private BytesRefVector buildDictionaryVector(BytesRef[] entries, BlockFactory blockFactory) {
         BytesRefArray array = ensureCachedDictArray(entries, blockFactory);
-        // newBytesRefArrayVector takes ownership of one ref of the array (its closeInternal calls
-        // values.close() -> decRef()). To keep our cached ref alive across batches we incRef before
-        // handing the array to the wrapper.
+        // newBytesRefArrayVector takes ownership of one ref of the array: its closeInternal calls
+        // values.close() -> decRef(). The class Javadoc on BytesRefArrayVector that says it "does
+        // not take ownership" is misleading on the refcount side and applies only to the
+        // breaker accounting (which the factory adjusts here). To keep our cached ref alive
+        // across batches, incRef before handing the array to the wrapper.
         array.incRef();
         boolean success = false;
         try {
@@ -1156,8 +1158,11 @@ final class PageColumnReader implements Releasable {
         if (cachedDictArray != null && cachedDictArraySource == dictionary) {
             return cachedDictArray;
         }
-        // Either first call for this reader or the dictionary changed (defensive — shouldn't
-        // happen mid-chunk in practice). Drop any stale cache before rebuilding.
+        // First call for this reader, or — and this should never happen given parquet-mr keeps
+        // one Dictionary per chunk and a PageColumnReader reads exactly one chunk — the
+        // Dictionary identity changed mid-reader. Assert in dev/test builds so a violated
+        // invariant fails loudly; rebuild rather than reuse a stale cache in production.
+        assert cachedDictArray == null : "PageColumnReader saw a Dictionary identity change mid-chunk; reader should have been replaced";
         releaseCachedDictArray();
         BytesRefArray array = new BytesRefArray(entries.length, blockFactory.bigArrays());
         boolean success = false;

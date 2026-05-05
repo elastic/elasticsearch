@@ -927,14 +927,14 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         worker.rethrottle(1f);
         action.start();
 
-        SearchHit hit = SearchHit.unpooled(0, "id").sourceRef(new BytesArray("{}"));
-        hit.sortValues(new Object[] { 0L, "id" }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
-        SearchHits hits = SearchHits.unpooled(
-            IntStream.range(0, 100).mapToObj(i -> hit).toArray(SearchHit[]::new),
-            new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-            0
-        );
+        SearchHit[] hitArray = IntStream.range(0, 100).mapToObj(i -> {
+            SearchHit h = new SearchHit(i, "id").sourceRef(new BytesArray("{}"));
+            h.sortValues(new Object[] { 0L, "id" }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
+            return h;
+        }).toArray(SearchHit[]::new);
+        SearchHits hits = new SearchHits(hitArray, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0);
         SearchResponse searchResponse = SearchResponseUtils.response(hits).pointInTimeId(TEST_PIT_ID).shards(5, 4, 0).build();
+        hits.decRef(); // transfer ownership to searchResponse
         try {
             client.lastSearch.get().listener.onResponse(searchResponse);
 

@@ -197,6 +197,9 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
      * @param toAdd the histogram to merge
      */
     public void add(ExponentialHistogram toAdd) {
+        if (toAdd.isEmpty()) {
+            return;
+        }
         ExponentialHistogram a = result == null ? ExponentialHistogram.empty() : result;
         ExponentialHistogram b = toAdd;
 

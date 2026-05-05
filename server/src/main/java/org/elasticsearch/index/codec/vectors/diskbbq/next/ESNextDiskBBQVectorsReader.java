@@ -898,6 +898,20 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         }
 
         @Override
+        protected int docToBulkScore(int[] docIds, int[] offsets, Bits acceptDocs, int bulkSize) {
+            int docToScore = 0;
+            for (int i = 0; i < bulkSize; i++) {
+                if (docIds[i] == -1 || (acceptDocs != null && acceptDocs.get(docIds[i]) == false)) {
+                    docIds[i] = -1;
+                } else {
+                    offsets[docToScore] = i;
+                    docToScore++;
+                }
+            }
+            return docToScore;
+        }
+
+        @Override
         protected void readDocIds(int count) {
             for (int j = 0; j < count; j++) {
                 int docId = floatVectorValues.ordToDoc(docBase++);
@@ -1031,8 +1045,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             return maxScore;
         }
 
-        private static int docToBulkScore(int[] docIds, int[] offsets, Bits acceptDocs, int bulkSize) {
-            assert acceptDocs != null : "acceptDocs must not be null";
+        protected int docToBulkScore(int[] docIds, int[] offsets, Bits acceptDocs, int bulkSize) {
+            if (acceptDocs == null) {
+                return bulkSize;
+            }
             int docToScore = 0;
             for (int i = 0; i < bulkSize; i++) {
                 if (docIds[i] == -1 || acceptDocs.get(docIds[i]) == false) {
@@ -1087,9 +1103,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             for (; i < limit; i += BULK_SIZE) {
                 // read the doc ids
                 readDocIds(BULK_SIZE);
-                final int docsToBulkScore = acceptDocs == null
-                    ? BULK_SIZE
-                    : docToBulkScore(docIdsScratch, offsetsScratch, acceptDocs, BULK_SIZE);
+                final int docsToBulkScore = docToBulkScore(docIdsScratch, offsetsScratch, acceptDocs, BULK_SIZE);
                 if (docsToBulkScore == 0) {
                     indexInput.skipBytes(quantizedByteLength * BULK_SIZE);
                     continue;
@@ -1133,9 +1147,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             if (i < vectors) {
                 int tailSize = vectors - i;
                 readDocIds(tailSize);
-                final int docsToBulkScore = acceptDocs == null
-                    ? tailSize
-                    : docToBulkScore(docIdsScratch, offsetsScratch, acceptDocs, tailSize);
+                final int docsToBulkScore = docToBulkScore(docIdsScratch, offsetsScratch, acceptDocs, tailSize);
                 if (docsToBulkScore == 0) {
                     indexInput.skipBytes(quantizedByteLength * tailSize);
                 } else {

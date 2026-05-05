@@ -118,6 +118,11 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Integer.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.INT;
     }

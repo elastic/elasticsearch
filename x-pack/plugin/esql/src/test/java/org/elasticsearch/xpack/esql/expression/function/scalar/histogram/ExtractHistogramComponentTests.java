@@ -90,7 +90,7 @@ public class ExtractHistogramComponentTests extends AbstractScalarFunctionTestCa
                         double max = value.max();
                         yield Double.isNaN(max) ? null : max;
                     }
-                    case SUM -> value.valueCount() > 0 ? value.sum() : null;
+                    case SUM -> value.isEmpty() == false ? value.sum() : null;
                     case COUNT -> (double) value.valueCount();
                 };
             }

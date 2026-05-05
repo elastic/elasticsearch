@@ -304,9 +304,6 @@ tests:
   - testDiscoverSplitRanges_singleStripe
   - testReadListColumnAsMultiValue
   issue: https://github.com/elastic/elasticsearch/issues/147545
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=reindex/10_basic/Response format for version conflict with conflicts=proceed}
-  issue: https://github.com/elastic/elasticsearch/issues/147594
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/147613
@@ -461,9 +458,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.shutdown.SigtermTerminationHandlerTests
   method: testShutdownBlockIgnoreOtherRoles
   issue: https://github.com/elastic/elasticsearch/issues/148037
-- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
-  method: testRandomActivitiesStatelessSnapshotAndRelocationEnabled
-  issue: https://github.com/elastic/elasticsearch/issues/148041
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056
@@ -530,9 +524,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsIntegTests
   method: testCreateAndRestoreSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/148217
-- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
-  method: testRandomActivitiesStatelessSnapshotDisabled
-  issue: https://github.com/elastic/elasticsearch/issues/148219
 - class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
   method: testSyntheticId
   issue: https://github.com/elastic/elasticsearch/issues/148235
@@ -554,3 +545,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
   method: test {csv-spec:tdigest.Group Aggs By Bucket and Instance (standard mode)}
   issue: https://github.com/elastic/elasticsearch/issues/148254
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
+  method: testCacheIsWarmedBeforeSearchShardRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/148275
+- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
+  method: testCloseWhileSegmentatorParkedOnDispatchPermit
+  issue: https://github.com/elastic/elasticsearch/issues/148229
+- class: org.elasticsearch.xpack.esql.action.ExternalParquetCountPushdownIT
+  method: testCountStarPushdownCoordinatorOnly
+  issue: https://github.com/elastic/elasticsearch/issues/148116
+- class: org.elasticsearch.xpack.esql.action.ExternalParquetCountPushdownIT
+  method: testCountStarPushdown
+  issue: https://github.com/elastic/elasticsearch/issues/148118
+- class: org.elasticsearch.xpack.esql.action.ExternalParquetCountPushdownIT
+  method: testCountStarPushdownSingleRowGroup
+  issue: https://github.com/elastic/elasticsearch/issues/148119
+- class: org.elasticsearch.xpack.esql.action.ExternalParquetCountPushdownIT
+  method: testCountStarPushdownManyRowGroups
+  issue: https://github.com/elastic/elasticsearch/issues/148117

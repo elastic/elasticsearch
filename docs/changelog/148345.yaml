@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 148345
+summary: Upgrade httpclient5 to 5.6.1 and httpcore5 to 5.4
+type: upgrade

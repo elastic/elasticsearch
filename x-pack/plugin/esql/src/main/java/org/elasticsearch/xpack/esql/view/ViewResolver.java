@@ -291,6 +291,12 @@ public class ViewResolver {
             }
         }
 
+        // ViewShadowRelation siblings are only emitted in CPS mode — they exist solely to drive a
+        // per-level lenient field-caps lookup against linked projects (esql-planning #543). In
+        // non-CPS mode the shadow has no consumer, so we skip the bookkeeping entirely; the rest of
+        // the resolver behaves as if shadows are simply not part of the tree.
+        boolean cpsEnabled = crossProjectModeDecider.crossProjectEnabled();
+
         // For each position in the parent UnresolvedRelation's pattern list, the exclusions that
         // appear strictly after it. Used to attach position-aware exclusions to each
         // {@link ViewShadowRelation} so the lenient field-caps target mirrors the local exclusion
@@ -298,7 +304,7 @@ public class ViewResolver {
         // already been accumulated, so a view referenced at position i is only affected by
         // exclusions at positions > i. See esql-planning #543.
         String[] urPatterns = unresolvedRelation.indexPattern().indexPattern().split(",");
-        List<List<String>> exclusionsAfter = computeExclusionsAfterByPosition(urPatterns);
+        List<List<String>> exclusionsAfter = cpsEnabled ? computeExclusionsAfterByPosition(urPatterns) : List.of();
 
         var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT);
         req.indices(patterns);
@@ -311,8 +317,9 @@ public class ViewResolver {
 
             // Map each resolved view name to the earliest position in urPatterns at which it was
             // matched (broadest applicable-exclusion set). Earliest-position wins so we don't drop
-            // exclusions that the user wrote after a wildcard match of the same view.
-            Map<String, Integer> viewToEarliestPosition = computeViewToEarliestPosition(urPatterns, response);
+            // exclusions that the user wrote after a wildcard match of the same view. Only used
+            // for shadow exclusion attribution, so we skip the work entirely outside CPS.
+            Map<String, Integer> viewToEarliestPosition = cpsEnabled ? computeViewToEarliestPosition(urPatterns, response) : Map.of();
 
             final HashMap<String, ViewPlan> resolvedViews = new HashMap<>();
             final HashMap<String, ViewShadowRelation> viewShadows = new HashMap<>();
@@ -323,15 +330,17 @@ public class ViewResolver {
                     // Make sure we don't block sibling branches from containing the same views
                     LinkedHashSet<String> branchSeenViews = new LinkedHashSet<>(ancestorViews);
                     validateViewReferenceAndMarkSeen(view.name(), branchSeenViews);
-                    // Build the per-view {@link ViewShadowRelation} once, alongside the resolved
-                    // body. Lives at the same plan-tree level as the strict resolution so the
-                    // post-resolution rule can find the pair structurally.
-                    Integer pos = viewToEarliestPosition.get(view.name());
-                    List<String> applicableExclusions = (pos != null) ? exclusionsAfter.get(pos) : List.of();
-                    viewShadows.putIfAbsent(
-                        view.name(),
-                        new ViewShadowRelation(unresolvedRelation.source(), view.name(), applicableExclusions)
-                    );
+                    if (cpsEnabled) {
+                        // Build the per-view {@link ViewShadowRelation} once, alongside the resolved
+                        // body. Lives at the same plan-tree level as the strict resolution so the
+                        // post-resolution rule can find the pair structurally.
+                        Integer pos = viewToEarliestPosition.get(view.name());
+                        List<String> applicableExclusions = (pos != null) ? exclusionsAfter.get(pos) : List.of();
+                        viewShadows.putIfAbsent(
+                            view.name(),
+                            new ViewShadowRelation(unresolvedRelation.source(), view.name(), applicableExclusions)
+                        );
+                    }
                     replaceViews(
                         resolve(view, parser, viewQueries),
                         parser,
@@ -348,13 +357,15 @@ public class ViewResolver {
             }
             chain.andThenApply(ignored -> {
                 List<ViewPlan> subqueries = buildOrderedSubqueries(unresolvedRelation, response, resolvedViews, patterns);
-                // Append the per-resolved-view ViewShadowRelations as additional siblings at this
-                // same level. They live under suffixed names so they don't collide with the
-                // strict ViewPlan keys when the LinkedHashMap is built downstream.
-                for (var view : response.views()) {
-                    ViewShadowRelation shadow = viewShadows.get(view.name());
-                    if (shadow != null) {
-                        subqueries.add(new ViewPlan(view.name() + "#shadow", shadow));
+                if (cpsEnabled) {
+                    // Append the per-resolved-view ViewShadowRelations as additional siblings at
+                    // this same level. They live under suffixed names so they don't collide with
+                    // the strict ViewPlan keys when the LinkedHashMap is built downstream.
+                    for (var view : response.views()) {
+                        ViewShadowRelation shadow = viewShadows.get(view.name());
+                        if (shadow != null) {
+                            subqueries.add(new ViewPlan(view.name() + "#shadow", shadow));
+                        }
                     }
                 }
                 if (subqueries.size() == 1) {

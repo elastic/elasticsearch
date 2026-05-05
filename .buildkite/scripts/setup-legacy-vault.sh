@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+export VAULT_CLIENT_TIMEOUT="${VAULT_CLIENT_TIMEOUT:-30s}"
+
 VAULT_ROLE_ID=$(vault read -field=role-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
 VAULT_SECRET_ID=$(vault read -field=secret-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
 VAULT_ADDR=https://secrets.elastic.co:8200

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 if [[ "${USE_IPV6_TESTING:-}" == "true" ]]; then
   # Ensure that `localhost` resolves to only `::1`
   sudo bash -c 'echo "::1   localhost" | cat - /etc/hosts > temp_file && mv temp_file /etc/hosts'
@@ -45,6 +47,8 @@ if [[ "${ES_RUNTIME_JAVA:-}" ]]; then
   export RUNTIME_JAVA_HOME
 fi
 
+export VAULT_CLIENT_TIMEOUT=30s
+
 GRADLE_BUILD_CACHE_USERNAME=$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
 export GRADLE_BUILD_CACHE_USERNAME
 
@@ -60,7 +64,7 @@ export DEVELOCITY_ACCESS_KEY
 BUILDKITE_API_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/buildkite-api-token)
 export BUILDKITE_API_TOKEN
 
-export GH_TOKEN="$VAULT_GITHUB_TOKEN"
+export GH_TOKEN="${VAULT_GITHUB_TOKEN:-}"
 
 if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
   data=$(.buildkite/scripts/get-legacy-secret.sh aws-elastic/creds/lucene-snapshots)

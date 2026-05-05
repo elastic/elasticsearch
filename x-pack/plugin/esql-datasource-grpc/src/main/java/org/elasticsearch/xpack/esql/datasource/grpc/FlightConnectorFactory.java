@@ -69,8 +69,7 @@ class FlightConnectorFactory implements ConnectorFactory {
 
     @Override
     public Connector open(Map<String, Object> config) {
-        // config values are Object — use Objects.toString rather than (String) which would CCE if a
-        // SecureString or non-String literal ever reaches this map.
+        // Use Objects.toString — direct (String) cast would CCE on SecureString / non-String values.
         String endpoint = Objects.toString(config.get("endpoint"), null);
         if (endpoint == null) {
             throw new IllegalArgumentException("Flight connector requires 'endpoint' in config");

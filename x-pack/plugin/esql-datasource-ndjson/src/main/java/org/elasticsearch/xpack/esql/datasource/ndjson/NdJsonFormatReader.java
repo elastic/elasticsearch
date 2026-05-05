@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -38,6 +39,27 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     public static final String SCHEMA_SAMPLE_SIZE_SETTING = "esql.datasource.ndjson.schema_sample_size";
     public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = 20_000;
 
+    /**
+     * Node-level setting for the parallel-parsing segment size. Larger segments amortise the fixed
+     * Java/Jackson per-segment setup cost; smaller segments enable parallelism on smaller files.
+     * Also overridable per-query via the {@code segment_size} key in {@code WITH (...)}.
+     */
+    public static final String SEGMENT_SIZE_SETTING = "esql.datasource.ndjson.segment_size";
+
+    /**
+     * 4 MiB, larger than the SPI's 1 MiB. Each NDJSON segment pays a fixed Java/Jackson setup cost
+     * (schema lookup, {@link FormatReadContext} creation, {@link NdJsonPageIterator} +
+     * {@link NdJsonPageDecoder} construction, range-stream wrapping, queue coordination), so cutting
+     * the segment count by 4x cuts that overhead by ~4x. ClickHouse's 1 MiB sweet spot does not
+     * carry over because their per-chunk overhead is much lower (no per-chunk object allocation in
+     * the C++ path). Files below {@code 2 * segment_size} (~8 MiB at the default) parse
+     * single-threaded; that matches where per-chunk setup actually amortises.
+     */
+    public static final ByteSizeValue DEFAULT_SEGMENT_SIZE = ByteSizeValue.ofMb(4);
+
+    /** Below 64 KiB, per-chunk overhead dominates parse cost; reject silly configurations early. */
+    static final ByteSizeValue MIN_SEGMENT_SIZE = ByteSizeValue.ofKb(64);
+
     /** Buffer size used to accelerate {@link #scanForTerminator} on cold (unbuffered) streams. */
     private static final int SCAN_BUFFER_SIZE = 8 * 1024;
 
@@ -45,25 +67,33 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     private final Settings settings;
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
+    private final long segmentSizeBytes;
 
     public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
-        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings));
+        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings));
     }
 
     NdJsonFormatReader(Settings settings, BlockFactory blockFactory) {
         this(settings, blockFactory, null);
     }
 
-    private NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema, int schemaSampleSize) {
+    private NdJsonFormatReader(
+        Settings settings,
+        BlockFactory blockFactory,
+        List<Attribute> resolvedSchema,
+        int schemaSampleSize,
+        long segmentSizeBytes
+    ) {
         this.blockFactory = blockFactory;
         this.settings = settings == null ? Settings.EMPTY : settings;
         this.resolvedSchema = resolvedSchema;
         this.schemaSampleSize = schemaSampleSize;
+        this.segmentSizeBytes = segmentSizeBytes;
     }
 
     @Override
     public NdJsonFormatReader withSchema(List<Attribute> schema) {
-        return new NdJsonFormatReader(settings, blockFactory, schema, schemaSampleSize);
+        return new NdJsonFormatReader(settings, blockFactory, schema, schemaSampleSize, segmentSizeBytes);
     }
 
     @Override
@@ -73,15 +103,22 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         }
         int newSampleSize = parseInt(config.get("schema_sample_size"), schemaSampleSize);
         Check.isTrue(newSampleSize > 0, "schema_sample_size must be positive, got: {}", newSampleSize);
-        if (newSampleSize == schemaSampleSize) {
+        long newSegmentSize = parseSegmentSize(config.get("segment_size"), segmentSizeBytes);
+        if (newSampleSize == schemaSampleSize && newSegmentSize == segmentSizeBytes) {
             return this;
         }
-        return new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize);
+        return new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize, newSegmentSize);
     }
 
     private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object, boolean skipFirstLine)
         throws IOException {
-        if (attributes != null && attributes.isEmpty() == false) {
+        if (attributes != null) {
+            // Empty schema means the optimizer pruned every column (COUNT(*) etc.); skip inference
+            // entirely. The decoder treats an empty projection list as "structure-only", so there
+            // is nothing to type-check against.
+            if (attributes.isEmpty()) {
+                return attributes;
+            }
             if (needsFullSchemaSupplement(attributes)) {
                 List<Attribute> inferred;
                 try (var stream = openForSchemaInference(object, skipFirstLine)) {
@@ -174,6 +211,14 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return resolved.getAsInt(SCHEMA_SAMPLE_SIZE_SETTING, DEFAULT_SCHEMA_SAMPLE_SIZE);
     }
 
+    private static long segmentSize(Settings settings) {
+        Settings resolved = settings == null ? Settings.EMPTY : settings;
+        ByteSizeValue value = resolved.getAsBytesSize(SEGMENT_SIZE_SETTING, DEFAULT_SEGMENT_SIZE);
+        long bytes = value.getBytes();
+        Check.isTrue(bytes >= MIN_SEGMENT_SIZE.getBytes(), "{} must be >= {}, got: {}", SEGMENT_SIZE_SETTING, MIN_SEGMENT_SIZE, value);
+        return bytes;
+    }
+
     private static int parseInt(Object value, int defaultValue) {
         if (value == null) {
             return defaultValue;
@@ -183,6 +228,16 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid integer value [" + value + "]", e);
         }
+    }
+
+    private static long parseSegmentSize(Object value, long defaultValueBytes) {
+        if (value == null) {
+            return defaultValueBytes;
+        }
+        ByteSizeValue parsed = ByteSizeValue.parseBytesSizeValue(value.toString(), "segment_size");
+        long bytes = parsed.getBytes();
+        Check.isTrue(bytes >= MIN_SEGMENT_SIZE.getBytes(), "segment_size must be >= {}, got: {}", MIN_SEGMENT_SIZE, parsed);
+        return bytes;
     }
 
     @Override
@@ -266,6 +321,15 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             }
         }
         return LineScan.EOF;
+    }
+
+    /**
+     * Resolved per-reader from {@link #SEGMENT_SIZE_SETTING} (node-level) or the {@code segment_size}
+     * key in the per-query {@code WITH (...)} config. Defaults to {@link #DEFAULT_SEGMENT_SIZE}.
+     */
+    @Override
+    public long minimumSegmentSize() {
+        return segmentSizeBytes;
     }
 
     @Override

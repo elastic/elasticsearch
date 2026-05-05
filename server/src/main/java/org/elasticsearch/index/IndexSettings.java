@@ -1205,6 +1205,7 @@ public final class IndexSettings {
     private volatile int maxShingleDiff;
     private volatile DenseVectorFieldMapper.FilterHeuristic hnswFilterHeuristic;
     private volatile boolean earlyTermination;
+    private volatile float postFilterSelectivityThreshold;
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
     private volatile boolean weightMatchesEnabled;
@@ -1435,6 +1436,7 @@ public final class IndexSettings {
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         hnswFilterHeuristic = scopedSettings.get(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC);
         earlyTermination = scopedSettings.get(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION);
+        postFilterSelectivityThreshold = scopedSettings.get(DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD);
         indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
@@ -1577,6 +1579,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
+        scopedSettings.addSettingsUpdateConsumer(
+            DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD,
+            this::setPostFilterSelectivityThreshold
+        );
         scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
     }
 
@@ -2298,6 +2304,14 @@ public final class IndexSettings {
 
     private void setHnswEarlyTermination(boolean earlyTermination) {
         this.earlyTermination = earlyTermination;
+    }
+
+    public float getPostFilterSelectivityThreshold() {
+        return this.postFilterSelectivityThreshold;
+    }
+
+    private void setPostFilterSelectivityThreshold(float postFilterSelectivityThreshold) {
+        this.postFilterSelectivityThreshold = postFilterSelectivityThreshold;
     }
 
     public SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions() {

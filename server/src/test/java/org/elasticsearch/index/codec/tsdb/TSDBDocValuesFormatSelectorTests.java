@@ -63,14 +63,16 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
         assertThat(format.getName(), startsWith("ES819"));
     }
 
-    public void testES819SelectedForStandardMode() {
+    public void testES95SelectedForStandardModeWhenSettingEnabled() {
+        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
         final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.STANDARD, IndexVersion.current(), true));
-        assertThat(format.getName(), startsWith("ES819"));
+        assertThat(format.getName(), equalTo(ES95_CODEC_NAME));
     }
 
-    public void testES819AlwaysSelectedForLogsdb() {
+    public void testES95SelectedForLogsdbWhenSettingEnabled() {
+        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
         final DocValuesFormat format = TSDBDocValuesFormatSelector.select(indexSettings(IndexMode.LOGSDB, IndexVersion.current(), true));
-        assertThat(format.getName(), startsWith("ES819"));
+        assertThat(format.getName(), equalTo(ES95_CODEC_NAME));
     }
 
     private static IndexSettings indexSettings(final IndexMode mode, final IndexVersion version, final boolean es95Enabled) {

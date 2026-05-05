@@ -171,10 +171,7 @@ public class CustomResponseEntityTests extends ESTestCase {
         );
         var request = new CustomRequest(
             RerankParameters.of(
-                new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, "query"),
-                    List.of("doc1", "doc2").stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
-                )
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, "query"), InferenceString.fromStringList(List.of("doc1", "doc2")))
             ),
             model
         );

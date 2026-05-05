@@ -625,10 +625,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, QUERY_VALUE),
-                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
-                ),
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, QUERY_VALUE), InferenceString.fromStringList(DOCUMENTS_VALUE)),
                 null,
                 listener
             );
@@ -686,10 +683,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, QUERY_VALUE),
-                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
-                ),
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, QUERY_VALUE), InferenceString.fromStringList(DOCUMENTS_VALUE)),
                 null,
                 listener
             );
@@ -741,10 +735,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, QUERY_VALUE),
-                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
-                ),
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, QUERY_VALUE), InferenceString.fromStringList(DOCUMENTS_VALUE)),
                 null,
                 listener
             );
@@ -796,10 +787,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, QUERY_VALUE),
-                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
-                ),
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, QUERY_VALUE), InferenceString.fromStringList(DOCUMENTS_VALUE)),
                 null,
                 listener
             );
@@ -853,7 +841,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             action.execute(
                 new QueryAndDocsInputs(
                     new InferenceString(DataType.TEXT, QUERY_VALUE),
-                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList(),
+                    InferenceString.fromStringList(DOCUMENTS_VALUE),
                     RETURN_DOCUMENTS_DEFAULT_VALUE,
                     TOP_N_DEFAULT_VALUE,
                     false
@@ -907,7 +895,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             action.execute(
                 new QueryAndDocsInputs(
                     new InferenceString(DataType.TEXT, QUERY_VALUE),
-                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList(),
+                    InferenceString.fromStringList(DOCUMENTS_VALUE),
                     RETURN_DOCUMENTS_OVERRIDDEN_VALUE,
                     TOP_N_OVERRIDDEN_VALUE,
                     false
@@ -969,10 +957,7 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, QUERY_VALUE),
-                    DOCUMENTS_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
-                ),
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, QUERY_VALUE), InferenceString.fromStringList(DOCUMENTS_VALUE)),
                 null,
                 listener
             );

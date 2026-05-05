@@ -295,7 +295,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             action.execute(
                 new QueryAndDocsInputs(
                     new InferenceString(DataType.TEXT, query),
-                    documents.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList(),
+                    InferenceString.fromStringList(documents),
                     null,
                     topN,
                     false
@@ -373,7 +373,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             action.execute(
                 new QueryAndDocsInputs(
                     new InferenceString(DataType.TEXT, query),
-                    documents.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList(),
+                    InferenceString.fromStringList(documents),
                     null,
                     topN,
                     false

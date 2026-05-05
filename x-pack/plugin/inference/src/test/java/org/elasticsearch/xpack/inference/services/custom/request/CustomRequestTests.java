@@ -252,7 +252,7 @@ public class CustomRequestTests extends ESTestCase {
             RerankParameters.of(
                 new QueryAndDocsInputs(
                     new InferenceString(DataType.TEXT, "query string"),
-                    List.of("abc", "123").stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
+                    InferenceString.fromStringList(List.of("abc", "123"))
                 )
             ),
             model
@@ -305,7 +305,7 @@ public class CustomRequestTests extends ESTestCase {
             RerankParameters.of(
                 new QueryAndDocsInputs(
                     new InferenceString(DataType.TEXT, "query string"),
-                    List.of("abc", "123").stream().map(i -> new InferenceString(DataType.TEXT, i)).toList(),
+                    InferenceString.fromStringList(List.of("abc", "123")),
                     false,
                     2,
                     false
@@ -360,7 +360,7 @@ public class CustomRequestTests extends ESTestCase {
             RerankParameters.of(
                 new QueryAndDocsInputs(
                     new InferenceString(DataType.TEXT, "query string"),
-                    List.of("abc", "123").stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
+                    InferenceString.fromStringList(List.of("abc", "123"))
                 )
             ),
             model
@@ -407,7 +407,7 @@ public class CustomRequestTests extends ESTestCase {
                 RerankParameters.of(
                     new QueryAndDocsInputs(
                         new InferenceString(DataType.TEXT, "query string"),
-                        List.of("abc", "123").stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
+                        InferenceString.fromStringList(List.of("abc", "123"))
                     )
                 ),
                 model

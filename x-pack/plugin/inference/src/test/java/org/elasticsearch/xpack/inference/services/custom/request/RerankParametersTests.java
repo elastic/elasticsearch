@@ -22,7 +22,7 @@ public class RerankParametersTests extends ESTestCase {
     public void testTaskTypeParameters() {
         var queryAndDocsInputs = new QueryAndDocsInputs(
             new InferenceString(DataType.TEXT, "query_value"),
-            List.of("doc1", "doc2").stream().map(i -> new InferenceString(DataType.TEXT, i)).toList(),
+            InferenceString.fromStringList(List.of("doc1", "doc2")),
             true,
             5,
             false
@@ -35,7 +35,7 @@ public class RerankParametersTests extends ESTestCase {
     public void testTaskTypeParameters_WithoutOptionalFields() {
         var queryAndDocsInputs = new QueryAndDocsInputs(
             new InferenceString(DataType.TEXT, "query_value"),
-            List.of("doc1", "doc2").stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
+            InferenceString.fromStringList(List.of("doc1", "doc2"))
         );
         var parameters = RerankParameters.of(queryAndDocsInputs);
 

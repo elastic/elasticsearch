@@ -760,10 +760,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, QUERY_VALUE),
-                    PASSAGES_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
-                ),
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, QUERY_VALUE), InferenceString.fromStringList(PASSAGES_VALUE)),
                 null,
                 listener
             );
@@ -811,10 +808,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, QUERY_VALUE),
-                    PASSAGES_VALUE.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
-                ),
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, QUERY_VALUE), InferenceString.fromStringList(PASSAGES_VALUE)),
                 null,
                 listener
             );

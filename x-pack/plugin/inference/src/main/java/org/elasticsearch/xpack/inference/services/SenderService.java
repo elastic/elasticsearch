@@ -254,7 +254,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 validationException.throwIfValidationErrorsExist();
                 yield new QueryAndDocsInputs(
                     new InferenceString(DataType.TEXT, query),
-                    input.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList(),
+                    InferenceString.fromStringList(input),
                     returnDocuments,
                     topN,
                     stream

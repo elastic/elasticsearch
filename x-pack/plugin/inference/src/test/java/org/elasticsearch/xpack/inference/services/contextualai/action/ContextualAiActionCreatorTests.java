@@ -125,10 +125,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, TEST_QUERY),
-                    TEST_DOCUMENTS.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
-                ),
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
                 null,
                 listener
             );
@@ -169,10 +166,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, TEST_QUERY),
-                    TEST_DOCUMENTS.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
-                ),
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
                 null,
                 listener
             );
@@ -210,10 +204,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, TEST_QUERY),
-                    TEST_DOCUMENTS.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
-                ),
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
                 null,
                 listener
             );
@@ -246,7 +237,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             action.execute(
                 new QueryAndDocsInputs(
                     new InferenceString(DataType.TEXT, TEST_QUERY),
-                    TEST_DOCUMENTS.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList(),
+                    InferenceString.fromStringList(TEST_DOCUMENTS),
                     null,
                     NEW_TEST_TOP_N,
                     false
@@ -289,10 +280,7 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, TEST_QUERY),
-                    TEST_DOCUMENTS.stream().map(i -> new InferenceString(DataType.TEXT, i)).toList()
-                ),
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
                 null,
                 listener
             );

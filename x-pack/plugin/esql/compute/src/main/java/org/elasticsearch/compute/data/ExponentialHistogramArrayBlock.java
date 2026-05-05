@@ -160,7 +160,7 @@ public final class ExponentialHistogramArrayBlock extends AbstractDelegatingComp
             throw new RuntimeException("Failed to encode histogram", e);
         }
         double sum;
-        if (histogram.valueCount() == 0) {
+        if (histogram.isEmpty()) {
             assert histogram.sum() == 0.0 : "Empty histogram should have sum 0.0 but was " + histogram.sum();
             sum = Double.NaN; // we store null/NaN for empty histograms to ensure avg is null/0.0 instead of 0.0/0.0
         } else {

@@ -3490,8 +3490,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
-    public void testEmptyProjectionCountsRowsDespiteExtraColumns() throws IOException {
-        // COUNT(*) does not materialize any column values, so wider rows are still countable.
+    public void testEmptyProjectionSkipsExtraColumnRows() throws IOException {
+        // COUNT(*) still applies column-width validation; extra-column rows are routed through onRowError.
         String csv = """
             id:long,name:keyword
             1,Alice
@@ -3516,27 +3516,24 @@ public class CsvFormatReaderTests extends ESTestCase {
                 totalRows += page.getPositionCount();
                 page.releaseBlocks();
             }
-            assertEquals(3, totalRows);
+            assertEquals(2, totalRows);
         }
     }
 
-    public void testHeaderlessEmptyProjectionCountsRowsWhenSchemaIsUnderSampled() throws IOException {
-        // Force schema inference to see only the first two rows (2 columns), then include a wider row.
-        String csv = """
-            1\tAlice
-            2\tBob
-            3\tCharlie\textra
-            4\tDina
-            """;
+    public void testHeaderlessEmptyProjectionSkipsWiderRowsWhenSchemaIsUnderSampled() throws IOException {
+        // Force schema inference to see only the first two rows (2 columns each), then include a wider row.
+        // The wider row exceeds the inferred schema width and is rejected via onRowError.
+        String csv = "1,Alice\n2,Bob\n3,Charlie,extra\n4,Dina\n";
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
             Map.of("header_row", false, "schema_sample_size", 2)
         );
+        ErrorPolicy lenient = new ErrorPolicy(10, true);
 
         try (
             CloseableIterator<Page> iterator = reader.read(
                 object,
-                FormatReadContext.builder().projectedColumns(List.of()).batchSize(10).build()
+                FormatReadContext.builder().projectedColumns(List.of()).batchSize(10).errorPolicy(lenient).build()
             )
         ) {
             int totalRows = 0;
@@ -3546,7 +3543,7 @@ public class CsvFormatReaderTests extends ESTestCase {
                 totalRows += page.getPositionCount();
                 page.releaseBlocks();
             }
-            assertEquals(4, totalRows);
+            assertEquals(3, totalRows);
         }
     }
 

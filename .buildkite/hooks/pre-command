@@ -63,9 +63,8 @@ export BUILDKITE_API_TOKEN
 export ORIGINAL_VAULT_GITHUB_TOKEN="$VAULT_GITHUB_TOKEN"
 export GH_TOKEN="$VAULT_GITHUB_TOKEN"
 
-USE_ELASTICSEARCH_MACHINE_GITHUB_TOKEN=true
-
 # This is temporary until we work out issues with the OIDC tokens
+# Doesn't do anything automatically, just makes the token available for scripts to use
 if [[ "${USE_ELASTICSEARCH_MACHINE_GITHUB_TOKEN:-}" == "true" ]]; then
   ELASTICSEARCH_MACHINE_GITHUB_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/github_api_credentials)
   export ELASTICSEARCH_MACHINE_GITHUB_TOKEN

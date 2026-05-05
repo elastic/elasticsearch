@@ -32,7 +32,7 @@ import java.util.regex.Pattern;
  */
 public record Build(
     String flavor,
-    Type type,
+     Type type,
     String hash,
     String date,
     String version,

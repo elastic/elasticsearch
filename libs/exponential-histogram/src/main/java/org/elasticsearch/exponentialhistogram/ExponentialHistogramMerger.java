@@ -326,7 +326,10 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
      * This method is intended to compute the delta between two cumulative histograms from the same time series,
      * where {@code a} is a later snapshot and {@code b} is an earlier snapshot.
      * In cumulative histograms, bucket counts only increase over time, which means that subtracting {@code b}
-     * from {@code a} will never result in negative bucket counts.
+     * from {@code a} should never result in negative bucket counts. Note that this algorithm still is capable
+     * of dealing with cases where the histograms seem to be cumulative ({@code a.count() >= b.count()}), but actually are not.
+     * In this case the negative buckets will be clamped to a count of {@code 0} and the remaining populate buckets will
+     * have their count scaled down to compensate for this.
      * <p>
      * The algorithm provides the following guarantees:
      * Given two exponential histograms {@code b} and {@code c}.

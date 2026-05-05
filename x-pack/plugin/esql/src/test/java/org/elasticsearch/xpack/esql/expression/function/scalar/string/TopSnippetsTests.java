@@ -445,6 +445,42 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         assertThat(result, equalTo(List.of("The API returns results. Use the <em>return</em> value to continue.")));
     }
 
+    public void testFoldableWithoutOptions() {
+        TopSnippets expr = new TopSnippets(
+            Source.EMPTY,
+            Literal.keyword(Source.EMPTY, "The Adirondack Park is a beautiful wilderness area."),
+            Literal.keyword(Source.EMPTY, "park"),
+            null
+        );
+        assertTrue(expr.foldable());
+        assertNotNull(expr.fold(FoldContext.small()));
+    }
+
+    public void testFoldableWithOptionsButNoAnalyzer() {
+        MapExpression options = createOptions(3, 50, true, null, null, null, null, null);
+        TopSnippets expr = new TopSnippets(
+            Source.EMPTY,
+            Literal.keyword(Source.EMPTY, "The Adirondack Park is a beautiful wilderness area."),
+            Literal.keyword(Source.EMPTY, "park"),
+            options
+        );
+        assertTrue(expr.foldable());
+        assertNotNull(expr.fold(FoldContext.small()));
+    }
+
+    public void testNotFoldableWithAnalyzer() {
+        // The synthetic ToEvaluator built inside EvaluatorMapper#fold has no AnalysisRegistry,
+        // so an explicit analyzer name disables folding.
+        MapExpression options = createOptions(null, null, null, null, null, null, null, "english");
+        TopSnippets expr = new TopSnippets(
+            Source.EMPTY,
+            Literal.keyword(Source.EMPTY, "The Adirondack Park is a beautiful wilderness area."),
+            Literal.keyword(Source.EMPTY, "park"),
+            options
+        );
+        assertFalse(expr.foldable());
+    }
+
     public void testHighlightPreservesWholeChunk() {
         // A long chunk with many matching terms — highlighting must return the entire chunk as-is
         // (with markup), not split it into smaller passages.

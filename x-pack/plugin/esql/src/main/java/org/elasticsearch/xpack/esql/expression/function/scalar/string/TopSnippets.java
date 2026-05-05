@@ -371,7 +371,18 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     @Override
     public boolean foldable() {
-        return field().foldable() && query().foldable() && (options() == null || options().foldable());
+        if (field().foldable() == false || query().foldable() == false) {
+            return false;
+        }
+        if (options() == null) {
+            return true;
+        }
+        // Folding builds a synthetic ToEvaluator with no AnalysisRegistry, so we can only fold
+        // when 'analyzer' isn't requested. All option entries must be foldable so toEvaluator
+        // can read them at fold time.
+        return options() instanceof MapExpression map
+            && map.containsKey(ANALYZER) == false
+            && map.children().stream().allMatch(Expression::foldable);
     }
 
     @Override

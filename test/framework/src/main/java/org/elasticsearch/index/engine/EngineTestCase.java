@@ -12,6 +12,7 @@ package org.elasticsearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -172,6 +173,7 @@ public abstract class EngineTestCase extends ESTestCase {
     protected Store storeReplica;
 
     protected MapperService mapperService;
+    protected boolean columnarId;
 
     protected InternalEngine engine;
     protected InternalEngine replicaEngine;
@@ -268,6 +270,12 @@ public abstract class EngineTestCase extends ESTestCase {
         if (randomBoolean()) {
             var parsedMapping = XContentHelper.convertToMap(XContentFactory.xContent(defaultMapping), defaultMapping, true);
             parsedMapping.put(RoutingFieldMapper.NAME, Map.of("doc_values", true));
+            defaultMapping = Strings.toString(XContentFactory.jsonBuilder().map(parsedMapping));
+        }
+        if (true) {
+            columnarId = true;
+            var parsedMapping = XContentHelper.convertToMap(XContentFactory.xContent(defaultMapping), defaultMapping, true);
+            parsedMapping.put(IdFieldMapper.NAME, Map.of("mode", "columnar"));
             defaultMapping = Strings.toString(XContentFactory.jsonBuilder().map(parsedMapping));
         }
         mapperService = createMapperService(defaultSettings.getSettings(), defaultMapping, extraMappers());
@@ -476,7 +484,16 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing) {
-        return testParsedDocument(id, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), null, false, false);
+        return testParsedDocument(
+            id,
+            routing,
+            testDocumentWithTextField(),
+            new BytesArray("{ \"value\" : \"test\" }"),
+            null,
+            false,
+            false,
+            false
+        );
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing, boolean recoverySource) {
@@ -491,7 +508,27 @@ public abstract class EngineTestCase extends ESTestCase {
             new BytesArray("{ \"value\" : \"test\" }"),
             null,
             recoverySource,
-            syntheticId
+            syntheticId,
+            false
+        );
+    }
+
+    public static ParsedDocument createParsedDoc(
+        String id,
+        String routing,
+        boolean recoverySource,
+        boolean syntheticId,
+        boolean columnarId
+    ) {
+        return testParsedDocument(
+            id,
+            routing,
+            testDocumentWithTextField(),
+            new BytesArray("{ \"value\" : \"test\" }"),
+            null,
+            recoverySource,
+            syntheticId,
+            columnarId
         );
     }
 
@@ -502,7 +539,7 @@ public abstract class EngineTestCase extends ESTestCase {
         BytesReference source,
         CompressedXContent mappingUpdate
     ) {
-        return testParsedDocument(id, routing, document, source, mappingUpdate, false, false);
+        return testParsedDocument(id, routing, document, source, mappingUpdate, false, false, false);
     }
 
     protected static ParsedDocument testParsedDocument(
@@ -513,7 +550,7 @@ public abstract class EngineTestCase extends ESTestCase {
         CompressedXContent mappingUpdate,
         boolean recoverySource
     ) {
-        return testParsedDocument(id, routing, document, source, mappingUpdate, recoverySource, false);
+        return testParsedDocument(id, routing, document, source, mappingUpdate, recoverySource, false, false);
     }
 
     protected static ParsedDocument testParsedDocument(
@@ -523,7 +560,8 @@ public abstract class EngineTestCase extends ESTestCase {
         BytesReference source,
         CompressedXContent mappingUpdate,
         boolean recoverySource,
-        boolean syntheticId
+        boolean syntheticId,
+        boolean columnarId
     ) {
         var uid = Uid.encodeId(id);
         final Field idField;
@@ -541,6 +579,10 @@ public abstract class EngineTestCase extends ESTestCase {
                     Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(routingHash))
                 )
             );
+        } else if (columnarId) {
+            BytesRef encoded = Uid.encodeId(id);
+            idField = new StringField("_id", encoded, Field.Store.NO);
+            document.add(new BinaryDocValuesField("_id", encoded));
         } else {
             idField = new StringField("_id", Uid.encodeId(id), Field.Store.YES);
         }
@@ -1368,7 +1410,7 @@ public abstract class EngineTestCase extends ESTestCase {
      * Gets a collection of tuples of docId, sequence number, and primary term of all live documents in the provided engine.
      */
     protected List<DocIdSeqNoAndSource> getDocIds(Engine engine, boolean refresh) throws IOException {
-        return EngineTestUtils.getDocIds(engine, refresh);
+        return EngineTestUtils.getDocIds(engine, refresh, columnarId);
     }
 
     /**

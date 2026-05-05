@@ -1101,7 +1101,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard, final boolean refresh) throws IOException {
-        return shard.withEngineException(engine -> EngineTestUtils.getDocIds(engine, refresh));
+        return shard.withEngineException(engine -> EngineTestUtils.getDocIds(engine, refresh, false));
     }
 
     protected void assertDocCount(IndexShard shard, int docCount) throws IOException {

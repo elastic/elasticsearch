@@ -311,6 +311,9 @@ public class MetadataCreateIndexService {
         if (projectMetadata.hasView(index)) {
             throw new InvalidIndexNameException(index, "already exists as an ESQL view");
         }
+        if (projectMetadata.hasDataset(index)) {
+            throw new InvalidIndexNameException(index, "already exists as an ESQL dataset");
+        }
     }
 
     /**
@@ -2004,6 +2007,12 @@ public class MetadataCreateIndexService {
         if (projectMetadata.hasView(targetIndexName)) {
             throw new ResourceAlreadyExistsException(
                 "cannot resize to [{}], as an ESQL view already exists with that name",
+                targetIndexName
+            );
+        }
+        if (projectMetadata.hasDataset(targetIndexName)) {
+            throw new ResourceAlreadyExistsException(
+                "cannot resize to [{}], as an ESQL dataset already exists with that name",
                 targetIndexName
             );
         }

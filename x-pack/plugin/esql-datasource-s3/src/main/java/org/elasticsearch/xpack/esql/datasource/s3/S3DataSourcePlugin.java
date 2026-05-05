@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Data source plugin providing S3 storage support for ESQL.
@@ -30,7 +31,7 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
-    public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+    public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
         StorageProviderFactory s3Factory = new StorageProviderFactory() {
             @Override
             public StorageProvider create(Settings settings) {
@@ -42,7 +43,7 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
                 if (config == null || config.isEmpty()) {
                     return create(settings);
                 }
-                S3Configuration s3Config = S3Configuration.fromMap(config);
+                S3Configuration s3Config = S3Configuration.fromQueryConfig(config);
                 return new S3StorageProvider(s3Config);
             }
         };

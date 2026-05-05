@@ -5,7 +5,7 @@
 serverless: preview
 stack: preview 9.4.0
 ```
-Enables query approximation if possible for the query. A boolean value `false` (default) disables query approximation and `true` enables it with default settings. Map values enable query approximation with custom settings.
+Enables [query approximation](/reference/query-languages/esql/esql-query-approximation.md) if possible for the query. A boolean value `false` (default) disables query approximation and `true` enables it with default settings. Map values enable query approximation with custom settings.
 
 **Type**: `boolean` `map_param`
 
@@ -14,7 +14,7 @@ Map entries:
 - `confidence_level` (`[double]`): Confidence level of the computed confidence intervals. Default is 0.90. Null disables computing confidence intervals.
 
 
-## Example
+#### Example
 
 Approximate the sum using default settings.
 
@@ -27,7 +27,7 @@ FROM many_numbers | STATS sum=SUM(sv)
 | --- | --- | --- |
 | 42284250 | [41622402, 43016433] | true |
 
-## Example
+#### Example
 
 Approximate the median based on 10,000 rows.
 

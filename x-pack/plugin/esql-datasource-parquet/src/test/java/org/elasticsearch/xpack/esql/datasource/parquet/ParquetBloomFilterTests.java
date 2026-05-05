@@ -232,6 +232,8 @@ public class ParquetBloomFilterTests extends ESTestCase {
 
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new org.apache.parquet.conf.PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
                 .withType(SCHEMA)
                 .withRowGroupSize(4096) // Small row groups to force multiple groups
                 .withPageSize(1024)

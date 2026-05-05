@@ -7,10 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -20,6 +25,8 @@ import java.util.Map;
  * {@link #validate(ValidationException)}.
  */
 public abstract class DataSourceConfiguration {
+
+    private static final Logger logger = LogManager.getLogger(DataSourceConfiguration.class);
 
     private final Map<String, DataSourceConfigDefinition> fieldDefs;
     private final Map<String, Object> values;
@@ -76,6 +83,42 @@ public abstract class DataSourceConfiguration {
     }
 
     /**
+     * Returns a copy of {@code raw} containing only entries whose key is in {@code fieldDefs}.
+     * Used at query time where the WITH clause carries a mix of storage and format options;
+     * the storage plugin must ignore keys it does not own rather than reject them as unknown.
+     * Returns {@code null}/empty unchanged.
+     *
+     * <p>Dropped keys are logged at {@code DEBUG} so a user who misspells e.g. {@code accout} can
+     * find out why the storage config came back with defaults. Only key <em>names</em> are
+     * logged — values are never emitted, since this method is unaware of which keys are secrets.
+     * Format keys (like {@code header_row}) will appear here too, which is expected.
+     */
+    protected static Map<String, Object> filterKnown(Map<String, Object> raw, Map<String, DataSourceConfigDefinition> fieldDefs) {
+        if (raw == null || raw.isEmpty()) {
+            return raw;
+        }
+        Map<String, Object> filtered = new HashMap<>(raw.size());
+        // Cache the debug flag so we don't re-check on every entry; an in-flight log-level change
+        // is not worth tracking precisely here.
+        boolean debug = logger.isDebugEnabled();
+        List<String> dropped = null;
+        for (Map.Entry<String, Object> entry : raw.entrySet()) {
+            if (fieldDefs.containsKey(entry.getKey())) {
+                filtered.put(entry.getKey(), entry.getValue());
+            } else if (debug) {
+                if (dropped == null) {
+                    dropped = new ArrayList<>();
+                }
+                dropped.add(entry.getKey());
+            }
+        }
+        if (dropped != null) {
+            logger.debug("filtered out unknown keys [{}] from datasource config; recognized fields are [{}]", dropped, fieldDefs.keySet());
+        }
+        return filtered;
+    }
+
+    /**
      * Builds a raw settings map from alternating field/value pairs, skipping nulls.
      * Returns null if all values are null. Used by {@code fromFields()} factory methods.
      */
@@ -108,13 +151,13 @@ public abstract class DataSourceConfiguration {
         return v != null ? v.toString() : null;
     }
 
-    /** Returns validated settings as a map from field name to {@link DataSourceStoredSetting}. */
-    public Map<String, DataSourceStoredSetting> toStoredSettings() {
-        Map<String, DataSourceStoredSetting> result = new LinkedHashMap<>();
+    /** Returns validated settings as a map from field name to {@link DataSourceSetting}. */
+    public Map<String, DataSourceSetting> toStoredSettings() {
+        Map<String, DataSourceSetting> result = new LinkedHashMap<>();
         for (var entry : values.entrySet()) {
             DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
             assert def != null : "values map should only contain known fields, got [" + entry.getKey() + "]";
-            result.put(entry.getKey(), new DataSourceStoredSetting(entry.getValue(), def.secret()));
+            result.put(entry.getKey(), new DataSourceSetting(entry.getValue(), def.secret()));
         }
         return result;
     }

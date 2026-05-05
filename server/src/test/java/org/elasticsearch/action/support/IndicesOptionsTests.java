@@ -368,7 +368,7 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean()
         );
         CrossProjectModeOptions crossProjectModeOptions = new CrossProjectModeOptions(randomBoolean());
-        IndexAbstractionOptions indexAbstractionOptions = new IndexAbstractionOptions(randomBoolean(), randomBoolean());
+        IndexAbstractionOptions indexAbstractionOptions = new IndexAbstractionOptions(randomBoolean(), randomBoolean(), randomBoolean());
 
         IndicesOptions indicesOptions = new IndicesOptions(
             concreteTargetOptions,

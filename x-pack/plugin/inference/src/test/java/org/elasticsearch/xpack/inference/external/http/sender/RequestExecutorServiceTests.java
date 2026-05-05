@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
@@ -61,6 +61,8 @@ import static org.mockito.Mockito.when;
 
 public class RequestExecutorServiceTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String INFERENCE_ID = "id";
+
     private ThreadPool threadPool;
 
     @Before
@@ -263,16 +265,19 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         var listener = new PlainActionFuture<InferenceServiceResults>();
         service.execute(
-            RequestManagerTests.createMockWithRateLimitingEnabled(),
+            RequestManagerTests.createMockWithRateLimitingEnabled(INFERENCE_ID),
             new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
             TimeValue.timeValueNanos(1),
             listener
         );
 
-        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+        var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueNanos(1))));
-        assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
+        assertThat(
+            thrownException.getMessage(),
+            is(format("Request timed out after [%s] for inference id [%s]", TimeValue.timeValueNanos(1), INFERENCE_ID))
+        );
+        assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
     public void testExecute_PreservesThreadContext() throws InterruptedException, ExecutionException, TimeoutException {

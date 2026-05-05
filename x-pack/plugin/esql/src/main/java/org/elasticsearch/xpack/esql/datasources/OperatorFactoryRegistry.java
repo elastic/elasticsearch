@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
@@ -41,18 +42,28 @@ public class OperatorFactoryRegistry {
     // Once plugins migrate to ExternalSourceFactory.operatorFactory(), remove this field.
     private final Map<String, SourceOperatorFactoryProvider> pluginFactories;
     private final Executor executor;
+    private final Executor fileReadExecutor;
 
     public OperatorFactoryRegistry(
         Map<String, ExternalSourceFactory> sourceFactories,
         Map<String, SourceOperatorFactoryProvider> pluginFactories,
         Executor executor
     ) {
-        if (executor == null) {
-            throw new IllegalArgumentException("executor cannot be null");
-        }
+        this(sourceFactories, pluginFactories, executor, executor);
+    }
+
+    public OperatorFactoryRegistry(
+        Map<String, ExternalSourceFactory> sourceFactories,
+        Map<String, SourceOperatorFactoryProvider> pluginFactories,
+        Executor executor,
+        Executor fileReadExecutor
+    ) {
+        Check.notNull(executor, "executor cannot be null");
+        Check.notNull(fileReadExecutor, "fileReadExecutor cannot be null");
         this.sourceFactories = sourceFactories != null ? Map.copyOf(sourceFactories) : Map.of();
         this.pluginFactories = pluginFactories != null ? Map.copyOf(pluginFactories) : Map.of();
         this.executor = executor;
+        this.fileReadExecutor = fileReadExecutor;
     }
 
     public SourceOperator.SourceOperatorFactory factory(SourceOperatorContext context) {
@@ -104,5 +115,14 @@ public class OperatorFactoryRegistry {
 
     public Executor executor() {
         return executor;
+    }
+
+    /**
+     * Thread pool for file (and similar) background reads. Isolated from {@link #executor} (typically
+     * {@code esql_worker}, which also runs compute drivers) so blocked producers in buffer backpressure
+     * cannot starve the drivers that free buffer space.
+     */
+    public Executor fileReadExecutor() {
+        return fileReadExecutor;
     }
 }

@@ -165,9 +165,14 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     public static BlockHash build(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize, boolean allowBrokenOptimizations) {
         if (groups.size() == 1) {
             GroupSpec group = groups.get(0);
-            if (group.topNDef() != null && group.elementType() == ElementType.LONG) {
+            if (group.topNDef() != null) {
                 TopNDef topNDef = group.topNDef();
-                return new LongTopNBlockHash(group.channel(), topNDef.asc(), topNDef.nullsFirst(), topNDef.limit(), blockFactory);
+                if (group.elementType() == ElementType.LONG) {
+                    return new LongTopNBlockHash(group.channel(), topNDef.asc(), topNDef.nullsFirst(), topNDef.limit(), blockFactory);
+                }
+                if (group.elementType() == ElementType.BYTES_REF) {
+                    return new BytesRefTopNBlockHash(group.channel(), topNDef.asc(), topNDef.nullsFirst(), topNDef.limit(), blockFactory);
+                }
             }
             return newForElementType(group.channel(), group.elementType(), blockFactory);
         }

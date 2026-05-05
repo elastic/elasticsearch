@@ -133,7 +133,7 @@ public class ExponentialHistogramBlockTests extends ComputeTestCase {
                             }
                         }
                         case SUM -> {
-                            if (histo.valueCount() == 0) {
+                            if (histo.isEmpty()) {
                                 assertThat(componentBlock.isNull(i), equalTo(true));
                             } else {
                                 assertThat(componentBlock.getValueCount(i), equalTo(1));

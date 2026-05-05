@@ -136,10 +136,10 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         assertOf_InvalidValue_AddsValidationError(negativeValue);
     }
 
-    private static void assertOf_InvalidValue_AddsValidationError(long zeroValue) {
+    private static void assertOf_InvalidValue_AddsValidationError(long invalidValue) {
         var validationException = new ValidationException();
         Map<String, Object> settingsMap = new HashMap<>(
-            Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, zeroValue)))
+            Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, invalidValue)))
         );
         var defaultValue = createRandom();
 
@@ -159,7 +159,7 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
                 Strings.format(
                     "[%s] Invalid value [%s]. [%s] must be a positive long",
                     RateLimitSettings.FIELD_NAME,
-                    zeroValue,
+                    invalidValue,
                     RateLimitSettings.REQUESTS_PER_MINUTE_FIELD
                 )
             )
@@ -222,7 +222,7 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(settings, is(defaultValue));
+        assertThat(settings, sameInstance(defaultValue));
         assertTrue(settings.isEnabled());
         assertTrue(validationException.validationErrors().isEmpty());
     }

@@ -62,7 +62,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     @Override
-    public synchronized void start(Collection<Watch> jobs) {
+    public void start(Collection<Watch> jobs) {
         long startTime = clock.millis();
         logger.info("Starting watcher engine at {}", WatcherDateTimeUtils.dateTimeFormatter.formatMillis(startTime));
         schedules.clear();
@@ -98,7 +98,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     }
 
     @Override
-    public synchronized boolean add(Watch watch) {
+    public boolean add(Watch watch) {
         logger.trace("Adding watch [{}] to engine (engine is running: {})", watch.id(), isRunning.get());
         assert watch.trigger() instanceof ScheduleTrigger;
         // While the engine is paused (between pauseExecution and start) the schedules map has been cleared. Adding

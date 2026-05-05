@@ -27,6 +27,8 @@ import java.util.function.Consumer;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 
+/// This implementation **is not thread-safe by itself**; callers must serialize `lifecycle` and `add()` invocations.
+/// `TriggerService` provides this guarantee.
 public class TriggerService {
 
     private final GroupedConsumer consumer = new GroupedConsumer();
@@ -146,7 +148,7 @@ public class TriggerService {
      * @return        {@code true} if the underlying engine actually scheduled the job, {@code false} if the engine
      *                rejected it (e.g. paused). Stats are only updated when the engine accepted the watch
      */
-    public boolean add(Watch watch) {
+    public synchronized boolean add(Watch watch) {
         final boolean added = engines.get(watch.trigger().type()).add(watch);
         if (added) {
             addToStats(watch);

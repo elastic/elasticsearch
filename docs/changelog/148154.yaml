@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 148154
+summary: Update failure store redirect logic to exclude backpressure exceptions
+type: bug

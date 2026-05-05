@@ -74,7 +74,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFiltered
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SetAsOptimized;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyAggregateOverArithmetic;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnEmptyMappings;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnLimitZero;
@@ -170,9 +169,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new TranslateTimeSeriesAggregate(),
             new ApplyWindowFilter(),
             new PruneUnusedIndexMode(),
-            // simplify aggregations over arithmetic expressions (e.g. SUM(col + K) -> SUM(col) + K * COUNT(*))
-            // must run before ReplaceAggregateNestedExpressionWithEval which would extract the arithmetic into a pre-eval
-            new SimplifyAggregateOverArithmetic(),
             // first extract nested expressions inside aggs
             new ReplaceAggregateNestedExpressionWithEval(),
             // then extract nested aggs top-level

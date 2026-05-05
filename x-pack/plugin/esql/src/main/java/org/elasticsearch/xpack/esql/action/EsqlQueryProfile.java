@@ -29,6 +29,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     public static final String PLANNING = "planning";
     public static final String PARSING = "parsing";
     public static final String VIEW_RESOLUTION = "view_resolution";
+    public static final String DATASET_RESOLUTION = "dataset_resolution";
     public static final String PRE_ANALYSIS = "preanalysis";
     public static final String INDICES_RESOLUTION = "indices_resolution";
     public static final String ENRICH_RESOLUTION = "enrich_resolution";
@@ -43,6 +44,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     private final TimeSpanMarker parsingMarker;
     /** Time elapsed for resolving views in the logical plan */
     private final TimeSpanMarker viewResolutionMarker;
+    /** Time elapsed for rewriting {@code FROM <dataset>} to UnresolvedExternalRelation */
+    private final TimeSpanMarker datasetResolutionMarker;
     /** Time elapsed for index preanalysis, including lookup indices */
     private final TimeSpanMarker preAnalysisMarker;
     /** Time elapsed for resolving indices dependencies */
@@ -62,9 +65,12 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     private static final TransportVersion ESQL_SEPARATE_DEPENDENCY_RESOLUTION = TransportVersion.fromName(
         "esql_separate_dependency_resolution"
     );
+    private static final TransportVersion ESQL_QUERY_PROFILE_DATASET_RESOLUTION = TransportVersion.fromName(
+        "esql_query_profile_dataset_resolution"
+    );
 
     public EsqlQueryProfile() {
-        this(null, null, null, null, null, null, null, null, null, 0);
+        this(null, null, null, null, null, null, null, null, null, null, 0);
     }
 
     // For testing
@@ -73,6 +79,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         TimeSpan planning,
         TimeSpan parsing,
         TimeSpan viewResolution,
+        TimeSpan datasetResolution,
         TimeSpan preAnalysis,
         TimeSpan indicesResolution,
         TimeSpan enrichResolution,
@@ -84,6 +91,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         this.planningMarker = new TimeSpanMarker(PLANNING, false, planning);
         this.parsingMarker = new TimeSpanMarker(PARSING, false, parsing);
         this.viewResolutionMarker = new TimeSpanMarker(VIEW_RESOLUTION, false, viewResolution);
+        this.datasetResolutionMarker = new TimeSpanMarker(DATASET_RESOLUTION, false, datasetResolution);
         this.preAnalysisMarker = new TimeSpanMarker(PRE_ANALYSIS, false, preAnalysis);
         this.indicesResolutionMarker = new TimeSpanMarker(INDICES_RESOLUTION, true, indicesResolution);
         this.enrichResolutionMarker = new TimeSpanMarker(ENRICH_RESOLUTION, true, enrichResolution);
@@ -97,6 +105,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         TimeSpan planning = in.readOptionalWriteable(TimeSpan::readFrom);
         TimeSpan parsing = null;
         TimeSpan viewResolution = null;
+        TimeSpan datasetResolution = null;
         TimeSpan preAnalysis = null;
         TimeSpan indicesResolution = null;
         TimeSpan enrichResolution = null;
@@ -107,6 +116,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             parsing = in.readOptionalWriteable(TimeSpan::readFrom);
             if (in.getTransportVersion().supports(ESQL_QUERY_PROFILE_VIEW_RESOLUTION)) {
                 viewResolution = in.readOptionalWriteable(TimeSpan::readFrom);
+            }
+            if (in.getTransportVersion().supports(ESQL_QUERY_PROFILE_DATASET_RESOLUTION)) {
+                datasetResolution = in.readOptionalWriteable(TimeSpan::readFrom);
             }
             preAnalysis = in.readOptionalWriteable(TimeSpan::readFrom);
             indicesResolution = in.readOptionalWriteable(TimeSpan::readFrom);
@@ -124,6 +136,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             planning,
             parsing,
             viewResolution,
+            datasetResolution,
             preAnalysis,
             indicesResolution,
             enrichResolution,
@@ -141,6 +154,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             out.writeOptionalWriteable(parsingMarker.timeSpan());
             if (out.getTransportVersion().supports(ESQL_QUERY_PROFILE_VIEW_RESOLUTION)) {
                 out.writeOptionalWriteable(viewResolutionMarker.timeSpan());
+            }
+            if (out.getTransportVersion().supports(ESQL_QUERY_PROFILE_DATASET_RESOLUTION)) {
+                out.writeOptionalWriteable(datasetResolutionMarker.timeSpan());
             }
             out.writeOptionalWriteable(preAnalysisMarker.timeSpan());
             if (out.getTransportVersion().supports(ESQL_SEPARATE_DEPENDENCY_RESOLUTION)) {
@@ -171,6 +187,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             && Objects.equals(planningMarker, that.planningMarker)
             && Objects.equals(parsingMarker, that.parsingMarker)
             && Objects.equals(viewResolutionMarker, that.viewResolutionMarker)
+            && Objects.equals(datasetResolutionMarker, that.datasetResolutionMarker)
             && Objects.equals(preAnalysisMarker, that.preAnalysisMarker)
             && Objects.equals(indicesResolutionMarker, that.indicesResolutionMarker)
             && Objects.equals(enrichResolutionMarker, that.enrichResolutionMarker)
@@ -186,6 +203,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             planningMarker,
             parsingMarker,
             viewResolutionMarker,
+            datasetResolutionMarker,
             preAnalysisMarker,
             indicesResolutionMarker,
             enrichResolutionMarker,
@@ -206,6 +224,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             + parsingMarker
             + ", viewResolutionMarker="
             + viewResolutionMarker
+            + ", datasetResolutionMarker="
+            + datasetResolutionMarker
             + ", preAnalysisMarker="
             + preAnalysisMarker
             + ", indicesResolutionMarker="
@@ -259,6 +279,13 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     }
 
     /**
+     * Span for rewriting {@code FROM <dataset>} into {@code UnresolvedExternalRelation} (between view resolution and pre-analysis).
+     */
+    public TimeSpanMarker datasetResolution() {
+        return datasetResolutionMarker;
+    }
+
+    /**
      * Span for the preanalysis phase
      */
     public TimeSpanMarker preAnalysis() {
@@ -299,6 +326,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             planningMarker,
             parsingMarker,
             viewResolutionMarker,
+            datasetResolutionMarker,
             preAnalysisMarker,
             indicesResolutionMarker,
             enrichResolutionMarker,

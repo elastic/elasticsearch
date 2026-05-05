@@ -79,8 +79,8 @@ import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationV
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
 
 /**
- * Manages the lifecycle, mapping and data upgrades/migrations of the {@link SecuritySystemIndices#SECURITY_MAIN_ALIAS}
- * and {@link SecuritySystemIndices#SECURITY_MAIN_ALIAS} alias-index pair.
+ * Manages the lifecycle, mapping and data upgrades/migrations of the {@code RestrictedIndicesNames#SECURITY_MAIN_ALIAS}
+ * and {@code RestrictedIndicesNames#SECURITY_MAIN_ALIAS} alias-index pair.
  */
 public class SecurityIndexManager implements ClusterStateListener {
 

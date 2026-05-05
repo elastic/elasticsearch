@@ -41,21 +41,20 @@ public class AuditTrailService {
     public AuditTrailService(AuditTrail auditTrail, XPackLicenseState licenseState, ClusterService clusterService) {
         this.auditTrail = auditTrail;
         this.licenseState = licenseState;
-        clusterService.getClusterSettings().initializeAndWatch(XPackSettings.AUDIT_ENABLED, newValue -> isAuditEnabled = newValue);
+        clusterService.getClusterSettings().initializeAndWatch(XPackSettings.AUDIT_ENABLED, newValue -> {
+            logger.info("Audit logging is {}", newValue ? "enabled" : "disabled");
+            isAuditEnabled = newValue;
+        });
     }
 
     public AuditTrail get() {
         if (isAuditEnabled == false) {
             return NOOP_AUDIT_TRAIL;
         }
-        if (auditTrail != null) {
-            if (Security.AUDITING_FEATURE.check(licenseState)) {
-                return auditTrail;
-            } else {
-                maybeLogAuditingDisabled();
-                return NOOP_AUDIT_TRAIL;
-            }
+        if (Security.AUDITING_FEATURE.check(licenseState)) {
+            return auditTrail;
         } else {
+            maybeLogAuditingDisabled();
             return NOOP_AUDIT_TRAIL;
         }
     }

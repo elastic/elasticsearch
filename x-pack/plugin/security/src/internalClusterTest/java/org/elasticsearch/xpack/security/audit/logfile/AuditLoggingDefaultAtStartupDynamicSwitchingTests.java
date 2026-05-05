@@ -6,23 +6,14 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.core.XPackSettings;
-
 import java.io.IOException;
+import java.util.Optional;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
-public class AuditLoggingDefaultAtStartupDynamicSwitchingTests extends AuditLoggingOffAtStartupDynamicSwitchingTests {
-
-    @Override
-    protected boolean addMockHttpTransport() {
-        return false;
-    }
+public class AuditLoggingDefaultAtStartupDynamicSwitchingTests extends AbstractAuditLoggingDynamicSwitchingTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).remove(XPackSettings.AUDIT_ENABLED.getKey()).build();
+    protected Optional<Boolean> startupAuditEnabled() {
+        return Optional.empty();
     }
 
     public void testFlippingAuditLogFalseToTrueToFalse() throws IOException {

@@ -387,6 +387,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         if (randomBoolean()) {
             logger.info("--> restarting the cluster");
             internalCluster().rollingRestart(new InternalTestCluster.RestartCallback());
+            ensureGreen(dataStreamName);
         } else {
             // Move all the shards to a new node to force relocations
             var newNodeName = internalCluster().startDataOnlyNode();

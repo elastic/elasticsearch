@@ -408,6 +408,11 @@ public class EsqlCapabilities {
         LOAD_FLATTENED_FIELD,
 
         /**
+         * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.
+         */
+        FLATTENED_DATATYPE(Build.current().isSnapshot()),
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -2505,7 +2510,7 @@ public class EsqlCapabilities {
         /**
          * TSDB Temporality support which is guarded by a feature flag.
          */
-        TSDB_TEMPORALITY_SUPPORT_V4(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V5(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
 
         /**
          * Support the null column type for the CHANGE_POINT command

@@ -24,24 +24,46 @@ base {
 def nativeLib="libesql_parquet_rs"
 def nativeDir = "${project.projectDir}/native"
 
-// Build locally if not in CI and if the "native/target" directory exists.
-// This ensures only people actively working on native code will incur the build cost.
+def buildingDockerImage = gradle.startParameter.taskNames.any { it.matches("build.*DockerImage") }
+
+// Where to get native libraries from? The default is:
+// - If the "native/target" directory exists and we're not in CI and not building a Docker image,
+//   build the library on the local host.
+// - Otherwise, fetch libraries from Artifactory. The "version" is the sha1 of the native source code.
+//   The libraries must have been published already, or the build will fail. See "native/Makefile" to build them.
 //
-// To force a local build, export LOCAL_NATIVE_BUILD=true. Useful in particular for
-// the first build, when "native/target" doesn't yet exist.
-//
-// To build and publish multi-platform libraries, see "native/Makefile"
-def buildLocally = {
-  def envValue = System.getenv("LOCAL_NATIVE_BUILD")
-  if (gradle.startParameter.taskNames.any { it.matches("build.*DockerImage") }) {
-    // Never build locally if we're building a docker image.
-    false
-  } else if (envValue != null) {
-    Boolean.valueOf(envValue)
+// To override the default behaviour, export NATIVE_BUILD with one of:
+//   - "artifactory":  download the prebuilt libraries from Artifactory.
+//   - "local":        Build the library only for the local host.
+//                     Mostly useful when "native/target" doesn't yet exist.
+//   - "local-multi":  use multi-platform libraries from "native/build/libraries" (see native/Makefile
+//                     to build them)
+//                     Mostly useful to build local Docker images without publishing to Artifactory.
+def nativeBuildType = {
+  def envValue = System.getenv("NATIVE_BUILD")
+  if (buildParams.ci) {
+    // Always use Artifactory in CI
+    "artifactory"
+  } else if (envValue == null) {
+    // No directive: build locally if 'target' dir is present and we're not building a Docker image
+    if (buildingDockerImage == false && file("${nativeDir}/target").isDirectory()) {
+      "local"
+    } else {
+      "artifactory"
+    }
   } else {
-    buildParams.ci == false && file("${nativeDir}/target").isDirectory()
+    if (["local", "artifactory", "local-multi"].contains(envValue) == false) {
+      throw new GradleException("NATIVE_BUILD must be one of: local, artifactory, local-multi (got: ${envValue})")
+    }
+    if (buildingDockerImage && envValue == "local") {
+      throw new GradleException("NATIVE_BUILD cannot be 'local' when building a Docker image")
+    }
+    envValue
   }
 }()
+def buildLocally = nativeBuildType == "local"
+def useLocalMulti = nativeBuildType == "local-multi"
+def useArtifactory = nativeBuildType == "artifactory"
 
 configurations {
   libs {
@@ -50,10 +72,17 @@ configurations {
   }
 }
 
-
-def nativeVersion = buildLocally ? "local" : providers.exec {
-  commandLine "${project.projectDir}/native/build-tools/src-sha1.sh"
-}.standardOutput.asText.get().trim()
+def nativeVersion = {
+  if (useArtifactory) {
+    providers.exec {
+      commandLine "${project.projectDir}/native/build-tools/src-sha1.sh"
+    }.standardOutput.asText.get().trim()
+  } else if (useLocalMulti) {
+    "local-multi"
+  } else {
+    "local"
+  }
+}()
 
 dependencies {
   compileOnly project(path: xpackModule('esql'))
@@ -82,7 +111,7 @@ dependencies {
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
 
-  if (buildLocally == false) {
+  if (useArtifactory) {
     registerTransform(UnzipTransform, transformSpec -> {
       transformSpec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
       transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
@@ -153,6 +182,8 @@ def extractNativeLibs = tasks.register('extractNativeLibs', Copy) {
   if (buildLocally) {
     dependsOn("cargoBuild")
     from "${cargoOutputDir}/${libFileName}"
+  } else if (useLocalMulti) {
+    from "${nativeDir}/build/libraries"
   } else {
     from configurations.libs
   }

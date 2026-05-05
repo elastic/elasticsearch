@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-OUTPUT=libraries
+OUTPUT=build/libraries
 TARGETS="x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu aarch64-apple-darwin"
 
 # Move to the "native" directory
@@ -72,7 +72,7 @@ done
 
 #--- Build
 rm -rf $OUTPUT
-mkdir $OUTPUT
+mkdir -p $OUTPUT
 
 for target in $TARGETS; do
   echo

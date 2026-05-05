@@ -69,6 +69,7 @@ public class AsyncClusterStateApplier implements ClusterStateApplier {
     public void applyClusterState(ClusterChangedEvent event) {
         final var oldState = Objects.requireNonNull(event.previousState());
         final var newState = Objects.requireNonNull(event.state());
+        logger.info("--> new state to apply: old [{}] new [{}]", oldState.version(), newState.version());
 
         synchronized (this) {
             if (appliedState == null) {
@@ -82,6 +83,7 @@ public class AsyncClusterStateApplier implements ClusterStateApplier {
                     listeners = new SubscribableListener<>();
                 }
                 pendingState = newState;
+                logger.info("--> setting new pending state to [{}] while applying from [{}]", newState.version(), appliedState.version());
                 return;
             }
 

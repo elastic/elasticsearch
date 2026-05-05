@@ -891,6 +891,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 shardLockRetryInterval,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 // TODO this shouldn't be on the applier thread; does it matter if it runs concurrently to other ICSS actions?
+                // See https://github.com/elastic/elasticsearch/commit/eb82fa24f70a38360c5a2075b44922f1ecefd85d
                 () -> clusterService.getClusterApplierService()
                     .runOnApplierThread("create shard " + shardRouting, Priority.NORMAL, currentState -> {
 

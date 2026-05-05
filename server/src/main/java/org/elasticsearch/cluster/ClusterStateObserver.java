@@ -161,13 +161,16 @@ public class ClusterStateObserver {
         // sample a new state. This state maybe *older* than the supplied state if we are called from an applier,
         // which wants to wait for something else to happen
         ClusterState newState = clusterApplierService.state();
+        if(statePredicate.test(newState)) {
+            logger.info("sampled state matched predicate ({}). lastObservedVersion is ({})", newState.version(), lastObservedVersion);
+        }
         if (lastObservedVersion < newState.version() && statePredicate.test(newState)) {
             // good enough, let's go.
             logger.trace("observer: sampled state accepted by predicate ({})", newState);
             lastObservedVersion = newState.version();
             listener.onNewClusterState(newState);
         } else {
-            logger.trace("observer: sampled state rejected by predicate ({}). adding listener to ClusterService", newState);
+            logger.info("observer: sampled state rejected by predicate ({}). adding listener to ClusterService", newState.version());
             final ObservingContext context = new ObservingContext(listener, statePredicate);
             if (observingContext.compareAndSet(null, context) == false) {
                 throw new ElasticsearchException("already waiting for a cluster state change");

@@ -69,6 +69,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.LongSupplier;
@@ -523,6 +524,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.isRetry()
             );
             if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
+                logger.info("---> mapping update requested for " + Arrays.toString(request.indices()));
                 return handleMappingUpdateRequired(
                     context,
                     mappingUpdater,

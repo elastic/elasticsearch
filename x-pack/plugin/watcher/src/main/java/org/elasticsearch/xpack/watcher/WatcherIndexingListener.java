@@ -67,19 +67,19 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     private final WatchParser parser;
     private final Clock clock;
     private final Supplier<WatcherState> watcherState;
-    private final WatcherIndexingEventConsumer indexingEventConsumer;
+    private final WatcherEventConsumer watcherEventConsumer;
     private volatile Configuration configuration = INACTIVE;
 
     WatcherIndexingListener(
         WatchParser parser,
         Clock clock,
-        WatcherIndexingEventConsumer indexingEventConsumer,
+        WatcherEventConsumer watcherEventConsumer,
         Supplier<WatcherState> watcherState
     ) {
         this.parser = parser;
         this.clock = clock;
         this.watcherState = watcherState;
-        this.indexingEventConsumer = indexingEventConsumer;
+        this.watcherEventConsumer = watcherEventConsumer;
     }
 
     // package private for testing
@@ -142,10 +142,10 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                 if (shouldBeTriggered && EnumSet.of(WatcherState.STOPPING, WatcherState.STOPPED).contains(currentState) == false) {
                     if (watch.status().state().isActive()) {
                         logger.debug("adding watch [{}] to trigger service", watch.id());
-                        indexingEventConsumer.onWatchAdded(watch);
+                        watcherEventConsumer.onWatchAdded(watch);
                     } else {
                         logger.debug("removing watch [{}] from trigger service", watch.id());
-                        indexingEventConsumer.onWatchRemoved(watch.id());
+                        watcherEventConsumer.onWatchRemoved(watch.id());
                     }
                 } else {
                     logger.debug("watch [{}] should not be triggered. watcher state [{}]", watch.id(), currentState);
@@ -183,7 +183,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
     public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
         if (isWatchDocument(shardId.getIndexName())) {
             logger.debug("removing watch [{}] from trigger service via delete", delete.id());
-            indexingEventConsumer.onWatchRemoved(delete.id());
+            watcherEventConsumer.onWatchRemoved(delete.id());
         }
         return delete;
     }

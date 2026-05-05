@@ -80,7 +80,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     private WatcherIndexingListener listener;
     private WatchParser parser = mock(WatchParser.class);
     private ClockMock clock = new ClockMock();
-    private WatcherIndexingEventConsumer indexingEventConsumer = mock(WatcherIndexingEventConsumer.class);
+    private WatcherEventConsumer watcherEventConsumer = mock(WatcherEventConsumer.class);
 
     private ShardId shardId = mock(ShardId.class);
     private Engine.IndexResult result = mock(Engine.IndexResult.class);
@@ -94,7 +94,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         clock.freeze();
         // Wire onWatchActive/onWatchInactive directly to triggerService so the existing verify(triggerService)
         // assertions still observe what the listener decides to do.
-        listener = new WatcherIndexingListener(parser, clock, indexingEventConsumer, () -> WatcherState.STARTED);
+        listener = new WatcherIndexingListener(parser, clock, watcherEventConsumer, () -> WatcherState.STARTED);
 
         Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
@@ -138,15 +138,15 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         if (isNewWatch) {
             if (watchActive) {
-                verify(indexingEventConsumer).onWatchAdded(eq(watch));
+                verify(watcherEventConsumer).onWatchAdded(eq(watch));
             } else {
-                verify(indexingEventConsumer).onWatchRemoved(eq("_id"));
+                verify(watcherEventConsumer).onWatchRemoved(eq("_id"));
             }
         }
     }
 
     public void testPostIndexWhenStopped() throws Exception {
-        listener = new WatcherIndexingListener(parser, clock, indexingEventConsumer, () -> WatcherState.STOPPED);
+        listener = new WatcherIndexingListener(parser, clock, watcherEventConsumer, () -> WatcherState.STOPPED);
         Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
         listener.setConfiguration(new Configuration(Watch.INDEX, map));
@@ -165,7 +165,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         listener.postIndex(shardId, operation, result);
         ZonedDateTime now = DateUtils.nowWithMillisResolution(clock);
         verify(parser).parseWithSecrets(eq(operation.id()), eq(true), eq(BytesArray.EMPTY), eq(now), any(), anyLong(), anyLong());
-        verifyNoMoreInteractions(indexingEventConsumer);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     // this test emulates an index with 10 shards and ensures that triggering only happens on a single shard
@@ -190,9 +190,9 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         // no matter how many shards we had, this should have been only called once
         if (isNewWatch) {
             if (watchActive) {
-                verify(indexingEventConsumer, times(1)).onWatchAdded(eq(watch));
+                verify(watcherEventConsumer, times(1)).onWatchAdded(eq(watch));
             } else {
-                verify(indexingEventConsumer, times(1)).onWatchRemoved(eq(watch.id()));
+                verify(watcherEventConsumer, times(1)).onWatchRemoved(eq(watch.id()));
             }
         }
     }
@@ -239,7 +239,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
         listener.postIndex(shardId, operation, result);
-        verifyNoMoreInteractions(indexingEventConsumer);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPostIndexRemoveTriggerOnDocumentRelatedException_ignoreNonWatcherDocument() throws Exception {
@@ -249,7 +249,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn(randomAlphaOfLength(4));
 
         listener.postIndex(shardId, operation, result);
-        verifyNoMoreInteractions(indexingEventConsumer);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPostIndexRemoveTriggerOnEngineLevelException() throws Exception {
@@ -257,7 +257,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
         listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
-        verifyNoMoreInteractions(indexingEventConsumer);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPostIndexRemoveTriggerOnEngineLevelException_ignoreNonWatcherDocument() throws Exception {
@@ -266,14 +266,14 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
         listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
-        verifyNoMoreInteractions(indexingEventConsumer);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPreDeleteCheckActive() throws Exception {
         listener.setConfiguration(INACTIVE);
         listener.preDelete(shardId, delete);
 
-        verifyNoMoreInteractions(indexingEventConsumer);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPreDeleteCheckIndex() throws Exception {
@@ -281,7 +281,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         listener.preDelete(shardId, delete);
 
-        verifyNoMoreInteractions(indexingEventConsumer);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPreDelete() throws Exception {
@@ -290,7 +290,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         listener.preDelete(shardId, delete);
 
-        verify(indexingEventConsumer).onWatchRemoved(eq("_id"));
+        verify(watcherEventConsumer).onWatchRemoved(eq("_id"));
     }
 
     //

@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
-public class TickerScheduleEngineTests extends ESTestCase {
+public class TickerScheduleTriggerEngineTests extends ESTestCase {
 
     private TickerScheduleTriggerEngine engine;
     protected ClockMock clock = ClockMock.frozen();

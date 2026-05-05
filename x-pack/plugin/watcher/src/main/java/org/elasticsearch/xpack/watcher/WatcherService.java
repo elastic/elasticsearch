@@ -57,7 +57,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -68,7 +67,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalState;
 import static org.elasticsearch.xpack.core.watcher.watch.Watch.INDEX;
 
-public class WatcherService implements WatcherIndexingEventConsumer {
+public class WatcherService implements WatcherEventConsumer {
 
     private static final String LIFECYCLE_THREADPOOL_NAME = "watcher-lifecycle";
     private static final Logger logger = LogManager.getLogger(WatcherService.class);
@@ -82,7 +81,6 @@ public class WatcherService implements WatcherIndexingEventConsumer {
     private final Client client;
     private final TimeValue defaultSearchTimeout;
     private final AtomicLong processedClusterStateVersion = new AtomicLong(0);
-    private final AtomicBoolean inReload = new AtomicBoolean(false);
     private final ExecutorService executor;
     private final Map<String, Watch> pendingWatches = new HashMap<>();
 
@@ -261,46 +259,43 @@ public class WatcherService implements WatcherIndexingEventConsumer {
      * @return                      true if no other loading of a newer cluster state happened in parallel, false otherwise
      */
     private boolean reloadInner(ClusterState state, String reason, boolean loadTriggeredWatches) {
-        assert inReload.compareAndSet(false, true) : "reloadInner is not expected to run concurrently";
-        try {
-            // exit early if another thread has come in between
-            if (processedClusterStateVersion.get() != state.getVersion()) {
-                logger.debug(
-                    "watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
-                    state.getVersion(),
-                    processedClusterStateVersion.get()
-                );
-                return false;
-            }
+        assert ThreadPool.assertCurrentThreadPool(LIFECYCLE_THREADPOOL_NAME)
+            : "reloadInner must run on the [" + LIFECYCLE_THREADPOOL_NAME + "] thread pool";
+        // exit early if another thread has come in between
+        if (processedClusterStateVersion.get() != state.getVersion()) {
+            logger.debug(
+                "watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
+                state.getVersion(),
+                processedClusterStateVersion.get()
+            );
+            return false;
+        }
 
-            Collection<Watch> watches = loadWatches(state);
-            Collection<TriggeredWatch> triggeredWatches = Collections.emptyList();
-            if (loadTriggeredWatches) {
-                triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, state);
-            }
+        Collection<Watch> watches = loadWatches(state);
+        Collection<TriggeredWatch> triggeredWatches = Collections.emptyList();
+        if (loadTriggeredWatches) {
+            triggeredWatches = triggeredWatchStore.findTriggeredWatches(watches, state);
+        }
 
-            // if we had another state coming in the meantime, we will not start the trigger engines with these watches, but wait
-            // until the others are loaded also this is the place where we pause the trigger service execution and clear the current
-            // execution service, so that we make sure that existing executions finish, but no new ones are executed
-            if (processedClusterStateVersion.get() == state.getVersion()) {
-                executionService.unPause();
-                triggerService.start(watches);
-                addPendingWatches(state);
-                if (triggeredWatches.isEmpty() == false) {
-                    executionService.executeTriggeredWatches(triggeredWatches);
-                }
-                logger.debug("watch service has been reloaded, reason [{}]", reason);
-                return true;
-            } else {
-                logger.debug(
-                    "watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
-                    state.getVersion(),
-                    processedClusterStateVersion.get()
-                );
-                return false;
+        // if we had another state coming in the meantime, we will not start the trigger engines with these watches, but wait
+        // until the others are loaded also this is the place where we pause the trigger service execution and clear the current
+        // execution service, so that we make sure that existing executions finish, but no new ones are executed
+        if (processedClusterStateVersion.get() == state.getVersion()) {
+            executionService.unPause();
+            triggerService.start(watches);
+            addPendingWatches(state);
+            if (triggeredWatches.isEmpty() == false) {
+                executionService.executeTriggeredWatches(triggeredWatches);
             }
-        } finally {
-            assert inReload.compareAndSet(true, false);
+            logger.debug("watch service has been reloaded, reason [{}]", reason);
+            return true;
+        } else {
+            logger.debug(
+                "watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
+                state.getVersion(),
+                processedClusterStateVersion.get()
+            );
+            return false;
         }
     }
 
@@ -442,6 +437,13 @@ public class WatcherService implements WatcherIndexingEventConsumer {
         return null;
     }
 
+
+    /// Atomically tries to schedule an active watch on the trigger engine and, only if the engine refused (it is
+    /// paused between `pauseExecution` and `start`), retains the watch in the pending-watches map so the next reload
+    /// picks it up. When the engine accepts the watch immediately, no pending entry is needed — the next reload will
+    /// reload it from the index search anyway. Both branches happen under the same lock in [WatcherService], so a
+    /// concurrent [#onWatchRemoved] cannot interleave between the engine call and the pending update and leave the
+    /// two views inconsistent.
     @Override
     public void onWatchAdded(Watch watch) {
         synchronized (pendingWatches) {
@@ -451,6 +453,9 @@ public class WatcherService implements WatcherIndexingEventConsumer {
         }
     }
 
+    /// Atomically removes a watch from the pending-watches map and the trigger engine under the same lock as
+    /// [#onWatchAdded]. This prevents a concurrent `postIndex` from resurrecting a deleted watch by sneaking an add
+    /// in between the two halves of the removal.
     @Override
     public void onWatchRemoved(String watchId) {
         synchronized (pendingWatches) {
@@ -496,4 +501,5 @@ public class WatcherService implements WatcherIndexingEventConsumer {
             }
         };
     }
+
 }

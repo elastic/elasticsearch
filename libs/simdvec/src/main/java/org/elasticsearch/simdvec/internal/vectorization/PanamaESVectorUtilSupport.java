@@ -91,19 +91,20 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         if (!SUPPORTS_HEAP_SEGMENTS || BFLOAT_SPECIES == null) {
             DefaultESVectorUtilSupport.floatToBFloat16(floats, bFloats, 0);
         } else {
-            int i = 0;
-            int vectorEnd = FLOAT_SPECIES.loopBound(floats.length);
             MemorySegment buffer = MemorySegment.ofBuffer(bFloats);
-            for (; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+            int vectorEnd = FLOAT_SPECIES.loopBound(floats.length);
+
+            for (int i = 0; i < vectorEnd; i += FLOAT_SPECIES.length()) {
                 IntVector bits = FloatVector.fromArray(FLOAT_SPECIES, floats, i).reinterpretAsInts();
                 // roundingBias = 0x7fff + ((bits >> 16) & 1)
                 IntVector bias = bits.lanewise(LSHR, 16).lanewise(AND, 1).add(0x7fff);
                 bits = bits.add(bias);
                 bits.lanewise(LSHR, 16)
                     .convertShape(VectorOperators.I2S, BFLOAT_SPECIES, 0)
-                    .intoMemorySegment(buffer, (long) bFloats.position() * Short.BYTES, bFloats.order());
-                bFloats.position(bFloats.position() + FLOAT_SPECIES.length());
+                    .intoMemorySegment(buffer, (long) i * Short.BYTES, bFloats.order());
             }
+            bFloats.position(bFloats.position() + vectorEnd);
+
             // scalar tail
             DefaultESVectorUtilSupport.floatToBFloat16(floats, bFloats, vectorEnd);
         }
@@ -114,22 +115,18 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         if (!SUPPORTS_HEAP_SEGMENTS || BFLOAT_SPECIES == null) {
             DefaultESVectorUtilSupport.bFloat16ToFloat(bFloats, floats, 0);
         } else {
-            int i = 0;
-            int vectorEnd = BFLOAT_SPECIES.loopBound(floats.length);    // take the number of elements as the length of the array
             MemorySegment buffer = MemorySegment.ofBuffer(bFloats);
-            for (; i < vectorEnd; i += BFLOAT_SPECIES.length()) {
-                ShortVector sv = ShortVector.fromMemorySegment(
-                    BFLOAT_SPECIES,
-                    buffer,
-                    (long) bFloats.position() * Short.BYTES,
-                    bFloats.order()
-                );
+            int vectorEnd = BFLOAT_SPECIES.loopBound(floats.length);    // take the number of elements as the length of the array
+
+            for (int i = 0; i < vectorEnd; i += BFLOAT_SPECIES.length()) {
+                ShortVector sv = ShortVector.fromMemorySegment(BFLOAT_SPECIES, buffer, (long) i * Short.BYTES, bFloats.order());
                 sv.convertShape(VectorOperators.ZERO_EXTEND_S2I, INTEGER_SPECIES, 0)
                     .lanewise(LSHL, 16)
                     .reinterpretAsFloats()
                     .intoArray(floats, i);
-                bFloats.position(bFloats.position() + BFLOAT_SPECIES.length());
             }
+            bFloats.position(bFloats.position() + vectorEnd);
+
             // scalar tail
             DefaultESVectorUtilSupport.bFloat16ToFloat(bFloats, floats, vectorEnd);
         }

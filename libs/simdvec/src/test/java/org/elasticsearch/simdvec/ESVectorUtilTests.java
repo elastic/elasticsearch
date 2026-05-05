@@ -652,7 +652,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         ByteBuffer buffer = ByteBuffer.allocate(vectors.length * dims * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         var bFloat16Buffer = buffer.asShortBuffer();
         for (float[] vector : vectors) {
-            BFloat16.floatToBFloat16(vector, bFloat16Buffer);
+            ESVectorUtil.floatToBFloat16(vector, bFloat16Buffer);
         }
         return new BytesRef(buffer.array());
     }

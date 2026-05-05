@@ -1,8 +1,8 @@
 ---
 "multi_value=false is enforced per document not per segment":
   - requires:
-      cluster_features: ["mapper.doc_values.multi_value"]
-      reason: "multi_value doc values parameter support"
+      cluster_features: ["mapper.doc_values.multi_value_rename"]
+      reason: "multi_value doc values parameter support with renamed options"
 
   - do:
       indices.create:
@@ -47,8 +47,8 @@
 ---
 "multi_value=false mapping serialization roundtrip":
   - requires:
-      cluster_features: ["mapper.doc_values.multi_value"]
-      reason: "multi_value doc values parameter support"
+      cluster_features: ["mapper.doc_values.multi_value_rename"]
+      reason: "multi_value doc values parameter support with renamed options"
 
   - do:
       indices.create:
@@ -72,8 +72,8 @@
 ---
 "multi_value=false accepts both boolean and string forms":
   - requires:
-      cluster_features: ["mapper.doc_values.multi_value"]
-      reason: "multi_value doc values parameter support"
+      cluster_features: ["mapper.doc_values.multi_value_rename"]
+      reason: "multi_value doc values parameter support with renamed options"
 
   # Boolean form: multi_value: false
   - do:
@@ -118,8 +118,8 @@
 ---
 "multi_value=true accepts both boolean and string forms":
   - requires:
-      cluster_features: ["mapper.doc_values.multi_value"]
-      reason: "multi_value doc values parameter support"
+      cluster_features: ["mapper.doc_values.multi_value_rename"]
+      reason: "multi_value doc values parameter support with renamed options"
 
   # Boolean form: multi_value: true
   - do:
@@ -152,8 +152,8 @@
 ---
 "multi_value=false on multi-field sub rejects parent array":
   - requires:
-      cluster_features: ["mapper.doc_values.multi_value_enforcement"]
-      reason: "multi_value=false enforcement on indexing"
+      cluster_features: ["mapper.doc_values.multi_value_enforcement", "mapper.doc_values.multi_value_rename"]
+      reason: "multi_value=false enforcement on indexing with renamed options"
 
   - do:
       indices.create:
@@ -193,8 +193,8 @@
 ---
 "multi_value=false on multi-field parent rejects parent array":
   - requires:
-      cluster_features: ["mapper.doc_values.multi_value_enforcement"]
-      reason: "multi_value=false enforcement on indexing"
+      cluster_features: ["mapper.doc_values.multi_value_enforcement", "mapper.doc_values.multi_value_rename"]
+      reason: "multi_value=false enforcement on indexing with renamed options"
 
   - do:
       indices.create:

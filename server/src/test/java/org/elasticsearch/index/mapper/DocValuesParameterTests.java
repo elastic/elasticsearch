@@ -102,10 +102,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", "preserve_order").endObject())
         );
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(
-            mapper.docValuesParameters().multiValue(),
-            equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.PRESERVE_ORDER)
-        );
+        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.PRESERVE_ORDER));
     }
 
     public void testMultiValueBooleanFalse() throws Exception {

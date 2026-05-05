@@ -27,8 +27,6 @@ import java.util.function.Consumer;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 
-/// This implementation **is not thread-safe by itself**; callers must serialize `lifecycle` and `add()` invocations.
-/// `TriggerService` provides this guarantee.
 public class TriggerService {
 
     private final GroupedConsumer consumer = new GroupedConsumer();

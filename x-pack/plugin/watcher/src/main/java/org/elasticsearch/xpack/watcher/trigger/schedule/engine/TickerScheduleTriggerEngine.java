@@ -40,6 +40,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
 
+/// This implementation **is not thread-safe by itself**; callers must serialize `lifecycle` and `add()` invocations.
+/// `TriggerService` provides this guarantee.
 public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
     public static final Setting<TimeValue> TICKER_INTERVAL_SETTING = positiveTimeSetting(

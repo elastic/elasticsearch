@@ -172,6 +172,9 @@ public interface IndexVectorReader extends Closeable {
         @Override
         public synchronized OrdinalVector<float[]> nextFloatVector() throws IOException {
             int ordinal = ordinalCounter.getAndIncrement();
+            if (ordinal >= totalDocs) {
+                return new OrdinalVector<>(ordinal, new float[dim]);
+            }
             VectorReader reader = currentReader();
             docsReadFromCurrent++;
             float[] dest = new float[dim];
@@ -185,6 +188,9 @@ public interface IndexVectorReader extends Closeable {
         @Override
         public synchronized OrdinalVector<byte[]> nextByteVector() throws IOException {
             int ordinal = ordinalCounter.getAndIncrement();
+            if (ordinal >= totalDocs) {
+                return new OrdinalVector<>(ordinal, new byte[dim]);
+            }
             VectorReader reader = currentReader();
             docsReadFromCurrent++;
             byte[] dest = new byte[dim];

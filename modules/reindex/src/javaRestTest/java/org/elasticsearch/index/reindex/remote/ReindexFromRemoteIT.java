@@ -50,13 +50,7 @@ public class ReindexFromRemoteIT extends ESRestTestCase {
                 for (int i = 0; i < DOCS; i++) {
                     String id = "doc" + i;
                     bulkBody.append(
-                        String.format(
-                            Locale.ROOT,
-                            "{\"index\":{\"_index\":\"%s\",\"_id\":\"%s\"}}\n{\"id\":\"%s\"}\n",
-                            remoteIndex,
-                            id,
-                            id
-                        )
+                        String.format(Locale.ROOT, "{\"index\":{\"_index\":\"%s\",\"_id\":\"%s\"}}\n{\"id\":\"%s\"}\n", remoteIndex, id, id)
                     );
                 }
                 Request bulk = new Request("POST", "/_bulk");

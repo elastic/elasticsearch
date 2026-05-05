@@ -548,3 +548,9 @@ tests:
 - class: org.elasticsearch.xpack.watcher.test.integration.SingleNodeTests
   method: testThatLoadingWithNonExistingIndexWorks
   issue: https://github.com/elastic/elasticsearch/issues/148323
+- class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
+  method: testWithByteBufferSlicesReturnsFalseAfterEviction
+  issue: https://github.com/elastic/elasticsearch/issues/148330
+- class: org.elasticsearch.xpack.security.authc.esnative.ReservedRealmElasticAutoconfigIntegTests
+  method: testAutoconfigFailedPasswordPromotion
+  issue: https://github.com/elastic/elasticsearch/issues/122668

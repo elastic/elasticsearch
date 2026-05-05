@@ -124,18 +124,18 @@ public class TestBlock implements BlockLoader.Block {
                     }
 
                     @Override
-                    public BlockLoader.SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException {
+                    public BlockLoader.SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int[] offsets) {
                         for (int i = 0; i < offsets.length - 1; i++) {
-                            BytesRef ref = new BytesRef(bytes, (int) offsets[i], (int) (offsets[i + 1] - offsets[i]));
+                            BytesRef ref = new BytesRef(bytes, offsets[i], offsets[i + 1] - offsets[i]);
                             add(BytesRef.deepCopyOf(ref));
                         }
                         return this;
                     }
 
                     @Override
-                    public BlockLoader.SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long bytesRefLengths) throws IOException {
+                    public BlockLoader.SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int bytesRefLengths) {
                         for (int i = 0; i < count; i++) {
-                            BytesRef ref = new BytesRef(bytes, (int) (i * bytesRefLengths), (int) bytesRefLengths);
+                            BytesRef ref = new BytesRef(bytes, (int) (i * bytesRefLengths), bytesRefLengths);
                             add(BytesRef.deepCopyOf(ref));
                         }
                         return this;

@@ -1,3 +1,8 @@
 #!/bin/bash
 
-export VAULT_GITHUB_TOKEN="$ORIGINAL_VAULT_GITHUB_TOKEN"
+# Temporary until we work out OIDC token issues
+# There are some places where we have a hacky workaround to change VAULT_GITHUB_TOKEN temporarily to elasticsearchmachine
+# Afterwards, we want to go back to the original version
+if [[ "${ORIGINAL_VAULT_GITHUB_TOKEN:-}" != "" ]]; then
+  export VAULT_GITHUB_TOKEN="$ORIGINAL_VAULT_GITHUB_TOKEN"
+fi

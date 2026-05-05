@@ -63,8 +63,13 @@ export BUILDKITE_API_TOKEN
 export ORIGINAL_VAULT_GITHUB_TOKEN="$VAULT_GITHUB_TOKEN"
 export GH_TOKEN="$VAULT_GITHUB_TOKEN"
 
-GITHUB_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/github_api_credentials)
-export GITHUB_TOKEN
+USE_ELASTICSEARCH_MACHINE_GITHUB_TOKEN=true
+
+# This is temporary until we work out issues with the OIDC tokens
+if [[ "${USE_ELASTICSEARCH_MACHINE_GITHUB_TOKEN:-}" == "true" ]]; then
+  ELASTICSEARCH_MACHINE_GITHUB_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/github_api_credentials)
+  export ELASTICSEARCH_MACHINE_GITHUB_TOKEN
+fi
 
 if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
   data=$(.buildkite/scripts/get-legacy-secret.sh aws-elastic/creds/lucene-snapshots)

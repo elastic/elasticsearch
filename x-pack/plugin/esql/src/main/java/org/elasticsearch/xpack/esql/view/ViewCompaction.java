@@ -30,13 +30,13 @@ import java.util.Map;
  * siblings (CPS lenient lookups) survive long enough to be paired with their strict
  * {@link UnresolvedRelation} sibling at field-caps time:
  * <ol>
- *   <li>{@link #preAnalysis(LogicalPlan)} — runs from {@code EsqlSession} before {@code PreAnalyzer}.
+ *   <li>{@link #preIndexResolution(LogicalPlan)} — runs from {@code EsqlSession} before {@code PreAnalyzer}.
  *       Reshapes user-written {@link Subquery}/{@link UnionAll} structures into {@link ViewUnionAll}
  *       so the analyzer sees a uniform tree shape. Leaves shadows in place; leaves nested
  *       {@link ViewUnionAll}s nested. The {@link UnresolvedRelation} index patterns it leaves in
  *       the tree are exactly what {@code PreAnalyzer} hands to field-caps and what
  *       {@code ResolveTable} later looks up.</li>
- *   <li>{@link #postAnalysis(LogicalPlan)} — runs as an analyzer rule after {@code ResolveTable}.
+ *   <li>{@link #postIndexResolution(LogicalPlan)} — runs as an analyzer rule after {@code ResolveTable}.
  *       Strips any {@link ViewShadowRelation} that lenient field-caps did not fold into a sibling
  *       {@code EsRelation} (in Phase A this is all of them, since lenient field-caps is not yet
  *       wired up — see esql-planning#543), then flattens nested {@link ViewUnionAll}s and unwraps
@@ -44,9 +44,9 @@ import java.util.Map;
  * </ol>
  * <p>
  * The split is what lets a colleague implement lenient field-caps purely as a Phase B analyzer
- * rule that lives between {@code ResolveTable} and {@link #postAnalysis}: shadows that match
+ * rule that lives between {@code ResolveTable} and {@link #postIndexResolution}: shadows that match
  * remote indices get rewritten to {@link UnresolvedRelation}/{@code EsRelation}; shadows that
- * fail to match are simply left unresolved and {@link #postAnalysis} sweeps them away. Ordering
+ * fail to match are simply left unresolved and {@link #postIndexResolution} sweeps them away. Ordering
  * details: see <a href="https://github.com/elastic/esql-planning/issues/472">esql-planning#472</a>.
  * <p>
  * Note: a small amount of compaction stays inside {@link ViewResolver#buildPlanFromBranches} —
@@ -58,24 +58,24 @@ import java.util.Map;
 public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
 
     /**
-     * Backward-compatible helper: runs {@link #preAnalysis(LogicalPlan)} followed by
-     * {@link #postAnalysis(LogicalPlan)}. Production code calls the two phases separately;
+     * Backward-compatible helper: runs {@link #preIndexResolution(LogicalPlan)} followed by
+     * {@link #postIndexResolution(LogicalPlan)}. Production code calls the two phases separately;
      * tests that exercise the compaction logic without going through the full analyzer call
      * this to get the same end state as the live pipeline produces.
      */
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
-        return postAnalysis(preAnalysis(plan));
+        return postIndexResolution(preIndexResolution(plan));
     }
 
     /**
      * Phase 1, runs before {@code PreAnalyzer}. Reshapes user-written {@link Subquery}/
      * {@link UnionAll} structures into {@link ViewUnionAll} for uniform downstream handling.
      * Deliberately does NOT strip {@link ViewShadowRelation} siblings or flatten nested
-     * {@link ViewUnionAll}s — those are deferred to {@link #postAnalysis} so lenient field-caps
+     * {@link ViewUnionAll}s — those are deferred to {@link #postIndexResolution} so lenient field-caps
      * (Phase B) can pair each shadow with its strict resolution at field-caps time.
      */
-    public static LogicalPlan preAnalysis(LogicalPlan plan) {
+    public static LogicalPlan preIndexResolution(LogicalPlan plan) {
         return rewriteUnionAllsWithNamedSubqueries(plan);
     }
 
@@ -88,7 +88,7 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * {@link #compactNestedViewUnionAlls} is effectively a no-op — sibling {@code EsRelation}s
      * stay separate (Strategy A from esql-planning#543).
      */
-    public static LogicalPlan postAnalysis(LogicalPlan plan) {
+    public static LogicalPlan postIndexResolution(LogicalPlan plan) {
         plan = stripViewShadowRelations(plan);
         // Strip can collapse a {@code ViewUnionAll[NamedSubquery, ViewShadowRelation]} to its sole
         // {@link NamedSubquery} when the shadow is removed. That exposes a {@code Subquery[NamedSubquery]}

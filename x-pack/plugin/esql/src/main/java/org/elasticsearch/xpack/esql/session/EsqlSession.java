@@ -324,9 +324,9 @@ public class EsqlSession {
         // Pre-analysis pass over the uncompacted plan from ViewResolver: reshape user-written
         // Subquery/UnionAll structures into ViewUnionAll. ViewShadowRelation siblings and nested
         // ViewUnionAlls are intentionally preserved here — they are stripped/flattened in
-        // ViewCompaction.postAnalysis(), which runs as an analyzer rule after ResolveTable so
-        // lenient field-caps (Phase B) can pair each shadow with its strict sibling.
-        LogicalPlan plan = ViewCompaction.preAnalysis(viewResolution.plan());
+        // ViewCompaction.postIndexResolution(), which runs as an analyzer rule after ResolveTable so
+        // lenient field-caps can pair each shadow with its strict sibling.
+        LogicalPlan plan = ViewCompaction.preIndexResolution(viewResolution.plan());
         Configuration configurationToUse = configuration;
         if (plan instanceof Explain explain) {
             explainMode = true;

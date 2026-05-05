@@ -234,7 +234,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Limiter.ONCE,
             new ResolveConfigurationAware(),
             new ResolveTable(),
-            new ViewCompactionPostAnalysis(),
+            new ViewCompactionPostIndexResolution(),
             new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
@@ -491,16 +491,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     /**
      * Phase 2 of view compaction. Runs in the Initialize batch right after {@link ResolveTable},
      * once all reachable {@link UnresolvedRelation}s have been replaced with {@code EsRelation}s
-     * (and once Phase B's lenient field-caps rule has rewritten any matched {@code ViewShadowRelation}s).
+     * (and once CPS's lenient field-caps rule has rewritten any matched {@code ViewShadowRelation}s).
      * Strips remaining unresolved shadows, flattens nested {@code ViewUnionAll} structures, and
      * unwraps remaining {@code NamedSubquery} wrappers. See {@link ViewCompaction} for the rationale
      * behind splitting compaction across the analyzer boundary.
      */
-    private static class ViewCompactionPostAnalysis extends Rule<LogicalPlan, LogicalPlan> {
+    private static class ViewCompactionPostIndexResolution extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            return ViewCompaction.postAnalysis(plan);
+            return ViewCompaction.postIndexResolution(plan);
         }
     }
 

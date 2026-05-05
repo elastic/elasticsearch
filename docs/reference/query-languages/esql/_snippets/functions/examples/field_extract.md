@@ -5,7 +5,7 @@
 ```esql
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
-| EVAL hn = field_extract(resource.attributes, "['host.name']")
+| EVAL hn = field_extract(resource.attributes, "host.name")
 | KEEP hn
 ```
 

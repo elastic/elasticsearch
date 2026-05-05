@@ -31,6 +31,12 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * Tests for {@link FieldExtract}.
+ * <p>
+ *     The path argument is a literal flattened sub-field name. The function never navigates into
+ *     nested JSON objects: input {@code {"a":{"b":"x"}}} with path {@code a.b} does <em>not</em>
+ *     match (no top-level key named {@code "a.b"}). Real flattened storage emits the flat shape
+ *     {@code {"a.b":"x"}} via doc values, so this matches what the function sees in production.
+ * </p>
  */
 public class FieldExtractTests extends AbstractScalarFunctionTestCase {
     public FieldExtractTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -44,11 +50,11 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
         for (DataType pathType : List.of(DataType.KEYWORD, DataType.TEXT)) {
             suppliers.add(
                 new TestCaseSupplier(
-                    "nested host name " + pathType.typeName(),
+                    "literal dotted key " + pathType.typeName(),
                     types(DataType.FLATTENED, pathType),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("{\"host\":{\"name\":\"node-a\"}}"), DataType.FLATTENED, "field"),
+                            new TestCaseSupplier.TypedData(new BytesRef("{\"host.name\":\"node-a\"}"), DataType.FLATTENED, "field"),
                             new TestCaseSupplier.TypedData(new BytesRef("host.name"), pathType, "path")
                         ),
                         "FieldExtractEvaluator[flattenedJson=Attribute[channel=0], path=Attribute[channel=1]]",
@@ -61,32 +67,16 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
 
         suppliers.add(
             new TestCaseSupplier(
-                "constant path keyword",
+                "constant dotted path",
                 types(DataType.FLATTENED, DataType.KEYWORD),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("{\"k\":{\"inner\":\"v\"}}"), DataType.FLATTENED, "field"),
+                        new TestCaseSupplier.TypedData(new BytesRef("{\"k.inner\":\"v\"}"), DataType.FLATTENED, "field"),
                         new TestCaseSupplier.TypedData(new BytesRef("k.inner"), DataType.KEYWORD, "path").forceLiteral()
                     ),
                     "FieldExtractConstantEvaluator[flattenedJson=Attribute[channel=0], path=k.inner]",
                     DataType.KEYWORD,
                     equalTo(new BytesRef("v"))
-                )
-            )
-        );
-
-        suppliers.add(
-            new TestCaseSupplier(
-                "bracket key with dot",
-                types(DataType.FLATTENED, DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef("{\"service.name\":\"otel\"}"), DataType.FLATTENED, "field"),
-                        new TestCaseSupplier.TypedData(new BytesRef("['service.name']"), DataType.KEYWORD, "path")
-                    ),
-                    "FieldExtractEvaluator[flattenedJson=Attribute[channel=0], path=Attribute[channel=1]]",
-                    DataType.KEYWORD,
-                    equalTo(new BytesRef("otel"))
                 )
             )
         );
@@ -137,7 +127,23 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
             new Literal(Source.EMPTY, new BytesRef("tags[0]"), DataType.KEYWORD)
         );
         assertTrue(extract.typeResolved().unresolved());
-        assertThat(extract.typeResolved().message(), equalTo("field_extract path cannot use array indices"));
+        assertThat(
+            extract.typeResolved().message(),
+            equalTo("field_extract path must be a literal flattened sub-field name; brackets and array indices are not supported")
+        );
+    }
+
+    public void testFoldablePathWithBracketsFailsVerification() {
+        var extract = new FieldExtract(
+            Source.EMPTY,
+            field("field", DataType.FLATTENED),
+            new Literal(Source.EMPTY, new BytesRef("['host.name']"), DataType.KEYWORD)
+        );
+        assertTrue(extract.typeResolved().unresolved());
+        assertThat(
+            extract.typeResolved().message(),
+            equalTo("field_extract path must be a literal flattened sub-field name; brackets and array indices are not supported")
+        );
     }
 
     public void testFoldableEmptyPathFailsVerification() {
@@ -147,7 +153,7 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
             new Literal(Source.EMPTY, new BytesRef(""), DataType.KEYWORD)
         );
         assertTrue(extract.typeResolved().unresolved());
-        assertThat(extract.typeResolved().message(), equalTo("field_extract path must contain at least one key segment"));
+        assertThat(extract.typeResolved().message(), equalTo("field_extract path must not be empty"));
     }
 
     private String extractFromBytes(BytesRef bytes, String path) {
@@ -161,8 +167,12 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
         }
     }
 
-    public void testSimpleNestedExtraction() {
-        assertThat(extractFromBytes(new BytesRef("{\"a\":{\"b\":\"leaf\"}}"), "a.b"), equalTo("leaf"));
+    public void testLiteralDottedKeyMatchesFlatStorage() {
+        // The doc-values shape of a flattened root: every leaf is one top-level key with a dotted name.
+        // This test also pins down the literal-key semantics — if the implementation accidentally
+        // treated `.` as a navigation separator, the "literal dotted key" supplier above would also
+        // start failing, since its input has no nested object to walk into.
+        assertThat(extractFromBytes(new BytesRef("{\"foo.bar.baz\":\"x\"}"), "foo.bar.baz"), equalTo("x"));
     }
 
     private static List<DataType> types(DataType firstType, DataType secondType) {

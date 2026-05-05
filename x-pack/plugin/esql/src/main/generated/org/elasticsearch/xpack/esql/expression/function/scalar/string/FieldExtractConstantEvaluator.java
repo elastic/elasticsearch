@@ -30,14 +30,14 @@ public final class FieldExtractConstantEvaluator implements ExpressionEvaluator 
 
   private final ExpressionEvaluator flattenedJson;
 
-  private final JsonPath path;
+  private final String path;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public FieldExtractConstantEvaluator(Source source, ExpressionEvaluator flattenedJson,
-      JsonPath path, DriverContext driverContext) {
+      String path, DriverContext driverContext) {
     this.source = source;
     this.flattenedJson = flattenedJson;
     this.path = path;
@@ -127,9 +127,9 @@ public final class FieldExtractConstantEvaluator implements ExpressionEvaluator 
 
     private final ExpressionEvaluator.Factory flattenedJson;
 
-    private final JsonPath path;
+    private final String path;
 
-    public Factory(Source source, ExpressionEvaluator.Factory flattenedJson, JsonPath path) {
+    public Factory(Source source, ExpressionEvaluator.Factory flattenedJson, String path) {
       this.source = source;
       this.flattenedJson = flattenedJson;
       this.path = path;

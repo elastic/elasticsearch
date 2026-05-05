@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,6 +16,13 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -38,14 +46,18 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * Extracts a single sub-key from a {@code flattened} field root as {@code keyword}.
+ * Extracts a single sub-field from a {@code flattened} field root as {@code keyword}.
  * <p>
- *     The second argument is a <strong>field path</strong>, not full JSONPath: it may use dot notation and
- *     quoted bracket notation for keys (same subset as {@link JsonExtract} for navigation), but
- *     <strong>array indices are not allowed</strong> — flattened sub-keys are addressed as field paths only.
+ *     The second argument is the <em>literal</em> name of a flattened sub-field — exactly the
+ *     dotted key as it is stored in doc values for the flattened root (for example
+ *     {@code "host.name"}). It is <strong>not</strong> JSONPath: dots are part of the key, not
+ *     path separators, and bracket / array-index syntax is rejected.
  * </p>
  */
 public class FieldExtract extends EsqlScalarFunction {
+    private static final BytesRef TRUE_BYTES = new BytesRef("true");
+    private static final BytesRef FALSE_BYTES = new BytesRef("false");
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "FieldExtract",
@@ -63,21 +75,23 @@ public class FieldExtract extends EsqlScalarFunction {
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         description = """
-            Extracts the value of a single sub-key from a `flattened` field root as `keyword`.""",
+            Extracts the value of a single sub-field from a `flattened` field root as `keyword`.""",
         detailedDescription = """
             The first argument must be a field whose ES mapping type is `flattened` (the root of the flattened object).
-            The second argument is the path to the sub-key inside the JSON blob produced for that root, using the same
-            dot and quoted-bracket rules as `JSON_EXTRACT` for navigating objects, except that array indices are not
-            supported — `field_extract` addresses flattened storage as field paths, not arbitrary JSONPath.
-            Doc values for a `flattened` root are often emitted as a single JSON object whose keys are full dotted paths
-            (for example `host.name`); use quoted bracket segments such as `['host.name']` instead of `host.name`, which
-            would look for a nested object `host` then key `name`.
+            The second argument is the *literal* name of the sub-field to extract — exactly the dotted key as stored in
+            doc values for the flattened root. For example, `field_extract(resource.attributes, "host.name")` looks up
+            the literal storage key `host.name`; the dot is part of the key, not a path separator. Nested objects in the
+            original document also collapse to dotted keys (an input `{"a":{"b":"x"}}` is stored as the flat key `a.b`),
+            so the same dotted form addresses both flat and originally-nested sub-fields.
 
-            Returns `null` if either argument is `null`, if the path does not exist, or if the extracted JSON value is
-            `null`. Returns `null` and emits a warning if the root value is not valid JSON.
+            JSONPath syntax is not supported: brackets (`['host.name']`) and array indices (`tags[0]`) are rejected.
+            Path matching is case-sensitive.
+
+            Returns `null` if either argument is `null`, if no sub-field with that name exists, or if the stored value
+            is JSON `null`. Returns `null` and emits a warning if the root value is not valid JSON.
 
             String values are returned without surrounding quotes; numbers and booleans as their string representation;
-            objects and arrays as JSON strings. When the sub-key is multi-valued in the flattened field, the result is
+            objects and arrays as JSON strings. When the sub-field is multi-valued in the flattened field, the result is
             a multi-valued `keyword` block.""",
         examples = @Example(file = "field_extract", tag = "field_extract_host_name")
     )
@@ -91,8 +105,8 @@ public class FieldExtract extends EsqlScalarFunction {
         @Param(
             name = "path",
             type = { "keyword", "text" },
-            description = "Path to the sub-key to extract, using dot and quoted-bracket notation (no array indices). "
-                + "If `null`, the function returns `null`."
+            description = "Literal name of the flattened sub-field to extract (e.g. `\"host.name\"`). "
+                + "Brackets and array indices are not supported. If `null`, the function returns `null`."
         ) Expression path
     ) {
         super(source, List.of(field, path));
@@ -139,9 +153,7 @@ public class FieldExtract extends EsqlScalarFunction {
             var foldedPath = path.fold(FoldContext.small());
             if (foldedPath != null) {
                 try {
-                    String pathString = ((BytesRef) foldedPath).utf8ToString();
-                    JsonPath jsonPath = JsonPath.parse(pathString);
-                    validateFieldExtractPath(jsonPath);
+                    validateFieldExtractPath(((BytesRef) foldedPath).utf8ToString());
                 } catch (IllegalArgumentException e) {
                     return new TypeResolution(e.getMessage());
                 }
@@ -151,16 +163,19 @@ public class FieldExtract extends EsqlScalarFunction {
     }
 
     /**
-     * Ensures the path does not use array segments (flattened field paths are object keys only).
+     * Verifies that {@code path} is a usable literal flattened sub-field name: non-empty and free of
+     * JSONPath syntax. The {@code [} / {@code ]} characters are rejected to catch both array indices
+     * ({@code tags[0]}) and quoted bracket keys ({@code ['host.name']}) — neither has any meaning
+     * for flattened storage where every leaf is addressed by its dotted key.
      */
-    static void validateFieldExtractPath(JsonPath path) {
-        if (path.segments().isEmpty()) {
-            throw new IllegalArgumentException("field_extract path must contain at least one key segment");
+    static void validateFieldExtractPath(String path) {
+        if (path.isEmpty()) {
+            throw new IllegalArgumentException("field_extract path must not be empty");
         }
-        for (JsonPath.Segment segment : path.segments()) {
-            if (segment instanceof JsonPath.Segment.Index) {
-                throw new IllegalArgumentException("field_extract path cannot use array indices");
-            }
+        if (path.indexOf('[') >= 0 || path.indexOf(']') >= 0) {
+            throw new IllegalArgumentException(
+                "field_extract path must be a literal flattened sub-field name; brackets and array indices are not supported"
+            );
         }
     }
 
@@ -171,15 +186,105 @@ public class FieldExtract extends EsqlScalarFunction {
 
     @Evaluator(warnExceptions = IllegalArgumentException.class)
     public static void process(BytesRefBlock.Builder builder, BytesRef flattenedJson, BytesRef path) {
-        JsonPath jsonPath = JsonPath.parse(path.utf8ToString());
-        validateFieldExtractPath(jsonPath);
-        JsonPathValueExtractor.extract(builder, flattenedJson, jsonPath);
+        String key = path.utf8ToString();
+        validateFieldExtractPath(key);
+        extractTopLevelKey(builder, flattenedJson, key);
     }
 
     @Evaluator(extraName = "Constant", warnExceptions = IllegalArgumentException.class)
-    static void processConstant(BytesRefBlock.Builder builder, BytesRef flattenedJson, @Fixed JsonPath path) {
-        validateFieldExtractPath(path);
-        JsonPathValueExtractor.extract(builder, flattenedJson, path);
+    static void processConstant(BytesRefBlock.Builder builder, BytesRef flattenedJson, @Fixed String path) {
+        // path was validated at plan time; no need to re-check per row.
+        extractTopLevelKey(builder, flattenedJson, path);
+    }
+
+    /**
+     * Looks up {@code key} as a literal top-level field name in the (possibly XContent-encoded) JSON
+     * blob produced by the flattened block loader and appends the value to {@code builder}.
+     * Throws {@link IllegalArgumentException} if the input is not a valid JSON object or the key is
+     * absent, so the evaluator can report it as a per-row warning and emit {@code null}.
+     */
+    private static void extractTopLevelKey(BytesRefBlock.Builder builder, BytesRef str, String key) {
+        // Flattened doc values are JSON objects, but _source loaders can deliver SMILE/CBOR/YAML.
+        XContentType type = XContentFactory.xContentType(str.bytes, str.offset, str.length);
+        if (type == null) {
+            type = XContentType.JSON;
+        }
+        try (XContentParser parser = type.xContent().createParser(XContentParserConfiguration.EMPTY, str.bytes, str.offset, str.length)) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new IllegalArgumentException("path [" + key + "] does not exist");
+            }
+            byte[] rawBytes = type == XContentType.JSON ? str.bytes : null;
+            int rawOffset = type == XContentType.JSON ? str.offset : 0;
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    String name = parser.currentName();
+                    parser.nextToken(); // advance to value
+                    if (name.equals(key)) {
+                        appendCurrentValue(builder, parser, rawBytes, rawOffset);
+                        return;
+                    }
+                    parser.skipChildren();
+                }
+            }
+            throw new IllegalArgumentException("path [" + key + "] does not exist");
+        } catch (IOException | XContentParseException e) {
+            throw new IllegalArgumentException("invalid JSON input");
+        }
+    }
+
+    /**
+     * Appends the current parser value to {@code builder}, preferring zero-copy byte slicing when the
+     * input is JSON. Mirrors the value-shape rules in {@code JSON_EXTRACT}: scalars are stringified,
+     * objects and arrays are returned as their JSON serialization.
+     */
+    private static void appendCurrentValue(BytesRefBlock.Builder builder, XContentParser parser, byte[] rawBytes, int rawOffset)
+        throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        switch (token) {
+            case VALUE_STRING -> builder.appendBytesRef(new BytesRef(parser.text()));
+            case VALUE_NUMBER -> {
+                if (rawBytes != null) {
+                    XContentLocation tokenLocation = parser.getTokenLocation();
+                    XContentLocation currentLocation = parser.getCurrentLocation();
+                    if (tokenLocation.hasValidByteOffset() && currentLocation.hasValidByteOffset()) {
+                        int start = (int) tokenLocation.byteOffset() + rawOffset;
+                        int end = (int) currentLocation.byteOffset() + rawOffset;
+                        builder.appendBytesRef(new BytesRef(rawBytes, start, end - start));
+                    } else {
+                        builder.appendBytesRef(new BytesRef(parser.text()));
+                    }
+                } else {
+                    builder.appendBytesRef(new BytesRef(parser.text()));
+                }
+            }
+            case VALUE_BOOLEAN -> builder.appendBytesRef(parser.booleanValue() ? TRUE_BYTES : FALSE_BYTES);
+            case VALUE_NULL -> builder.appendNull();
+            case START_OBJECT, START_ARRAY -> {
+                if (rawBytes != null) {
+                    XContentLocation startLocation = parser.getTokenLocation();
+                    parser.skipChildren();
+                    XContentLocation endLocation = parser.getCurrentLocation();
+                    if (startLocation.hasValidByteOffset() && endLocation.hasValidByteOffset()) {
+                        int start = (int) startLocation.byteOffset() + rawOffset;
+                        int end = (int) endLocation.byteOffset() + rawOffset;
+                        builder.appendBytesRef(new BytesRef(rawBytes, start, end - start));
+                    } else {
+                        copyCurrentStructureFallback(builder, parser);
+                    }
+                } else {
+                    copyCurrentStructureFallback(builder, parser);
+                }
+            }
+            default -> throw new IllegalArgumentException("unexpected token: " + token);
+        }
+    }
+
+    private static void copyCurrentStructureFallback(BytesRefBlock.Builder builder, XContentParser parser) throws IOException {
+        try (XContentBuilder jsonBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            jsonBuilder.copyCurrentStructure(parser);
+            builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());
+        }
     }
 
     @Override
@@ -196,9 +301,9 @@ public class FieldExtract extends EsqlScalarFunction {
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         ExpressionEvaluator.Factory fieldEval = toEvaluator.apply(field);
         if (path.foldable()) {
-            JsonPath jsonPath = JsonPath.parse(((BytesRef) path.fold(toEvaluator.foldCtx())).utf8ToString());
-            validateFieldExtractPath(jsonPath);
-            return new FieldExtractConstantEvaluator.Factory(source(), fieldEval, jsonPath);
+            String pathString = ((BytesRef) path.fold(toEvaluator.foldCtx())).utf8ToString();
+            validateFieldExtractPath(pathString);
+            return new FieldExtractConstantEvaluator.Factory(source(), fieldEval, pathString);
         }
         ExpressionEvaluator.Factory pathEval = toEvaluator.apply(path);
         return new FieldExtractEvaluator.Factory(source(), fieldEval, pathEval);

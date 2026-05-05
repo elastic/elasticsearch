@@ -6,5 +6,5 @@
 :   The root of a `flattened` mapping field. If `null`, the function returns `null`.
 
 `path`
-:   Path to the sub-key to extract, using dot and quoted-bracket notation (no array indices). If `null`, the function returns `null`.
+:   Literal name of the flattened sub-field to extract (e.g. `"host.name"`). Brackets and array indices are not supported. If `null`, the function returns `null`.
 

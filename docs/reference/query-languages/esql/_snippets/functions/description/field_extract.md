@@ -2,20 +2,22 @@
 
 ## Description
 
-Extracts the value of a single sub-key from a `flattened` field root as `keyword`.
+Extracts the value of a single sub-field from a `flattened` field root as `keyword`.
 
 The first argument must be a field whose ES mapping type is `flattened` (the root of the flattened object).
-The second argument is the path to the sub-key inside the JSON blob produced for that root, using the same
-dot and quoted-bracket rules as `JSON_EXTRACT` for navigating objects, except that array indices are not
-supported — `field_extract` addresses flattened storage as field paths, not arbitrary JSONPath.
-Doc values for a `flattened` root are often emitted as a single JSON object whose keys are full dotted paths
-(for example `host.name`); use quoted bracket segments such as `['host.name']` instead of `host.name`, which
-would look for a nested object `host` then key `name`.
+The second argument is the *literal* name of the sub-field to extract — exactly the dotted key as stored in
+doc values for the flattened root. For example, `field_extract(resource.attributes, "host.name")` looks up
+the literal storage key `host.name`; the dot is part of the key, not a path separator. Nested objects in the
+original document also collapse to dotted keys (an input `{"a":{"b":"x"}}` is stored as the flat key `a.b`),
+so the same dotted form addresses both flat and originally-nested sub-fields.
 
-Returns `null` if either argument is `null`, if the path does not exist, or if the extracted JSON value is
-`null`. Returns `null` and emits a warning if the root value is not valid JSON.
+JSONPath syntax is not supported: brackets (`['host.name']`) and array indices (`tags[0]`) are rejected.
+Path matching is case-sensitive.
+
+Returns `null` if either argument is `null`, if no sub-field with that name exists, or if the stored value
+is JSON `null`. Returns `null` and emits a warning if the root value is not valid JSON.
 
 String values are returned without surrounding quotes; numbers and booleans as their string representation;
-objects and arrays as JSON strings. When the sub-key is multi-valued in the flattened field, the result is
+objects and arrays as JSON strings. When the sub-field is multi-valued in the flattened field, the result is
 a multi-valued `keyword` block.
 

@@ -5,7 +5,7 @@ required_capability: fn_field_extract
 // tag::field_extract_host_name[]
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
-| EVAL hn = field_extract(resource.attributes, "['host.name']")
+| EVAL hn = field_extract(resource.attributes, "host.name")
 | KEEP hn
 // end::field_extract_host_name[]
 ;
@@ -23,7 +23,7 @@ required_capability: fn_field_extract
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
-| EVAL agent_id = field_extract(resource.attributes, "['agent.id']")
+| EVAL agent_id = field_extract(resource.attributes, "agent.id")
 | KEEP agent_id
 ;
 
@@ -54,7 +54,7 @@ required_capability: flattened_datatype
 required_capability: fn_field_extract
 
 FROM flattened_otel_logs
-| EVAL host.name = field_extract(resource.attributes, "['host.name']")
+| EVAL host.name = field_extract(resource.attributes, "host.name")
 | STATS c = count(*) BY host.name
 | SORT host.name
 ;
@@ -77,7 +77,7 @@ required_capability: flattened_datatype
 required_capability: fn_field_extract
 
 FROM flattened_otel_logs
-| EVAL host.name = field_extract(resource.attributes, "['host.name']")
+| EVAL host.name = field_extract(resource.attributes, "host.name")
 | STATS distinct_hosts = COUNT_DISTINCT(host.name)
 ;
 
@@ -91,7 +91,7 @@ required_capability: flattened_datatype
 required_capability: fn_field_extract
 
 FROM flattened_otel_logs
-| EVAL host.name = field_extract(resource.attributes, "['host.name']")
+| EVAL host.name = field_extract(resource.attributes, "host.name")
 | WHERE host.name == "infra-filebeat-6vjxr"
 | KEEP @timestamp, host.name
 | SORT @timestamp
@@ -108,7 +108,7 @@ required_capability: flattened_datatype
 required_capability: fn_field_extract
 
 FROM flattened_otel_logs
-| EVAL host.name = field_extract(resource.attributes, "['host.name']")
+| EVAL host.name = field_extract(resource.attributes, "host.name")
 | SORT host.name ASC, @timestamp ASC
 | KEEP @timestamp, host.name
 | LIMIT 5
@@ -129,7 +129,7 @@ required_capability: fn_field_extract
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T11:43:13.255Z"
-| EVAL host.name = field_extract(resource.attributes, "['host.name']")
+| EVAL host.name = field_extract(resource.attributes, "host.name")
 | EVAL host_length = LENGTH(host.name)
 | KEEP host.name, host_length
 ;
@@ -146,7 +146,7 @@ required_capability: fn_field_extract
 FROM flattened_otel_logs
 | SORT @timestamp ASC
 | LIMIT 3
-| EVAL host.name = field_extract(resource.attributes, "['host.name']")
+| EVAL host.name = field_extract(resource.attributes, "host.name")
 | KEEP @timestamp, host.name
 ;
 
@@ -164,7 +164,7 @@ required_capability: fn_field_extract
 FROM flattened_otel_logs
 | SORT @timestamp DESC
 | LIMIT 3
-| WHERE field_extract(resource.attributes, "['host.name']") == "infra-filebeat-cpcmv"
+| WHERE field_extract(resource.attributes, "host.name") == "infra-filebeat-cpcmv"
 | KEEP @timestamp
 ;
 
@@ -179,7 +179,7 @@ required_capability: fn_field_extract
 
 FROM flattened_otel_logs
 | SORT @timestamp ASC
-| EVAL host.name = field_extract(resource.attributes, "['host.name']")
+| EVAL host.name = field_extract(resource.attributes, "host.name")
 | KEEP @timestamp, host.name
 | LIMIT 3
 ;
@@ -196,8 +196,8 @@ required_capability: flattened_datatype
 required_capability: fn_field_extract
 required_capability: subquery_in_from_command
 
-FROM (FROM flattened_otel_logs | WHERE @timestamp >= "2020-01-01T12:00:00Z" | EVAL h_late = field_extract(resource.attributes, "['host.name']") | KEEP h_late),
-     (FROM flattened_otel_logs | WHERE @timestamp <  "2020-01-01T12:00:00Z" | EVAL h_early = field_extract(resource.attributes, "['host.name']") | KEEP h_early)
+FROM (FROM flattened_otel_logs | WHERE @timestamp >= "2020-01-01T12:00:00Z" | EVAL h_late = field_extract(resource.attributes, "host.name") | KEEP h_late),
+     (FROM flattened_otel_logs | WHERE @timestamp <  "2020-01-01T12:00:00Z" | EVAL h_early = field_extract(resource.attributes, "host.name") | KEEP h_early)
 | STATS d_late = COUNT_DISTINCT(h_late), d_early = COUNT_DISTINCT(h_early)
 ;
 
@@ -213,8 +213,8 @@ required_capability: subquery_in_from_command
 
 FROM (FROM flattened_otel_logs | WHERE @timestamp >= "2020-01-01T12:00:00Z" | RENAME resource.attributes AS attrs_late  | KEEP attrs_late),
      (FROM flattened_otel_logs | WHERE @timestamp <  "2020-01-01T12:00:00Z" | RENAME resource.attributes AS attrs_early | KEEP attrs_early)
-| EVAL h_late  = field_extract(attrs_late,  "['host.name']")
-| EVAL h_early = field_extract(attrs_early, "['host.name']")
+| EVAL h_late  = field_extract(attrs_late,  "host.name")
+| EVAL h_early = field_extract(attrs_early, "host.name")
 | STATS d_late = COUNT_DISTINCT(h_late), d_early = COUNT_DISTINCT(h_early)
 ;
 
@@ -229,7 +229,7 @@ required_capability: fn_field_extract
 required_capability: join_lookup_v12
 
 FROM flattened_otel_logs
-| EVAL host.name = field_extract(resource.attributes, "['host.name']")
+| EVAL host.name = field_extract(resource.attributes, "host.name")
 | LOOKUP JOIN host_threat_list ON host.name
 | WHERE threat_level IS NOT NULL
 | KEEP @timestamp, host.name, threat_level
@@ -255,7 +255,7 @@ required_capability: fn_field_extract
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:07:43.000Z"
-| EVAL ips = field_extract(resource.attributes, "['host.ip']")
+| EVAL ips = field_extract(resource.attributes, "host.ip")
 | EVAL is_array = STARTS_WITH(ips, "[") AND ENDS_WITH(ips, "]")
 | EVAL has_v4 = CONTAINS(ips, "10.224.0.170")
 | EVAL has_v6 = CONTAINS(ips, "fe80::4001:aff:fee0:aa")
@@ -275,7 +275,7 @@ required_capability: fn_field_extract
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:07:43.000Z"
-| EVAL conn = field_extract(attributes, "['nginx.error.connection_id']")
+| EVAL conn = field_extract(attributes, "nginx.error.connection_id")
 | KEEP conn
 ;
 
@@ -293,28 +293,12 @@ required_capability: fn_field_extract
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
-| EVAL size = field_extract(attributes, "['rally.message_size']")
+| EVAL size = field_extract(attributes, "rally.message_size")
 | KEEP size
 ;
 
 size:keyword
 192
-;
-
-// Whitespace inside brackets
-whitespaceInBrackets
-required_capability: field_extract_function
-required_capability: flattened_datatype
-required_capability: fn_field_extract
-
-FROM flattened_otel_logs
-| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
-| EVAL hn = field_extract(resource.attributes, "[ 'host.name' ]")
-| KEEP hn
-;
-
-hn:keyword
-infra-filebeat-6vjxr
 ;
 
 // FIELD_EXTRACT result is `keyword`, so it must compose with all the regular
@@ -325,7 +309,7 @@ required_capability: flattened_datatype
 required_capability: fn_field_extract
 
 FROM flattened_otel_logs
-| EVAL hn = field_extract(resource.attributes, "['host.name']")
+| EVAL hn = field_extract(resource.attributes, "host.name")
 | WHERE STARTS_WITH(TO_LOWER(hn), "infra-filebeat-")
 | STATS c = count(*)
 ;
@@ -344,12 +328,12 @@ required_capability: fn_field_extract
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
-| EVAL hn = COALESCE(field_extract(resource.attributes, "['no.such']"),
-                     field_extract(resource.attributes, "['host.name']"))
+| EVAL hn = COALESCE(field_extract(resource.attributes, "no.such"),
+                     field_extract(resource.attributes, "host.name"))
 | KEEP hn
 ;
 warningRegex:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
-warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[\['no\.such'\]\] does not exist
+warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[no\.such\] does not exist
 
 hn:keyword
 infra-filebeat-6vjxr
@@ -364,8 +348,8 @@ required_capability: fn_field_extract
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
-| EVAL hn = field_extract(resource.attributes, "['host.name']")
-| EVAL aid = field_extract(resource.attributes, "['agent.id']")
+| EVAL hn = field_extract(resource.attributes, "host.name")
+| EVAL aid = field_extract(resource.attributes, "agent.id")
 | KEEP hn, aid
 ;
 
@@ -383,7 +367,7 @@ required_capability: fn_field_extract
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
-| EVAL hn = field_extract(resource.attributes, CONCAT("['host.", "name']"))
+| EVAL hn = field_extract(resource.attributes, CONCAT("host.", "name"))
 | KEEP hn
 ;
 
@@ -391,8 +375,8 @@ hn:keyword
 infra-filebeat-6vjxr
 ;
 
-// Path matching is case-sensitive per the JSON spec: `['Host.Name']` does NOT
-// match the flat key `host.name`.
+// Path matching is case-sensitive: `Host.Name` does NOT match the flat key
+// `host.name`.
 caseSensitiveMismatch
 required_capability: field_extract_function
 required_capability: flattened_datatype
@@ -400,53 +384,13 @@ required_capability: fn_field_extract
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:02:48.461Z"
-| EVAL hn = field_extract(resource.attributes, "['Host.Name']")
+| EVAL hn = field_extract(resource.attributes, "Host.Name")
 | KEEP hn
 ;
 warningRegex:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
-warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[\['Host\.Name'\]\] does not exist
+warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[Host\.Name\] does not exist
 
 hn:keyword
-null
-;
-
-// Pins down the documented behavior: dot notation `host.name` looks for a
-// nested object `host` -> key `name`. The flattened block loader emits a flat
-// key `host.name` instead, so dot notation finds nothing and returns null.
-// This is exactly why the docs require bracket notation for dotted keys.
-dotNotationForDottedKeyReturnsNull
-required_capability: field_extract_function
-required_capability: flattened_datatype
-required_capability: fn_field_extract
-
-FROM flattened_otel_logs
-| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
-| EVAL hn = field_extract(resource.attributes, "host.name")
-| KEEP hn
-;
-warningRegex:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
-warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[host\.name\] does not exist
-
-hn:keyword
-null
-;
-
-// Trying to descend into a leaf (string) value as if it were an object errors
-// per row: parser sees VALUE_STRING when it expects START_OBJECT/START_ARRAY.
-descendIntoLeafValueFails
-required_capability: field_extract_function
-required_capability: flattened_datatype
-required_capability: fn_field_extract
-
-FROM flattened_otel_logs
-| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
-| EVAL bad = field_extract(resource.attributes, "['host.name'].sub")
-| KEEP bad
-;
-warningRegex:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
-warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[\['host\.name'\]\.sub\] does not exist
-
-bad:keyword
 null
 ;
 
@@ -457,7 +401,7 @@ required_capability: flattened_datatype
 required_capability: fn_field_extract
 
 FROM flattened_otel_logs
-| EVAL hn = field_extract(resource.attributes, "['host.name']")
+| EVAL hn = field_extract(resource.attributes, "host.name")
 | WHERE hn IN ("infra-filebeat-6vjxr", "filebeat-6t7v6")
 | KEEP @timestamp, hn
 | SORT @timestamp

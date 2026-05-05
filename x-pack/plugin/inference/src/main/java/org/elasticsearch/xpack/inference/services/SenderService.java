@@ -292,7 +292,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
     public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, request.inputType(), clusterService, model.getTaskType());
-            if (supportsImageEmbeddingContent() == false && containsNonTextEntry(request.inputs())) {
+            if (supportsNonTextEmbeddingContent() == false && containsNonTextEntry(request.inputs())) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
                         Strings.format("The %s service does not support embedding with non-text inputs", name()),
@@ -340,7 +340,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
      * Override as necessary for services which support images in embedding inputs
      * @return true if the service supports images in embedding inputs
      */
-    protected boolean supportsImageEmbeddingContent() {
+    protected boolean supportsNonTextEmbeddingContent() {
         return false;
     }
 
@@ -396,7 +396,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 if (input.isEmpty()) {
                     listener.onResponse(List.of());
                 } else {
-                    if (supportsImageEmbeddingContent() == false
+                    if (supportsNonTextEmbeddingContent() == false
                         && containsNonTextEntry(input.stream().map(ChunkInferenceInput::input).toList())) {
                         listener.onFailure(
                             new ElasticsearchStatusException(

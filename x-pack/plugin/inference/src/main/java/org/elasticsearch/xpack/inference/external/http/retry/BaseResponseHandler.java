@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -83,12 +84,17 @@ public abstract class BaseResponseHandler implements ResponseHandler {
 
     protected abstract void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result);
 
-    protected Exception buildError(String message, OutboundRequest outboundRequest, HttpResult result) {
+    protected ElasticsearchException buildError(String message, OutboundRequest outboundRequest, HttpResult result) {
         var errorEntityMsg = errorParseFunction.apply(result);
         return buildError(message, outboundRequest, result, errorEntityMsg);
     }
 
-    protected Exception buildError(String message, OutboundRequest outboundRequest, HttpResult result, ErrorResponse errorResponse) {
+    protected ElasticsearchException buildError(
+        String message,
+        OutboundRequest outboundRequest,
+        HttpResult result,
+        ErrorResponse errorResponse
+    ) {
         var responseStatusCode = result.response().getStatusLine().getStatusCode();
         return new ElasticsearchStatusException(
             constructErrorMessage(message, outboundRequest, errorResponse, responseStatusCode),

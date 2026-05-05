@@ -34,6 +34,26 @@ import java.util.regex.Pattern;
  * writing a "ports" file.
  */
 public class OldElasticsearch {
+
+    private static final Pattern ELASTICSEARCH_DIR_MAJOR = Pattern.compile("elasticsearch-(\\d+)");
+
+    /**
+     * {@code transport.tcp.port} was removed in Elasticsearch 8.0 in favor of {@code transport.port}.
+     */
+    private static String bindRandomTransportPortLine(Path esInstallDir) {
+        Matcher m = ELASTICSEARCH_DIR_MAJOR.matcher(esInstallDir.getFileName().toString());
+        if (m.find()) {
+            try {
+                if (Integer.parseInt(m.group(1)) >= 8) {
+                    return "transport.port: 0";
+                }
+            } catch (NumberFormatException e) {
+                // use legacy setting
+            }
+        }
+        return "transport.tcp.port: 0";
+    }
+
     public static void main(String[] args) throws IOException {
         Path baseDir = Paths.get(args[0]);
         Path unzipDir = Paths.get(args[1]);
@@ -75,7 +95,7 @@ public class OldElasticsearch {
         Path config = esDir.resolve("config").resolve("elasticsearch.yml");
 
         List<String> configOptions = new ArrayList<>();
-        configOptions.addAll(Arrays.asList("http.port: 0", "transport.tcp.port: 0", "network.host: 127.0.0.1"));
+        configOptions.addAll(Arrays.asList("http.port: 0", bindRandomTransportPortLine(esDir), "network.host: 127.0.0.1"));
         if (args.length > 3) {
             for (int i = 3; i < args.length; i++) {
                 configOptions.add(args[i]);
@@ -93,6 +113,12 @@ public class OldElasticsearch {
         Path pidPath = baseDir.relativize(baseDir.resolve("pid"));
         command.add(pidPath.toString().replace("&", "\\&"));
         ProcessBuilder subprocess = new ProcessBuilder(command);
+        /*
+         * The Gradle fixture sets CLASSPATH to run this launcher (often including lucene-core from this
+         * subproject). That environment is inherited here; Elasticsearch 8+ configures JVM security policies
+         * per Lucene codebase and crashes if CLASSPATH duplicates another lucene-core (different version).
+         */
+        subprocess.environment().remove("CLASSPATH");
         Process process = subprocess.start();
         System.out.println("Running " + command);
 

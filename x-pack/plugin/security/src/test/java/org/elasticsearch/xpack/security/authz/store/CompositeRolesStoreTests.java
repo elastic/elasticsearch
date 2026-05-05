@@ -156,6 +156,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -1506,6 +1507,197 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(decorated.getIndicesPrivileges()[0], instanceOf(IndicesPrivileges.ImplicitlyGranted.class));
         assertThat(decorated.getIndicesPrivileges()[0].getQuery(), notNullValue());
         assertTrue(decorated.getIndicesPrivileges()[0].isUsingDocumentOrFieldLevelSecurity());
+    }
+
+    public void testGetApplicationPrivilegeDescriptorsResolvesConcreteAppHit() {
+        final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
+        final RoleDescriptor rd = roleWithAppPrivs("r1", arp("shield", "agent"));
+
+        final List<ApplicationPrivilegeDescriptor> result = CompositeRolesStore.getApplicationPrivilegeDescriptors(rd, indexByName(agent));
+
+        assertThat(result, contains(agent));
+    }
+
+    public void testGetApplicationPrivilegeDescriptorsConcreteAppSilentlySkipsActionPatternAndUnknownPriv() {
+        final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
+        // "data:read/*" is an action pattern (not a valid stored-privilege name); "phantom" is undefined. Both must be silently dropped.
+        final RoleDescriptor rd = roleWithAppPrivs("r1", arp("shield", "agent", "data:read/*", "phantom"));
+
+        final List<ApplicationPrivilegeDescriptor> result = CompositeRolesStore.getApplicationPrivilegeDescriptors(rd, indexByName(agent));
+
+        assertThat(result, contains(agent));
+    }
+
+    public void testGetApplicationPrivilegeDescriptorsConcreteAppDoesNotLeakAcrossApps() {
+        final ApplicationPrivilegeDescriptor agentShield = new ApplicationPrivilegeDescriptor(
+            "shield",
+            "agent",
+            Set.of("data:read/*"),
+            Map.of()
+        );
+        // Same priv name on a different application; concrete-app match must filter it out.
+        final ApplicationPrivilegeDescriptor agentHydra = new ApplicationPrivilegeDescriptor(
+            "hydra",
+            "agent",
+            Set.of("data:read/*"),
+            Map.of()
+        );
+        final RoleDescriptor rd = roleWithAppPrivs("r1", arp("shield", "agent"));
+
+        final List<ApplicationPrivilegeDescriptor> result = CompositeRolesStore.getApplicationPrivilegeDescriptors(
+            rd,
+            indexByName(agentShield, agentHydra)
+        );
+
+        assertThat(result, contains(agentShield));
+    }
+
+    public void testGetApplicationPrivilegeDescriptorsWildcardAppExpandsAcrossMatchingApps() {
+        final ApplicationPrivilegeDescriptor agentProd = new ApplicationPrivilegeDescriptor(
+            "shield-prod",
+            "agent",
+            Set.of("data:read/*"),
+            Map.of()
+        );
+        final ApplicationPrivilegeDescriptor agentDev = new ApplicationPrivilegeDescriptor(
+            "shield-dev",
+            "agent",
+            Set.of("data:read/*"),
+            Map.of()
+        );
+        // hydra/agent shares the priv name but its application does not match the "shield-*" pattern.
+        final ApplicationPrivilegeDescriptor agentHydra = new ApplicationPrivilegeDescriptor(
+            "hydra",
+            "agent",
+            Set.of("data:read/*"),
+            Map.of()
+        );
+        final RoleDescriptor rd = roleWithAppPrivs("r1", arp("shield-*", "agent"));
+
+        final List<ApplicationPrivilegeDescriptor> result = CompositeRolesStore.getApplicationPrivilegeDescriptors(
+            rd,
+            indexByName(agentProd, agentDev, agentHydra)
+        );
+
+        assertThat(result, containsInAnyOrder(agentProd, agentDev));
+    }
+
+    public void testGetApplicationPrivilegeDescriptorsWildcardStarMatchesEveryApp() {
+        final ApplicationPrivilegeDescriptor agentShield = new ApplicationPrivilegeDescriptor(
+            "shield",
+            "agent",
+            Set.of("data:read/*"),
+            Map.of()
+        );
+        final ApplicationPrivilegeDescriptor agentHydra = new ApplicationPrivilegeDescriptor(
+            "hydra",
+            "agent",
+            Set.of("data:read/*"),
+            Map.of()
+        );
+        final RoleDescriptor rd = roleWithAppPrivs("r1", arp("*", "agent"));
+
+        final List<ApplicationPrivilegeDescriptor> result = CompositeRolesStore.getApplicationPrivilegeDescriptors(
+            rd,
+            indexByName(agentShield, agentHydra)
+        );
+
+        assertThat(result, containsInAnyOrder(agentShield, agentHydra));
+    }
+
+    public void testGetApplicationPrivilegeDescriptorsWildcardAppSilentlySkipsActionPatternAndUnknownPriv() {
+        final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
+        // Action patterns and unknown priv names look identical to the helper: neither is a key in the byName index, so both are skipped.
+        final RoleDescriptor rd = roleWithAppPrivs("r1", arp("*", "data:read/*", "phantom"));
+
+        final List<ApplicationPrivilegeDescriptor> result = CompositeRolesStore.getApplicationPrivilegeDescriptors(rd, indexByName(agent));
+
+        assertThat(result, empty());
+    }
+
+    public void testGetApplicationPrivilegeDescriptorsDedupsAcrossOverlappingEntries() {
+        final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
+        // The same descriptor is reachable twice: once via concrete "shield", once via wildcard "*".
+        final RoleDescriptor rd = roleWithAppPrivs("r1", arp("shield", "agent"), arp("*", "agent"));
+
+        final List<ApplicationPrivilegeDescriptor> result = CompositeRolesStore.getApplicationPrivilegeDescriptors(rd, indexByName(agent));
+
+        assertThat(result, contains(agent));
+    }
+
+    public void testGetApplicationPrivilegeDescriptorsPreservesEncounterOrder() {
+        final ApplicationPrivilegeDescriptor alpha = new ApplicationPrivilegeDescriptor("app", "alpha", Set.of("data:a/*"), Map.of());
+        final ApplicationPrivilegeDescriptor bravo = new ApplicationPrivilegeDescriptor("app", "bravo", Set.of("data:b/*"), Map.of());
+        final ApplicationPrivilegeDescriptor charlie = new ApplicationPrivilegeDescriptor("app", "charlie", Set.of("data:c/*"), Map.of());
+        // First entry yields charlie then alpha (in that priv-array order); second entry yields bravo. The result list must reflect
+        // first-encounter order across both ApplicationResourcePrivileges entries.
+        final RoleDescriptor rd = roleWithAppPrivs("r1", arp("app", "charlie", "alpha"), arp("app", "bravo"));
+
+        final List<ApplicationPrivilegeDescriptor> result = CompositeRolesStore.getApplicationPrivilegeDescriptors(
+            rd,
+            indexByName(alpha, bravo, charlie)
+        );
+
+        assertThat(result, contains(charlie, alpha, bravo));
+    }
+
+    public void testGetApplicationPrivilegeDescriptorsReturnsEmptyForRoleWithoutApplicationPrivileges() {
+        final ApplicationPrivilegeDescriptor agent = new ApplicationPrivilegeDescriptor("shield", "agent", Set.of("data:read/*"), Map.of());
+        final RoleDescriptor rd = new RoleDescriptor("r1", null, null, null);
+
+        assertThat(CompositeRolesStore.getApplicationPrivilegeDescriptors(rd, indexByName(agent)), empty());
+    }
+
+    public void testAddImplicitPrivilegesToRolesPassesWildcardMatchedAppPrivsToProviders() {
+        // Wildcard application name on the role descriptor must result in providers seeing every stored descriptor whose application
+        // name matches the pattern and whose privilege name was referenced. This pins the wildcard branch's wiring through the
+        // outer addImplicitPrivilegesToRoles → decorateWithImplicitPrivileges → getApplicationPrivilegeDescriptors path.
+        final RoleDescriptor rd = roleWithApplicationPrivilege("r1", "shield-*", "agent");
+        final ApplicationPrivilegeDescriptor agentProd = new ApplicationPrivilegeDescriptor(
+            "shield-prod",
+            "agent",
+            Set.of("data:read/*"),
+            Map.of()
+        );
+        final ApplicationPrivilegeDescriptor agentDev = new ApplicationPrivilegeDescriptor(
+            "shield-dev",
+            "agent",
+            Set.of("data:read/*"),
+            Map.of()
+        );
+        final ApplicationPrivilegeDescriptor agentHydra = new ApplicationPrivilegeDescriptor(
+            "hydra",
+            "agent",
+            Set.of("data:read/*"),
+            Map.of()
+        );
+        final NativePrivilegeStore privilegeStore = mockPrivilegeStore(Set.of(agentProd, agentDev, agentHydra));
+        final List<Collection<ApplicationPrivilegeDescriptor>> seen = new ArrayList<>();
+        final CompositeRolesStore store = buildStoreForImplicitPrivilegesAddition(privilegeStore, List.of((r, apds) -> {
+            seen.add(List.copyOf(apds));
+            return List.of();
+        }));
+
+        invokeAddImplicitPrivileges(store, List.of(rd));
+
+        assertThat(seen, hasSize(1));
+        assertThat(seen.get(0), containsInAnyOrder(agentProd, agentDev));
+    }
+
+    private static RoleDescriptor roleWithAppPrivs(String name, RoleDescriptor.ApplicationResourcePrivileges... arps) {
+        return new RoleDescriptor(name, null, null, arps, null, null, null, null);
+    }
+
+    private static RoleDescriptor.ApplicationResourcePrivileges arp(String application, String... privileges) {
+        return RoleDescriptor.ApplicationResourcePrivileges.builder()
+            .application(application)
+            .privileges(privileges)
+            .resources("*")
+            .build();
+    }
+
+    private static Map<String, List<ApplicationPrivilegeDescriptor>> indexByName(ApplicationPrivilegeDescriptor... descriptors) {
+        return Stream.of(descriptors).collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getName));
     }
 
     private CompositeRolesStore buildStoreForImplicitPrivilegesAddition(

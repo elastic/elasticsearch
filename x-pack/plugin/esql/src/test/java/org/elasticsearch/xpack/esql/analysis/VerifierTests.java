@@ -1444,6 +1444,12 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error("from test metadata _source | sort _source", equalTo("1:35: cannot sort on _source"));
     }
 
+    public void testFlattenedSorting() {
+        var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
+        index.error("FROM flattened_otel_logs | SORT attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
+        index.error("FROM flattened_otel_logs | SORT resource.attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
+    }
+
     public void testCountersSorting() {
         Map<DataType, String> counterDataTypes = Map.of(
             COUNTER_DOUBLE,

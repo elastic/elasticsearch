@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ServiceAccountIT extends ESRestTestCase {
@@ -791,6 +792,79 @@ public class ServiceAccountIT extends ESRestTestCase {
                 Map.of("role_descriptor", XContentHelper.convertToMap(new BytesArray(roleDescriptorString), false, XContentType.JSON).v2())
             )
         );
+    }
+
+    public void testCreateUserDefinedServiceAccountAsSuperuser() throws IOException {
+        final String namespace = "myorg";
+        final String serviceName = "svc-" + randomAlphaOfLength(6).toLowerCase(java.util.Locale.ROOT);
+        final String principal = namespace + "/" + serviceName;
+        final String roleDescriptor = """
+            {
+              "cluster": ["monitor"],
+              "indices": [
+                { "names": ["logs-*"], "privileges": ["read", "view_index_metadata"] }
+              ]
+            }""";
+
+        final Request putRequest = new Request("PUT", "_security/service/" + namespace + "/" + serviceName);
+        putRequest.setJsonEntity(roleDescriptor);
+        final Response putResponse = adminClient().performRequest(putRequest);
+        assertOK(putResponse);
+        assertThat(responseAsMap(putResponse).get("created"), is(true));
+
+        final Request listWithoutFlag = new Request("GET", "_security/service");
+        final Map<String, Object> withoutFlagBody = responseAsMap(adminClient().performRequest(listWithoutFlag));
+        assertThat("user-defined accounts must be hidden by default", withoutFlagBody, not(hasKey(principal)));
+
+        final Request listWithFlag = new Request("GET", "_security/service?include_user_defined=true");
+        final Map<String, Object> withFlagBody = responseAsMap(adminClient().performRequest(listWithFlag));
+        assertThat(withFlagBody, hasKey(principal));
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> entry = (Map<String, Object>) withFlagBody.get(principal);
+        assertThat(entry, hasEntry("type", "user-defined"));
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> elasticEntry = (Map<String, Object>) withFlagBody.get("elastic/fleet-server");
+        assertThat(elasticEntry, hasEntry("type", "built-in"));
+    }
+
+    public void testCreateRejectsElasticNamespace() throws IOException {
+        final Request request = new Request(
+            "PUT",
+            "_security/service/elastic/" + randomAlphaOfLength(6).toLowerCase(java.util.Locale.ROOT)
+        );
+        request.setJsonEntity("""
+            { "cluster": ["monitor"] }""");
+        final ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(e.getMessage(), containsString("namespace [elastic] is reserved"));
+    }
+
+    public void testCreateRejectsRunAs() throws IOException {
+        final Request request = new Request("PUT", "_security/service/myorg/" + randomAlphaOfLength(6).toLowerCase(java.util.Locale.ROOT));
+        request.setJsonEntity("""
+            { "cluster": ["monitor"], "run_as": ["someone"] }""");
+        final ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(e.getMessage(), containsString("[run_as]"));
+    }
+
+    public void testCreateRejectsCrossClusterIndexPattern() throws IOException {
+        final Request request = new Request("PUT", "_security/service/myorg/" + randomAlphaOfLength(6).toLowerCase(java.util.Locale.ROOT));
+        request.setJsonEntity("""
+            { "indices": [ { "names": ["remote:logs-*"], "privileges": ["read"] } ] }""");
+        final ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(e.getMessage(), containsString("contains ':'"));
+    }
+
+    public void testCreateRequiresCallerToImplyAllRequestedPrivileges() throws IOException {
+        // service_account_manager only holds the manage_service_account cluster privilege; it does not have `monitor`.
+        final Request request = new Request("PUT", "_security/service/myorg/" + randomAlphaOfLength(6).toLowerCase(java.util.Locale.ROOT));
+        request.setJsonEntity("""
+            { "cluster": ["monitor"] }""");
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e.getMessage(), containsString("caller does not have all privileges"));
     }
 
     @SuppressWarnings("unchecked")

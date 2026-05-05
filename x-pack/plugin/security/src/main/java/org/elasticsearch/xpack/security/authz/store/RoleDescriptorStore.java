@@ -138,7 +138,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         RoleReference.ServiceAccountRoleReference roleReference,
         ActionListener<RolesRetrievalResult> listener
     ) {
-        ServiceAccountService.getRoleDescriptorForPrincipal(roleReference.getPrincipal(), listener.map(roleDescriptor -> {
+        serviceAccountService.getRoleDescriptorForPrincipal(roleReference.getPrincipal(), listener.map(roleDescriptor -> {
             final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
             rolesRetrievalResult.addDescriptors(Set.of(roleDescriptor));
             return rolesRetrievalResult;

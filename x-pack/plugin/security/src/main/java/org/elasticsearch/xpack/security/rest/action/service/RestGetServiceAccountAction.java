@@ -48,7 +48,8 @@ public class RestGetServiceAccountAction extends SecurityBaseRestHandler {
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String namespace = request.param("namespace");
         final String serviceName = request.param("service");
-        final GetServiceAccountRequest getServiceAccountRequest = new GetServiceAccountRequest(namespace, serviceName);
+        final boolean includeUserDefined = request.paramAsBoolean("include_user_defined", false);
+        final GetServiceAccountRequest getServiceAccountRequest = new GetServiceAccountRequest(namespace, serviceName, includeUserDefined);
         return channel -> client.execute(GetServiceAccountAction.INSTANCE, getServiceAccountRequest, new RestToXContentListener<>(channel));
     }
 }

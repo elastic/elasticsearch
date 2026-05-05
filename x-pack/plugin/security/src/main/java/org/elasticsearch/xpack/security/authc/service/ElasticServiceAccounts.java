@@ -19,9 +19,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-final class ElasticServiceAccounts {
+public final class ElasticServiceAccounts {
 
-    static final String NAMESPACE = "elastic";
+    public static final String NAMESPACE = "elastic";
 
     private static final ServiceAccount AUTO_OPS_ACCOUNT = new ElasticServiceAccount(
         "auto-ops",

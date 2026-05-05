@@ -16,6 +16,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -34,7 +35,8 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         transportGetServiceAccountAction = new TransportGetServiceAccountAction(
             transportService,
-            new ActionFilters(Collections.emptySet())
+            new ActionFilters(Collections.emptySet()),
+            mock(ServiceAccountService.class)
         );
     }
 

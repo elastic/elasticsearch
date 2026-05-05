@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -50,9 +51,11 @@ public class ServiceAccountService {
     private final Client client;
     private final IndexServiceAccountTokenStore indexServiceAccountTokenStore;
     private final ServiceAccountTokenStore readOnlyServiceAccountTokenStore;
+    @Nullable
+    private final IndexUserServiceAccountStore indexUserServiceAccountStore;
 
     public ServiceAccountService(Client client, ServiceAccountTokenStore readOnlyServiceAccountTokenStore) {
-        this(client, readOnlyServiceAccountTokenStore, null);
+        this(client, readOnlyServiceAccountTokenStore, null, null);
     }
 
     public ServiceAccountService(
@@ -60,12 +63,22 @@ public class ServiceAccountService {
         ServiceAccountTokenStore readOnlyServiceAccountTokenStore,
         @Nullable IndexServiceAccountTokenStore indexServiceAccountTokenStore
     ) {
+        this(client, readOnlyServiceAccountTokenStore, indexServiceAccountTokenStore, null);
+    }
+
+    public ServiceAccountService(
+        Client client,
+        ServiceAccountTokenStore readOnlyServiceAccountTokenStore,
+        @Nullable IndexServiceAccountTokenStore indexServiceAccountTokenStore,
+        @Nullable IndexUserServiceAccountStore indexUserServiceAccountStore
+    ) {
         this.client = client;
         this.readOnlyServiceAccountTokenStore = readOnlyServiceAccountTokenStore;
         this.indexServiceAccountTokenStore = indexServiceAccountTokenStore;
+        this.indexUserServiceAccountStore = indexUserServiceAccountStore;
     }
 
-    public static boolean isServiceAccountPrincipal(String principal) {
+    public static boolean isBuiltInServiceAccountPrincipal(String principal) {
         return ACCOUNTS.containsKey(principal);
     }
 
@@ -75,6 +88,11 @@ public class ServiceAccountService {
 
     public static Map<String, ServiceAccount> getServiceAccounts() {
         return Map.copyOf(ACCOUNTS);
+    }
+
+    @Nullable
+    public IndexUserServiceAccountStore getIndexUserServiceAccountStore() {
+        return indexUserServiceAccountStore;
     }
 
     /**
@@ -105,23 +123,6 @@ public class ServiceAccountService {
     public void authenticateToken(ServiceAccountToken serviceAccountToken, String nodeName, ActionListener<Authentication> listener) {
         logger.trace("attempt to authenticate service account token [{}]", serviceAccountToken.getQualifiedName());
 
-        if (ElasticServiceAccounts.NAMESPACE.equals(serviceAccountToken.getAccountId().namespace()) == false) {
-            logger.debug(
-                "only [{}] service accounts are supported, but received [{}]",
-                ElasticServiceAccounts.NAMESPACE,
-                serviceAccountToken.getAccountId().asPrincipal()
-            );
-            listener.onFailure(createAuthenticationException(serviceAccountToken));
-            return;
-        }
-
-        final ServiceAccount account = ACCOUNTS.get(serviceAccountToken.getAccountId().asPrincipal());
-        if (account == null) {
-            logger.debug("the [{}] service account does not exist", serviceAccountToken.getAccountId().asPrincipal());
-            listener.onFailure(createAuthenticationException(serviceAccountToken));
-            return;
-        }
-
         if (serviceAccountToken.getSecret().length() < MIN_TOKEN_SECRET_LENGTH) {
             logger.debug(
                 "failing authentication for service account token [{}],"
@@ -135,15 +136,47 @@ public class ServiceAccountService {
             return;
         }
 
-        readOnlyServiceAccountTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(storeAuthenticationResult -> {
-            if (storeAuthenticationResult.isSuccess()) {
-                listener.onResponse(
-                    createAuthentication(account, serviceAccountToken, storeAuthenticationResult.getTokenSource(), nodeName)
-                );
+        resolveAccount(serviceAccountToken.getAccountId().asPrincipal(), ActionListener.wrap(account -> {
+            if (account == null) {
+                logger.debug("the [{}] service account does not exist", serviceAccountToken.getAccountId().asPrincipal());
+                listener.onFailure(createAuthenticationException(serviceAccountToken));
+                return;
+            }
+            readOnlyServiceAccountTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(storeAuthenticationResult -> {
+                if (storeAuthenticationResult.isSuccess()) {
+                    listener.onResponse(
+                        createAuthentication(account, serviceAccountToken, storeAuthenticationResult.getTokenSource(), nodeName)
+                    );
+                } else {
+                    final ElasticsearchSecurityException e = createAuthenticationException(serviceAccountToken);
+                    logger.debug(e.getMessage());
+                    listener.onFailure(e);
+                }
+            }, listener::onFailure));
+        }, listener::onFailure));
+    }
+
+    /**
+     * Resolve the named service account (built-in or user-defined) to a {@link ServiceAccount} instance,
+     * or {@code null} if no such account exists. Built-in accounts take precedence over user-defined ones
+     * with the same principal (which can only happen if a user-defined account was somehow indexed under
+     * the {@code elastic} namespace; the put API rejects that).
+     */
+    public void resolveAccount(String principal, ActionListener<ServiceAccount> listener) {
+        final ServiceAccount builtIn = ACCOUNTS.get(principal);
+        if (builtIn != null) {
+            listener.onResponse(builtIn);
+            return;
+        }
+        if (indexUserServiceAccountStore == null) {
+            listener.onResponse(null);
+            return;
+        }
+        indexUserServiceAccountStore.getAccount(principal, ActionListener.wrap(roleDescriptor -> {
+            if (roleDescriptor == null) {
+                listener.onResponse(null);
             } else {
-                final ElasticsearchSecurityException e = createAuthenticationException(serviceAccountToken);
-                logger.debug(e.getMessage());
-                listener.onFailure(e);
+                listener.onResponse(new UserDefinedServiceAccount(ServiceAccountId.fromPrincipal(principal), roleDescriptor));
             }
         }, listener::onFailure));
     }
@@ -156,14 +189,28 @@ public class ServiceAccountService {
         if (indexServiceAccountTokenStore == null) {
             throw new IllegalStateException("Can't create token because index service account token store not configured");
         }
-        indexServiceAccountTokenStore.createToken(authentication, request, listener);
+        final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
+        resolveAccount(accountId.asPrincipal(), ActionListener.wrap(account -> {
+            if (account == null) {
+                listener.onFailure(new IllegalArgumentException("service account [" + accountId + "] does not exist"));
+                return;
+            }
+            indexServiceAccountTokenStore.createToken(authentication, request, listener);
+        }, listener::onFailure));
     }
 
     public void deleteIndexToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
         if (indexServiceAccountTokenStore == null) {
             throw new IllegalStateException("Can't delete token because index service account token store not configured");
         }
-        indexServiceAccountTokenStore.deleteToken(request, listener);
+        final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
+        resolveAccount(accountId.asPrincipal(), ActionListener.wrap(account -> {
+            if (account == null) {
+                listener.onResponse(false);
+                return;
+            }
+            indexServiceAccountTokenStore.deleteToken(request, listener);
+        }, listener::onFailure));
     }
 
     public void findTokensFor(GetServiceAccountCredentialsRequest request, ActionListener<GetServiceAccountCredentialsResponse> listener) {
@@ -175,21 +222,33 @@ public class ServiceAccountService {
     }
 
     // TODO: No production code usage
-    public static void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
+    public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
         assert authentication.isServiceAccount() : "authentication is not for service account: " + authentication;
         final String principal = authentication.getEffectiveSubject().getUser().principal();
         getRoleDescriptorForPrincipal(principal, listener);
     }
 
-    public static void getRoleDescriptorForPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
-        final ServiceAccount account = ACCOUNTS.get(principal);
-        if (account == null) {
+    public void getRoleDescriptorForPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
+        final ServiceAccount builtIn = ACCOUNTS.get(principal);
+        if (builtIn != null) {
+            listener.onResponse(builtIn.roleDescriptor());
+            return;
+        }
+        if (indexUserServiceAccountStore == null) {
             listener.onFailure(
                 new ElasticsearchSecurityException("cannot load role for service account [" + principal + "] - no such service account")
             );
             return;
         }
-        listener.onResponse(account.roleDescriptor());
+        indexUserServiceAccountStore.getAccount(principal, ActionListener.wrap(roleDescriptor -> {
+            if (roleDescriptor == null) {
+                listener.onFailure(
+                    new ElasticsearchSecurityException("cannot load role for service account [" + principal + "] - no such service account")
+                );
+            } else {
+                listener.onResponse(roleDescriptor);
+            }
+        }, listener::onFailure));
     }
 
     private static Authentication createAuthentication(
@@ -238,5 +297,45 @@ public class ServiceAccountService {
                 listener::onFailure
             )
         );
+    }
+
+    /**
+     * Runtime {@link ServiceAccount} representation for a user-defined account loaded from the
+     * {@code .security} index. Distinct from {@link ElasticServiceAccounts.ElasticServiceAccount}
+     * so that callers can distinguish via {@code instanceof} where needed.
+     */
+    public static final class UserDefinedServiceAccount implements ServiceAccount {
+
+        private final ServiceAccountId id;
+        private final RoleDescriptor roleDescriptor;
+        private final User user;
+
+        public UserDefinedServiceAccount(ServiceAccountId id, RoleDescriptor roleDescriptor) {
+            this.id = Objects.requireNonNull(id, "service account ID cannot be null");
+            this.roleDescriptor = Objects.requireNonNull(roleDescriptor, "role descriptor cannot be null");
+            this.user = new User(
+                id.asPrincipal(),
+                org.elasticsearch.common.Strings.EMPTY_ARRAY,
+                "Service account - " + id,
+                null,
+                Map.of("_user_defined_service_account", true),
+                true
+            );
+        }
+
+        @Override
+        public ServiceAccountId id() {
+            return id;
+        }
+
+        @Override
+        public RoleDescriptor roleDescriptor() {
+            return roleDescriptor;
+        }
+
+        @Override
+        public User asUser() {
+            return user;
+        }
     }
 }

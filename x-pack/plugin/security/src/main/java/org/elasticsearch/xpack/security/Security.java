@@ -182,6 +182,7 @@ import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.PutServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.settings.GetSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.settings.UpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.stats.GetSecurityStatsAction;
@@ -285,6 +286,7 @@ import org.elasticsearch.xpack.security.action.service.TransportDeleteServiceAcc
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.security.action.service.TransportGetServiceAccountNodesCredentialsAction;
+import org.elasticsearch.xpack.security.action.service.TransportPutServiceAccountAction;
 import org.elasticsearch.xpack.security.action.settings.TransportGetSecuritySettingsAction;
 import org.elasticsearch.xpack.security.action.settings.TransportReloadRemoteClusterCredentialsAction;
 import org.elasticsearch.xpack.security.action.settings.TransportUpdateSecuritySettingsAction;
@@ -319,6 +321,7 @@ import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountToken
 import org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
+import org.elasticsearch.xpack.security.authc.service.IndexUserServiceAccountStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthActions;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
@@ -412,6 +415,7 @@ import org.elasticsearch.xpack.security.rest.action.service.RestCreateServiceAcc
 import org.elasticsearch.xpack.security.rest.action.service.RestDeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.security.rest.action.service.RestPutServiceAccountAction;
 import org.elasticsearch.xpack.security.rest.action.settings.RestGetSecuritySettingsAction;
 import org.elasticsearch.xpack.security.rest.action.settings.RestUpdateSecuritySettingsAction;
 import org.elasticsearch.xpack.security.rest.action.stats.RestSecurityStatsAction;
@@ -938,6 +942,13 @@ public class Security extends Plugin
                 threadPool,
                 clusterService,
                 cacheInvalidatorRegistry
+            ),
+            () -> new IndexUserServiceAccountStore(
+                settings,
+                getClock(),
+                client,
+                systemIndices.getMainIndexManager(),
+                cacheInvalidatorRegistry
             )
         );
 
@@ -1407,7 +1418,8 @@ public class Security extends Plugin
         CacheInvalidatorRegistry cacheInvalidatorRegistry,
         SecurityExtension.SecurityComponents extensionComponents,
         Supplier<IndexServiceAccountTokenStore> indexServiceAccountTokenStoreSupplier,
-        Supplier<FileServiceAccountTokenStore> fileServiceAccountTokenStoreSupplier
+        Supplier<FileServiceAccountTokenStore> fileServiceAccountTokenStoreSupplier,
+        Supplier<IndexUserServiceAccountStore> indexUserServiceAccountStoreSupplier
     ) {
         Map<String, ServiceAccountTokenStore> accountTokenStoreByExtension = new HashMap<>();
 
@@ -1435,11 +1447,16 @@ public class Security extends Plugin
         if (accountTokenStoreByExtension.isEmpty()) {
             var fileServiceAccountTokenStore = fileServiceAccountTokenStoreSupplier.get();
             var indexServiceAccountTokenStore = indexServiceAccountTokenStoreSupplier.get();
+            var indexUserServiceAccountStore = indexUserServiceAccountStoreSupplier.get();
 
             components.add(new PluginComponentBinding<>(NodeLocalServiceAccountTokenStore.class, fileServiceAccountTokenStore));
             components.add(fileServiceAccountTokenStore);
             components.add(indexServiceAccountTokenStore);
-            cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
+            components.add(indexUserServiceAccountStore);
+            cacheInvalidatorRegistry.registerAlias(
+                "service",
+                Set.of("file_service_account_token", "index_service_account_token", IndexUserServiceAccountStore.CACHE_NAME)
+            );
 
             return new ServiceAccountService(
                 client.get(),
@@ -1447,7 +1464,8 @@ public class Security extends Plugin
                     List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
                     client.get().threadPool().getThreadContext()
                 ),
-                indexServiceAccountTokenStore
+                indexServiceAccountTokenStore,
+                indexUserServiceAccountStore
             );
         }
         // Completely handover service account token management to the extension if provided,
@@ -1831,6 +1849,7 @@ public class Security extends Plugin
             new ActionHandler(GetServiceAccountCredentialsAction.INSTANCE, TransportGetServiceAccountCredentialsAction.class),
             new ActionHandler(GetServiceAccountNodesCredentialsAction.INSTANCE, TransportGetServiceAccountNodesCredentialsAction.class),
             new ActionHandler(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class),
+            new ActionHandler(PutServiceAccountAction.INSTANCE, TransportPutServiceAccountAction.class),
             new ActionHandler(KibanaEnrollmentAction.INSTANCE, TransportKibanaEnrollmentAction.class),
             new ActionHandler(NodeEnrollmentAction.INSTANCE, TransportNodeEnrollmentAction.class),
             new ActionHandler(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
@@ -1927,6 +1946,7 @@ public class Security extends Plugin
             new RestDeleteServiceAccountTokenAction(settings, getLicenseState()),
             new RestGetServiceAccountCredentialsAction(settings, getLicenseState()),
             new RestGetServiceAccountAction(settings, getLicenseState()),
+            new RestPutServiceAccountAction(settings, getLicenseState()),
             new RestKibanaEnrollAction(settings, getLicenseState()),
             new RestNodeEnrollmentAction(settings, getLicenseState()),
             new RestProfileHasPrivilegesAction(settings, getLicenseState()),

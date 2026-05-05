@@ -20,14 +20,23 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountReq
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
+import org.elasticsearch.xpack.security.authc.service.IndexUserServiceAccountStore;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Predicate;
 
 public class TransportGetServiceAccountAction extends HandledTransportAction<GetServiceAccountRequest, GetServiceAccountResponse> {
 
+    private final ServiceAccountService serviceAccountService;
+
     @Inject
-    public TransportGetServiceAccountAction(TransportService transportService, ActionFilters actionFilters) {
+    public TransportGetServiceAccountAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ServiceAccountService serviceAccountService
+    ) {
         super(
             GetServiceAccountAction.NAME,
             transportService,
@@ -35,6 +44,7 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
             GetServiceAccountRequest::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.serviceAccountService = serviceAccountService;
     }
 
     @Override
@@ -46,12 +56,44 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
         if (request.getServiceName() != null) {
             filter = filter.and(v -> v.id().serviceName().equals(request.getServiceName()));
         }
-        final ServiceAccountInfo[] serviceAccountInfos = ServiceAccountService.getServiceAccounts()
-            .values()
-            .stream()
-            .filter(filter)
-            .map(v -> new ServiceAccountInfo(v.id().asPrincipal(), v.roleDescriptor()))
-            .toArray(ServiceAccountInfo[]::new);
-        listener.onResponse(new GetServiceAccountResponse(serviceAccountInfos));
+        // When the caller has not opted into user-defined accounts, preserve historical behaviour and emit only
+        // built-in ones with no `type` field (so existing clients see the response shape they expect).
+        final boolean includeUserDefined = request.isIncludeUserDefined();
+        final List<ServiceAccountInfo> infos = new ArrayList<>();
+        for (ServiceAccount account : ServiceAccountService.getServiceAccounts().values()) {
+            if (filter.test(account)) {
+                infos.add(
+                    new ServiceAccountInfo(
+                        account.id().asPrincipal(),
+                        account.roleDescriptor(),
+                        includeUserDefined ? ServiceAccountInfo.Type.BUILT_IN : null
+                    )
+                );
+            }
+        }
+        if (includeUserDefined == false) {
+            listener.onResponse(new GetServiceAccountResponse(infos.toArray(new ServiceAccountInfo[0])));
+            return;
+        }
+
+        final IndexUserServiceAccountStore store = serviceAccountService.getIndexUserServiceAccountStore();
+        if (store == null) {
+            listener.onResponse(new GetServiceAccountResponse(infos.toArray(new ServiceAccountInfo[0])));
+            return;
+        }
+        store.findAllAccounts(ActionListener.wrap(userDefinedAccounts -> {
+            for (var userDefined : userDefinedAccounts) {
+                if (request.getNamespace() != null && false == userDefined.principal().startsWith(request.getNamespace() + "/")) {
+                    continue;
+                }
+                if (request.getServiceName() != null && false == userDefined.principal().endsWith("/" + request.getServiceName())) {
+                    continue;
+                }
+                infos.add(
+                    new ServiceAccountInfo(userDefined.principal(), userDefined.roleDescriptor(), ServiceAccountInfo.Type.USER_DEFINED)
+                );
+            }
+            listener.onResponse(new GetServiceAccountResponse(infos.toArray(new ServiceAccountInfo[0])));
+        }, listener::onFailure));
     }
 }

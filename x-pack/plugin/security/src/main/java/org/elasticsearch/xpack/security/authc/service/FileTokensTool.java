@@ -137,7 +137,7 @@ class FileTokensTool extends MultiCommand {
             Predicate<String> filter = Predicates.always();
             if (args.size() == 1) {
                 final String principal = args.get(0);
-                if (false == ServiceAccountService.isServiceAccountPrincipal(principal)) {
+                if (false == ServiceAccountService.isBuiltInServiceAccountPrincipal(principal)) {
                     throw new UserException(
                         ExitCodes.NO_USER,
                         "Unknown service account principal: ["
@@ -174,7 +174,7 @@ class FileTokensTool extends MultiCommand {
         }
         final String principal = arguments.get(0);
         final String tokenName = arguments.get(1);
-        if (false == ServiceAccountService.isServiceAccountPrincipal(principal)) {
+        if (false == ServiceAccountService.isBuiltInServiceAccountPrincipal(principal)) {
             throw new UserException(
                 ExitCodes.NO_USER,
                 "Unknown service account principal: ["

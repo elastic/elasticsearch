@@ -83,7 +83,6 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore.SERVICE_ACCOUNT_TOKEN_DOC_TYPE;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -235,25 +234,6 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         store.createToken(authentication, request, future3);
         final ExecutionException e3 = expectThrows(ExecutionException.class, () -> future3.get());
         assertThat(e3.getCause(), is(exception));
-    }
-
-    public void testCreateTokenWillFailForInvalidServiceAccount() {
-        final Authentication authentication = createAuthentication();
-        final CreateServiceAccountTokenRequest request = randomValueOtherThanMany(
-            r -> "elastic".equals(r.getNamespace()) && "fleet-server".equals(r.getServiceName()),
-            () -> new CreateServiceAccountTokenRequest(
-                randomAlphaOfLengthBetween(3, 8),
-                randomAlphaOfLengthBetween(3, 8),
-                randomAlphaOfLengthBetween(3, 8)
-            )
-        );
-        final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
-        store.createToken(authentication, request, future);
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
-        assertThat(
-            e.getMessage(),
-            containsString("service account [" + request.getNamespace() + "/" + request.getServiceName() + "] does not exist")
-        );
     }
 
     public void testFindTokensFor() {

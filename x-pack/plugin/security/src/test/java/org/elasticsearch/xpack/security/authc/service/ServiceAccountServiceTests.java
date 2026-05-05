@@ -376,17 +376,17 @@ public class ServiceAccountServiceTests extends ESTestCase {
         Loggers.setLevel(sasLogger, Level.TRACE);
 
         try (var mockLog = MockLog.capture(ServiceAccountService.class)) {
-            // non-elastic service account
+            // non-elastic service account that is not user-defined either
             final ServiceAccountId accountId1 = new ServiceAccountId(
                 randomValueOtherThan(ElasticServiceAccounts.NAMESPACE, () -> randomAlphaOfLengthBetween(3, 8)),
                 randomAlphaOfLengthBetween(3, 8)
             );
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
-                    "non-elastic service account",
+                    "non-elastic, non-user-defined service account",
                     ServiceAccountService.class.getName(),
                     Level.DEBUG,
-                    "only [elastic] service accounts are supported, but received [" + accountId1.asPrincipal() + "]"
+                    "the [" + accountId1.asPrincipal() + "] service account does not exist"
                 )
             );
             final SecureString secret = new SecureString(randomAlphaOfLength(20).toCharArray());
@@ -580,7 +580,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         );
 
         final PlainActionFuture<RoleDescriptor> future1 = new PlainActionFuture<>();
-        ServiceAccountService.getRoleDescriptor(auth1, future1);
+        serviceAccountService.getRoleDescriptor(auth1, future1);
         final RoleDescriptor roleDescriptor1 = future1.get();
         assertNotNull(roleDescriptor1);
         assertThat(roleDescriptor1.getName(), equalTo("elastic/fleet-server"));
@@ -595,7 +595,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             Map.of("_token_name", randomAlphaOfLengthBetween(3, 8), "_token_source", tokenSource.name().toLowerCase(Locale.ROOT))
         );
         final PlainActionFuture<RoleDescriptor> future2 = new PlainActionFuture<>();
-        ServiceAccountService.getRoleDescriptor(auth2, future2);
+        serviceAccountService.getRoleDescriptor(auth2, future2);
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future2::actionGet);
         assertThat(e.getMessage(), containsString("cannot load role for service account [" + username + "] - no such service account"));
     }
@@ -603,6 +603,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
     public void testCreateIndexTokenWillDelegate() {
         final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         final CreateServiceAccountTokenRequest request = mock(CreateServiceAccountTokenRequest.class);
+        // Existence check uses the namespace + service name; use a known built-in account so the check passes.
+        when(request.getNamespace()).thenReturn("elastic");
+        when(request.getServiceName()).thenReturn("fleet-server");
         final ActionListener<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
         serviceAccountService.createIndexToken(authentication, request, future);
         verify(indexServiceAccountTokenStore).createToken(eq(authentication), eq(request), eq(future));
@@ -610,9 +613,26 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
     public void testDeleteIndexTokenWillDelegate() {
         final DeleteServiceAccountTokenRequest request = mock(DeleteServiceAccountTokenRequest.class);
+        when(request.getNamespace()).thenReturn("elastic");
+        when(request.getServiceName()).thenReturn("fleet-server");
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         serviceAccountService.deleteIndexToken(request, future);
         verify(indexServiceAccountTokenStore).deleteToken(eq(request), eq(future));
+    }
+
+    public void testCreateIndexTokenRejectsUnknownServiceAccount() {
+        final Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build();
+        final String namespace = randomValueOtherThan("elastic", () -> randomAlphaOfLengthBetween(3, 8));
+        final String serviceName = randomAlphaOfLengthBetween(3, 8);
+        final CreateServiceAccountTokenRequest request = new CreateServiceAccountTokenRequest(
+            namespace,
+            serviceName,
+            randomAlphaOfLengthBetween(3, 8)
+        );
+        final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
+        serviceAccountService.createIndexToken(authentication, request, future);
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("service account [" + namespace + "/" + serviceName + "] does not exist"));
     }
 
     public void testFindTokensFor() {

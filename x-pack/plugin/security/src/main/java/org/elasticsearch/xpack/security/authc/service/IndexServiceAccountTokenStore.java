@@ -142,11 +142,9 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         CreateServiceAccountTokenRequest request,
         ActionListener<CreateServiceAccountTokenResponse> listener
     ) {
+        // The caller (ServiceAccountService) is responsible for verifying that the account
+        // (built-in or user-defined) exists before invoking this method.
         final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
-        if (false == ServiceAccountService.isServiceAccountPrincipal(accountId.asPrincipal())) {
-            listener.onFailure(new IllegalArgumentException("service account [" + accountId + "] does not exist"));
-            return;
-        }
         final ServiceAccountToken token = ServiceAccountToken.newToken(accountId, request.getTokenName());
         try (XContentBuilder builder = newDocument(authentication, token)) {
             final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
@@ -218,11 +216,8 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         } else if (false == projectSecurityIndex.isAvailable(PRIMARY_SHARDS)) {
             listener.onFailure(projectSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
+            // Existence check (built-in or user-defined) is performed by the caller (ServiceAccountService).
             final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
-            if (false == ServiceAccountService.isServiceAccountPrincipal(accountId.asPrincipal())) {
-                listener.onResponse(false);
-                return;
-            }
             final ServiceAccountTokenId accountTokenId = new ServiceAccountTokenId(accountId, request.getTokenName());
             final String qualifiedTokenName = accountTokenId.getQualifiedName();
             projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {

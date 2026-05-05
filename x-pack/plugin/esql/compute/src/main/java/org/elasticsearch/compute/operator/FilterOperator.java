@@ -17,6 +17,13 @@ import java.util.Arrays;
 public class FilterOperator extends AbstractPageMappingOperator {
 
     private final ExpressionEvaluator evaluator;
+    /**
+     * Cached {@link #toString()} representation. The evaluator tree is immutable after construction,
+     * so its string form is deterministic. {@link Driver} reads this on every status update; for
+     * deep predicates (e.g. nested {@code LIKE} / boolean logic chains) recomputing it walks the
+     * whole evaluator tree and can dominate CPU.
+     */
+    private final String description;
 
     public record FilterOperatorFactory(ExpressionEvaluator.Factory evaluatorSupplier) implements OperatorFactory {
 
@@ -33,6 +40,7 @@ public class FilterOperator extends AbstractPageMappingOperator {
 
     public FilterOperator(ExpressionEvaluator evaluator) {
         this.evaluator = evaluator;
+        this.description = "FilterOperator[evaluator=" + evaluator + ']';
     }
 
     @Override
@@ -74,7 +82,7 @@ public class FilterOperator extends AbstractPageMappingOperator {
 
     @Override
     public String toString() {
-        return "FilterOperator[" + "evaluator=" + evaluator + ']';
+        return description;
     }
 
     @Override

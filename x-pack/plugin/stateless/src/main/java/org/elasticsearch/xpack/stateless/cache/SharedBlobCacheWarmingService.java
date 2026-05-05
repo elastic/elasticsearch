@@ -228,13 +228,13 @@ public class SharedBlobCacheWarmingService {
     public static final String SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME = "stateless.search.offline_warming";
     public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_ENABLED_SETTING = Setting.boolSetting(
         SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".enabled",
-        true,
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
     public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING = Setting.boolSetting(
         SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".prefetch_commits.enabled",
-        true,
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

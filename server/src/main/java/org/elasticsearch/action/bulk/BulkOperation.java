@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -598,10 +599,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         if (failureStoreCandidate != null && clusterHasFailureStoreFeature) {
             // Do not redirect documents to a failure store that were already headed to one.
             var isFailureStoreRequest = isFailureStoreRequest(docWriteRequest);
-            if (isFailureStoreRequest == false
-                && failureStoreCandidate.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings)
-                && error instanceof VersionConflictEngineException == false
-                && error instanceof EsRejectedExecutionException == false) {
+            if (shouldRedirectRequestToFailureStore(isFailureStoreRequest, failureStoreCandidate, error)) {
                 // Prepare the data stream failure store if necessary
                 maybeMarkFailureStoreForRollover(failureStoreCandidate);
 
@@ -638,6 +636,32 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             }
         }
         return IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
+    }
+
+    /**
+     * Inspects a request and a shard-level failure to determine if the document should be redirected to the failure store.
+     * @param isFailureStoreRequest <code>true</code> if the request being checked was already going to the failure store,
+     *                              <code>false</code> if it is a normal doc. Requests already going to the failure store will not be
+     *                              redirected a second time.
+     * @param failureStoreCandidate the data stream the original request was being written to, or null if no data stream was involved.
+     *                              Requests are only routed to a failure store if they are headed to a data stream with an active failure
+     *                              store.
+     * @param error the shard-level error the request encountered. Version conflicts and exceptions related to backpressure are not
+     *              redirected.
+     * @return true if the request and error should be redirected to the provided data stream's failure store, false if it should not
+     */
+    private boolean shouldRedirectRequestToFailureStore(boolean isFailureStoreRequest, DataStream failureStoreCandidate, Throwable error) {
+        if (isFailureStoreRequest || failureStoreCandidate.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings) == false) {
+            return false;
+        }
+        return switch (error) {
+            case VersionConflictEngineException err -> false;
+            case EsRejectedExecutionException err -> false;
+            case CircuitBreakingException err -> false;
+            case ClusterBlockException err -> false;
+            case ElasticsearchException err -> err.status().getStatus() != 429;
+            default -> true;
+        };
     }
 
     /**

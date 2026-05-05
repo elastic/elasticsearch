@@ -12,6 +12,7 @@ package org.elasticsearch.action;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.crossproject.TargetProjects;
 
 import java.util.Collection;
 
@@ -63,6 +64,37 @@ public interface IndicesRequest {
         default boolean allowsCrossProject() {
             return false;
         }
+
+        /**
+         * Returns the project routing string supplied by the user, or {@code null} if none was specified.
+         * Project routing is a CPS concept: it filters the set of authorized target projects a request will
+         * fan out to. This method lives on {@link CrossProjectCandidate} (rather than {@link Replaceable})
+         * because routing is a property of cross-project requests, independent of whether a request supports
+         * index expression replacement.
+         */
+        @Nullable
+        default String getProjectRouting() {
+            return null;
+        }
+
+        /**
+         * Records the post-routing {@link TargetProjects} for this request, as computed by the security
+         * authorization layer after applying {@link #getProjectRouting()} to the IAM-authorized projects.
+         * <p>
+         * Note: the field is transient and is never serialized (neither on the request stream nor on any
+         * response). Set at most once per request, by the security authorization layer.
+         */
+        default void setResolvedTargetProjects(TargetProjects targetProjects) {}
+
+        /**
+         * Returns the post-routing {@link TargetProjects} recorded via
+         * {@link #setResolvedTargetProjects(TargetProjects)}, or {@code null} if not recorded (e.g. CPS is
+         * disabled, the request is not a CPS candidate, or authorization has not yet run).
+         */
+        @Nullable
+        default TargetProjects getResolvedTargetProjects() {
+            return null;
+        }
     }
 
     interface Replaceable extends IndicesRequest, CrossProjectCandidate {
@@ -101,11 +133,6 @@ public interface IndicesRequest {
          */
         default boolean allowsRemoteIndices() {
             return false;
-        }
-
-        @Nullable // if no routing is specified
-        default String getProjectRouting() {
-            return null;
         }
     }
 

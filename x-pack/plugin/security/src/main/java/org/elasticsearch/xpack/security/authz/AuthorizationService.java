@@ -160,6 +160,7 @@ public class AuthorizationService {
     private final boolean anonymousAuthzExceptionEnabled;
     private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
     private final AuthorizedProjectsResolver authorizedProjectsResolver;
+    private final ProjectRoutingResolver projectRoutingResolver;
 
     public AuthorizationService(
         Settings settings,
@@ -186,12 +187,12 @@ public class AuthorizationService {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
         this.restrictedIndices = restrictedIndices;
+        this.projectRoutingResolver = projectRoutingResolver;
         this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(
             settings,
             linkedProjectConfigService,
             resolver,
-            crossProjectModeDecider,
-            projectRoutingResolver
+            crossProjectModeDecider
         );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
@@ -511,15 +512,30 @@ public class AuthorizationService {
         } else if (isIndexAction(action)) {
             final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
             assert projectMetadata != null;
+            final boolean resolvesCrossProject = indicesAndAliasesResolver.resolvesCrossProject(request);
             final SubscribableListener<TargetProjects> targetProjectListener;
-            if (indicesAndAliasesResolver.resolvesCrossProject(request)) {
+            if (resolvesCrossProject) {
                 targetProjectListener = new SubscribableListener<>();
                 authorizedProjectsResolver.resolveAuthorizedProjects(targetProjectListener);
             } else {
                 targetProjectListener = SubscribableListener.newSucceeded(TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED);
             }
 
-            targetProjectListener.addListener(ActionListener.wrap(targetProjects -> {
+            targetProjectListener.addListener(ActionListener.wrap(authorizedProjects -> {
+                final TargetProjects targetProjects;
+                if (resolvesCrossProject) {
+                    // resolvesCrossProject == true implies request is a CrossProjectCandidate (see
+                    // IndicesAndAliasesResolver#resolvesCrossProject); apply project routing once here so the
+                    // post-routing TargetProjects is observable on the request and the resolver receives a value
+                    // that has already had routing applied.
+                    final IndicesRequest.CrossProjectCandidate cpc = (IndicesRequest.CrossProjectCandidate) request;
+                    targetProjects = projectRoutingResolver.resolve(cpc.getProjectRouting(), projectMetadata, authorizedProjects);
+                    cpc.setResolvedTargetProjects(targetProjects);
+                } else {
+                    assert authorizedProjects == TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED;
+                    targetProjects = authorizedProjects;
+                }
+
                 final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = makeResolvedIndicesAsyncSupplier(
                     targetProjects,
                     requestInfo,

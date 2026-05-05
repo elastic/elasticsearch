@@ -30,6 +30,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -132,7 +133,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                 return;
             }
             switch (model.getConfigurations().getTaskType()) {
-                case TEXT_EMBEDDING, EMBEDDING -> {
+                case TEXT_EMBEDDING -> {
                     ServiceSettings modelServiceSettings = model.getServiceSettings();
                     listener.onResponse(makeTextEmbeddingResults(input, modelServiceSettings));
                 }
@@ -176,6 +177,16 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         }
 
         @Override
+        public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+        }
+
+        @Override
         public void chunkedInfer(
             Model model,
             @Nullable String query,
@@ -185,11 +196,12 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             TimeValue timeout,
             ActionListener<List<ChunkedInference>> listener
         ) {
-            if (model.getConfigurations().getTaskType() == TaskType.TEXT_EMBEDDING) {
-                ServiceSettings modelServiceSettings = model.getServiceSettings();
-                listener.onResponse(makeChunkedResults(input, modelServiceSettings));
-            } else {
-                listener.onFailure(
+            switch (model.getConfigurations().getTaskType()) {
+                case TEXT_EMBEDDING, EMBEDDING -> {
+                    ServiceSettings modelServiceSettings = model.getServiceSettings();
+                    listener.onResponse(makeChunkedResults(input, modelServiceSettings));
+                }
+                default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
                         RestStatus.BAD_REQUEST

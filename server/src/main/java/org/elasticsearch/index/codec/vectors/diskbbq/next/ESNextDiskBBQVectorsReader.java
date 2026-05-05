@@ -35,6 +35,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
+import org.elasticsearch.search.vectors.BulkKnnCollector;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
@@ -897,6 +898,20 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         }
 
         @Override
+        protected int docToBulkScore(int[] docIds, int[] offsets, Bits acceptDocs, int bulkSize) {
+            int docToScore = 0;
+            for (int i = 0; i < bulkSize; i++) {
+                if (docIds[i] == -1 || (acceptDocs != null && acceptDocs.get(docIds[i]) == false)) {
+                    docIds[i] = -1;
+                } else {
+                    offsets[docToScore] = i;
+                    docToScore++;
+                }
+            }
+            return docToScore;
+        }
+
+        @Override
         protected void readDocIds(int count) {
             for (int j = 0; j < count; j++) {
                 int docId = floatVectorValues.ordToDoc(docBase++);
@@ -1030,8 +1045,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             return maxScore;
         }
 
-        private static int docToBulkScore(int[] docIds, int[] offsets, Bits acceptDocs, int bulkSize) {
-            assert acceptDocs != null : "acceptDocs must not be null";
+        protected int docToBulkScore(int[] docIds, int[] offsets, Bits acceptDocs, int bulkSize) {
+            if (acceptDocs == null) {
+                return bulkSize;
+            }
             int docToScore = 0;
             for (int i = 0; i < bulkSize; i++) {
                 if (docIds[i] == -1 || acceptDocs.get(docIds[i]) == false) {
@@ -1044,7 +1061,20 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             return docToScore;
         }
 
-        protected void collectBulk(KnnCollector knnCollector, float[] scores, int bulkSize) {
+        protected void collectBulk(KnnCollector knnCollector, float[] scores, int bulkSize, int docsToBulkScore, float maxScore) {
+            if (knnCollector instanceof BulkKnnCollector bulkCollector) {
+                if (docsToBulkScore == bulkSize) {
+                    bulkCollector.bulkCollect(docIdsScratch, scores, bulkSize, maxScore);
+                    return;
+                }
+                for (int i = 0; i < docsToBulkScore; i++) {
+                    int offset = offsetsScratch[i];
+                    docIdsScratch[i] = docIdsScratch[offset];
+                    scores[i] = scores[offset];
+                }
+                bulkCollector.bulkCollect(docIdsScratch, scores, docsToBulkScore, maxScore);
+                return;
+            }
             for (int i = 0; i < bulkSize; i++) {
                 final int doc = docIdsScratch[i];
                 if (doc != -1) {
@@ -1073,9 +1103,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             for (; i < limit; i += BULK_SIZE) {
                 // read the doc ids
                 readDocIds(BULK_SIZE);
-                final int docsToBulkScore = acceptDocs == null
-                    ? BULK_SIZE
-                    : docToBulkScore(docIdsScratch, offsetsScratch, acceptDocs, BULK_SIZE);
+                final int docsToBulkScore = docToBulkScore(docIdsScratch, offsetsScratch, acceptDocs, BULK_SIZE);
                 if (docsToBulkScore == 0) {
                     indexInput.skipBytes(quantizedByteLength * BULK_SIZE);
                     continue;
@@ -1111,7 +1139,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                     );
                 }
                 if (knnCollector.minCompetitiveSimilarity() < maxScore) {
-                    collectBulk(knnCollector, scores, BULK_SIZE);
+                    collectBulk(knnCollector, scores, BULK_SIZE, docsToBulkScore, maxScore);
                 }
                 scoredDocs += docsToBulkScore;
             }
@@ -1119,9 +1147,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             if (i < vectors) {
                 int tailSize = vectors - i;
                 readDocIds(tailSize);
-                final int docsToBulkScore = acceptDocs == null
-                    ? tailSize
-                    : docToBulkScore(docIdsScratch, offsetsScratch, acceptDocs, tailSize);
+                final int docsToBulkScore = docToBulkScore(docIdsScratch, offsetsScratch, acceptDocs, tailSize);
                 if (docsToBulkScore == 0) {
                     indexInput.skipBytes(quantizedByteLength * tailSize);
                 } else {
@@ -1157,7 +1183,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                         );
                     }
                     if (knnCollector.minCompetitiveSimilarity() < maxScore) {
-                        collectBulk(knnCollector, scores, tailSize);
+                        collectBulk(knnCollector, scores, tailSize, docsToBulkScore, maxScore);
                     }
                     scoredDocs += docsToBulkScore;
                 }

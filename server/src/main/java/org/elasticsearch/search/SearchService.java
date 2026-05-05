@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
@@ -1139,7 +1140,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         FetchPhaseResponseChunk.Writer writer,
         ActionListener<FetchSearchResult> listener
     ) {
-        getExecutor(readerContext.indexShard()).execute(new AbstractRunnable() {
+        final Executor searchExecutor = getExecutor(readerContext.indexShard());
+        searchExecutor.execute(new AbstractRunnable() {
             private volatile SearchContext searchContext;
 
             private final Releasable closeOnce = Releasables.releaseOnce(Releasables.wrap(() -> {
@@ -1169,6 +1171,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         null,
                         writer,
                         fetchPhaseMaxInFlightChunks,
+                        searchExecutor,
                         newFetchBuildListener(opsListener, searchContext, startTime, closeOnce),
                         newFetchCompletionListener(listener, fetchResult)
                     );
@@ -1582,7 +1585,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Opens the reader context for given shardId. The newly opened reader context will be keep
      * until the {@code keepAlive} elapsed unless it is manually released.
      */
-    public void openReaderContext(ShardId shardId, TimeValue keepAlive, ActionListener<ShardSearchContextId> listener) {
+    public void openReaderContext(
+        ShardId shardId,
+        TimeValue keepAlive,
+        SplitShardCountSummary splitShardCountSummary,
+        ActionListener<ShardSearchContextId> listener
+    ) {
         checkKeepAliveLimit(keepAlive.millis());
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard shard = indexService.getShard(shardId.id());
@@ -1591,7 +1599,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Engine.SearcherSupplier searcherSupplier = null;
             ReaderContext readerContext = null;
             try {
-                searcherSupplier = shard.acquireSearcherSupplier();
+                searcherSupplier = shard.acquireExternalSearcherSupplier(splitShardCountSummary);
                 final ShardSearchContextId id = new ShardSearchContextId(
                     sessionId,
                     idGenerator.incrementAndGet(),
@@ -1846,6 +1854,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Returns a listener that guarantees {@code releasable} is closed and {@code listener}
      * is notified, regardless of whether the operation succeeds or fails.
      *
+     * {@code releasable} is closed before the wrapped listener is invoked so that
+     * cleanup doesn't run while refcounts are still held.
+     *
      * Visible for testing.
      */
     static <T> ActionListener<T> wrapFailureListener(
@@ -1856,11 +1867,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return new ActionListener<>() {
             @Override
             public void onResponse(T response) {
-                try {
-                    listener.onResponse(response);
-                } finally {
-                    Releasables.close(releasable);
-                }
+                Releasables.close(releasable);
+                listener.onResponse(response);
             }
 
             @Override

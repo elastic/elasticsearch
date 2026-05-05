@@ -15,6 +15,12 @@ import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -39,6 +45,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -366,5 +373,413 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             return Binary.fromConstantByteArray(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         }
         return Binary.fromString(value.toString());
+    }
+
+    /**
+     * Returns the set of column names referenced by the pushed filter expressions.
+     * This is useful for identifying which columns participate in predicates so that
+     * they can be read even when not explicitly projected.
+     */
+    Set<String> predicateColumnNames() {
+        Set<String> names = new HashSet<>();
+        for (Expression expr : expressions) {
+            collectColumnNames(expr, names);
+        }
+        return names;
+    }
+
+    private static void collectColumnNames(Expression expr, Set<String> names) {
+        if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        } else if (expr instanceof In inExpr && inExpr.value() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        } else if (expr instanceof IsNull isNull && isNull.field() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        } else if (expr instanceof IsNotNull isNotNull && isNotNull.field() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        } else if (expr instanceof Range range && range.value() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        } else if (expr instanceof And and) {
+            collectColumnNames(and.left(), names);
+            collectColumnNames(and.right(), names);
+        } else if (expr instanceof Or or) {
+            collectColumnNames(or.left(), names);
+            collectColumnNames(or.right(), names);
+        } else if (expr instanceof Not not) {
+            collectColumnNames(not.field(), names);
+        } else if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        }
+    }
+
+    /**
+     * Evaluates all held filter expressions against the given predicate blocks and returns
+     * a survivor mask indicating which rows pass all predicates. Returns {@code null} if
+     * all rows survive (no filtering needed), signaling that compaction can be skipped.
+     *
+     * @param predicateBlocks map of column name to decoded Block for predicate columns
+     * @param rowCount        the number of rows in the current batch
+     * @param reusable        a reusable WordMask instance to avoid allocation
+     * @return the survivor mask with bits set for passing rows, or null if all rows survive
+     */
+    WordMask evaluateFilter(Map<String, Block> predicateBlocks, int rowCount, WordMask reusable) {
+        reusable.setAll(rowCount);
+        for (Expression expr : expressions) {
+            WordMask exprResult = evaluateExpression(expr, predicateBlocks, rowCount);
+            if (exprResult != null) {
+                reusable.and(exprResult);
+            }
+        }
+        if (reusable.isAll()) {
+            return null;
+        }
+        return reusable;
+    }
+
+    private WordMask evaluateExpression(Expression expr, Map<String, Block> blocks, int rowCount) {
+        if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne && bc.right().foldable()) {
+            Block block = blocks.get(ne.name());
+            if (block == null) {
+                return null;
+            }
+            Object literal = literalValueOf(bc.right());
+            if (literal == null) {
+                return null;
+            }
+            return evaluateComparison(bc, block, literal, rowCount);
+        }
+        if (expr instanceof In inExpr && inExpr.value() instanceof NamedExpression ne) {
+            Block block = blocks.get(ne.name());
+            if (block == null) {
+                return null;
+            }
+            return evaluateIn(inExpr, block, rowCount);
+        }
+        if (expr instanceof IsNull isNull && isNull.field() instanceof NamedExpression ne) {
+            Block block = blocks.get(ne.name());
+            if (block == null) {
+                return null;
+            }
+            WordMask mask = new WordMask();
+            mask.reset(rowCount);
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i)) {
+                    mask.set(i);
+                }
+            }
+            return mask;
+        }
+        if (expr instanceof IsNotNull isNotNull && isNotNull.field() instanceof NamedExpression ne) {
+            Block block = blocks.get(ne.name());
+            if (block == null) {
+                return null;
+            }
+            WordMask mask = new WordMask();
+            mask.reset(rowCount);
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i) == false) {
+                    mask.set(i);
+                }
+            }
+            return mask;
+        }
+        if (expr instanceof Range range && range.value() instanceof NamedExpression ne) {
+            Block block = blocks.get(ne.name());
+            if (block == null) {
+                return null;
+            }
+            return evaluateRange(range, block, rowCount);
+        }
+        if (expr instanceof And and) {
+            WordMask left = evaluateExpression(and.left(), blocks, rowCount);
+            WordMask right = evaluateExpression(and.right(), blocks, rowCount);
+            if (left != null && right != null) {
+                left.and(right);
+                return left;
+            }
+            return left != null ? left : right;
+        }
+        if (expr instanceof Or or) {
+            WordMask left = evaluateExpression(or.left(), blocks, rowCount);
+            WordMask right = evaluateExpression(or.right(), blocks, rowCount);
+            if (left != null && right != null) {
+                left.or(right);
+                return left;
+            }
+            // conservative: if either arm is unknown, the whole OR is unknown
+            return null;
+        }
+        if (expr instanceof Not not) {
+            WordMask inner = evaluateExpression(not.field(), blocks, rowCount);
+            if (inner != null) {
+                inner.negate();
+                return inner;
+            }
+            return null;
+        }
+        if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne) {
+            Block block = blocks.get(ne.name());
+            if (block == null) {
+                return null;
+            }
+            return evaluateStartsWith(sw, block, rowCount);
+        }
+        return null;
+    }
+
+    private static WordMask evaluateComparison(EsqlBinaryComparison bc, Block block, Object literal, int rowCount) {
+        WordMask mask = new WordMask();
+        mask.reset(rowCount);
+        if (block instanceof IntBlock ib) {
+            int val = ((Number) literal).intValue();
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i) == false && compareResult(Integer.compare(ib.getInt(i), val), bc)) {
+                    mask.set(i);
+                }
+            }
+        } else if (block instanceof LongBlock lb) {
+            Long boxed = toLongValue(literal);
+            if (boxed == null) {
+                return null;
+            }
+            long val = boxed;
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i) == false && compareResult(Long.compare(lb.getLong(i), val), bc)) {
+                    mask.set(i);
+                }
+            }
+        } else if (block instanceof DoubleBlock db) {
+            double val = ((Number) literal).doubleValue();
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i) == false && compareResult(Double.compare(db.getDouble(i), val), bc)) {
+                    mask.set(i);
+                }
+            }
+        } else if (block instanceof BytesRefBlock bb) {
+            BytesRef val = toByteRef(literal);
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i) == false && compareResult(bb.getBytesRef(i, scratch).compareTo(val), bc)) {
+                    mask.set(i);
+                }
+            }
+        } else if (block instanceof BooleanBlock boolBlock) {
+            boolean val = (Boolean) literal;
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i) == false && compareResult(Boolean.compare(boolBlock.getBoolean(i), val), bc)) {
+                    mask.set(i);
+                }
+            }
+        } else {
+            return null;
+        }
+        return mask;
+    }
+
+    private static boolean compareResult(int cmp, EsqlBinaryComparison bc) {
+        if (bc instanceof Equals) {
+            return cmp == 0;
+        } else if (bc instanceof NotEquals) {
+            return cmp != 0;
+        } else if (bc instanceof LessThan) {
+            return cmp < 0;
+        } else if (bc instanceof LessThanOrEqual) {
+            return cmp <= 0;
+        } else if (bc instanceof GreaterThan) {
+            return cmp > 0;
+        } else if (bc instanceof GreaterThanOrEqual) {
+            return cmp >= 0;
+        }
+        return true;
+    }
+
+    private static Long toLongValue(Object literal) {
+        if (literal instanceof Number n) {
+            return n.longValue();
+        }
+        return null;
+    }
+
+    private static BytesRef toByteRef(Object literal) {
+        if (literal instanceof BytesRef br) {
+            return br;
+        }
+        if (literal instanceof String s) {
+            return new BytesRef(s);
+        }
+        return new BytesRef(literal.toString());
+    }
+
+    private static WordMask evaluateIn(In inExpr, Block block, int rowCount) {
+        List<Object> values = new ArrayList<>();
+        for (Expression item : inExpr.list()) {
+            Object val = literalValueOf(item);
+            if (val != null) {
+                values.add(val);
+            }
+        }
+        if (values.isEmpty()) {
+            return null;
+        }
+        WordMask mask = new WordMask();
+        mask.reset(rowCount);
+        if (block instanceof IntBlock ib) {
+            Set<Integer> intSet = new HashSet<>();
+            for (Object v : values) {
+                intSet.add(((Number) v).intValue());
+            }
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i) == false && intSet.contains(ib.getInt(i))) {
+                    mask.set(i);
+                }
+            }
+        } else if (block instanceof LongBlock lb) {
+            Set<Long> longSet = new HashSet<>();
+            for (Object v : values) {
+                longSet.add(((Number) v).longValue());
+            }
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i) == false && longSet.contains(lb.getLong(i))) {
+                    mask.set(i);
+                }
+            }
+        } else if (block instanceof DoubleBlock db) {
+            Set<Double> doubleSet = new HashSet<>();
+            for (Object v : values) {
+                doubleSet.add(((Number) v).doubleValue());
+            }
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i) == false && doubleSet.contains(db.getDouble(i))) {
+                    mask.set(i);
+                }
+            }
+        } else if (block instanceof BytesRefBlock bb) {
+            Set<BytesRef> refSet = new HashSet<>();
+            for (Object v : values) {
+                refSet.add(toByteRef(v));
+            }
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i) == false && refSet.contains(bb.getBytesRef(i, scratch))) {
+                    mask.set(i);
+                }
+            }
+        } else if (block instanceof BooleanBlock boolBlock) {
+            Set<Boolean> boolSet = new HashSet<>();
+            for (Object v : values) {
+                boolSet.add((Boolean) v);
+            }
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i) == false && boolSet.contains(boolBlock.getBoolean(i))) {
+                    mask.set(i);
+                }
+            }
+        } else {
+            return null;
+        }
+        return mask;
+    }
+
+    private static WordMask evaluateRange(Range range, Block block, int rowCount) {
+        Object lower = literalValueOf(range.lower());
+        Object upper = literalValueOf(range.upper());
+        if (lower == null && upper == null) {
+            return null;
+        }
+        boolean incLo = range.includeLower();
+        boolean incHi = range.includeUpper();
+        WordMask mask = new WordMask();
+        mask.reset(rowCount);
+        if (block instanceof IntBlock ib) {
+            boolean hasLo = lower != null;
+            boolean hasHi = upper != null;
+            int lo = hasLo ? ((Number) lower).intValue() : 0;
+            int hi = hasHi ? ((Number) upper).intValue() : 0;
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i) == false) {
+                    int val = ib.getInt(i);
+                    if (hasLo && (incLo ? val < lo : val <= lo)) continue;
+                    if (hasHi && (incHi ? val > hi : val >= hi)) continue;
+                    mask.set(i);
+                }
+            }
+        } else if (block instanceof LongBlock lb) {
+            boolean hasLo = lower != null;
+            boolean hasHi = upper != null;
+            long lo = hasLo ? ((Number) lower).longValue() : 0;
+            long hi = hasHi ? ((Number) upper).longValue() : 0;
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i) == false) {
+                    long val = lb.getLong(i);
+                    if (hasLo && (incLo ? val < lo : val <= lo)) continue;
+                    if (hasHi && (incHi ? val > hi : val >= hi)) continue;
+                    mask.set(i);
+                }
+            }
+        } else if (block instanceof DoubleBlock db) {
+            boolean hasLo = lower != null;
+            boolean hasHi = upper != null;
+            double lo = hasLo ? ((Number) lower).doubleValue() : 0;
+            double hi = hasHi ? ((Number) upper).doubleValue() : 0;
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i) == false) {
+                    double val = db.getDouble(i);
+                    if (hasLo && (incLo ? val < lo : val <= lo)) continue;
+                    if (hasHi && (incHi ? val > hi : val >= hi)) continue;
+                    mask.set(i);
+                }
+            }
+        } else {
+            return null;
+        }
+        return mask;
+    }
+
+    private static <T extends Comparable<T>> boolean inRange(T val, T lower, T upper, boolean includeLower, boolean includeUpper) {
+        if (lower != null) {
+            int cmp = val.compareTo(lower);
+            if (includeLower ? cmp < 0 : cmp <= 0) {
+                return false;
+            }
+        }
+        if (upper != null) {
+            int cmp = val.compareTo(upper);
+            if (includeUpper ? cmp > 0 : cmp >= 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static WordMask evaluateStartsWith(StartsWith sw, Block block, int rowCount) {
+        Object prefixValue = literalValueOf(sw.prefix());
+        if (prefixValue == null) {
+            return null;
+        }
+        BytesRef prefix = toByteRef(prefixValue);
+        if (block instanceof BytesRefBlock bb) {
+            WordMask mask = new WordMask();
+            mask.reset(rowCount);
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i) == false) {
+                    BytesRef val = bb.getBytesRef(i, scratch);
+                    if (val.length >= prefix.length && startsWith(val, prefix)) {
+                        mask.set(i);
+                    }
+                }
+            }
+            return mask;
+        }
+        return null;
+    }
+
+    private static boolean startsWith(BytesRef value, BytesRef prefix) {
+        for (int j = 0; j < prefix.length; j++) {
+            if (value.bytes[value.offset + j] != prefix.bytes[prefix.offset + j]) {
+                return false;
+            }
+        }
+        return true;
     }
 }

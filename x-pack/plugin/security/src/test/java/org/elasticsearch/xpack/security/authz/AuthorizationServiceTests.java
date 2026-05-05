@@ -413,7 +413,9 @@ public class AuthorizationServiceTests extends ESTestCase {
                 ActionListener.wrap(r -> {
                     roleCache.put(names, r);
                     listener.onResponse(r);
-                }, listener::onFailure)
+                }, listener::onFailure),
+                List.of(),
+                false
             );
         }
     }
@@ -3963,6 +3965,9 @@ public class AuthorizationServiceTests extends ESTestCase {
             this.contextId = contextId;
             this.node = node;
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
     }
 
     private static BytesReference createEncodedPIT(Index index) {

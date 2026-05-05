@@ -60,6 +60,19 @@ public final class DatasetRewriter {
 
     private DatasetRewriter() {}
 
+    /**
+     * Walks {@code parsed} and rewrites every {@link UnresolvedRelation} whose pattern resolves to
+     * dataset(s) into {@link UnresolvedExternalRelation} (single dataset) or {@link UnionAll} of
+     * such (multi). All other relations are left untouched. Three short-circuits avoid resolver
+     * cost on the common path: feature flag off, {@code projectMetadata == null}, or no datasets
+     * registered.
+     *
+     * <p>Throws {@link VerificationException} for: heterogeneous FROM (datasets + non-datasets),
+     * non-{@code STANDARD} {@link IndexMode} on a dataset, METADATA fields on a dataset, or
+     * {@code UnionAll} branch-cap exceeded. Designed to run once on the parsed plan before
+     * pre-analysis (so the analyzer sees a uniform {@code UnresolvedExternalRelation} tree
+     * regardless of whether the user wrote {@code FROM <dataset>} or inline {@code EXTERNAL}).
+     */
     public static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata projectMetadata, IndexNameExpressionResolver iner) {
         if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() == false || projectMetadata == null) {
             return parsed;

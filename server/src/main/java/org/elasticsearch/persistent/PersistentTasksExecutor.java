@@ -107,7 +107,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     ) {
         long minLoad = Long.MAX_VALUE;
         DiscoveryNode minLoadedNode = null;
-        Map<String, Integer> numberOfTasksPerNode = getNumberOfTasksPerNode(clusterState);
+        Map<String, Integer> numberOfTasksPerNode = getNumberOfTasksPerNode(clusterState, candidateNodes.size());
         for (DiscoveryNode node : candidateNodes) {
             if (selector.test(node)) {
                 if (numberOfTasksPerNode.isEmpty()) {
@@ -128,8 +128,8 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
         return minLoadedNode;
     }
 
-    private Map<String, Integer> getNumberOfTasksPerNode(ClusterState clusterState) {
-        Map<String, Integer> numberOfTasksPerNode = new HashMap<>();
+    private Map<String, Integer> getNumberOfTasksPerNode(ClusterState clusterState, int maxNodeCount) {
+        Map<String, Integer> numberOfTasksPerNode = HashMap.newHashMap(maxNodeCount);
         PersistentTasks.getAllTasks(clusterState)
             .map(t -> t.v2().findTasks(taskName, PersistentTask::isAssigned))
             .filter(tasks -> tasks.isEmpty() == false)

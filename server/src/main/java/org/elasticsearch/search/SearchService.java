@@ -128,6 +128,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -335,6 +336,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    // Optimizing slicing by shard isn't compatible with resharding, but disabling it may have
+    // a performance impact that is noticeable in some workflows. This setting exists to allow
+    // us to toggle it quickly if such a case is discovered, but should not exist permanently.
+    public static final Setting<Boolean> SLICE_SHARD_OPTIMIZATION_ENABLED = Setting.boolSetting(
+        "search.slice.shard_optimization_enabled",
+        // matches logic before setting was introduced
+        true,
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
+
     /**
      * The size of the buffer used for memory accounting.
      * This buffer is used to locally track the memory accummulated during the execution of
@@ -383,6 +395,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile boolean batchQueryPhase;
 
     private volatile boolean pitRelocationEnabled;
+
+    private volatile boolean sliceShardOptimizationEnabled;
 
     private final int minimumDocsPerSlice;
 
@@ -496,6 +510,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(PIT_RELOCATION_ENABLED, pitRelocationEnabled -> this.pitRelocationEnabled = pitRelocationEnabled);
+
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                SLICE_SHARD_OPTIMIZATION_ENABLED,
+                slicedShardOptimizationEnabled -> this.sliceShardOptimizationEnabled = slicedShardOptimizationEnabled
+            );
+        sliceShardOptimizationEnabled = SLICE_SHARD_OPTIMIZATION_ENABLED.get(settings);
     }
 
     public boolean isPitRelocationEnabled() {
@@ -2090,7 +2111,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         if (source.slice() != null) {
-            context.sliceBuilder(source.slice());
+            context.sliceBuilder(sliceShardOptimizationEnabled ? source.slice() : SliceBuilder.withoutShardOptimization(source.slice()));
         }
 
         if (source.storedFields() != null) {

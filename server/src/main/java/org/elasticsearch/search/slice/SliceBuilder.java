@@ -44,6 +44,7 @@ import java.util.Objects;
  *  {@link DocValuesSliceQuery} is used to filter the results.
  */
 public class SliceBuilder implements Writeable, ToXContentObject {
+
     private static final MatchNoDocsQuery NOT_PART_OF_SLICE = new MatchNoDocsQuery("this shard is not part of the slice");
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
@@ -64,6 +65,8 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     private int id = -1;
     /** Max number of slices */
     private int max = -1;
+    /** Whether to optimize the slice query by shard */
+    private boolean optimizeByShard = true;
 
     private SliceBuilder() {}
 
@@ -101,6 +104,12 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         out.writeOptionalString(field);
         out.writeVInt(id);
         out.writeVInt(max);
+    }
+
+    public static SliceBuilder withoutShardOptimization(SliceBuilder sb) {
+        final SliceBuilder newSliceBuilder = new SliceBuilder(sb.field, sb.id, sb.max);
+        newSliceBuilder.setOptimizeByShard(false);
+        return newSliceBuilder;
     }
 
     private SliceBuilder setField(String field) {
@@ -151,6 +160,10 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         return max;
     }
 
+    private void setOptimizeByShard(boolean optimizeByShard) {
+        this.optimizeByShard = optimizeByShard;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -195,7 +208,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         int numShards = request.shardRequestIndex() != -1 ? request.numberOfShards() : context.getIndexSettings().getNumberOfShards();
         boolean isScroll = request.scroll() != null;
 
-        if (numShards == 1) {
+        if (numShards == 1 || optimizeByShard == false) {
             return createSliceQuery(id, max, context, isScroll);
         }
         if (max > numShards) {

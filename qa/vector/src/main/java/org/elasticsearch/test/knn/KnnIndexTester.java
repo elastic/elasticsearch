@@ -589,6 +589,9 @@ public class KnnIndexTester {
                 var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
                 KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
                 var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
+                if (testConfiguration.skipRecall()) {
+                    setup = skipRecallSetup(setup);
+                }
                 knnSearcher.search(ignoreResults, testConfiguration.searchParams().get(i), dir, setup);
             }
         }
@@ -596,15 +599,19 @@ public class KnnIndexTester {
             KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
             var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
             if (testConfiguration.skipRecall()) {
-                setup = new KnnSearcher.SearchSetup(
-                    setup.floatQueries(),
-                    setup.byteQueries(),
-                    setup.provider(),
-                    (resultIds, r, p) -> logger.info("skipping recall (skip_recall=true)")
-                );
+                setup = skipRecallSetup(setup);
             }
             knnSearcher.search(results[i], testConfiguration.searchParams().get(i), dir, setup);
         }
+    }
+
+    private static KnnSearcher.SearchSetup skipRecallSetup(KnnSearcher.SearchSetup setup) {
+        return new KnnSearcher.SearchSetup(
+            setup.floatQueries(),
+            setup.byteQueries(),
+            setup.provider(),
+            (resultIds, r, p) -> logger.info("skipping recall (skip_recall=true)")
+        );
     }
 
     private static void checkQuantizeBits(TestConfiguration args) {

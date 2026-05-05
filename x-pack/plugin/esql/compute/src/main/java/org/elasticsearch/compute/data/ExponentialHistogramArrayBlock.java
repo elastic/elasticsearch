@@ -21,7 +21,7 @@ import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import java.io.IOException;
 import java.util.List;
 
-final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlock<ExponentialHistogramBlock>
+public final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlock<ExponentialHistogramBlock>
     implements
         ExponentialHistogramBlock {
 
@@ -270,6 +270,13 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
     }
 
     @Override
+    public int valueMaxByteSize() {
+        // Five sub-blocks of doubles (dense arrays, 8 bytes per slot regardless of null)
+        // plus the variable-length encoded histogram bytes.
+        return 5 * Double.BYTES + encodedHistograms.valueMaxByteSize();
+    }
+
+    @Override
     public Vector asVector() {
         return null;
     }
@@ -413,5 +420,5 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
         return encodedHistograms.hashCode();
     }
 
-    record EncodedHistogramData(double count, double sum, double min, double max, double zeroThreshold, BytesRef encodedHistogram) {}
+    public record EncodedHistogramData(double count, double sum, double min, double max, double zeroThreshold, BytesRef encodedHistogram) {}
 }

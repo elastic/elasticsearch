@@ -20,25 +20,28 @@ import org.junit.ClassRule;
 import java.util.List;
 
 /**
- * Parameterized integration tests for standalone CSV files.
- * Each csv-spec test is run against every configured storage backend.
+ * Parameterized integration tests for compressed TSV files (.tsv.gz, .tsv.zst, .tsv.zstd, .tsv.bz2, .tsv.bz).
+ * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL, GCS, AZURE) and compression format.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class CsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
+public class TsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCase {
+
+    private static final List<String> COMPRESSED_FORMATS = List.of("tsv.gz", "tsv.zst", "tsv.zstd", "tsv.bz2", "tsv.bz");
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
 
-    public CsvFormatSpecIT(
+    public TsvCompressedFormatSpecIT(
         String fileName,
         String groupName,
         String testName,
         Integer lineNumber,
         CsvTestCase testCase,
         String instructions,
+        String format,
         StorageBackend storageBackend
     ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "csv");
+        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, format);
     }
 
     @Override
@@ -46,8 +49,8 @@ public class CsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
-    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
+    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests("/external-*.csv-spec", "/csv-*.csv-spec");
+        return readExternalSpecTestsWithFormats(COMPRESSED_FORMATS, "/external-basic.csv-spec");
     }
 }

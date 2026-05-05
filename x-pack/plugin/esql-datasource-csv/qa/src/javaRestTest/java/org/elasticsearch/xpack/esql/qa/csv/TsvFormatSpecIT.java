@@ -20,16 +20,16 @@ import org.junit.ClassRule;
 import java.util.List;
 
 /**
- * Parameterized integration tests for standalone CSV files.
- * Each csv-spec test is run against every configured storage backend.
+ * Parameterized integration tests for standalone TSV files.
+ * Each csv-spec test is run against every configured storage backend and format.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class CsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
+public class TsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
 
-    public CsvFormatSpecIT(
+    public TsvFormatSpecIT(
         String fileName,
         String groupName,
         String testName,
@@ -38,7 +38,7 @@ public class CsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         String instructions,
         StorageBackend storageBackend
     ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "csv");
+        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "tsv");
     }
 
     @Override
@@ -48,6 +48,6 @@ public class CsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests("/external-*.csv-spec", "/csv-*.csv-spec");
+        return readExternalSpecTests("/external-basic.csv-spec");
     }
 }

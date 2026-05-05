@@ -456,7 +456,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
             ShardAllocationConfiguration sac = new ShardAllocationConfiguration(currentShardId, numberOfShards, Collections.emptyList());
 
             for (int i = 0; i < numberOfDocuments; i++) {
-                boolean shouldBeTriggered = sac.shouldBeTriggered("watch_" + i);
+                boolean shouldBeTriggered = sac.hostsWatch("watch_" + i);
                 boolean hasAlreadyBeenTriggered = bitSet.get(i);
                 if (shouldBeTriggered) {
                     String message = Strings.format("Watch [%s] has already been " + "triggered", i);

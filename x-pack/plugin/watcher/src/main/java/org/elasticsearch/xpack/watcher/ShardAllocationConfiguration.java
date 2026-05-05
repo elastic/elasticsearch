@@ -21,20 +21,20 @@ import static java.util.stream.Collectors.toMap;
 /// single local shard: the bucket of the local allocation among all active allocation ids for that shard, the total
 /// number of those allocations, and the sorted allocation ids themselves.
 ///
-/// Given a watch id, [#shouldBeTriggered] returns whether the local node is the owner of the watch according to
+/// Given a watch id, [#hostsWatch] returns whether the local node is the owner of the watch according to
 /// the consistent-hash mapping `Murmur3(id) mod shardCount == index`.
 record ShardAllocationConfiguration(int index, int shardCount, List<String> allocationIds) {
 
-    public boolean shouldBeTriggered(String id) {
-        final int hash = Murmur3HashFunction.hash(id);
-        final int shardIndex = Math.floorMod(hash, shardCount);
-        return shardIndex == index;
+    public boolean hostsWatch(String watchId) {
+        final int hash = Murmur3HashFunction.hash(watchId);
+        final int allocatedShardIndex = Math.floorMod(hash, shardCount);
+        return allocatedShardIndex == index;
     }
 
     /// Returns a mapping of [ShardId] to [ShardAllocationConfiguration] for each shard copy hosted locally.
     /// The configuration captures the bucket of the local allocation id among all active allocation ids for that shard
     /// (sorted to keep the result stable across nodes), so that the consistent-hash decision in
-    /// [#shouldBeTriggered] can be made without further routing-table lookups.
+    /// [#hostsWatch] can be made without further routing-table lookups.
     ///
     /// Example:
     ///   - ShardId(".watches", 0)

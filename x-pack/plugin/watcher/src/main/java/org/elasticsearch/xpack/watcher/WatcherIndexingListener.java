@@ -137,7 +137,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                     return;
                 }
 
-                boolean shouldBeTriggered = shardAllocationConfiguration.shouldBeTriggered(watch.id());
+                boolean shouldBeTriggered = shardAllocationConfiguration.hostsWatch(watch.id());
                 WatcherState currentState = watcherState.get();
                 if (shouldBeTriggered && EnumSet.of(WatcherState.STOPPING, WatcherState.STOPPED).contains(currentState) == false) {
                     if (watch.status().state().isActive()) {

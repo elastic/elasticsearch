@@ -342,7 +342,7 @@ public class WatcherService implements WatcherEventConsumer {
             while (response.getHits().getHits().length != 0) {
                 for (SearchHit hit : response.getHits()) {
                     final ShardAllocationConfiguration shardConfig = shardConfigs.get(hit.getShard().getShardId());
-                    if (shardConfig == null || shardConfig.shouldBeTriggered(hit.getId()) == false) {
+                    if (shardConfig == null || shardConfig.hostsWatch(hit.getId()) == false) {
                         continue;
                     }
                     String id = hit.getId();
@@ -409,10 +409,12 @@ public class WatcherService implements WatcherEventConsumer {
         synchronized (pendingWatches) {
             for (Watch pendingWatch : pendingWatches.values()) {
                 final ShardAllocationConfiguration shardConfig = findShardConfig(shardConfigs, pendingWatch.id(), numShards);
-                if (shardConfig == null || shardConfig.shouldBeTriggered(pendingWatch.id()) == false) {
+                if (shardConfig == null || shardConfig.hostsWatch(pendingWatch.id()) == false) {
                     continue;
                 }
                 if (pendingWatch.status().state().isActive()) {
+                    /// We ignore the return value deliberately. If the engine pauses during this operation,
+                    /// the [#loadWatches(ClusterState)] will bring them back
                     triggerService.add(pendingWatch);
                 }
             }
@@ -436,7 +438,6 @@ public class WatcherService implements WatcherEventConsumer {
         }
         return null;
     }
-
 
     /// Atomically tries to schedule an active watch on the trigger engine and, only if the engine refused (it is
     /// paused between `pauseExecution` and `start`), retains the watch in the pending-watches map so the next reload

@@ -34,15 +34,14 @@ import static org.hamcrest.Matchers.not;
 
 public class ShardAllocationConfigurationTests extends ESTestCase {
 
-    public void testShouldBeTriggeredOnlyForMatchingShardIndex() {
+    public void testHostsWatchIndex() {
         final var shard0 = new ShardAllocationConfiguration(0, 3, List.of("a", "b", "c"));
         final var shard1 = new ShardAllocationConfiguration(1, 3, List.of("a", "b", "c"));
         final var shard2 = new ShardAllocationConfiguration(2, 3, List.of("a", "b", "c"));
 
         for (int i = 0; i < 200; i++) {
             final var id = "watch_" + i;
-            final int trueCount = (shard0.shouldBeTriggered(id) ? 1 : 0) + (shard1.shouldBeTriggered(id) ? 1 : 0) + (shard2
-                .shouldBeTriggered(id) ? 1 : 0);
+            final int trueCount = (shard0.hostsWatch(id) ? 1 : 0) + (shard1.hostsWatch(id) ? 1 : 0) + (shard2.hostsWatch(id) ? 1 : 0);
             assertThat("Watch [" + id + "] must be triggered exactly once across shards", trueCount, is(1));
         }
     }
@@ -51,7 +50,7 @@ public class ShardAllocationConfigurationTests extends ESTestCase {
      * No matter how many shards exist, every watch id must be claimed by exactly one shard. The hash distribution
      * is expected to be reasonably uniform, but the contract under test here is correctness, not balance.
      */
-    public void testShouldBeTriggeredExactlyOnceAcrossAllShards() {
+    public void testHostsWatchExactlyOnceAcrossAllShards() {
         final var numberOfShards = randomIntBetween(1, 20);
         final var numberOfDocuments = randomIntBetween(1, 10_000);
         final var triggered = new BitSet(numberOfDocuments);
@@ -59,7 +58,7 @@ public class ShardAllocationConfigurationTests extends ESTestCase {
         for (int currentShardId = 0; currentShardId < numberOfShards; currentShardId++) {
             final var shardAllocationConfig = new ShardAllocationConfiguration(currentShardId, numberOfShards, List.of());
             for (int i = 0; i < numberOfDocuments; i++) {
-                if (shardAllocationConfig.shouldBeTriggered("watch_" + i)) {
+                if (shardAllocationConfig.hostsWatch("watch_" + i)) {
                     assertThat("Watch [" + i + "] has already been triggered", triggered.get(i), is(false));
                     triggered.set(i);
                 }
@@ -68,11 +67,11 @@ public class ShardAllocationConfigurationTests extends ESTestCase {
         assertThat(triggered.cardinality(), is(numberOfDocuments));
     }
 
-    public void testShouldBeTriggeredIsDeterministic() {
+    public void testIsAllocatedToCurrentShardIsDeterministic() {
         final var shardAllocationConfiguration = new ShardAllocationConfiguration(2, 5, List.of());
         for (int i = 0; i < 50; i++) {
             final String id = randomAlphaOfLengthBetween(5, 20);
-            assertThat(shardAllocationConfiguration.shouldBeTriggered(id), is(shardAllocationConfiguration.shouldBeTriggered(id)));
+            assertThat(shardAllocationConfiguration.hostsWatch(id), is(shardAllocationConfiguration.hostsWatch(id)));
         }
     }
 
@@ -196,11 +195,7 @@ public class ShardAllocationConfigurationTests extends ESTestCase {
 
         for (int i = 0; i < 500; i++) {
             final var id = "watch_" + i;
-            assertThat(
-                "Watch [" + id + "] must be triggered exactly once",
-                cfgA.shouldBeTriggered(id) ^ cfgB.shouldBeTriggered(id),
-                is(true)
-            );
+            assertThat("Watch [" + id + "] must be triggered exactly once", cfgA.hostsWatch(id) ^ cfgB.hostsWatch(id), is(true));
         }
     }
 

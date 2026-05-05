@@ -157,6 +157,8 @@ public class TriggerService {
     /**
      * Removes the job associated with the given name from this trigger service.
      *
+     * This method assumes each engine ensures memory visibility of its internal state across threads (no synchronization here)
+     *
      * @param jobName   The name of the job to remove
      * @return          {@code true} if the job existed and removed, {@code false} otherwise.
      */

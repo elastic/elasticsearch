@@ -9924,6 +9924,35 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
+     * Regression test for chained FILLNULL inside a FORK branch. The bug:
+     *
+     * SubstituteSurrogatePlans walks UP. When it processes the inner FILLNULL, the outer FILLNULL's child
+     * changes (replaceChild). The outer FILLNULL's surrogate cache was implicitly reset, so its surrogate
+     * recomputed alias NameIds afresh - but the analyzer had already wired the FORK branch's per-branch
+     * Project to the original NameIds. The PlanConsistencyChecker then flagged "missing references"
+     * because the upstream Project pointed to ids that no longer existed in the rewritten subtree.
+     *
+     * Fix: FillNull.replaceChild propagates the cached surrogate state when the new child preserves the
+     * same output identity, so substitution does not invalidate previously committed NameIds.
+     */
+    public void testFillNullChainedWithFork() {
+        assumeTrue("FILLNULL is dev-gated", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // optimize() invokes the post-optimization plan verifier; without the fix this throws
+        // IllegalStateException with "optimized incorrectly due to missing references".
+        var plan = plan("""
+            ROW a = null, b = null
+            | EVAL a = a::keyword, b = b::integer
+            | FILLNULL WITH "unknown" a
+            | FILLNULL WITH 0 b
+            | FORK (WHERE true | LIMIT 300) (WHERE true)
+            | LIMIT 300
+            | WHERE _fork == "fork1"
+            | DROP _fork
+            """);
+        assertThat(plan, instanceOf(Project.class));
+    }
+
+    /*
      * Nested subqueries are not supported yet.
      */
     public void testNestedSubqueries() {

@@ -85,7 +85,17 @@ public class FillNull extends UnaryPlan implements SurrogateLogicalPlan, PostAna
 
     @Override
     public FillNull replaceChild(LogicalPlan newChild) {
-        return new FillNull(source(), newChild, fillValue, targetFields);
+        FillNull copy = new FillNull(source(), newChild, fillValue, targetFields);
+        // Once this FillNull's output() has been observed (e.g. by Analyzer.resolveFork or any plan rewrite that
+        // builds a Project on top of it), the assigned alias NameIds are baked into upstream plan nodes.
+        // Recomputing them after a child substitution would allocate fresh NameIds and break those upstream
+        // references. Propagate the cached surrogate state when the new child preserves the same output identity
+        // (which is the contract of surrogate substitution and most child rewrites).
+        if (lazyAliases != null && lazyOutput != null && child().outputSet().equals(newChild.outputSet())) {
+            copy.lazyAliases = lazyAliases;
+            copy.lazyOutput = lazyOutput;
+        }
+        return copy;
     }
 
     public FillNull withTargetFields(List<Attribute> newTargetFields) {

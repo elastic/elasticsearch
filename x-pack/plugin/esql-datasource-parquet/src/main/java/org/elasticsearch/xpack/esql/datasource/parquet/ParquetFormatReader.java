@@ -708,7 +708,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(reader, storageObject);
 
         List<BlockMetaData> blocks = reader.getRowGroups();
-        boolean[] survivingRowGroups = computeSurvivingRowGroups(reader, blocks, recordFilter, projectedSchema);
+        boolean[] survivingRowGroups = computeSurvivingRowGroups(reader, blocks, recordFilter, projectedSchema, storageObject);
 
         RowRanges[] allRowRanges = null;
         if (filterPredicate != null) {
@@ -742,19 +742,33 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     }
 
     /**
-     * Computes the per-row-group survival flag using parquet-mr's {@link RowGroupFilter}, which
-     * applies row-group level statistics, dictionary, and bloom filters (in that order). Page-level
-     * column-index filtering is intentionally excluded — the optimized iterator handles that itself
-     * via the {@link RowRanges} path. Returns {@code null} when no filter is set.
+     * Computes the per-row-group survival flag, applying row-group level statistics, dictionary,
+     * and bloom filters (in that order). Page-level column-index filtering is intentionally
+     * excluded — the optimized iterator handles that itself via the {@link RowRanges} path.
+     * Returns {@code null} when no filter is set.
+     *
+     * <p>For remote storage objects (S3, GCS, Azure) we run the
+     * {@link BatchPrefetchedFilter} fast path: dictionary and bloom byte ranges across all row
+     * groups are coalesced into a single parallel batched read, then the same parquet-mr filter
+     * visitors run against in-memory pages. This collapses ~226 sync GETs (and the matching TLS
+     * handshakes) to a handful of large parallel requests on a 226-row-group file. For local
+     * fixtures or when the batch path opts out (e.g., schema validation failure, encrypted
+     * predicate column), we fall back to parquet-mr's per-row-group sequential
+     * {@link RowGroupFilter}.
      */
-    private static boolean[] computeSurvivingRowGroups(
+    private boolean[] computeSurvivingRowGroups(
         ParquetFileReader reader,
         List<BlockMetaData> blocks,
         FilterCompat.Filter recordFilter,
-        MessageType schema
+        MessageType schema,
+        StorageObject storageObject
     ) {
         if (FilterCompat.isFilteringRequired(recordFilter) == false) {
             return null;
+        }
+        boolean[] batched = BatchPrefetchedFilter.computeSurvivingRowGroups(storageObject, blocks, recordFilter, schema, codecFactory);
+        if (batched != null) {
+            return batched;
         }
         // RowGroupFilter accepts a list of FilterLevel; STATISTICS + DICTIONARY + BLOOMFILTER
         // mirrors parquet-mr's defaults when useColumnIndexFilter is disabled - matches what

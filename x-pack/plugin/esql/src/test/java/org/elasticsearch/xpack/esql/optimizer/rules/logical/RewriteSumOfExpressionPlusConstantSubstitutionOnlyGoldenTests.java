@@ -29,8 +29,7 @@ public class RewriteSumOfExpressionPlusConstantSubstitutionOnlyGoldenTests exten
 
     @Override
     protected TestBuilder builder(String esqlQuery) {
-        return super.builder(esqlQuery)
-            .optimizer(TestSubstitutionOnlyOptimizer::new)
+        return super.builder(esqlQuery).optimizer(TestSubstitutionOnlyOptimizer::new)
             .stages(STAGES)
             .transportVersion(TransportVersionUtils.randomVersionSupporting(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION));
     }

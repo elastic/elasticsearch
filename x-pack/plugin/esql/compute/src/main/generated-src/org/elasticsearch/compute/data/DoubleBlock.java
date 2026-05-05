@@ -124,6 +124,12 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
     @Override
     DoubleBlock expand();
 
+    /**
+     * The maximum size in bytes of any single value stored in this block, or {@code 0} if there are no values.
+     * Always {@code Double.BYTES} since all double values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
+
     static DoubleBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {

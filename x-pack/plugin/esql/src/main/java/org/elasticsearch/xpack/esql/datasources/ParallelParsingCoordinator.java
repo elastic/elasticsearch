@@ -231,24 +231,32 @@ public final class ParallelParsingCoordinator {
         private void parseSegment(int segmentIndex, long offset, long length) {
             BlockingQueue<Page> queue = segmentQueues.get(segmentIndex);
             try {
+                boolean lastSplit = segmentIndex == segmentQueues.size() - 1;
                 StorageObject segObj = new RangeStorageObject(storageObject, offset, length);
 
-                // Both record-boundary flags are true for every segment:
-                // - firstSplit: computeSegments probes the next record boundary, so each segment
-                // starts on a complete record; no leading partial line to skip.
-                // - lastSplit: each non-final segment's length runs through the full record
-                // terminator that the next segment starts after (LF, CRLF, or lone CR for formats
-                // that handle it), so the segment's final byte is the last byte of a terminator.
-                // The final segment runs to fileLength; behavior there is unchanged from the
-                // previous code which also marked it lastSplit=true. Setting this everywhere lets
-                // line-oriented readers (e.g. NDJSON) skip the byte-by-byte trailing-partial-line
+                // Per-flag semantics:
+                // - firstSplit: only segment 0 owns the file's leading bytes (and any header).
+                // computeSegments probes the next record boundary so segments 1..N start on a
+                // complete record, but for header-bearing formats (CSV) "first split" still means
+                // "the segment that contains the header"; otherwise non-first segments would re-run
+                // header inference on data rows.
+                // - lastSplit: only the trailing segment runs to fileLength; non-final segments
+                // end on a record-terminator byte and must NOT be marked lastSplit, so the
+                // codec/reader can correctly handle the segment-boundary tail (see
+                // ParallelParsingCoordinator's segmentation contract).
+                // - recordAligned: every segment is guaranteed to start at a record boundary
+                // (computeSegments probes the next record boundary), so line-oriented readers
+                // can skip the "drop leading partial line" workaround used for byte-range
+                // macro-splits where the leading bytes belong to a previous split. Setting this
+                // also lets readers (e.g. NDJSON) skip the byte-by-byte trailing-partial-line
                 // scan that the format would otherwise apply per chunk.
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(projectedColumns)
                     .batchSize(batchSize)
                     .errorPolicy(errorPolicy)
-                    .firstSplit(true)
-                    .lastSplit(true)
+                    .firstSplit(segmentIndex == 0)
+                    .lastSplit(lastSplit)
+                    .recordAligned(true)
                     .build();
                 CloseableIterator<Page> pages = reader.read(segObj, ctx);
                 try (pages) {

@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -29,6 +30,14 @@ public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
     private static final String ES95_CODEC_NAME = "ES95TSDB";
 
     private static final List<IndexMode> INDEX_MODES_UNDER_TEST = List.of(IndexMode.TIME_SERIES, IndexMode.STANDARD, IndexMode.LOGSDB);
+
+    public void testES95SettingRegistrationMatchesFeatureFlag() {
+        assertEquals(
+            "index.time_series.es95_codec.enabled registration must match the es95_codec feature flag state",
+            IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled(),
+            IndexScopedSettings.BUILT_IN_INDEX_SETTINGS.contains(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING)
+        );
+    }
 
     public void testES95SelectedAcrossModesWhenSettingEnabled() {
         assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());

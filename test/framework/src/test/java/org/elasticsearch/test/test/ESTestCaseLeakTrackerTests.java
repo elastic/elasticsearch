@@ -64,7 +64,7 @@ public class ESTestCaseLeakTrackerTests extends ESTestCase {
             });
             try {
                 after();
-                expectThrows(AssertionError.class, this::verifyNoOutstandingLeakTrackerLeaks);
+                expectThrows(AssertionError.class, LeakTracker::verifyNoLeaksAndClear);
             } finally {
                 rc.decRef(); // cancel the Cleaner to avoid spurious LEAK log after GC
                 LeakTracker.clearTestLeakCollector();
@@ -79,7 +79,7 @@ public class ESTestCaseLeakTrackerTests extends ESTestCase {
             });
             try {
                 after();
-                AssertionError e = expectThrows(AssertionError.class, this::verifyNoOutstandingLeakTrackerLeaks);
+                AssertionError e = expectThrows(AssertionError.class, LeakTracker::verifyNoLeaksAndClear);
                 assertThat(e.getMessage(), containsString("Leaked resources"));
                 assertThat(e.getMessage(), containsString("Created at:"));
             } finally {
@@ -97,7 +97,7 @@ public class ESTestCaseLeakTrackerTests extends ESTestCase {
             SearchHit hit = new SearchHit(0);
             try {
                 after();
-                AssertionError e = expectThrows(AssertionError.class, this::verifyNoOutstandingLeakTrackerLeaks);
+                AssertionError e = expectThrows(AssertionError.class, LeakTracker::verifyNoLeaksAndClear);
                 assertThat(e.getMessage(), containsString("Leaked resources"));
             } finally {
                 hit.decRef(); // cancel the Cleaner to avoid spurious LEAK log after GC

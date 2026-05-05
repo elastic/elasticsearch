@@ -76,22 +76,21 @@ public final class LeakTracker {
     }
 
     /**
-     * Asserts no tracked leaks remain for this thread, then clears the collector. No-op when assertions are disabled.
+     * Checks that no tracked leaks remain for this thread without removing the collector. No-op when assertions are
+     * disabled. Unlike {@link #verifyNoLeaksAndClear()}, this is safe to call repeatedly, e.g. from
+     * {@code assertBusy}, because it leaves the collector in place for subsequent checks.
      *
      * @throws AssertionError if any leak registered since {@link #installTestLeakCollector()} was not closed
      */
-    public static void verifyNoLeaksAndClear() {
+    public static void assertNoLeaks() {
         if (Assertions.ENABLED == false) {
             return;
         }
         Set<Leak> leaks = testLeakCollector.get();
-        testLeakCollector.remove();
         if (leaks == null) {
             return;
         }
-        // Snapshot under the set's own lock: Leak.close() may be called concurrently from background
-        // threads (e.g. when the resource was tracked on the test thread but released on a worker thread),
-        // and Collections.synchronizedSet requires external synchronization during iteration.
+        // Snapshot under the set's own lock: Leak.close() may be called concurrently from background threads.
         List<Leak> snapshot;
         synchronized (leaks) {
             if (leaks.isEmpty()) {
@@ -105,6 +104,19 @@ public final class LeakTracker {
             sb.append(leak.toString()).append('\n');
         }
         throw new AssertionError(sb.toString());
+    }
+
+    /**
+     * Asserts no tracked leaks remain for this thread, then clears the collector. No-op when assertions are disabled.
+     *
+     * @throws AssertionError if any leak registered since {@link #installTestLeakCollector()} was not closed
+     */
+    public static void verifyNoLeaksAndClear() {
+        try {
+            assertNoLeaks();
+        } finally {
+            testLeakCollector.remove();
+        }
     }
 
     /**

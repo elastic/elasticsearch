@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Releasable;
@@ -375,6 +376,10 @@ public class ActionListenerTests extends ESTestCase {
             System.gc();
             assertLeakDetected();
         });
+        // The GC-based mechanism fired above. Drain the intentional leak from the synchronous collector
+        // so @After's verifyNoOutstandingLeakTrackerLeaks doesn't double-report it.
+        LeakTracker.clearTestLeakCollector();
+        LeakTracker.installTestLeakCollector();
     }
 
     public void testAssertAtLeastOnceWillNotLogWhenResolvedOrFailed() {

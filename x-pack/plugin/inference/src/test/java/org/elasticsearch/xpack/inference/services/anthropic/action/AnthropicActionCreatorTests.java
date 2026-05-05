@@ -72,8 +72,6 @@ public class AnthropicActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "id": "msg_01XzZQmG41BMGe5NZ5p2vEWb",
@@ -138,8 +136,6 @@ public class AnthropicActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "id": "msg_01XzZQmG41BMGe5NZ5p2vEWb",

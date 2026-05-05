@@ -9,5 +9,6 @@ TEST_BRANCH=perms-test-branch-260505-01
 
 git checkout -b "$TEST_BRANCH"
 echo "" >> README.asciidoc
+git add README.asciidoc
 git commit -m "Testing"
 git push -u origin "$TEST_BRANCH"

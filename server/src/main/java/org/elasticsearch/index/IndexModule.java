@@ -677,9 +677,7 @@ public final class IndexModule {
             },
             () -> false,
             scriptService,
-            query -> {
-                throw new UnsupportedOperationException("no index query shard context available");
-            },
+            query -> { throw new UnsupportedOperationException("no index query shard context available"); },
             mapperMetrics,
             documentMapper,
             null

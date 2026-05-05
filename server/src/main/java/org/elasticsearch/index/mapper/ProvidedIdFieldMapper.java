@@ -14,7 +14,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
@@ -46,7 +45,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Locale;
 import java.util.function.BooleanSupplier;
 
@@ -216,7 +214,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     static final class ColumnarIdFieldType extends AbstractIdFieldType {
 
-        public ColumnarIdFieldType() {
+        ColumnarIdFieldType() {
             super(true);
         }
 

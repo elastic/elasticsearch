@@ -183,11 +183,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         );
 
         Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM some_real_index, employees | LIMIT 1"), TIMEOUT));
-        Throwable cause = ex;
-        while (cause != null && cause.getMessage() != null && cause.getMessage().contains("mixing datasets and non-datasets") == false) {
-            cause = cause.getCause();
-        }
-        assertThat("error chain should contain Phase-1 mix-rejection", cause, org.hamcrest.Matchers.notNullValue());
+        assertCauseMessageContains(ex, "mixing datasets and non-datasets");
     }
 
     public void testTSCommandRejectedOnDataset() throws Exception {
@@ -202,13 +198,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         );
 
         Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("TS employees | LIMIT 1"), TIMEOUT));
-        Throwable cause = ex;
-        while (cause != null
-            && cause.getMessage() != null
-            && cause.getMessage().contains("TS command is not supported for datasets") == false) {
-            cause = cause.getCause();
-        }
-        assertThat("error chain should contain TS-on-dataset rejection", cause, org.hamcrest.Matchers.notNullValue());
+        assertCauseMessageContains(ex, "TS command is not supported for datasets");
     }
 
     public void testLookupJoinRejectedAgainstDataset() throws Exception {
@@ -226,13 +216,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             Exception.class,
             () -> run(syncEsqlQueryRequest("FROM some_real_index | LOOKUP JOIN employees ON emp_no | LIMIT 1"), TIMEOUT)
         );
-        Throwable cause = ex;
-        while (cause != null
-            && cause.getMessage() != null
-            && cause.getMessage().contains("LOOKUP JOIN against a dataset is not supported") == false) {
-            cause = cause.getCause();
-        }
-        assertThat("error chain should contain LOOKUP-JOIN-against-dataset rejection", cause, org.hamcrest.Matchers.notNullValue());
+        assertCauseMessageContains(ex, "LOOKUP JOIN against a dataset is not supported");
     }
 
     public void testFromDatasetWithWhere() throws Exception {
@@ -413,11 +397,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             Exception.class,
             () -> run(syncEsqlQueryRequest("FROM employees METADATA _index | KEEP _index | LIMIT 1"), TIMEOUT)
         );
-        Throwable cause = ex;
-        while (cause != null && cause.getMessage() != null && cause.getMessage().contains("_index") == false) {
-            cause = cause.getCause();
-        }
-        assertThat("error chain should mention _index column", cause, org.hamcrest.Matchers.notNullValue());
+        assertCauseMessageContains(ex, "_index");
     }
 
     public void testWildcardSpanningIndexAndDatasetRejected() throws Exception {
@@ -438,11 +418,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         );
 
         Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_* | LIMIT 1"), TIMEOUT));
-        Throwable cause = ex;
-        while (cause != null && cause.getMessage() != null && cause.getMessage().contains("mixing datasets and non-datasets") == false) {
-            cause = cause.getCause();
-        }
-        assertThat("error chain should contain wildcard-mix rejection", cause, org.hamcrest.Matchers.notNullValue());
+        assertCauseMessageContains(ex, "mixing datasets and non-datasets");
     }
 
     public void testFromUnknownNameFallsThroughToIndexResolution() throws Exception {
@@ -461,11 +437,20 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         // The rewriter leaves the relation unchanged when the name isn't a known dataset; the analyzer
         // then attempts to resolve it as an index, which fails. Confirms fall-through to index resolution
         // (regression guard against future "treat unknowns as datasets").
-        Throwable cause = ex;
-        while (cause != null && cause.getMessage() != null && cause.getMessage().contains("no_such_thing") == false) {
+        assertCauseMessageContains(ex, "no_such_thing");
+    }
+
+    /**
+     * Walks the cause chain of {@code throwable} looking for a message that contains {@code fragment}.
+     * Fails the test if no such cause is found. Used by the rejection-style tests where the error
+     * surfaces several frames deep behind transport / verification wrappers.
+     */
+    private static void assertCauseMessageContains(Throwable throwable, String fragment) {
+        Throwable cause = throwable;
+        while (cause != null && (cause.getMessage() == null || cause.getMessage().contains(fragment) == false)) {
             cause = cause.getCause();
         }
-        assertThat("error chain should mention the unknown name", cause, org.hamcrest.Matchers.notNullValue());
+        assertThat("error chain should contain message fragment [" + fragment + "]", cause, org.hamcrest.Matchers.notNullValue());
     }
 
     private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {

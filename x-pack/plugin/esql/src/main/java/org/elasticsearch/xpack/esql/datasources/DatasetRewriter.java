@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -48,6 +50,8 @@ import java.util.Set;
  * parallel resolution path.
  */
 public final class DatasetRewriter {
+
+    private static final Logger logger = LogManager.getLogger(DatasetRewriter.class);
 
     /**
      * Built from {@link IndexResolver#DEFAULT_OPTIONS} so the rewriter sees the same set of
@@ -116,7 +120,7 @@ public final class DatasetRewriter {
         );
 
         List<String> datasetNames = new ArrayList<>();
-        int nonDatasetCount = 0;
+        List<String> nonDatasetNames = new ArrayList<>();
         for (String name : resolved.getLocalIndicesList()) {
             IndexAbstraction abs = indicesLookup.get(name);
             if (abs == null) {
@@ -124,13 +128,13 @@ public final class DatasetRewriter {
                 // notably date-math expansion under ALLOW_UNAVAILABLE_TARGETS, which is the user-side
                 // default we mirror. A synthesized name is by definition neither a dataset nor a
                 // real non-dataset, so skipping it is correct: it doesn't count toward
-                // nonDatasetCount and can't accidentally suppress the mixed-FROM rejection.
+                // nonDatasetNames and can't accidentally suppress the mixed-FROM rejection.
                 continue;
             }
             if (abs.getType() == IndexAbstraction.Type.DATASET) {
                 datasetNames.add(name);
             } else {
-                nonDatasetCount++;
+                nonDatasetNames.add(name);
             }
         }
 
@@ -149,14 +153,22 @@ public final class DatasetRewriter {
             };
             throw new VerificationException(message);
         }
-        if (nonDatasetCount > 0) {
-            // Counts only: listing matched names would exfiltrate names the caller may not have read
-            // access to (the resolver runs unauthz here; per-index authz is applied later at field-caps).
-            // This rejection is removed once heterogeneous FROM is supported — the query becomes a
-            // UnionAll and field-caps applies authz on the index side naturally.
+        if (nonDatasetNames.isEmpty() == false) {
+            // User-facing message uses counts only — listing matched names would exfiltrate names
+            // the caller may not have read access to (resolver runs unauthz here; per-index authz
+            // is applied later at field-caps). For operator triage, the full names are emitted at
+            // DEBUG level only — never user-visible. This rejection is removed once heterogeneous
+            // FROM is supported — the query becomes a UnionAll and field-caps applies authz on the
+            // index side naturally.
+            logger.debug(
+                "DatasetRewriter rejecting mixed FROM: pattern=[{}] datasets={} non-datasets={}",
+                relation.indexPattern().indexPattern(),
+                datasetNames,
+                nonDatasetNames
+            );
             throw new VerificationException(
                 "FROM mixing datasets and non-datasets is not supported; requested mix: "
-                    + nonDatasetCount
+                    + nonDatasetNames.size()
                     + " non-dataset(s) and "
                     + datasetNames.size()
                     + " dataset(s)"

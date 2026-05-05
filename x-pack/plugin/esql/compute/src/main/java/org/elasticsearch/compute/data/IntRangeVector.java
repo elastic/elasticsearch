@@ -119,6 +119,11 @@ final class IntRangeVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Integer.BYTES;
+    }
+
+    @Override
     public boolean isConstant() {
         return getPositionCount() == 1;
     }

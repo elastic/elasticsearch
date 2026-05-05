@@ -287,7 +287,9 @@ export function resolveMergeBaseTarget(
     run(`git rev-parse --verify ${targetBranch}^{commit}`, { cwd: projectRoot, stdio: "ignore" });
     return targetBranch;
   } catch {
-    // ghstack-style refs may not exist in the local checkout. Fetch and use FETCH_HEAD instead.
+  // Some target branches aren't present in the local checkout: ghstack synthetic
+  // refs (gh/<user>/<n>/base) and serverless patch branches (patch/<name>). Fetch
+  // the ref and use FETCH_HEAD so we don't depend on origin/<branch> naming.
     run(`git fetch --no-tags origin ${targetBranch}`, { cwd: projectRoot, stdio: "inherit" });
     return "FETCH_HEAD";
   }

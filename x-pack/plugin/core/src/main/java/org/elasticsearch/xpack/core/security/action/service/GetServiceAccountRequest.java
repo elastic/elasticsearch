@@ -82,12 +82,9 @@ public class GetServiceAccountRequest extends LegacyActionRequest {
         out.writeOptionalString(serviceName);
         if (out.getTransportVersion().supports(USER_DEFINED_SERVICE_ACCOUNTS)) {
             out.writeBoolean(includeUserDefined);
-        } else if (includeUserDefined) {
-            throw new UnsupportedOperationException(
-                "user-defined service accounts are not supported on the target transport version; "
-                    + "include_user_defined cannot be set to true"
-            );
         }
+        // On older nodes the flag is silently dropped: those nodes don't know about user-defined
+        // service accounts, so they'd return only built-ins anyway.
     }
 
     @Override

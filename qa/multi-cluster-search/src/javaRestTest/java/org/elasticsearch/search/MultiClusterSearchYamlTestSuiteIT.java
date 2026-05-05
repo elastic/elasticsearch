@@ -14,19 +14,25 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
+import org.apache.http.HttpHost;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
@@ -37,6 +43,7 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     public static TestRule clusterRule = MultiClusterSearchClusters.CLUSTER_RULE;
 
     private static String remoteEsVersion = null;
+    private static TestFeatureService remoteService = null;
 
     @BeforeClass
     public static void readRemoteClusterVersionAndSeedRemote() throws Exception {
@@ -47,6 +54,25 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     @Override
     protected String getTestRestCluster() {
         return MultiClusterSearchClusters.localClusterHosts();
+    }
+
+    @Before
+    public void initRemoteService() throws IOException {
+        if (remoteService != null) {
+            return;
+        }
+        RestClient remoteAdmin = buildClient(restAdminSettings(), MultiClusterSearchClusters.remoteClusterHosts().toArray(new HttpHost[0]));
+        Map<String, Set<String>> remoteFeatures = getClusterStateFeatures(remoteAdmin);
+        Set<String> remoteNodeVersions = readVersionsFromNodesInfo(remoteAdmin);
+        remoteService = createTestFeatureService(remoteFeatures, fromSemanticVersions(remoteNodeVersions));
+        remoteAdmin.close();
+    }
+
+    @AfterClass
+    public static void closeSearchClients() throws IOException {
+        if (remoteService != null) {
+            remoteService = null;
+        }
     }
 
     @Override
@@ -70,13 +96,19 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
             commonVersions = Collections.unmodifiableSet(versionsCopy);
         }
 
+        TestFeatureService combinedFeatureService = (featureId, any) -> {
+            boolean local = testFeatureService.clusterHasFeature(featureId, any);
+            boolean remote = remoteService.clusterHasFeature(featureId, any);
+            return any ? (local || remote) : (local && remote);
+        };
+
         // TODO: same for os and features; align with CcsCommonYamlTestSuiteIT if skips need remote OS/features.
         return new ClientYamlTestExecutionContext(
             clientYamlTestCandidate,
             clientYamlTestClient,
             randomizeContentType(),
             commonVersions,
-            testFeatureService,
+            combinedFeatureService,
             osSet
         );
     }

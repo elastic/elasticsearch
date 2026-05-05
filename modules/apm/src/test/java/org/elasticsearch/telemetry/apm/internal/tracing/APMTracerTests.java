@@ -345,8 +345,8 @@ public class APMTracerTests extends ESTestCase {
         return tracer;
     }
 
-    private APMTracer buildSdkPathTracer(Settings settings, int maxChildSpans, int stackTraceLimit) {
-        APMTracer tracer = new SpyAPMTracerOnSdkPath(settings, maxChildSpans, stackTraceLimit);
+    private APMTracer buildSdkPathTracer(Settings settings, int maxTraceDepth, int stackTraceLimit) {
+        APMTracer tracer = new SpyAPMTracerOnSdkPath(settings, maxTraceDepth, stackTraceLimit);
         tracer.doStart();
         return tracer;
     }
@@ -357,7 +357,7 @@ public class APMTracerTests extends ESTestCase {
         return tracer;
     }
 
-    public void test_onSdkPath_withMaxChildSpansZero_dropsSpanWithLocalParent() {
+    public void test_onSdkPath_withMaxTraceDepthZero_dropsChildSpan() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer tracer = buildSdkPathTracer(settings, 0, 0);
 
@@ -369,7 +369,7 @@ public class APMTracerTests extends ESTestCase {
         assertThat(tracer.getSpans(), anEmptyMap());
     }
 
-    public void test_onSdkPath_withMaxChildSpansZero_recordsRootSpanWithoutLocalParent() {
+    public void test_onSdkPath_withMaxTraceDepthZero_recordsRootSpan() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer tracer = buildSdkPathTracer(settings, 0, 0);
 
@@ -379,9 +379,9 @@ public class APMTracerTests extends ESTestCase {
         assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
     }
 
-    public void test_onSdkPath_withMaxChildSpansAboveZero_recordsChildSpanWithLocalParent() {
+    public void test_onSdkPath_withMaxTraceDepthOne_recordsChildSpan() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = buildSdkPathTracer(settings, 5, 0);
+        APMTracer tracer = buildSdkPathTracer(settings, 1, 0);
 
         ThreadContext threadContext = new ThreadContext(settings);
         threadContext.putTransient(Task.PARENT_APM_TRACE_CONTEXT, Context.root());
@@ -389,6 +389,32 @@ public class APMTracerTests extends ESTestCase {
         tracer.startTrace(threadContext, TRACEABLE1, "child-span", Map.of());
 
         assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
+    }
+
+    /**
+     * Exercises the depth chain end-to-end: with {@code maxTraceDepth=1}, the root and its first-level
+     * child are recorded but a grandchild is dropped. {@link ThreadContext#newTraceContext()} promotes
+     * the previous {@code APM_TRACE_CONTEXT} to {@code PARENT_APM_TRACE_CONTEXT} the same way the task
+     * framework does in production.
+     */
+    public void test_onSdkPath_withMaxTraceDepthOne_dropsGrandchildSpan() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 1, 0);
+
+        ThreadContext traceContext = new ThreadContext(settings);
+
+        tracer.startTrace(traceContext, TRACEABLE1, "root", Map.of());
+        try (var ignore1 = traceContext.newTraceContext()) {
+            tracer.startTrace(traceContext, TRACEABLE2, "child", Map.of());
+            try (var ignore2 = traceContext.newTraceContext()) {
+                tracer.startTrace(traceContext, TRACEABLE3, "grandchild", Map.of());
+            }
+        }
+
+        assertThat(tracer.getSpans(), aMapWithSize(2));
+        assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
+        assertThat(tracer.getSpans(), hasKey(TRACEABLE2.getSpanId()));
+        assertThat(tracer.getSpans(), not(hasKey(TRACEABLE3.getSpanId())));
     }
 
     /**
@@ -462,10 +488,10 @@ public class APMTracerTests extends ESTestCase {
             Settings settings,
             TraceSupplier traceSupplier,
             boolean useOtelSdkTracesExport,
-            int maxChildSpans,
+            int maxTraceDepth,
             int stackTraceLimit
         ) {
-            super(settings, traceSupplier, useOtelSdkTracesExport, maxChildSpans, stackTraceLimit);
+            super(settings, traceSupplier, useOtelSdkTracesExport, maxTraceDepth, stackTraceLimit);
             this.spanStartTimeMap = new HashMap<>();
         }
 
@@ -603,8 +629,8 @@ public class APMTracerTests extends ESTestCase {
 
         private static final TraceSupplier NO_OP_SUPPLIER = OpenTelemetry::noop;
 
-        SpyAPMTracerOnSdkPath(Settings settings, int maxChildSpans, int stackTraceLimit) {
-            super(settings, NO_OP_SUPPLIER, true, maxChildSpans, stackTraceLimit);
+        SpyAPMTracerOnSdkPath(Settings settings, int maxTraceDepth, int stackTraceLimit) {
+            super(settings, NO_OP_SUPPLIER, true, maxTraceDepth, stackTraceLimit);
         }
     }
 

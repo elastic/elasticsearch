@@ -99,7 +99,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES,
             OtelSdkSettings.TELEMETRY_OTEL_TRACES_ENDPOINT,
             OtelSdkSettings.TELEMETRY_OTEL_TRACES_INTERVAL,
-            OtelSdkSettings.TELEMETRY_OTEL_TRACES_MAX_SPANS,
+            OtelSdkSettings.TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH,
             OtelSdkSettings.TELEMETRY_OTEL_TRACES_STACK_TRACE_LIMIT,
             OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT
         );

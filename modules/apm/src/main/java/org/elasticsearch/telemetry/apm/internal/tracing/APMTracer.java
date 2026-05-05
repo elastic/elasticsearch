@@ -269,7 +269,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             // Attempt to fetch a local parent context first, otherwise look for a remote parent
             final Context localParentContext = traceContext.getTransient(Task.PARENT_APM_TRACE_CONTEXT);
 
-            // TODO is the child-spans path tested when enabled?
             // On the OTel SDK path, the maxChildSpans setting governs whether child spans are exported.
             // The agent path enforces the equivalent via transaction_max_spans configured on the agent.
             if (useOtelSdkTracesExport && maxChildSpans == 0 && localParentContext != null) {
@@ -363,7 +362,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 traceContextMap.put(Task.TRACE_STATE, traceStateHeader);
             }
 
-            // TODO do we need/have a test for this?
             // On the SDK path, start from Context.root() to ignore any span the APM agent may have left
             // in the thread-local. The agent path uses Context.current() for compatibility with the agent's
             // own propagation model.

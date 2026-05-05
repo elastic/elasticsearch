@@ -21,6 +21,9 @@ import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.ContextPropagators;
+import io.opentelemetry.context.propagation.TextMapGetter;
+import io.opentelemetry.context.propagation.TextMapPropagator;
+import io.opentelemetry.context.propagation.TextMapSetter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -36,11 +39,13 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.mockito.Mockito;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -50,6 +55,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -345,6 +351,12 @@ public class APMTracerTests extends ESTestCase {
         return tracer;
     }
 
+    private APMTracer buildSdkPathTracerWithPropagator(Settings settings, TextMapPropagator propagator) {
+        APMTracer tracer = new SpyAPMTracerOnSdkPathWithPropagator(settings, propagator);
+        tracer.doStart();
+        return tracer;
+    }
+
     public void test_onSdkPath_withMaxChildSpansZero_dropsSpanWithLocalParent() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer tracer = buildSdkPathTracer(settings, 0, 0);
@@ -365,6 +377,35 @@ public class APMTracerTests extends ESTestCase {
         tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "root-span", Map.of());
 
         assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
+    }
+
+    public void test_onSdkPath_withMaxChildSpansAboveZero_recordsChildSpanWithLocalParent() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 5, 0);
+
+        ThreadContext threadContext = new ThreadContext(settings);
+        threadContext.putTransient(Task.PARENT_APM_TRACE_CONTEXT, Context.root());
+
+        tracer.startTrace(threadContext, TRACEABLE1, "child-span", Map.of());
+
+        assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
+    }
+
+    /**
+     * On the SDK path, remote-parent extraction must use {@link Context#root()} as the base context so
+     * that any span the APM agent left on {@link Context#current()} is not inherited. Captures the base
+     * context passed to the propagator's {@code extract()} and verifies it is the root singleton.
+     */
+    public void test_onSdkPath_remoteParentExtraction_usesContextRootAsBase() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        AtomicReference<Context> capturedBaseContext = new AtomicReference<>();
+        APMTracer tracer = buildSdkPathTracerWithPropagator(settings, new BaseContextCapturingPropagator(capturedBaseContext));
+
+        ThreadContext traceContext = new ThreadContext(settings);
+        traceContext.putTransient(Task.PARENT_TRACE_PARENT_HEADER, "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
+        tracer.startTrace(traceContext, TRACEABLE1, "remote-parent-span", null);
+
+        assertThat(capturedBaseContext.get(), sameInstance(Context.root()));
     }
 
     public void test_addError_onSdkPath_withStackTraceLimitZero_setsStatusInsteadOfRecordException() {
@@ -564,6 +605,58 @@ public class APMTracerTests extends ESTestCase {
 
         SpyAPMTracerOnSdkPath(Settings settings, int maxChildSpans, int stackTraceLimit) {
             super(settings, NO_OP_SUPPLIER, true, maxChildSpans, stackTraceLimit);
+        }
+    }
+
+    /**
+     * SDK-path spy whose {@link APMServices#openTelemetry()} carries a caller-supplied
+     * {@link TextMapPropagator}, so {@link APMTracer#getRemoteParentContext} actually invokes it
+     * and tests can assert what {@code extract()} was called with.
+     */
+    static class SpyAPMTracerOnSdkPathWithPropagator extends SpyAPMTracer {
+
+        private static final TraceSupplier NO_OP_SUPPLIER = OpenTelemetry::noop;
+        private final TextMapPropagator propagator;
+
+        SpyAPMTracerOnSdkPathWithPropagator(Settings settings, TextMapPropagator propagator) {
+            super(settings, NO_OP_SUPPLIER, true, 0, 0);
+            this.propagator = propagator;
+        }
+
+        @Override
+        APMServices createApmServices() {
+            APMServices base = super.createApmServices();
+            OpenTelemetrySdk openTelemetry = OpenTelemetrySdk.builder().setPropagators(ContextPropagators.create(propagator)).build();
+            return new APMServices(base.tracer(), openTelemetry);
+        }
+    }
+
+    /**
+     * Wraps {@link W3CTraceContextPropagator} and captures the base {@link Context} passed to
+     * {@code extract()} so a test can assert which base the production code chose.
+     */
+    private static class BaseContextCapturingPropagator implements TextMapPropagator {
+        private final TextMapPropagator delegate = W3CTraceContextPropagator.getInstance();
+        private final AtomicReference<Context> capturedBaseContext;
+
+        BaseContextCapturingPropagator(AtomicReference<Context> capturedBaseContext) {
+            this.capturedBaseContext = capturedBaseContext;
+        }
+
+        @Override
+        public Collection<String> fields() {
+            return delegate.fields();
+        }
+
+        @Override
+        public <C> void inject(Context context, C carrier, TextMapSetter<C> setter) {
+            delegate.inject(context, carrier, setter);
+        }
+
+        @Override
+        public <C> Context extract(Context context, C carrier, TextMapGetter<C> getter) {
+            capturedBaseContext.set(context);
+            return delegate.extract(context, carrier, getter);
         }
     }
 

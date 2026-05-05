@@ -1,0 +1,3 @@
+#!/bin/bash
+
+export VAULT_GITHUB_TOKEN="$ORIGINAL_VAULT_GITHUB_TOKEN"

@@ -5,6 +5,8 @@ set -euo pipefail
 git config --global user.name elasticsearchmachine
 git config --global user.email 'infra-root+elasticsearchmachine@elastic.co'
 
+export VAULT_GITHUB_TOKEN="$GITHUB_TOKEN"
+
 TEST_BRANCH=perms-test-branch-260505-01
 
 git checkout -b "$TEST_BRANCH"

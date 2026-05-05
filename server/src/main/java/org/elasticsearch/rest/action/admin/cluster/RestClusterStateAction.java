@@ -83,6 +83,7 @@ public class RestClusterStateAction extends BaseRestHandler {
             clusterStateRequest.waitForMetadataVersion(request.paramAsLong("wait_for_metadata_version", 0));
         }
         clusterStateRequest.waitForTimeout(request.paramAsTime("wait_for_timeout", ClusterStateRequest.DEFAULT_WAIT_FOR_NODE_TIMEOUT));
+        clusterStateRequest.waitForAsyncApplied(request.paramAsBoolean("wait_for_async_applied", false));
 
         final String[] indices = Strings.splitStringByCommaToArray(request.param("indices", "_all"));
         boolean isAllIndicesOnly = indices.length == 1 && "_all".equals(indices[0]);

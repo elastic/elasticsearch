@@ -2013,6 +2013,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected static SubscribableListener<Void> newStateFullyAppliedListener() {
+        if (isInternalCluster() == false) {
+            return SubscribableListener.nullSuccess();
+        }
         return ClusterServiceUtils.newStateFullyAppliedListener(client(), internalCluster().getInstances(ClusterService.class).iterator());
     }
 

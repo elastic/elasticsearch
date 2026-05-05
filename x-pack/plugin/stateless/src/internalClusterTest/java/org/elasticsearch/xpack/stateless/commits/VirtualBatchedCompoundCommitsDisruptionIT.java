@@ -116,6 +116,7 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
             return primary.currentNodeId().equals(indexNodeBId) && primary.started();
         });
         logger.info("--> relocated primary");
+        safeAwait(newStateFullyAppliedListener());
 
         var indexShard = findIndexShard(indexName);
         long indexGenerationAfterRelocation = indexShard.commitStats().getGeneration();
@@ -186,6 +187,7 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
         });
         logger.info("--> search shard is on relocated generation");
 
+        safeAwait(newStateFullyAppliedListener());
         var indexShard = findIndexShard(indexName);
         long indexGenerationAfterRelocation = indexShard.commitStats().getGeneration();
 

@@ -309,6 +309,7 @@ public class SearchShardRelocationIT extends AbstractStatelessPluginIntegTestCas
         var searchNode2 = startSearchNode(nodeSettings);
         ensureStableCluster(3);
 
+        var convergenceTimedOutLatch = new CountDownLatch(1);
         MockTransportService.getInstance(searchNode1)
             .addRequestHandlingBehavior(
                 START_HANDOFF_ACTION_NAME,
@@ -326,6 +327,7 @@ public class SearchShardRelocationIT extends AbstractStatelessPluginIntegTestCas
                     @Override
                     public void sendResponse(Exception exception) {
                         assertThat(exception.getMessage(), containsString("Cluster state convergence timed out"));
+                        convergenceTimedOutLatch.countDown();
                         channel.sendResponse(exception);
                     }
                 }, task)
@@ -335,10 +337,8 @@ public class SearchShardRelocationIT extends AbstractStatelessPluginIntegTestCas
         // and the cluster state observer timeouts are scheduled through that thread, therefore they won't be executed until
         // we stop the disruption.
         var blockApplyCommitInSearchNode1Latch = new CountDownLatch(1);
-        var applyCommitSentToSearchNode1Latch = new CountDownLatch(1);
         MockTransportService.getInstance(searchNode1)
             .addRequestHandlingBehavior(Coordinator.COMMIT_STATE_ACTION_NAME, (handler, request, channel, task) -> {
-                applyCommitSentToSearchNode1Latch.countDown();
                 safeAwait(blockApplyCommitInSearchNode1Latch);
                 handler.messageReceived(request, channel, task);
             });
@@ -350,10 +350,12 @@ public class SearchShardRelocationIT extends AbstractStatelessPluginIntegTestCas
             .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNode1))
             .execute();
 
-        ensureGreen(indexName);
-        safeAwait(applyCommitSentToSearchNode1Latch);
-        assertThatUnpromotableShardIsStartedInNode(indexName, searchNode2);
+        // Wait for the convergence timeout to fire before unblocking searchNode1, so that ensureGreen can wait for all
+        // nodes (including searchNode1) to fully apply the new cluster state.
+        safeAwait(convergenceTimedOutLatch);
         blockApplyCommitInSearchNode1Latch.countDown();
+        ensureGreen(indexName);
+        assertThatUnpromotableShardIsStartedInNode(indexName, searchNode2);
         assertAcked(updateSettingsRequest.get());
     }
 

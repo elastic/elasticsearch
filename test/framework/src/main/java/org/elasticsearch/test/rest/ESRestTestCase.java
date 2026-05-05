@@ -1943,6 +1943,22 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             request.addParameter("level", "shards");
         });
+        awaitAsyncApplied(client);
+    }
+
+    private static void awaitAsyncApplied(RestClient client) throws IOException {
+        final Request request = new Request("GET", "/_cluster/state");
+        request.addParameter("wait_for_async_applied", "true");
+        request.addParameter("filter_path", "version");
+        try {
+            client.performRequest(request);
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == 400) {
+                // Old node: parameter not recognized, no async appliers to wait for
+                return;
+            }
+            throw e;
+        }
     }
 
     protected static void ensureHealth(Consumer<Request> requestConsumer) throws IOException {

@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
@@ -60,6 +61,7 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
 
     private static final Logger logger = LogManager.getLogger(TransportClusterStateAction.class);
 
+    private final Client client;
     private final ProjectResolver projectResolver;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ThreadPool threadPool;
@@ -81,6 +83,7 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
             clusterService,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.client = client;
         this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.threadPool = threadPool;
@@ -117,7 +120,11 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
             return;
         }
         if (acceptableClusterStatePredicate.test(state)) {
-            ActionListener.completeWith(listener, () -> buildResponse(request, state));
+            if (request.waitForAsyncApplied()) {
+                awaitAsyncAndRespond(request, state, listener, cancellableTask);
+            } else {
+                ActionListener.completeWith(listener, () -> buildResponse(request, state));
+            }
         } else {
             assert acceptableClusterStatePredicate.test(state) == false;
             new ClusterStateObserver(state, clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext())
@@ -130,7 +137,11 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
                         }
 
                         if (acceptableClusterStatePredicate.test(newState)) {
-                            executor.execute(ActionRunnable.supply(listener, () -> buildResponse(request, newState)));
+                            if (request.waitForAsyncApplied()) {
+                                awaitAsyncAndRespond(request, newState, listener, cancellableTask);
+                            } else {
+                                executor.execute(ActionRunnable.supply(listener, () -> buildResponse(request, newState)));
+                            }
                         } else {
                             listener.onFailure(
                                 new NotMasterException(
@@ -155,6 +166,26 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
                     }
                 }, clusterState -> cancellableTask.isCancelled() || acceptableClusterStatePredicate.test(clusterState));
         }
+    }
+
+    private void awaitAsyncAndRespond(
+        ClusterStateRequest request,
+        ClusterState state,
+        ActionListener<ClusterStateResponse> listener,
+        CancellableTask cancellableTask
+    ) {
+        final DiscoveryNode[] dataNodes = state.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
+        client.execute(
+            TransportAwaitClusterStateVersionAppliedAction.TYPE,
+            new AwaitClusterStateVersionAppliedRequest(state.version(), request.waitForTimeout(), dataNodes),
+            listener.delegateFailureAndWrap((l, response) -> {
+                if (response.hasActualFailures()) {
+                    l.onFailure(response.actualFailures().get(0));
+                } else if (cancellableTask.notifyIfCancelled(l) == false) {
+                    executor.execute(ActionRunnable.supply(l, () -> buildResponse(request, state)));
+                }
+            })
+        );
     }
 
     private ClusterState filterClusterState(final ClusterState inputState) {

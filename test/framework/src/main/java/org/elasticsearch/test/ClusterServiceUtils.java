@@ -401,8 +401,8 @@ public class ClusterServiceUtils {
                     nodes.toArray(DiscoveryNode[]::new)
                 ),
                 l.map(response -> {
-                    if (response.hasFailures()) {
-                        for (var failure : response.failures()) {
+                    if (response.hasActualFailures()) {
+                        for (var failure : response.actualFailures()) {
                             logger.error("state-fully-applied listener failed", failure);
                         }
                         fail("state-fully-applied listener failed");

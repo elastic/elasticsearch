@@ -15,7 +15,9 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
+import org.apache.lucene.codecs.hnsw.HnswGraphProvider;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
+import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
@@ -28,6 +30,7 @@ import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NamedThreadFactory;
+import org.apache.lucene.util.hnsw.HnswGraph;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -592,6 +595,14 @@ public class KnnIndexTester {
         for (int i = 0; i < results.length; i++) {
             KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
             var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
+            if (testConfiguration.skipRecall()) {
+                setup = new KnnSearcher.SearchSetup(
+                    setup.floatQueries(),
+                    setup.byteQueries(),
+                    setup.provider(),
+                    (resultIds, r, p) -> logger.info("skipping recall (skip_recall=true)")
+                );
+            }
             knnSearcher.search(results[i], testConfiguration.searchParams().get(i), dir, setup);
         }
     }
@@ -628,6 +639,7 @@ public class KnnIndexTester {
     static void numSegments(Path indexPath, Results result) throws IOException {
         try (Directory dir = KnnIndexer.getDirectory(indexPath); IndexReader reader = DirectoryReader.open(dir)) {
             result.numSegments = reader.leaves().size();
+            logGraphStats(reader);
         } catch (IOException e) {
             throw new IOException("Failed to get segment count for index at " + indexPath, e);
         }
@@ -636,8 +648,60 @@ public class KnnIndexTester {
     static void numSegments(Directory dir, Results result) throws IOException {
         try (IndexReader reader = DirectoryReader.open(dir)) {
             result.numSegments = reader.leaves().size();
+            logGraphStats(reader);
         } catch (IOException e) {
             throw new IOException("Failed to get segment count for dir: " + dir, e);
+        }
+    }
+
+    private static void logGraphStats(IndexReader reader) throws IOException {
+        for (var leaf : reader.leaves()) {
+            if (leaf.reader() instanceof CodecReader codecReader) {
+                KnnVectorsReader vectorReader = codecReader.getVectorReader();
+                if (vectorReader instanceof org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat.FieldsReader perFieldReader) {
+                    vectorReader = perFieldReader.getFieldReader(KnnIndexer.VECTOR_FIELD);
+                }
+                if (vectorReader instanceof HnswGraphProvider graphProvider) {
+                    HnswGraph graph = graphProvider.getGraph(KnnIndexer.VECTOR_FIELD);
+                    if (graph == null) {
+                        continue;
+                    }
+                    int graphSize = graph.size();
+                    int maxConn = graph.maxConn();
+                    int numLevels = graph.numLevels();
+                    int entryNode = graph.entryNode();
+
+                    int minNeighbors = Integer.MAX_VALUE;
+                    int maxNeighbors = 0;
+                    long totalNeighbors = 0;
+                    int sampled = 0;
+                    var nodesOnLevel0 = graph.getNodesOnLevel(0);
+                    while (nodesOnLevel0.hasNext() && sampled < 1000) {
+                        int node = nodesOnLevel0.next();
+                        graph.seek(0, node);
+                        int count = graph.neighborCount();
+                        minNeighbors = Math.min(minNeighbors, count);
+                        maxNeighbors = Math.max(maxNeighbors, count);
+                        totalNeighbors += count;
+                        sampled++;
+                    }
+                    double avgNeighbors = sampled > 0 ? (double) totalNeighbors / sampled : 0;
+                    logger.info(
+                        "HNSW graph stats: size={}, maxConn={}, numLevels={}, entryNode={}",
+                        graphSize,
+                        maxConn,
+                        numLevels,
+                        entryNode
+                    );
+                    logger.info(
+                        "Level 0 neighbor counts (sampled {} nodes): min={}, max={}, avg={}",
+                        sampled,
+                        minNeighbors,
+                        maxNeighbors,
+                        String.format(Locale.ROOT, "%.1f", avgNeighbors)
+                    );
+                }
+            }
         }
     }
 

@@ -59,7 +59,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.test.knn.KnnIndexTester.logger;
@@ -168,16 +167,13 @@ public class KnnIndexer {
         }
 
         long start = System.nanoTime();
-        AtomicInteger numDocsIndexed = new AtomicInteger();
         IndexWriterConfig iwc = createIndexWriterConfig(indexSort);
         try (IndexWriter iw = new IndexWriter(dir, iwc)) {
             try (ExecutorService exec = Executors.newFixedThreadPool(numIndexThreads, r -> new Thread(r, "KnnIndexer-Thread"))) {
                 List<Future<?>> futures = new ArrayList<>();
                 for (int i = 0; i < numIndexThreads; i++) {
                     futures.add(
-                        exec.submit(
-                            new IndexerThread(iw, vectorReader, vectorEncoding, fieldType, documentFactory, numDocsIndexed, totalDocs)
-                        )
+                        exec.submit(new IndexerThread(iw, vectorReader, vectorEncoding, fieldType, documentFactory, totalDocs))
                     );
                 }
                 for (Future<?> future : futures) {
@@ -379,7 +375,6 @@ public class KnnIndexer {
         private final VectorEncoding vectorEncoding;
         private final FieldType fieldType;
         private final DocumentFactory documentFactory;
-        private final AtomicInteger numDocsIndexed;
         private final int numDocsToIndex;
 
         IndexerThread(
@@ -388,7 +383,6 @@ public class KnnIndexer {
             VectorEncoding vectorEncoding,
             FieldType fieldType,
             DocumentFactory documentFactory,
-            AtomicInteger numDocsIndexed,
             int numDocsToIndex
         ) {
             this.iw = iw;
@@ -396,25 +390,27 @@ public class KnnIndexer {
             this.vectorEncoding = vectorEncoding;
             this.fieldType = fieldType;
             this.documentFactory = documentFactory;
-            this.numDocsIndexed = numDocsIndexed;
             this.numDocsToIndex = numDocsToIndex;
         }
 
         @Override
         public void run() {
             try {
-                int idx;
-                while ((idx = numDocsIndexed.getAndIncrement()) < numDocsToIndex) {
-
+                while (true) {
+                    final int idx;
                     final IndexableField field;
                     switch (vectorEncoding) {
                         case BYTE -> {
-                            byte[] vector = vectorReader.nextByteVector();
-                            field = new KnnByteVectorField(VECTOR_FIELD, vector, fieldType);
+                            var ov = vectorReader.nextByteVector();
+                            idx = ov.ordinal();
+                            if (idx >= numDocsToIndex) return;
+                            field = new KnnByteVectorField(VECTOR_FIELD, ov.vector(), fieldType);
                         }
                         case FLOAT32 -> {
-                            float[] vector = vectorReader.nextFloatVector();
-                            field = new KnnFloatVectorField(VECTOR_FIELD, vector, fieldType);
+                            var ov = vectorReader.nextFloatVector();
+                            idx = ov.ordinal();
+                            if (idx >= numDocsToIndex) return;
+                            field = new KnnFloatVectorField(VECTOR_FIELD, ov.vector(), fieldType);
                         }
                         default -> throw new UnsupportedOperationException();
                     }

@@ -79,7 +79,8 @@ public record TestConfiguration(
     int flatVectorThreshold,
     int secondaryClusterSize,
     String directoryType,
-    DatasetConfig datasetConfig
+    DatasetConfig datasetConfig,
+    boolean skipRecall
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -121,6 +122,7 @@ public record TestConfiguration(
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
     static final ParseField FLAT_VECTOR_THRESHOLD = new ParseField("flat_vector_threshold");
     static final ParseField DIRECTORY_TYPE_FIELD = new ParseField("directory_type");
+    static final ParseField SKIP_RECALL_FIELD = new ParseField("skip_recall");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -186,6 +188,7 @@ public record TestConfiguration(
         PARSER.declareInt(Builder::setFlatVectorThreshold, FLAT_VECTOR_THRESHOLD);
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
         PARSER.declareString(Builder::setDirectoryType, DIRECTORY_TYPE_FIELD);
+        PARSER.declareBoolean(Builder::setSkipRecall, SKIP_RECALL_FIELD);
     }
 
     public int numberOfSearchRuns() {
@@ -260,7 +263,8 @@ public record TestConfiguration(
                 "directory_type",
                 "string",
                 "Directory type: default (mmap), frozen (searchable snapshot), or custom types registered by external wrappers."
-            )
+            ),
+            new ParameterHelp("skip_recall", "boolean", "Skip brute-force exact NN computation and recall checking; useful for QPS-only runs.")
         );
 
         int[] lengths = new int[] { "parameter".length(), "type".length(), "description".length() };
@@ -405,6 +409,7 @@ public record TestConfiguration(
         private int secondaryClusterSize = -1;
         private int flatIndexThreshold = -1; // use format's default threshold
         private String directoryType = "default";
+        private boolean skipRecall = false;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -617,6 +622,11 @@ public record TestConfiguration(
 
         public Builder setDirectoryType(String directoryType) {
             this.directoryType = directoryType.toLowerCase(Locale.ROOT);
+            return this;
+        }
+
+        public Builder setSkipRecall(boolean skipRecall) {
+            this.skipRecall = skipRecall;
             return this;
         }
 
@@ -895,7 +905,8 @@ public record TestConfiguration(
                 flatVectorThreshold,
                 secondaryClusterSize,
                 directoryType,
-                datasetConfig
+                datasetConfig,
+                skipRecall
             );
         }
 
@@ -954,6 +965,9 @@ public record TestConfiguration(
             }
             builder.field(FLAT_VECTOR_THRESHOLD.getPreferredName(), flatVectorThreshold);
             builder.field(DIRECTORY_TYPE_FIELD.getPreferredName(), directoryType);
+            if (skipRecall) {
+                builder.field(SKIP_RECALL_FIELD.getPreferredName(), true);
+            }
             return builder.endObject();
         }
 

@@ -542,7 +542,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMinimalWarnings();
     }
 
-    public void testDisableIndex() throws IOException {
+    public void testNotIndexed() throws IOException {
         ParameterChecker checker = new ParameterChecker();
         registerParameters(checker);
         assumeTrue("mapper must support the 'index' parameter", checker.checkedParameters.contains("index"));

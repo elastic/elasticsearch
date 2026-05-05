@@ -339,7 +339,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    public void testDisableIndex() throws IOException {
+    public void testNotIndexed() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "flattened");
             b.field("index", false);

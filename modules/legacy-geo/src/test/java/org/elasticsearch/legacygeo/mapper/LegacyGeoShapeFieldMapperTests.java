@@ -82,7 +82,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    public void testDisableIndex() throws IOException {
+    public void testNotIndexed() throws IOException {
         throw new AssumptionViolatedException("LegacyGeoShapeFieldMapper does not support disabling the index");
     }
 

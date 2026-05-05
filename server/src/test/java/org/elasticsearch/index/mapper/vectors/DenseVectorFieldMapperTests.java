@@ -121,7 +121,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     }
 
     @Override
-    public void testDisableIndex() throws IOException {
+    public void testNotIndexed() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "dense_vector").field("dims", dims).field("index", false);
             if (elementType != ElementType.FLOAT) {

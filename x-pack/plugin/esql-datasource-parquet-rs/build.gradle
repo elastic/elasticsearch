@@ -188,9 +188,15 @@ def extractNativeLibs = tasks.register('extractNativeLibs', Copy) {
     from configurations.libs
   }
   into layout.buildDirectory.dir("native-libs/${nativeVersion}/platform")
+  // Should not be executable
+  filePermissions {unix("644") }
 }
 
 tasks.named("processResources").configure {
+  dependsOn extractNativeLibs
+}
+
+tasks.named("splitPackagesAudit").configure {
   dependsOn extractNativeLibs
 }
 

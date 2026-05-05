@@ -557,7 +557,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 Optional<CrossProjectSearchMetrics> cpsMetrics = resolvesCrossProject
                     ? Optional.of(new CrossProjectSearchMetrics())
                     : Optional.empty();
-                logger.info("CPS metrics: " + cpsMetrics.get());
+                logger.info("CPS metrics: {}", cpsMetrics.get());
                 if (shouldMinimizeRoundtrips(rewritten)) {
                     collectRemoteResolvedIndices(
                         parentTaskId,

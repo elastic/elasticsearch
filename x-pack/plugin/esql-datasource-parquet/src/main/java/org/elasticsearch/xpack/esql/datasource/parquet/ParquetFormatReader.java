@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -110,6 +111,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     static final String CONFIG_OPTIMIZED_READER = "optimized_reader";
     static final String CONFIG_LATE_MATERIALIZATION = "late_materialization";
 
+    /** Keys recognised by {@link #withConfig(Map)}. */
+    static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_OPTIMIZED_READER, CONFIG_LATE_MATERIALIZATION);
+
     public ParquetFormatReader(BlockFactory blockFactory) {
         this(blockFactory, FilterCompat.NOOP, null, false, true, true);
     }
@@ -162,16 +166,22 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     }
 
     @Override
-    public FormatReader withConfig(Map<String, Object> config) {
+    public Configured<FormatReader> withConfig(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
-            return this;
+            return Configured.empty(this);
+        }
+        Set<String> consumed = new HashSet<>();
+        for (String key : config.keySet()) {
+            if (RECOGNIZED_KEYS.contains(key)) {
+                consumed.add(key);
+            }
         }
         boolean newOptimized = parseBooleanConfig(config, CONFIG_OPTIMIZED_READER, optimizedReader);
         boolean newLateMat = parseBooleanConfig(config, CONFIG_LATE_MATERIALIZATION, lateMaterializationEnabled);
-        if (newOptimized == optimizedReader && newLateMat == lateMaterializationEnabled) {
-            return this;
-        }
-        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, forceBaselinePath, newOptimized, newLateMat);
+        FormatReader result = (newOptimized == optimizedReader && newLateMat == lateMaterializationEnabled)
+            ? this
+            : new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, forceBaselinePath, newOptimized, newLateMat);
+        return new Configured<>(result, consumed);
     }
 
     private static boolean parseBooleanConfig(Map<String, Object> config, String key, boolean defaultValue) {

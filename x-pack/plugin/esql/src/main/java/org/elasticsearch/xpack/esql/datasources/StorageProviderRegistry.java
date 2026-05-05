@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
@@ -101,7 +102,7 @@ public class StorageProviderRegistry implements Closeable {
         return factories.containsKey(normalized) || providers.containsKey(normalized);
     }
 
-    public StorageProvider createProvider(String scheme, Settings settings, Map<String, Object> config) {
+    public Configured<StorageProvider> createProvider(String scheme, Settings settings, Map<String, Object> config) {
         String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
 
         if (config == null || config.isEmpty()) {
@@ -109,7 +110,7 @@ public class StorageProviderRegistry implements Closeable {
             if (provider == null) {
                 provider = createDefaultProvider(normalizedScheme);
             }
-            return provider;
+            return Configured.empty(provider);
         }
 
         StorageProviderFactory factory = factories.get(normalizedScheme);
@@ -119,9 +120,13 @@ public class StorageProviderRegistry implements Closeable {
 
         // Cache providers by (scheme, config) so queries with the same WITH-clause config
         // reuse the same cloud client and connection pool instead of constructing a new one.
+        // The consumed-key set is invariant for a given (scheme, config) and is cached alongside.
         StorageProviderCache.CacheKey cacheKey = new StorageProviderCache.CacheKey(normalizedScheme, config);
         try {
-            return configuredProviderCache.getOrCreate(cacheKey, () -> wrapProvider(factory.create(settings, config), normalizedScheme));
+            return configuredProviderCache.getOrCreate(cacheKey, () -> {
+                Configured<StorageProvider> raw = factory.create(settings, config);
+                return new Configured<>(wrapProvider(raw.value(), normalizedScheme), raw.consumedKeys());
+            });
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {

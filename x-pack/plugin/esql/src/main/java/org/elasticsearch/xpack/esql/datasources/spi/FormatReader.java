@@ -120,13 +120,19 @@ public interface FormatReader extends Closeable {
     List<String> fileExtensions();
 
     /**
-     * Returns a format reader configured with the given config map (from the WITH clause).
-     * Implementations should parse format-specific options from the config
-     * and return a new reader instance if any options are present.
-     * The default returns {@code this} (no configuration).
+     * Returns a format reader configured with the given config map (from the WITH clause),
+     * paired with the set of keys consumed from {@code config}.
+     * <p>
+     * Implementations should parse format-specific options from the config and return a
+     * {@link Configured} carrying both the (new or same) reader and the keys recognized.
+     * The coordinator unions consumed-key sets across storage, format, and error-policy
+     * layers, and rejects any leftover keys as unknown.
+     * <p>
+     * The default returns {@code Configured.empty(this)} — no configuration, no keys
+     * consumed. Suitable for formats that have no WITH-clause options.
      */
-    default FormatReader withConfig(Map<String, Object> config) {
-        return this;
+    default Configured<FormatReader> withConfig(Map<String, Object> config) {
+        return Configured.empty(this);
     }
 
     /**

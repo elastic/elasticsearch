@@ -120,7 +120,7 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         DecompressionCodec codec = mockCodec();
         CompressionDelegatingFormatReader delegating = new CompressionDelegatingFormatReader(inner, codec);
 
-        FormatReader configured = delegating.withConfig(java.util.Map.of());
+        FormatReader configured = delegating.withConfig(java.util.Map.of()).value();
         assertSame(delegating, configured);
 
         if (configured instanceof CompressionDelegatingFormatReader cdr) {

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
@@ -51,9 +52,14 @@ public class S3Configuration extends FileDataSourceConfiguration {
      * Lenient factory for query-time WITH clauses, which may carry format-level options
      * (e.g. {@code header_row}) alongside storage-level options. Filters unknown keys
      * before construction; cross-field validation (auth/credential conflicts) still runs.
+     * <p>
+     * Returns the configuration plus the set of keys consumed from {@code raw}. The coordinator
+     * unions this with the format layer's consumed set to identify truly-unknown keys.
      */
-    public static S3Configuration fromQueryConfig(Map<String, Object> raw) {
-        return fromMap(filterKnown(raw, FIELDS));
+    public static Configured<S3Configuration> fromQueryConfig(Map<String, Object> raw) {
+        Configured<Map<String, Object>> filtered = filterKnown(raw, FIELDS);
+        S3Configuration config = filtered.value() == null || filtered.value().isEmpty() ? null : new S3Configuration(filtered.value());
+        return new Configured<>(config, filtered.consumedKeys());
     }
 
     public static S3Configuration fromFields(String accessKey, String secretKey, String endpoint, String region) {

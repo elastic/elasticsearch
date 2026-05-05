@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -909,7 +910,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-                return Map.of("s3", s -> storageProvider);
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
             }
 
             @Override
@@ -929,6 +930,29 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
+    }
+
+    /**
+     * Builds a {@link StorageProviderFactory} that claims every WITH-clause key as consumed.
+     * Used by tests that don't care about validation but do thread per-query config through;
+     * without this, FileSourceFactory's coordinator validation would reject keys like
+     * {@code access_key} that the stub doesn't actually parse.
+     */
+    private static StorageProviderFactory stubStorageProviderFactory(StorageProvider provider) {
+        return new StorageProviderFactory() {
+            @Override
+            public StorageProvider create(Settings settings) {
+                return provider;
+            }
+
+            @Override
+            public Configured<StorageProvider> create(Settings settings, Map<String, Object> config) {
+                if (config == null || config.isEmpty()) {
+                    return Configured.empty(provider);
+                }
+                return new Configured<>(provider, java.util.Set.copyOf(config.keySet()));
+            }
+        };
     }
 
     private ExternalSourceResolver createResolverWithCache(
@@ -951,7 +975,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-                return Map.of("s3", s -> storageProvider);
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
             }
 
             @Override

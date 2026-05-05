@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
@@ -39,12 +40,12 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
             }
 
             @Override
-            public StorageProvider create(Settings settings, Map<String, Object> config) {
+            public Configured<StorageProvider> create(Settings settings, Map<String, Object> config) {
                 if (config == null || config.isEmpty()) {
-                    return create(settings);
+                    return Configured.empty(create(settings));
                 }
-                S3Configuration s3Config = S3Configuration.fromQueryConfig(config);
-                return new S3StorageProvider(s3Config);
+                Configured<S3Configuration> s3Config = S3Configuration.fromQueryConfig(config);
+                return new Configured<>(new S3StorageProvider(s3Config.value()), s3Config.consumedKeys());
             }
         };
         return Map.of("s3", s3Factory, "s3a", s3Factory, "s3n", s3Factory);

@@ -369,7 +369,9 @@ public class ExternalSourceResolver {
     private StorageProvider resolveProvider(StoragePath storagePath, Map<String, Object> config) {
         StorageProviderRegistry registry = dataSourceModule.storageProviderRegistry();
         if (config != null && config.isEmpty() == false) {
-            return registry.createProvider(storagePath.scheme(), settings, config);
+            // Coordinator-level WITH-clause validation runs in FileSourceFactory.resolveMetadata;
+            // this caller only needs the resolved provider.
+            return registry.createProvider(storagePath.scheme(), settings, config).value();
         }
         return registry.provider(storagePath);
     }

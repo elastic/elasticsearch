@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.esql.datasource.azure;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Unit tests for AzureDataSourcePlugin.
@@ -42,8 +45,9 @@ public class AzureDataSourcePluginTests extends ESTestCase {
         StorageProviderFactory factory = providers.get("wasbs");
         assertNotNull("wasbs factory should not be null", factory);
 
-        var provider = factory.create(Settings.EMPTY, null);
-        assertNotNull(provider);
+        Configured<StorageProvider> result = factory.create(Settings.EMPTY, null);
+        assertNotNull(result.value());
+        assertEquals(Set.of(), result.consumedKeys());
     }
 
     public void testStorageProviderFactoryCreateWithEmptyConfigDelegatesToDefault() {
@@ -53,8 +57,9 @@ public class AzureDataSourcePluginTests extends ESTestCase {
         StorageProviderFactory factory = providers.get("wasbs");
         assertNotNull("wasbs factory should not be null", factory);
 
-        var provider = factory.create(Settings.EMPTY, Map.of());
-        assertNotNull(provider);
+        Configured<StorageProvider> result = factory.create(Settings.EMPTY, Map.of());
+        assertNotNull(result.value());
+        assertEquals(Set.of(), result.consumedKeys());
     }
 
     public void testWasbsAndWasbShareSameFactory() {

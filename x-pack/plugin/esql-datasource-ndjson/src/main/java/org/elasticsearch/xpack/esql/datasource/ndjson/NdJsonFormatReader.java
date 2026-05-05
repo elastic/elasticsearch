@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -26,9 +27,11 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * FormatReader implementation for NDJSON files.
@@ -96,18 +99,27 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return new NdJsonFormatReader(settings, blockFactory, schema, schemaSampleSize, segmentSizeBytes);
     }
 
+    /** Keys recognised by {@link #withConfig(Map)}. */
+    static final Set<String> RECOGNIZED_KEYS = Set.of("schema_sample_size", "segment_size");
+
     @Override
-    public FormatReader withConfig(Map<String, Object> config) {
+    public Configured<FormatReader> withConfig(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
-            return this;
+            return Configured.empty(this);
+        }
+        Set<String> consumed = new HashSet<>();
+        for (String key : config.keySet()) {
+            if (RECOGNIZED_KEYS.contains(key)) {
+                consumed.add(key);
+            }
         }
         int newSampleSize = parseInt(config.get("schema_sample_size"), schemaSampleSize);
         Check.isTrue(newSampleSize > 0, "schema_sample_size must be positive, got: {}", newSampleSize);
         long newSegmentSize = parseSegmentSize(config.get("segment_size"), segmentSizeBytes);
-        if (newSampleSize == schemaSampleSize && newSegmentSize == segmentSizeBytes) {
-            return this;
-        }
-        return new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize, newSegmentSize);
+        FormatReader result = (newSampleSize == schemaSampleSize && newSegmentSize == segmentSizeBytes)
+            ? this
+            : new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize, newSegmentSize);
+        return new Configured<>(result, consumed);
     }
 
     private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object, boolean skipFirstLine)

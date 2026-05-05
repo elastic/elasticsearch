@@ -21,7 +21,16 @@ public interface StorageProviderFactory {
 
     StorageProvider create(Settings settings);
 
-    default StorageProvider create(Settings settings, Map<String, Object> config) {
-        return create(settings);
+    /**
+     * Returns a {@link StorageProvider} configured from a per-query WITH-clause map, paired
+     * with the set of keys this storage layer consumed from {@code config}. The coordinator
+     * unions this set with the format layer's consumed set and rejects any key that no layer
+     * claims, making typos surface as planning errors rather than silently-dropped settings.
+     * <p>
+     * Default returns {@link Configured#empty(Object) Configured.empty(create(settings))} —
+     * suitable for storage backends that take no per-query config.
+     */
+    default Configured<StorageProvider> create(Settings settings, Map<String, Object> config) {
+        return Configured.empty(create(settings));
     }
 }

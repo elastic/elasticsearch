@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
@@ -24,9 +25,13 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 
@@ -117,18 +122,26 @@ final class FileSourceFactory implements ExternalSourceFactory {
             String scheme = storagePath.scheme();
 
             StorageProvider provider;
+            Set<String> storageConsumed;
             if (config != null && config.isEmpty() == false) {
-                provider = storageRegistry.createProvider(scheme, settings, config);
+                Configured<StorageProvider> resolved = storageRegistry.createProvider(scheme, settings, config);
+                provider = resolved.value();
+                storageConsumed = resolved.consumedKeys();
             } else {
                 provider = storageRegistry.provider(storagePath);
+                storageConsumed = Set.of();
             }
 
             StorageObject storageObject = provider.newObject(storagePath);
             if (storageObject.exists() == false) {
                 throw new IOException("File does not exist: " + location);
             }
-            FormatReader reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
-            return reader.metadata(storageObject);
+            Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
+            // Validation runs at planning time so typos surface as user-visible errors before the
+            // operator factory ever executes. Once validated, downstream call sites discard the
+            // consumed-key sets and use only the resolved provider/reader.
+            validateConfigKeys(config, storageConsumed, resolvedReader.consumedKeys());
+            return resolvedReader.value().metadata(storageObject);
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);
         }
@@ -154,12 +167,15 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
             StorageProvider storage;
             if (config != null && config.isEmpty() == false) {
-                storage = storageRegistry.createProvider(path.scheme(), settings, config);
+                storage = storageRegistry.createProvider(path.scheme(), settings, config).value();
             } else {
                 storage = storageRegistry.provider(path);
             }
 
+            // Config has already been validated at planning time in resolveMetadata. Here we
+            // pass the same map through to withConfig and unwrap the resolved reader.
             FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config)
+                .value()
                 .withPushedFilter(context.pushedFilter())
                 .withSchema(context.attributes());
             ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
@@ -207,6 +223,61 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     static final String CONFIG_FORMAT = "format";
+
+    /**
+     * Coordinator-level WITH-clause keys recognised here in {@link FileSourceFactory}, independent
+     * of any single storage or format layer. Used by {@link #validateConfigKeys} to mark these
+     * keys as consumed so they are not flagged as typos.
+     * <p>
+     * Includes {@link #CONFIG_FORMAT} (used by {@link #resolveFormatReader} to override extension-based
+     * format selection) and {@link ErrorPolicy#CONFIG_KEYS} (used by {@link #resolveErrorPolicy}).
+     */
+    static final Set<String> COORDINATOR_KEYS;
+
+    static {
+        Set<String> keys = new HashSet<>();
+        keys.add(CONFIG_FORMAT);
+        keys.addAll(ErrorPolicy.CONFIG_KEYS);
+        COORDINATOR_KEYS = Set.copyOf(keys);
+    }
+
+    /**
+     * Rejects any WITH-clause key that no layer claims. The union of {@code storageConsumed},
+     * {@code formatConsumed}, and {@link #COORDINATOR_KEYS} must cover {@code config.keySet()};
+     * anything left over is treated as a typo and produces a planning-time error naming the
+     * offending key plus the union of recognised keys for the user's reference.
+     * <p>
+     * The "all keys, sorted" message keeps the error deterministic across runs and stable
+     * for snapshot tests; the offending key is listed first so it is the first thing the user reads.
+     */
+    static void validateConfigKeys(Map<String, Object> config, Set<String> storageConsumed, Set<String> formatConsumed) {
+        if (config == null || config.isEmpty()) {
+            return;
+        }
+        List<String> unknown = null;
+        for (String key : config.keySet()) {
+            if (storageConsumed.contains(key) == false
+                && formatConsumed.contains(key) == false
+                && COORDINATOR_KEYS.contains(key) == false) {
+                if (unknown == null) {
+                    unknown = new ArrayList<>();
+                }
+                unknown.add(key);
+            }
+        }
+        if (unknown == null) {
+            return;
+        }
+        Set<String> allRecognised = new TreeSet<>();
+        allRecognised.addAll(storageConsumed);
+        allRecognised.addAll(formatConsumed);
+        allRecognised.addAll(COORDINATOR_KEYS);
+        // Sort the unknown list so the message is deterministic regardless of map iteration order.
+        unknown.sort(String::compareTo);
+        throw new IllegalArgumentException(
+            "unknown option" + (unknown.size() == 1 ? "" : "s") + " " + unknown + " in WITH clause; recognised options are " + allRecognised
+        );
+    }
 
     /** Delegates to {@link ErrorPolicy#fromConfig(Map, ErrorPolicy)} with the format's default
      *  policy as the fallback. Kept here so existing call sites and tests do not have to change. */

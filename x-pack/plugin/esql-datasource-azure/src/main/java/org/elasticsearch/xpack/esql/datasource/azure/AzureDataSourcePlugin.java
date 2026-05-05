@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.azure;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
@@ -45,12 +46,12 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
             }
 
             @Override
-            public StorageProvider create(Settings settings, Map<String, Object> config) {
+            public Configured<StorageProvider> create(Settings settings, Map<String, Object> config) {
                 if (config == null || config.isEmpty()) {
-                    return create(settings);
+                    return Configured.empty(create(settings));
                 }
-                AzureConfiguration azureConfig = AzureConfiguration.fromQueryConfig(config);
-                return new AzureStorageProvider(azureConfig);
+                Configured<AzureConfiguration> azureConfig = AzureConfiguration.fromQueryConfig(config);
+                return new Configured<>(new AzureStorageProvider(azureConfig.value()), azureConfig.consumedKeys());
             }
         };
         return Map.of("wasbs", azureFactory, "wasb", azureFactory);

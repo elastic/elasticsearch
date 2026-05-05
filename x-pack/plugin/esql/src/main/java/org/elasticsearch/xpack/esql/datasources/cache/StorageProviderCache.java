@@ -12,6 +12,7 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.Closeable;
@@ -59,29 +60,32 @@ public class StorageProviderCache implements Closeable {
     public record CacheKey(String scheme, Map<String, Object> config) {}
 
     /**
-     * Factory interface for creating a new {@link StorageProvider} on cache miss.
+     * Factory interface for creating a new {@link StorageProvider} on cache miss. The returned
+     * {@link Configured} pairs the provider with the keys consumed from the cache key's config —
+     * the consumed-key set is invariant given (scheme, config), so it is cached alongside the
+     * provider rather than recomputed on every hit.
      */
     @FunctionalInterface
     public interface ProviderFactory {
-        StorageProvider create() throws Exception;
+        Configured<StorageProvider> create() throws Exception;
     }
 
-    private final Cache<CacheKey, StorageProvider> cache;
+    private final Cache<CacheKey, Configured<StorageProvider>> cache;
 
     public StorageProviderCache() {
         this(DEFAULT_TTL_MINUTES);
     }
 
     StorageProviderCache(long ttlMinutes) {
-        this.cache = CacheBuilder.<CacheKey, StorageProvider>builder()
+        this.cache = CacheBuilder.<CacheKey, Configured<StorageProvider>>builder()
             .setMaximumWeight(MAX_ENTRIES)
             .weigher((key, value) -> 1)
             .setExpireAfterWrite(TimeValue.timeValueMinutes(ttlMinutes))
             .removalListener(notification -> {
-                StorageProvider evicted = notification.getValue();
-                if (evicted != null) {
+                Configured<StorageProvider> evicted = notification.getValue();
+                if (evicted != null && evicted.value() != null) {
                     try {
-                        evicted.close();
+                        evicted.value().close();
                     } catch (IOException e) {
                         logger.warn("Failed to close evicted StorageProvider for scheme [{}]", notification.getKey().scheme(), e);
                     }
@@ -96,10 +100,10 @@ public class StorageProviderCache implements Closeable {
      *
      * @param key     the cache key (scheme + config)
      * @param factory supplier to create the provider on a miss; may throw any exception
-     * @return the cached or newly created provider
+     * @return the cached or newly created provider, paired with its consumed-key set
      * @throws Exception if the factory throws during a cache miss
      */
-    public StorageProvider getOrCreate(CacheKey key, ProviderFactory factory) throws Exception {
+    public Configured<StorageProvider> getOrCreate(CacheKey key, ProviderFactory factory) throws Exception {
         try {
             return cache.computeIfAbsent(key, k -> factory.create());
         } catch (ExecutionException e) {

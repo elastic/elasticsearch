@@ -2424,25 +2424,25 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     public void testWithConfigOptimizedReaderTrue() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", true));
+        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", true)).value();
         assertSame(reader, configured);
     }
 
     public void testWithConfigOptimizedReaderFalse() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", false));
+        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", false)).value();
         assertNotSame(reader, configured);
     }
 
     public void testWithConfigOptimizedReaderStringTrue() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", "true"));
+        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", "true")).value();
         assertSame(reader, configured);
     }
 
     public void testWithConfigDefaults() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        assertSame(reader, reader.withConfig(null));
-        assertSame(reader, reader.withConfig(Map.of()));
+        assertSame(reader, reader.withConfig(null).value());
+        assertSame(reader, reader.withConfig(Map.of()).value());
     }
 }

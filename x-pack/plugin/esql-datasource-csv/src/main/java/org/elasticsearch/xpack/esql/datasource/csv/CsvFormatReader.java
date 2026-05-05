@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -388,11 +389,33 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return new CsvFormatReader(blockFactory, options, format, extensions, schema, schemaSampleSize, effectivePolicy);
     }
 
+    /**
+     * Keys recognised by {@link #withConfig(Map)}. Used by the coordinator to detect typos:
+     * any key in the WITH clause that is not in this set, in the storage layer's known fields,
+     * and not in {@link ErrorPolicy#CONFIG_KEYS} or the FileSourceFactory coordinator keys, is
+     * treated as unknown and rejected.
+     */
+    static final Set<String> RECOGNIZED_KEYS = Set.of(
+        "delimiter",
+        "quote",
+        "escape",
+        "comment",
+        "null_value",
+        "encoding",
+        "datetime_format",
+        "max_field_size",
+        "multi_value_syntax",
+        "header_row",
+        "column_prefix",
+        "schema_sample_size"
+    );
+
     @Override
-    public FormatReader withConfig(Map<String, Object> config) {
+    public Configured<FormatReader> withConfig(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
-            return this;
+            return Configured.empty(this);
         }
+        Set<String> consumed = consumedKeys(config, RECOGNIZED_KEYS);
         CsvFormatOptions parsed = parseOptionsFromConfig(config);
         int newSampleSize = parseInt(config.get("schema_sample_size"), schemaSampleSize);
         Check.isTrue(newSampleSize > 0, "schema_sample_size must be positive, got: {}", newSampleSize);
@@ -409,7 +432,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 resolvedPolicy
             );
         }
-        return result;
+        return new Configured<>(result, consumed);
+    }
+
+    private static Set<String> consumedKeys(Map<String, Object> config, Set<String> recognized) {
+        Set<String> consumed = new HashSet<>();
+        for (String key : config.keySet()) {
+            if (recognized.contains(key)) {
+                consumed.add(key);
+            }
+        }
+        return consumed;
     }
 
     @Override

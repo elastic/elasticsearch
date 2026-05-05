@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
@@ -105,7 +106,7 @@ public final class DataSourceModule implements Closeable {
                     }
 
                     @Override
-                    public StorageProvider create(Settings s, Map<String, Object> config) {
+                    public Configured<StorageProvider> create(Settings s, Map<String, Object> config) {
                         Map<String, StorageProviderFactory> factories = state.storageFactories();
                         StorageProviderFactory real = factories.get(scheme);
                         if (real == null) {

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
@@ -67,6 +68,10 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
     );
 
     private final List<Source> warningSources;
+
+    public List<Source> warningSources() {
+        return warningSources;
+    }
 
     public MvSingleValueOrNull(Source source, Expression field) {
         this(source, field, List.of(source));
@@ -118,6 +123,19 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new MvSingleValueOrNull(source(), newChildren.get(0), warningSources);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), children(), warningSources);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        return Objects.equals(warningSources, ((MvSingleValueOrNull) obj).warningSources);
     }
 
     @Override
@@ -182,17 +200,29 @@ public class MvSingleValueOrNull extends AbstractMultivalueFunction {
         }
 
         private Block nullifyMultiValued(Block block) {
+            // Fast path: the block is already guaranteed to be single-valued (e.g. a vector block).
+            if (block.mayHaveMultivaluedFields() == false) {
+                block.incRef();
+                return block;
+            }
+            boolean anyMultiValued = false;
             try (
                 BooleanVector.FixedBuilder maskBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(block.getPositionCount())
             ) {
                 for (int p = 0; p < block.getPositionCount(); p++) {
                     int valueCount = block.getValueCount(p);
                     if (valueCount > 1) {
+                        anyMultiValued = true;
                         for (Warnings w : allWarnings()) {
                             w.registerException(IllegalArgumentException.class, "single-value function encountered multi-value");
                         }
                     }
                     maskBuilder.appendBoolean(valueCount == 1);
+                }
+                // If no position was actually multivalued, skip keepMask to preserve block structure.
+                if (anyMultiValued == false) {
+                    block.incRef();
+                    return block;
                 }
                 try (BooleanVector mask = maskBuilder.build()) {
                     return block.keepMask(mask);

@@ -112,7 +112,7 @@ public record TaskInfo(
      * match the returned {@code taskId} / {@code startTime} (the 12-argument constructor shape).
      * <p>
      * For tasks that were not relocated, {@code originalTaskId == taskId} and {@code originalStartTimeMillis == startTime},
-     * so this returns an equivalent snapshot.
+     * so this is a NOP.
      */
     public TaskInfo withOriginalRelocationIdentity() {
         TaskId originalId = originalTaskId();

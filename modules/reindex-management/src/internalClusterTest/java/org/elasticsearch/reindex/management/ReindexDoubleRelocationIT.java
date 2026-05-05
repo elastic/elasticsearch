@@ -137,7 +137,7 @@ public class ReindexDoubleRelocationIT extends ESIntegTestCase {
         final int newRps = requestsPerSecond * 2;
         final long timeMillisBeforeRethrottle = System.currentTimeMillis();
         final Map<String, Object> rethrottleBody = rethrottleReindex(originalTaskId, newRps);
-        assertRethrottleHasTasksAndNoFailures(rethrottleBody, originalTaskId, originalStartTimeMillis, timeMillisBeforeRethrottle);
+        assertRethrottleHasTasksAndNoFailures(rethrottleBody, originalTaskId, originalStartTimeMillis, timeMillisBeforeRethrottle, newRps);
 
         // ---- List ----
         final List<Map<String, Object>> listedTasks = getRunningReindexes();
@@ -218,7 +218,8 @@ public class ReindexDoubleRelocationIT extends ESIntegTestCase {
         final Map<String, Object> body,
         final TaskId originalTaskId,
         final long originalStartTimeMillis,
-        final long timeMillisBeforeRethrottle
+        final long timeMillisBeforeRethrottle,
+        final int expectedRps
     ) {
         final Map<String, Object> tasks = ObjectPath.eval("nodes." + originalTaskId.getNodeId() + ".tasks", body);
         assertThat("rethrottle should have tasks on expected node", tasks, is(notNullValue()));
@@ -234,6 +235,7 @@ public class ReindexDoubleRelocationIT extends ESIntegTestCase {
         assertThat(runningNanos, greaterThanOrEqualTo(expectedMinimumRunningTimeNanos));
         assertThat("no originalTaskId", soleTask.get("original_task_id"), is(nullValue()));
         assertThat("no originalStartTimeMillis", soleTask.get("original_start_time_in_millis"), is(nullValue()));
+        assertThat("correct RPS", ObjectPath.eval("status.requests_per_second", soleTask), closeTo(expectedRps, 0.0001f));
         final List<Object> taskFailures = ObjectPath.eval("task_failures", body);
         final List<Object> nodeFailures = ObjectPath.eval("node_failures", body);
         if (taskFailures != null) {

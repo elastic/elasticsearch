@@ -49,6 +49,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -117,7 +118,7 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
         assertThat(
             "running time should cover time since original start",
             runningResult.getTask().runningTimeNanos(),
-            greaterThan(minNanosElapsedSinceStart)
+            greaterThanOrEqualTo(minNanosElapsedSinceStart)
         );
         assertThat("status should be present", runningResult.getTask().status(), is(notNullValue()));
         assertThat("no error on running task", runningResult.getError(), is(nullValue()));

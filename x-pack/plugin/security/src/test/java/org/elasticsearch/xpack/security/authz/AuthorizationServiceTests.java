@@ -3324,7 +3324,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     private static Tuple<String, TransportRequest> randomCompositeRequest() {
-        return switch (randomIntBetween(0, 7)) {
+        return switch (randomIntBetween(0, 8)) {
             case 0 -> Tuple.tuple(TransportMultiGetAction.NAME, new MultiGetRequest().add("index", "id"));
             case 1 -> Tuple.tuple(TransportMultiSearchAction.TYPE.name(), new MultiSearchRequest().add(new SearchRequest()));
             case 2 -> Tuple.tuple(MultiTermVectorsAction.NAME, new MultiTermVectorsRequest().add("index", "id"));
@@ -3333,6 +3333,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             case 5 -> Tuple.tuple("indices:data/read/msearch/template", new MockCompositeIndicesRequest());
             case 6 -> Tuple.tuple("indices:data/read/search/template", new MockCompositeIndicesRequest());
             case 7 -> Tuple.tuple("indices:data/write/reindex", new MockCompositeIndicesRequest());
+            case 8 -> Tuple.tuple("indices:data/write/reindex/resume", new MockCompositeIndicesRequest());
             default -> throw new UnsupportedOperationException();
         };
     }

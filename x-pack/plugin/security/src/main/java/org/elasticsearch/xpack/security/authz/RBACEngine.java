@@ -298,6 +298,7 @@ public class RBACEngine implements AuthorizationEngine {
             case "indices:data/read/msearch/template":
             case "indices:data/read/search/template":
             case "indices:data/write/reindex":
+            case "indices:data/write/reindex/resume":
             case "indices:data/write/otlp/metrics":
             case "indices:data/write/otlp/traces":
             case "indices:data/write/otlp/logs":

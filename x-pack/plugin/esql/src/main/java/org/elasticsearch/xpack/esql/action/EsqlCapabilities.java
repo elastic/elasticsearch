@@ -2331,9 +2331,7 @@ public class EsqlCapabilities {
         STR_COMMANDS_ACCEPT_NULL,
 
         /**
-         * Support for external data-source access via either inline {@code EXTERNAL "..." WITH {...}} or
-         * {@code FROM <dataset>}. Both surfaces share {@code ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG}, so
-         * a single capability gate is honest about lockstep enablement.
+         * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_COMMAND(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
@@ -2341,6 +2339,12 @@ public class EsqlCapabilities {
          * Support for the EXTERNAL command (datasource access).
          */
         EXTERNAL_CSV_IP_SUPPORT(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
+         * Gated on the same flag as {@link #EXTERNAL_COMMAND}.
+         */
+        DATASET_IN_FROM_COMMAND(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.

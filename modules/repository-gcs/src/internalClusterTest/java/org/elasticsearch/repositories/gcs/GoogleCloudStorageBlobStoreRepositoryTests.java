@@ -20,6 +20,7 @@ import com.google.cloud.storage.StorageRetryStrategy;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.apache.http.HttpStatus;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
@@ -54,16 +55,20 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.threeten.bp.Duration;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
@@ -72,6 +77,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomP
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomRetryingPurpose;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.GCS_TENACIOUS_RETRIES_ENABLED_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
@@ -83,6 +89,12 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CL
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     private static final String CLIENT_ID_HEADER = "x-es-test-client-id";
+
+    private static final AtomicBoolean testTenaciousRetries = new AtomicBoolean(false);
+    private static final AtomicLong tenaciousAttempts = new AtomicLong(0);
+    private static final AtomicLong tenaciousRetriesRequired = new AtomicLong(0);
+    private static final RecordingMeterRegistry tenaciousRecordingMeterRegistry = new RecordingMeterRegistry();
+    private static final RepositoriesMetrics tenaciousRepositoriesMetrics = new RepositoriesMetrics(tenaciousRecordingMeterRegistry);
 
     @Override
     protected String repositoryType() {
@@ -282,6 +294,13 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         destinationBlobContainer.delete(randomPurpose());
     }
 
+    public void testTenaciousRetries() {
+        testTenaciousRetries.set(true);
+        tenaciousAttempts.set(0);
+        // TO DO - Add testing.
+        testTenaciousRetries.set(false);
+    }
+
     @Override
     public void testRequestStats() throws Exception {
         super.testRequestStats();
@@ -371,12 +390,47 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             long getLargeBlobThresholdInBytes() {
                                 return ByteSizeUnit.MB.toBytes(1);
                             }
+
+                            @Override
+                            public BlobContainer blobContainer(BlobPath path) {
+                                if (testTenaciousRetries.get()) {
+                                    return new TestGcsTenaciousRetryBlobContainer(
+                                        new GoogleCloudStorageBlobContainer(path, this),
+                                        tenaciousRepositoriesMetrics
+                                    );
+                                }
+
+                                return super.blobContainer(path);
+                            }
                         };
                     }
                 }
             );
         }
     }
+
+    private static class TestGcsTenaciousRetryBlobContainer extends GcsTenaciousRetryBlobContainer {
+
+        TestGcsTenaciousRetryBlobContainer(BlobContainer delegate, RepositoriesMetrics repositoriesMetrics) {
+            super(delegate, repositoriesMetrics);
+        }
+
+        @Override
+        protected boolean isExceptionRetryable(Exception e) {
+            return ExceptionsHelper.unwrap(e, IOException.class) != null;
+        }
+
+        @Override
+        protected BlobContainer wrapChild(BlobContainer child) {
+            return new TestGcsTenaciousRetryBlobContainer(child, tenaciousRepositoriesMetrics);
+        }
+
+        @Override
+        protected long getRetryDelayInMillis(int attempt) {
+            return 10;
+        }
+    }
+
 
     @SuppressForbidden(reason = "this test uses a HttpHandler to emulate a Google Cloud Storage endpoint")
     private static class GoogleCloudStorageBlobStoreHttpHandler extends GoogleCloudStorageHttpHandler implements BlobStoreHttpHandler {
@@ -443,10 +497,27 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
         @Override
         protected boolean canFailRequest(final HttpExchange exchange) {
+            if (testTenaciousRetries.get()) {
+                tenaciousAttempts.incrementAndGet();
+                return tenaciousAttempts.get() >= tenaciousRetriesRequired.get();
+            }
+
             // Batch requests are not retried so we don't want to fail them
             // The batched request are supposed to be retried (not tested here)
             return exchange.getRequestURI().toString().startsWith("/batch/") == false;
         }
+
+        protected void handleAsError(final HttpExchange exchange) throws IOException {
+            if (testTenaciousRetries.get()) {
+                try (exchange) {
+                    drainInputStream(exchange.getRequestBody());
+                    exchange.sendResponseHeaders(HttpStatus.SC_GATEWAY_TIMEOUT, -1);
+                }
+            }
+
+            super.handleAsError(exchange);
+        }
+
     }
 
     /**

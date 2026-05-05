@@ -407,37 +407,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         }
     }
 
-    public void testCcsImageInputSucceedsForRemoteClusters() throws Exception {
-        List<Boolean> ccsMinimizeRoundTripsValues = List.of(true, false);
-        for (Boolean ccsMinimizeRoundTrips : ccsMinimizeRoundTripsValues) {
-            final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
-            final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
-
-            InferenceStringGroup imageInput = new InferenceStringGroup(
-                new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,aGVsbG8=")
-            );
-
-            assertSearchResponse(
-                new KnnVectorQueryBuilder(
-                    EMBEDDING_FIELD,
-                    new EmbeddingQueryVectorBuilder(EMBEDDING_INFERENCE_ID, imageInput, null),
-                    10,
-                    100,
-                    10f,
-                    null
-                ),
-                QUERY_INDICES,
-                List.of(
-                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(EMBEDDING_FIELD)),
-                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(EMBEDDING_FIELD))
-                ),
-                null,
-                searchRequestModifier
-            );
-        }
-    }
-
-    public void testKnnQueryWithSemanticFieldTypeOmittingInferenceId() throws Exception {
+    public void testKnnQueryWithSemanticFieldTypeOmittingInferenceIdWithText() throws Exception {
         assumeTrue("Test requires semantic field support", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
         List<Boolean> ccsMinimizeRoundTripsValues = List.of(true, false);
         for (Boolean ccsMinimizeRoundTrips : ccsMinimizeRoundTripsValues) {
@@ -447,6 +417,36 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                 new KnnVectorQueryBuilder(
                     SEMANTIC_FIELD,
                     new EmbeddingQueryVectorBuilder(null, new InferenceStringGroup("hello"), null),
+                    10,
+                    100,
+                    10f,
+                    null
+                ),
+                QUERY_INDICES,
+                List.of(
+                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(SEMANTIC_FIELD)),
+                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(SEMANTIC_FIELD))
+                ),
+                null,
+                searchRequestModifier
+            );
+        }
+    }
+
+    public void testKnnQueryWithSemanticFieldTypeOmittingInferenceIdWithImage() throws Exception {
+        assumeTrue("Test requires semantic field support", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
+        List<Boolean> ccsMinimizeRoundTripsValues = List.of(true, false);
+        for (Boolean ccsMinimizeRoundTrips : ccsMinimizeRoundTripsValues) {
+            final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
+            final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
+            assertSearchResponse(
+                new KnnVectorQueryBuilder(
+                    SEMANTIC_FIELD,
+                    new EmbeddingQueryVectorBuilder(
+                        null,
+                        new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,aGVsbG8=")),
+                        null
+                    ),
                     10,
                     100,
                     10f,

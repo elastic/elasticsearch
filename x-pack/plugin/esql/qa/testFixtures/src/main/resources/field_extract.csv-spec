@@ -241,3 +241,230 @@ FROM flattened_otel_logs
 2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr  | high
 2020-01-01T11:43:13.255Z | filebeat-6t7v6        | low
 ;
+
+// Multi-valued sub-key (e.g. host.ip is a JSON array in some docs).
+// Current Phase B behavior: the array is returned as a single keyword
+// holding its JSON representation. Multi-value semantics is a Phase C item.
+// We probe the shape via STARTS_WITH/ENDS_WITH/CONTAINS rather than asserting
+// the literal JSON string, because the csv-spec parser would otherwise treat
+// `[a, b]` as a multi-valued column.
+multiValuedSubkeyAsJsonString
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:07:43.000Z"
+| EVAL ips = field_extract(resource.attributes, "['host.ip']")
+| EVAL is_array = STARTS_WITH(ips, "[") AND ENDS_WITH(ips, "]")
+| EVAL has_v4 = CONTAINS(ips, "10.224.0.170")
+| EVAL has_v6 = CONTAINS(ips, "fe80::4001:aff:fee0:aa")
+| KEEP is_array, has_v4, has_v6
+;
+
+is_array:boolean | has_v4:boolean | has_v6:boolean
+true             | true           | true
+;
+
+// Numeric leaves in a flattened root come out as their stringified value
+// in doc values, so FIELD_EXTRACT returns them as a keyword.
+numericLeafReturnedAsKeyword
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:07:43.000Z"
+| EVAL conn = field_extract(attributes, "['nginx.error.connection_id']")
+| KEEP conn
+;
+
+conn:keyword
+184896
+;
+
+// FIELD_EXTRACT on the `attributes` field, which is mapped with `index: false`.
+// `index: false` only affects search indexing, not doc values, so the function
+// still works.
+extractFromIndexFalseField
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL size = field_extract(attributes, "['rally.message_size']")
+| KEEP size
+;
+
+size:keyword
+192
+;
+
+// Whitespace inside brackets
+whitespaceInBrackets
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL hn = field_extract(resource.attributes, "[ 'host.name' ]")
+| KEEP hn
+;
+
+hn:keyword
+infra-filebeat-6vjxr
+;
+
+// FIELD_EXTRACT result is `keyword`, so it must compose with all the regular
+// keyword-consuming functions. Spot-checks: TO_LOWER -> STARTS_WITH.
+resultInToLowerStartsWith
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| EVAL hn = field_extract(resource.attributes, "['host.name']")
+| WHERE STARTS_WITH(TO_LOWER(hn), "infra-filebeat-")
+| STATS c = count(*)
+;
+
+c:long
+5
+;
+
+// COALESCE chooses the first non-null. The first FIELD_EXTRACT call still
+// emits a warning per row (path doesn't exist); the second produces the host
+// name. This test pins down null-propagation through COALESCE.
+resultInCoalesceFallback
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL hn = COALESCE(field_extract(resource.attributes, "['no.such']"),
+                     field_extract(resource.attributes, "['host.name']"))
+| KEEP hn
+;
+warningRegex:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[\['no\.such'\]\] does not exist
+
+hn:keyword
+infra-filebeat-6vjxr
+;
+
+// Two independent FIELD_EXTRACT calls on the same flattened root; both must
+// produce their respective leaves.
+twoCallsInOneQuery
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL hn = field_extract(resource.attributes, "['host.name']")
+| EVAL aid = field_extract(resource.attributes, "['agent.id']")
+| KEEP hn, aid
+;
+
+hn:keyword            | aid:keyword
+infra-filebeat-6vjxr  | c92cc400-fe39-4252-bc0f-4b024e742f25
+;
+
+// A foldable but non-literal path expression (CONCAT of two literals) should
+// still go through the constant-evaluator path, validating the path once at
+// plan time rather than per row.
+computedConstantPath
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL hn = field_extract(resource.attributes, CONCAT("['host.", "name']"))
+| KEEP hn
+;
+
+hn:keyword
+infra-filebeat-6vjxr
+;
+
+// Path matching is case-sensitive per the JSON spec: `['Host.Name']` does NOT
+// match the flat key `host.name`.
+caseSensitiveMismatch
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL hn = field_extract(resource.attributes, "['Host.Name']")
+| KEEP hn
+;
+warningRegex:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[\['Host\.Name'\]\] does not exist
+
+hn:keyword
+null
+;
+
+// Pins down the documented behavior: dot notation `host.name` looks for a
+// nested object `host` -> key `name`. The flattened block loader emits a flat
+// key `host.name` instead, so dot notation finds nothing and returns null.
+// This is exactly why the docs require bracket notation for dotted keys.
+dotNotationForDottedKeyReturnsNull
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL hn = field_extract(resource.attributes, "host.name")
+| KEEP hn
+;
+warningRegex:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[host\.name\] does not exist
+
+hn:keyword
+null
+;
+
+// Trying to descend into a leaf (string) value as if it were an object errors
+// per row: parser sees VALUE_STRING when it expects START_OBJECT/START_ARRAY.
+descendIntoLeafValueFails
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL bad = field_extract(resource.attributes, "['host.name'].sub")
+| KEEP bad
+;
+warningRegex:Line \d+:\d+: evaluation of \[field_extract\(resource\.attributes,.+\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line \d+:\d+: java\.lang\.IllegalArgumentException: path \[\['host\.name'\]\.sub\] does not exist
+
+bad:keyword
+null
+;
+
+// Extracted keyword used as the LHS of an IN-list filter.
+inListWithExtract
+required_capability: field_extract_function
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| EVAL hn = field_extract(resource.attributes, "['host.name']")
+| WHERE hn IN ("infra-filebeat-6vjxr", "filebeat-6t7v6")
+| KEEP @timestamp, hn
+| SORT @timestamp
+;
+
+@timestamp:date          | hn:keyword
+2020-01-01T00:02:48.461Z | infra-filebeat-6vjxr
+2020-01-01T11:38:54.751Z | infra-filebeat-6vjxr
+2020-01-01T11:43:13.255Z | filebeat-6t7v6
+;

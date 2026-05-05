@@ -2,8 +2,12 @@
 
 set -euo pipefail
 
-echo --- Installing bun
-npm install -g bun@1.0.4
+git config --global user.name elasticsearchmachine
+git config --global user.email 'infra-root+elasticsearchmachine@elastic.co'
 
-echo --- Generating pipeline
-bun .buildkite/scripts/pull-request/pipeline.generate.ts
+TEST_BRANCH=perms-test-branch-260505-01
+
+git checkout -b "$TEST_BRANCH"
+echo "" >> README.asciidoc
+git commit -m "Testing"
+git push -u origin "$TEST_BRANCH"

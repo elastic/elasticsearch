@@ -228,6 +228,10 @@ gradlePlugin {
       id = 'elasticsearch.internal-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin'
     }
+    skipTestsOnWindows {
+      id = 'elasticsearch.skip-tests-on-windows'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.SkipTestsOnWindowsPlugin'
+    }
     transportVersionReferencesPlugin {
       id = 'elasticsearch.transport-version-references'
       implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionReferencesPlugin'

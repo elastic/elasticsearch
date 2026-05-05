@@ -1,4 +1,5 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.skip-tests-on-windows'
 
 esplugin {
     name = 'stateless-master-failover'

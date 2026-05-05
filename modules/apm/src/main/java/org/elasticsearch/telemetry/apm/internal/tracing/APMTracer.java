@@ -128,12 +128,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this(settings, traceSupplierFor(settings), otelTracesEnabled(), initialMaxTraceDepth(settings), initialStackTraceLimit(settings));
     }
 
-    // package-private for testing: agent-path defaults
-    APMTracer(Settings settings, TraceSupplier traceSupplier) {
-        this(settings, traceSupplier, false, 0, 0);
-    }
-
-    // package-private for testing: explicit SDK-path configuration
+    // package-private for testing
     APMTracer(Settings settings, TraceSupplier traceSupplier, boolean useOtelSdkTracesExport, int maxTraceDepth, int stackTraceLimit) {
         this.traceSupplier = traceSupplier;
         this.includeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings);

@@ -79,30 +79,40 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
     public void testBFloat16ToFloat() {
         Random r = random();
-        short[] bFloats = new short[r.nextInt(1024)];
+        int dims = r.nextInt(1025);
+        float[] floats = new float[dims];
+        short[] bFloats = new short[dims];
         for (int i = 0; i < bFloats.length; i++) {
-            bFloats[i] = BFloat16.floatToBFloat16(r.nextFloat());
+            floats[i] = BFloat16.truncateToBFloat16(r.nextFloat());
+            bFloats[i] = BFloat16.floatToBFloat16(floats[i]);
         }
-        float[] defaultFloats = new float[bFloats.length];
-        defaultedProvider.getVectorUtilSupport().bFloat16ToFloat(ShortBuffer.wrap(bFloats), defaultFloats);
-        float[] panamaFloats = new float[bFloats.length];
-        defOrPanamaProvider.getVectorUtilSupport().bFloat16ToFloat(ShortBuffer.wrap(bFloats), panamaFloats);
 
-        assertArrayEquals(defaultFloats, panamaFloats, 0f);
+        float[] defaultFloats = new float[dims];
+        defaultedProvider.getVectorUtilSupport().bFloat16ToFloat(ShortBuffer.wrap(bFloats), defaultFloats);
+        assertArrayEquals(floats, defaultFloats, 0f);
+
+        float[] panamaFloats = new float[dims];
+        defOrPanamaProvider.getVectorUtilSupport().bFloat16ToFloat(ShortBuffer.wrap(bFloats), panamaFloats);
+        assertArrayEquals(floats, panamaFloats, 0f);
     }
 
     public void testFloatToBFloat16() {
         Random r = random();
-        float[] floats = new float[r.nextInt(1024)];
-        for (int i = 0; i < floats.length; i++) {
+        int dims = r.nextInt(1025);
+        float[] floats = new float[dims];
+        short[] bFloats = new short[dims];
+        for (int i = 0; i < bFloats.length; i++) {
             floats[i] = r.nextFloat();
+            bFloats[i] = BFloat16.floatToBFloat16(floats[i]);
         }
-        short[] defaultBFloats = new short[floats.length];
-        defaultedProvider.getVectorUtilSupport().floatToBFloat16(floats, ShortBuffer.wrap(defaultBFloats));
-        short[] panamaBFloats = new short[floats.length];
-        defOrPanamaProvider.getVectorUtilSupport().floatToBFloat16(floats, ShortBuffer.wrap(panamaBFloats));
 
-        assertArrayEquals(defaultBFloats, panamaBFloats);
+        short[] defaultBFloats = new short[dims];
+        defaultedProvider.getVectorUtilSupport().floatToBFloat16(floats, ShortBuffer.wrap(defaultBFloats));
+        assertArrayEquals(bFloats, defaultBFloats);
+
+        short[] panamaBFloats = new short[dims];
+        defOrPanamaProvider.getVectorUtilSupport().floatToBFloat16(floats, ShortBuffer.wrap(panamaBFloats));
+        assertArrayEquals(bFloats, panamaBFloats);
     }
 
     public void testIpByteBit() {

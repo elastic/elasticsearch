@@ -73,9 +73,22 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         }
     }
 
+    // BFloats as shorts needs to be half the float vector bitsize
+    private static final VectorSpecies<Short> BFLOAT_SPECIES;
+
+    static {
+        VectorSpecies<Short> species;
+        try {
+            species = VectorSpecies.of(short.class, VectorShape.forBitSize(FLOAT_SPECIES.vectorBitSize() / 2));
+        } catch (IllegalArgumentException e) {
+            species = null;
+        }
+        BFLOAT_SPECIES = species;
+    }
+
     @Override
     public void floatToBFloat16(float[] floats, ShortBuffer bFloats) {
-        if (!SUPPORTS_HEAP_SEGMENTS) {
+        if (!SUPPORTS_HEAP_SEGMENTS || BFLOAT_SPECIES == null) {
             DefaultESVectorUtilSupport.floatToBFloat16(floats, bFloats, 0);
         } else {
             int i = 0;
@@ -94,19 +107,6 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             // scalar tail
             DefaultESVectorUtilSupport.floatToBFloat16(floats, bFloats, vectorEnd);
         }
-    }
-
-    // BFloats as shorts needs to be half the float vector bitsize
-    private static final VectorSpecies<Short> BFLOAT_SPECIES;
-
-    static {
-        VectorSpecies<Short> species;
-        try {
-            species = VectorSpecies.of(short.class, VectorShape.forBitSize(FLOAT_SPECIES.vectorBitSize() / 2));
-        } catch (IllegalArgumentException e) {
-            species = null;
-        }
-        BFLOAT_SPECIES = species;
     }
 
     @Override

@@ -23,21 +23,19 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceStringGroup;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.inference.queries.InferenceQueryUtils;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -209,67 +207,7 @@ public class TransportGetInferenceFieldsInternalAction extends HandledTransportA
             l.onResponse(Tuple.tuple(inferenceId, inferenceResults));
         });
 
-        switch (taskType) {
-            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
-                if (input.containsNonTextEntry()) {
-                    listener.onFailure(
-                        new IllegalArgumentException(
-                            "Non-text input is not supported for ["
-                                + taskType
-                                + "] inference endpoints for inference_id ["
-                                + inferenceId
-                                + "]"
-                        )
-                    );
-                    return;
-                }
-                if (input.containsMultipleInferenceStrings()) {
-                    listener.onFailure(
-                        new IllegalArgumentException(
-                            "Multiple text inputs are not supported for ["
-                                + taskType
-                                + "] inference endpoints for inference_id ["
-                                + inferenceId
-                                + "]"
-                        )
-                    );
-                    return;
-                }
-                executeAsyncWithOrigin(
-                    client,
-                    ML_ORIGIN,
-                    InferenceAction.INSTANCE,
-                    new InferenceAction.Request(
-                        taskType,
-                        inferenceId,
-                        null,
-                        null,
-                        null,
-                        List.of(input.textValue()),
-                        Map.of(),
-                        InputType.INTERNAL_SEARCH,
-                        null,
-                        false
-                    ),
-                    responseListener
-                );
-            }
-            case EMBEDDING -> executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                EmbeddingAction.INSTANCE,
-                new EmbeddingAction.Request(
-                    inferenceId,
-                    taskType,
-                    new EmbeddingRequest(List.of(input), InputType.INTERNAL_SEARCH, Map.of()),
-                    null
-                ),
-                responseListener
-            );
-            default -> listener.onFailure(
-                new IllegalArgumentException("The [" + taskType + "] task type is not supported on inference fields")
-            );
-        }
+        InferenceQueryUtils.executeInferenceForTaskType(client, input, inferenceId, taskType, null, responseListener);
     }
 
     private static InferenceResults validateAndConvertInferenceResults(

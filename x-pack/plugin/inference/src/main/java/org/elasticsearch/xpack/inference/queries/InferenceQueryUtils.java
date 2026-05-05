@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryRewriteAsyncAction;
@@ -511,6 +512,81 @@ public final class InferenceQueryUtils {
         return inferenceResults;
     }
 
+    /**
+     * Dispatches an inference request for a single query input based on task type.
+     * Validates input constraints and builds the appropriate action request.
+     */
+    public static void executeInferenceForTaskType(
+        Client client,
+        InferenceStringGroup input,
+        String inferenceId,
+        TaskType taskType,
+        @Nullable TimeValue timeout,
+        ActionListener<InferenceAction.Response> listener
+    ) {
+        switch (taskType) {
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
+                if (input.containsNonTextEntry()) {
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            "Non-text input is not supported for ["
+                                + taskType
+                                + "] inference endpoints for inference_id ["
+                                + inferenceId
+                                + "]"
+                        )
+                    );
+                    return;
+                }
+                if (input.containsMultipleInferenceStrings()) {
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            "Multiple text inputs are not supported for ["
+                                + taskType
+                                + "] inference endpoints for inference_id ["
+                                + inferenceId
+                                + "]"
+                        )
+                    );
+                    return;
+                }
+                executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    InferenceAction.INSTANCE,
+                    new InferenceAction.Request(
+                        taskType,
+                        inferenceId,
+                        null,
+                        null,
+                        null,
+                        List.of(input.textValue()),
+                        Map.of(),
+                        InputType.INTERNAL_SEARCH,
+                        timeout,
+                        false
+                    ),
+                    listener
+                );
+            }
+            case EMBEDDING -> executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                EmbeddingAction.INSTANCE,
+                new EmbeddingAction.Request(
+                    inferenceId,
+                    taskType,
+                    new EmbeddingRequest(List.of(input), InputType.INTERNAL_SEARCH, Map.of()),
+                    timeout
+                ),
+                listener
+            );
+            default -> listener.onFailure(
+                new IllegalArgumentException("The [" + taskType + "] task type is not supported on inference fields")
+            );
+        }
+    }
+
     private static final class LocalInferenceAsyncAction extends QueryRewriteAsyncAction<
         Map<FullyQualifiedInferenceId, InferenceResults>,
         LocalInferenceAsyncAction> {
@@ -586,66 +662,7 @@ public final class InferenceQueryUtils {
                 l.onResponse(Tuple.tuple(fullyQualifiedInferenceId, inferenceResults));
             });
 
-            switch (taskType) {
-                case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
-                    if (input.containsNonTextEntry()) {
-                        gal.onFailure(
-                            new IllegalArgumentException(
-                                "Non-text input is not supported for ["
-                                    + taskType
-                                    + "] inference endpoints for inference_id ["
-                                    + inferenceId
-                                    + "]"
-                            )
-                        );
-                        return;
-                    } else if (input.containsMultipleInferenceStrings()) {
-                        gal.onFailure(
-                            new IllegalArgumentException(
-                                "Multiple text inputs are not supported for ["
-                                    + taskType
-                                    + "] inference endpoints for inference_id ["
-                                    + inferenceId
-                                    + "]"
-                            )
-                        );
-                        return;
-                    }
-                    executeAsyncWithOrigin(
-                        client,
-                        ML_ORIGIN,
-                        InferenceAction.INSTANCE,
-                        new InferenceAction.Request(
-                            taskType,
-                            inferenceId,
-                            null,
-                            null,
-                            null,
-                            List.of(input.textValue()),
-                            Map.of(),
-                            InputType.INTERNAL_SEARCH,
-                            TIMEOUT_NOT_DETERMINED,
-                            false
-                        ),
-                        responseListener
-                    );
-                }
-                case EMBEDDING -> executeAsyncWithOrigin(
-                    client,
-                    ML_ORIGIN,
-                    EmbeddingAction.INSTANCE,
-                    new EmbeddingAction.Request(
-                        inferenceId,
-                        taskType,
-                        new EmbeddingRequest(List.of(input), InputType.INTERNAL_SEARCH, Map.of()),
-                        TIMEOUT_NOT_DETERMINED
-                    ),
-                    responseListener
-                );
-                default -> gal.onFailure(
-                    new IllegalArgumentException("The [" + taskType + "] task type is not supported on inference fields")
-                );
-            }
+            executeInferenceForTaskType(client, input, inferenceId, taskType, TIMEOUT_NOT_DETERMINED, responseListener);
         }
     }
 

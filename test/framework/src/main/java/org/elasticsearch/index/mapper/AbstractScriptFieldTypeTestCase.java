@@ -284,7 +284,8 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             null,
             searchExecutionContext::lookup,
             mockContext()::sourcePath,
-                () -> false, MappedFieldType.FielddataOperation.SCRIPT
+            () -> false,
+            MappedFieldType.FielddataOperation.SCRIPT
         );
     }
 
@@ -323,8 +324,9 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         SearchLookup lookup = new SearchLookup(
             context::getFieldType,
             (fieldName) -> fieldOnlyMappedAsRuntimeField,
-            (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", null, lookupSupplier, context::sourcePath, () -> false, fdo))
-                .build(null, null),
+            (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
+                new FieldDataContext("test", null, lookupSupplier, context::sourcePath, () -> false, fdo)
+            ).build(null, null),
             sourceProvider,
             LeafFieldLookupProvider.fromStoredFields()
         );

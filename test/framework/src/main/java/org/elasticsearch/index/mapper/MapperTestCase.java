@@ -676,7 +676,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     mapperService.getIndexSettings(),
                     () -> searchLookup,
                     Set::of,
-                        () -> false, MappedFieldType.FielddataOperation.SCRIPT
+                    () -> false,
+                    MappedFieldType.FielddataOperation.SCRIPT
                 )
             ).build(null, null);
             LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
@@ -2030,7 +2031,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         mapperService.getIndexSettings(),
                         () -> null,
                         Set::of,
-                            () -> false, MappedFieldType.FielddataOperation.SEARCH
+                        () -> false,
+                        MappedFieldType.FielddataOperation.SEARCH
                     )
                 ).build(null, null).sortField(false, IndexVersion.current(), null, MultiValueMode.MIN, null, false);
             });

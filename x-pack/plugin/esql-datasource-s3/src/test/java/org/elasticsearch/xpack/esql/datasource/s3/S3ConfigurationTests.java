@@ -128,7 +128,6 @@ public class S3ConfigurationTests extends ESTestCase {
         assertEquals("sk", config.secretKey());
         assertEquals("http://e", config.endpoint());
         assertNull(config.region());
-        // Storage layer claims only its own keys; format-level keys must NOT appear in the consumed set.
         assertThat(result.consumedKeys(), containsInAnyOrder("access_key", "secret_key", "endpoint"));
     }
 
@@ -147,7 +146,6 @@ public class S3ConfigurationTests extends ESTestCase {
         raw.put("column_prefix", "f");
         Configured<S3Configuration> result = S3Configuration.fromQueryConfig(raw);
         assertNull(result.value());
-        // Even when no value is produced, the consumed-key set must still be empty (these are not S3 keys).
         assertEquals(Set.of(), result.consumedKeys());
     }
 

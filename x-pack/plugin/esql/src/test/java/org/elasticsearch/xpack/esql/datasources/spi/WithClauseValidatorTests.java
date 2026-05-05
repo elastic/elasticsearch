@@ -18,11 +18,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
-/**
- * Unit tests for the generic {@link WithClauseValidator#check} helper. Provider-specific
- * composition lives in each {@link ExternalSourceFactory#validateConfig} override; this class
- * pins the helper's contract independent of any one factory.
- */
 public class WithClauseValidatorTests extends ESTestCase {
 
     public void testNullConfigIsAccepted() {
@@ -65,7 +60,6 @@ public class WithClauseValidatorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> WithClauseValidator.check(config, List.of(Set.of("a"), Set.of("b"), Set.of("c")))
         );
-        // Sorted union: [a, b, c]
         assertThat(e.getMessage(), allOf(containsString("a"), containsString("b"), containsString("c")));
     }
 
@@ -87,7 +81,6 @@ public class WithClauseValidatorTests extends ESTestCase {
     }
 
     public void testNoClaimedSetsRejectsAnyConfigKey() {
-        // Empty list of claimed sets means every key is unknown.
         Map<String, Object> config = Map.of("anything", 1);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> WithClauseValidator.check(config, List.of()));
         assertThat(e.getMessage(), containsString("anything"));

@@ -53,11 +53,7 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
         return raw == null || raw.isEmpty() ? null : new AzureConfiguration(raw);
     }
 
-    /**
-     * Lenient factory for query-time WITH clauses. Filters unknown keys before construction so
-     * format-level options carried in the same map don't fail storage parsing; cross-field
-     * validation (auth/credential conflicts) still runs.
-     */
+    /** Lenient: filters unknown keys; cross-field validation (auth/credential conflicts) still runs. */
     public static Configured<AzureConfiguration> fromQueryConfig(Map<String, Object> raw) {
         Configured<Map<String, Object>> filtered = filterKnown(raw, FIELDS);
         AzureConfiguration config = filtered.value() == null || filtered.value().isEmpty()

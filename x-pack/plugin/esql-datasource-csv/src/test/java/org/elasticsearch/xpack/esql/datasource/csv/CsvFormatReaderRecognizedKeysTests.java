@@ -24,17 +24,7 @@ import java.util.TreeSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 
-/**
- * Drift-prevention tests for {@link CsvFormatReader}'s consumed-key contract. The coordinator
- * relies on the consumed set to detect WITH-clause typos: if a real option is silently dropped
- * from {@code RECOGNIZED_KEYS}, the coordinator would reject it as unknown for every legitimate
- * user. These tests pin the contract by:
- * <ol>
- *   <li>asserting the recognised set against an explicit literal (any addition forces an update);</li>
- *   <li>verifying every recognised key actually round-trips through {@code withConfig};</li>
- *   <li>verifying random WITH-clause maps never claim more than the recognised set.</li>
- * </ol>
- */
+/** Pins {@link CsvFormatReader#RECOGNIZED_KEYS} against the parser's actual reads. */
 public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
 
     private static final BlockFactory NOOP_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
@@ -42,9 +32,6 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         .build();
 
     public void testRecognizedKeysSetIsExpected() {
-        // Pinning literal: drift-prevention. If a CSV option is added or removed, this list MUST
-        // be updated alongside withConfig — otherwise the coordinator silently rejects the option
-        // for every user. Sorted alphabetically for stable diffs.
         Set<String> expected = new TreeSet<>();
         expected.add("column_prefix");
         expected.add("comment");
@@ -62,9 +49,6 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
     }
 
     public void testEveryRecognizedKeyRoundTripsThroughWithConfig() {
-        // For each key in the recognised set, putting it in the input map must result in it being
-        // present in the consumed set. If any key is in RECOGNIZED_KEYS but withConfig forgets to
-        // read it, this test catches the regression.
         for (String key : CsvFormatReader.RECOGNIZED_KEYS) {
             Map<String, Object> config = new HashMap<>();
             config.put(key, sampleValueFor(key));
@@ -72,8 +56,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
                 Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfig(config);
                 assertTrue("key [" + key + "] must be consumed when present", result.consumedKeys().contains(key));
             } catch (RuntimeException e) {
-                // Some keys reject empty / bogus values (e.g. encoding = "junk"). That's fine —
-                // failure means the reader did look at the key, which proves recognition.
+                // A throw still proves the key was read — the reader looked at it before rejecting.
             }
         }
     }
@@ -98,9 +81,6 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
     }
 
     public void testRandomKeysNeverClaimedBeyondRecognizedSet() {
-        // Throw a salad of random-looking keys at withConfig. None should ever be claimed unless
-        // it happens to fall in RECOGNIZED_KEYS. Probabilistically catches a regression where
-        // someone introduces an undocumented key consumption.
         Map<String, Object> config = new HashMap<>();
         Set<String> expectedConsumed = new HashSet<>();
         for (int i = 0; i < 50; i++) {
@@ -114,14 +94,11 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfig(config);
             assertEquals(expectedConsumed, result.consumedKeys());
         } catch (RuntimeException e) {
-            // Random values may fail validation (e.g. random string for max_field_size). That's
-            // an expected failure mode — the test only cares about consumed-key correctness on
-            // the success path.
+            // Random values may trigger parser validation; the contract is only checked on success.
         }
     }
 
     private static Object sampleValueFor(String key) {
-        // Values are chosen so each key parses successfully without depending on other keys.
         return switch (key) {
             case "delimiter" -> "|";
             case "quote" -> "\"";

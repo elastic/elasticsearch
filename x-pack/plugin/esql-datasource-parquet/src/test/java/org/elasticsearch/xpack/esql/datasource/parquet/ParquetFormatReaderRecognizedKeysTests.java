@@ -22,10 +22,7 @@ import java.util.TreeSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 
-/**
- * Drift-prevention tests for {@link ParquetFormatReader}'s consumed-key contract.
- * See {@code CsvFormatReaderRecognizedKeysTests} for the rationale.
- */
+/** Pins {@link ParquetFormatReader#RECOGNIZED_KEYS} against the parser's actual reads. */
 public class ParquetFormatReaderRecognizedKeysTests extends ESTestCase {
 
     private static final BlockFactory NOOP_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)

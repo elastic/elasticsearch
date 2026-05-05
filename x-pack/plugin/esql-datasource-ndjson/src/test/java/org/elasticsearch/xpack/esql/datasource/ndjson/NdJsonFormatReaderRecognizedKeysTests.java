@@ -23,10 +23,7 @@ import java.util.TreeSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 
-/**
- * Drift-prevention tests for {@link NdJsonFormatReader}'s consumed-key contract.
- * See {@code CsvFormatReaderRecognizedKeysTests} for the rationale.
- */
+/** Pins {@link NdJsonFormatReader#RECOGNIZED_KEYS} against the parser's actual reads. */
 public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
 
     private static final BlockFactory NOOP_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
@@ -48,7 +45,7 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
                 Configured<FormatReader> result = newReader().withConfig(config);
                 assertTrue("key [" + key + "] must be consumed when present", result.consumedKeys().contains(key));
             } catch (RuntimeException e) {
-                // Validation rejection still proves recognition.
+                // A throw still proves the key was read — the reader looked at it before rejecting.
             }
         }
     }

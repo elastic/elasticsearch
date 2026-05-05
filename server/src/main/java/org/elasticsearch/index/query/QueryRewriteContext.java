@@ -413,6 +413,10 @@ public class QueryRewriteContext {
         return mapperService.getIndexAnalyzers();
     }
 
+    public BooleanSupplier fieldDataEnabled() {
+        return mapperService.getFieldDataEnabled();
+    }
+
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;

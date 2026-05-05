@@ -657,7 +657,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 ScriptCompiler.NONE,
                 indexAnalyzers,
                 indexSettings,
-                indexSettings.getMode().buildIdFieldMapper(() -> true),
+                () -> true,
                 query -> {
                     throw new UnsupportedOperationException();
                 },

@@ -401,7 +401,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     indexSettings,
                     context.lookupSupplier(),
                     context.sourcePathsLookup(),
-                    context.fielddataOperation()
+                        () -> false, context.fielddataOperation()
                 )
             ).build(new IndexFieldDataCache.None(), breakerService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);

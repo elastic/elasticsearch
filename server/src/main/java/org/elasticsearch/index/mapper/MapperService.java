@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -212,6 +213,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
     private final Function<Query, BitSetProducer> bitSetProducer;
     private final MapperMetrics mapperMetrics;
+    private final BooleanSupplier fieldDataEnabled;
 
     private volatile DocumentMapper mapper;
     private volatile long mappingVersion;
@@ -224,7 +226,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         SimilarityService similarityService,
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-        IdFieldMapper idFieldMapper,
+        BooleanSupplier fieldDataEnabled,
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
         MapperMetrics mapperMetrics,
@@ -239,7 +241,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             similarityService,
             mapperRegistry,
             searchExecutionContextSupplier,
-            idFieldMapper,
+            fieldDataEnabled,
             scriptCompiler,
             bitSetProducer,
             mapperMetrics,
@@ -257,7 +259,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         SimilarityService similarityService,
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-        IdFieldMapper idFieldMapper,
+        BooleanSupplier fieldDataEnabled,
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
         MapperMetrics mapperMetrics,
@@ -280,7 +282,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             scriptCompiler,
             indexAnalyzers,
             indexSettings,
-            idFieldMapper,
+            fieldDataEnabled,
             bitSetProducer,
             mapperRegistry.getVectorsFormatProviders(),
             mapperRegistry.getNamespaceValidator(),
@@ -299,6 +301,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.bitSetProducer = bitSetProducer;
         this.mapperMetrics = mapperMetrics;
         this.mapper = documentMapper;
+        this.fieldDataEnabled = fieldDataEnabled;
     }
 
     public boolean hasNested() {
@@ -311,6 +314,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public MappingParserContext parserContext() {
         return mappingParserContextSupplier.get();
+    }
+
+    public BooleanSupplier getFieldDataEnabled() {
+        return fieldDataEnabled;
     }
 
     /**

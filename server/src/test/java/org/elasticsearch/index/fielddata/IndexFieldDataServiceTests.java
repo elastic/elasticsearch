@@ -131,7 +131,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         SearchLookup searchLookup = new SearchLookup(null, null, (ctx, doc) -> null);
         ifdService.getForField(
             ft,
-            new FieldDataContext("qualified", null, () -> searchLookup, null, MappedFieldType.FielddataOperation.SEARCH)
+            new FieldDataContext("qualified", null, () -> searchLookup, null, () -> false, MappedFieldType.FielddataOperation.SEARCH)
         );
         assertSame(searchLookup, searchLookupSetOnce.get().get());
     }

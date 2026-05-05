@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.index.mapper.IdFieldMapper.standardIdField;
 
@@ -356,6 +357,10 @@ public abstract class DocumentParserContext {
 
     public final String routing() {
         return mappingParserContext.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? null : sourceToParse.routing();
+    }
+
+    public final BooleanSupplier fieldDataEnabled() {
+        return mappingParserContext.getFieldDataEnabled();
     }
 
     /**

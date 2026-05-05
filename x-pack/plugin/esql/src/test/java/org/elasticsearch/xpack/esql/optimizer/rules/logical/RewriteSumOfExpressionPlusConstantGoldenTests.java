@@ -112,7 +112,8 @@ public class RewriteSumOfExpressionPlusConstantGoldenTests extends GoldenTestCas
         builder(
             """
                 FROM employees
-                | STATS s1 = SUM(salary + 1) WHERE gender == "M", s2 = SUM(salary + 2) WHERE gender == "M", s3 = SUM(salary + 3), s4 = SUM(salary + 4)
+                | STATS s1 = SUM(salary + 1) WHERE gender == "M", s2 = SUM(salary + 2) WHERE gender == "M",\
+                 s3 = SUM(salary + 3), s4 = SUM(salary + 4)
                 """
         ).stages(STAGES)
             .transportVersion(TransportVersionUtils.randomVersionSupporting(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION))

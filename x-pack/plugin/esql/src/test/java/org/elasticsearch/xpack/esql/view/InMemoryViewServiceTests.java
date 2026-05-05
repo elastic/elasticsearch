@@ -2069,6 +2069,114 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         }
     }
 
+    // Group G2 — concrete-name expression × each body shape (gaps from existing coverage).
+
+    public void testG2_ConcreteName_MultiIndexBody() {
+        addView("v", "FROM emp1, emp2");
+        LogicalPlan plan = query("FROM v");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2")));
+    }
+
+    public void testG2_ConcreteName_SelectorBody() {
+        addView("v", "FROM emp1::failures");
+        LogicalPlan plan = query("FROM v");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1::failures")));
+    }
+
+    public void testG2_ConcreteName_CCSBody() {
+        addView("v", "FROM remote:idx");
+        LogicalPlan plan = query("FROM v");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM remote:idx")));
+    }
+
+    // Group G4 — CPS divergence cells the existing six don't cover.
+
+    public void testG4_CPS_ConcreteViewWithMatchingWildcard() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        LogicalPlan plan = query("FROM view*, view1");
+        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM emp1, emp2, view*")));
+    }
+
+    public void testG4_CPS_ExclusionOfConcreteView() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        LogicalPlan plan = query("FROM view*, -view1");
+        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM emp2, view*, -view1")));
+    }
+
+    public void testG4_CPS_WildcardMatchingNothing() {
+        LogicalPlan plan = query("FROM nothing*");
+        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM nothing*")));
+    }
+
+    public void testG4_CPS_FailureSelectorOnConcreteView() {
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM view1::failures");
+        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM view1::failures")));
+    }
+
+    public void testG4_CPS_DataSelectorOnConcreteView() {
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM view1::data");
+        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM emp1")));
+    }
+
+    public void testG4_CPS_ViewBodyContainsCCS() {
+        addView("v", "FROM remote:idx");
+        LogicalPlan plan = query("FROM v");
+        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM remote:idx")));
+    }
+
+    // Bug-class probes — assertions of correct behavior. Some will fail today.
+
+    public void testOuterSelectorOverridesBodySelector() {
+        addView("v1", "FROM emp1::failures");
+        LogicalPlan plan = query("FROM v1::data");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1::data")));
+    }
+
+    public void testInnerViewWithSelectorInBodyResolves() {
+        addView("inner", "FROM emp1");
+        addView("outer", "FROM inner::failures");
+        LogicalPlan plan = query("FROM outer");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1::failures")));
+    }
+
+    public void testSelfReferenceViaBodySelectorDetectedAsCircular() {
+        addView("v1", "FROM v1::failures");
+        VerificationException e = expectThrows(VerificationException.class, () -> replaceViews(query("FROM v1")));
+        assertThat(e.getMessage(), containsString("circular view reference"));
+    }
+
+    public void testOuterExclusionAppliesToViewBodyResolvedIndices() {
+        addView("v1", "FROM emp1, emp2");
+        LogicalPlan plan = query("FROM v1, -emp1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp2")));
+    }
+
+    public void testMultipleDistinctViewsSameBodyFoldToOne() {
+        addView("v1", "FROM emp1");
+        addView("v2", "FROM emp1");
+        addView("v3", "FROM emp1");
+        LogicalPlan plan = query("FROM v1, v2, v3");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1")));
+    }
+
+    public void testIncludeExcludeIncludeSameViewYieldsView() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        LogicalPlan plan = query("FROM view*, -view1, view1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2")));
+    }
+
+    public void testNestedViewExcludingPartOfInnerBody() {
+        addView("inner", "FROM emp1, emp2");
+        addView("outer", "FROM inner, -emp1");
+        LogicalPlan plan = query("FROM outer");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp2")));
+    }
+
     public void testDeleteMultipleViews() {
         addView("view1", "FROM emp");
         addView("view2", "FROM emp");

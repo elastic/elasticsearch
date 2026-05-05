@@ -182,13 +182,6 @@ public class GetInferenceFieldsInternalAction extends ActionType<GetInferenceFie
             if (out.getTransportVersion().supports(GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV)) {
                 out.writeOptionalWriteable(input);
             } else {
-                if (input != null && (input.containsNonTextEntry() || input.containsMultipleInferenceStrings())) {
-                    throw new IllegalArgumentException(
-                        "Cannot send non-text or multiple inputs to a remote cluster that does not support it. "
-                            + "Please update the remote cluster to at least "
-                            + GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV.toReleaseVersion()
-                    );
-                }
                 out.writeOptionalString(input != null ? input.textValue() : null);
             }
             indicesOptions.writeIndicesOptions(out);

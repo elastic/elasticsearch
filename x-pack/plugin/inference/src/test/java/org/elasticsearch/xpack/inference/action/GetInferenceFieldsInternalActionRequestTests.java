@@ -11,9 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.inference.DataFormat;
-import org.elasticsearch.inference.DataType;
-import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -22,13 +19,10 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
-import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV;
 import static org.elasticsearch.xpack.inference.Utils.randomInferenceStringGroup;
-import static org.hamcrest.Matchers.containsString;
 
 public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWireSerializationTestCase<
     GetInferenceFieldsInternalAction.Request> {
@@ -133,48 +127,6 @@ public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWir
         TransportVersion version
     ) {
         return instance;
-    }
-
-    public void testWriteToThrowsForNonTextInputOnOldTransportVersion() throws IOException {
-        InferenceStringGroup imageInput = new InferenceStringGroup(
-            new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,aGVsbG8=")
-        );
-        GetInferenceFieldsInternalAction.Request request = new GetInferenceFieldsInternalAction.Request(
-            randomIndices(),
-            randomFields(),
-            randomBoolean(),
-            randomBoolean(),
-            imageInput,
-            randomIndicesOptions()
-        );
-
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV);
-        IllegalArgumentException e = assertThrows(
-            IllegalArgumentException.class,
-            () -> copyWriteable(request, getNamedWriteableRegistry(), instanceReader(), oldVersion)
-        );
-        assertThat(e.getMessage(), containsString("Cannot send non-text or multiple inputs to a remote cluster that does not support it"));
-    }
-
-    public void testWriteToThrowsForMultipleTextInputsOnOldTransportVersion() throws IOException {
-        InferenceStringGroup multipleInputs = new InferenceStringGroup(
-            List.of(new InferenceString(DataType.TEXT, "first"), new InferenceString(DataType.TEXT, "second"))
-        );
-        GetInferenceFieldsInternalAction.Request request = new GetInferenceFieldsInternalAction.Request(
-            randomIndices(),
-            randomFields(),
-            randomBoolean(),
-            randomBoolean(),
-            multipleInputs,
-            randomIndicesOptions()
-        );
-
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV);
-        IllegalArgumentException e = assertThrows(
-            IllegalArgumentException.class,
-            () -> copyWriteable(request, getNamedWriteableRegistry(), instanceReader(), oldVersion)
-        );
-        assertThat(e.getMessage(), containsString("Cannot send non-text or multiple inputs to a remote cluster that does not support it"));
     }
 
     private static String[] randomIndices() {

@@ -59,6 +59,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
 import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV;
 
 public final class InferenceQueryUtils {
     /**
@@ -680,14 +681,26 @@ public final class InferenceQueryUtils {
                         )
                     );
                 } else {
-                    client.execute(
-                        connection,
-                        GetInferenceFieldsInternalAction.REMOTE_TYPE,
-                        request,
-                        l1.delegateFailureAndWrap((l2, resp) -> {
-                            l2.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
-                        })
-                    );
+                    InferenceStringGroup input = request.input();
+                    if (transportVersion.supports(GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV) == false
+                        && (input != null && (input.containsNonTextEntry() || input.containsMultipleInferenceStrings()))) {
+                        l1.onFailure(
+                            new IllegalArgumentException(
+                                "Cannot send non-text or multiple inputs to a remote cluster that does not support it. "
+                                    + "Please update the remote cluster to at least "
+                                    + GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV.toReleaseVersion()
+                            )
+                        );
+                    } else {
+                        client.execute(
+                            connection,
+                            GetInferenceFieldsInternalAction.REMOTE_TYPE,
+                            request,
+                            l1.delegateFailureAndWrap((l2, resp) -> {
+                                l2.onResponse(Map.of(clusterAlias, Tuple.tuple(resp, transportVersion)));
+                            })
+                        );
+                    }
                 }
             }));
         }

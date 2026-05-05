@@ -102,6 +102,24 @@ public class StringReplaceLimitTests extends ScriptTestCase {
         assertTrue("expected limit message, got: " + err.getMessage(), err.getMessage().contains(LIMIT_MESSAGE));
     }
 
+    public void testInterruptedReplaceAborts() {
+        // Pre-set the thread's interrupt flag, then run a replace whose loop generates more than the 64K-char interrupt-check
+        // interval. The augmentation re-implements replace using String.indexOf + StringBuilder so it can poll Thread.interrupted()
+        // periodically; the JDK's native replace cannot be interrupted this way, which is why this guard exists.
+        // Build the receiver inside the script via doubling (2^18 = 262144 chars) since string literals are bounded by the
+        // 65535-byte UTF-8 constant pool entry limit.
+        String script = "String s = 'A'; for (int i = 0; i < 18; i++) { s += s; } return s.replace('A', 'B');";
+        Thread.currentThread().interrupt();
+        try {
+            ErrorCauseWrapper err = expectScriptThrows(ErrorCauseWrapper.class, () -> exec(script));
+            assertEquals(PainlessError.class, err.realCause.getClass());
+            assertTrue("expected interrupt message, got: " + err.getMessage(), err.getMessage().contains("interrupted"));
+        } finally {
+            // Defensive: ensure no interrupt flag leaks to subsequent tests if the impl somehow didn't clear it.
+            Thread.interrupted();
+        }
+    }
+
     public void testPerExecutionOverrideRelaxes() {
         // Tight node cap, but per-execution override loosens it for this one call.
         setMaxStringChars(1024);

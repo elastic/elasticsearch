@@ -494,11 +494,23 @@ public class Augmentation {
         return seq.length() + 16;
     }
 
+    /** Output character interval at which the bounded replace re-checks the thread interrupt flag. */
+    private static final int REPLACE_INTERRUPT_CHECK_CHARS = 65_536;
+
     /**
-     * Bounded variant of {@link String#replace(CharSequence, CharSequence)}. Pre-computes the worst-case output length and aborts the
-     * script with a {@link PainlessError} when it exceeds {@code maxStringChars}. Without this guard, repeated calls in a loop with a
-     * replacement longer than the target can grow the result string exponentially inside uninterruptible JDK code, blocking task
-     * cancellation and stalling search threads.
+     * Bounded, cancellable variant of {@link String#replace(CharSequence, CharSequence)}.
+     *
+     * <p>Two guards layered on the JDK call:
+     * <ul>
+     * <li>A pre-computed worst-case output length aborts the script with a {@link PainlessError} when it would exceed
+     *     {@code maxStringChars}. The bound is exact for non-overlapping literal matching, so this short-circuits in O(1)
+     *     before any allocation. Without this guard, repeated calls in a loop with a replacement longer than the target can
+     *     grow the result string indefinitely inside JDK code, stalling search threads beyond the reach of task cancellation.
+     * <li>The replacement loop is re-implemented on top of {@link String#indexOf(String, int)} and {@link StringBuilder} so
+     *     {@link Thread#interrupted()} can be polled every {@value #REPLACE_INTERRUPT_CHECK_CHARS} characters of output.
+     *     The JDK's {@code String.replace} runs in non-interruptible Java; this lets Elasticsearch task cancellation actually
+     *     abort a long-running call. The trade-off is the loss of the JDK's Latin1/UTF-16 fast path.
+     * </ul>
      */
     public static String replace(String receiver, int maxStringChars, CharSequence target, CharSequence replacement) {
         int rLen = receiver.length();
@@ -523,7 +535,34 @@ public class Augmentation {
                     + "]"
             );
         }
-        return receiver.replace(target, replacement);
+        // Empty-target case has subtle semantics around insertion before/after every char; defer to the JDK since we have
+        // already validated the worst-case output and this branch is uncommon enough not to need cancellation support.
+        if (tLen == 0) {
+            return receiver.replace(target, replacement);
+        }
+        String t = target.toString();
+        String r = replacement.toString();
+        int j = receiver.indexOf(t);
+        if (j < 0) {
+            return receiver;
+        }
+        StringBuilder sb = new StringBuilder((int) worstCase);
+        int i = 0;
+        int charsSinceCheck = 0;
+        do {
+            int chunk = (j - i) + pLen;
+            sb.append(receiver, i, j).append(r);
+            i = j + tLen;
+            charsSinceCheck += chunk;
+            if (charsSinceCheck >= REPLACE_INTERRUPT_CHECK_CHARS) {
+                charsSinceCheck = 0;
+                if (Thread.interrupted()) {
+                    throw new PainlessError("[scripting] String.replace interrupted by task cancellation");
+                }
+            }
+        } while ((j = receiver.indexOf(t, i)) >= 0);
+        sb.append(receiver, i, rLen);
+        return sb.toString();
     }
 
     /**

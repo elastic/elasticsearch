@@ -96,7 +96,8 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
                 request(),
                 listener(),
                 randomBoolean() ? null : Version.CURRENT,
-                randomPositiveTimeValue()
+                randomPositiveTimeValue(),
+                null
             );
         }
 

@@ -31,9 +31,15 @@ public interface ImplicitPrivilegesProvider {
      * based on the given role descriptor and its stored application privilege definitions.
      *
      * @param roleDescriptor a single resolved role descriptor
-     * @param storedApplicationPrivileges the stored application privilege definitions
-     *        referenced by this role descriptor (filtered to only the (application, privilege-name)
-     *        pairs declared in the role descriptor's application privileges)
+     * @param storedApplicationPrivileges the stored application privilege definitions resolved
+     *        from this role descriptor's {@link RoleDescriptor.ApplicationResourcePrivileges}
+     *        entries: each stored descriptor whose application name matches an entry's
+     *        {@code application} (exact equality, or automaton match when the entry contains
+     *        {@code *}) <em>and</em> whose name appears in that entry's {@code privileges}
+     *        array. Privilege strings that are action patterns rather than valid stored-privilege
+     *        names contribute no descriptor here; providers that need visibility into raw action
+     *        patterns must inspect {@code roleDescriptor.getApplicationPrivileges()} directly.
+     *        The collection contains no duplicates.
      * @return additional index privileges to merge into the role, or an empty collection if none
      */
     Collection<RoleDescriptor.IndicesPrivileges> getImplicitIndicesPrivileges(

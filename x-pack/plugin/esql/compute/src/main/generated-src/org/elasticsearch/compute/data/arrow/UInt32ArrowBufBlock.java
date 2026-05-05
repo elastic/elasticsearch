@@ -53,6 +53,11 @@ public final class UInt32ArrowBufBlock extends AbstractArrowBufBlock<LongVector,
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Long.BYTES;
+    }
+
+    @Override
     protected ArrowBufVectorConstructor<LongVector> vectorConstructor() {
         return UInt32ArrowBufVector::new;
     }

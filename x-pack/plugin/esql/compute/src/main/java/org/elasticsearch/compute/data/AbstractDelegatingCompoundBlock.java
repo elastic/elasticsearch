@@ -184,6 +184,11 @@ public abstract class AbstractDelegatingCompoundBlock<T extends Block> extends A
     }
 
     @Override
+    public int valueMaxByteSize() {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not have a single value byte size");
+    }
+
+    @Override
     public long ramBytesUsed() {
         long bytes = firstValueIndexes != null ? RamUsageEstimator.sizeOf(firstValueIndexes) : 0;
         for (Block b : getSubBlocks()) {

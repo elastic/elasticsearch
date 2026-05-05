@@ -55,67 +55,64 @@ public final class SearchContextFailureInjectionPlugin extends Plugin implements
 
     @Override
     public Collection<MappedActionFilter> getMappedActionFilters() {
-        return List.of(
-            new MappedActionFilter() {
-                @Override
-                public String actionName() {
-                    return TransportSearchAction.NAME;
-                }
-
-                @Override
-                public <Request extends ActionRequest, Response extends ActionResponse> void apply(
-                    Task task,
-                    String action,
-                    Request request,
-                    ActionListener<Response> listener,
-                    ActionFilterChain<Request, Response> chain
-                ) {
-                    InjectionConfig cfg = CONFIG.get();
-                    if (cfg == null || request instanceof SearchRequest == false) {
-                        chain.proceed(task, action, request, listener);
-                        return;
-                    }
-                    SearchRequest searchRequest = (SearchRequest) request;
-                    if (matchesBulkByScrollPitContinuationSearch(searchRequest) == false) {
-                        chain.proceed(task, action, request, listener);
-                        return;
-                    }
-                    int n = PIT_SEARCH_COUNTER.incrementAndGet();
-                    if (n != PIT_SEARCH_TO_FAIL) {
-                        chain.proceed(task, action, request, listener);
-                        return;
-                    }
-                    sleepThenFail(cfg, listener);
-                }
-            },
-            new MappedActionFilter() {
-                @Override
-                public String actionName() {
-                    return TransportSearchScrollAction.TYPE.name();
-                }
-
-                @Override
-                public <Req extends ActionRequest, Response extends ActionResponse> void apply(
-                    Task task,
-                    String action,
-                    Req request,
-                    ActionListener<Response> listener,
-                    ActionFilterChain<Req, Response> chain
-                ) {
-                    InjectionConfig cfg = CONFIG.get();
-                    if (cfg == null || request instanceof SearchScrollRequest == false) {
-                        chain.proceed(task, action, request, listener);
-                        return;
-                    }
-                    int n = SCROLL_SEARCH_COUNTER.incrementAndGet();
-                    if (n != SCROLL_REQUEST_TO_FAIL) {
-                        chain.proceed(task, action, request, listener);
-                        return;
-                    }
-                    sleepThenFail(cfg, listener);
-                }
+        return List.of(new MappedActionFilter() {
+            @Override
+            public String actionName() {
+                return TransportSearchAction.NAME;
             }
-        );
+
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void apply(
+                Task task,
+                String action,
+                Request request,
+                ActionListener<Response> listener,
+                ActionFilterChain<Request, Response> chain
+            ) {
+                InjectionConfig cfg = CONFIG.get();
+                if (cfg == null || request instanceof SearchRequest == false) {
+                    chain.proceed(task, action, request, listener);
+                    return;
+                }
+                SearchRequest searchRequest = (SearchRequest) request;
+                if (matchesBulkByScrollPitContinuationSearch(searchRequest) == false) {
+                    chain.proceed(task, action, request, listener);
+                    return;
+                }
+                int n = PIT_SEARCH_COUNTER.incrementAndGet();
+                if (n != PIT_SEARCH_TO_FAIL) {
+                    chain.proceed(task, action, request, listener);
+                    return;
+                }
+                sleepThenFail(cfg, listener);
+            }
+        }, new MappedActionFilter() {
+            @Override
+            public String actionName() {
+                return TransportSearchScrollAction.TYPE.name();
+            }
+
+            @Override
+            public <Req extends ActionRequest, Response extends ActionResponse> void apply(
+                Task task,
+                String action,
+                Req request,
+                ActionListener<Response> listener,
+                ActionFilterChain<Req, Response> chain
+            ) {
+                InjectionConfig cfg = CONFIG.get();
+                if (cfg == null || request instanceof SearchScrollRequest == false) {
+                    chain.proceed(task, action, request, listener);
+                    return;
+                }
+                int n = SCROLL_SEARCH_COUNTER.incrementAndGet();
+                if (n != SCROLL_REQUEST_TO_FAIL) {
+                    chain.proceed(task, action, request, listener);
+                    return;
+                }
+                sleepThenFail(cfg, listener);
+            }
+        });
     }
 
     private static void sleepThenFail(InjectionConfig cfg, ActionListener<?> listener) {

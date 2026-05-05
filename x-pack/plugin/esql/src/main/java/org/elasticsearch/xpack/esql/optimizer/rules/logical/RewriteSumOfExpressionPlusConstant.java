@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -161,22 +162,22 @@ public class RewriteSumOfExpressionPlusConstant extends OptimizerRules.Parameter
                 final Sum fs = m.sum();
                 SvPair pair = exprToSvPair.computeIfAbsent(m.key(), k -> {
                     List<Source> warningSources = exprFieldSources.get(k);
-                    var sv = new MvSingleValueOrNull(de.source(), de, warningSources);
                     String dataExprName = TemporaryNameGenerator.extractString(de);
 
-                    // Explicitly alias sv so we control its name and so that
-                    // ReplaceAggregateNestedExpressionWithEval leaves it unchanged.
-                    var svName = rawTemporaryName(dataExprName, sv.functionName(), String.valueOf(tempNameCounter[0]++));
+                    var sv = new MvSingleValueOrNull(de.source(), de, warningSources);
+                    var svName = syntheticName(tempNameCounter[0]++, dataExprName, sv);
                     var svAlias = new Alias(source, svName, sv, null, true);
                     newPreAggEvals.add(svAlias);
                     var svAttr = svAlias.toAttribute();
 
-                    var svSumName = rawTemporaryName(dataExprName, sv.functionName() + "_SUM", String.valueOf(tempNameCounter[0]++));
-                    var svSumAlias = new Alias(source, svSumName, fs.withField(svAttr), null, true);
+                    var svSum = fs.withField(svAttr);
+                    var svSumName = syntheticName(tempNameCounter[0]++, dataExprName, sv, svSum);
+                    var svSumAlias = new Alias(source, svSumName, svSum, null, true);
                     newAggs.add(svSumAlias);
 
-                    var svCountName = rawTemporaryName(dataExprName, sv.functionName() + "_COUNT", String.valueOf(tempNameCounter[0]++));
-                    var svCountAlias = new Alias(source, svCountName, new Count(source, svAttr), null, true);
+                    var svCount = new Count(de.source(), svAttr);
+                    var svCountName = syntheticName(tempNameCounter[0]++, dataExprName, sv, svCount);
+                    var svCountAlias = new Alias(source, svCountName, svCount, null, true);
                     newAggs.add(svCountAlias);
 
                     return new SvPair(svSumAlias.toAttribute(), svCountAlias.toAttribute());
@@ -209,5 +210,15 @@ public class RewriteSumOfExpressionPlusConstant extends OptimizerRules.Parameter
         plan = new Eval(source, plan, newEvals);
         plan = new Project(source, plan, Expressions.asAttributes(aggregate.aggregates()));
         return plan;
+    }
+
+    private static String syntheticName(int suffix, String dataExprName, Function... expr) {
+        String[] parts = new String[expr.length + 2];
+        parts[0] = dataExprName;
+        for (int i = 0; i < expr.length; i++) {
+            parts[i + 1] = expr[i].functionName();
+        }
+        parts[expr.length + 1] = String.valueOf(suffix);
+        return rawTemporaryName(parts);
     }
 }

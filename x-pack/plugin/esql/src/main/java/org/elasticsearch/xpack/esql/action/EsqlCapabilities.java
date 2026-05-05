@@ -408,6 +408,11 @@ public class EsqlCapabilities {
         LOAD_FLATTENED_FIELD,
 
         /**
+         * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.
+         */
+        FLATTENED_DATATYPE(Build.current().isSnapshot()),
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,

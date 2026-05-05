@@ -56,14 +56,50 @@ public final class GeometryDocSvg {
         }
     }
 
+    /**
+     * Rendering configuration for {@link #render}. Use {@link #DEFAULT} as a starting point and
+     * apply the wither methods to override individual fields, e.g.
+     * {@code Config.DEFAULT.width(360).height(240).aspectRatio(0.75)}.
+     *
+     * @param width       SVG viewport width in pixels
+     * @param height      SVG viewport height in pixels
+     * @param aspectRatio x-axis stretch relative to y-axis; {@code 1.0} preserves the natural
+     *                    shape, {@code > 1} produces a wider image, {@code < 1} a thinner one
+     * @param border      if {@code true}, draw a thin rectangle around the full viewport
+     */
+    public record Config(int width, int height, double aspectRatio, boolean border) {
+
+        public static final Config DEFAULT = new Config(320, 320, 1.0, false);
+
+        public Config width(int width) {
+            return new Config(width, height, aspectRatio, border);
+        }
+
+        public Config height(int height) {
+            return new Config(width, height, aspectRatio, border);
+        }
+
+        public Config aspectRatio(double aspectRatio) {
+            return new Config(width, height, aspectRatio, border);
+        }
+
+        public Config border(boolean border) {
+            return new Config(width, height, aspectRatio, border);
+        }
+    }
+
     private GeometryDocSvg() {}
 
     /**
-     * Render the given layers to an SVG string. The viewport is sized to {@code width x height}
-     * with a small margin around the combined bounding box of the layers' geometries. Aspect
-     * ratio of the input is preserved; the unused dimension is whitespace.
+     * Render the given layers to an SVG string. The viewport is sized to
+     * {@code config.width() x config.height()} with a small margin around the combined bounding
+     * box of the layers' geometries. See {@link Config} for the meaning of each option.
      */
-    public static String render(int width, int height, List<Layer> layers) {
+    public static String render(Config config, List<Layer> layers) {
+        int width = config.width();
+        int height = config.height();
+        double aspectRatio = config.aspectRatio();
+        boolean border = config.border();
         Bounds bounds = computeBounds(layers);
 
         double margin = 0.08;  // 8% margin around the combined envelope
@@ -76,12 +112,15 @@ public final class GeometryDocSvg {
 
         double rangeX = maxX - minX;
         double rangeY = maxY - minY;
-        double scale = Math.min(width / rangeX, height / rangeY);
-        // Center within the viewport when aspect ratios differ.
-        double offsetX = (width - rangeX * scale) / 2.0;
-        double offsetY = (height - rangeY * scale) / 2.0;
+        // scaleX = scaleY * aspectRatio, so we pick the largest scaleY that keeps both
+        // rangeX*scaleX <= width and rangeY*scaleY <= height.
+        double scaleY = Math.min(width / (rangeX * aspectRatio), height / rangeY);
+        double scaleX = scaleY * aspectRatio;
+        // Center within the viewport when the rendered image doesn't fill it.
+        double offsetX = (width - rangeX * scaleX) / 2.0;
+        double offsetY = (height - rangeY * scaleY) / 2.0;
 
-        Mapping map = new Mapping(minX, minY, scale, offsetX, offsetY, height);
+        Mapping map = new Mapping(minX, minY, scaleX, scaleY, offsetX, offsetY, height);
 
         StringBuilder svg = new StringBuilder(2048);
         svg.append(
@@ -94,6 +133,18 @@ public final class GeometryDocSvg {
                 height
             )
         );
+        if (border) {
+            // Inset by 0.5 so the 1px stroke is rendered fully inside the viewport rather than
+            // being clipped in half by the SVG edge.
+            svg.append(
+                String.format(
+                    Locale.ROOT,
+                    "  <rect x=\"0.5\" y=\"0.5\" width=\"%d\" height=\"%d\" fill=\"none\" stroke=\"#888888\" stroke-width=\"1\"/>%n",
+                    width - 1,
+                    height - 1
+                )
+            );
+        }
         for (Layer layer : layers) {
             layer.geometry().visit(new SvgRenderer(svg, layer, map));
         }
@@ -157,14 +208,14 @@ public final class GeometryDocSvg {
         }
     }
 
-    private record Mapping(double minX, double minY, double scale, double offsetX, double offsetY, int height) {
+    private record Mapping(double minX, double minY, double scaleX, double scaleY, double offsetX, double offsetY, int height) {
         double x(double lon) {
-            return offsetX + (lon - minX) * scale;
+            return offsetX + (lon - minX) * scaleX;
         }
 
         double y(double lat) {
             // Flip Y so larger latitudes are higher on the SVG canvas.
-            return height - (offsetY + (lat - minY) * scale);
+            return height - (offsetY + (lat - minY) * scaleY);
         }
     }
 
@@ -286,7 +337,7 @@ public final class GeometryDocSvg {
                         + "stroke=\"%s\" stroke-width=\"%.2f\"/>%n",
                     map.x(circle.getX()),
                     map.y(circle.getY()),
-                    circle.getRadiusMeters() * map.scale(),
+                    circle.getRadiusMeters() * Math.min(map.scaleX(), map.scaleY()),
                     layer.fill(),
                     layer.fillOpacity(),
                     layer.stroke(),

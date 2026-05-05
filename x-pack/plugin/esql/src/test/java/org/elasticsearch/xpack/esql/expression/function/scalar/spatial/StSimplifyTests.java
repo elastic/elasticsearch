@@ -70,7 +70,7 @@ public class StSimplifyTests extends AbstractSpatialGeometryTransformTestCase {
      */
     public static List<DocsV3Support.GeometryDiagram> geometryDiagrams() {
         // A bumpy polygon: a square with small dents along the top and bottom edges.
-        String bumpy = "POLYGON((0 0, 1 0.1, 2 0, 3 0.1, 4 0, 4 4, 3 3.9, 2 4, 1 3.9, 0 4, 0 0))";
+        String bumpy = "POLYGON((0 0, 1 0.1, 2 0, 3 0.1, 4 0, 4 2, 3 1.9, 2 2, 1 1.9, 0 2, 0 0))";
         // A rough circle approximated with many vertices, taken from the PostGIS docs example.
         String circle = "POLYGON((11 3,10.91 1.69,10.66 0.41,10.24 -0.83,9.66 -2,8.93 -3.09,8.07 -4.07,7.09 -4.93,"
             + "6 -5.66,4.83 -6.24,3.59 -6.66,2.31 -6.91,1 -7,-0.31 -6.91,-1.59 -6.66,-2.83 -6.24,-4 -5.66,"
@@ -78,34 +78,41 @@ public class StSimplifyTests extends AbstractSpatialGeometryTransformTestCase {
             + "-8.91 4.31,-8.66 5.59,-8.24 6.83,-7.66 8,-6.93 9.09,-6.07 10.07,-5.09 10.93,-4 11.66,"
             + "-2.83 12.24,-1.59 12.66,-0.31 12.91,1 13,2.31 12.91,3.59 12.66,4.83 12.24,6 11.66,"
             + "7.09 10.93,8.07 10.07,8.93 9.09,9.66 8,10.24 6.83,10.66 5.59,10.91 4.31,11 3))";
+        GeometryDocSvg.Config bumpyConfig = GeometryDocSvg.Config.DEFAULT.width(460).height(240);
+        GeometryDocSvg.Config circleConfig = GeometryDocSvg.Config.DEFAULT.width(340).height(340);
+        GeometryDocSvg.Config franceConfig = GeometryDocSvg.Config.DEFAULT.width(460).height(420).aspectRatio(0.75);
         return List.of(
             diagram(
                 "low_tolerance",
                 "Low tolerance keeps almost every vertex",
                 "With a small tolerance, only collinear or near-collinear vertices are removed.",
                 bumpy,
-                0.05
+                0.05,
+                bumpyConfig
             ),
             diagram(
                 "mid_tolerance",
                 "Mid tolerance smooths out the bumps",
-                "A tolerance of `0.2` is large enough to remove the small dents along each edge, " + "leaving the underlying square.",
+                "A tolerance of `0.2` is large enough to remove the small dents along each edge, leaving the underlying square.",
                 bumpy,
-                0.2
+                0.2,
+                bumpyConfig
             ),
             diagram(
                 "circle_quarter",
                 "Simplifying a circle with tolerance 0.5",
                 "Higher tolerances drop more vertices and the circle becomes a rough polygon.",
                 circle,
-                0.5
+                0.5,
+                circleConfig
             ),
             diagram(
                 "circle_octagon",
                 "Simplifying a circle to an octagon",
                 "Tolerance `1.0` reduces the circle to a regular octagon.",
                 circle,
-                1.0
+                1.0,
+                circleConfig
             ),
             // Real-world coastline (France, MultiPolygon) at two tolerance levels. Each diagram
             // shows the simplified result on its own — both shapes visibly differ from the
@@ -117,31 +124,34 @@ public class StSimplifyTests extends AbstractSpatialGeometryTransformTestCase {
                     + "peninsulas survive but the coastline is noticeably smoother.",
                 loadResourceWkt("France.wkt.gz"),
                 0.1,
-                480,
-                480
+                franceConfig
             ),
             simplifiedDiagram(
                 "france_coarse",
                 "Simplifying a coastline at coarse tolerance",
-                "France's coastline simplified at tolerance `0.5` (roughly 50 km). Only the "
-                    + "high-level shape of the country remains.",
+                "France's coastline simplified at tolerance `0.5` (roughly 50 km). Only the high-level shape of the country remains.",
                 loadResourceWkt("France.wkt.gz"),
                 0.5,
-                480,
-                480
+                franceConfig
             )
         );
     }
 
-    private static DocsV3Support.GeometryDiagram diagram(String name, String title, String description, String inputWkt, double tolerance) {
+    private static DocsV3Support.GeometryDiagram diagram(
+        String name,
+        String title,
+        String description,
+        String inputWkt,
+        double tolerance,
+        GeometryDocSvg.Config config
+    ) {
         Geometry input = jts(inputWkt);
         Geometry simplified = DouglasPeuckerSimplifier.simplify(input, tolerance);
         return new DocsV3Support.GeometryDiagram(
             name,
             title,
             description,
-            360,
-            240,
+            config,
             List.of(GeometryDocSvg.Layer.filled(toEs(simplified)), GeometryDocSvg.Layer.outline(parseEs(inputWkt)))
         );
     }
@@ -153,18 +163,10 @@ public class StSimplifyTests extends AbstractSpatialGeometryTransformTestCase {
         String description,
         String inputWkt,
         double tolerance,
-        int width,
-        int height
+        GeometryDocSvg.Config config
     ) {
         Geometry simplified = DouglasPeuckerSimplifier.simplify(jts(inputWkt), tolerance);
-        return new DocsV3Support.GeometryDiagram(
-            name,
-            title,
-            description,
-            width,
-            height,
-            List.of(GeometryDocSvg.Layer.filled(toEs(simplified)))
-        );
+        return new DocsV3Support.GeometryDiagram(name, title, description, config, List.of(GeometryDocSvg.Layer.filled(toEs(simplified))));
     }
 
     private static String loadResourceWkt(String name) {

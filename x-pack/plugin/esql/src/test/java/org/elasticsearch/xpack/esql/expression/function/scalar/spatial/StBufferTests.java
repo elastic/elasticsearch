@@ -122,8 +122,7 @@ public class StBufferTests extends AbstractSpatialGeometryTransformTestCase {
             name,
             title,
             description,
-            360,
-            240,
+            GeometryDocSvg.Config.DEFAULT.width(360).height(240),
             List.of(GeometryDocSvg.Layer.filled(toEs(jtsResult)), GeometryDocSvg.Layer.outline(parseEs(inputWkt)))
         );
     }

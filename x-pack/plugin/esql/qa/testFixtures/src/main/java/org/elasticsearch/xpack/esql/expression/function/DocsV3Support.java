@@ -114,15 +114,16 @@ public abstract class DocsV3Support {
      * @param name        filename suffix; the SVG is written as {@code {function}_{name}.svg}
      * @param title       human-readable caption shown above the diagram
      * @param description optional explanatory paragraph in markdown, may be empty
-     * @param width       SVG viewport width in pixels
-     * @param height      SVG viewport height in pixels
+     * @param config      rendering options; see {@link GeometryDocSvg.Config}
      * @param layers      ordered list of geometries to draw; later layers paint on top
      */
-    public record GeometryDiagram(String name, String title, String description, int width, int height, List<GeometryDocSvg.Layer> layers) {
-        public GeometryDiagram(String name, String title, List<GeometryDocSvg.Layer> layers) {
-            this(name, title, "", 320, 320, layers);
-        }
-    }
+    public record GeometryDiagram(
+        String name,
+        String title,
+        String description,
+        GeometryDocSvg.Config config,
+        List<GeometryDocSvg.Layer> layers
+    ) {}
 
     private static final Logger logger = LogManager.getLogger(DocsV3Support.class);
 
@@ -790,7 +791,7 @@ public abstract class DocsV3Support {
 
                 """);
             for (GeometryDiagram diagram : diagrams) {
-                String svg = GeometryDocSvg.render(diagram.width(), diagram.height(), diagram.layers());
+                String svg = GeometryDocSvg.render(diagram.config(), diagram.layers());
                 String fileName = name + "_" + diagram.name();
                 logger.info("Writing geometry diagram: {}", fileName);
                 Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("images").resolve(category);

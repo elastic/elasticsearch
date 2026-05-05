@@ -74,7 +74,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -87,7 +86,6 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -590,54 +588,6 @@ public class WatcherServiceTests extends ESTestCase {
         assertThat(engine.getWatches(), is(anEmptyMap()));
     }
 
-    public void testFindShardConfigReturnsSingleShardForAnyId() {
-        // with numShards=1 every id must route to shard 0
-        final var index = new Index(Watch.INDEX, "uuid");
-        final var shard0 = new ShardId(index, 0);
-        final ShardAllocationConfiguration config = new ShardAllocationConfiguration(0, 1, List.of("a"));
-        final Map<ShardId, ShardAllocationConfiguration> shardConfigs = Map.of(shard0, config);
-
-        for (int i = 0; i < 20; i++) {
-            final var id = randomAlphaOfLengthBetween(1, 20);
-            assertThat(WatcherService.findShardConfig(shardConfigs, id, 1), is(config));
-        }
-    }
-
-    public void testFindShardConfigReturnsNullWhenShardIsNotLocal() {
-        // two-shard index; only shard 0 is local — ids that hash to shard 1 must return null
-        final var index = new Index(Watch.INDEX, "uuid");
-        final var shard0 = new ShardId(index, 0);
-        final ShardAllocationConfiguration config0 = new ShardAllocationConfiguration(0, 2, List.of("a"));
-        final Map<ShardId, ShardAllocationConfiguration> shardConfigs = Map.of(shard0, config0);
-
-        // find an id that routes to shard 1 (not local)
-        final String foreignId = idHashingToShard(1, 2);
-        assertThat(WatcherService.findShardConfig(shardConfigs, foreignId, 2), is(nullValue()));
-    }
-
-    public void testFindShardConfigPicksCorrectShardAmongMultiple() {
-        // three-shard index; all three shards are local with distinct configs
-        final var index = new Index(Watch.INDEX, "uuid");
-        final var config0 = new ShardAllocationConfiguration(0, 3, List.of("a"));
-        final var config1 = new ShardAllocationConfiguration(1, 3, List.of("a", "b"));
-        final var config2 = new ShardAllocationConfiguration(2, 3, List.of("a", "b", "c"));
-        final Map<ShardId, ShardAllocationConfiguration> shardConfigs = Map.of(
-            new ShardId(index, 0),
-            config0,
-            new ShardId(index, 1),
-            config1,
-            new ShardId(index, 2),
-            config2
-        );
-
-        assertThat(WatcherService.findShardConfig(shardConfigs, idHashingToShard(0, 3), 3), is(config0));
-        assertThat(WatcherService.findShardConfig(shardConfigs, idHashingToShard(1, 3), 3), is(config1));
-        assertThat(WatcherService.findShardConfig(shardConfigs, idHashingToShard(2, 3), 3), is(config2));
-    }
-
-    public void testFindShardConfigReturnsNullForEmptyConfigs() {
-        assertThat(WatcherService.findShardConfig(Map.of(), "any-id", 1), is(nullValue()));
-    }
 
     private WatcherService createWatcherService(TriggerService triggerService) {
         return new WatcherService(

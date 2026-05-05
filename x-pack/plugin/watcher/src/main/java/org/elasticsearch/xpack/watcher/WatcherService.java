@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -260,7 +259,7 @@ public class WatcherService implements WatcherEventConsumer {
      */
     private boolean reloadInner(ClusterState state, String reason, boolean loadTriggeredWatches) {
         assert ThreadPool.assertCurrentThreadPool(LIFECYCLE_THREADPOOL_NAME)
-            : "reloadInner must run on the [" + LIFECYCLE_THREADPOOL_NAME + "] thread pool";
+            : "reloadInner must run on the single threaded [" + LIFECYCLE_THREADPOOL_NAME + "] thread pool";
         // exit early if another thread has come in between
         if (processedClusterStateVersion.get() != state.getVersion()) {
             logger.debug(
@@ -390,7 +389,7 @@ public class WatcherService implements WatcherEventConsumer {
         return ShardAllocationConfiguration.forLocalShards(localShards, indexRoutingTable);
     }
 
-    // Non private for unit testing purposes
+    // visible for testing
     void addPendingWatches(ClusterState state) {
         final IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(INDEX, state.metadata());
         if (indexMetadata == null) {
@@ -408,7 +407,7 @@ public class WatcherService implements WatcherEventConsumer {
         final int numShards = indexMetadata.getNumberOfShards();
         synchronized (pendingWatches) {
             for (Watch pendingWatch : pendingWatches.values()) {
-                final ShardAllocationConfiguration shardConfig = findShardConfig(shardConfigs, pendingWatch.id(), numShards);
+                final ShardAllocationConfiguration shardConfig = ShardAllocationConfiguration.findShardConfig(shardConfigs, pendingWatch.id(), numShards);
                 if (shardConfig == null || shardConfig.hostsWatch(pendingWatch.id()) == false) {
                     continue;
                 }
@@ -420,23 +419,6 @@ public class WatcherService implements WatcherEventConsumer {
             }
             pendingWatches.clear();
         }
-    }
-
-    /**
-     * Find the {@link ShardAllocationConfiguration} for the local shard that hosts a watch with the given id. Returns
-     * null if the local node does not have a copy of that watch's shard. Used by the pending-watch merge in
-     * {@link #loadWatches} where, unlike search hits, we don't know the shard up front and have to derive it from the
-     * standard {@code _id}-based routing (Murmur3 hash mod number of shards).
-     */
-    // visible for testing
-    static ShardAllocationConfiguration findShardConfig(Map<ShardId, ShardAllocationConfiguration> shardConfigs, String id, int numShards) {
-        final int shardIdNum = Math.floorMod(Murmur3HashFunction.hash(id), numShards);
-        for (Map.Entry<ShardId, ShardAllocationConfiguration> entry : shardConfigs.entrySet()) {
-            if (entry.getKey().getId() == shardIdNum) {
-                return entry.getValue();
-            }
-        }
-        return null;
     }
 
     /// Atomically tries to schedule an active watch on the trigger engine and, only if the engine refused (it is

@@ -469,6 +469,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     }
 
     private void initColumnReaders(RowRanges currentRowRanges) {
+        // Close any readers from the previous row group before discarding the array — each reader
+        // holds a ref-counted BytesRefArray (the cached dictionary) that must be released here.
+        // Pages already emitted are unaffected: they own their own BytesRefArrayVector wrappers,
+        // which hold independent refs to the underlying array.
+        closePageColumnReaders();
         pageColumnReaders = new PageColumnReader[columnInfos.length];
         columnReaders = null;
         for (int i = 0; i < columnInfos.length; i++) {
@@ -812,6 +817,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     public void close() throws IOException {
         cancelPendingPrefetch();
         try {
+            closePageColumnReaders();
             if (rowGroup != null) {
                 rowGroup.close();
                 rowGroup = null;
@@ -820,6 +826,19 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             releaseCurrentReservation();
             reader.close();
         }
+    }
+
+    /**
+     * Closes any non-null entries in {@link #pageColumnReaders}, releasing each reader's cached
+     * dictionary {@link org.elasticsearch.common.util.BytesRefArray}. Idempotent — null entries
+     * and a null array are both fine. The array is then discarded by the caller.
+     */
+    private void closePageColumnReaders() {
+        if (pageColumnReaders == null) {
+            return;
+        }
+        Releasables.close(pageColumnReaders);
+        pageColumnReaders = null;
     }
 
     /** Bundles an in-flight prefetch future with its breaker reservation for paired release. */

@@ -96,6 +96,7 @@ public class Embedding extends InferenceFunction<Embedding> implements OptionalA
                 + "The inference endpoint must have the `embedding` task type and should use the same model "
                 + "that was used to embed your indexed data.",
             hint = @Param.Hint(
+                kind = Param.Hint.Kind.ENTITY,
                 entityType = Param.Hint.ENTITY_TYPE.INFERENCE_ENDPOINT,
                 constraints = { @Param.Hint.Constraint(name = "task_type", value = "embedding") }
             )

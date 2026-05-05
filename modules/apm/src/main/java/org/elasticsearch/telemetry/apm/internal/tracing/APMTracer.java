@@ -381,11 +381,9 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 traceContextMap.put(Task.TRACE_STATE, traceStateHeader);
             }
 
-            // On the SDK path, start from Context.root() to ignore any span the APM agent may have left
-            // in the thread-local. The agent path uses Context.current() for compatibility with the agent's
-            // own propagation model.
-            Context baseContext = useOtelSdkTracesExport ? Context.root() : Context.current();
-            return services.openTelemetry.getPropagators().getTextMapPropagator().extract(baseContext, traceContextMap, new MapKeyGetter());
+            return services.openTelemetry.getPropagators()
+                .getTextMapPropagator()
+                .extract(Context.current(), traceContextMap, new MapKeyGetter());
         }
         return null;
     }

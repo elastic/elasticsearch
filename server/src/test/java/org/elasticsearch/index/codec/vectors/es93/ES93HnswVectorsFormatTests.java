@@ -38,12 +38,19 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES93HnswVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.FLOAT);
+        return new ES93HnswVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.FLOAT, 1, null, random().nextInt(1, 10));
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService service) {
-        return new ES93HnswVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.FLOAT, numMergeWorkers, service);
+        return new ES93HnswVectorsFormat(
+            maxConn,
+            beamWidth,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            numMergeWorkers,
+            service,
+            random().nextInt(1, 10)
+        );
     }
 
     protected KnnVectorsFormat createFormat(
@@ -64,7 +71,7 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
     }
 
     public void testDefaultHnswGraphThreshold() {
-        KnnVectorsFormat format = createFormat(16, 100);
+        KnnVectorsFormat format = new ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT);
         assertThat(format, hasToString(containsString("hnswGraphThreshold=" + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD)));
     }
 

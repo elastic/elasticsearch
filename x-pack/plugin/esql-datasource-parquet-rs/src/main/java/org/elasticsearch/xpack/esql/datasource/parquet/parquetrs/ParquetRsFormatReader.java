@@ -348,7 +348,6 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         }
     }
 
-    @Override
     public void prepareBatch(List<StorageObject> objects, Executor executor) {
         if (objects.size() <= 1) {
             return;

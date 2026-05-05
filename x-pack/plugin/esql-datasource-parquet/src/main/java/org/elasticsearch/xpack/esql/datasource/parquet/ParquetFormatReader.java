@@ -75,9 +75,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
 
 /**
  * FormatReader implementation for Parquet files.
@@ -105,12 +102,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     // Shared across all iterators created by this reader: holds lazy decompressor instances and
     // pays the per-codec init cost once. The factory is stateless across files/row groups.
     private final PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
-    /**
-     * Populated by {@link #prepareBatch}: maps file path to its pre-fetched, parsed Parquet footer.
-     * Allows {@link #discoverSplitRanges} to skip the per-file footer network fetch when the
-     * same reader instance is reused across all files in a batch.
-     */
-    private Map<String, ParquetMetadata> prefetchedMetadata;
 
     static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
 
@@ -519,68 +510,39 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
     @Override
     public void close() throws IOException {
-        prefetchedMetadata = null;
-    }
-
-    @Override
-    public void prepareBatch(List<StorageObject> objects, Executor executor) throws IOException {
-        if (objects.size() <= 1) {
-            return;
-        }
-        Map<String, ParquetMetadata> map = new ConcurrentHashMap<>(objects.size());
-        List<CompletableFuture<Void>> futures = new ArrayList<>(objects.size());
-        for (StorageObject object : objects) {
-            String key = object.path().toString();
-            futures.add(CompletableFuture.runAsync(() -> {
-                try {
-                    InputFile inputFile = new ParquetStorageObjectAdapter(object);
-                    ParquetMetadata metadata = ParquetFileReader.readFooter(inputFile, readOptionsBuilder().build(), inputFile.newStream());
-                    map.put(key, metadata);
-                } catch (Exception e) {
-                    logger.debug("prepareBatch: failed to prefetch footer for [{}]: {}", key, e.getMessage());
-                }
-            }, executor));
-        }
-        try {
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-        } catch (Exception e) {
-            if (e.getCause() instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-        }
-        this.prefetchedMetadata = Map.copyOf(map);
+        // No resources to close at the reader level
     }
 
     @Override
     public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
-        Map<String, ParquetMetadata> prefetched = this.prefetchedMetadata;
-        if (prefetched != null) {
-            ParquetMetadata cached = prefetched.get(object.path().toString());
-            if (cached != null) {
-                return rowGroupsToSplitRanges(cached.getBlocks());
-            }
-        }
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
         ParquetReadOptions options = readOptionsBuilder().build();
         try (ParquetFileReader reader = openParquetFile(object, parquetInputFile, options)) {
-            return rowGroupsToSplitRanges(reader.getRowGroups());
+            List<BlockMetaData> rowGroups = reader.getRowGroups();
+            if (rowGroups.isEmpty()) {
+                return List.of();
+            }
+            if (rowGroups.size() == 1) {
+                BlockMetaData block = rowGroups.getFirst();
+                Map<String, Object> stats = buildRowGroupStats(block);
+                return List.of(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
+            }
+            List<SplitRange> ranges = new ArrayList<>(rowGroups.size());
+            for (BlockMetaData block : rowGroups) {
+                Map<String, Object> stats = buildRowGroupStats(block);
+                // Use the compressed on-disk size for the SplitRange length: this value is fed to
+                // readRange() which builds a byte range end = startingPos + length for Parquet's
+                // withRange(rangeStart, rangeEnd) filter. That filter includes a row group when its
+                // starting position lies in the range, so the end must land at or before the next
+                // row group's starting position. getTotalByteSize() returns the uncompressed size
+                // (much larger than what is actually on disk), which would make adjacent ranges
+                // overlap in byte space and cause Parquet to select each row group from multiple
+                // splits, producing duplicate rows.
+                ranges.add(new SplitRange(block.getStartingPos(), block.getCompressedSize(), stats));
+            }
+            List<SplitRange> coalesced = coalesceRowGroupRanges(ranges, DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES);
+            return coalesced.size() < 2 ? ranges : coalesced;
         }
-    }
-
-    private List<SplitRange> rowGroupsToSplitRanges(List<BlockMetaData> rowGroups) {
-        if (rowGroups.isEmpty()) {
-            return List.of();
-        }
-        if (rowGroups.size() == 1) {
-            BlockMetaData block = rowGroups.getFirst();
-            return List.of(new SplitRange(block.getStartingPos(), block.getCompressedSize(), buildRowGroupStats(block)));
-        }
-        List<SplitRange> ranges = new ArrayList<>(rowGroups.size());
-        for (BlockMetaData block : rowGroups) {
-            ranges.add(new SplitRange(block.getStartingPos(), block.getCompressedSize(), buildRowGroupStats(block)));
-        }
-        List<SplitRange> coalesced = coalesceRowGroupRanges(ranges, DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES);
-        return coalesced.size() < 2 ? ranges : coalesced;
     }
 
     @SuppressWarnings("rawtypes")

@@ -50,7 +50,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executors;
 import java.util.function.BiFunction;
 
 /**
@@ -133,105 +132,92 @@ public class FileSplitProvider implements SplitProvider {
 
         long effectiveSplitSize = resolveTargetSplitSize(config);
 
-        PreparedBatch prepared = tryPrepareBatch(fileList, config);
-        try {
-            for (int i = 0; i < fileList.fileCount(); i++) {
-                StoragePath filePath = fileList.path(i);
+        for (int i = 0; i < fileList.fileCount(); i++) {
+            StoragePath filePath = fileList.path(i);
 
-                Map<String, Object> partitionValues = Map.of();
-                if (partitionInfo != null && partitionInfo.isEmpty() == false) {
-                    Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
-                    if (filePartitions != null) {
-                        partitionValues = filePartitions;
-                    }
-                }
-
-                if (partitionValues.isEmpty() == false && filterHints.isEmpty() == false) {
-                    if (matchesPartitionFilters(partitionValues, filterHints) == false) {
-                        continue;
-                    }
-                }
-
-                SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo != null ? schemaInfo.get(filePath) : null;
-
-                if (projectedDataColumns.isEmpty() == false && fileSchemaInfo != null) {
-                    if (skipIfNoColumnOverlap(fileSchemaInfo.fileSchema(), projectedDataColumns)) {
-                        continue;
-                    }
-                }
-
-                if (filterHints.isEmpty() == false && fileSchemaInfo != null) {
-                    Set<String> fileColumnNames = new LinkedHashSet<>();
-                    for (Attribute attr : fileSchemaInfo.fileSchema()) {
-                        fileColumnNames.add(attr.name());
-                    }
-                    // Partition columns are always available (values come from paths, not file data)
-                    fileColumnNames.addAll(partitionValues.keySet());
-                    if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
-                        continue;
-                    }
-                }
-
-                String objectName = filePath.objectName();
-                String format = null;
-                if (objectName != null) {
-                    int lastDot = objectName.lastIndexOf('.');
-                    if (lastDot >= 0 && lastDot < objectName.length() - 1) {
-                        format = objectName.substring(lastDot);
-                    }
-                }
-
-                long fileLength = fileList.size(i);
-
-                SchemaReconciliation.ColumnMapping columnMapping = null;
-                if (schemaInfo != null) {
-                    SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(filePath);
-                    if (info != null && info.mapping() != null && info.mapping().isIdentity() == false) {
-                        columnMapping = mappingCache.computeIfAbsent(info.mapping(), k -> k);
-                    }
-                }
-
-                // Try block-aligned splitting for splittable compressed files (e.g. .ndjson.bz2).
-                // This is independent of targetSplitSizeBytes — compressed files with splittable
-                // codecs are always split at block boundaries when possible.
-                if (tryBlockAlignedSplits(filePath, fileLength, format, config, partitionValues, columnMapping, splits)) {
-                    continue;
-                }
-
-                if (tryRangeAwareSplits(prepared, filePath, fileLength, format, config, partitionValues, columnMapping, splits)) {
-                    continue;
-                }
-
-                if (effectiveSplitSize > 0 && fileLength > effectiveSplitSize && isSplittableFormat(format)) {
-                    long offset = 0;
-                    boolean isFirst = true;
-                    while (offset < fileLength) {
-                        long chunkLength = Math.min(effectiveSplitSize, fileLength - offset);
-                        boolean isLast = (offset + chunkLength >= fileLength);
-                        Map<String, Object> splitConfig = new HashMap<>(config);
-                        if (isFirst) {
-                            splitConfig.put(FIRST_SPLIT_KEY, "true");
-                        }
-                        if (isLast) {
-                            splitConfig.put(LAST_SPLIT_KEY, "true");
-                        }
-                        splits.add(
-                            new FileSplit("file", filePath, offset, chunkLength, format, splitConfig, partitionValues, columnMapping)
-                        );
-                        offset += chunkLength;
-                        isFirst = false;
-                    }
-                } else {
-                    splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping));
+            Map<String, Object> partitionValues = Map.of();
+            if (partitionInfo != null && partitionInfo.isEmpty() == false) {
+                Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
+                if (filePartitions != null) {
+                    partitionValues = filePartitions;
                 }
             }
-        } finally {
-            if (prepared != null) {
-                try {
-                    prepared.reader().close();
-                } catch (Exception e) {
-                    LOGGER.debug("Failed to close prepared reader for [{}]: {}", fileList.path(0), e.getMessage());
+
+            if (partitionValues.isEmpty() == false && filterHints.isEmpty() == false) {
+                if (matchesPartitionFilters(partitionValues, filterHints) == false) {
+                    continue;
                 }
+            }
+
+            SchemaReconciliation.FileSchemaInfo fileSchemaInfo = schemaInfo != null ? schemaInfo.get(filePath) : null;
+
+            if (projectedDataColumns.isEmpty() == false && fileSchemaInfo != null) {
+                if (skipIfNoColumnOverlap(fileSchemaInfo.fileSchema(), projectedDataColumns)) {
+                    continue;
+                }
+            }
+
+            if (filterHints.isEmpty() == false && fileSchemaInfo != null) {
+                Set<String> fileColumnNames = new LinkedHashSet<>();
+                for (Attribute attr : fileSchemaInfo.fileSchema()) {
+                    fileColumnNames.add(attr.name());
+                }
+                // Partition columns are always available (values come from paths, not file data)
+                fileColumnNames.addAll(partitionValues.keySet());
+                if (skipIfFilterOnMissingColumns(filterHints, fileColumnNames)) {
+                    continue;
+                }
+            }
+
+            String objectName = filePath.objectName();
+            String format = null;
+            if (objectName != null) {
+                int lastDot = objectName.lastIndexOf('.');
+                if (lastDot >= 0 && lastDot < objectName.length() - 1) {
+                    format = objectName.substring(lastDot);
+                }
+            }
+
+            long fileLength = fileList.size(i);
+
+            SchemaReconciliation.ColumnMapping columnMapping = null;
+            if (schemaInfo != null) {
+                SchemaReconciliation.FileSchemaInfo info = schemaInfo.get(filePath);
+                if (info != null && info.mapping() != null && info.mapping().isIdentity() == false) {
+                    columnMapping = mappingCache.computeIfAbsent(info.mapping(), k -> k);
+                }
+            }
+
+            // Try block-aligned splitting for splittable compressed files (e.g. .ndjson.bz2).
+            // This is independent of targetSplitSizeBytes — compressed files with splittable
+            // codecs are always split at block boundaries when possible.
+            if (tryBlockAlignedSplits(filePath, fileLength, format, config, partitionValues, columnMapping, splits)) {
+                continue;
+            }
+
+            if (tryRangeAwareSplits(filePath, fileLength, format, config, partitionValues, columnMapping, splits)) {
+                continue;
+            }
+
+            if (effectiveSplitSize > 0 && fileLength > effectiveSplitSize && isSplittableFormat(format)) {
+                long offset = 0;
+                boolean isFirst = true;
+                while (offset < fileLength) {
+                    long chunkLength = Math.min(effectiveSplitSize, fileLength - offset);
+                    boolean isLast = (offset + chunkLength >= fileLength);
+                    Map<String, Object> splitConfig = new HashMap<>(config);
+                    if (isFirst) {
+                        splitConfig.put(FIRST_SPLIT_KEY, "true");
+                    }
+                    if (isLast) {
+                        splitConfig.put(LAST_SPLIT_KEY, "true");
+                    }
+                    splits.add(new FileSplit("file", filePath, offset, chunkLength, format, splitConfig, partitionValues, columnMapping));
+                    offset += chunkLength;
+                    isFirst = false;
+                }
+            } else {
+                splits.add(new FileSplit("file", filePath, 0, fileLength, format, config, partitionValues, columnMapping));
             }
         }
 
@@ -246,67 +232,6 @@ public class FileSplitProvider implements SplitProvider {
     public static StorageObject storageObjectForSplit(StorageProvider storageProvider, FileSplit fileSplit) {
         return new RangeStorageObject(storageProvider.newObject(fileSplit.path()), fileSplit.offset(), fileSplit.length());
     }
-
-    /**
-     * Calls {@link RangeAwareFormatReader#prepareBatch} with all file objects before the
-     * serial {@link #discoverSplits} loop. This lets implementations (e.g. parquet-rs) fire
-     * all footer fetches concurrently in a single async batch rather than one at a time,
-     * turning O(N * latency) serial footer loads into O(latency) parallel ones.
-     * <p>
-     * Returns the prepared reader so that the same instance (with its strongly-held metadata cache)
-     * can be reused for all {@link RangeAwareFormatReader#discoverSplitRanges} calls in the loop,
-     * bypassing the shared process-wide LRU cache entirely.
-     * <p>
-     * Returns {@code null} on any error — the per-file loop is the authoritative fallback path.
-     * The caller is responsible for closing the returned reader.
-     */
-    @Nullable
-    private PreparedBatch tryPrepareBatch(FileList fileList, Map<String, Object> config) {
-        if (formatRegistry == null || storageRegistry == null || fileList.fileCount() <= 1) {
-            return null;
-        }
-        StoragePath firstPath = fileList.path(0);
-        String objectName = firstPath.objectName();
-        if (objectName == null) {
-            return null;
-        }
-        int lastDot = objectName.lastIndexOf('.');
-        if (lastDot < 0 || lastDot >= objectName.length() - 1) {
-            return null;
-        }
-        String formatExtension = objectName.substring(lastDot);
-        FormatReader reader;
-        try {
-            reader = FormatNameResolver.resolveReader(config, objectName, formatRegistry).withConfig(config);
-        } catch (Exception e) {
-            return null;
-        }
-        if (reader instanceof RangeAwareFormatReader == false) {
-            return null;
-        }
-        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) reader;
-        try {
-            StorageProvider provider = config != null && config.isEmpty() == false
-                ? storageRegistry.createProvider(firstPath.scheme(), settings, config)
-                : storageRegistry.provider(firstPath);
-            List<StorageObject> objects = new ArrayList<>(fileList.fileCount());
-            for (int i = 0; i < fileList.fileCount(); i++) {
-                objects.add(provider.newObject(fileList.path(i), fileList.size(i)));
-            }
-            rangeReader.prepareBatch(objects, Executors.newVirtualThreadPerTaskExecutor());
-            return new PreparedBatch(rangeReader, formatExtension);
-        } catch (Exception e) {
-            LOGGER.debug("prepareBatch skipped for [{}]: {}", firstPath, e.getMessage());
-            try {
-                rangeReader.close();
-            } catch (Exception ce) {
-                LOGGER.debug("Failed to close reader after prepareBatch failure: {}", ce.getMessage());
-            }
-            return null;
-        }
-    }
-
-    private record PreparedBatch(RangeAwareFormatReader reader, String formatExtension) {}
 
     /**
      * Attempts to create block-aligned splits for files with splittable compression.
@@ -428,12 +353,8 @@ public class FileSplitProvider implements SplitProvider {
      * Attempts to create range-aware splits for columnar formats (e.g. Parquet row groups).
      * The format reader reads file metadata (e.g. Parquet footer) to discover independently
      * readable byte ranges. Returns true if range-aware splits were created.
-     * <p>
-     * When {@code prepared} is non-null and its format extension matches this file, the pre-built
-     * reader (with its strongly-held metadata cache) is reused, bypassing the shared LRU cache.
      */
     private boolean tryRangeAwareSplits(
-        @Nullable PreparedBatch prepared,
         StoragePath filePath,
         long fileLength,
         String format,
@@ -446,22 +367,17 @@ public class FileSplitProvider implements SplitProvider {
             return false;
         }
 
-        boolean usingPrepared = prepared != null && format.equals(prepared.formatExtension());
-        FormatReader resolvedReader = null;
-        RangeAwareFormatReader rangeReader;
-        if (usingPrepared) {
-            rangeReader = prepared.reader();
-        } else {
-            try {
-                resolvedReader = FormatNameResolver.resolveReader(config, filePath.objectName(), formatRegistry).withConfig(config);
-            } catch (Exception e) {
-                return false;
-            }
-            if (resolvedReader instanceof RangeAwareFormatReader == false) {
-                return false;
-            }
-            rangeReader = (RangeAwareFormatReader) resolvedReader;
+        FormatReader reader;
+        try {
+            reader = FormatNameResolver.resolveReader(config, filePath.objectName(), formatRegistry).withConfig(config);
+        } catch (Exception e) {
+            return false;
         }
+
+        if (reader instanceof RangeAwareFormatReader == false) {
+            return false;
+        }
+        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) reader;
 
         try {
             StorageProvider provider;
@@ -501,14 +417,6 @@ public class FileSplitProvider implements SplitProvider {
         } catch (IOException e) {
             LOGGER.warn("Failed to discover split ranges for [{}], falling back to single split", filePath, e);
             return false;
-        } finally {
-            if (resolvedReader != null) {
-                try {
-                    resolvedReader.close();
-                } catch (IOException e) {
-                    LOGGER.debug("Failed to close per-file reader for [{}]: {}", filePath, e.getMessage());
-                }
-            }
         }
     }
 

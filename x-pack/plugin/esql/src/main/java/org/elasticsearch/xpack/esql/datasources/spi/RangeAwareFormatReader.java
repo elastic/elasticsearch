@@ -13,7 +13,6 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
 
 /**
  * Extension of {@link FormatReader} for columnar formats (Parquet, ORC) that support
@@ -75,24 +74,6 @@ public interface RangeAwareFormatReader extends FormatReader {
      * @return an iterator that yields pages from the matching row groups
      */
     CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException;
-
-    /**
-     * Optional hint: prefetch metadata for all objects before the serial
-     * {@link #discoverSplitRanges} loop begins. Implementations that fetch file
-     * metadata over the network (e.g. Parquet footer from S3) can use this to
-     * fire all fetches concurrently rather than one at a time.
-     * <p>
-     * The provided {@code executor} should be used to run any blocking I/O tasks.
-     * Native-async implementations (e.g. the Rust reader, which uses its own Tokio
-     * runtime) may ignore the executor entirely.
-     * <p>
-     * Errors must be silently swallowed — the per-file {@link #discoverSplitRanges}
-     * call will retry on cache miss. The default implementation is a no-op.
-     *
-     * @param objects  all storage objects that will be passed to {@link #discoverSplitRanges}
-     * @param executor executor for running blocking I/O tasks concurrently
-     */
-    default void prepareBatch(List<StorageObject> objects, Executor executor) throws IOException {}
 
     /**
      * Returns {@code true} if this reader supports batch multi-file reads via

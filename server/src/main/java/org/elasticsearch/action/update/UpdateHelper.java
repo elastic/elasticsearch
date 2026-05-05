@@ -167,16 +167,17 @@ public class UpdateHelper {
     }
 
     /**
-     * Calculate a routing value to be used, either the included index request's routing, or retrieved document's routing when defined.
+     * Calculate a routing value to be used, either the included index request's routing, retrieved document's routing when defined, or
+     * in case the routing is stored as doc values, then the provided request routing is used as the routing.
      */
     @Nullable
-    static String calculateRouting(GetResult getResult, @Nullable IndexRequest updateIndexRequest) {
+    static String calculateRouting(GetResult getResult, @Nullable IndexRequest updateIndexRequest, @Nullable String requestRouting) {
         if (updateIndexRequest != null && updateIndexRequest.routing() != null) {
             return updateIndexRequest.routing();
         } else if (getResult.getFields().containsKey(RoutingFieldMapper.NAME)) {
             return getResult.field(RoutingFieldMapper.NAME).getValue().toString();
         } else {
-            return null;
+            return requestRouting;
         }
     }
 
@@ -186,7 +187,7 @@ public class UpdateHelper {
      */
     Result prepareUpdateIndexRequest(IndexShard indexShard, UpdateRequest request, GetResult getResult, boolean detectNoop) {
         final IndexRequest currentRequest = request.doc();
-        final String routing = calculateRouting(getResult, currentRequest);
+        final String routing = calculateRouting(getResult, currentRequest, request.routing());
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
         final Map<String, Object> updatedSourceAsMap = sourceAndContent.v2();
@@ -239,7 +240,7 @@ public class UpdateHelper {
      */
     Result prepareUpdateScriptRequest(IndexShard indexShard, UpdateRequest request, GetResult getResult, LongSupplier nowInMillis) {
         final IndexRequest currentRequest = request.doc();
-        final String routing = calculateRouting(getResult, currentRequest);
+        final String routing = calculateRouting(getResult, currentRequest, request.routing());
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
 

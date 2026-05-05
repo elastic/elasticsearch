@@ -113,7 +113,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             List.of(new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))),
             new ClusterFailure(
                 SearchResponse.Cluster.Status.SKIPPED,
-                Set.of(new FailureCause(IllegalArgumentException.class, "[model_id] must not be null."))
+                Set.of(new FailureCause(IllegalArgumentException.class, "[model_id] must be specified"))
             ),
             null
         );
@@ -136,14 +136,14 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, new TextEmbeddingQueryVectorBuilder(null, "c"), 10, 100, 10f, null),
             QUERY_INDICES,
             IllegalArgumentException.class,
-            "[model_id] must not be null.",
+            "[model_id] must be specified",
             s -> s.setCcsMinimizeRoundtrips(false)
         );
         assertSearchFailure(
             new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, new TextEmbeddingQueryVectorBuilder(null, "c"), 10, 100, 10f, null),
             List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
             IllegalArgumentException.class,
-            "[model_id] must not be null.",
+            "[model_id] must be specified",
             s -> s.setCcsMinimizeRoundtrips(false)
         );
     }

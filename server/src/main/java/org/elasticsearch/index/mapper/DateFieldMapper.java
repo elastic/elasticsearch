@@ -1102,6 +1102,7 @@ public final class DateFieldMapper extends FieldMapper {
     private final boolean store;
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
     private final Locale locale;
     private final String format;
     private final boolean ignoreMalformed;
@@ -1130,6 +1131,11 @@ public final class DateFieldMapper extends FieldMapper {
         this.store = builder.store.getValue();
         this.indexed = builder.index.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(
+            docValuesParameters.multiValue(),
+            ((DateFieldType) mappedFieldType).hasDocValuesSkipper(),
+            builder.indexSettings.getIndexVersionCreated()
+        );
         this.locale = builder.locale.getValue();
         this.format = builder.format.getValue();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
@@ -1173,6 +1179,11 @@ public final class DateFieldMapper extends FieldMapper {
 
     public DocValuesParameter.Values docValuesParameters() {
         return docValuesParameters;
+    }
+
+    @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue().isSingleValued();
     }
 
     @Override
@@ -1272,11 +1283,16 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         if (fieldType().hasDocValuesSkipper()) {
-            context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), timestamp));
+            dvFactory.addNumericField(context.doc(), fieldType().name(), timestamp);
         } else if (indexed && docValuesParameters.enabled()) {
-            context.doc().add(new LongField(fieldType().name(), timestamp, Field.Store.NO));
+            context.doc()
+                .add(
+                    docValuesParameters.multiValue().isSingleValued()
+                        ? new SingleValuedLongField(fieldType().name(), timestamp)
+                        : new LongField(fieldType().name(), timestamp, Field.Store.NO)
+                );
         } else if (docValuesParameters.enabled()) {
-            context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
+            dvFactory.addNumericField(context.doc(), fieldType().name(), timestamp);
         } else if (indexed) {
             context.doc().add(new LongPoint(fieldType().name(), timestamp));
         }

@@ -79,7 +79,7 @@ public class TestConfigurationTests extends ESTestCase {
         String json = """
             {
               "dataset": {
-                "partition_generated": {
+                "random_generated": {
                   "num_partitions": 50,
                   "partition_distribution": "zipf",
                   "generator_seed": 99
@@ -93,8 +93,8 @@ public class TestConfigurationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
             TestConfiguration config = TestConfiguration.fromXContent(parser);
-            assertThat(config.datasetConfig(), instanceOf(DatasetConfig.PartitionGenerated.class));
-            DatasetConfig.PartitionGenerated pg = (DatasetConfig.PartitionGenerated) config.datasetConfig();
+            assertThat(config.datasetConfig(), instanceOf(DatasetConfig.RandomGenerated.class));
+            DatasetConfig.RandomGenerated pg = (DatasetConfig.RandomGenerated) config.datasetConfig();
             assertEquals(50, pg.numPartitions());
             assertEquals(DatasetConfig.PartitionDistribution.ZIPF, pg.partitionDistribution());
             assertEquals(99L, pg.generatorSeed());
@@ -128,7 +128,7 @@ public class TestConfigurationTests extends ESTestCase {
         String json = """
             {
               "dataset": {
-                "partition_generated": {}
+                "random_generated": {}
               },
               "dimensions": 32,
               "num_docs": 500,
@@ -138,8 +138,8 @@ public class TestConfigurationTests extends ESTestCase {
 
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
             TestConfiguration config = TestConfiguration.fromXContent(parser);
-            assertThat(config.datasetConfig(), instanceOf(DatasetConfig.PartitionGenerated.class));
-            DatasetConfig.PartitionGenerated pg = (DatasetConfig.PartitionGenerated) config.datasetConfig();
+            assertThat(config.datasetConfig(), instanceOf(DatasetConfig.RandomGenerated.class));
+            DatasetConfig.RandomGenerated pg = (DatasetConfig.RandomGenerated) config.datasetConfig();
             assertEquals(100, pg.numPartitions());
             assertEquals(DatasetConfig.PartitionDistribution.UNIFORM, pg.partitionDistribution());
             assertEquals(42L, pg.generatorSeed());
@@ -151,7 +151,7 @@ public class TestConfigurationTests extends ESTestCase {
         String json = """
             {
               "dataset": {
-                "partition_generated": {
+                "random_generated": {
                   "num_partitions": 25,
                   "partition_distribution": "uniform",
                   "generator_seed": 777
@@ -174,8 +174,8 @@ public class TestConfigurationTests extends ESTestCase {
         // Re-parse the serialized output and verify the dataset config survived the roundtrip
         try (XContentParser parser2 = createParser(XContentType.JSON.xContent(), serialized)) {
             TestConfiguration config2 = TestConfiguration.fromXContent(parser2);
-            assertThat(config2.datasetConfig(), instanceOf(DatasetConfig.PartitionGenerated.class));
-            DatasetConfig.PartitionGenerated pg = (DatasetConfig.PartitionGenerated) config2.datasetConfig();
+            assertThat(config2.datasetConfig(), instanceOf(DatasetConfig.RandomGenerated.class));
+            DatasetConfig.RandomGenerated pg = (DatasetConfig.RandomGenerated) config2.datasetConfig();
             assertEquals(25, pg.numPartitions());
             assertEquals(DatasetConfig.PartitionDistribution.UNIFORM, pg.partitionDistribution());
             assertEquals(777L, pg.generatorSeed());

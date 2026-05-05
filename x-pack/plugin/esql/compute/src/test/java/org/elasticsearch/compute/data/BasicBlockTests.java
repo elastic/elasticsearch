@@ -267,6 +267,7 @@ public class BasicBlockTests extends ESTestCase {
             assertEmptyLookup(blockFactory, block);
             assertThat(block.asVector().min(), equalTo(0));
             assertThat(block.asVector().max(), equalTo(positionCount - 1));
+            assertThat(block.valueMaxByteSize(), equalTo(Integer.BYTES));
             assertDeepCopy(block);
 
             try (IntBlock.Builder blockBuilder = blockFactory.newIntBlockBuilder(1)) {
@@ -299,6 +300,7 @@ public class BasicBlockTests extends ESTestCase {
                 assertSingleValueDenseBlock(vector.asBlock());
                 assertThat(vector.min(), equalTo(0));
                 assertThat(vector.max(), equalTo(positionCount - 1));
+                assertThat(vector.valueMaxByteSize(), equalTo(Integer.BYTES));
                 assertInsertNulls(vector.asBlock());
                 assertDeepCopy(vector.asBlock());
                 releaseAndAssertBreaker(vector.asBlock());
@@ -328,6 +330,7 @@ public class BasicBlockTests extends ESTestCase {
             assertEmptyLookup(blockFactory, vector.asBlock());
             assertThat(vector.min(), equalTo(start));
             assertThat(vector.max(), equalTo(start + positionCount - 1));
+            assertThat(vector.valueMaxByteSize(), equalTo(Integer.BYTES));
             assertDeepCopy(vector.asBlock());
             assertSingleValueDenseBlock(vector.asBlock());
 
@@ -357,6 +360,7 @@ public class BasicBlockTests extends ESTestCase {
             assertEmptyLookup(blockFactory, block);
             assertThat(block.asVector().min(), equalTo(Integer.MAX_VALUE));
             assertThat(block.asVector().max(), equalTo(Integer.MIN_VALUE));
+            assertThat(block.valueMaxByteSize(), equalTo(Integer.BYTES));
             assertInsertNulls(block);
             assertDeepCopy(block);
             releaseAndAssertBreaker(block);
@@ -365,6 +369,7 @@ public class BasicBlockTests extends ESTestCase {
                 IntVector vector = vectorBuilder.build();
                 assertThat(vector.min(), equalTo(Integer.MAX_VALUE));
                 assertThat(vector.max(), equalTo(Integer.MIN_VALUE));
+                assertThat(vector.valueMaxByteSize(), equalTo(Integer.BYTES));
                 assertInsertNulls(vector.asBlock());
                 assertDeepCopy(vector.asBlock());
                 releaseAndAssertBreaker(vector.asBlock());
@@ -406,6 +411,7 @@ public class BasicBlockTests extends ESTestCase {
             assertEmptyLookup(blockFactory, block);
             assertThat(block.asVector().min(), equalTo(value));
             assertThat(block.asVector().max(), equalTo(value));
+            assertThat(block.valueMaxByteSize(), equalTo(Integer.BYTES));
             assertInsertNulls(block);
             assertDeepCopy(block);
             releaseAndAssertBreaker(block);
@@ -437,6 +443,7 @@ public class BasicBlockTests extends ESTestCase {
             }
             assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
             assertEmptyLookup(blockFactory, block);
+            assertThat(block.valueMaxByteSize(), equalTo(Long.BYTES));
 
             try (LongBlock.Builder blockBuilder = blockFactory.newLongBlockBuilder(1)) {
                 LongBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
@@ -465,6 +472,7 @@ public class BasicBlockTests extends ESTestCase {
             LongStream.range(0, positionCount).forEach(vectorBuilder::appendLong);
             LongVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
+            assertThat(vector.valueMaxByteSize(), equalTo(Long.BYTES));
             assertInsertNulls(vector.asBlock());
             assertDeepCopy(vector.asBlock());
             releaseAndAssertBreaker(vector.asBlock());
@@ -503,6 +511,7 @@ public class BasicBlockTests extends ESTestCase {
                 b -> assertThat(b, instanceOf(ConstantNullBlock.class))
             );
             assertEmptyLookup(blockFactory, block);
+            assertThat(block.valueMaxByteSize(), equalTo(Long.BYTES));
             assertInsertNulls(block);
             assertDeepCopy(block);
             releaseAndAssertBreaker(block);
@@ -535,6 +544,7 @@ public class BasicBlockTests extends ESTestCase {
             }
             assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
             assertEmptyLookup(blockFactory, block);
+            assertThat(block.valueMaxByteSize(), equalTo(Double.BYTES));
 
             try (DoubleBlock.Builder blockBuilder = blockFactory.newDoubleBlockBuilder(1)) {
                 DoubleBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
@@ -565,6 +575,7 @@ public class BasicBlockTests extends ESTestCase {
                 IntStream.range(0, positionCount).mapToDouble(ii -> 1.0 / ii).forEach(vectorBuilder::appendDouble);
                 DoubleVector vector = vectorBuilder.build();
                 assertSingleValueDenseBlock(vector.asBlock());
+                assertThat(vector.valueMaxByteSize(), equalTo(Double.BYTES));
                 assertInsertNulls(vector.asBlock());
                 assertDeepCopy(vector.asBlock());
                 releaseAndAssertBreaker(vector.asBlock());
@@ -602,6 +613,7 @@ public class BasicBlockTests extends ESTestCase {
                 b -> assertThat(b, instanceOf(ConstantNullBlock.class))
             );
             assertEmptyLookup(blockFactory, block);
+            assertThat(block.valueMaxByteSize(), equalTo(Double.BYTES));
             assertInsertNulls(block);
             assertDeepCopy(block);
             releaseAndAssertBreaker(block);
@@ -635,6 +647,7 @@ public class BasicBlockTests extends ESTestCase {
             }
             assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
             assertEmptyLookup(blockFactory, block);
+            assertThat(block.valueMaxByteSize(), equalTo(Float.BYTES));
 
             try (FloatBlock.Builder blockBuilder = blockFactory.newFloatBlockBuilder(1)) {
                 FloatBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
@@ -665,6 +678,7 @@ public class BasicBlockTests extends ESTestCase {
                 IntStream.range(0, positionCount).mapToDouble(ii -> 1.0 / ii).forEach(vectorBuilder::appendDouble);
                 DoubleVector vector = vectorBuilder.build();
                 assertSingleValueDenseBlock(vector.asBlock());
+                assertThat(vector.valueMaxByteSize(), equalTo(Double.BYTES));
                 assertInsertNulls(vector.asBlock());
                 assertDeepCopy(vector.asBlock());
                 releaseAndAssertBreaker(vector.asBlock());
@@ -702,6 +716,7 @@ public class BasicBlockTests extends ESTestCase {
                 b -> assertThat(b, instanceOf(ConstantNullBlock.class))
             );
             assertEmptyLookup(blockFactory, block);
+            assertThat(block.valueMaxByteSize(), equalTo(Float.BYTES));
             assertInsertNulls(block);
             assertDeepCopy(block);
             releaseAndAssertBreaker(block);
@@ -751,6 +766,7 @@ public class BasicBlockTests extends ESTestCase {
         }
         assertLookup(block, positions(blockFactory, positionCount + 1000), singletonList(null));
         assertEmptyLookup(blockFactory, block);
+        assertThat(block.valueMaxByteSize(), equalTo(Arrays.stream(values).mapToInt(v -> v.length).max().orElse(0)));
 
         try (BytesRefBlock.Builder blockBuilder = blockFactory.newBytesRefBlockBuilder(1)) {
             BytesRefBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
@@ -782,6 +798,7 @@ public class BasicBlockTests extends ESTestCase {
             IntStream.range(0, positionCount).mapToObj(ii -> new BytesRef(randomAlphaOfLength(5))).forEach(vectorBuilder::appendBytesRef);
             BytesRefVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
+            assertThat(vector.valueMaxByteSize(), equalTo(5));
             assertInsertNulls(vector.asBlock());
             assertDeepCopy(vector.asBlock());
             releaseAndAssertBreaker(vector.asBlock());
@@ -929,6 +946,7 @@ public class BasicBlockTests extends ESTestCase {
                 b -> assertThat(b, instanceOf(ConstantNullBlock.class))
             );
             assertEmptyLookup(blockFactory, block);
+            assertThat(block.valueMaxByteSize(), equalTo(originalValue.length));
             assertInsertNulls(block);
             assertDeepCopy(block);
             releaseAndAssertBreaker(block);
@@ -979,6 +997,7 @@ public class BasicBlockTests extends ESTestCase {
                 }
             }
 
+            assertThat(block.valueMaxByteSize(), equalTo(Byte.BYTES));
             try (BooleanBlock.Builder blockBuilder = blockFactory.newBooleanBlockBuilder(1)) {
                 BooleanBlock copy = blockBuilder.copyFrom(block, 0, block.getPositionCount()).build();
                 assertThat(copy, equalTo(block));
@@ -1013,6 +1032,7 @@ public class BasicBlockTests extends ESTestCase {
             Arrays.stream(bools).forEach(vectorBuilder::appendBoolean);
             BooleanVector vector = vectorBuilder.build();
             assertSingleValueDenseBlock(vector.asBlock());
+            assertThat(vector.valueMaxByteSize(), equalTo(Byte.BYTES));
             assertToMask(vector);
             if (value == null) {
                 assertThat(vector.allTrue(), equalTo(Arrays.stream(bools).allMatch(v -> v)));
@@ -1069,6 +1089,7 @@ public class BasicBlockTests extends ESTestCase {
                 assertFalse(block.asVector().allTrue());
                 assertTrue(block.asVector().allFalse());
             }
+            assertThat(block.valueMaxByteSize(), equalTo(Byte.BYTES));
             assertInsertNulls(block);
             assertDeepCopy(block);
             releaseAndAssertBreaker(block);
@@ -1113,6 +1134,7 @@ public class BasicBlockTests extends ESTestCase {
                 singletonList(null),
                 b -> assertThat(b, instanceOf(ConstantNullBlock.class))
             );
+            assertThat(((IntBlock) block).valueMaxByteSize(), equalTo(0));
             assertInsertNulls(block);
             assertDeepCopy(block);
             releaseAndAssertBreaker(block);

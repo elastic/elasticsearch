@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiResponseHandler;
 import org.elasticsearch.xpack.inference.services.contextualai.request.ContextualAiRerankRequest;
@@ -49,7 +49,7 @@ public class ContextualAiActionCreator implements ContextualAiActionVisitor {
     public ExecutableAction create(ContextualAiRerankModel model, Map<String, Object> taskSettings) {
         var overriddenModel = ContextualAiRerankModel.of(model, taskSettings);
 
-        Function<QueryAndDocsInputs, Request> requestCreator = rerankInput -> new ContextualAiRerankRequest(
+        Function<QueryAndDocsInputs, OutboundRequest> requestCreator = rerankInput -> new ContextualAiRerankRequest(
             rerankInput.getQuery(),
             rerankInput.getChunks(),
             rerankInput.getTopN(),

@@ -485,12 +485,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
   method: testHKmeans
   issue: https://github.com/elastic/elasticsearch/issues/147482
-- class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
-  method: testCleanUpMigratedSystemIndexAfterIndicesAreDeleted
-  issue: https://github.com/elastic/elasticsearch/issues/148156
-- class: org.elasticsearch.xpack.searchablesnapshots.store.input.CachedBlobContainerIndexInputTests
-  method: testRandomReads
-  issue: https://github.com/elastic/elasticsearch/issues/148163
 - class: org.elasticsearch.xpack.stateless.cluster.metadata.CreateIndexLimitIT
   method: testCreateIndexLimit
   issue: https://github.com/elastic/elasticsearch/issues/147956
@@ -521,9 +515,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148190
-- class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsIntegTests
-  method: testCreateAndRestoreSearchableSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/148217
 - class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
   method: testSyntheticId
   issue: https://github.com/elastic/elasticsearch/issues/148235

@@ -826,7 +826,14 @@ public class VerifierTests extends ESTestCase {
             );
         analyzer().addIndex("decades", "mapping-decades.json")
             .stripErrorPrefix(true)
-            .error("FROM decades | LIMIT 1 BY date_range", equalTo("1:27: cannot group by on [date_range] type for grouping [date_range]"));
+            .error(
+                "FROM decades | LIMIT 1 BY date_range",
+                equalTo(
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V3.isEnabled()
+                        ? "1:27: cannot group by on [date_range] type for grouping [date_range]"
+                        : "1:27: Cannot use field [date_range] with unsupported type [date_range]"
+                )
+            );
         tsdb().error(
             "FROM test | LIMIT 1 BY network.bytes_in",
             equalTo("1:24: cannot group by on [counter_long] type for grouping [network.bytes_in]")
@@ -850,7 +857,11 @@ public class VerifierTests extends ESTestCase {
             .stripErrorPrefix(true)
             .error(
                 "FROM decades | STATS count(*) BY date_range",
-                equalTo("1:34: cannot group by on [date_range] type for grouping [date_range]")
+                equalTo(
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V3.isEnabled()
+                        ? "1:34: cannot group by on [date_range] type for grouping [date_range]"
+                        : "1:34: Cannot use field [date_range] with unsupported type [date_range]"
+                )
             );
         analyzer().addIndex("test", "mapping-all-types.json")
             .stripErrorPrefix(true)
@@ -1431,6 +1442,12 @@ public class VerifierTests extends ESTestCase {
 
     public void testSourceSorting() {
         defaultAnalyzer().error("from test metadata _source | sort _source", equalTo("1:35: cannot sort on _source"));
+    }
+
+    public void testFlattenedSorting() {
+        var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
+        index.error("FROM flattened_otel_logs | SORT attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
+        index.error("FROM flattened_otel_logs | SORT resource.attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
     }
 
     public void testCountersSorting() {

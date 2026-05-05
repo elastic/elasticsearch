@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Unit tests for AzureConfiguration.
@@ -71,7 +74,7 @@ public class AzureConfigurationTests extends ESTestCase {
     }
 
     public void testFromMapWithUnknownParamsThrows() {
-        expectThrows(org.elasticsearch.common.ValidationException.class, () -> AzureConfiguration.fromMap(Map.of("other_param", "value")));
+        expectThrows(ValidationException.class, () -> AzureConfiguration.fromMap(Map.of("other_param", "value")));
     }
 
     public void testFromFieldsWithAllFields() {
@@ -139,24 +142,15 @@ public class AzureConfigurationTests extends ESTestCase {
     }
 
     public void testAuthNoneConflictsWithConnectionString() {
-        expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> AzureConfiguration.fromFields("connstr", null, null, null, null, "none")
-        );
+        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields("connstr", null, null, null, null, "none"));
     }
 
     public void testAuthNoneConflictsWithAccountKey() {
-        expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> AzureConfiguration.fromFields(null, "acc", "key", null, null, "none")
-        );
+        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields(null, "acc", "key", null, null, "none"));
     }
 
     public void testAuthNoneConflictsWithSasToken() {
-        expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> AzureConfiguration.fromFields(null, null, null, "sas", null, "none")
-        );
+        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields(null, null, null, "sas", null, "none"));
     }
 
     public void testAuthNoneAllowsEndpoint() {
@@ -166,9 +160,49 @@ public class AzureConfigurationTests extends ESTestCase {
     }
 
     public void testUnsupportedAuthValueThrows() {
-        expectThrows(
-            org.elasticsearch.common.ValidationException.class,
-            () -> AzureConfiguration.fromFields(null, null, null, null, "https://ep", "unsupported")
-        );
+        expectThrows(ValidationException.class, () -> AzureConfiguration.fromFields(null, null, null, null, "https://ep", "unsupported"));
+    }
+
+    public void testFromMapRejectsUnknownKeys() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("account", "acc");
+        raw.put("header_row", false);
+        ValidationException e = expectThrows(ValidationException.class, () -> AzureConfiguration.fromMap(raw));
+        assertThat(e.getMessage(), containsString("unknown setting [header_row]"));
+    }
+
+    public void testFromQueryConfigDropsUnknownKeys() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("account", "myaccount");
+        raw.put("key", "mykey");
+        raw.put("endpoint", "https://ep");
+        raw.put("header_row", false);
+        raw.put("column_prefix", "f");
+
+        AzureConfiguration config = AzureConfiguration.fromQueryConfig(raw);
+        assertNotNull(config);
+        assertEquals("myaccount", config.account());
+        assertEquals("mykey", config.key());
+        assertEquals("https://ep", config.endpoint());
+    }
+
+    public void testFromQueryConfigStillEnforcesAuthConflict() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("auth", "none");
+        raw.put("connection_string", "connstr");
+        raw.put("header_row", false);
+        ValidationException e = expectThrows(ValidationException.class, () -> AzureConfiguration.fromQueryConfig(raw));
+        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
+    }
+
+    public void testFromQueryConfigWithOnlyUnknownKeysReturnsNull() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("header_row", false);
+        raw.put("column_prefix", "f");
+        assertNull(AzureConfiguration.fromQueryConfig(raw));
+    }
+
+    public void testFromQueryConfigWithNullReturnsNull() {
+        assertNull(AzureConfiguration.fromQueryConfig(null));
     }
 }

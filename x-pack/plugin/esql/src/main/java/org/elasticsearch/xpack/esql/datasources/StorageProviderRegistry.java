@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
@@ -56,6 +58,10 @@ public class StorageProviderRegistry implements Closeable {
     private final Map<String, ConcurrencyLimiter> limiters = new ConcurrentHashMap<>();
     private final Map<String, ConcurrencyBudgetAllocator> allocators = new ConcurrentHashMap<>();
     private final Map<String, AdaptiveBackoff> backoffs = new ConcurrentHashMap<>();
+
+    // Cache for providers created with a non-empty config (WITH clause queries).
+    // Avoids reconstructing cloud clients (S3, GCS, Azure) for repeated calls with the same config.
+    private final StorageProviderCache configuredProviderCache = new StorageProviderCache();
 
     private final Settings settings;
     private volatile int maxConcurrentRequests;
@@ -106,9 +112,9 @@ public class StorageProviderRegistry implements Closeable {
     private static final Set<String> FRAMEWORK_KEYS = Set.of(
         FormatNameResolver.CONFIG_FORMAT,
         FormatNameResolver.CONFIG_READER,
-        FileSourceFactory.CONFIG_MAX_ERRORS,
-        FileSourceFactory.CONFIG_MAX_ERROR_RATIO,
-        FileSourceFactory.CONFIG_ERROR_MODE
+        ErrorPolicy.CONFIG_MAX_ERRORS,
+        ErrorPolicy.CONFIG_MAX_ERROR_RATIO,
+        ErrorPolicy.CONFIG_ERROR_MODE
     );
 
     public StorageProvider createProvider(String scheme, Settings settings, Map<String, Object> config) {
@@ -127,7 +133,23 @@ public class StorageProviderRegistry implements Closeable {
         if (factory == null) {
             throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
         }
-        return wrapProvider(factory.create(settings, storageConfig), normalizedScheme);
+
+        // Cache providers by (scheme, storageConfig) so queries with the same WITH-clause config
+        // reuse the same cloud client and connection pool instead of constructing a new one.
+        // The cache key uses the stripped config so framework-only keys (e.g. format) don't
+        // produce spurious cache misses.
+        StorageProviderCache.CacheKey cacheKey = new StorageProviderCache.CacheKey(normalizedScheme, storageConfig);
+        try {
+            return configuredProviderCache.getOrCreate(
+                cacheKey,
+                () -> wrapProvider(factory.create(settings, storageConfig), normalizedScheme)
+            );
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            // The factory does not declare checked exceptions, so this path is unreachable.
+            throw new RuntimeException("Unexpected checked exception from StorageProviderFactory", e);
+        }
     }
 
     private static Map<String, Object> stripFrameworkKeys(Map<String, Object> config) {
@@ -211,6 +233,8 @@ public class StorageProviderRegistry implements Closeable {
         List<StorageProvider> toClose = new ArrayList<>(createdProviders);
         createdProviders.clear();
         providers.clear();
+        // Close default (zero-config) providers first, then the config-keyed cache.
         IOUtils.close(toClose);
+        configuredProviderCache.close();
     }
 }

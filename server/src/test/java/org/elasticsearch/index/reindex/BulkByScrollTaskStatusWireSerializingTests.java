@@ -118,11 +118,11 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
                 status.getReasonCancelled(),
                 () -> randomBoolean() ? null : randomAlphaOfLength(10)
             );
-            return new BulkByScrollTask.Status(status.getSliceStatuses(), reasonCancelled);
+            return new BulkByScrollTask.Status(status.getSliceStatuses(), reasonCancelled, status.getRequestsPerSecond());
         } else {
             List<BulkByScrollTask.StatusOrException> newSlices = new ArrayList<>(status.getSliceStatuses());
             newSlices.add(randomSliceStatusOrException());
-            return new BulkByScrollTask.Status(newSlices, status.getReasonCancelled());
+            return new BulkByScrollTask.Status(newSlices, status.getReasonCancelled(), status.getRequestsPerSecond());
         }
     }
 

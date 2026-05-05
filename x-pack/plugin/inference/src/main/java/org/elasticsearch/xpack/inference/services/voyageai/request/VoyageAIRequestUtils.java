@@ -18,7 +18,7 @@ public final class VoyageAIRequestUtils {
 
     public static void decorateWithHeaders(HttpPost request, VoyageAIModel model) {
         request.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        request.setHeader(createAuthBearerHeader(model.apiKey()));
+        request.setHeader(createAuthBearerHeader(model.getSecretSettings().apiKey()));
         request.setHeader(VoyageAIUtils.createRequestSourceHeader());
     }
 

@@ -174,6 +174,90 @@ public class FixtureUtils {
     }
 
     /**
+     * Inject the given comma-separated map entries into the EXTERNAL clause of {@code externalPart}.
+     * <ul>
+     *   <li>If {@code externalPart} already ends with {@code WITH { ... }}, the new entries are
+     *       merged into the existing map immediately after the opening {@code &#123;}, i.e. they
+     *       appear <em>before</em> the entries already present. The fixture-injected credentials
+     *       therefore come first; if a spec author intentionally writes a key that the fixture also
+     *       provides (e.g. {@code endpoint}), the spec value will win in maps that take
+     *       last-wins semantics, but please avoid relying on this — the precedence is a
+     *       consequence of the merge order rather than a contract.</li>
+     *   <li>Otherwise a fresh {@code WITH &#123; ... &#125;} is appended.</li>
+     *   <li>If both {@code entries} is empty and there is no existing {@code WITH} clause, the
+     *       input is returned unchanged (no synthetic empty {@code WITH &#123; &#125;} is emitted).</li>
+     * </ul>
+     * The entries string must be valid map content (e.g. {@code "endpoint": "x", "key": "y"}) — it
+     * is inserted verbatim.
+     */
+    public static String injectWithEntries(String externalPart, String entries) {
+        int withBrace = findOpenBraceOfTrailingWith(externalPart);
+        if (withBrace < 0) {
+            return entries.isEmpty() ? externalPart : externalPart + " WITH { " + entries + " }";
+        }
+        if (entries.isEmpty()) {
+            return externalPart;
+        }
+        // Strip a leading space from the existing map body since we always emit ", " as the separator,
+        // otherwise input like "{ "k": v }" would yield two spaces between the merged entries.
+        String tail = externalPart.substring(withBrace + 1);
+        if (tail.startsWith(" ")) {
+            tail = tail.substring(1);
+        }
+        return externalPart.substring(0, withBrace + 1) + " " + entries + ", " + tail;
+    }
+
+    /**
+     * Locate the position of the {@code &#123;} that opens a trailing {@code WITH &#123; ... &#125;}
+     * clause in an EXTERNAL fragment, or {@code -1} if no such clause is present. The detection is
+     * quote-aware so a literal {@code WITH} inside the source path string is ignored.
+     *
+     * <p>Note: escape sequences (e.g. {@code \"}) inside quoted strings are not handled — a
+     * backslash-escaped quote will toggle the quote state. This is acceptable for test fixture
+     * code where paths never contain escaped quotes.
+     */
+    private static int findOpenBraceOfTrailingWith(String externalPart) {
+        int len = externalPart.length();
+        boolean inQuotes = false;
+        char quoteChar = 0;
+        int lastUnquotedWith = -1;
+
+        for (int i = 0; i + 4 <= len; i++) {
+            char c = externalPart.charAt(i);
+            if (inQuotes == false && (c == '"' || c == '\'')) {
+                inQuotes = true;
+                quoteChar = c;
+            } else if (inQuotes && c == quoteChar) {
+                inQuotes = false;
+            } else if (inQuotes == false
+                && (c == 'W' || c == 'w')
+                && externalPart.regionMatches(true, i, "WITH", 0, 4)
+                && (i == 0 || isIdentPart(externalPart.charAt(i - 1)) == false)
+                && (i + 4 == len || isIdentPart(externalPart.charAt(i + 4)) == false)) {
+                    lastUnquotedWith = i;
+                }
+        }
+
+        if (lastUnquotedWith < 0) {
+            return -1;
+        }
+        for (int i = lastUnquotedWith + 4; i < len; i++) {
+            char c = externalPart.charAt(i);
+            if (c == '{') {
+                return i;
+            }
+            if (Character.isWhitespace(c) == false) {
+                return -1;
+            }
+        }
+        return -1;
+    }
+
+    private static boolean isIdentPart(char c) {
+        return Character.isLetterOrDigit(c) || c == '_';
+    }
+
+    /**
      * Find the first pipe character that's not inside a quoted string.
      * Used by fixture injectParams methods to locate where to insert WITH clauses.
      */

@@ -9,18 +9,25 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class AwaitClusterStateVersionAppliedResponse extends BaseNodesResponse<
     TransportAwaitClusterStateVersionAppliedAction.NodeResponse> {
+
+    /// subset of [#failures] that are not caused by the target node not recognizing the action
+    /// ([org.elasticsearch.transport.ActionNotFoundTransportException])
+    private final List<FailedNodeException> actualFailures;
 
     public AwaitClusterStateVersionAppliedResponse(
         ClusterName clusterName,
@@ -28,6 +35,17 @@ public class AwaitClusterStateVersionAppliedResponse extends BaseNodesResponse<
         List<FailedNodeException> failures
     ) {
         super(clusterName, nodeResponses, failures);
+        this.actualFailures = failures().stream()
+            .filter(f -> ExceptionsHelper.unwrap(f, ActionNotFoundTransportException.class) == null)
+            .collect(Collectors.toList());
+    }
+
+    public List<FailedNodeException> actualFailures() {
+        return actualFailures;
+    }
+
+    public boolean hasActualFailures() {
+        return actualFailures.isEmpty() == false;
     }
 
     @Override

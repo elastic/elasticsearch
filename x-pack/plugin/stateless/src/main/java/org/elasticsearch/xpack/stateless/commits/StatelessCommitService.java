@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexFileNames;
@@ -1159,6 +1160,20 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     Set<String> getAllSearchNodesRetainingCommitsForShard(ShardId shardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         return commitState.getAllSearchNodesRetainingCommits();
+    }
+
+    // Visible for testing
+    void logBlobReferences(ShardId shardId, Level logLevel) {
+        if (Assertions.ENABLED) {
+            try {
+                ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+                logger.log(logLevel, "blob references for shard [{}]: {}", shardId, commitState.primaryTermAndGenToBlobReference);
+            } catch (Exception loggingException) {
+                logger.log(logLevel, () -> "failed to log blob references for shard [" + shardId + "]", loggingException);
+            }
+        } else {
+            assert false : "should only be called in tests";
+        }
     }
 
     /**

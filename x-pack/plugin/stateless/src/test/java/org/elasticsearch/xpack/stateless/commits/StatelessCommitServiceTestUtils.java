@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Set;
@@ -29,5 +30,9 @@ public class StatelessCommitServiceTestUtils {
 
     public static StatelessCommitCleaner getStatelessCommitCleaner(StatelessCommitService statelessCommitService) {
         return statelessCommitService.getCommitCleaner();
+    }
+
+    public static void logBlobReferences(StatelessCommitService statelessCommitService, ShardId shardId, Level logLevel) {
+        statelessCommitService.logBlobReferences(shardId, logLevel);
     }
 }

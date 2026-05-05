@@ -22,16 +22,15 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.WithClauseValidator;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 
@@ -116,31 +115,37 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     @Override
+    public void validateConfig(String location, Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return;
+        }
+        StoragePath storagePath = StoragePath.of(location);
+        Configured<StorageProvider> resolvedStorage = storageRegistry.createProvider(storagePath.scheme(), settings, config);
+        Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
+        WithClauseValidator.check(config, List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS));
+    }
+
+    @Override
     public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
         try {
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
 
             StorageProvider provider;
-            Set<String> storageConsumed;
             if (config != null && config.isEmpty() == false) {
-                Configured<StorageProvider> resolved = storageRegistry.createProvider(scheme, settings, config);
-                provider = resolved.value();
-                storageConsumed = resolved.consumedKeys();
+                provider = storageRegistry.createProvider(scheme, settings, config).value();
             } else {
                 provider = storageRegistry.provider(storagePath);
-                storageConsumed = Set.of();
             }
 
             StorageObject storageObject = provider.newObject(storagePath);
             if (storageObject.exists() == false) {
                 throw new IOException("File does not exist: " + location);
             }
-            Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
-            // Validation lives here so typos surface as planning-time errors. Downstream callers use
-            // only the value().
-            validateConfigKeys(config, storageConsumed, resolvedReader.consumedKeys());
-            return resolvedReader.value().metadata(storageObject);
+            // Idempotent: provider + reader resolution above is cached, so this re-resolves cheaply.
+            validateConfig(location, config);
+            FormatReader reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config).value();
+            return reader.metadata(storageObject);
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);
         }
@@ -223,12 +228,10 @@ final class FileSourceFactory implements ExternalSourceFactory {
     static final String CONFIG_FORMAT = "format";
 
     /**
-     * Coordinator-level WITH-clause keys recognised here in {@link FileSourceFactory}, independent
-     * of any single storage or format layer. Used by {@link #validateConfigKeys} to mark these
-     * keys as consumed so they are not flagged as typos.
-     * <p>
-     * Includes {@link #CONFIG_FORMAT} (used by {@link #resolveFormatReader} to override extension-based
-     * format selection) and {@link ErrorPolicy#CONFIG_KEYS} (used by {@link #resolveErrorPolicy}).
+     * Coordinator-level WITH-clause keys claimed by {@link FileSourceFactory} itself, independent
+     * of any single storage or format layer. Includes {@link #CONFIG_FORMAT} (used by
+     * {@link #resolveFormatReader} to override extension-based format selection) and
+     * {@link ErrorPolicy#CONFIG_KEYS} (used by {@link #resolveErrorPolicy}).
      */
     static final Set<String> COORDINATOR_KEYS;
 
@@ -237,41 +240,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
         keys.add(CONFIG_FORMAT);
         keys.addAll(ErrorPolicy.CONFIG_KEYS);
         COORDINATOR_KEYS = Set.copyOf(keys);
-    }
-
-    /**
-     * Rejects any WITH-clause key that no layer claims. The union of {@code storageConsumed},
-     * {@code formatConsumed}, and {@link #COORDINATOR_KEYS} must cover {@code config.keySet()};
-     * anything left over throws {@link IllegalArgumentException} listing the unknown keys (sorted,
-     * for deterministic messages) and the recognised options.
-     */
-    static void validateConfigKeys(Map<String, Object> config, Set<String> storageConsumed, Set<String> formatConsumed) {
-        if (config == null || config.isEmpty()) {
-            return;
-        }
-        List<String> unknown = null;
-        for (String key : config.keySet()) {
-            if (storageConsumed.contains(key) == false
-                && formatConsumed.contains(key) == false
-                && COORDINATOR_KEYS.contains(key) == false) {
-                if (unknown == null) {
-                    unknown = new ArrayList<>();
-                }
-                unknown.add(key);
-            }
-        }
-        if (unknown == null) {
-            return;
-        }
-        Set<String> allRecognised = new TreeSet<>();
-        allRecognised.addAll(storageConsumed);
-        allRecognised.addAll(formatConsumed);
-        allRecognised.addAll(COORDINATOR_KEYS);
-        // Sort the unknown list so the message is deterministic regardless of map iteration order.
-        unknown.sort(String::compareTo);
-        throw new IllegalArgumentException(
-            "unknown option" + (unknown.size() == 1 ? "" : "s") + " " + unknown + " in WITH clause; recognised options are " + allRecognised
-        );
     }
 
     /** Delegates to {@link ErrorPolicy#fromConfig(Map, ErrorPolicy)} with the format's default

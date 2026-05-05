@@ -25,6 +25,21 @@ public interface ExternalSourceFactory {
 
     SourceMetadata resolveMetadata(String location, Map<String, Object> config);
 
+    /**
+     * Reject WITH-clause keys this factory does not recognize for the given location, throwing
+     * {@link IllegalArgumentException} naming the unknown keys plus the recognised options.
+     * <p>
+     * Implementations compose claimed-key sets across their own sub-components (storage backend,
+     * format reader, catalog, connection, …) and call
+     * {@link WithClauseValidator#check(Map, java.util.Collection)} with the union. The default is
+     * a no-op so providers that don't yet implement validation keep working — silently accepting
+     * any key as today.
+     * <p>
+     * Called once at planning time, before {@link #resolveMetadata}; idempotent against repeated
+     * invocations on the same {@code (location, config)} pair.
+     */
+    default void validateConfig(String location, Map<String, Object> config) {}
+
     default FilterPushdownSupport filterPushdownSupport() {
         return null;
     }

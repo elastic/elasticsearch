@@ -60,7 +60,6 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -348,24 +347,6 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         }
     }
 
-    public void prepareBatch(List<StorageObject> objects, Executor executor) {
-        if (objects.size() <= 1) {
-            return;
-        }
-        NativeLibLoader.ensureLoaded();
-        String[] paths = new String[objects.size()];
-        for (int i = 0; i < objects.size(); i++) {
-            paths[i] = resolveReadPath(objects.get(i));
-        }
-        // Fire all S3 footer fetches concurrently into the Rust LRU.
-        ParquetRsBridge.prefetchArrowMetadata(paths, configJson);
-        // Promote each entry from the LRU into our strongly-held per-instance cache.
-        // Each loadArrowMetadata call is an Arc-clone + Box allocation — cheap, no network I/O.
-        for (String path : paths) {
-            metadataHandleCache.computeIfAbsent(path, p -> ParquetRsBridge.loadArrowMetadata(p, configJson));
-        }
-    }
-
     // --- RangeAwareFormatReader ---
 
     /** Set to false to disable range-aware splitting and use the single-driver path for benchmarking. */
@@ -383,7 +364,7 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
 
         Map<String, DataType> columnTypes = columnTypes(importSchema(path));
 
-        long metaHandle = metadataHandleCache.getOrDefault(path, 0L);
+        long metaHandle = metadataHandleCache.computeIfAbsent(path, p -> ParquetRsBridge.loadArrowMetadata(p, configJson));
         Object[] pair = ParquetRsBridge.discoverRowGroupSplits(path, configJson, metaHandle);
         if (pair == null || pair.length != 2) {
             return List.of();

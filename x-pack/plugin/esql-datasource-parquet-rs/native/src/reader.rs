@@ -283,8 +283,7 @@ fn local_concurrency() -> usize {
 /// Fetches `ArrowReaderMetadata` for one file, inserts it into the process-wide cache,
 /// and returns it. On a cache hit no network call is made.
 ///
-/// Reused by both `loadArrowMetadata` (single file, blocking JNI) and
-/// `prefetchArrowMetadata` (batch, concurrent async).
+/// Used by `loadArrowMetadata`.
 async fn fetch_and_cache_metadata(
     file_path: &str,
     config: &StorageConfig,
@@ -339,51 +338,6 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
         Ok(handle)
     })
     .resolve::<ThrowRuntimeExAndDefault>()
-}
-
-/// Prefetches and caches `ArrowReaderMetadata` for all given paths concurrently.
-/// All footer fetches are fired in parallel via the Tokio runtime; per-path errors are
-/// logged and silently ignored so a single bad file never aborts the whole batch.
-/// The per-file `loadArrowMetadata` will retry any cache miss.
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parquetrs_ParquetRsBridge_prefetchArrowMetadata(
-    mut env: EnvUnowned,
-    _class: JClass,
-    file_paths: JObjectArray,
-    config_json: JString,
-) {
-    env.with_env(|env| -> JniResult<()> {
-        let len = file_paths.len(env)?;
-        let mut paths: Vec<String> = Vec::with_capacity(len);
-        for i in 0..len {
-            let obj = file_paths.get_element(env, i)?;
-            let jstr: JString = JString::cast_local(env, obj)?;
-            paths.push(jstr.try_to_string(env)?);
-        }
-        let config = extract_storage_config(env, &config_json)?;
-
-        ASYNC_RUNTIME.block_on(async move {
-            let tasks: Vec<_> = paths
-                .into_iter()
-                .map(|path| {
-                    let cfg = config.clone();
-                    async move {
-                        if let Err(e) = fetch_and_cache_metadata(&path, &cfg).await {
-                            log::warn!(
-                                target: "esql_parquet_rs::reader",
-                                "prefetch failed for [{}]: {}",
-                                path, e
-                            );
-                        }
-                    }
-                })
-                .collect();
-            futures::future::join_all(tasks).await;
-        });
-
-        Ok(())
-    })
-    .resolve::<ThrowRuntimeExAndDefault>();
 }
 
 /// Free a metadata handle previously returned by `loadArrowMetadata`.

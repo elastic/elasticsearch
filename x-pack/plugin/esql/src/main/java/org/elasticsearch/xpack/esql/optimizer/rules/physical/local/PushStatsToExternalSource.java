@@ -96,8 +96,8 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         if (externalExec.pushedExpressions().isEmpty() == false || externalExec.pushedFilter() != null) {
             logger.info(
                 () -> Strings.format(
-                    "PushStatsToExternalSource: skipping stats substitution (source has pushed scan predicates)" +
-                        " path=[{}] projections=[{}] type=[{}]",
+                    "PushStatsToExternalSource: skipping stats substitution (source has pushed scan predicates)"
+                        + " path=[{}] projections=[{}] type=[{}]",
                     externalExec.sourcePath(),
                     externalExec.pushedExpressions().size(),
                     externalExec.sourceType()

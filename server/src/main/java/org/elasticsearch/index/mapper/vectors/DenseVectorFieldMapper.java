@@ -30,8 +30,6 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -2943,9 +2941,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             Query knnQuery = switch (element.elementType()) {
-                case BYTE -> createExactKnnByteQuery(resolvedQueryVector.asByteVector());
-                case FLOAT, BFLOAT16 -> createExactKnnFloatQuery(resolvedQueryVector.asFloatVector());
-                case BIT -> createExactKnnBitQuery(resolvedQueryVector.asByteVector());
+                case BYTE -> createExactKnnByteQuery(resolvedQueryVector.asByteVector(), null);
+                case FLOAT, BFLOAT16 -> createExactKnnFloatQuery(resolvedQueryVector.asFloatVector(), null);
+                case BIT -> createExactKnnBitQuery(resolvedQueryVector.asByteVector(), null);
             };
             if (vectorSimilarity != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -2961,21 +2959,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return indexVersionCreated.onOrAfter(NORMALIZE_COSINE) && VectorSimilarity.COSINE.equals(similarity);
         }
 
-        private Query createExactKnnBitQuery(byte[] queryVector) {
+        private Query createExactKnnBitQuery(byte[] queryVector, Query filter) {
             element.checkDimensions(dims, queryVector.length);
-            return new DenseVectorQuery.Bytes(queryVector, name());
+            return new DenseVectorQuery.Bytes(queryVector, name(), filter);
         }
 
-        private Query createExactKnnByteQuery(byte[] queryVector) {
+        private Query createExactKnnByteQuery(byte[] queryVector, Query filter) {
             element.checkDimensions(dims, queryVector.length);
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
                 element.checkVectorMagnitude(similarity, ByteElement.errorElementsAppender(queryVector), squaredMagnitude);
             }
-            return new DenseVectorQuery.Bytes(queryVector, name());
+            return new DenseVectorQuery.Bytes(queryVector, name(), filter);
         }
 
-        private Query createExactKnnFloatQuery(float[] queryVector) {
+        private Query createExactKnnFloatQuery(float[] queryVector, Query filter) {
             element.checkDimensions(dims, queryVector.length);
             element.checkVectorBounds(queryVector);
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
@@ -2989,7 +2987,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
             }
-            return new DenseVectorQuery.Floats(queryVector, name());
+            return new DenseVectorQuery.Floats(queryVector, name(), filter);
         }
 
         public Query createKnnQuery(
@@ -3079,14 +3077,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             element.checkDimensions(dims, queryVector.length);
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
-                var exactKnnQuery = parentFilter != null
-                    ? new DiversifyingParentBlockQuery(parentFilter, createExactKnnBitQuery(queryVector))
-                    : createExactKnnBitQuery(queryVector);
-                knnQuery = filter == null
-                    ? exactKnnQuery
-                    : new BooleanQuery.Builder().add(exactKnnQuery, BooleanClause.Occur.SHOULD)
-                        .add(filter, BooleanClause.Occur.FILTER)
-                        .build();
+                var exactKnnQuery = createExactKnnBitQuery(queryVector, filter);
+                knnQuery = parentFilter != null ? new DiversifyingParentBlockQuery(parentFilter, exactKnnQuery) : exactKnnQuery;
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenByteKnnVectorQuery(
@@ -3129,14 +3121,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
-                var exactKnnQuery = parentFilter != null
-                    ? new DiversifyingParentBlockQuery(parentFilter, createExactKnnByteQuery(queryVector))
-                    : createExactKnnByteQuery(queryVector);
-                knnQuery = filter == null
-                    ? exactKnnQuery
-                    : new BooleanQuery.Builder().add(exactKnnQuery, BooleanClause.Occur.SHOULD)
-                        .add(filter, BooleanClause.Occur.FILTER)
-                        .build();
+                var exactKnnQuery = createExactKnnByteQuery(queryVector, filter);
+                knnQuery = parentFilter != null ? new DiversifyingParentBlockQuery(parentFilter, exactKnnQuery) : exactKnnQuery;
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenByteKnnVectorQuery(
@@ -3204,14 +3190,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             Query knnQuery;
             if (indexOptions != null && indexOptions.isFlat()) {
-                var exactKnnQuery = parentFilter != null
-                    ? new DiversifyingParentBlockQuery(parentFilter, createExactKnnFloatQuery(queryVector))
-                    : createExactKnnFloatQuery(queryVector);
-                knnQuery = filter == null
-                    ? exactKnnQuery
-                    : new BooleanQuery.Builder().add(exactKnnQuery, BooleanClause.Occur.SHOULD)
-                        .add(filter, BooleanClause.Occur.FILTER)
-                        .build();
+                var exactKnnQuery = createExactKnnFloatQuery(queryVector, filter);
+                knnQuery = parentFilter != null ? new DiversifyingParentBlockQuery(parentFilter, exactKnnQuery) : exactKnnQuery;
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);

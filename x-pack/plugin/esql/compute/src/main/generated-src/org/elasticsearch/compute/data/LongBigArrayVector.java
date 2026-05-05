@@ -78,6 +78,11 @@ public final class LongBigArrayVector extends AbstractVector implements LongVect
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Long.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.LONG;
     }

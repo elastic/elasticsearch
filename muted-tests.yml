@@ -458,9 +458,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.shutdown.SigtermTerminationHandlerTests
   method: testShutdownBlockIgnoreOtherRoles
   issue: https://github.com/elastic/elasticsearch/issues/148037
-- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
-  method: testRandomActivitiesStatelessSnapshotAndRelocationEnabled
-  issue: https://github.com/elastic/elasticsearch/issues/148041
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056
@@ -536,3 +533,18 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testSnapshotShardsWhileHollowing
   issue: https://github.com/elastic/elasticsearch/issues/148236
+- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
+  method: testEstimatedHeapHighWatermarkMonitorTriggersReroute
+  issue: https://github.com/elastic/elasticsearch/issues/148246
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:exponential_histogram.All aggs grouped by Date Trunc and Instance (time series mode)}
+  issue: https://github.com/elastic/elasticsearch/issues/148250
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:spatial.centroidFromAirportsAfterIntersectsCompoundPredicateNotIndexed}
+  issue: https://github.com/elastic/elasticsearch/issues/148251
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:date.monthNameTruncate}
+  issue: https://github.com/elastic/elasticsearch/issues/148252
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
+  method: test {csv-spec:tdigest.Group Aggs By Bucket and Instance (standard mode)}
+  issue: https://github.com/elastic/elasticsearch/issues/148254

@@ -319,8 +319,8 @@ c:long
 ;
 
 // COALESCE chooses the first non-null. The first FIELD_EXTRACT call still
-// emits a warning per row (path doesn't exist); the second produces the host
-// name. This test pins down null-propagation through COALESCE.
+// emits a warning per row (path doesn't exist), and the second produces the
+// host name. This test pins down null-propagation through COALESCE.
 resultInCoalesceFallback
 required_capability: field_extract_function
 required_capability: flattened_datatype
@@ -339,7 +339,7 @@ hn:keyword
 infra-filebeat-6vjxr
 ;
 
-// Two independent FIELD_EXTRACT calls on the same flattened root; both must
+// Two independent FIELD_EXTRACT calls on the same flattened root, both must
 // produce their respective leaves.
 twoCallsInOneQuery
 required_capability: field_extract_function

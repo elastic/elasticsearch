@@ -48,10 +48,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 /**
  * Extracts a single sub-field from a {@code flattened} field root as {@code keyword}.
  * <p>
- *     The second argument is the <em>literal</em> name of a flattened sub-field — exactly the
- *     dotted key as it is stored in doc values for the flattened root (for example
- *     {@code "host.name"}). It is <strong>not</strong> JSONPath: dots are part of the key, not
- *     path separators, and bracket / array-index syntax is rejected.
+ *     The second argument is the <em>literal</em> name of a flattened sub-field, that is,
+ *     exactly the dotted key as it is stored in doc values for the flattened root (for example
+ *     {@code "host.name"}).
  * </p>
  */
 public class FieldExtract extends EsqlScalarFunction {
@@ -75,14 +74,14 @@ public class FieldExtract extends EsqlScalarFunction {
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         description = """
-            Extracts the value of a single sub-field from a `flattened` field root as `keyword`.""",
+            Extracts the value of a single sub-field from a [`flattened` field](/reference/elasticsearch/mapping-reference/flattened.md) root as `keyword`.""",
         detailedDescription = """
             The first argument must be a field whose ES mapping type is `flattened` (the root of the flattened object).
-            The second argument is the *literal* name of the sub-field to extract — exactly the dotted key as stored in
-            doc values for the flattened root. For example, `field_extract(resource.attributes, "host.name")` looks up
-            the literal storage key `host.name`; the dot is part of the key, not a path separator. Nested objects in the
-            original document also collapse to dotted keys (an input `{"a":{"b":"x"}}` is stored as the flat key `a.b`),
-            so the same dotted form addresses both flat and originally-nested sub-fields.
+            The second argument is the *literal* name of the sub-field to extract, that is, exactly the dotted key as
+            stored in doc values for the flattened root. For example, `field_extract(resource.attributes, "host.name")`
+            looks up the literal storage key `host.name`. The dot is part of the key, not a path separator. Nested
+            objects in the original document also collapse to dotted keys (an input `{"a":{"b":"x"}}` is stored as the
+            flat key `a.b`), so the same dotted form addresses both flat and originally-nested sub-fields.
 
             JSONPath syntax is not supported: brackets (`['host.name']`) and array indices (`tags[0]`) are rejected.
             Path matching is case-sensitive.
@@ -90,9 +89,9 @@ public class FieldExtract extends EsqlScalarFunction {
             Returns `null` if either argument is `null`, if no sub-field with that name exists, or if the stored value
             is JSON `null`. Returns `null` and emits a warning if the root value is not valid JSON.
 
-            String values are returned without surrounding quotes; numbers and booleans as their string representation;
-            objects and arrays as JSON strings. When the sub-field is multi-valued in the flattened field, the result is
-            a multi-valued `keyword` block.""",
+            String values are returned without surrounding quotes, numbers and booleans as their string representation,
+            and objects and arrays as JSON strings. When the sub-field is multi-valued in the flattened field, the
+            result is a multi-valued `keyword` block.""",
         examples = @Example(file = "field_extract", tag = "field_extract_host_name")
     )
     public FieldExtract(
@@ -164,9 +163,9 @@ public class FieldExtract extends EsqlScalarFunction {
 
     /**
      * Verifies that {@code path} is a usable literal flattened sub-field name: non-empty and free of
-     * JSONPath syntax. The {@code [} / {@code ]} characters are rejected to catch both array indices
-     * ({@code tags[0]}) and quoted bracket keys ({@code ['host.name']}) — neither has any meaning
-     * for flattened storage where every leaf is addressed by its dotted key.
+     * JSONPath syntax. The {@code [} and {@code ]} characters are rejected to catch both array
+     * indices ({@code tags[0]}) and quoted bracket keys ({@code ['host.name']}). Neither has any
+     * meaning for flattened storage where every leaf is addressed by its dotted key.
      */
     static void validateFieldExtractPath(String path) {
         if (path.isEmpty()) {
@@ -174,7 +173,7 @@ public class FieldExtract extends EsqlScalarFunction {
         }
         if (path.indexOf('[') >= 0 || path.indexOf(']') >= 0) {
             throw new IllegalArgumentException(
-                "field_extract path must be a literal flattened sub-field name; brackets and array indices are not supported"
+                "field_extract path must be a literal flattened sub-field name. Brackets and array indices are not supported"
             );
         }
     }
@@ -193,7 +192,7 @@ public class FieldExtract extends EsqlScalarFunction {
 
     @Evaluator(extraName = "Constant", warnExceptions = IllegalArgumentException.class)
     static void processConstant(BytesRefBlock.Builder builder, BytesRef flattenedJson, @Fixed String path) {
-        // path was validated at plan time; no need to re-check per row.
+        // path was validated at plan time, no need to re-check per row.
         extractTopLevelKey(builder, flattenedJson, path);
     }
 
@@ -235,8 +234,8 @@ public class FieldExtract extends EsqlScalarFunction {
 
     /**
      * Appends the current parser value to {@code builder}, preferring zero-copy byte slicing when the
-     * input is JSON. Mirrors the value-shape rules in {@code JSON_EXTRACT}: scalars are stringified,
-     * objects and arrays are returned as their JSON serialization.
+     * input is JSON. Scalars are returned stringified, and objects or arrays are returned as their
+     * JSON serialization.
      */
     private static void appendCurrentValue(BytesRefBlock.Builder builder, XContentParser parser, byte[] rawBytes, int rawOffset)
         throws IOException {

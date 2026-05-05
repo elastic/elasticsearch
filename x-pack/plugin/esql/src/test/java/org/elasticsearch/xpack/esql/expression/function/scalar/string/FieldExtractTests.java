@@ -129,7 +129,7 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
         assertTrue(extract.typeResolved().unresolved());
         assertThat(
             extract.typeResolved().message(),
-            equalTo("field_extract path must be a literal flattened sub-field name; brackets and array indices are not supported")
+            equalTo("field_extract path must be a literal flattened sub-field name. Brackets and array indices are not supported")
         );
     }
 
@@ -142,7 +142,7 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
         assertTrue(extract.typeResolved().unresolved());
         assertThat(
             extract.typeResolved().message(),
-            equalTo("field_extract path must be a literal flattened sub-field name; brackets and array indices are not supported")
+            equalTo("field_extract path must be a literal flattened sub-field name. Brackets and array indices are not supported")
         );
     }
 
@@ -169,7 +169,7 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
 
     public void testLiteralDottedKeyMatchesFlatStorage() {
         // The doc-values shape of a flattened root: every leaf is one top-level key with a dotted name.
-        // This test also pins down the literal-key semantics — if the implementation accidentally
+        // This test also pins down the literal-key semantics. If the implementation accidentally
         // treated `.` as a navigation separator, the "literal dotted key" supplier above would also
         // start failing, since its input has no nested object to walk into.
         assertThat(extractFromBytes(new BytesRef("{\"foo.bar.baz\":\"x\"}"), "foo.bar.baz"), equalTo("x"));

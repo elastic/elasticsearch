@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
@@ -48,7 +49,7 @@ public abstract class SearchBasedChangesSnapshotTests extends EngineTestCase {
 
     @Override
     public void setUp() throws Exception {
-        columnarId = randomBoolean();
+        columnarId = ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled() && randomBoolean();
         super.setUp();
     }
 

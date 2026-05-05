@@ -345,8 +345,7 @@ public class APMTracerTests extends ESTestCase {
         return tracer;
     }
 
-    // TODO can we name this more descriptively for a human? e.g.: span with a PARENT_APM_TRACE_CONTEXT is dropped
-    public void test_onTraceStarted_onSdkPath_withMaxChildSpansZero_skipsChildSpan() {
+    public void test_onSdkPath_withMaxChildSpansZero_dropsSpanWithLocalParent() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer tracer = buildSdkPathTracer(settings, 0, 0);
 
@@ -358,8 +357,7 @@ public class APMTracerTests extends ESTestCase {
         assertThat(tracer.getSpans(), anEmptyMap());
     }
 
-    // TODO can we name/document this more descriptively for a human? e.g.:span without a local parent is recorded.
-    public void test_onTraceStarted_onSdkPath_withMaxChildSpansZero_keepsRootSpan() {
+    public void test_onSdkPath_withMaxChildSpansZero_recordsRootSpanWithoutLocalParent() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer tracer = buildSdkPathTracer(settings, 0, 0);
 
@@ -369,8 +367,6 @@ public class APMTracerTests extends ESTestCase {
         assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
     }
 
-    // TODO can we name/document this more descriptively for a human? e.g.: verifies setStatus(ERROR) + the two attributes, and that
-    // recordException is not called.
     public void test_addError_onSdkPath_withStackTraceLimitZero_setsStatusInsteadOfRecordException() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer tracer = buildSdkPathTracer(settings, 0, 0);

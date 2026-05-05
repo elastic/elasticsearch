@@ -88,6 +88,11 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return 0;
+    }
+
+    @Override
     public ConstantNullBlock filter(boolean mayContainDuplicates, int... positions) {
         return (ConstantNullBlock) blockFactory().newConstantNullBlock(positions.length);
     }

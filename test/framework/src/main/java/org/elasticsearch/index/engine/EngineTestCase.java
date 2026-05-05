@@ -173,7 +173,6 @@ public abstract class EngineTestCase extends ESTestCase {
     protected Store storeReplica;
 
     protected MapperService mapperService;
-    protected boolean columnarId;
 
     protected InternalEngine engine;
     protected InternalEngine replicaEngine;
@@ -270,12 +269,6 @@ public abstract class EngineTestCase extends ESTestCase {
         if (randomBoolean()) {
             var parsedMapping = XContentHelper.convertToMap(XContentFactory.xContent(defaultMapping), defaultMapping, true);
             parsedMapping.put(RoutingFieldMapper.NAME, Map.of("doc_values", true));
-            defaultMapping = Strings.toString(XContentFactory.jsonBuilder().map(parsedMapping));
-        }
-        if (true) {
-            columnarId = true;
-            var parsedMapping = XContentHelper.convertToMap(XContentFactory.xContent(defaultMapping), defaultMapping, true);
-            parsedMapping.put(IdFieldMapper.NAME, Map.of("mode", "columnar"));
             defaultMapping = Strings.toString(XContentFactory.jsonBuilder().map(parsedMapping));
         }
         mapperService = createMapperService(defaultSettings.getSettings(), defaultMapping, extraMappers());
@@ -1410,7 +1403,7 @@ public abstract class EngineTestCase extends ESTestCase {
      * Gets a collection of tuples of docId, sequence number, and primary term of all live documents in the provided engine.
      */
     protected List<DocIdSeqNoAndSource> getDocIds(Engine engine, boolean refresh) throws IOException {
-        return EngineTestUtils.getDocIds(engine, refresh, columnarId);
+        return EngineTestUtils.getDocIds(engine, refresh, false);
     }
 
     /**

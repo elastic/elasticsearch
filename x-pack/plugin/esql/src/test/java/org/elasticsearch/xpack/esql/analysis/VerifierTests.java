@@ -811,6 +811,66 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testUnsupportedGroupKeyTypesNotAllowedInLimitBy() {
+        analyzer().addK8sDownsampled()
+            .stripErrorPrefix(true)
+            .error(
+                "FROM k8s | LIMIT 1 BY network.eth0.tx",
+                equalTo("1:23: cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
+            );
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM exp_histo_sample | LIMIT 1 BY responseTime",
+                equalTo("1:36: cannot group by on [exponential_histogram] type for grouping [responseTime]")
+            );
+        analyzer().addIndex("decades", "mapping-decades.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM decades | LIMIT 1 BY date_range",
+                equalTo(
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V3.isEnabled()
+                        ? "1:27: cannot group by on [date_range] type for grouping [date_range]"
+                        : "1:27: Cannot use field [date_range] with unsupported type [date_range]"
+                )
+            );
+        tsdb().error(
+            "FROM test | LIMIT 1 BY network.bytes_in",
+            equalTo("1:24: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+    }
+
+    public void testUnsupportedGroupKeyTypesNotAllowedInStatsBy() {
+        analyzer().addK8sDownsampled()
+            .stripErrorPrefix(true)
+            .error(
+                "FROM k8s | STATS count(*) BY network.eth0.tx",
+                equalTo("1:30: cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
+            );
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM exp_histo_sample | STATS count(*) BY responseTime",
+                equalTo("1:43: cannot group by on [exponential_histogram] type for grouping [responseTime]")
+            );
+        analyzer().addIndex("decades", "mapping-decades.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM decades | STATS count(*) BY date_range",
+                equalTo(
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V3.isEnabled()
+                        ? "1:34: cannot group by on [date_range] type for grouping [date_range]"
+                        : "1:34: Cannot use field [date_range] with unsupported type [date_range]"
+                )
+            );
+        analyzer().addIndex("test", "mapping-all-types.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM test | STATS count(*) BY dense_vector",
+                equalTo("1:31: cannot group by on [dense_vector] type for grouping [dense_vector]")
+            );
+    }
+
     public void testDoubleRenamingField() {
         defaultAnalyzer().error(
             "from test | rename emp_no as r1, r1 as r2, emp_no as r3 | keep r3",
@@ -1382,6 +1442,12 @@ public class VerifierTests extends ESTestCase {
 
     public void testSourceSorting() {
         defaultAnalyzer().error("from test metadata _source | sort _source", equalTo("1:35: cannot sort on _source"));
+    }
+
+    public void testFlattenedSorting() {
+        var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
+        index.error("FROM flattened_otel_logs | SORT attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
+        index.error("FROM flattened_otel_logs | SORT resource.attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
     }
 
     public void testCountersSorting() {

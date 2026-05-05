@@ -37,7 +37,11 @@ import java.util.concurrent.atomic.AtomicLong;
  * can be guarded by a reference count and fail if it's been closed by an external event.
  */
 public class ReaderContext implements Releasable {
+    public static String RELOCATION_RESHARDING_METADATA_KEY = "relocation_resharding_metadata";
+    public static String RELOCATION_SHARD_COUNT_SUMMARY_KEY = "relocation_shard_count_summary";
+
     private static final long CONTEXT_RELOCATION_GRACE_TIME = 1000;
+
     private final ShardSearchContextId id;
     private final IndexService indexService;
     private final IndexShard indexShard;

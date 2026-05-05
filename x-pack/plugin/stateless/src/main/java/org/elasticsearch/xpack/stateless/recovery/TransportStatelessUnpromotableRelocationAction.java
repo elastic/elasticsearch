@@ -414,7 +414,10 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                                     context.keepAlive(),
                                     new SearchContextIdForNode(null, clusterService.localNode().getId(), context.id()),
                                     statelessCompoundCommit.commitFiles(),
-                                    new OpenPITReshardingState(context.getFromContext("bla"), context.getFromContext("blu"))
+                                    new OpenPITReshardingState(
+                                        context.getFromContext(ReaderContext.RELOCATION_RESHARDING_METADATA_KEY),
+                                        context.getFromContext(ReaderContext.RELOCATION_SHARD_COUNT_SUMMARY_KEY)
+                                    )
                                 )
                             )
                         );

@@ -1561,8 +1561,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (previous == null) {
                 readerContext = new ReaderContext(contextId, indexService, shard, reader, keepAliveInMillis, false);
 
-                readerContext.putInContext("bla", relocatedReshardingMetadata);
-                readerContext.putInContext("blu", relocatedSplitShardCountSummary);
+                readerContext.putInContext(ReaderContext.RELOCATION_RESHARDING_METADATA_KEY, relocatedReshardingMetadata);
+                readerContext.putInContext(ReaderContext.RELOCATION_SHARD_COUNT_SUMMARY_KEY, relocatedSplitShardCountSummary);
 
                 reader = null;
                 final ReaderContext finalReaderContext = readerContext;
@@ -1638,8 +1638,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searchOperationListener.onNewReaderContext(readerContext);
                 readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
 
-                readerContext.putInContext("bla", reshardingMetadataForContext);
-                readerContext.putInContext("blu", splitShardCountSummary);
+                readerContext.putInContext(ReaderContext.RELOCATION_RESHARDING_METADATA_KEY, reshardingMetadataForContext);
+                readerContext.putInContext(ReaderContext.RELOCATION_SHARD_COUNT_SUMMARY_KEY, splitShardCountSummary);
 
                 logger.debug(
                     "Opening new reader context [{}] on node [{}]",

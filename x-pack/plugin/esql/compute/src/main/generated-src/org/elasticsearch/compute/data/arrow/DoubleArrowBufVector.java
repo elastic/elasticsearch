@@ -67,6 +67,11 @@ public final class DoubleArrowBufVector extends AbstractArrowBufVector<DoubleVec
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Double.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.DOUBLE;
     }

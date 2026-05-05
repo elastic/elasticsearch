@@ -420,6 +420,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
     @Override
     public void testDisableDefaultIndex() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
+
         var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
         var mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "flattened")));
         var documentMapper = mapperService.documentMapper();

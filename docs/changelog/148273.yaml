@@ -3,4 +3,4 @@ issues:
  - 148219
 pr: 148273
 summary: Proposed fix max write load proportion cache staleness
-type: enhancement
+type: bug

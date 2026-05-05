@@ -813,6 +813,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             }
         }
 
+        // Reuse the FilterPredicate already resolved at the file level so the trivially-passes
+        // guard sees the same predicate that drove row-group pruning and column-index RowRanges.
+        // Only pass it through when late materialization is actually active; otherwise the
+        // iterator has no use for it.
+        FilterPredicate triviallyPassesPredicate = effectivePushed != null ? filterPredicate : null;
+
         return new OptimizedParquetColumnIterator(
             reader,
             projectedSchema,
@@ -828,7 +834,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             allRowRanges,
             survivingRowGroups,
             codecFactory,
-            effectivePushed
+            effectivePushed,
+            triviallyPassesPredicate
         );
     }
 

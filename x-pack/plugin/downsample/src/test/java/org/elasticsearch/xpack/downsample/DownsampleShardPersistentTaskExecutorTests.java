@@ -112,17 +112,13 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
         var loadedNodeWithShard = newNode();
         var otherNode = newNode();
         var shardId = new ShardId(backingIndex, 0);
+        ClusterPersistentTasksCustomMetadata.Builder persistentTaskBuilder = ClusterPersistentTasksCustomMetadata.builder();
+        addAssignedPersistedTasks(persistentTaskBuilder, loadedNodeWithShard.getId(), randomIntBetween(3, 5));
+        addAssignedPersistedTasks(persistentTaskBuilder, leastLoadedNodeWithShard.getId(), randomIntBetween(0, 2));
         var clusterState = ClusterState.builder(initialClusterState)
             .metadata(
                 Metadata.builder(initialClusterState.metadata())
-                    .putCustom(
-                        ClusterPersistentTasksCustomMetadata.TYPE,
-                        createAssignedPersistedTasks(leastLoadedNodeWithShard.getId(), randomIntBetween(0, 2))
-                    )
-                    .putCustom(
-                        ClusterPersistentTasksCustomMetadata.TYPE,
-                        createAssignedPersistedTasks(loadedNodeWithShard.getId(), randomIntBetween(3, 5))
-                    )
+                    .putCustom(ClusterPersistentTasksCustomMetadata.TYPE, persistentTaskBuilder.build())
             )
             .nodes(new DiscoveryNodes.Builder().add(leastLoadedNodeWithShard).add(loadedNodeWithShard).add(otherNode).build())
             .putRoutingTable(
@@ -233,7 +229,7 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
         assertThat(result.getExecutorNode(), nullValue());
     }
 
-    public void ensureOnlySearchableShardsAreConsidered() {
+    public void testOnlySearchableShardsAreConsidered() {
         executor = new DownsampleShardPersistentTaskExecutor(mock(Client.class), DownsampleShardTask.TASK_NAME, mock(Executor.class));
         var backingIndex = initialClusterState.metadata().getProject(projectId).dataStreams().get("metrics-app1").getWriteIndex();
         var searchNode = newNode(Set.of(DiscoveryNodeRole.SEARCH_ROLE));
@@ -298,14 +294,13 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
         );
     }
 
-    private static ClusterPersistentTasksCustomMetadata createAssignedPersistedTasks(String nodeId, int count) {
-        ClusterPersistentTasksCustomMetadata.Builder builder = ClusterPersistentTasksCustomMetadata.builder();
+    private static void addAssignedPersistedTasks(ClusterPersistentTasksCustomMetadata.Builder builder, String nodeId, int count) {
         Index index = new Index(randomAlphaOfLength(10), randomUUID());
         for (int i = 0; i < count; i++) {
-            var taskId = DownsampleShardTask.TASK_NAME + "_" + i;
+            var taskId = DownsampleShardTask.TASK_NAME + "_" + index.getName() + "_" + i;
             var params = new DownsampleShardTaskParams(
                 new DownsampleConfig(new DateHistogramInterval("1h"), randomSamplingMethod()),
-                "downsample-index",
+                "downsample-" + index.getName(),
                 1,
                 1,
                 new ShardId(index, i),
@@ -321,7 +316,6 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
                 new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
             ).updateTaskState(taskId, new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null));
         }
-        return builder.build();
     }
 
 }

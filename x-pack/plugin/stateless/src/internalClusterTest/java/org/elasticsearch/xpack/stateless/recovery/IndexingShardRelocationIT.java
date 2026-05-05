@@ -564,7 +564,8 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
 
         ensureGreen();
         assertNodeHasNoCurrentRecoveries(indexNodeB);
-        assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));
+        // Have to assertBusy here because sometimes the failed IndexShard lingers on indexNodeB
+        assertBusy(() -> assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs)));
     }
 
     private CountDownLatch startBreakingActions(String nodeA, String nodeB, String recoveryActionToBlock) {

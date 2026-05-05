@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148242
+summary: Emit ordinal blocks for dictionary parquet strings
+type: enhancement

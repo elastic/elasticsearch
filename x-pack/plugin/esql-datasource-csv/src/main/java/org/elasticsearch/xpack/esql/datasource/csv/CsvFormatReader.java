@@ -262,10 +262,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return merged.equals(baseline) ? null : merged;
     }
 
-    private static CsvFormatOptions.MultiValueSyntax parseMultiValueSyntax(
-        Object value,
-        CsvFormatOptions.MultiValueSyntax baseline
-    ) {
+    private static CsvFormatOptions.MultiValueSyntax parseMultiValueSyntax(Object value, CsvFormatOptions.MultiValueSyntax baseline) {
         if (value == null || value.toString().isEmpty()) {
             return baseline;
         }
@@ -1348,13 +1345,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private Page convertRowsToPage(List<String[]> rows) {
             int schemaSize = schema.size();
             // COUNT(*) fast path: no columns projected, so skip builder allocation and type conversion
-            // and emit a row-count-only Page.
-            // NOTE: For headerless files, schema width is sample-based. A later wider row is still
-            // countable for COUNT(*) because we never materialize fields on this path.
+            // and emit a row-count-only Page. We still apply the column-count validation that the
+            // regular path uses so structural errors are routed through the policy consistently.
             if (columnCount == 0) {
                 int acceptedRows = 0;
                 for (String[] row : rows) {
                     totalRowCount++;
+                    if (row.length > schemaSize) {
+                        onRowError(
+                            "CSV row has [" + row.length + "] columns but schema defines [" + schemaSize + "] columns",
+                            null,
+                            row,
+                            true
+                        );
+                        continue;
+                    }
                     acceptedRows++;
                 }
                 return acceptedRows == 0 ? null : new Page(acceptedRows);

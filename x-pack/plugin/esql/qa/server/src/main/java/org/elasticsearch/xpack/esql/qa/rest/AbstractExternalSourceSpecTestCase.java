@@ -188,9 +188,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 AbstractExternalSourceSpecTestCase.class.getClassLoader(),
                 (relativePath, content) -> {
                     String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
-                    if (fileName.endsWith(".csv") == false
-                        && fileName.endsWith(".ndjson") == false
-                        && fileName.endsWith(".tsv") == false) {
+                    if (fileName.endsWith(".csv") == false && fileName.endsWith(".ndjson") == false && fileName.endsWith(".tsv") == false) {
                         return;
                     }
                     String relativeDir = relativePath.contains("/") ? relativePath.substring(0, relativePath.lastIndexOf('/')) : "";

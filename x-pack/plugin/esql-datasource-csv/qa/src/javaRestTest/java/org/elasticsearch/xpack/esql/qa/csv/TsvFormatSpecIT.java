@@ -21,7 +21,7 @@ import java.util.List;
 
 /**
  * Parameterized integration tests for standalone TSV files.
- * Each csv-spec test is run against every configured storage backend and format.
+ * Each csv-spec test is run against every configured storage backend.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class TsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {

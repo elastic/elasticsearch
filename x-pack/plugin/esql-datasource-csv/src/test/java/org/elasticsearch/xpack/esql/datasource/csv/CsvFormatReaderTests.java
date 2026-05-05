@@ -3006,10 +3006,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(DataType.INTEGER, schema.get(1).dataType());
     }
 
-    public void testTsvFirstRowWithDatetimeFallsToInferenceNotTypedSchema2() throws IOException {
-        // First data row has datetime values containing colons (HH:MM:SS).
-        // Today this trips hasTypeAnnotations into the strict typed-schema path,
-        // which throws on the first non-`name:type` token.
+    public void testHeaderlessTsvWithDatetimeColonsDoesNotThrow() throws IOException {
         String tsv = """
             9110818468285196899\t1\tHello\t2013-07-14 20:38:47\t15900
             1234567890\t0\tWorld\t2013-07-15 10:47:34\t15901
@@ -3019,14 +3016,19 @@ public class CsvFormatReaderTests extends ESTestCase {
             Map.of("delimiter", "\t", "header_row", false)
         );
 
-        // Expected post-fix: schema resolves cleanly into 5 columns. Whether the
-        // first data row gets treated as column-NAMES (current inference fallback)
-        // or as DATA (with auto-generated col0..col4) depends on which fix lands;
-        // either is acceptable. What is NOT acceptable is throwing.
-        // Actual today: ParsingException("Invalid CSV schema format: [9110818468285196899]. Expected 'name:type'").
         List<Attribute> schema = reader.schema(object);
 
         assertEquals(5, schema.size());
+        assertEquals("col0", schema.get(0).name());
+        assertEquals("col1", schema.get(1).name());
+        assertEquals("col2", schema.get(2).name());
+        assertEquals("col3", schema.get(3).name());
+        assertEquals("col4", schema.get(4).name());
+        assertEquals(DataType.LONG, schema.get(0).dataType());
+        assertEquals(DataType.INTEGER, schema.get(1).dataType());
+        assertEquals(DataType.KEYWORD, schema.get(2).dataType());
+        assertEquals(DataType.DATETIME, schema.get(3).dataType());
+        assertEquals(DataType.INTEGER, schema.get(4).dataType());
     }
 
     public void testHeaderlessSchemaUsesCustomPrefix() throws IOException {

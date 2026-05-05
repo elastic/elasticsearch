@@ -21,7 +21,7 @@ import java.util.List;
 
 /**
  * Parameterized integration tests for compressed TSV files (.tsv.gz, .tsv.zst, .tsv.zstd, .tsv.bz2, .tsv.bz).
- * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL, GCS, AZURE) and compression format.
+ * Each csv-spec test is run against every configured storage backend and compression format.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class TsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCase {

@@ -822,7 +822,13 @@ public class StatelessPlugin extends Plugin
         setAndGet(this.closedShardService, closedShardService);
         var translogReplicator = setAndGet(
             this.translogReplicator,
-            new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService)
+            new TranslogReplicator(
+                threadPool,
+                settings,
+                objectStoreService,
+                consistencyService,
+                projectResolver.get().supportsMultipleProjects()
+            )
         );
         setAndGet(this.translogReplicatorMetrics, new TranslogRecoveryMetrics(services.telemetryProvider().getMeterRegistry()));
         setAndGet(

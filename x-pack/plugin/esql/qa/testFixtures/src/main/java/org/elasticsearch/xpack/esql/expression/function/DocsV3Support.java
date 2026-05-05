@@ -106,6 +106,25 @@ public abstract class DocsV3Support {
 
     public record TypeSignature(List<DocsV3Support.Param> argTypes, DataType returnType) {}
 
+    /**
+     * A before/after geometry diagram emitted into the function documentation. Test classes can
+     * declare a {@code public static List<DocsV3Support.GeometryDiagram> geometryDiagrams()}
+     * method to opt in.
+     *
+     * @param name        filename suffix; the SVG is written as {@code {function}_{name}.svg}
+     * @param title       human-readable caption shown above the diagram
+     * @param description optional explanatory paragraph in markdown, may be empty
+     * @param config      rendering options; see {@link GeometryDocSvg.Config}
+     * @param layers      ordered list of geometries to draw; later layers paint on top
+     */
+    public record GeometryDiagram(
+        String name,
+        String title,
+        String description,
+        GeometryDocSvg.Config config,
+        List<GeometryDocSvg.Layer> layers
+    ) {}
+
     private static final Logger logger = LogManager.getLogger(DocsV3Support.class);
 
     private static final String DOCS_WARNING_JSON =
@@ -395,6 +414,7 @@ public abstract class DocsV3Support {
     protected final FunctionDefinition definition;
     protected final Supplier<Set<TypeSignature>> signatures;
     protected final Callbacks callbacks;
+    protected final Class<?> testClass;
     private final LicenseRequirementChecker licenseChecker;
     private final KibanaSignaturePatcher kibanaSignaturePatcher;
 
@@ -421,6 +441,7 @@ public abstract class DocsV3Support {
         this.definition = definition == null ? definition(name) : definition;
         this.signatures = signatures;
         this.callbacks = callbacks;
+        this.testClass = testClass;
         this.licenseChecker = new LicenseRequirementChecker(testClass);
         this.kibanaSignaturePatcher = new KibanaSignaturePatcher(testClass);
     }
@@ -736,9 +757,61 @@ public abstract class DocsV3Support {
             }
             boolean hasExamples = renderExamples(info);
             boolean hasAppendix = renderAppendix(info.appendix());
-            renderFullLayout(info, hasTypes, hasExamples, hasAppendix, hasFunctionOptions);
+            boolean hasDiagrams = renderGeometryDiagrams();
+            renderFullLayout(info, hasTypes, hasExamples, hasAppendix, hasFunctionOptions, hasDiagrams);
             renderKibanaInlineDocs(name, null, info);
             renderKibanaFunctionDefinition(name, null, info, description.args(), description.variadic(), getObservabilityTier());
+        }
+
+        /**
+         * Render any geometry diagrams declared by the test class via a static
+         * {@code geometryDiagrams()} method. Returns {@code true} if at least one diagram
+         * was emitted, in which case the layout should also include the {@code diagrams}
+         * snippet.
+         */
+        private boolean renderGeometryDiagrams() throws Exception {
+            // TODO: callbacks.supportsRendering() is used when we need to render text to SVG, but so far these diagrams do not
+            List<GeometryDiagram> diagrams;
+            try {
+                java.lang.reflect.Method m = testClass.getMethod("geometryDiagrams");
+                if (java.lang.reflect.Modifier.isStatic(m.getModifiers()) == false) {
+                    return false;
+                }
+                @SuppressWarnings("unchecked")
+                List<GeometryDiagram> result = (List<GeometryDiagram>) m.invoke(null);
+                diagrams = result;
+            } catch (NoSuchMethodException e) {
+                return false;
+            }
+            if (diagrams == null || diagrams.isEmpty()) {
+                return false;
+            }
+            StringBuilder snippet = new StringBuilder(DOCS_WARNING + """
+                ### Diagrams
+
+                """);
+            for (GeometryDiagram diagram : diagrams) {
+                String svg = GeometryDocSvg.render(diagram.config(), diagram.layers());
+                String fileName = name + "_" + diagram.name();
+                logger.info("Writing geometry diagram: {}", fileName);
+                Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("images").resolve(category);
+                callbacks.write(dir, fileName, "svg", svg, false);
+                snippet.append(String.format(Locale.ROOT, "**%s**%n%n", diagram.title()));
+                if (diagram.description() != null && diagram.description().isEmpty() == false) {
+                    snippet.append(diagram.description()).append("\n\n");
+                }
+                snippet.append(
+                    String.format(
+                        Locale.ROOT,
+                        ":::{image} ../../../images/%s/%s.svg%n:alt: %s%n:class: text-center%n:::%n%n",
+                        category,
+                        fileName,
+                        diagram.title()
+                    )
+                );
+            }
+            writeToTempSnippetsDir("diagrams", snippet.toString());
+            return true;
         }
 
         private void renderFunctionNamedParams(EsqlFunctionRegistry.MapArgSignature mapArgSignature) throws IOException {
@@ -825,7 +898,8 @@ public abstract class DocsV3Support {
             boolean hasTypes,
             boolean hasExamples,
             boolean hasAppendix,
-            boolean hasFunctionOptions
+            boolean hasFunctionOptions,
+            boolean hasDiagrams
         ) throws IOException {
             // H2 heading generation removed here
             StringBuilder rendered = new StringBuilder(
@@ -853,6 +927,9 @@ public abstract class DocsV3Support {
             }
             if (hasExamples) {
                 rendered.append(addInclude("examples"));
+            }
+            if (hasDiagrams) {
+                rendered.append(addInclude("diagrams"));
             }
             if (hasAppendix) {
                 rendered.append(addInclude("appendix"));

@@ -187,7 +187,6 @@ public class APMAgentSettingsTests extends ESTestCase {
                 TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING,
                 TELEMETRY_TRACING_SANITIZE_FIELD_NAMES,
                 OtelSdkSettings.TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH,
-                OtelSdkSettings.TELEMETRY_OTEL_TRACES_STACK_TRACE_LIMIT,
                 APM_AGENT_SETTINGS
             )
         );

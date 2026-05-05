@@ -13,7 +13,6 @@ import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanKind;
-import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.ContextKey;
@@ -105,12 +104,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      */
     private volatile int maxTraceDepth;
 
-    /**
-     * When {@link #useOtelSdkTracesExport} is {@code true}, sets the maximum stack-trace depth recorded
-     * on error events. {@code 0} suppresses stack traces.
-     */
-    private volatile int stackTraceLimit;
-
     public void setClusterName(String clusterName) {
         this.clusterName = clusterName;
     }
@@ -125,11 +118,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
     public APMTracer(Settings settings) {
-        this(settings, traceSupplierFor(settings), otelTracesEnabled(), initialMaxTraceDepth(settings), initialStackTraceLimit(settings));
+        this(settings, traceSupplierFor(settings), otelTracesEnabled(), initialMaxTraceDepth(settings));
     }
 
     // package-private for testing
-    APMTracer(Settings settings, TraceSupplier traceSupplier, boolean useOtelSdkTracesExport, int maxTraceDepth, int stackTraceLimit) {
+    APMTracer(Settings settings, TraceSupplier traceSupplier, boolean useOtelSdkTracesExport, int maxTraceDepth) {
         this.traceSupplier = traceSupplier;
         this.includeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings);
         this.excludeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
@@ -140,7 +133,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.enabled = APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
         this.useOtelSdkTracesExport = useOtelSdkTracesExport;
         this.maxTraceDepth = maxTraceDepth;
-        this.stackTraceLimit = stackTraceLimit;
     }
 
     private static boolean otelTracesEnabled() {
@@ -153,10 +145,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     private static int initialMaxTraceDepth(Settings settings) {
         return otelTracesEnabled() ? OtelSdkSettings.TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH.get(settings) : 0;
-    }
-
-    private static int initialStackTraceLimit(Settings settings) {
-        return otelTracesEnabled() ? OtelSdkSettings.TELEMETRY_OTEL_TRACES_STACK_TRACE_LIMIT.get(settings) : 0;
     }
 
     /**
@@ -196,10 +184,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     public void setMaxTraceDepth(int maxTraceDepth) {
         this.maxTraceDepth = maxTraceDepth;
-    }
-
-    public void setStackTraceLimit(int stackTraceLimit) {
-        this.stackTraceLimit = stackTraceLimit;
     }
 
     // package-private for testing
@@ -464,15 +448,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     public void addError(Traceable traceable, Throwable throwable) {
         final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
         if (span != null) {
-            if (useOtelSdkTracesExport && stackTraceLimit <= 0) {
-                // On the SDK path with stack traces suppressed: set ERROR status and attach exception type/message
-                // as plain attributes. recordException() always records a stack trace.
-                span.setStatus(StatusCode.ERROR);
-                span.setAttribute("exception.type", throwable.getClass().getName());
-                span.setAttribute("exception.message", throwable.getMessage() != null ? throwable.getMessage() : "");
-            } else {
-                span.recordException(throwable);
-            }
+            span.recordException(throwable);
         }
     }
 

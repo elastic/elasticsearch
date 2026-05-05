@@ -46,7 +46,7 @@ public class APMTracerFlushTests extends ESTestCase {
         };
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0, 0);
+        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0);
         tracer.start();
         tracer.stop();
 
@@ -71,7 +71,7 @@ public class APMTracerFlushTests extends ESTestCase {
         };
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
-        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0, 0);
+        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0);
         tracer.start();
         tracer.attemptFlushTraces();
 
@@ -102,7 +102,7 @@ public class APMTracerFlushTests extends ESTestCase {
         };
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
-        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0, 0);
+        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0);
         tracer.start();
         tracer.stop(); // must not throw
 
@@ -135,7 +135,7 @@ public class APMTracerFlushTests extends ESTestCase {
         };
 
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), false).build();
-        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0, 0);
+        APMTracer tracer = new APMTracer(settings, trackingSupplier, false, 0);
         tracer.start();
         tracer.stop();
 

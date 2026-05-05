@@ -70,14 +70,6 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
-    /** Maximum stack-trace depth recorded on error events. {@code 0} suppresses stack traces. */
-    public static final Setting<Integer> TELEMETRY_OTEL_TRACES_STACK_TRACE_LIMIT = Setting.intSetting(
-        "telemetry.otel.traces.stack_trace_limit",
-        0,
-        OperatorDynamic,
-        NodeScope
-    );
-
     /** Best-effort upper bound on time spent flushing buffered metrics or spans to the exporter. */
     public static final Setting<TimeValue> TELEMETRY_OTEL_FLUSH_TIMEOUT = Setting.timeSetting(
         "telemetry.otel.flush_timeout",

@@ -16,6 +16,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
+import org.elasticsearch.action.bulk.BulkOperationTests;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.search.SearchContextMissingNodesException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -156,7 +157,8 @@ public class ExceptionSerializationTests extends ESTestCase {
             AbstractClientHeadersTestCase.InternalException.class,
             ElasticsearchExceptionTests.TimeoutSubclass.class,
             ElasticsearchExceptionTests.Exception4xx.class,
-            ElasticsearchExceptionTests.Exception5xx.class
+            ElasticsearchExceptionTests.Exception5xx.class,
+            BulkOperationTests.BulkOperation429Exception.class
         );
         FileVisitor<Path> visitor = new FileVisitor<Path>() {
             private Path pkgPrefix = PathUtils.get(path).getParent();

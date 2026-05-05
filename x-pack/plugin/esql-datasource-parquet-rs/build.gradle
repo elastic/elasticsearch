@@ -74,8 +74,13 @@ configurations {
 
 def nativeVersion = {
   if (useArtifactory) {
+    def isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows()
     providers.exec {
-      commandLine "${project.projectDir}/native/build-tools/src-sha1.sh"
+      if (isWindows) {
+        commandLine "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${project.projectDir}/native/build-tools/src-sha1.ps1"
+      } else {
+        commandLine "${project.projectDir}/native/build-tools/src-sha1.sh"
+      }
     }.standardOutput.asText.get().trim()
   } else if (useLocalMulti) {
     "local-multi"

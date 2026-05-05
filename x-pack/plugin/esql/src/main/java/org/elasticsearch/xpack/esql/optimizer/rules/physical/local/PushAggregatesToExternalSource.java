@@ -108,7 +108,8 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         if (externalExec.pushedExpressions().isEmpty() == false || externalExec.pushedFilter() != null) {
             logger.info(
                 () -> Strings.format(
-                    "PushAggregatesToExternalSource: skipping stats substitution (source has pushed scan predicates) path=[{}] projections=[{}] type=[{}]",
+                    "PushAggregatesToExternalSource: skipping stats substitution (source has pushed scan predicates)"
+                        + " path=[{}] projections=[{}] type=[{}]",
                     externalExec.sourcePath(),
                     externalExec.pushedExpressions().size(),
                     externalExec.sourceType()

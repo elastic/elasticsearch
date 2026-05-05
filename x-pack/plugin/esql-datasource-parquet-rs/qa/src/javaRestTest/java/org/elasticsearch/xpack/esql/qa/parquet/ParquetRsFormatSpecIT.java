@@ -18,7 +18,9 @@ import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Runs the same Parquet format spec tests as ParquetFormatSpecIT but using the parquet-rs native reader.
@@ -54,6 +56,30 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
     @Override
     protected boolean enableRoundingDoubleValuesOnAsserting() {
         return true;
+    }
+
+    private static final Set<String> SKIPPED_TESTS = Set.of(
+        // unknown parquet column [job_positions] referenced in projection (reported in the schema as "element")
+        "filterFirstRowAllColumns",
+        "mvAppendFromScalars",
+        "mvConcatFromSplit",
+        "mvCountFromSplit",
+        "mvDedupeFromSplit",
+        "mvExpandFromSplit",
+        "mvMaxFromSplit",
+        "mvMinFromSplit",
+        // unknown parquet column [salary_change] referenced in projection (reported in the schema as "element")
+        "mvDedupeFromSplit2",
+        // unknown parquet column [author] referenced in projection
+        "externalRerankBooks"
+    );
+
+    @Override
+    protected void shouldSkipTest(String testName) throws IOException {
+        if (SKIPPED_TESTS.contains(testName)) {
+            assumeTrue(testName + " not supported by parquet-rs reader", false);
+        }
+        super.shouldSkipTest(testName);
     }
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")

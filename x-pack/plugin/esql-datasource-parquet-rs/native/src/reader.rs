@@ -105,7 +105,7 @@ fn projection_root_indices(
             let mut roots = BTreeSet::new();
             for name in cols {
                 let idx = parquet_root_column_index(parquet_schema, name.as_str()).ok_or_else(|| {
-                    err(format!("unknown parquet column [{name}] referenced in projection"))
+                    err(format!("unknown parquet column [{name}] referenced in projection. Known columns {}", parquet_schema.columns().iter().map(|c| c.name()).collect::<Vec<_>>().join(", ")))
                 })?;
                 roots.insert(idx);
             }

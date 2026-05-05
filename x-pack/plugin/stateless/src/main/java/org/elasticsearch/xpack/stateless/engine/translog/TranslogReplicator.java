@@ -160,6 +160,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         return bigArrays;
     }
 
+    // visible for testing
+    public long getTranslogBufferedDataSize() {
+        NodeTranslogBuffer buffer = currentBuffer.get();
+        return buffer == null ? 0L : buffer.getBufferSize();
+    }
+
     @Override
     protected void doStart() {
         assert objectStoreService.lifecycleState() == Lifecycle.State.STARTED : "objectStoreService not started";

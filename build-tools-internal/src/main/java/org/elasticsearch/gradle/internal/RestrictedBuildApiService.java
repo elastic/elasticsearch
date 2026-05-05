@@ -27,12 +27,10 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
 
     private static ListMultimap<Class<?>, String> createLegacyRestTestBasePluginUsage() {
         ListMultimap<Class<?>, String> map = ArrayListMultimap.create(1, 200);
-        map.put(LegacyRestTestBasePlugin.class, ":docs");
         map.put(LegacyRestTestBasePlugin.class, ":distribution:docker");
         map.put(LegacyRestTestBasePlugin.class, ":modules:reindex");
         map.put(LegacyRestTestBasePlugin.class, ":qa:ccs-rolling-upgrade-remote-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":qa:mixed-cluster");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:multi-cluster-search");
         map.put(LegacyRestTestBasePlugin.class, ":qa:remote-clusters");
         map.put(LegacyRestTestBasePlugin.class, ":qa:repository-multi-version");
         map.put(LegacyRestTestBasePlugin.class, ":qa:rolling-upgrade-legacy");

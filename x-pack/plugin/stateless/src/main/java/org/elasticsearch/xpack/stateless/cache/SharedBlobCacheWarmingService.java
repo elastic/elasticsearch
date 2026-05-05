@@ -27,6 +27,7 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
@@ -97,7 +98,9 @@ public class SharedBlobCacheWarmingService {
         INDEXING_EARLY(true),
         INDEXING(true),
         INDEXING_MERGE(false),
-        SEARCH(true),
+        // search shard recovery doesn't guarantee that all of region 0 has been cached, because header reads served from
+        // index shards are served at page rather than region granularity.
+        SEARCH(false),
         HOLLOWING(true),
         UNHOLLOWING(true);
 
@@ -743,7 +746,7 @@ public class SharedBlobCacheWarmingService {
                     "relocation source shutting down (equal share of remaining time to capped grace deadline)"
                 );
             }
-            if (state.metadata().nodeShutdowns().getAll().isEmpty() == false) {
+            if (hasActiveShutdownForRemovalNodes(state)) {
                 return new SearchRecoveryTimeout(
                     searchRecoveryWarmingRelocationWithShutdownTimeout,
                     "relocation source not shutting down, cluster shutdown metadata present"
@@ -754,7 +757,7 @@ public class SharedBlobCacheWarmingService {
                 "relocation source not shutting down, no cluster shutdown"
             );
         }
-        if (hasAnotherActiveSearchShardCopy(state, indexShard) && state.metadata().nodeShutdowns().getAll().isEmpty()) {
+        if (hasAnotherActiveSearchShardCopy(state, indexShard) && hasActiveShutdownForRemovalNodes(state) == false) {
             return new SearchRecoveryTimeout(searchRecoveryWarmingNonRelocationTimeout, "not a relocation, another active shard copy");
         }
         return SearchRecoveryTimeout.skip();
@@ -802,6 +805,15 @@ public class SharedBlobCacheWarmingService {
     private static int countShardsOnNode(ClusterState clusterState, String nodeId) {
         var node = clusterState.getRoutingNodes().node(nodeId);
         return node == null ? 0 : node.size();
+    }
+
+    private static boolean hasActiveShutdownForRemovalNodes(ClusterState state) {
+        for (Map.Entry<String, SingleNodeShutdownMetadata> entry : state.metadata().nodeShutdowns().getAll().entrySet()) {
+            if (entry.getValue().getType().isRemovalType() && state.nodes().nodeExists(entry.getKey())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1035,22 +1047,22 @@ public class SharedBlobCacheWarmingService {
         }
 
         private void addLocation(BlobLocation location, String fileName, long position, long length, ActionListener<Void> listener) {
-            final long start = position;
-            final long end = position + length;
+            final long start = length <= Integer.MAX_VALUE ? directory.getPosition(fileName, position, (int) length) : position;
+            final long end = start + length;
             final int regionSize = cacheService.getRegionSize();
             final int startRegion = cacheService.getRegion(start);
             final int endRegion = cacheService.getEndingRegion(end);
 
             if (startRegion == endRegion) {
                 BlobRegion blobRegion = new BlobRegion(location.blobFile(), startRegion);
-                enqueueLocation(blobRegion, fileName, location, position, length, listener);
+                enqueueLocation(blobRegion, location, start, length, listener);
             } else {
                 try (var listeners = new RefCountingListener(listener)) {
                     for (int r = startRegion; r <= endRegion; r++) {
                         // adjust the position & length to the region
                         var range = ByteRange.of(Math.max(start, (long) r * regionSize), Math.min(end, (r + 1L) * regionSize));
                         BlobRegion blobRegion = new BlobRegion(location.blobFile(), r);
-                        enqueueLocation(blobRegion, fileName, location, range.start(), range.length(), listeners.acquire());
+                        enqueueLocation(blobRegion, location, range.start(), range.length(), listeners.acquire());
                     }
                 }
             }
@@ -1098,29 +1110,25 @@ public class SharedBlobCacheWarmingService {
             }));
         }
 
-        private boolean shouldSkipLocationWarming(String fileName, long position, long length) {
+        private boolean shouldSkipLocationWarming(long position) {
             if (warmingRun.type.skipsWarmingForRegion0Locations == false) {
                 return false;
             }
-            if (length > Short.MAX_VALUE) {
-                // length is too long to be contained in replicated section
-                return false;
-            }
-            int region = (int) (directory.getPosition(fileName, position, (int) length) / cacheService.getRegionSize());
             // region 0 is already loaded by this point while resolving full set of commit files and safe to skip.
             // See org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService#readIndexingShardState
-            return region == 0;
+            // reads that span regions will be split into separate tasks, so checking the starting position suffices.
+            return position / cacheService.getRegionSize() == 0;
         }
 
+        // When using replicated ranges, the location should already be translated to its replicated counterpart
         private void enqueueLocation(
             BlobRegion blobRegion,
-            String fileName,
             BlobLocation blobLocation,
             long position,
             long length,
             ActionListener<Void> listener
         ) {
-            if (shouldSkipLocationWarming(fileName, position, length)) {
+            if (shouldSkipLocationWarming(position)) {
                 skippedTasksCount.incrementAndGet();
                 listener.onResponse(null);
                 return;

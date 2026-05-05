@@ -17,8 +17,16 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -74,15 +82,23 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  * easier.
  * <ul>
  *     <li>
+ *         The smallest possible first PR for a data type just loads the field
+ *         values and renders them in the JSON results. You certainly can implement
+ *         scalar functions in the first PR, but don't feel obligated.</li>
+ *     <li>
  *         Create a new data type and mark it as under construction using
  *         {@link Builder#underConstruction(TransportVersion)}. This makes the type available on
  *         SNAPSHOT builds, only, prevents some tests from running and prevents documentation
  *         for the new type to be built.</li>
  *     <li>
+ *         Fix compilation by returning {@link UnsupportedOperationException} from all
+ *         of the {@code switch} statements that required the new type. You'll remove
+ *         those as part of this process. But it's important that the code can compile.</li>
+ *     <li>
  *         New tests using the type will require a new {@code EsqlCapabilities} entry,
  *         otherwise bwc tests will fail (even in SNAPSHOT builds) because old nodes don't
  *         know about the new type. This capability needs to be SNAPSHOT-only as long as
- *         the type is under construction</li>
+ *         the type is under construction.</li>
  *     <li>
  *         Create a new CSV test file for the new type. You'll either need to
  *         create a new data file as well, or add values of the new type to
@@ -92,7 +108,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  *         In the new CSV test file, start adding basic functionality tests.
  *         These should include reading and returning values, both from indexed data
  *         and from the ROW command.  It should also include functions that support
- *         "every" type, such as Case or MvFirst.</li>
+ *         "every" type, such as {@link Case} or {@link MvFirst}.</li>
  *     <li>
  *         Add the new type to the CsvTestUtils#Type enum, if it isn't already
  *         there. You also need to modify CsvAssert to support reading values
@@ -111,16 +127,18 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  *         functions that support the new type have tests for it.</li>
  *     <li>
  *         Work to support things all types should do. Equality and the
- *         "typeless" MV functions (MvFirst, MvLast, and MvCount) should work for
- *         most types. Case and Coalesce should also support all types.
- *         If the type has a natural ordering, make sure to test
- *         sorting and the other binary comparisons. Make sure these functions all
- *         have CSV tests that run against indexed data.</li>
+ *         "typeless" MV functions ({@link MvFirst}, {@link MvLast},
+ *         and {@link MvCount}) should work for most types. {@link Case} and
+ *         {@link Coalesce} should also support all types. If the type has a
+ *         natural ordering, make sure to test sorting and the other binary
+ *         comparisons. Make sure these functions all have CSV tests that run
+ *         against indexed data. When you add support to the function, add
+ *         a new {@link FunctionDefinition.Builder#capabilities(String...) capability}.</li>
  *     <li>
  *         Add conversion functions as appropriate.  Almost all types should
- *         support ToString, and should have a "ToType" function that accepts a
- *         string.  There may be other logical conversions depending on the nature
- *         of the type. Make sure to add the conversion function to the
+ *         support {@link ToString}, and should have a "ToType" function that
+ *         accepts a string. There may be other logical conversions depending
+ *         on the nature of the type. Make sure to add the conversion function to the
  *         TYPE_TO_CONVERSION_FUNCTION map in EsqlDataTypeConverter. Make sure the
  *         conversion functions have CSV tests that run against indexed data.</li>
  *     <li>
@@ -134,8 +152,8 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  *         Consider how the type will interact with other types. For example,
  *         if the new type is numeric, it may be good for it to be comparable with
  *         other numbers. Supporting this may require new logic in
- *         EsqlDataTypeConverter#commonType, individual function type checking, the
- *         verifier rules, or other places. We suggest starting with CSV tests and
+ *         {@link EsqlDataTypeConverter#commonType}, individual function type checking,
+ *         the verifier rules, or other places. We suggest starting with CSV tests and
  *         seeing where they fail.</li>
  *     <li>
  *         Ensure the new type doesn't break {@code FROM idx | KEEP *} queries by
@@ -432,6 +450,37 @@ public enum DataType implements Writeable {
                 DataTypesTransportVersions.ML_INFERENCE_SAGEMAKER_CHAT_COMPLETION,
                 DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION
             )
+    ),
+
+    /**
+     * Objects "flattened" into subfields for searching without creating distinct Lucene fields.
+     * This exists because Lucene fields are expensive, and sometimes you really just need to have
+     * thousands of values. Flattened supports those cases.
+     * <p>
+     *     It takes whole JSON documents and "flattens" them. So if it receives
+     * </p>
+     * {@snippet lang="json" :
+     * {
+     *   "flattened": {
+     *     "f": "foo",
+     *     "o.f": "bar"
+     *   }
+     * }
+     * }
+     * <p>
+     *     then it'll be indexed and returned by ES|QL using the same synthetic source rules like
+     * </p>
+     * {@snippet lang="json" :
+     * {
+     *   "f": "foo",
+     *   "o": {
+     *     "f": "bar"
+     *   }
+     * }
+     * }
+     */
+    FLATTENED(
+        builder().esType("flattened").estimatedSize(1024).docValues().underConstruction(DataTypesTransportVersions.ESQL_FLATTENED_DATATYPE)
     );
 
     public static final Set<DataType> UNDER_CONSTRUCTION = Arrays.stream(DataType.values())
@@ -780,7 +829,7 @@ public enum DataType implements Writeable {
     }
 
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE || isCounter(t) || isSpatialOrGrid(t) || t == AGGREGATE_METRIC_DOUBLE);
+        return false == (t == SOURCE || isCounter(t) || isSpatialOrGrid(t) || t == AGGREGATE_METRIC_DOUBLE || t == FLATTENED);
     }
 
     public String nameUpper() {
@@ -1182,5 +1231,10 @@ public enum DataType implements Writeable {
          * Development version for partial_agg type support (used by ToPartial/FromPartial aggregate functions).
          */
         public static final TransportVersion ESQL_AGG_FROM_PARTIAL = TransportVersion.fromName("esql_agg_from_partial");
+
+        /**
+         * Development version for flattened field type support.
+         */
+        public static final TransportVersion ESQL_FLATTENED_DATATYPE = TransportVersion.fromName("esql_flattened_datatype");
     }
 }

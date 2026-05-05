@@ -32,6 +32,12 @@ import org.elasticsearch.search.sort.SortOrder;
  *     in the hash table; their aggregator state is therefore never allocated. {@link #nonEmpty()} filters
  *     out group ids whose key has been evicted while the hash was being filled.
  * </p>
+ * <p>
+ *     <b>Sort collation:</b> ordering uses {@link BytesRef#compareTo}, i.e. unsigned lexicographic byte
+ *     comparison. For {@code KEYWORD} fields encoded as valid UTF-8 this is equivalent to Unicode
+ *     codepoint order, matching how Lucene sorts these values. ICU/locale-aware collations are not honored
+ *     here; if a query needs them, the caller must perform the sort outside of this hash.
+ * </p>
  */
 final class BytesRefTopNBlockHash extends BlockHash {
     private final int channel;

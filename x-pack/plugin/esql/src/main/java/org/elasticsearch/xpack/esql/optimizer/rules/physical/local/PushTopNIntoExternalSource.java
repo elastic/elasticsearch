@@ -17,11 +17,8 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
@@ -53,15 +50,23 @@ public class PushTopNIntoExternalSource extends PhysicalOptimizerRules.Parameter
     @Override
     protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
         if (topNExec.child() instanceof AggregateExec aggregate && aggregate.getClass() == AggregateExec.class) {
+            // Use the shared helper to validate the wrapper-shape contract — anything outside the small set of
+            // recognized wrappers (Eval/Project/Filter, possibly nested) is rejected here, so the rebuild below
+            // only needs to swap the leaf source within an already-accepted subtree.
+            ExternalSourceExec ext = ExternalSourceAggregatePushdown.findExternalSource(aggregate.child());
+            if (ext == null || ext.pushedTopN() != null) {
+                return topNExec;
+            }
             BlockHash.TopNDef topNDef = buildTopNDef(topNExec, aggregate, ctx);
             if (topNDef == null) {
                 return topNExec;
             }
-            PhysicalPlan annotatedAggregateChild = annotateExternalSource(aggregate.child(), topNDef);
-            if (annotatedAggregateChild == aggregate.child()) {
-                return topNExec;
-            }
-            return topNExec.replaceChild(aggregate.replaceChild(annotatedAggregateChild));
+            ExternalSourceExec annotated = ext.withPushedTopN(topNDef);
+            // Rebuild the aggregate-child subtree by retargeting the original ext leaf at the annotated copy.
+            // findExternalSource has already validated the wrapper shape, so we know exactly one ExternalSourceExec
+            // sits below; transformDown on the leaf class is the simplest faithful rebuild.
+            PhysicalPlan rebuiltAggregateChild = aggregate.child().transformDown(ExternalSourceExec.class, e -> e == ext ? annotated : e);
+            return topNExec.replaceChild(aggregate.replaceChild(rebuiltAggregateChild));
         }
         return topNExec;
     }
@@ -100,7 +105,15 @@ public class PushTopNIntoExternalSource extends PhysicalOptimizerRules.Parameter
         }
         Object folded = limitExpr.fold(ctx.foldCtx());
         if (folded instanceof Number n) {
-            int limit = n.intValue();
+            // Defensive: the analyzer normally constrains LIMIT to a non-negative int literal, but folding can
+            // widen to Long. Math.toIntExact rejects values outside int range with an explicit ArithmeticException
+            // rather than silently truncating; we still validate positivity ourselves so callers never see 0.
+            int limit;
+            try {
+                limit = Math.toIntExact(n.longValue());
+            } catch (ArithmeticException ignored) {
+                return null;
+            }
             if (limit <= 0) {
                 return null;
             }
@@ -112,34 +125,4 @@ public class PushTopNIntoExternalSource extends PhysicalOptimizerRules.Parameter
         return null;
     }
 
-    /**
-     * Walks the AggregateExec child subtree and returns a copy where the (single) {@link ExternalSourceExec}
-     * has its {@code pushedTopN} hint set. Mirrors the small set of intermediate-node shapes recognized by
-     * {@code ExternalSourceAggregatePushdown.extractExternalSource}. Returns the original plan unchanged when
-     * no external source is found or its hint is already set.
-     */
-    private static PhysicalPlan annotateExternalSource(PhysicalPlan plan, BlockHash.TopNDef topNDef) {
-        if (plan instanceof ExternalSourceExec ext) {
-            return ext.pushedTopN() != null ? ext : ext.withPushedTopN(topNDef);
-        }
-        if (plan instanceof EvalExec eval && eval.child() instanceof ExternalSourceExec ext) {
-            return ext.pushedTopN() != null ? eval : eval.replaceChild(ext.withPushedTopN(topNDef));
-        }
-        if (plan instanceof ProjectExec project && project.child() instanceof ExternalSourceExec ext) {
-            return ext.pushedTopN() != null ? project : project.replaceChild(ext.withPushedTopN(topNDef));
-        }
-        if (plan instanceof FilterExec filter) {
-            PhysicalPlan filterChild = filter.child();
-            if (filterChild instanceof ExternalSourceExec ext) {
-                return ext.pushedTopN() != null ? filter : filter.replaceChild(ext.withPushedTopN(topNDef));
-            }
-            if (filterChild instanceof EvalExec eval && eval.child() instanceof ExternalSourceExec ext) {
-                return ext.pushedTopN() != null ? filter : filter.replaceChild(eval.replaceChild(ext.withPushedTopN(topNDef)));
-            }
-            if (filterChild instanceof ProjectExec project && project.child() instanceof ExternalSourceExec ext) {
-                return ext.pushedTopN() != null ? filter : filter.replaceChild(project.replaceChild(ext.withPushedTopN(topNDef)));
-            }
-        }
-        return plan;
-    }
 }

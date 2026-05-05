@@ -35,12 +35,10 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
@@ -385,41 +383,15 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
     /**
      * Walks down the child subtree of an {@link AggregateExec} looking for an {@link ExternalSourceExec}
-     * whose transient {@link ExternalSourceExec#pushedTopN()} hint is set. Mirrors the small set of
-     * intermediate-node shapes recognized by {@code ExternalSourceAggregatePushdown.extractExternalSource}
-     * so the local execution plan honours the same rewrites the optimizer already validated against.
+     * whose transient {@link ExternalSourceExec#pushedTopN()} hint is set. Delegates the wrapper-shape
+     * traversal to {@link ExternalSourceAggregatePushdown#findExternalSource(PhysicalPlan)} so the local
+     * execution plan honours the same rewrites the optimizer already validated against.
      * Returns {@code null} when no external source (or no Top-N hint) is found.
      */
     @Nullable
     private static BlockHash.TopNDef extractPushedTopN(PhysicalPlan child) {
-        ExternalSourceExec ext = findExternalSource(child);
+        ExternalSourceExec ext = ExternalSourceAggregatePushdown.findExternalSource(child);
         return ext == null ? null : ext.pushedTopN();
-    }
-
-    @Nullable
-    private static ExternalSourceExec findExternalSource(PhysicalPlan child) {
-        if (child instanceof ExternalSourceExec ext) {
-            return ext;
-        }
-        if (child instanceof EvalExec eval && eval.child() instanceof ExternalSourceExec ext) {
-            return ext;
-        }
-        if (child instanceof ProjectExec project && project.child() instanceof ExternalSourceExec ext) {
-            return ext;
-        }
-        if (child instanceof FilterExec filter) {
-            PhysicalPlan filterChild = filter.child();
-            if (filterChild instanceof ExternalSourceExec ext) {
-                return ext;
-            }
-            if (filterChild instanceof EvalExec eval && eval.child() instanceof ExternalSourceExec ext) {
-                return ext;
-            }
-            if (filterChild instanceof ProjectExec project && project.child() instanceof ExternalSourceExec ext) {
-                return ext;
-            }
-        }
-        return null;
     }
 
     public abstract Operator.OperatorFactory timeSeriesAggregatorOperatorFactory(

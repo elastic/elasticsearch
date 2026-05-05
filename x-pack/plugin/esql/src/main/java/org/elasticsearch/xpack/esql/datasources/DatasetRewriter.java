@@ -138,6 +138,11 @@ public final class DatasetRewriter {
             };
             throw new VerificationException(message);
         }
+        if (relation.metadataFields().isEmpty() == false) {
+            // Reject rather than silently drop. _index synthesis on datasets is tracked separately
+            // (proposed: dataset name as _index); _id/_source/_score have no agreed semantics yet.
+            throw new VerificationException("METADATA fields are not supported on datasets; dataset(s) requested: " + datasetNames);
+        }
         if (nonDatasetNames.isEmpty() == false) {
             // Counts only in the user-facing message (names may be unreadable to the caller); full
             // names go to DEBUG for operator triage. Rejection removed by heterogeneous FROM.

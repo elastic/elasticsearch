@@ -367,10 +367,10 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testFromDatasetWithMetadataIndexFails() throws Exception {
-        // The rewriter drops `METADATA _index` because UnresolvedExternalRelation has no
-        // metadata-fields slot. The analyzer then rejects `_index` as an unknown column.
-        // Pins the Phase 1 limitation tracked in the PR description.
+    public void testFromDatasetWithMetadataFieldsRejected() throws Exception {
+        // Phase 1 rejects METADATA fields on datasets at the rewriter rather than silently dropping.
+        // _index synthesis on datasets is tracked separately; _id / _source / _score have no agreed
+        // semantics yet on external sources.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(
@@ -383,7 +383,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             Exception.class,
             () -> run(syncEsqlQueryRequest("FROM employees METADATA _index | KEEP _index | LIMIT 1"), TIMEOUT)
         );
-        assertCauseMessageContains(ex, "_index");
+        assertCauseMessageContains(ex, "METADATA fields are not supported on datasets");
+        assertCauseMessageContains(ex, "employees");
     }
 
     public void testWildcardSpanningIndexAndDatasetRejected() throws Exception {

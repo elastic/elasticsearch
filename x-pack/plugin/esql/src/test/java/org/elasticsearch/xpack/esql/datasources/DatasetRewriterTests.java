@@ -25,6 +25,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -37,9 +38,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class DatasetRewriterTests extends ESTestCase {
 
@@ -118,11 +121,11 @@ public class DatasetRewriterTests extends ESTestCase {
             VerificationException.class,
             () -> DatasetRewriter.rewrite(relationOf("some_idx,logs"), project, RESOLVER)
         );
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("mixing datasets and non-datasets"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("1 non-dataset(s)"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("1 dataset(s)"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("some_idx")));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("[logs]")));
+        assertThat(ex.getMessage(), containsString("mixing datasets and non-datasets"));
+        assertThat(ex.getMessage(), containsString("1 non-dataset(s)"));
+        assertThat(ex.getMessage(), containsString("1 dataset(s)"));
+        assertThat(ex.getMessage(), not(containsString("some_idx")));
+        assertThat(ex.getMessage(), not(containsString("[logs]")));
     }
 
     public void testIndexModeNonStandardRejected() {
@@ -149,9 +152,29 @@ public class DatasetRewriterTests extends ESTestCase {
                 VerificationException.class,
                 () -> DatasetRewriter.rewrite(relationOfWithMode("logs", entry.getKey()), project, RESOLVER)
             );
-            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString(entry.getValue()));
-            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("logs"));
+            assertThat(ex.getMessage(), containsString(entry.getValue()));
+            assertThat(ex.getMessage(), containsString("logs"));
         }
+    }
+
+    public void testMetadataFieldsRejectedOnDataset() {
+        // METADATA fields on a dataset are rejected at the rewriter rather than silently dropped.
+        // Mirrors the TS / LOOKUP rejection style. _index synthesis is tracked separately.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        UnresolvedRelation relation = new UnresolvedRelation(
+            Source.EMPTY,
+            new IndexPattern(Source.EMPTY, "logs"),
+            false,
+            List.of(MetadataAttribute.create(Source.EMPTY, MetadataAttribute.INDEX)),
+            IndexMode.STANDARD,
+            null
+        );
+        VerificationException ex = expectThrows(VerificationException.class, () -> DatasetRewriter.rewrite(relation, project, RESOLVER));
+        assertThat(ex.getMessage(), containsString("METADATA fields are not supported on datasets"));
+        assertThat(ex.getMessage(), containsString("logs"));
     }
 
     public void testDatasetReferencingUnknownDataSourceFailsWithExplicitMessage() {
@@ -170,8 +193,8 @@ public class DatasetRewriterTests extends ESTestCase {
             IllegalStateException.class,
             () -> DatasetRewriter.rewrite(relationOf("orphan_ds"), project, RESOLVER)
         );
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("dataset [orphan_ds]"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("unknown data source [missing_parent]"));
+        assertThat(ex.getMessage(), containsString("dataset [orphan_ds]"));
+        assertThat(ex.getMessage(), containsString("unknown data source [missing_parent]"));
     }
 
     public void testNonSecretSettingsArriveAsTheirOriginalValue() {
@@ -245,9 +268,9 @@ public class DatasetRewriterTests extends ESTestCase {
             VerificationException.class,
             () -> DatasetRewriter.rewrite(relationOf("my_closed_index,logs"), project, RESOLVER)
         );
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("mixing datasets and non-datasets"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("1 non-dataset(s)"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("1 dataset(s)"));
+        assertThat(ex.getMessage(), containsString("mixing datasets and non-datasets"));
+        assertThat(ex.getMessage(), containsString("1 non-dataset(s)"));
+        assertThat(ex.getMessage(), containsString("1 dataset(s)"));
     }
 
     public void testWildcardSpanningIndicesAndDatasetsRejected() {
@@ -262,12 +285,12 @@ public class DatasetRewriterTests extends ESTestCase {
             VerificationException.class,
             () -> DatasetRewriter.rewrite(relationOf("logs_*"), project, RESOLVER)
         );
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("mixing datasets and non-datasets"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("1 non-dataset(s)"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("1 dataset(s)"));
+        assertThat(ex.getMessage(), containsString("mixing datasets and non-datasets"));
+        assertThat(ex.getMessage(), containsString("1 non-dataset(s)"));
+        assertThat(ex.getMessage(), containsString("1 dataset(s)"));
         // The caller may not have access to the matched index name — must not be exfiltrated.
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("logs_index")));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("logs_dataset")));
+        assertThat(ex.getMessage(), not(containsString("logs_index")));
+        assertThat(ex.getMessage(), not(containsString("logs_dataset")));
     }
 
     public void testNonStringSettingsArePreservedThroughCarrier() {
@@ -381,10 +404,10 @@ public class DatasetRewriterTests extends ESTestCase {
             VerificationException.class,
             () -> DatasetRewriter.rewrite(relationOf("logs_*"), project, RESOLVER)
         );
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("FROM [logs_*]"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("matched 9 datasets"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("current limit is 8"));
-        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("Narrow the pattern"));
+        assertThat(ex.getMessage(), containsString("FROM [logs_*]"));
+        assertThat(ex.getMessage(), containsString("matched 9 datasets"));
+        assertThat(ex.getMessage(), containsString("current limit is 8"));
+        assertThat(ex.getMessage(), containsString("Narrow the pattern"));
     }
 
     public void testDateMathPatternReachesSlowPath() {

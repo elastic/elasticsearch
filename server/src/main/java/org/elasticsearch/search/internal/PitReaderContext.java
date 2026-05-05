@@ -91,6 +91,11 @@ public final class PitReaderContext implements ReaderContext {
     }
 
     @Override
+    public boolean isRelocating() {
+        return relocatedTimestampMs > 0;
+    }
+
+    @Override
     public ShardSearchRequest getShardSearchRequest(ShardSearchRequest other) {
         return delegate.getShardSearchRequest(other);
     }
@@ -153,10 +158,6 @@ public final class PitReaderContext implements ReaderContext {
      */
     public void relocate() {
         relocatedTimestampMs = nowInMillis();
-    }
-
-    private boolean isRelocating() {
-        return relocatedTimestampMs > 0;
     }
 
     private long nowInMillis() {

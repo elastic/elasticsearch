@@ -114,8 +114,6 @@ public final class SingleSessionReaderContext implements ReaderContext {
         return elapsed > keepAlive.get();
     }
 
-    // 6 methods below are (unfortunately) only implemented by ScrollReaderContext.
-
     @Override
     public ShardSearchRequest getShardSearchRequest(ShardSearchRequest other) {
         return Objects.requireNonNull(other, "ShardSearchRequest must be sent back in a fetch request");

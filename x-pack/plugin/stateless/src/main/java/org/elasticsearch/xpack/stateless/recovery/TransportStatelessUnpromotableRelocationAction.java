@@ -387,6 +387,13 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             // reader. We have to do that instead of relying on the SearchDirectory#metadata because generational files
             // are pinned to the first BCC blob that contains them, this means that generational files from a commit
             // might point towards different BCCs.
+
+            try {
+                Thread.sleep(1001);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
             recoveryExecutor.execute(ActionRunnable.wrap(listener, (innerListener) -> {
                 final var bccIterator = objectStoreService.readBatchedCompoundCommitFromStoreIncrementally(
                     shardId,

@@ -49,6 +49,13 @@ public sealed interface ReaderContext extends Releasable permits SingleSessionRe
 
     boolean isExpired();
 
+    default boolean isRelocating() {
+        // Only relevant for PIT contexts.
+        return false;
+    }
+
+    // 6 methods below are (unfortunately) only implemented by ScrollReaderContext.
+
     ShardSearchRequest getShardSearchRequest(ShardSearchRequest other);
 
     ScrollContext scrollContext();

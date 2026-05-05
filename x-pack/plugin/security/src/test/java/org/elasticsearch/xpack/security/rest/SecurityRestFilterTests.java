@@ -104,7 +104,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             Settings.EMPTY,
             threadContext,
             authcService,
-            new AuditTrailService(null, null, clusterService)
+            new AuditTrailService(mock(AuditTrail.class), TestUtils.newTestLicenseState(), clusterService)
         );
         filter = getFilter(NOOP_OPERATOR_PRIVILEGES_SERVICE);
     }
@@ -114,7 +114,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             true,
             threadContext,
             secondaryAuthenticator,
-            new AuditTrailService(null, null, clusterService),
+            new AuditTrailService(mock(AuditTrail.class), TestUtils.newTestLicenseState(), clusterService),
             privilegesService
         );
     }
@@ -299,7 +299,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             true,
             threadContext,
             secondaryAuthenticator,
-            new AuditTrailService(null, null, clusterService),
+            new AuditTrailService(mock(AuditTrail.class), TestUtils.newTestLicenseState(), clusterService),
             null
         );
 
@@ -325,7 +325,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             true,
             threadContext,
             secondaryAuthenticator,
-            new AuditTrailService(null, null, clusterService),
+            new AuditTrailService(mock(AuditTrail.class), TestUtils.newTestLicenseState(), clusterService),
             null
         );
 

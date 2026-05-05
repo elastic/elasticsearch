@@ -484,7 +484,7 @@ public class LocalExecutionPlanner {
         );
 
         return source.with(
-            new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory, taskSettings),
+            new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory, taskSettings, completion.timeout()),
             outputLayout
         );
     }
@@ -842,7 +842,8 @@ public class LocalExecutionPlanner {
                 queryText,
                 rerankFieldsEvaluators,
                 scoreChannel,
-                RerankOperator.DEFAULT_BATCH_SIZE
+                RerankOperator.DEFAULT_BATCH_SIZE,
+                rerank.timeout()
             ),
             outputLayout
         );
@@ -1409,6 +1410,7 @@ public class LocalExecutionPlanner {
             .maxBufferSize(effectiveBufferSize)
             .rowLimit(pushedLimit)
             .executor(operatorFactoryRegistry.executor())
+            .fileReadExecutor(operatorFactoryRegistry.fileReadExecutor())
             .config(externalSource.config())
             .sourceMetadata(externalSource.sourceMetadata())
             .pushedFilter(externalSource.pushedFilter())

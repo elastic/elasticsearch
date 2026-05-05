@@ -12,6 +12,7 @@
 
 ## Verification & Lint Tasks
 - `./gradlew spotlessJavaCheck` / `spotlessApply` (or `:server:spotlessJavaCheck`): enforce formatter profile in `build-conventions/formatterConfig.xml`.
+- `spotlessApply` also prunes unused imports and reorders imports automatically. Run it instead of manually hunting for unused imports after refactoring.
 
 ## Project Structure
 The repository is organized into several key directories:
@@ -24,6 +25,35 @@ The repository is organized into several key directories:
 *   `distribution`: Logic for building distribution packages.
 *   `x-pack`: Additional code modules and plugins under Elastic License.
 *   `build-conventions`, `build-tools`, `build-tools-internal`: Gradle build logic. Refer to BUILDING.md for details on how these are structured and used.
+
+## Stateless Elasticsearch
+
+Stateless Elasticsearch is a distribution where shard data is stored in an **object store** (e.g., S3, GCS, Azure) rather than local disk. Nodes carry no durable local state. The cluster distinguishes two node roles: **indexing nodes** (`index` role, write path + translog replication to object store) and **search nodes** (`search` role, read-only via shared blob cache). The `DiscoveryNode.STATELESS_ENABLED_SETTING` gates stateless behavior at runtime.
+
+### Plugin `deploymentTarget`
+
+Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node **whether to load the plugin**: **`STATEFUL_ONLY`** (stateful clusters only), **`STATELESS_ONLY`** (stateless mode on only), or **`ALL`** (always loaded; this is the default when the property is omitted).
+
+### Plugin locations
+
+| Plugin | Gradle path | Purpose |
+|---|---|---|
+| `stateless` | `:x-pack:plugin:stateless` | Core stateless — engines, allocation, cache, object store, recovery |
+| `stateless-sigterm` | `:x-pack:plugin:stateless-sigterm` | Clean SIGTERM shutdown for Kubernetes |
+| `stateless-master-failover` | `:x-pack:plugin:stateless-master-failover` | Master failover behavior |
+| `stateless-no-wait-for-active-shards` | `:x-pack:plugin:stateless-no-wait-for-active-shards` | Suppresses wait-for-active-shards |
+| `stateless-health-shards-availability` | `:x-pack:plugin:stateless-health-shards-availability` | Shard availability health indicators |
+
+**Package**: `org.elasticsearch.xpack.stateless.*` throughout.
+
+### Key subsystems
+
+- **Object store** (`objectstore/`): `ObjectStoreService`, bucket config, GC tasks for stale indices and translogs.
+- **Commits** (`commits/`): `StatelessCommitService` manages shard commits to blob store; `HollowShardsService` manages hollow indexing shards.
+- **Cache & prewarming** (`cache/`): `StatelessSharedBlobCacheService`, online prewarming, `SearchCommitPrefetcher`.
+- **Engines** (`engine/`): `IndexEngine` (write path) and `SearchEngine` (read-only); `TranslogReplicator` replicates translog to object store.
+- **Allocation** (`allocation/`): `StatelessExistingShardsAllocator`, separate balancing weights per tier, heap-usage-aware allocation decisions.
+- **Recovery** (`recovery/`): custom primary relocation and unpromotable shard relocation protocols.
 
 ## Testing Cheatsheet
 - Standard suite: `./gradlew test` (respects cached results; add `-Dtests.timestamp=$(date +%s)` to bypass caches when reusing seeds).
@@ -103,8 +133,10 @@ If you encounter any of the following methods, you must go and read their javado
 * `fullyLoadedAnalyzer`
 * `TestAnalyzer.statementError`
 * `TestAnalyzer.error`
+* `forciblyCast`
 
 ## Backwards compatibility
 - For changes to a `Writeable` implementation (`writeTo` and constructor from `StreamInput`), add a new `public static final <UNIQUE_DESCRIPTIVE_NAME> = TransportVersion.fromName("<unique_descriptive_name>")` and use it in the new code paths. Confirm the backport branches and then generate a new version file with `./gradlew generateTransportVersion`.
+- Never hand-edit transport version resource files; always use the Gradle tasks. See `docs/internal/Versioning.md` for the full workflow.
 
 Stay aligned with `CONTRIBUTING.md`, `BUILDING.md`, and `TESTING.asciidoc`; this AGENTS guide summarizes—but does not replace—those authoritative docs.

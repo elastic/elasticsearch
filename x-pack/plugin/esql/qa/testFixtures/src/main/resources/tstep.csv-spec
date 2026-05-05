@@ -1,0 +1,172 @@
+// TSTEP-specific tests
+
+tstep_by_ten_minutes_duration
+required_capability: tstep
+request_time_filter: 2023-10-23T12:15:00.000Z,2023-10-23T13:55:01.543Z
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP(10 minutes)
+| SORT bucket
+;
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:25:00.000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:35:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937Z | 2023-10-23T13:35:00.000Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:53:55.832Z | 2023-10-23T13:55:00.000Z
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-23T14:05:00.000Z
+;
+
+tstep_by_ten_minutes_duration_as_string
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tstep
+request_time_filter: 2023-10-23T12:15:00.000Z,2023-10-23T13:55:01.543Z
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP("10 minutes")
+| SORT bucket
+;
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:25:00.000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:35:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937Z | 2023-10-23T13:35:00.000Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:53:55.832Z | 2023-10-23T13:55:00.000Z
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-23T14:05:00.000Z
+;
+
+docs_tstep_by_one_hour_duration
+required_capability: tstep
+request_time_filter: 2023-10-23T12:15:00.000Z,2023-10-23T13:55:01.543Z
+
+// tag::docsTStepByOneHourDuration[]
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP(1 hour)
+| SORT bucket
+// end::docsTStepByOneHourDuration[]
+;
+
+// tag::docsTStepByOneHourDuration-result[]
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T13:15:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T14:15:00.000Z
+// end::docsTStepByOneHourDuration-result[]
+;
+
+docs_tstep_explicit_bounds
+required_capability: tstep
+required_capability: tstep_explicit_bounds
+
+// tag::docsTStepExplicitBounds[]
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP(1 hour, "2023-10-23T12:15:00.000Z", "2023-10-23T13:55:01.543Z")
+| SORT bucket
+// end::docsTStepExplicitBounds[]
+;
+
+// tag::docsTStepExplicitBounds-result[]
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T13:15:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T14:15:00.000Z
+// end::docsTStepExplicitBounds-result[]
+;
+
+tstep_explicit_bounds_ten_minutes
+required_capability: tstep
+required_capability: tstep_explicit_bounds
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP(10 minutes, "2023-10-23T12:15:00.000Z", "2023-10-23T13:55:01.543Z")
+| SORT bucket
+;
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:25:00.000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:35:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937Z | 2023-10-23T13:35:00.000Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:53:55.832Z | 2023-10-23T13:55:00.000Z
+2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-23T14:05:00.000Z
+;
+
+docs_tstep_by_one_hour_duration_as_string
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tstep
+request_time_filter: 2023-10-23T12:15:00.000Z,2023-10-23T13:55:01.543Z
+
+// tag::docsTStepByOneHourDurationAsString[]
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP("1 hour")
+| SORT bucket
+// end::docsTStepByOneHourDurationAsString[]
+;
+
+// tag::docsTStepByOneHourDurationAsString-result[]
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T13:15:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T14:15:00.000Z
+// end::docsTStepByOneHourDurationAsString-result[]
+;
+
+tstep_with_request_timestamp_bounds_only
+required_capability: tstep
+request_time_filter: 2023-10-23T12:15:00.000Z,2023-10-23T13:55:01.543Z
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP(1 hour)
+| SORT bucket
+;
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T13:15:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T14:15:00.000Z
+;
+
+docs_tstep_bucket_count
+required_capability: tstep
+required_capability: tstep_bucket_count
+
+// tag::docsTStepBucketCount[]
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP(2, "2023-10-23T12:15:00.000Z", "2023-10-23T14:15:00.000Z")
+| SORT bucket
+// end::docsTStepBucketCount[]
+;
+
+// tag::docsTStepBucketCount-result[]
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T13:15:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T14:15:00.000Z
+// end::docsTStepBucketCount-result[]
+;
+
+tstep_bucket_count_many_buckets
+required_capability: tstep
+required_capability: tstep_bucket_count
+
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP(10, "2023-10-23T12:15:00.000Z", "2023-10-23T13:55:01.543Z")
+| SORT bucket
+;
+
+min:datetime             | max:datetime             | bucket:datetime
+2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:25:01.000Z
+2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:35:02.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937Z | 2023-10-23T13:35:08.000Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:10.000Z
+;
+
+tstep_with_timezone_and_duration
+required_capability: global_timezone_parameter_with_output
+required_capability: tstep
+request_time_filter: 2023-10-23T12:15:00.000Z,2023-10-23T13:55:01.543Z
+
+SET time_zone = "+05:00"\;
+FROM sample_data
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TSTEP(1 hour)
+| SORT bucket
+;
+
+min:datetime                  | max:datetime                  | bucket:datetime
+2023-10-23T17:15:03.360+05:00 | 2023-10-23T17:27:28.948+05:00 | 2023-10-23T18:15:00.000+05:00
+2023-10-23T18:33:34.937+05:00 | 2023-10-23T18:55:01.543+05:00 | 2023-10-23T19:15:00.000+05:00
+;

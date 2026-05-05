@@ -21,7 +21,7 @@ import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import java.io.IOException;
 import java.util.List;
 
-final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlock<ExponentialHistogramBlock>
+public final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlock<ExponentialHistogramBlock>
     implements
         ExponentialHistogramBlock {
 
@@ -137,12 +137,7 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
         ZeroBucket zeroBucket = histogram.zeroBucket();
         BytesStreamOutput encodedBytes = new BytesStreamOutput();
         try {
-            CompressedExponentialHistogram.writeHistogramBytes(
-                encodedBytes,
-                histogram.scale(),
-                histogram.negativeBuckets().iterator(),
-                histogram.positiveBuckets().iterator()
-            );
+            CompressedExponentialHistogram.writeHistogramBytes(encodedBytes, histogram);
         } catch (IOException e) {
             throw new RuntimeException("Failed to encode histogram", e);
         }
@@ -272,6 +267,13 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
             out.appendDouble(maxima.getDouble(maxima.getFirstValueIndex(valueIndex)));
         }
         out.appendBytesRef(encodedHistograms.getBytesRef(encodedHistograms.getFirstValueIndex(valueIndex), scratch));
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        // Five sub-blocks of doubles (dense arrays, 8 bytes per slot regardless of null)
+        // plus the variable-length encoded histogram bytes.
+        return 5 * Double.BYTES + encodedHistograms.valueMaxByteSize();
     }
 
     @Override
@@ -418,5 +420,5 @@ final class ExponentialHistogramArrayBlock extends AbstractDelegatingCompoundBlo
         return encodedHistograms.hashCode();
     }
 
-    record EncodedHistogramData(double count, double sum, double min, double max, double zeroThreshold, BytesRef encodedHistogram) {}
+    public record EncodedHistogramData(double count, double sum, double min, double max, double zeroThreshold, BytesRef encodedHistogram) {}
 }

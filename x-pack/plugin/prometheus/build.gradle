@@ -23,6 +23,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('esql'))
   testImplementation project(path: xpackModule('esql-core'))
+  testImplementation project(xpackModule('esql:qa:testFixtures'))
   // stack is needed as we import the metrics@custom template
   clusterModules project(xpackModule('stack'))
   // transitive dependencies of stack

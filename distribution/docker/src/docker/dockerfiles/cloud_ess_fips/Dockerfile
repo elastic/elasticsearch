@@ -25,7 +25,7 @@
 # Extract Elasticsearch artifact
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:e4cb92038b58c8c881962a17ec0b9970857a801c0a52f75550258f92f1e93ca1 AS builder
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:0e6258685e5e5c3ebae1405f20041f0a414407af88a0d37f589a95060e56b884 AS builder
 
 # Install required packages to extract the Elasticsearch distribution
 RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
@@ -93,7 +93,6 @@ RUN chown 1000:1000 /opt/plugins/archive/*
 RUN chmod 0444 /opt/plugins/archive/*
 
 COPY fips/resources/fips_java.security /usr/share/elasticsearch/config/fips_java.security
-COPY fips/resources/fips_java.policy /usr/share/elasticsearch/config/fips_java.policy
 
 WORKDIR /usr/share/elasticsearch/config
 
@@ -104,7 +103,7 @@ WORKDIR /usr/share/elasticsearch/config
 # Add entrypoint
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:e4cb92038b58c8c881962a17ec0b9970857a801c0a52f75550258f92f1e93ca1
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:0e6258685e5e5c3ebae1405f20041f0a414407af88a0d37f589a95060e56b884
 
 RUN <%= retry.loop(package_manager,
           "export DEBIAN_FRONTEND=noninteractive && \n" +
@@ -173,7 +172,6 @@ RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
 -Djavax.net.ssl.keyStoreType=BCFKS
 -Dorg.bouncycastle.fips.approved_only=true
 -Djava.security.properties=config/fips_java.security
--Djava.security.policy=config/fips_java.policy
 -Djavax.net.ssl.trustStoreType=BCFKS
 -Djavax.net.ssl.trustStore=config/cacerts.bcfks
 -Djavax.net.ssl.trustStorePassword=passwordcacert

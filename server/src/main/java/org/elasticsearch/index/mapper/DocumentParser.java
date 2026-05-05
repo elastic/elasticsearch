@@ -81,7 +81,7 @@ public final class DocumentParser {
      * @throws DocumentParsingException whenever there's a problem parsing the document
      */
     public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws DocumentParsingException {
-        if (source.source() != null && source.source().length() == 0) {
+        if (source.getEirfParser() == null && source.source() != null && source.source().length() == 0) {
             throw new DocumentParsingException(new XContentLocation(0, 0), "failed to parse, document is empty");
         }
         final RootDocumentParserContext context;
@@ -93,11 +93,13 @@ public final class DocumentParser {
                 mappingLookup,
                 mappingParserContext,
                 source,
-                XContentHelper.createParser(
-                    parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
-                    source.source(),
-                    source.getXContentType()
-                )
+                source.getEirfParser() != null
+                    ? source.getEirfParser()
+                    : XContentHelper.createParser(
+                        parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
+                        source.source(),
+                        source.getXContentType()
+                    )
             )
         ) {
             context = ctx;
@@ -815,33 +817,37 @@ public final class DocumentParser {
      * Arrays that have been classified as floats and meet specific criteria are re-mapped to dense_vector.
      */
     private static void postProcessDynamicArrayMapping(DocumentParserContext context, String fieldName, int arraySize) {
-        if (context.indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
-            final MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
-            final String fullFieldName = builderContext.buildFullName(fieldName);
-            final List<Mapper.Builder> builders = context.getDynamicMappers(fullFieldName);
-            if (builders == null
-                || context.isFieldAppliedFromTemplate(fullFieldName)
-                || context.isCopyToDestinationField(fullFieldName)
-                || arraySize < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
-                || arraySize > MAX_DIMS_COUNT
-                || builders.stream()
-                    .anyMatch(
-                        b -> b instanceof NumberFieldMapper.Builder == false
-                            || ((NumberFieldMapper.Builder) b).type() != NumberFieldMapper.NumberType.FLOAT
-                    )) {
-                return;
-            }
-
-            DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
-                fieldName,
-                context.indexSettings().getIndexVersionCreated(),
-                IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(context.indexSettings().getSettings()),
-                IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(context.indexSettings().getSettings()),
-                context.getVectorFormatProviders()
-            );
-            builder.dimensions(arraySize);
-            context.updateDynamicMappers(fullFieldName, List.of(builder));
+        // cheap/free early return checks
+        if (arraySize < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
+            || arraySize > MAX_DIMS_COUNT
+            || context.indexSettings().getIndexVersionCreated().before(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
+            return;
         }
+
+        final MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
+        final String fullFieldName = builderContext.buildFullName(fieldName);
+        final List<Mapper.Builder> builders = context.getDynamicMappers(fullFieldName);
+        // non-cheap/free early return checks
+        if (builders == null
+            || context.isFieldAppliedFromTemplate(fullFieldName)
+            || context.isCopyToDestinationField(fullFieldName)
+            || builders.stream()
+                .anyMatch(
+                    b -> b instanceof NumberFieldMapper.Builder == false
+                        || ((NumberFieldMapper.Builder) b).type() != NumberFieldMapper.NumberType.FLOAT
+                )) {
+            return;
+        }
+
+        DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
+            fieldName,
+            context.indexSettings().getIndexVersionCreated(),
+            IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(context.indexSettings().getSettings()),
+            IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(context.indexSettings().getSettings()),
+            context.getVectorFormatProviders()
+        );
+        builder.dimensions(arraySize);
+        context.updateDynamicMappers(fullFieldName, List.of(builder));
     }
 
     private static void throwEOFOnParseArray(String arrayFieldName, DocumentParserContext context) {

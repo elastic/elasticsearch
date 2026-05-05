@@ -487,6 +487,83 @@ public class PagedBytesCursorTests extends ESTestCase {
         }
     }
 
+    public void testReadLengthPrefixedEmpty() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
+            byte[] preamble = randomByteArrayOfLength(randomIntBetween(0, 100));
+            builder.append(preamble, 0, preamble.length);
+            builder.appendLengthPrefixed(PagedBytes.EMPTY.cursor(new PagedBytesCursor()));
+            try (PagedBytes built = builder.build()) {
+                PagedBytesCursor cursor = built.cursor(new PagedBytesCursor());
+                for (byte b : preamble) {
+                    assertThat(cursor.readByte(), equalTo(b));
+                }
+                PagedBytesCursor result = cursor.readLengthPrefixed(new PagedBytesCursor());
+                assertThat(result.remaining(), equalTo(0));
+                assertThat(cursor.remaining(), equalTo(0));
+            }
+        }
+    }
+
+    public void testReadLengthPrefixedSmall() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        byte[] preamble = randomByteArrayOfLength(randomIntBetween(0, 100));
+        byte[] payload = randomByteArrayOfLength(randomIntBetween(1, BYTE_PAGE_SIZE - 1));
+        try (PagedBytesBuilder src = new PagedBytesBuilder(recycler, breaker, "src", 0)) {
+            src.append(payload, 0, payload.length);
+            try (PagedBytes srcBytes = src.build()) {
+                try (PagedBytesBuilder dst = new PagedBytesBuilder(recycler, breaker, "dst", 0)) {
+                    dst.append(preamble, 0, preamble.length);
+                    dst.appendLengthPrefixed(srcBytes.cursor(new PagedBytesCursor()));
+                    try (PagedBytes built = dst.build()) {
+                        PagedBytesCursor cursor = built.cursor(new PagedBytesCursor());
+                        for (byte b : preamble) {
+                            assertThat(cursor.readByte(), equalTo(b));
+                        }
+                        PagedBytesCursor result = cursor.readLengthPrefixed(new PagedBytesCursor());
+                        assertThat(result.remaining(), equalTo(payload.length));
+                        byte[] actual = new byte[payload.length];
+                        for (int i = 0; i < actual.length; i++) {
+                            actual[i] = result.readByte();
+                        }
+                        assertThat(actual, equalTo(payload));
+                        assertThat(cursor.remaining(), equalTo(0));
+                    }
+                }
+            }
+        }
+    }
+
+    public void testReadLengthPrefixedLarge() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        byte[] preamble = randomByteArrayOfLength(randomIntBetween(0, 100));
+        int pageCount = randomIntBetween(2, 5);
+        byte[] payload = randomByteArrayOfLength(pageCount * BYTE_PAGE_SIZE + randomIntBetween(1, BYTE_PAGE_SIZE - 1));
+        try (PagedBytesBuilder src = new PagedBytesBuilder(recycler, breaker, "src", 0)) {
+            src.append(payload, 0, payload.length);
+            try (PagedBytes srcBytes = src.build()) {
+                try (PagedBytesBuilder dst = new PagedBytesBuilder(recycler, breaker, "dst", 0)) {
+                    dst.append(preamble, 0, preamble.length);
+                    dst.appendLengthPrefixed(srcBytes.cursor(new PagedBytesCursor()));
+                    try (PagedBytes built = dst.build()) {
+                        PagedBytesCursor cursor = built.cursor(new PagedBytesCursor());
+                        for (byte b : preamble) {
+                            assertThat(cursor.readByte(), equalTo(b));
+                        }
+                        PagedBytesCursor result = cursor.readLengthPrefixed(new PagedBytesCursor());
+                        assertThat(result.remaining(), equalTo(payload.length));
+                        byte[] actual = new byte[payload.length];
+                        for (int i = 0; i < actual.length; i++) {
+                            actual[i] = result.readByte();
+                        }
+                        assertThat(actual, equalTo(payload));
+                        assertThat(cursor.remaining(), equalTo(0));
+                    }
+                }
+            }
+        }
+    }
+
     public void testToString() {
         byte[] bytes = new byte[] { 0x48, 0x65, 0x6C, 0x6C, 0x6F };
         PagedBytesCursor cursor = new PagedBytesCursor();

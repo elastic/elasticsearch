@@ -522,23 +522,8 @@ public class AuthorizationService {
             }
 
             targetProjectListener.addListener(ActionListener.wrap(authorizedProjects -> {
-                final TargetProjects targetProjects;
-                if (resolvesCrossProject) {
-                    assert request instanceof IndicesRequest.CrossProjectCandidate
-                        : "only CrossProjectCandidate resolves cross-project but found [" + request.getClass() + "]";
-                    final IndicesRequest.CrossProjectCandidate crossProjectCandidate = (IndicesRequest.CrossProjectCandidate) request;
-                    targetProjects = projectRoutingResolver.resolve(
-                        crossProjectCandidate.getProjectRouting(),
-                        projectMetadata,
-                        authorizedProjects
-                    );
-                    crossProjectCandidate.setResolvedTargetProjects(targetProjects);
-                } else {
-                    targetProjects = authorizedProjects;
-                }
-
                 final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = makeResolvedIndicesAsyncSupplier(
-                    targetProjects,
+                    authorizedProjects,
                     requestInfo,
                     requestId,
                     request,
@@ -579,7 +564,7 @@ public class AuthorizationService {
     }
 
     private AsyncSupplier<ResolvedIndices> makeResolvedIndicesAsyncSupplier(
-        TargetProjects targetProjects,
+        TargetProjects authorizedProjects,
         RequestInfo requestInfo,
         String requestId,
         TransportRequest request,
@@ -595,6 +580,8 @@ public class AuthorizationService {
                 var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
                 return SubscribableListener.newSucceeded(resolvedIndices);
             }
+
+            final TargetProjects targetProjects = maybeSetResolvedTargetProjects(request, authorizedProjects, projectMetadata);
             final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request, targetProjects);
             if (resolvedIndices != null) {
                 return SubscribableListener.newSucceeded(resolvedIndices);
@@ -614,6 +601,26 @@ public class AuthorizationService {
                 return resolvedIndicesListener;
             }
         });
+    }
+
+    private TargetProjects maybeSetResolvedTargetProjects(
+        TransportRequest request,
+        TargetProjects authorizedProjects,
+        ProjectMetadata projectMetadata
+    ) {
+        if (request instanceof IndicesRequest.CrossProjectCandidate crossProjectCandidate
+            && indicesAndAliasesResolver.resolvesCrossProject(request)) {
+            final TargetProjects targetProjects = projectRoutingResolver.resolve(
+                crossProjectCandidate.getProjectRouting(),
+                projectMetadata,
+                authorizedProjects
+            );
+            crossProjectCandidate.setResolvedTargetProjects(targetProjects);
+            return targetProjects;
+        }
+        assert authorizedProjects == TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED
+            : "expected LOCAL_ONLY_FOR_CPS_DISABLED when CPS does not apply but got [" + authorizedProjects + "]";
+        return authorizedProjects;
     }
 
     private void onAuthorizedResourceLoadFailure(

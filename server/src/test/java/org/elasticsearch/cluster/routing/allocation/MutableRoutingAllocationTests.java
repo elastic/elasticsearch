@@ -31,7 +31,7 @@ public class MutableRoutingAllocationTests extends ESAllocationTestCase {
         double recomputedValue = randomValueOtherThan(initialSourceValue, MutableRoutingAllocationTests::randomWriteLoadProportion);
 
         ClusterInfo clusterInfo = ClusterInfo.builder().build();
-        MutableRoutingAllocation allocation = newAllocation(clusterInfo, sourceNodeId, otherNodeId, false);
+        MutableRoutingAllocation allocation = newAllocation(clusterInfo, sourceNodeId, otherNodeId);
 
         clusterInfo.nodeMaxShardWriteLoadProportion(sourceNodeId, () -> initialSourceValue);
         clusterInfo.nodeMaxShardWriteLoadProportion(otherNodeId, () -> otherValue);
@@ -62,7 +62,7 @@ public class MutableRoutingAllocationTests extends ESAllocationTestCase {
         double recomputedValue = randomValueOtherThan(initialSourceValue, MutableRoutingAllocationTests::randomWriteLoadProportion);
 
         ClusterInfo clusterInfo = ClusterInfo.builder().build();
-        MutableRoutingAllocation allocation = newAllocation(clusterInfo, sourceNodeId, targetNodeId, false);
+        MutableRoutingAllocation allocation = newAllocation(clusterInfo, sourceNodeId, targetNodeId);
 
         clusterInfo.nodeMaxShardWriteLoadProportion(sourceNodeId, () -> initialSourceValue);
         clusterInfo.nodeMaxShardWriteLoadProportion(targetNodeId, () -> targetValue);
@@ -79,42 +79,12 @@ public class MutableRoutingAllocationTests extends ESAllocationTestCase {
         assertThat(clusterInfo.nodeMaxShardWriteLoadProportion(targetNodeId, () -> targetValue), equalTo(targetValue));
     }
 
-    public void testCacheNotInvalidatedDuringSimulation() {
-        String sourceNodeId = randomIdentifier();
-        String otherNodeId = randomValueOtherThan(sourceNodeId, ESTestCase::randomIdentifier);
-        double cachedValue = randomWriteLoadProportion();
-
-        ClusterInfo clusterInfo = ClusterInfo.builder().build();
-        MutableRoutingAllocation allocation = newAllocation(clusterInfo, sourceNodeId, otherNodeId, true);
-
-        clusterInfo.nodeMaxShardWriteLoadProportion(sourceNodeId, () -> cachedValue);
-
-        ShardRouting initializing = TestShardRouting.newShardRouting(
-            randomAlphaOfLength(8),
-            0,
-            sourceNodeId,
-            true,
-            ShardRoutingState.INITIALIZING
-        );
-        ShardRouting started = initializing.moveToStarted(0L);
-
-        allocation.changes().shardStarted(initializing, started);
-
-        // Cache entry survives because the invalidator is not wired in during simulation.
-        assertThat(clusterInfo.nodeMaxShardWriteLoadProportion(sourceNodeId, () -> cachedValue), equalTo(cachedValue));
-    }
-
-    private static MutableRoutingAllocation newAllocation(
-        ClusterInfo clusterInfo,
-        String sourceNodeId,
-        String targetNodeId,
-        boolean isSimulating
-    ) {
+    private static MutableRoutingAllocation newAllocation(ClusterInfo clusterInfo, String sourceNodeId, String targetNodeId) {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(newNode(sourceNodeId)).add(newNode(targetNodeId)))
             .build();
         RoutingAllocation mutable = TestRoutingAllocationFactory.forClusterState(clusterState).clusterInfo(clusterInfo).mutable();
-        return (MutableRoutingAllocation) (isSimulating ? mutable.mutableCloneForSimulation() : mutable);
+        return (MutableRoutingAllocation) (randomBoolean() ? mutable.mutableCloneForSimulation() : mutable);
     }
 
     private static double randomWriteLoadProportion() {

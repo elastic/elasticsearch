@@ -66,14 +66,15 @@ final class MutableRoutingAllocation extends RoutingAllocation {
                     nodesChangedObserver,
                     indexMetadataUpdater,
                     restoreInProgressUpdater,
-                    resizeSourceIndexUpdater }
+                    resizeSourceIndexUpdater,
+                    new MaxWriteLoadProportionCacheInvalidator() }
                 : new RoutingChangesObserver[] {
                     nodesChangedObserver,
                     indexMetadataUpdater,
                     restoreInProgressUpdater,
                     resizeSourceIndexUpdater,
-                    shardChangesObserver,
-                    new MaxWriteLoadProportionCacheInvalidator() }
+                    new MaxWriteLoadProportionCacheInvalidator(),
+                    shardChangesObserver }
         );
     }
 

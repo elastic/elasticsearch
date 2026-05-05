@@ -247,20 +247,28 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     protected static final String ENRICH_POLICY_NAME = "all_fields_policy";
     protected static final String LOOKUP_INDEX_NAME = "all_fields_lookup_index";
 
+    /**
+     * Override to return {@code true} in mixed-version clusters to avoid writing the ESNext
+     * codec (which has no BWC contract) on nodes that old nodes cannot read.
+     */
+    protected boolean disableExperimentalVectorFeatures() {
+        return false;
+    }
+
     @Before
     public void createIndices() throws IOException {
         if (supportsNodeAssignment()) {
             for (Map.Entry<String, NodeInfo> e : localNodeToInfo().entrySet()) {
-                createIndexForNode(client(), minVersion(), e.getKey(), e.getValue().id(), indexMode);
+                createIndexForNode(client(), minVersion(), e.getKey(), e.getValue().id(), indexMode, disableExperimentalVectorFeatures());
             }
         } else {
-            createIndexForNode(client(), minVersion(), null, null, indexMode);
+            createIndexForNode(client(), minVersion(), null, null, indexMode, disableExperimentalVectorFeatures());
         }
 
         // We need a single lookup index that has the same name across all clusters, as well as a single enrich policy per cluster.
         // We create both only when we're testing LOOKUP mode.
         if (indexExists(LOOKUP_INDEX_NAME) == false && indexMode == IndexMode.LOOKUP) {
-            createAllTypesIndex(client(), minVersion(), LOOKUP_INDEX_NAME, null, indexMode);
+            createAllTypesIndex(client(), minVersion(), LOOKUP_INDEX_NAME, null, indexMode, disableExperimentalVectorFeatures());
             createAllTypesDoc(client(), minVersion(), LOOKUP_INDEX_NAME);
             createEnrichPolicy(client(), minVersion(), LOOKUP_INDEX_NAME, ENRICH_POLICY_NAME);
         }
@@ -786,11 +794,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         TransportVersion minimumVersionAcrossAllNodes,
         String nodeName,
         String nodeId,
-        IndexMode mode
+        IndexMode mode,
+        boolean disableExperimentalFeatures
     ) throws IOException {
         String indexName = indexName(mode, nodeName);
         if (false == indexExists(client, indexName)) {
-            createAllTypesIndex(client, minimumVersionAcrossAllNodes, indexName, nodeId, mode);
+            createAllTypesIndex(client, minimumVersionAcrossAllNodes, indexName, nodeId, mode, disableExperimentalFeatures);
             createAllTypesDoc(client, minimumVersionAcrossAllNodes, indexName);
         }
     }
@@ -810,7 +819,34 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         TransportVersion minimumVersionAcrossAllNodes,
         String indexName,
         String nodeId,
-        IndexMode mode
+        IndexMode mode,
+        boolean disableExperimentalFeatures
+    ) throws IOException {
+        // Falls back without the setting if the old node doesn't recognise it.
+        try {
+            client.performRequest(
+                buildCreateIndexRequest(minimumVersionAcrossAllNodes, indexName, nodeId, mode, disableExperimentalFeatures)
+            );
+        } catch (ResponseException e) {
+            if (disableExperimentalFeatures && isUnknownDenseVectorExperimentalSetting(e)) {
+                client.performRequest(buildCreateIndexRequest(minimumVersionAcrossAllNodes, indexName, nodeId, mode, false));
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    private static boolean isUnknownDenseVectorExperimentalSetting(ResponseException e) {
+        String message = e.getMessage();
+        return message != null && message.contains("unknown setting") && message.contains("index.dense_vector.experimental_features");
+    }
+
+    private static Request buildCreateIndexRequest(
+        TransportVersion minimumVersionAcrossAllNodes,
+        String indexName,
+        String nodeId,
+        IndexMode mode,
+        boolean disableExperimentalFeatures
     ) throws IOException {
         XContentBuilder config = JsonXContent.contentBuilder().startObject();
         {
@@ -822,6 +858,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             }
             if (nodeId != null) {
                 config.field("routing.allocation.include._id", nodeId);
+            }
+            if (disableExperimentalFeatures) {
+                config.field("dense_vector.experimental_features", false);
             }
             config.endObject();
             config.endObject();
@@ -847,7 +886,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         Request request = new Request("PUT", indexName);
         request.setOptions(DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
         request.setJsonEntity(Strings.toString(config));
-        client.performRequest(request);
+        return request;
     }
 
     private static String fieldName(DataType type) {

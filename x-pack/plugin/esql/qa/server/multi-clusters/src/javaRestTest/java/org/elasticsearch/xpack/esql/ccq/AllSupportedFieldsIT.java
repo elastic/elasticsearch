@@ -50,16 +50,16 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     public void createRemoteIndices() throws IOException {
         if (supportsNodeAssignment()) {
             for (Map.Entry<String, NodeInfo> e : remoteNodeToInfo().entrySet()) {
-                createIndexForNode(remoteClient(), minVersion(), e.getKey(), e.getValue().id(), indexMode());
+                createIndexForNode(remoteClient(), minVersion(), e.getKey(), e.getValue().id(), indexMode(), disableExperimentalVectorFeatures());
             }
         } else {
-            createIndexForNode(remoteClient(), minVersion(), null, null, indexMode());
+            createIndexForNode(remoteClient(), minVersion(), null, null, indexMode(), disableExperimentalVectorFeatures());
         }
 
         // We need a single lookup index that has the same name across all clusters, as well as a single enrich policy per cluster.
         // We create both only when we're testing LOOKUP mode.
         if (indexExists(remoteClient(), LOOKUP_INDEX_NAME) == false && indexMode() == IndexMode.LOOKUP) {
-            createAllTypesIndex(remoteClient(), minVersion(), LOOKUP_INDEX_NAME, null, indexMode());
+            createAllTypesIndex(remoteClient(), minVersion(), LOOKUP_INDEX_NAME, null, indexMode(), disableExperimentalVectorFeatures());
             createAllTypesDoc(remoteClient(), minVersion(), LOOKUP_INDEX_NAME);
             createEnrichPolicy(remoteClient(), minVersion(), LOOKUP_INDEX_NAME, ENRICH_POLICY_NAME);
         }

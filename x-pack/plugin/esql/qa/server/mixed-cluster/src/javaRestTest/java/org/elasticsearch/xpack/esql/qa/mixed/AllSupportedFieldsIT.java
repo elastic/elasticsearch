@@ -32,4 +32,9 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
+
+    @Override
+    protected boolean disableExperimentalVectorFeatures() {
+        return true;
+    }
 }

@@ -23,7 +23,6 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -32,7 +31,6 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
@@ -61,11 +59,14 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         if (remoteService != null) {
             return;
         }
-        RestClient remoteAdmin = buildClient(restAdminSettings(), MultiClusterSearchClusters.remoteClusterHosts().toArray(new HttpHost[0]));
-        Map<String, Set<String>> remoteFeatures = getClusterStateFeatures(remoteAdmin);
-        Set<String> remoteNodeVersions = readVersionsFromNodesInfo(remoteAdmin);
-        remoteService = createTestFeatureService(remoteFeatures, fromSemanticVersions(remoteNodeVersions));
-        remoteAdmin.close();
+        try (
+            RestClient remoteAdmin = buildClient(
+                restAdminSettings(),
+                MultiClusterSearchClusters.remoteClusterHosts().toArray(new HttpHost[0])
+            )
+        ) {
+            remoteService = newYamlTestFeatureServiceForCluster(remoteAdmin, readVersionsFromNodesInfo(remoteAdmin));
+        }
     }
 
     @Override

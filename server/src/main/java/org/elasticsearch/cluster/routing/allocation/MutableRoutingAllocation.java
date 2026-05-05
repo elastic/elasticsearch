@@ -182,8 +182,8 @@ final class MutableRoutingAllocation extends RoutingAllocation {
     }
 
     /**
-     * Whenever a shard moves in or out of {@link org.elasticsearch.cluster.routing.ShardRoutingState#STARTED}, we invalidate any cached max write-load proportion
-     * values for the affected node(s)
+     * Whenever a shard moves in or out of {@link org.elasticsearch.cluster.routing.ShardRoutingState#STARTED}, we invalidate any
+     * cached max write-load proportion values for the affected node(s)
      */
     private class MaxWriteLoadProportionCacheInvalidator implements RoutingChangesObserver {
 

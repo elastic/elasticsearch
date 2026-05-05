@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Irate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.LegacyIrate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -257,6 +258,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Idelta.class,
         Increase.class,
         Irate.class,
+        LegacyIrate.class,
         HistogramMergeOverTime.class,
         LastOverTime.class,
         MaxOverTime.class,

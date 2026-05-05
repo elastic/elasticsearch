@@ -37,6 +37,10 @@ setup:
   - match: { result: created }
 
   - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
       indices.get_mapping:
         index: test_index
 
@@ -88,6 +92,10 @@ setup:
             field_name_not_ignored: [ 10, 20, 30 ]
 
   - match: { result: created }
+
+  - do:
+      cluster.health:
+        wait_for_events: languid
 
   - do:
       indices.get_mapping:

@@ -359,7 +359,11 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     }
 
     public static InferenceString createRandom() {
-        DataType dataType = randomFrom(DataType.values());
+        return createRandomUsingDataTypes(EnumSet.allOf(DataType.class));
+    }
+
+    public static InferenceString createRandomUsingDataTypes(EnumSet<DataType> dataTypes) {
+        DataType dataType = randomFrom(dataTypes);
         DataFormat format = randomBoolean() ? randomFrom(dataType.getSupportedFormats()) : null;
         var value = convertToDataURIIfNeeded(dataType, format, randomAlphanumericOfLength(10));
         return new InferenceString(dataType, format, value);

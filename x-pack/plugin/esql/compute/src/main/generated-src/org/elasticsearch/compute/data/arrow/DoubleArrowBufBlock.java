@@ -53,6 +53,11 @@ public final class DoubleArrowBufBlock extends AbstractArrowBufBlock<DoubleVecto
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Double.BYTES;
+    }
+
+    @Override
     protected ArrowBufVectorConstructor<DoubleVector> vectorConstructor() {
         return DoubleArrowBufVector::new;
     }

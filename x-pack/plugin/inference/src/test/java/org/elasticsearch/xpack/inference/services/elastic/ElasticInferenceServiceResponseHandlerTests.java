@@ -22,7 +22,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -187,7 +187,7 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
                 }
             """, errorMessage);
 
-        var mockRequest = mock(Request.class);
+        var mockRequest = mock(OutboundRequest.class);
         when(mockRequest.getInferenceEntityId()).thenReturn(modelId);
         var httpResult = new HttpResult(httpResponse, errorMessage == null ? new byte[] {} : responseJson.getBytes(StandardCharsets.UTF_8));
         var handler = new ElasticInferenceServiceResponseHandler("", (request, result) -> null);

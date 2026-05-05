@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 147596
+pr: 147650
+summary: "ESQL: Validate unsupported grouping types earlier"
+type: bug

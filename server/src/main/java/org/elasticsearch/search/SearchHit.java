@@ -13,7 +13,6 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
@@ -52,7 +51,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -771,37 +769,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             cloneIfHashMap(documentFields),
             cloneIfHashMap(metaFields),
             null
-        );
-    }
-
-    public SearchHit asUnpooled() {
-        assert hasReferences();
-        if (isPooled() == false) {
-            return this;
-        }
-        return new SearchHit(
-            docId,
-            score,
-            rank,
-            id,
-            nestedIdentity,
-            version,
-            seqNo,
-            primaryTerm,
-            source instanceof RefCounted ? new BytesArray(source.toBytesRef(), true) : source,
-            highlightFields,
-            sortValues,
-            matchedQueries,
-            explanation,
-            shard,
-            index,
-            clusterAlias,
-            innerHits == null
-                ? null
-                : innerHits.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().asUnpooled())),
-            cloneIfHashMap(documentFields),
-            cloneIfHashMap(metaFields),
-            ALWAYS_REFERENCED
         );
     }
 

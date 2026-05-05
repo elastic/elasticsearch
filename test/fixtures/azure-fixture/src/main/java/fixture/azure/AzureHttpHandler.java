@@ -33,6 +33,7 @@ import java.io.InputStreamReader;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -266,6 +267,8 @@ public class AzureHttpHandler implements HttpHandler {
                 responseHeaders.add(X_MS_BLOB_CONTENT_LENGTH, String.valueOf(blobContents.length()));
                 responseHeaders.add("Content-Length", String.valueOf(blobContents.length()));
                 responseHeaders.add(X_MS_BLOB_TYPE, blob.type());
+                responseHeaders.add("ETag", "\"blockblob\"");
+                responseHeaders.add("Last-Modified", DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC)));
 
                 final MockAzureBlobStore.CopyInfo copyInfo = blob.copyInfo();
                 if (copyInfo != null) {
@@ -284,8 +287,11 @@ public class AzureHttpHandler implements HttpHandler {
 
                 final BytesReference responseContent;
                 final RestStatus successStatus;
-                // see Constants.HeaderConstants.STORAGE_RANGE_HEADER
-                final String rangeHeader = exchange.getRequestHeaders().getFirst("x-ms-range");
+                // Azure SDK uses x-ms-range; fall back to the standard Range header for other clients
+                String rangeHeader = exchange.getRequestHeaders().getFirst("x-ms-range");
+                if (rangeHeader == null) {
+                    rangeHeader = exchange.getRequestHeaders().getFirst("Range");
+                }
                 if (rangeHeader != null) {
                     final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
                     if (range == null) {
@@ -294,21 +300,28 @@ public class AzureHttpHandler implements HttpHandler {
                             "Range header does not match expected format: " + rangeHeader
                         );
                     }
-
-                    final BytesReference blobContents = blob.getContents();
-                    if (blobContents.length() <= range.start()) {
+                    // Azure Blob Storage does not support suffix ranges (bytes=-N): the Get Blob REST API
+                    // documents only "bytes=start-end" and "bytes=start-". Real Azure returns 416 InvalidRange
+                    // for any other form, so the fixture mirrors that to keep tests faithful.
+                    if (range.isSuffixRange()) {
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                         sendResponseHeadersWithTrace(exchange, RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
                         return;
                     }
 
-                    long start = range.start();
-                    long end = Math.min(range.end(), blobContents.length() - 1);
-                    long sliceLength = end - start + 1;
-                    responseContent = blobContents.slice(Math.toIntExact(start), Math.toIntExact(sliceLength));
+                    final BytesReference blobContents = blob.getContents();
+                    final HttpHeaderParser.ResolvedRange resolved = range.resolveAgainst(blobContents.length());
+                    if (resolved == null) {
+                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                        sendResponseHeadersWithTrace(exchange, RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
+                        return;
+                    }
+
+                    responseContent = blobContents.slice(Math.toIntExact(resolved.start()), Math.toIntExact(resolved.length()));
                     successStatus = RestStatus.PARTIAL_CONTENT;
                     // Azure SDK expects Content-Range for 206 responses (RFC 7233: bytes start-end/total)
-                    exchange.getResponseHeaders().add("Content-Range", "bytes " + start + "-" + end + "/" + blobContents.length());
+                    exchange.getResponseHeaders()
+                        .add("Content-Range", "bytes " + resolved.start() + "-" + resolved.end() + "/" + blobContents.length());
                 } else {
                     responseContent = blob.getContents();
                     successStatus = RestStatus.OK;
@@ -318,6 +331,8 @@ public class AzureHttpHandler implements HttpHandler {
                 exchange.getResponseHeaders().add(X_MS_BLOB_CONTENT_LENGTH, String.valueOf(responseContent.length()));
                 exchange.getResponseHeaders().add(X_MS_BLOB_TYPE, blob.type());
                 exchange.getResponseHeaders().add("ETag", "\"blockblob\"");
+                exchange.getResponseHeaders()
+                    .add("Last-Modified", DateTimeFormatter.RFC_1123_DATE_TIME.format(ZonedDateTime.now(ZoneOffset.UTC)));
                 sendResponseHeadersWithTrace(
                     exchange,
                     successStatus.getStatus(),

@@ -26,10 +26,12 @@ import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
 import org.elasticsearch.reindex.ClientScrollablePaginatedHitSource;
 import org.elasticsearch.reindex.ScrollablePaginatedHitSource;
+import org.elasticsearch.reindex.SearchContextKeepaliveDeadline;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
@@ -51,6 +53,11 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
     private final RestClient client;
     private final RemoteInfo remote;
     private final SearchRequest searchRequest;
+    private final SearchContextKeepaliveDeadline keepaliveDeadline;
+    /**
+     * Keep-alive duration for the scroll HTTP request currently in flight, set before each execute and cleared after success.
+     */
+    private final AtomicReference<TimeValue> currentKeepAlive = new AtomicReference<>();
     Version remoteVersion;
 
     public RemoteScrollablePaginatedHitSource(
@@ -63,18 +70,24 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
         RestClient client,
         RemoteInfo remoteInfo,
         SearchRequest searchRequest,
-        @Nullable Version initialRemoteVersion
+        @Nullable Version initialRemoteVersion,
+        SearchContextKeepaliveDeadline keepaliveDeadline
     ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.remote = remoteInfo;
         this.searchRequest = searchRequest;
         this.client = client;
         this.remoteVersion = initialRemoteVersion;
+        this.keepaliveDeadline = keepaliveDeadline;
     }
 
     @Override
     protected void doFirstSearch(RejectAwareActionListener<Response> searchListener) {
         logger.debug("executing initial remote scroll search");
+        TimeValue scrollKeepAlive = searchRequest.scroll();
+        if (scrollKeepAlive != null) {
+            currentKeepAlive.set(scrollKeepAlive);
+        }
         if (remoteVersion != null) {
             execute(
                 RemoteRequestBuilders.initialSearch(searchRequest, remote.getQuery(), remoteVersion),
@@ -112,9 +125,11 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
     void onStartResponse(RejectAwareActionListener<Response> searchListener, Response response) {
         if (Strings.hasLength(response.getScrollId()) && response.getHits().isEmpty()) {
             logger.debug("First response looks like a scan response. Jumping right to the second. scroll=[{}]", response.getScrollId());
+            recordSuccessfulExtensionFromFlight();
             setScrollId(response.getScrollId());
             doNextScrollSearch(response.getScrollId(), timeValueMillis(0), searchListener);
         } else {
+            recordSuccessfulExtensionFromFlight();
             searchListener.onResponse(response);
         }
     }
@@ -122,7 +137,28 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
     @Override
     protected void doNextScrollSearch(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         TimeValue keepAlive = timeValueNanos(searchRequest.scroll().nanos() + extraKeepAlive.nanos());
-        execute(RemoteRequestBuilders.scroll(scrollId, keepAlive, remoteVersion), RESPONSE_PARSER, searchListener, threadPool, client);
+        currentKeepAlive.set(keepAlive);
+        execute(
+            RemoteRequestBuilders.scroll(scrollId, keepAlive, remoteVersion),
+            RESPONSE_PARSER,
+            wrapScrollSearchListener(searchListener),
+            threadPool,
+            client
+        );
+    }
+
+    private RejectAwareActionListener<Response> wrapScrollSearchListener(RejectAwareActionListener<Response> searchListener) {
+        return RejectAwareActionListener.withResponseHandler(searchListener, r -> {
+            recordSuccessfulExtensionFromFlight();
+            searchListener.onResponse(r);
+        });
+    }
+
+    private void recordSuccessfulExtensionFromFlight() {
+        TimeValue keepAlive = currentKeepAlive.getAndSet(null);
+        if (keepAlive != null) {
+            keepaliveDeadline.recordSuccessfulExtension(keepAlive);
+        }
     }
 
     @Override

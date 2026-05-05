@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 147962
+summary: Eliminate redundant S3 HEAD calls via suffix range and object reuse
+type: enhancement

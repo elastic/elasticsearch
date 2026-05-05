@@ -58,11 +58,6 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
 
     private static volatile List<GeneratedIndex> generatedIndices;
 
-    private static final Pattern CANNOT_LOAD_BLOCKS_WITHOUT_DOC_VALUES = Pattern.compile(
-        ".*Cannot load blocks without doc values.*",
-        Pattern.DOTALL
-    );
-
     // FORK converts UnsupportedAttribute to a plain ReferenceAttribute(UNSUPPORTED), stripping the
     // Unresolvable marker. Functions then reject the argument with a generic "type [unsupported]" error
     // instead of the proper "Cannot use field" message. https://github.com/elastic/elasticsearch/issues/147094
@@ -226,11 +221,6 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
 
     private static boolean isAdditionalAllowedError(String errorMessage, String query) {
         if (errorMessage == null) return false;
-        // RangeFieldMapper throws "Cannot load blocks without doc values" for *_range fields
-        // with doc_values:false. https://github.com/elastic/elasticsearch/issues/146527
-        if (isAllowedError(errorMessage, CANNOT_LOAD_BLOCKS_WITHOUT_DOC_VALUES) && hasRangeFieldType()) {
-            return true;
-        }
         // FORK converts UnsupportedAttribute to ReferenceAttribute(UNSUPPORTED), causing functions
         // to reject the field with a generic "type [unsupported]" error.
         // https://github.com/elastic/elasticsearch/issues/147094
@@ -242,21 +232,6 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
         // https://github.com/elastic/elasticsearch/issues/147610
         if (query != null && isAllowedError(errorMessage, FAILED_TO_CREATE_QUERY) && queryContainsFullTextFunction(query)) {
             return true;
-        }
-        return false;
-    }
-
-    private static boolean hasRangeFieldType() {
-        List<GeneratedIndex> indices = generatedIndices;
-        if (indices == null) {
-            return false;
-        }
-        for (GeneratedIndex idx : indices) {
-            for (RandomMappingGenerator.FieldDef field : idx.fields()) {
-                if (field.esType().endsWith("_range")) {
-                    return true;
-                }
-            }
         }
         return false;
     }

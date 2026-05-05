@@ -19,6 +19,10 @@ apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.esql-function'
 
+versions << [
+  'hadoop': '3.4.3',
+]
+
 esplugin {
   name = 'x-pack-esql'
   description = 'The plugin that powers ESQL for Elasticsearch'
@@ -100,6 +104,10 @@ dependencies {
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-compression-libs'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-bzip2'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-http'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-parquet'))
+  internalClusterTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
+  internalClusterTestImplementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") { transitive = false }
+  internalClusterTestImplementation("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") { transitive = false }
 }
 
 tasks.named('splitPackagesAudit').configure {

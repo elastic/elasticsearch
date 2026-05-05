@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceErrorResponseEntity;
 
 public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler {
@@ -30,34 +30,34 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
     }
 
     @Override
-    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {
             return;
         }
 
-        throw buildRetryException(request, result);
+        throw buildRetryException(outboundRequest, result);
     }
 
-    private RetryException buildRetryException(Request request, HttpResult result) {
+    private RetryException buildRetryException(OutboundRequest outboundRequest, HttpResult result) {
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500 || statusCode == 503) {
-            return new RetryException(true, buildError(SERVER_ERROR, request, result));
+            throw new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 400) {
-            return new RetryException(false, buildError(BAD_REQUEST, request, result));
+            throw new RetryException(false, buildError(BAD_REQUEST, outboundRequest, result));
         } else if (statusCode == 405) {
-            return new RetryException(false, buildError(METHOD_NOT_ALLOWED, request, result));
+            throw new RetryException(false, buildError(METHOD_NOT_ALLOWED, outboundRequest, result));
         } else if (statusCode == 413) {
-            return new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
+            throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, outboundRequest, result));
         } else if (statusCode == 429) {
-            return new RetryException(true, buildError(RATE_LIMIT, request, result));
+            throw new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
         }
 
-        return new RetryException(false, buildError(UNSUCCESSFUL, request, result));
+        return new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
     }
 
     @Override
-    protected ElasticsearchException buildError(String message, Request request, HttpResult result) {
-        ElasticsearchException error = super.buildError(message, request, result);
+    protected ElasticsearchException buildError(String message, OutboundRequest outboundRequest, HttpResult result) {
+        ElasticsearchException error = super.buildError(message, outboundRequest, result);
         addRetryAfterHeaderIfPresent(result, error);
         return error;
     }

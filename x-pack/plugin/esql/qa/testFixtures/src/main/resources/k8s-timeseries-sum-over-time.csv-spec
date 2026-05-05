@@ -205,6 +205,7 @@ tx:double | step:datetime            | cluster:keyword
 sum_over_time_with_window
 required_capability: ts_command_v0
 required_capability: time_series_window_v1
+required_capability: fix_time_series_window_backward
 
 TS k8s
 | WHERE pod == "one"
@@ -213,62 +214,9 @@ TS k8s
 | LIMIT 20;
 
 tx:long | cluster:keyword | time_bucket:datetime
-2637    | prod            | 2024-05-10T00:00:00.000Z
-5792    | qa              | 2024-05-10T00:00:00.000Z
-2965    | staging         | 2024-05-10T00:00:00.000Z
-4613    | prod            | 2024-05-10T00:05:00.000Z
-8912    | qa              | 2024-05-10T00:05:00.000Z
-3369    | staging         | 2024-05-10T00:05:00.000Z
-6617    | prod            | 2024-05-10T00:10:00.000Z
-6946    | qa              | 2024-05-10T00:10:00.000Z
-2208    | staging         | 2024-05-10T00:10:00.000Z
-5214    | prod            | 2024-05-10T00:15:00.000Z
-4292    | qa              | 2024-05-10T00:15:00.000Z
-1507    | staging         | 2024-05-10T00:15:00.000Z
-1900    | prod            | 2024-05-10T00:20:00.000Z
-1320    | qa              | 2024-05-10T00:20:00.000Z
-987     | staging         | 2024-05-10T00:20:00.000Z
-;
-
-
-sum_over_time_with_window_promql
-required_capability: promql_command_v0
-
-PROMQL index=k8s step=5m tx=(sum by (cluster) (sum_over_time(network.bytes_in{pod="one"}[10m])))
-| SORT step, cluster
-| LIMIT 20;
-
-tx:double | step:datetime            | cluster:keyword
-2637.0    | 2024-05-10T00:00:00.000Z | prod
-5792.0    | 2024-05-10T00:00:00.000Z | qa
-2965.0    | 2024-05-10T00:00:00.000Z | staging
-4613.0    | 2024-05-10T00:05:00.000Z | prod
-8912.0    | 2024-05-10T00:05:00.000Z | qa
-3369.0    | 2024-05-10T00:05:00.000Z | staging
-6617.0    | 2024-05-10T00:10:00.000Z | prod
-6946.0    | 2024-05-10T00:10:00.000Z | qa
-2208.0    | 2024-05-10T00:10:00.000Z | staging
-5214.0    | 2024-05-10T00:15:00.000Z | prod
-4292.0    | 2024-05-10T00:15:00.000Z | qa
-1507.0    | 2024-05-10T00:15:00.000Z | staging
-1900.0    | 2024-05-10T00:20:00.000Z | prod
-1320.0    | 2024-05-10T00:20:00.000Z | qa
-987.0     | 2024-05-10T00:20:00.000Z | staging
-;
-
-sum_over_time_with_tstep_window
-required_capability: ts_command_v0
-required_capability: time_series_window_v1
-required_capability: tstep
-request_time_filter: 2024-05-10T00:00:00.000Z,2024-05-10T00:25:00.000Z
-
-TS k8s
-| WHERE pod == "one"
-| STATS tx = sum(sum_over_time(network.bytes_in, 10m)) BY cluster, time_bucket = TSTEP(5minute)
-| SORT time_bucket, cluster
-| LIMIT 20;
-
-tx:long | cluster:keyword | time_bucket:datetime
+1327    | prod            | 2024-05-10T00:00:00.000Z
+854     | qa              | 2024-05-10T00:00:00.000Z
+1284    | staging         | 2024-05-10T00:00:00.000Z
 2637    | prod            | 2024-05-10T00:05:00.000Z
 5792    | qa              | 2024-05-10T00:05:00.000Z
 2965    | staging         | 2024-05-10T00:05:00.000Z
@@ -281,9 +229,64 @@ tx:long | cluster:keyword | time_bucket:datetime
 5214    | prod            | 2024-05-10T00:20:00.000Z
 4292    | qa              | 2024-05-10T00:20:00.000Z
 1507    | staging         | 2024-05-10T00:20:00.000Z
-1900    | prod            | 2024-05-10T00:25:00.000Z
-1320    | qa              | 2024-05-10T00:25:00.000Z
-987     | staging         | 2024-05-10T00:25:00.000Z
+;
+
+
+sum_over_time_with_window_promql
+required_capability: promql_command_v0
+required_capability: fix_time_series_window_backward
+
+PROMQL index=k8s step=5m tx=(sum by (cluster) (sum_over_time(network.bytes_in{pod="one"}[10m])))
+| SORT step, cluster
+| LIMIT 20;
+
+tx:double | step:datetime            | cluster:keyword
+1327.0    | 2024-05-10T00:00:00.000Z | prod
+854.0     | 2024-05-10T00:00:00.000Z | qa
+1284.0    | 2024-05-10T00:00:00.000Z | staging
+2637.0    | 2024-05-10T00:05:00.000Z | prod
+5792.0    | 2024-05-10T00:05:00.000Z | qa
+2965.0    | 2024-05-10T00:05:00.000Z | staging
+4613.0    | 2024-05-10T00:10:00.000Z | prod
+8912.0    | 2024-05-10T00:10:00.000Z | qa
+3369.0    | 2024-05-10T00:10:00.000Z | staging
+6617.0    | 2024-05-10T00:15:00.000Z | prod
+6946.0    | 2024-05-10T00:15:00.000Z | qa
+2208.0    | 2024-05-10T00:15:00.000Z | staging
+5214.0    | 2024-05-10T00:20:00.000Z | prod
+4292.0    | 2024-05-10T00:20:00.000Z | qa
+1507.0    | 2024-05-10T00:20:00.000Z | staging
+;
+
+sum_over_time_with_tstep_window
+required_capability: ts_command_v0
+required_capability: time_series_window_v1
+required_capability: tstep
+required_capability: fix_time_series_window_backward
+request_time_filter: 2024-05-10T00:00:00.000Z,2024-05-10T00:25:00.000Z
+
+TS k8s
+| WHERE pod == "one"
+| STATS tx = sum(sum_over_time(network.bytes_in, 10m)) BY cluster, time_bucket = TSTEP(5minute)
+| SORT time_bucket, cluster
+| LIMIT 20;
+
+tx:long | cluster:keyword | time_bucket:datetime
+1327    | prod            | 2024-05-10T00:05:00.000Z
+854     | qa              | 2024-05-10T00:05:00.000Z
+1284    | staging         | 2024-05-10T00:05:00.000Z
+2637    | prod            | 2024-05-10T00:10:00.000Z
+5792    | qa              | 2024-05-10T00:10:00.000Z
+2965    | staging         | 2024-05-10T00:10:00.000Z
+4613    | prod            | 2024-05-10T00:15:00.000Z
+8912    | qa              | 2024-05-10T00:15:00.000Z
+3369    | staging         | 2024-05-10T00:15:00.000Z
+6617    | prod            | 2024-05-10T00:20:00.000Z
+6946    | qa              | 2024-05-10T00:20:00.000Z
+2208    | staging         | 2024-05-10T00:20:00.000Z
+5214    | prod            | 2024-05-10T00:25:00.000Z
+4292    | qa              | 2024-05-10T00:25:00.000Z
+1507    | staging         | 2024-05-10T00:25:00.000Z
 ;
 
 sum_over_time_older_than_10d
@@ -302,6 +305,7 @@ cost:double | pod:keyword | time_bucket:datetime
 sum_over_time_older_than_10d_promql
 required_capability: promql_command_v0
 required_capability: aggregate_metric_double_v0
+required_capability: fix_promql_time_bucket
 
 PROMQL index=k8s-downsampled step=10m start="2024-05-09T23:00:00.000Z" end="2024-05-10T00:00:00.000Z" cost=(avg by (pod) (sum_over_time(network.eth0.rx{cluster="qa"}[10m])))
 | SORT step, pod | LIMIT 5;
@@ -369,21 +373,22 @@ events:long | pod:keyword | time_bucket:datetime
 
 sum_over_time_multi_values_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket
 
 PROMQL index=k8s step=1m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:10:00.000Z" events=(sum by (pod) (sum_over_time(events_received[1m])))
 | SORT events desc, step, pod | LIMIT 10;
 
 events:double | step:datetime            | pod:keyword
-102.0         | 2024-05-10T00:09:00.000Z | one
-101.0         | 2024-05-10T00:09:00.000Z | three
-74.0          | 2024-05-10T00:08:00.000Z | two
-67.0          | 2024-05-10T00:06:00.000Z | three
-66.0          | 2024-05-10T00:08:00.000Z | one
-45.0          | 2024-05-10T00:09:00.000Z | two
-37.0          | 2024-05-10T00:05:00.000Z | two
-34.0          | 2024-05-10T00:05:00.000Z | one
+102.0         | 2024-05-10T00:10:00.000Z | one
+101.0         | 2024-05-10T00:10:00.000Z | three
+74.0          | 2024-05-10T00:09:00.000Z | two
+67.0          | 2024-05-10T00:07:00.000Z | three
+46.0          | 2024-05-10T00:08:00.000Z | one
+46.0          | 2024-05-10T00:09:00.000Z | one
+45.0          | 2024-05-10T00:10:00.000Z | two
+37.0          | 2024-05-10T00:06:00.000Z | two
 34.0          | 2024-05-10T00:06:00.000Z | one
-26.0          | 2024-05-10T00:07:00.000Z | one
+34.0          | 2024-05-10T00:07:00.000Z | one
 ;
 
 sum_over_time_null_values
@@ -406,21 +411,22 @@ null        | two         | 2024-05-10T00:13:00.000Z
 sum_over_time_null_values_promql
 required_capability: promql_command_v0
 required_capability: promql_unmapped_fields_filter_nulls
+required_capability: fix_promql_time_bucket
 
 PROMQL index=k8s step=1m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:15:00.000Z" events=(sum by (pod) (sum_over_time(events_received[1m])))
 | SORT events desc, step, pod | LIMIT 10;
 
 events:double | step:datetime            | pod:keyword
-25.0          | 2024-05-10T00:12:00.000Z | two
-23.0          | 2024-05-10T00:13:00.000Z | one
-21.0          | 2024-05-10T00:13:00.000Z | three
-20.0          | 2024-05-10T00:14:00.000Z | two
-16.0          | 2024-05-10T00:14:00.000Z | one
-11.0          | 2024-05-10T00:10:00.000Z | one
-9.0           | 2024-05-10T00:11:00.000Z | one
-7.0           | 2024-05-10T00:10:00.000Z | two
-7.0           | 2024-05-10T00:12:00.000Z | three
-5.0           | 2024-05-10T00:11:00.000Z | two
+102.0         | 2024-05-10T00:10:00.000Z | one
+101.0         | 2024-05-10T00:10:00.000Z | three
+45.0          | 2024-05-10T00:10:00.000Z | two
+25.0          | 2024-05-10T00:13:00.000Z | two
+23.0          | 2024-05-10T00:14:00.000Z | one
+21.0          | 2024-05-10T00:14:00.000Z | three
+20.0          | 2024-05-10T00:15:00.000Z | two
+16.0          | 2024-05-10T00:15:00.000Z | one
+11.0          | 2024-05-10T00:11:00.000Z | one
+9.0           | 2024-05-10T00:12:00.000Z | one
 ;
 
 sum_over_time_all_value_types

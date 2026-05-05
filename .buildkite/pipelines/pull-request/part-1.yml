@@ -5,7 +5,7 @@ steps:
       .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart1
     timeout_in_minutes: 300
     env:
-      USE_ELASTICSEARCH_MACHINE_GITHUB_TOKEN: "true" # Temporary until we work out OIDC token issues
+      USE_ELASTICSEARCH_MACHINE_GITHUB: "true" # Temporary until we work out OIDC token issues
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404

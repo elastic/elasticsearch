@@ -65,7 +65,7 @@ export GH_TOKEN="$VAULT_GITHUB_TOKEN"
 
 # This is temporary until we work out issues with the OIDC tokens
 # Doesn't do anything automatically, just makes the token available for scripts to use
-if [[ "${USE_ELASTICSEARCH_MACHINE_GITHUB_TOKEN:-}" == "true" ]]; then
+if [[ "${USE_ELASTICSEARCH_MACHINE_GITHUB:-}" == "true" ]]; then
   ELASTICSEARCH_MACHINE_GITHUB_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/github_api_credentials)
   export ELASTICSEARCH_MACHINE_GITHUB_TOKEN
 fi

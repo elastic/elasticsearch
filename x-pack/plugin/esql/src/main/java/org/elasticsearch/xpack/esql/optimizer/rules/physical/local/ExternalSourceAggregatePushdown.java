@@ -28,7 +28,7 @@ import java.util.List;
  * {@link PushAggregatesToExternalSource}) that extract an {@link ExternalSourceExec}
  * from the plan tree and resolve filtered metadata using {@link SplitFilterClassifier}.
  */
-final class ExternalSourceAggregatePushdown {
+public final class ExternalSourceAggregatePushdown {
 
     private ExternalSourceAggregatePushdown() {}
 
@@ -38,6 +38,17 @@ final class ExternalSourceAggregatePushdown {
      * the filter condition from any intermediate {@code FilterExec}.
      */
     record ExternalSourceInfo(ExternalSourceExec externalExec, AttributeMap<Attribute> aliasReplacedBy, Expression filterCondition) {}
+
+    /**
+     * Light-weight projection of {@link #extractExternalSource(PhysicalPlan)} that returns just the
+     * {@link ExternalSourceExec} (or {@code null}) for callers that don't need the alias map or filter
+     * condition. Cross-package callers (the planner, other optimizer rules) use this so they share the
+     * same set of recognized wrapper shapes — adding a new shape here automatically propagates.
+     */
+    public static ExternalSourceExec findExternalSource(PhysicalPlan child) {
+        ExternalSourceInfo info = extractExternalSource(child);
+        return info == null ? null : info.externalExec();
+    }
 
     /**
      * Extracts the ExternalSourceExec and optional filter/alias information from the plan

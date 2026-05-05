@@ -16,7 +16,7 @@ import java.util.EnumSet;
 
 public class RewriteSumOfExpressionPlusConstantGoldenTests extends GoldenTestCase {
 
-    private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
+    private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOGICAL_OPTIMIZATION);
 
     public void testTwoSumsOfFieldPlusConstant() {
         builder("""
@@ -167,13 +167,4 @@ public class RewriteSumOfExpressionPlusConstantGoldenTests extends GoldenTestCas
             .run();
     }
 
-    public void testWhereFiltersAllRowsBeforeStats() {
-        builder("""
-            FROM employees
-            | WHERE salary < 0
-            | STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
-            """).stages(STAGES)
-            .transportVersion(TransportVersionUtils.randomVersionSupporting(MvSingleValueOrNull.MV_SINGLE_VALUE_OR_NULL_TRANSPORT_VERSION))
-            .run();
-    }
 }

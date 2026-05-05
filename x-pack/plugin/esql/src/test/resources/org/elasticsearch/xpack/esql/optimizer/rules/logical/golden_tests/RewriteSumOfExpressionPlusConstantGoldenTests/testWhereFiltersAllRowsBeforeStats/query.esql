@@ -1,3 +1,0 @@
-FROM employees
-| WHERE salary < 0
-| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)

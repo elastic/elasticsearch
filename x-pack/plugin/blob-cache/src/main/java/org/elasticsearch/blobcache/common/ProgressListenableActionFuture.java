@@ -31,7 +31,7 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
 
     private static final Logger logger = LogManager.getLogger(ProgressListenableActionFuture.class);
 
-    private record PositionAndListener(long position, ActionListener<Long> listener) {}
+    record PositionAndListener(long position, ActionListener<Long> listener) {}
 
     final long start;
     final long end;
@@ -233,6 +233,20 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
             assert false : e;
             logger.warn("Failed to consume progress value", e);
         }
+    }
+
+    /**
+     * Atomically removes and returns all pending listeners. Used by {@link SparseFileTracker} when splitting a pending range so that
+     * its listeners can be transferred directly to the two new sub-range futures, giving them timely progress notifications instead of
+     * waiting for the whole original range to complete.
+     * <p>
+     * After this call the old future has no listeners. Callers are responsible for ensuring the old future is never completed.
+     */
+    synchronized List<PositionAndListener> stealListeners() {
+        assert completed == false;
+        final List<PositionAndListener> stolen = this.listeners;
+        this.listeners = null;
+        return stolen != null ? stolen : List.of();
     }
 
     @Override

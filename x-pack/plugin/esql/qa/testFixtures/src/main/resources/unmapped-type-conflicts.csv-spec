@@ -2333,9 +2333,9 @@ sample_data                           | 5033755.0
 sample_data                           | 8268153.0
 ;
 
-######################################################
-# Timeseries with mapped and unmapped type conflicts #
-######################################################
+################################################################
+# Timeseries with mapped, unmapped, and partially mapped fields #
+################################################################
 
 typeConflictLongUnmappedTimeseriesCastToLong
 required_capability: optional_fields_v5
@@ -2491,6 +2491,67 @@ TS k8s, k8s_unmapped METADATA _index
 s:long | c:long | _index:keyword
 4852   | 9      | k8s
 4852   | 9      | k8s_unmapped
+;
+
+// region is keyword, mapped in k8s but unmapped in k8s_unmapped.
+// As a PotentiallyUnmappedKeywordEsField, it is loaded from _source for k8s_unmapped.
+tsPartiallyMappedKeywordField
+required_capability: optional_fields_v5
+required_capability: ts_command_v0
+
+SET unmapped_fields="load"\;
+TS k8s, k8s_unmapped METADATA _index
+| STATS r = min(max_over_time(region)) BY time_bucket = bucket(@timestamp, 1minute), _index
+| SORT time_bucket, _index
+| LIMIT 10
+;
+
+r:keyword | time_bucket:datetime     | _index:keyword
+us        | 2024-05-10T00:00:00.000Z | k8s
+us        | 2024-05-10T00:00:00.000Z | k8s_unmapped
+us        | 2024-05-10T00:01:00.000Z | k8s
+us        | 2024-05-10T00:01:00.000Z | k8s_unmapped
+us        | 2024-05-10T00:02:00.000Z | k8s
+us        | 2024-05-10T00:02:00.000Z | k8s_unmapped
+us        | 2024-05-10T00:03:00.000Z | k8s
+us        | 2024-05-10T00:03:00.000Z | k8s_unmapped
+us        | 2024-05-10T00:04:00.000Z | k8s
+us        | 2024-05-10T00:04:00.000Z | k8s_unmapped
+;
+
+// network.bytes_in is long, mapped in k8s but unmapped in k8s_unmapped.
+// Cast to long to resolve it via MultiTypeEsField.
+tsPartiallyMappedNonKeywordFieldWithCast
+required_capability: optional_fields_v5
+required_capability: ts_command_v0
+
+SET unmapped_fields="load"\;
+TS k8s, k8s_unmapped METADATA _index
+| WHERE pod == "one"
+| STATS tx = sum(max_over_time(network.bytes_in :: long)) BY cluster, time_bucket = bucket(@timestamp, 10minute), _index
+| SORT time_bucket, cluster, _index
+| LIMIT 20
+;
+
+tx:long | cluster:keyword | time_bucket:datetime     | _index:keyword
+970     | prod            | 2024-05-10T00:00:00.000Z | k8s
+970     | prod            | 2024-05-10T00:00:00.000Z | k8s_unmapped
+842     | qa              | 2024-05-10T00:00:00.000Z | k8s
+842     | qa              | 2024-05-10T00:00:00.000Z | k8s_unmapped
+753     | staging         | 2024-05-10T00:00:00.000Z | k8s
+753     | staging         | 2024-05-10T00:00:00.000Z | k8s_unmapped
+990     | prod            | 2024-05-10T00:10:00.000Z | k8s
+990     | prod            | 2024-05-10T00:10:00.000Z | k8s_unmapped
+1006    | qa              | 2024-05-10T00:10:00.000Z | k8s
+1006    | qa              | 2024-05-10T00:10:00.000Z | k8s_unmapped
+947     | staging         | 2024-05-10T00:10:00.000Z | k8s
+947     | staging         | 2024-05-10T00:10:00.000Z | k8s_unmapped
+953     | prod            | 2024-05-10T00:20:00.000Z | k8s
+953     | prod            | 2024-05-10T00:20:00.000Z | k8s_unmapped
+917     | qa              | 2024-05-10T00:20:00.000Z | k8s
+917     | qa              | 2024-05-10T00:20:00.000Z | k8s_unmapped
+749     | staging         | 2024-05-10T00:20:00.000Z | k8s
+749     | staging         | 2024-05-10T00:20:00.000Z | k8s_unmapped
 ;
 
 ###############################################
@@ -2672,69 +2733,4 @@ addresses_no_continent   | North America
 addresses_text           | Asia
 addresses_text           | Europe
 addresses_text           | North America
-;
-
-############################
-# TS with partially mapped #
-############################
-
-// region is keyword, mapped in k8s but unmapped in k8s_unmapped.
-// As a PotentiallyUnmappedKeywordEsField, it is loaded from _source for k8s_unmapped.
-tsPartiallyMappedKeywordField
-required_capability: optional_fields_v5
-required_capability: ts_command_v0
-
-SET unmapped_fields="load"\;
-TS k8s, k8s_unmapped METADATA _index
-| STATS r = min(max_over_time(region)) BY time_bucket = bucket(@timestamp, 1minute), _index
-| SORT time_bucket, _index
-| LIMIT 10
-;
-
-r:keyword | time_bucket:datetime     | _index:keyword
-us        | 2024-05-10T00:00:00.000Z | k8s
-us        | 2024-05-10T00:00:00.000Z | k8s_unmapped
-us        | 2024-05-10T00:01:00.000Z | k8s
-us        | 2024-05-10T00:01:00.000Z | k8s_unmapped
-us        | 2024-05-10T00:02:00.000Z | k8s
-us        | 2024-05-10T00:02:00.000Z | k8s_unmapped
-us        | 2024-05-10T00:03:00.000Z | k8s
-us        | 2024-05-10T00:03:00.000Z | k8s_unmapped
-us        | 2024-05-10T00:04:00.000Z | k8s
-us        | 2024-05-10T00:04:00.000Z | k8s_unmapped
-;
-
-// network.bytes_in is long, mapped in k8s but unmapped in k8s_unmapped.
-// Cast to long to resolve it via MultiTypeEsField.
-tsPartiallyMappedNonKeywordFieldWithCast
-required_capability: optional_fields_v5
-required_capability: ts_command_v0
-
-SET unmapped_fields="load"\;
-TS k8s, k8s_unmapped METADATA _index
-| WHERE pod == "one"
-| STATS tx = sum(max_over_time(network.bytes_in :: long)) BY cluster, time_bucket = bucket(@timestamp, 10minute), _index
-| SORT time_bucket, cluster, _index
-| LIMIT 20
-;
-
-tx:long | cluster:keyword | time_bucket:datetime     | _index:keyword
-970     | prod            | 2024-05-10T00:00:00.000Z | k8s
-970     | prod            | 2024-05-10T00:00:00.000Z | k8s_unmapped
-842     | qa              | 2024-05-10T00:00:00.000Z | k8s
-842     | qa              | 2024-05-10T00:00:00.000Z | k8s_unmapped
-753     | staging         | 2024-05-10T00:00:00.000Z | k8s
-753     | staging         | 2024-05-10T00:00:00.000Z | k8s_unmapped
-990     | prod            | 2024-05-10T00:10:00.000Z | k8s
-990     | prod            | 2024-05-10T00:10:00.000Z | k8s_unmapped
-1006    | qa              | 2024-05-10T00:10:00.000Z | k8s
-1006    | qa              | 2024-05-10T00:10:00.000Z | k8s_unmapped
-947     | staging         | 2024-05-10T00:10:00.000Z | k8s
-947     | staging         | 2024-05-10T00:10:00.000Z | k8s_unmapped
-953     | prod            | 2024-05-10T00:20:00.000Z | k8s
-953     | prod            | 2024-05-10T00:20:00.000Z | k8s_unmapped
-917     | qa              | 2024-05-10T00:20:00.000Z | k8s
-917     | qa              | 2024-05-10T00:20:00.000Z | k8s_unmapped
-749     | staging         | 2024-05-10T00:20:00.000Z | k8s
-749     | staging         | 2024-05-10T00:20:00.000Z | k8s_unmapped
 ;

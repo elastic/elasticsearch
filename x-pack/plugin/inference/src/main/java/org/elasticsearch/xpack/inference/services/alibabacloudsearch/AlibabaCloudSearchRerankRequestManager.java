@@ -65,7 +65,7 @@ public class AlibabaCloudSearchRerankRequestManager extends AlibabaCloudSearchRe
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
+        var rerankInput = inferenceInputs.castTo(QueryAndDocsInputs.class);
         AlibabaCloudSearchRerankRequest request = new AlibabaCloudSearchRerankRequest(
             account,
             rerankInput.getQueryAsString(),

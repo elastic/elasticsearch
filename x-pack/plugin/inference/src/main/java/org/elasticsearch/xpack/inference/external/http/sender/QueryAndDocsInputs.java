@@ -23,14 +23,6 @@ public class QueryAndDocsInputs extends InferenceInputs {
         return new QueryAndDocsInputs(request.query(), request.inputs(), request.returnDocuments(), request.topN(), false);
     }
 
-    public static QueryAndDocsInputs of(InferenceInputs inferenceInputs) {
-        if (inferenceInputs instanceof QueryAndDocsInputs == false) {
-            throw createUnsupportedTypeException(inferenceInputs, QueryAndDocsInputs.class);
-        }
-
-        return (QueryAndDocsInputs) inferenceInputs;
-    }
-
     private final InferenceString query;
     private final List<InferenceString> docs;
     private final Boolean returnDocuments;

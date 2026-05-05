@@ -53,7 +53,13 @@ public final class DatasetRewriter {
 
     private static final Logger logger = LogManager.getLogger(DatasetRewriter.class);
 
-    /** Built from {@link IndexResolver#DEFAULT_OPTIONS}; only delta is {@code resolveDatasets(true)}. */
+    /**
+     * Built from {@link IndexResolver#DEFAULT_OPTIONS} so the rewriter sees the same set of
+     * abstractions the user-side FROM path would. The only intentional delta is
+     * {@code resolveDatasets(true)} — without it the resolver would skip datasets and the rewriter
+     * would have nothing to rewrite. {@code resolveViews(false)} makes the view rewriter the sole
+     * owner of view abstractions.
+     */
     private static final IndicesOptions REWRITER_OPTIONS = IndicesOptions.builder(IndexResolver.DEFAULT_OPTIONS)
         .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveDatasets(true).resolveViews(false).build())
         .build();
@@ -85,14 +91,20 @@ public final class DatasetRewriter {
     ) {
         List<String> patterns = Arrays.asList(Strings.splitStringByCommaToArray(relation.indexPattern().indexPattern()));
 
-        // Datasets are local-only; cluster-prefixed patterns skip rewriting so CCS sees the original FROM.
+        // Datasets are local-only: skip dataset rewriting when any pattern is cluster-prefixed so the
+        // original FROM (with all its parts intact) flows through to regular CCS resolution. Without
+        // this guard, a coincidental local-dataset name match on the local part of a remote-prefixed
+        // pattern would silently rewrite the query into a dataset query and drop the cluster prefix.
         for (String pattern : patterns) {
             if (RemoteClusterAware.isRemoteIndexName(pattern)) {
                 return relation;
             }
         }
 
-        // Skip the O(indices) resolver expansion when no pattern could match a registered dataset name.
+        // Fast path: skip the O(indices) resolver expansion when no positive pattern can match any
+        // registered dataset name. Predicate is conservative — false positives just run the slow path,
+        // false negatives would miss datasets so the predicate must be at least as permissive as the
+        // resolver itself.
         if (anyPatternCouldMatchDataset(patterns, datasets.datasets().keySet()) == false) {
             return relation;
         }
@@ -112,8 +124,11 @@ public final class DatasetRewriter {
         for (String name : resolved.getLocalIndicesList()) {
             IndexAbstraction abs = indicesLookup.get(name);
             if (abs == null) {
-                // Synthesized name (e.g. date math under ALLOW_UNAVAILABLE_TARGETS) — neither dataset
-                // nor real non-dataset; skipping doesn't suppress mixed-FROM rejection.
+                // The resolver can synthesize a concrete name that doesn't exist as an abstraction —
+                // notably date-math expansion under ALLOW_UNAVAILABLE_TARGETS, which is the user-side
+                // default we mirror. A synthesized name is by definition neither a dataset nor a
+                // real non-dataset, so skipping it is correct: it doesn't count toward
+                // nonDatasetNames and can't accidentally suppress the mixed-FROM rejection.
                 continue;
             }
             if (abs.getType() == IndexAbstraction.Type.DATASET) {
@@ -139,8 +154,12 @@ public final class DatasetRewriter {
             throw new VerificationException(message);
         }
         if (nonDatasetNames.isEmpty() == false) {
-            // Counts only in the user-facing message (names may be unreadable to the caller); full
-            // names go to DEBUG for operator triage. Rejection removed by heterogeneous FROM.
+            // User-facing message uses counts only — listing matched names would exfiltrate names
+            // the caller may not have read access to (resolver runs unauthz here; per-index authz
+            // is applied later at field-caps). For operator triage, the full names are emitted at
+            // DEBUG level only — never user-visible. This rejection is removed once heterogeneous
+            // FROM is supported — the query becomes a UnionAll and field-caps applies authz on the
+            // index side naturally.
             logger.debug(
                 "DatasetRewriter rejecting mixed FROM: pattern=[{}] datasets={} non-datasets={}",
                 relation.indexPattern().indexPattern(),
@@ -159,8 +178,9 @@ public final class DatasetRewriter {
         for (String name : datasetNames) {
             Dataset dataset = datasets.get(name);
             DataSource parent = dataSources.get(dataset.dataSource().getName());
-            // DataSourceService.deleteDataSources rejects (409) on orphans, so a null parent here
-            // means a broken-invariant state (e.g. corrupt cluster-state restore) — throw with context.
+            // DataSourceService.deleteDataSources rejects (409) when any dataset still references the
+            // data source. A null parent therefore indicates a broken-invariant state (e.g. corrupt
+            // cluster-state restore) — throw with context rather than rely on the assert one line below.
             if (parent == null) {
                 throw new IllegalStateException(
                     "dataset [" + name + "] references unknown data source [" + dataset.dataSource().getName() + "]"
@@ -173,8 +193,9 @@ public final class DatasetRewriter {
         if (children.size() == 1) {
             return children.get(0);
         }
-        // UnionAll inherits Fork's branch cap; wrap with a user-facing message instead of the internal
-        // "FORK supports up to N branches" error from Fork's constructor.
+        // The user typed FROM <pattern>; the underlying UnionAll inherits Fork's branch cap. Wrap with
+        // a message that names the user's pattern and the cap so the failure is actionable, rather than
+        // hitting the internal "FORK supports up to N branches" message from Fork's constructor.
         if (Fork.exceedsMaxBranches(children.size())) {
             throw new VerificationException(
                 "FROM ["
@@ -191,8 +212,9 @@ public final class DatasetRewriter {
 
     /**
      * Returns {@code true} if any positive part of {@code patterns} could match a registered dataset
-     * name. False positives are fine (slow path runs); false negatives would miss datasets, so this
-     * must be at least as permissive as the full resolver.
+     * name (literal or wildcard). False positives lead to the slow path running uselessly; false
+     * negatives would miss datasets, so wildcard semantics here must be at least as permissive as the
+     * full resolver's.
      */
     private static boolean anyPatternCouldMatchDataset(List<String> patterns, Set<String> datasetNames) {
         if (datasetNames.isEmpty()) {
@@ -202,7 +224,9 @@ public final class DatasetRewriter {
             if (pattern.isEmpty() || pattern.charAt(0) == '-') {
                 continue;
             }
-            // Date math (e.g. <logs-{now/d}>) needs the resolver's evaluator — fall through.
+            // Date-math patterns (e.g. <logs-{now/d}>) resolve to a name only after the resolver
+            // expands the date expression. We can't replicate that here without re-implementing
+            // date-math evaluation, so fall through to the slow path conservatively.
             if (pattern.charAt(0) == '<') {
                 return true;
             }
@@ -216,10 +240,13 @@ public final class DatasetRewriter {
     }
 
     /**
-     * Parent settings overlaid by dataset settings. Secrets stay as
-     * {@link org.elasticsearch.common.settings.SecureString}; callers materialize plaintext via
-     * {@link Object#toString()} at use site. Use {@code Objects.toString(config.get(key), null)}
-     * — direct {@code (String)} cast would CCE on non-String values.
+     * Parent data source settings overlaid by the dataset's settings, returned as a plain
+     * {@code Map<String, Object>}. Secret values are stored as
+     * {@link org.elasticsearch.common.settings.SecureString} so the plan tree never stringifies them;
+     * callers materialize plaintext via {@link Object#toString()} at the point of use. Bounding the
+     * resulting plaintext lifetime is the consumer's responsibility — the {@code String} allocated
+     * by {@code .toString()} is GC-bound, not closeable. Use
+     * {@code Objects.toString(config.get(key), null)} rather than {@code (String)} which would CCE.
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();

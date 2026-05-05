@@ -69,8 +69,10 @@ public class PreAnalyzer {
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 
-        // External source paths. Every tablePath is a non-null Literal post-parsing; non-Literal here
-        // is a precondition violation and throws.
+        // Collect external source paths from UnresolvedExternalRelation nodes. Every tablePath must be
+        // a non-null Literal at this point — the parser substitutes parameters during parsing and
+        // throws ParsingException on unbound references upstream, so any non-Literal here is a
+        // precondition violation.
         List<String> icebergPaths = new ArrayList<>();
         plan.forEachUp(UnresolvedExternalRelation.class, p -> {
             if (p.tablePath() instanceof Literal literal && literal.value() != null) {

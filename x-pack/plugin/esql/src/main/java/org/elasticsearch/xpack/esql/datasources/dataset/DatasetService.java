@@ -91,8 +91,11 @@ public class DatasetService {
             request.resource(),
             request.rawSettings()
         );
-        // Reject dataset settings that shadow a parent secret-keyed setting; defense-in-depth against
-        // future drift in the SPI contract.
+        // Defense in depth: the SPI contract on DataSourceValidator.validateDataset says dataset
+        // settings carry no secrets, but only convention enforces that. If a dataset key ever shadowed
+        // a parent secret-keyed setting, DatasetRewriter.mergeSettings would silently overwrite the
+        // SecureString with whatever the dataset put there — losing the secret-classification along
+        // the carrier path. Reject at put-time so the invariant is enforced where it's defined.
         for (String key : validatedSettings.keySet()) {
             DataSourceSetting parentSetting = parent.settings().get(key);
             if (parentSetting != null && parentSetting.secret()) {

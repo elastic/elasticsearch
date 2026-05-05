@@ -1094,9 +1094,12 @@ public class EsqlSession {
     }
 
     /**
-     * Map from table path to config across all {@code UnresolvedExternalRelation} nodes. Every
-     * {@code tablePath} is a non-null {@code Literal} post-parsing; non-Literal here is a
-     * precondition violation and throws.
+     * Extract external source configuration from UnresolvedExternalRelation nodes in the plan.
+     * Returns a map from table path to plain configuration values. Every {@code tablePath} must be a
+     * non-null {@link org.elasticsearch.xpack.esql.core.expression.Literal} at this point — the parser
+     * substitutes parameters during parsing and throws a {@link
+     * org.elasticsearch.xpack.esql.parser.ParsingException} on unbound references upstream, so any
+     * non-Literal here is a precondition violation.
      */
     // package-private for testing
     static Map<String, Map<String, Object>> extractExternalConfigs(LogicalPlan plan) {

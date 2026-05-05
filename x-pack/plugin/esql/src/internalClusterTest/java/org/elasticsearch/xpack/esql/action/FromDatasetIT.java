@@ -440,7 +440,11 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         assertCauseMessageContains(ex, "no_such_thing");
     }
 
-    /** Walks the cause chain and asserts a message fragment appears somewhere in it. */
+    /**
+     * Walks the cause chain of {@code throwable} looking for a message that contains {@code fragment}.
+     * Fails the test if no such cause is found. Used by the rejection-style tests where the error
+     * surfaces several frames deep behind transport / verification wrappers.
+     */
     private static void assertCauseMessageContains(Throwable throwable, String fragment) {
         Throwable cause = throwable;
         while (cause != null && (cause.getMessage() == null || cause.getMessage().contains(fragment) == false)) {

@@ -131,7 +131,9 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
 
     @Override
     public List<Object> nodeProperties() {
-        // config omitted intentionally — SecureString.toString() would leak plaintext into EXPLAIN.
+        // config intentionally omitted: it can carry SecureString values whose toString() would leak
+        // plaintext into EXPLAIN output and debug logs. Broader redaction across external-source plan
+        // nodes is tracked separately.
         return singletonList(tablePath);
     }
 

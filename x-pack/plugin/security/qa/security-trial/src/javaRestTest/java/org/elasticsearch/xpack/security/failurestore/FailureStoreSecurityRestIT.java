@@ -1980,6 +1980,47 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectThrows(() -> addFailureStoreBackingIndex(MANAGE_FAILURE_STORE_ACCESS, "test1", failureIndexName), 403);
     }
 
+    public void testAddFailureStoreBackingIndexWithManageAndManageFailureStore() throws Exception {
+        setupDataStream();
+        Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        String dataIndexName = backingIndices.v1();
+        String failureIndexName = backingIndices.v2();
+
+        // detach the failure index as admin so it becomes a standalone concrete index
+        Request detachRequest = new Request("POST", "/_data_stream/_modify");
+        detachRequest.setJsonEntity(Strings.format("""
+            {
+              "actions": [
+                {
+                  "remove_backing_index": {
+                    "data_stream": "test1",
+                    "index": "%s",
+                    "failure_store": true
+                  }
+                }
+              ]
+            }
+            """, failureIndexName));
+        assertOK(adminClient().performRequest(detachRequest));
+        assertDataStreamHasNoFailureIndices("test1", dataIndexName);
+
+        // user has manage on the failure index (covers first pass) and manage_failure_store on the
+        // data stream (covers second pass with FAILURES selector)
+        String user = "manage_idx_with_manage_failure_store";
+        createUser(user, PASSWORD, user);
+        createOrUpdateRoleAndApiKey(user, user, """
+            {
+              "cluster": ["all"],
+              "indices": [
+                {"names": [".fs*"], "privileges": ["manage"]},
+                {"names": ["test*"], "privileges": ["manage_failure_store"]}
+              ]
+            }""");
+
+        assertOK(addFailureStoreBackingIndex(user, "test1", failureIndexName));
+        assertDataStreamHasDataAndFailureIndices("test1", dataIndexName, failureIndexName);
+    }
+
     public void testModifyDataStreamRejectsSelectorInDataStreamName() throws Exception {
         setupDataStream();
         Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");

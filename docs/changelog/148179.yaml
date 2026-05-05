@@ -1,5 +1,5 @@
 area: Authorization
 issues: []
 pr: 148179
-summary: Improve data stream privilege checking
-type: enhancement
+summary: Fix data stream privilege checking
+type: bug

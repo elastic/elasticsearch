@@ -46,7 +46,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -278,7 +277,7 @@ public class MetadataMappingService {
             // TODO: instead of considering the whole request as a no-op, we could filter out indices that don't need an update and only
             // apply the update to the remaining ones.
             if (isWholeRequestNoop(request)) {
-                logger.info("---> caught no-op put mapping request {}", Arrays.stream(request.indices()).toArray());
+                logger.info("---> caught no-op put mapping request [{}]", Strings.arrayToCommaDelimitedString(request.indices()));
                 listener.onResponse(AcknowledgedResponse.TRUE);
                 return;
             }
@@ -319,7 +318,7 @@ public class MetadataMappingService {
                                 clusterState.version(),
                                 awaitResponse.hasFailures()
                             );
-                            l.onResponse(AcknowledgedResponse.of(response.isAcknowledged() && awaitResponse.failures().isEmpty()));
+                            l.onResponse(AcknowledgedResponse.of(response.isAcknowledged() && awaitResponse.actualFailures().isEmpty()));
                         }
 
                         @Override

@@ -45,7 +45,8 @@ import java.util.function.Consumer;
 
 /// An action that waits until a given cluster state version is applied on each target [DiscoveryNode].
 ///
-/// Old nodes that do not recognize the action (due to being on an earlier version)  return [org.elasticsearch.transport.ActionNotFoundTransportException].
+/// Old nodes that do not recognize the action (due to being on an earlier version) return
+/// [org.elasticsearch.transport.ActionNotFoundTransportException].
 /// Callers can use [AwaitClusterStateVersionAppliedResponse#actualFailures] to strip those compatibility failures.
 public class TransportAwaitClusterStateVersionAppliedAction extends TransportNodesAction<
     AwaitClusterStateVersionAppliedRequest,

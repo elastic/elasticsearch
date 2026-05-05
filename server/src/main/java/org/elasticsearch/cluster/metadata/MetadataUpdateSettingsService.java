@@ -450,7 +450,7 @@ public class MetadataUpdateSettingsService {
                         @Override
                         public void onResponse(AwaitClusterStateVersionAppliedResponse awaitResponse) {
                             logger.info("--> settings update completed apply of state, failures={}", awaitResponse.hasFailures());
-                            l.onResponse(AcknowledgedResponse.of(response.isAcknowledged() && awaitResponse.failures().isEmpty()));
+                            l.onResponse(AcknowledgedResponse.of(response.isAcknowledged() && awaitResponse.actualFailures().isEmpty()));
                         }
 
                         @Override

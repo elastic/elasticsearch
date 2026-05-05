@@ -178,8 +178,16 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
         };
         singleImpl = vectorSimilarityFunctions.getBFloat16Handle(nativeFunc, queryType, VectorSimilarityFunctions.Operation.SINGLE);
         bulkImpl = vectorSimilarityFunctions.getBFloat16Handle(nativeFunc, queryType, VectorSimilarityFunctions.Operation.BULK);
-        bulkOffsetsImpl = vectorSimilarityFunctions.getBFloat16Handle(nativeFunc, queryType, VectorSimilarityFunctions.Operation.BULK_OFFSETS);
-        bulkSparseImpl = vectorSimilarityFunctions.getBFloat16Handle(nativeFunc, queryType, VectorSimilarityFunctions.Operation.BULK_SPARSE);
+        bulkOffsetsImpl = vectorSimilarityFunctions.getBFloat16Handle(
+            nativeFunc,
+            queryType,
+            VectorSimilarityFunctions.Operation.BULK_OFFSETS
+        );
+        bulkSparseImpl = vectorSimilarityFunctions.getBFloat16Handle(
+            nativeFunc,
+            queryType,
+            VectorSimilarityFunctions.Operation.BULK_SPARSE
+        );
     }
 
     @TearDown

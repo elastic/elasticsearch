@@ -162,10 +162,26 @@ public class VectorScorerInt8BulkOperationBenchmark {
             case EUCLIDEAN -> VectorSimilarityFunctions.Function.SQUARE_DISTANCE;
             default -> throw new IllegalArgumentException(function.toString());
         };
-        singleImpl = vectorSimilarityFunctions.getHandle(nativeFunc, VectorSimilarityFunctions.DataType.INT8, VectorSimilarityFunctions.Operation.SINGLE);
-        bulkImpl = vectorSimilarityFunctions.getHandle(nativeFunc, VectorSimilarityFunctions.DataType.INT8, VectorSimilarityFunctions.Operation.BULK);
-        bulkOffsetsImpl = vectorSimilarityFunctions.getHandle(nativeFunc, VectorSimilarityFunctions.DataType.INT8, VectorSimilarityFunctions.Operation.BULK_OFFSETS);
-        bulkSparseImpl = vectorSimilarityFunctions.getHandle(nativeFunc, VectorSimilarityFunctions.DataType.INT8, VectorSimilarityFunctions.Operation.BULK_SPARSE);
+        singleImpl = vectorSimilarityFunctions.getHandle(
+            nativeFunc,
+            VectorSimilarityFunctions.DataType.INT8,
+            VectorSimilarityFunctions.Operation.SINGLE
+        );
+        bulkImpl = vectorSimilarityFunctions.getHandle(
+            nativeFunc,
+            VectorSimilarityFunctions.DataType.INT8,
+            VectorSimilarityFunctions.Operation.BULK
+        );
+        bulkOffsetsImpl = vectorSimilarityFunctions.getHandle(
+            nativeFunc,
+            VectorSimilarityFunctions.DataType.INT8,
+            VectorSimilarityFunctions.Operation.BULK_OFFSETS
+        );
+        bulkSparseImpl = vectorSimilarityFunctions.getHandle(
+            nativeFunc,
+            VectorSimilarityFunctions.DataType.INT8,
+            VectorSimilarityFunctions.Operation.BULK_SPARSE
+        );
     }
 
     @TearDown

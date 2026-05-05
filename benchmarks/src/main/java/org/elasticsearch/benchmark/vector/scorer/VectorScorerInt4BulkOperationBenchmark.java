@@ -69,10 +69,10 @@ public class VectorScorerInt4BulkOperationBenchmark {
     public int dims;
 
     // dims=1024 -> packed_len = 512 bytes per vector. Cache overflow points:
-    // c8a (Zen 5):     L1=48KB, L2=1MB,   L3=16MB
-    // c8i (SPR/GR):    L1=48KB, L2=2MB,   L3>=8MB
-    // 128 vectors  = 64KB:    overflows L1 on Zen 5, fits in L2
-    // 2500 vectors = 1.25MB:  overflows L2 on Zen 5, fits in L3
+    // c8a (Zen 5): L1=48KB, L2=1MB, L3=16MB
+    // c8i (SPR/GR): L1=48KB, L2=2MB, L3>=8MB
+    // 128 vectors = 64KB: overflows L1 on Zen 5, fits in L2
+    // 2500 vectors = 1.25MB: overflows L2 on Zen 5, fits in L3
     // 130000 vectors = ~63MB: overflows L3 on both
     @Param({ "128", "2500", "130000" })
     public int numVectors;

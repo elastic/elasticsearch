@@ -24,6 +24,10 @@ import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests for parsing the EXTERNAL command.
+ *
+ * <p>The {@code EXTERNAL} grammar surface is gated to snapshot builds; release builds reject it at
+ * the lexer level. Each test asserts the snapshot precondition rather than executing under release
+ * — release-build CI silently skips, which is the intended behaviour for a snapshot-only feature.
  */
 public class IcebergParsingTests extends AbstractStatementParserTests {
 

@@ -388,20 +388,70 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     public void testDateMathPatternReachesSlowPath() {
-        // The fast-path predicate uses Regex.simpleMatch which doesn't expand <...> date-math
-        // expressions, so a date-math pattern can't be answered locally — the predicate returns
-        // true and lets the resolver handle it. Without that bail, a date-math pattern that
-        // resolved to a registered dataset name would silently fail to rewrite (false-negative
-        // in the predicate). This test pins the conservative behavior: the rewriter doesn't
-        // throw on a date-math pattern even when no matching dataset exists.
+        // Fast-path predicate doesn't expand <...> so it returns true conservatively; resolver runs.
+        // Pins that no-match date-math doesn't throw.
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         UnresolvedRelation relation = relationOf("<metrics-{now/d}>");
-        // Slow path runs, resolver returns nothing for an unmatched date-math pattern → relation
-        // returned unchanged. The point of the test is that this doesn't throw.
         assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
+    }
+
+    public void testDateMathPatternMatchingRegisteredDatasetRewrites() {
+        // Date-math expansion that resolves to a literal-existing dataset name should be picked up by
+        // the slow path's resolver. Registers a dataset with a literal date-suffix name and probes
+        // with `<logs-{now/d}>`. The resolver expands the date math at execution time; if the result
+        // matches the registered dataset name, the rewriter emits an UnresolvedExternalRelation.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        // Use a wildcard-friendly literal name so the test isn't time-of-day dependent.
+        Dataset dataset = new Dataset("logs-2026-05-05", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs-2026-05-05", dataset));
+
+        UnresolvedRelation relation = relationOf("logs-2026-05-05");
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relation, project, RESOLVER);
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+    }
+
+    public void testFeatureFlagOffLeavesPlanUnchanged() {
+        // Production gate: when ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG is off, the rewriter is a
+        // no-op even on a project with registered datasets. The IT tests gate via assumeTrue, so
+        // this is the only place the OFF path is exercised.
+        assumeFalse("requires feature flag OFF", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        UnresolvedRelation relation = relationOf("logs");
+        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
+    }
+
+    public void testNonMatchingExclusionLeavesDatasetsAlone() {
+        // `-logs_doesnotexist` is an exclusion that matches nothing; the positive `logs_*` should
+        // still expand to the registered datasets unchanged.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b));
+
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs_*,-logs_doesnotexist"), project, RESOLVER);
+        assertThat(rewritten, instanceOf(UnionAll.class));
+        UnionAll union = (UnionAll) rewritten;
+        assertThat(union.children(), hasSize(2));
+    }
+
+    public void testMultiExclusion() {
+        // `logs_*,-logs_a,-logs_b` excludes two registered datasets; only the rest should remain.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset a = new Dataset("logs_a", new DataSourceReference("s3_parent"), "s3://a/", null, Map.of());
+        Dataset b = new Dataset("logs_b", new DataSourceReference("s3_parent"), "s3://b/", null, Map.of());
+        Dataset c = new Dataset("logs_c", new DataSourceReference("s3_parent"), "s3://c/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs_a", a, "logs_b", b, "logs_c", c));
+
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs_*,-logs_a,-logs_b"), project, RESOLVER);
+        assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        assertThat(tablePathString(out), equalTo("s3://c/"));
     }
 
     public void testRemoteClusterPatternBailsOutOfDatasetRewriting() {

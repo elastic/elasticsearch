@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -47,26 +48,17 @@ import static org.hamcrest.Matchers.hasSize;
  * CRUD API, both pointing at a local CSV fixture, and runs a {@code FROM <name>} query against
  * them. Proves that the parser → dataset rewriter → external-source resolver → analyzer →
  * execution pipeline wires up the way the PR description claims.
+ *
+ * <p>Single-node by design: multi-node dataset publication trips an unrelated
+ * {@code ProjectMetadata.Builder} assertion already on {@code main}; coverage of that path is out
+ * of scope for this PR.
  */
-@ESIntegTestCase.ClusterScope(
-    scope = ESIntegTestCase.Scope.SUITE,
-    numDataNodes = 1,
-    numClientNodes = 0,
-    supportsDedicatedMasters = false,
-    minNumDataNodes = 1
-)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
     private Path csvFixture;
     private Path csvFixtureAlt;
-
-    public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
-        @Override
-        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
-            super.loadExtensions(loader);
-        }
-    }
 
     /** Minimal pass-through validator registered for type {@code test}; accepts any resource scheme. */
     public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
@@ -104,17 +96,21 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.remove(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(EsqlEnterpriseWithDatasourceExtensions.class);
         plugins.add(HttpDataSourcePlugin.class);
         plugins.add(CsvDataSourcePlugin.class);
         plugins.add(TestDataSourcePlugin.class);
         return plugins;
     }
 
+    /** Determinism over planner-regression diversity here — these tests pin specific plan shapes. */
     @Override
     protected QueryPragmas getPragmas() {
         return QueryPragmas.EMPTY;
+    }
+
+    @Before
+    public void requireFeatureFlag() {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
     }
 
     @Before
@@ -125,22 +121,34 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         Files.writeString(csvFixtureAlt, String.join("\n", "emp_no:integer,first_name:keyword", "10,Diana", "11,Eve") + "\n");
     }
 
+    /**
+     * Names every {@code testXxx} body PUTs. New tests must register their dataset name here so the
+     * SUITE-scoped cluster doesn't carry state across methods.
+     */
+    private static final Set<String> CREATED_DATASETS = Set.of("employees", "employees_alt", "logs_dataset");
+
     @After
     public void cleanupRegistry() throws Exception {
-        for (String ds : new String[] { "employees", "employees_alt" }) {
+        for (String ds : CREATED_DATASETS) {
             try {
                 client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(ds)).get(30, java.util.concurrent.TimeUnit.SECONDS);
-            } catch (Exception ignored) {}
+            } catch (ResourceNotFoundException ignored) {
+                // already deleted by the test itself
+            } catch (Exception e) {
+                logger.warn("dataset cleanup [{}] failed", ds, e);
+            }
         }
         try {
             client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds"))
                 .get(30, java.util.concurrent.TimeUnit.SECONDS);
-        } catch (Exception ignored) {}
+        } catch (ResourceNotFoundException ignored) {
+            // already deleted by the test itself
+        } catch (Exception e) {
+            logger.warn("data source cleanup [local_ds] failed", e);
+        }
     }
 
     public void testFromDatasetReadsCsvFixture() throws Exception {
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(
@@ -167,8 +175,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromMixedIndexAndDatasetRejected() throws Exception {
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-
         // Real ES index alongside the dataset so the resolver finds both abstractions and the
         // mixed-FROM rejection actually fires (rather than the resolver silently filtering an unknown name).
         createIndex("some_real_index");
@@ -187,8 +193,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testTSCommandRejectedOnDataset() throws Exception {
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(
@@ -202,8 +206,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testLookupJoinRejectedAgainstDataset() throws Exception {
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(
@@ -220,8 +222,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromDatasetWithWhere() throws Exception {
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(
@@ -241,8 +241,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromDatasetWithKeep() throws Exception {
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(
@@ -265,8 +263,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromDatasetWithStatsCount() throws Exception {
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(
@@ -283,8 +279,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromDatasetWithEval() throws Exception {
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(
@@ -305,8 +299,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromMultipleDatasets() throws Exception {
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(
@@ -330,8 +322,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromDatasetWildcardExpansion() throws Exception {
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(
@@ -355,8 +345,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromDatasetWildcardWithExclusion() throws Exception {
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(
@@ -383,8 +371,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         // The rewriter drops `METADATA _index` because UnresolvedExternalRelation has no
         // metadata-fields slot. The analyzer then rejects `_index` as an unknown column.
         // Pins the Phase 1 limitation tracked in the PR description.
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(
@@ -401,8 +387,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWildcardSpanningIndexAndDatasetRejected() throws Exception {
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-
         // Real index plus a dataset, both matching the same wildcard. The resolver expands the
         // pattern through IndexAbstractionResolver and finds both abstractions; the rewriter buckets
         // them and fires the mixed-FROM rejection — same path as a literal `FROM idx, ds` mix.
@@ -422,8 +406,6 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testFromUnknownNameFallsThroughToIndexResolution() throws Exception {
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-
         // Register a dataset so the rewriter is active, but the FROM target is neither index nor dataset.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(

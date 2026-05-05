@@ -131,7 +131,7 @@ public class ExternalSourceResolver {
                     try {
                         ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config, hints, hivePartitioning);
                         resolved.put(path, resolvedSource);
-                        LOGGER.info("Successfully resolved external source: {}", path);
+                        LOGGER.debug("Successfully resolved external source: {}", path);
                     } catch (Exception e) {
                         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
                         String exceptionMessage = e.getMessage();
@@ -155,7 +155,7 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         boolean hivePartitioning
     ) throws Exception {
-        LOGGER.info("Resolving external source: path=[{}]", path);
+        LOGGER.debug("Resolving external source: path=[{}]", path);
 
         if (GlobExpander.isMultiFile(path)) {
             return resolveMultiFileSource(path, config, hints, hivePartitioning);

@@ -33,8 +33,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /** Orchestrates create / replace / delete of datasets in cluster state. */
 public class DatasetService {
@@ -77,7 +79,7 @@ public class DatasetService {
      * from inside the CAS task (authoritative, against master's current state). Throws cleanly on
      * missing parent, unknown validator, or validation failure.
      */
-    public Dataset validatePutDataset(ProjectMetadata projectMetadata, PutDatasetAction.Request request) {
+    Dataset validatePutDataset(ProjectMetadata projectMetadata, PutDatasetAction.Request request) {
         final DataSource parent = DataSourceMetadata.get(projectMetadata).get(request.dataSource());
         if (parent == null) {
             throw new ResourceNotFoundException("data source [{}] not found", request.dataSource());
@@ -91,9 +93,14 @@ public class DatasetService {
             request.resource(),
             request.rawSettings()
         );
-        // Reject dataset settings that shadow a parent secret-keyed setting; defense-in-depth against
-        // future drift in the SPI contract.
-        for (String key : validatedSettings.keySet()) {
+        // Reject dataset settings that shadow a parent secret-keyed setting. Check both pre- and
+        // post-validator keys: a validator that strips the key before returning would otherwise mask
+        // the shadow attempt at the wire boundary.
+        Set<String> shadowCandidates = new HashSet<>(validatedSettings.keySet());
+        if (request.rawSettings() != null) {
+            shadowCandidates.addAll(request.rawSettings().keySet());
+        }
+        for (String key : shadowCandidates) {
             DataSourceSetting parentSetting = parent.settings().get(key);
             if (parentSetting != null && parentSetting.secret()) {
                 ValidationException ex = new ValidationException();

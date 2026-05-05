@@ -120,11 +120,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     private final boolean[] isPredicateColumn;
     private final ParquetPushedExpressions pushedExpressions;
     /**
-     * Cached parquet-mr {@link FilterPredicate} translated from {@link #pushedExpressions} once at
-     * construction. Reused per row group by the trivially-passes check so we don't re-translate
-     * the predicate tree for every row group.
+     * The parquet-mr {@link FilterPredicate} resolved by {@code ParquetFormatReader} for this scan,
+     * passed through unchanged so the trivially-passes check sees the same predicate that drove
+     * row-group pruning and ColumnIndex {@link RowRanges} computation. Translating again here
+     * would be wasted work and could subtly diverge if the caller's schema differs from
+     * {@link #projectedSchema}.
+     *
+     * <p>{@code null} when the trivially-passes guard is inactive: late materialization is off,
+     * the reader did not resolve a file-level predicate, or predicate resolution failed earlier
+     * (in which case the reader logged a warning and passed {@code null} through).
      */
-    private final FilterPredicate cachedFilterPredicate;
+    private final FilterPredicate triviallyPassesPredicate;
     private final WordMask survivorMask;
     private long rowsEliminatedByLateMaterialization;
     /**
@@ -151,7 +157,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         RowRanges[] allRowRanges,
         boolean[] survivingRowGroups,
         CompressionCodecFactory codecFactory,
-        ParquetPushedExpressions pushedExpressions
+        ParquetPushedExpressions pushedExpressions,
+        FilterPredicate triviallyPassesPredicate
     ) {
         this.reader = reader;
         this.projectedSchema = projectedSchema;
@@ -173,9 +180,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         this.isPredicateColumn = classifyPredicateColumns(attributes, columnInfos, pushedExpressions);
         this.lateMaterialization = pushedExpressions != null && hasProjectionOnlyColumns(isPredicateColumn, columnInfos);
         this.survivorMask = lateMaterialization ? new WordMask() : null;
-        this.cachedFilterPredicate = lateMaterialization
-            ? translateFilterPredicate(pushedExpressions, projectedSchema, fileLocation)
-            : null;
+        // Caller supplies null when late materialization is off; defensively also drop it here so
+        // the trivially-passes check is gated by a single condition below.
+        this.triviallyPassesPredicate = lateMaterialization ? triviallyPassesPredicate : null;
 
         this.projectedColumnPaths = buildProjectedColumnPaths(columnInfos);
         this.prefetchDepth = computePrefetchDepth(reader.getRowGroups(), this.projectedColumnPaths);
@@ -316,28 +323,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         return false;
     }
 
-    /**
-     * Translates the pushed expressions to a parquet-mr {@link FilterPredicate} once for the
-     * lifetime of this iterator. Returns {@code null} when translation fails or yields no
-     * predicate; the iterator gracefully degrades to non-trivial late-materialization in that
-     * case.
-     */
-    private static FilterPredicate translateFilterPredicate(
-        ParquetPushedExpressions pushed,
-        MessageType projectedSchema,
-        String fileLocation
-    ) {
-        if (pushed == null) {
-            return null;
-        }
-        try {
-            return pushed.toFilterPredicate(projectedSchema);
-        } catch (RuntimeException e) {
-            logger.debug("Disabling trivially-passes guard for [{}]: predicate translation failed: {}", fileLocation, e.getMessage());
-            return null;
-        }
-    }
-
     @Override
     public boolean hasNext() {
         if (exhausted) {
@@ -396,9 +381,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         // Per-row-group trivially-passes check: when stats prove every row matches the filter,
         // the late-materialization machinery (decode predicate columns → evaluate filter → compact
         // survivors) is pure overhead. Switching to the standard path eliminates filter evaluation.
-        currentRowGroupTriviallyPasses = lateMaterialization
-            && cachedFilterPredicate != null
-            && TriviallyPassesChecker.check(cachedFilterPredicate, block);
+        currentRowGroupTriviallyPasses = triviallyPassesPredicate != null && TriviallyPassesChecker.check(triviallyPassesPredicate, block);
         if (currentRowGroupTriviallyPasses) {
             rowGroupsWithTrivialFilter++;
         }

@@ -77,16 +77,30 @@ final class TriviallyPassesChecker {
         }
 
         /**
-         * Returns the statistics for the column when they are usable for trivial-pass reasoning:
-         * non-null, non-empty, with min/max present and number-of-nulls populated. Returns
-         * {@code null} otherwise.
+         * Returns column statistics suitable for reasoning about a comparison whose semantics
+         * fail on null rows (Eq, NotEq, Lt, LtEq, Gt, GtEq, In, NotIn with non-null literals).
+         * The result is non-null only when:
+         * <ul>
+         *   <li>the column exists and stats are populated ({@code !isEmpty} and {@code isNumNullsSet}),</li>
+         *   <li>the stats observed at least one non-null value ({@code hasNonNullValue}),</li>
+         *   <li>the column has no nulls ({@code getNumNulls() == 0}) — a single null row would make
+         *       the predicate return false for that row, breaking the trivial-pass guarantee.</li>
+         * </ul>
+         * The single rawtype suppression here keeps the per-{@code visit} methods clean: callers
+         * use the returned reference to invoke {@link Statistics#compareMinToValue}/{@code compareMaxToValue}
+         * with the operator's typed value.
          */
-        private static Statistics<?> usableStats(ColumnChunkMetaData col) {
-            if (col == null) {
+        @SuppressWarnings("rawtypes")
+        private Statistics nonNullableStats(Operators.Column<?> col) {
+            ColumnChunkMetaData chunk = column(col);
+            if (chunk == null) {
                 return null;
             }
-            Statistics<?> stats = col.getStatistics();
+            Statistics<?> stats = chunk.getStatistics();
             if (stats == null || stats.isEmpty() || stats.isNumNullsSet() == false) {
+                return null;
+            }
+            if (stats.hasNonNullValue() == false || stats.getNumNulls() > 0) {
                 return null;
             }
             return stats;
@@ -98,13 +112,13 @@ final class TriviallyPassesChecker {
         @SuppressWarnings({ "unchecked", "rawtypes" })
         public <T extends Comparable<T>> Boolean visit(Operators.Eq<T> eq) {
             T value = eq.getValue();
-            ColumnChunkMetaData col = column(eq.getColumn());
-            Statistics stats = usableStats(col);
             if (value == null) {
                 // Eq(col, null) == IsNull(col): trivially passes iff every row is null.
-                return col != null && col.getValueCount() == numNulls(col);
+                ColumnChunkMetaData chunk = column(eq.getColumn());
+                return chunk != null && chunk.getValueCount() == numNulls(chunk);
             }
-            if (stats == null || stats.hasNonNullValue() == false || stats.getNumNulls() > 0) {
+            Statistics stats = nonNullableStats(eq.getColumn());
+            if (stats == null) {
                 return false;
             }
             // min == max == value
@@ -115,14 +129,15 @@ final class TriviallyPassesChecker {
         @SuppressWarnings({ "unchecked", "rawtypes" })
         public <T extends Comparable<T>> Boolean visit(Operators.NotEq<T> notEq) {
             T value = notEq.getValue();
-            ColumnChunkMetaData col = column(notEq.getColumn());
             if (value == null) {
                 // NotEq(col, null) == IsNotNull(col): trivially passes iff no nulls.
-                Statistics<?> stats = usableStats(col);
-                return stats != null && stats.getNumNulls() == 0;
+                // Intentionally goes through nonNullableStats (which also requires hasNonNullValue)
+                // so this branch is consistent with the comparison branches: stats with numNulls == 0
+                // but no observed non-null value are too weak to prove "every row is non-null".
+                return nonNullableStats(notEq.getColumn()) != null;
             }
-            Statistics stats = usableStats(col);
-            if (stats == null || stats.hasNonNullValue() == false || stats.getNumNulls() > 0) {
+            Statistics stats = nonNullableStats(notEq.getColumn());
+            if (stats == null) {
                 return false;
             }
             // value is strictly outside [min, max]
@@ -132,42 +147,30 @@ final class TriviallyPassesChecker {
         @Override
         @SuppressWarnings({ "unchecked", "rawtypes" })
         public <T extends Comparable<T>> Boolean visit(Operators.Lt<T> lt) {
-            Statistics stats = usableStats(column(lt.getColumn()));
-            if (stats == null || stats.hasNonNullValue() == false || stats.getNumNulls() > 0) {
-                return false;
-            }
+            Statistics stats = nonNullableStats(lt.getColumn());
             // max < value
-            return stats.compareMaxToValue(lt.getValue()) < 0;
+            return stats != null && stats.compareMaxToValue(lt.getValue()) < 0;
         }
 
         @Override
         @SuppressWarnings({ "unchecked", "rawtypes" })
         public <T extends Comparable<T>> Boolean visit(Operators.LtEq<T> ltEq) {
-            Statistics stats = usableStats(column(ltEq.getColumn()));
-            if (stats == null || stats.hasNonNullValue() == false || stats.getNumNulls() > 0) {
-                return false;
-            }
-            return stats.compareMaxToValue(ltEq.getValue()) <= 0;
+            Statistics stats = nonNullableStats(ltEq.getColumn());
+            return stats != null && stats.compareMaxToValue(ltEq.getValue()) <= 0;
         }
 
         @Override
         @SuppressWarnings({ "unchecked", "rawtypes" })
         public <T extends Comparable<T>> Boolean visit(Operators.Gt<T> gt) {
-            Statistics stats = usableStats(column(gt.getColumn()));
-            if (stats == null || stats.hasNonNullValue() == false || stats.getNumNulls() > 0) {
-                return false;
-            }
-            return stats.compareMinToValue(gt.getValue()) > 0;
+            Statistics stats = nonNullableStats(gt.getColumn());
+            return stats != null && stats.compareMinToValue(gt.getValue()) > 0;
         }
 
         @Override
         @SuppressWarnings({ "unchecked", "rawtypes" })
         public <T extends Comparable<T>> Boolean visit(Operators.GtEq<T> gtEq) {
-            Statistics stats = usableStats(column(gtEq.getColumn()));
-            if (stats == null || stats.hasNonNullValue() == false || stats.getNumNulls() > 0) {
-                return false;
-            }
-            return stats.compareMinToValue(gtEq.getValue()) >= 0;
+            Statistics stats = nonNullableStats(gtEq.getColumn());
+            return stats != null && stats.compareMinToValue(gtEq.getValue()) >= 0;
         }
 
         @Override
@@ -179,9 +182,8 @@ final class TriviallyPassesChecker {
             }
             // In(col, set) where the set already includes null is treated like
             // Eq(col, null) || In(col, set\{null}) — handled conservatively here.
-            ColumnChunkMetaData col = column(in.getColumn());
-            Statistics stats = usableStats(col);
-            if (stats == null || stats.hasNonNullValue() == false || stats.getNumNulls() > 0) {
+            Statistics stats = nonNullableStats(in.getColumn());
+            if (stats == null) {
                 return false;
             }
             // Conservative: trivially passes only if the column has a single distinct value
@@ -206,9 +208,8 @@ final class TriviallyPassesChecker {
                 // NotIn(col, {}) is trivially true; but parquet-mr doesn't generate this.
                 return false;
             }
-            ColumnChunkMetaData col = column(notIn.getColumn());
-            Statistics stats = usableStats(col);
-            if (stats == null || stats.hasNonNullValue() == false || stats.getNumNulls() > 0) {
+            Statistics stats = nonNullableStats(notIn.getColumn());
+            if (stats == null) {
                 return false;
             }
             // Trivially passes when every set value is strictly outside [min, max]: no value in

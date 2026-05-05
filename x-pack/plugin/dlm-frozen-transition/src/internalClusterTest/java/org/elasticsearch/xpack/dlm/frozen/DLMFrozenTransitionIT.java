@@ -106,13 +106,12 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
 
         // Trial license for searchable snapshots
         builder.put("xpack.license.self_generated.type", "trial");
-        builder.put(CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB));
 
         // Speed up DLM lifecycle polling (marking for frozen)
         builder.put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
 
         // Speed up frozen transition polling
-        builder.put(DLMFrozenTransitionService.POLL_INTERVAL_SETTING.getKey(), "5s");
+        builder.put(DLMFrozenTransitionService.POLL_INTERVAL_SETTING.getKey(), "1s");
 
         // Lower error retry interval
         builder.put(DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.getKey(), "1");
@@ -130,6 +129,7 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.of(10, ByteSizeUnit.MB).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), false)
+            .put(CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
             .build();
         internalCluster().startNode(nodeSettings);
     }

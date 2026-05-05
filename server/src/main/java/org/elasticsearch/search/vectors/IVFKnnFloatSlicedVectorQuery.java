@@ -56,7 +56,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         String sliceField,
         BytesRef sliceId
     ) {
-        super(field, query, k, numCands, filter, visitRatio, doPrecondition);
+        super(field, query, k, k, numCands, filter, visitRatio, doPrecondition);
         this.sliceField = Objects.requireNonNull(sliceField);
         this.sliceId = Objects.requireNonNull(sliceId);
     }

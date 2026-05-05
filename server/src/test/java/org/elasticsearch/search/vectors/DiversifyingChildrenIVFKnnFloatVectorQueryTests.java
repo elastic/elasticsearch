@@ -23,6 +23,7 @@ public class DiversifyingChildrenIVFKnnFloatVectorQueryTests extends AbstractDiv
             queryVector,
             k,
             k,
+            k,
             childFilter,
             parentBitSet,
             0,

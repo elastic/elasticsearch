@@ -774,6 +774,7 @@ public class KnnSearcher {
                     VECTOR_FIELD,
                     vector,
                     overSampledTopK,
+                    searchParameters.topK(),
                     efSearch,
                     filterQuery,
                     visitRatio,

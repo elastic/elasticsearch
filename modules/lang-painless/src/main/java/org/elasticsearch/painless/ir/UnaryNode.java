@@ -10,6 +10,7 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 public abstract class UnaryNode extends ExpressionNode {
 
@@ -25,7 +26,23 @@ public abstract class UnaryNode extends ExpressionNode {
         return childNode;
     }
 
-    /* ---- end tree structure ---- */
+    /* ---- end tree structure, begin node data ---- */
+
+    private Class<?> storeType;
+
+    public void setStoreType(Class<?> storeType) {
+        this.storeType = storeType;
+    }
+
+    public Class<?> getStoreType() {
+        return storeType;
+    }
+
+    public String getStoreCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(storeType);
+    }
+
+    /* ---- end node data ---- */
 
     public UnaryNode(Location location) {
         super(location);

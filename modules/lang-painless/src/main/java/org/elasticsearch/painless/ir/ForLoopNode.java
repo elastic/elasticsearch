@@ -35,7 +35,19 @@ public class ForLoopNode extends ConditionNode {
         return afterthoughtNode;
     }
 
-    /* ---- end tree structure, begin visitor ---- */
+    /* ---- end tree structure, begin node data ---- */
+
+    private boolean continuous;
+
+    public void setContinuous(boolean continuous) {
+        this.continuous = continuous;
+    }
+
+    public boolean isContinuous() {
+        return continuous;
+    }
+
+    /* ---- end node data, begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

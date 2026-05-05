@@ -16,8 +16,6 @@ import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
 import org.elasticsearch.painless.ir.ListInitializationNode;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.symbol.IRDecorations.IRDConstant;
-import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
 import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.util.ArrayList;
@@ -69,8 +67,8 @@ public class DefaultConstantListOptimizationPhase extends IRExpressionModifyingV
             final Set<Object> constantSet = new HashSet<>(constants);
 
             final ConstantNode replacement = new ConstantNode(listInitNode.getLocation());
-            replacement.attachDecoration(new IRDConstant(constantSet));
-            replacement.attachDecoration(new IRDExpressionType(HashSet.class));
+            replacement.setConstant(constantSet);
+            replacement.setExpressionType(HashSet.class);
             irBinaryImplNode.setLeftNode(replacement);
 
             final PainlessMethod hashSetMethod = scriptScope.getPainlessLookup().lookupPainlessMethod(HashSet.class, false, methodName, 1);
@@ -97,13 +95,13 @@ public class DefaultConstantListOptimizationPhase extends IRExpressionModifyingV
     }
 
     private static Object extractConstant(ExpressionNode node) {
-        if (node instanceof ConstantNode) {
-            return node.getDecorationValue(IRDConstant.class);
+        if (node instanceof ConstantNode constantNode) {
+            return constantNode.getConstant();
         }
         if (node instanceof CastNode castNode) {
             ExpressionNode child = castNode.getChildNode();
-            if (child instanceof ConstantNode) {
-                return child.getDecorationValue(IRDConstant.class);
+            if (child instanceof ConstantNode constantChild) {
+                return constantChild.getConstant();
             }
         }
         return null;

@@ -10,6 +10,8 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.lookup.PainlessConstructor;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 import java.util.ArrayList;
@@ -47,7 +49,28 @@ public class MapInitializationNode extends ExpressionNode {
         return valueNodes;
     }
 
-    /* ---- end tree structure, begin visitor ---- */
+    /* ---- end tree structure, begin node data ---- */
+
+    private PainlessConstructor constructor;
+    private PainlessMethod method;
+
+    public void setConstructor(PainlessConstructor constructor) {
+        this.constructor = constructor;
+    }
+
+    public PainlessConstructor getConstructor() {
+        return constructor;
+    }
+
+    public void setMethod(PainlessMethod method) {
+        this.method = method;
+    }
+
+    public PainlessMethod getMethod() {
+        return method;
+    }
+
+    /* ---- end node data, begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

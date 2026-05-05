@@ -14,7 +14,19 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class WhileLoopNode extends ConditionNode {
 
-    /* ---- begin visitor ---- */
+    /* ---- begin node data ---- */
+
+    private boolean continuous;
+
+    public void setContinuous(boolean continuous) {
+        this.continuous = continuous;
+    }
+
+    public boolean isContinuous() {
+        return continuous;
+    }
+
+    /* ---- end node data, begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

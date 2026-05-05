@@ -18,7 +18,28 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
  */
 public class LoadFieldMemberNode extends ExpressionNode {
 
-    /* ---- begin visitor ---- */
+    /* ---- begin node data ---- */
+
+    private String name;
+    private boolean isStatic;
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setStatic(boolean isStatic) {
+        this.isStatic = isStatic;
+    }
+
+    public boolean isStatic() {
+        return isStatic;
+    }
+
+    /* ---- end node data, begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

@@ -13,6 +13,16 @@ import org.elasticsearch.painless.Location;
 
 public abstract class StatementNode extends IRNode {
 
+    private boolean allEscape;
+
+    public void setAllEscape(boolean allEscape) {
+        this.allEscape = allEscape;
+    }
+
+    public boolean doAllEscape() {
+        return allEscape;
+    }
+
     public StatementNode(Location location) {
         super(location);
     }

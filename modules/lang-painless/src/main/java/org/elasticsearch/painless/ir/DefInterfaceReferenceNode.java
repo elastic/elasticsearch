@@ -9,12 +9,25 @@
 
 package org.elasticsearch.painless.ir;
 
+import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class DefInterfaceReferenceNode extends ExpressionNode {
 
-    /* ---- begin visitor ---- */
+    /* ---- begin node data ---- */
+
+    private Def.Encoding defReferenceEncoding;
+
+    public void setDefReferenceEncoding(Def.Encoding defReferenceEncoding) {
+        this.defReferenceEncoding = defReferenceEncoding;
+    }
+
+    public Def.Encoding getDefReferenceEncoding() {
+        return defReferenceEncoding;
+    }
+
+    /* ---- end node data, begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

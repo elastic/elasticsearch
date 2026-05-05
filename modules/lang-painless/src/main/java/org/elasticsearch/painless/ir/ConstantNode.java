@@ -14,7 +14,28 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class ConstantNode extends ExpressionNode {
 
-    /* ---- begin visitor ---- */
+    /* ---- begin node data ---- */
+
+    private Object constant;
+    private String constantFieldName;
+
+    public void setConstant(Object constant) {
+        this.constant = constant;
+    }
+
+    public Object getConstant() {
+        return constant;
+    }
+
+    public void setConstantFieldName(String constantFieldName) {
+        this.constantFieldName = constantFieldName;
+    }
+
+    public String getConstantFieldName() {
+        return constantFieldName;
+    }
+
+    /* ---- end node data, begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

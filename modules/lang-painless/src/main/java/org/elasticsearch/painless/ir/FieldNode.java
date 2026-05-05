@@ -10,11 +10,46 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class FieldNode extends IRNode {
 
-    /* ---- begin visitor ---- */
+    /* ---- begin node data ---- */
+
+    private Class<?> fieldType;
+    private int modifiers;
+    private String name;
+
+    public void setFieldType(Class<?> fieldType) {
+        this.fieldType = fieldType;
+    }
+
+    public Class<?> getFieldType() {
+        return fieldType;
+    }
+
+    public String getFieldCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(fieldType);
+    }
+
+    public void setModifiers(int modifiers) {
+        this.modifiers = modifiers;
+    }
+
+    public int getModifiers() {
+        return modifiers;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    /* ---- end node data, begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

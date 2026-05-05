@@ -9,12 +9,25 @@
 
 package org.elasticsearch.painless.ir;
 
+import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class TypedInterfaceReferenceNode extends ExpressionNode {
 
-    /* ---- begin visitor ---- */
+    /* ---- begin node data ---- */
+
+    private FunctionRef reference;
+
+    public void setReference(FunctionRef reference) {
+        this.reference = reference;
+    }
+
+    public FunctionRef getReference() {
+        return reference;
+    }
+
+    /* ---- end node data, begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

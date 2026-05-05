@@ -10,11 +10,24 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class LoadDotNode extends ExpressionNode {
 
-    /* ---- begin visitor ---- */
+    /* ---- begin node data ---- */
+
+    private PainlessField field;
+
+    public void setField(PainlessField field) {
+        this.field = field;
+    }
+
+    public PainlessField getField() {
+        return field;
+    }
+
+    /* ---- end node data, begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

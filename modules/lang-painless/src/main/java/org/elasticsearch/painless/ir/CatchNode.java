@@ -10,6 +10,7 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class CatchNode extends StatementNode {
@@ -26,7 +27,32 @@ public class CatchNode extends StatementNode {
         return blockNode;
     }
 
-    /* ---- end tree structure, begin visitor ---- */
+    /* ---- end tree structure, begin node data ---- */
+
+    private Class<?> exceptionType;
+    private String symbol;
+
+    public void setExceptionType(Class<?> exceptionType) {
+        this.exceptionType = exceptionType;
+    }
+
+    public Class<?> getExceptionType() {
+        return exceptionType;
+    }
+
+    public String getExceptionCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(exceptionType);
+    }
+
+    public void setSymbol(String symbol) {
+        this.symbol = symbol;
+    }
+
+    public String getSymbol() {
+        return symbol;
+    }
+
+    /* ---- end node data, begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

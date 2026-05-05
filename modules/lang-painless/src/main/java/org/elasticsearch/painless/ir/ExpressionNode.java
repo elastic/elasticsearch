@@ -10,8 +10,52 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+
+import java.util.List;
 
 public abstract class ExpressionNode extends IRNode {
+
+    private Class<?> expressionType;
+    private List<String> captureNames = List.of();
+    private boolean instanceCapture;
+    private boolean captureBox;
+
+    public void setExpressionType(Class<?> expressionType) {
+        this.expressionType = expressionType;
+    }
+
+    public Class<?> getExpressionType() {
+        return expressionType;
+    }
+
+    public String getExpressionCanonicalTypeName() {
+        return PainlessLookupUtility.typeToCanonicalTypeName(expressionType);
+    }
+
+    public void setCaptureNames(List<String> captureNames) {
+        this.captureNames = List.copyOf(captureNames);
+    }
+
+    public List<String> getCaptureNames() {
+        return captureNames;
+    }
+
+    public void setInstanceCapture(boolean instanceCapture) {
+        this.instanceCapture = instanceCapture;
+    }
+
+    public boolean hasInstanceCapture() {
+        return instanceCapture;
+    }
+
+    public void setCaptureBox(boolean captureBox) {
+        this.captureBox = captureBox;
+    }
+
+    public boolean hasCaptureBox() {
+        return captureBox;
+    }
 
     public ExpressionNode(Location location) {
         super(location);

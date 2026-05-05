@@ -137,9 +137,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 throw new IOException("File does not exist: " + location);
             }
             Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
-            // Validation runs at planning time so typos surface as user-visible errors before the
-            // operator factory ever executes. Once validated, downstream call sites discard the
-            // consumed-key sets and use only the resolved provider/reader.
+            // Validation lives here so typos surface as planning-time errors. Downstream callers use
+            // only the value().
             validateConfigKeys(config, storageConsumed, resolvedReader.consumedKeys());
             return resolvedReader.value().metadata(storageObject);
         } catch (IOException e) {
@@ -172,8 +171,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 storage = storageRegistry.provider(path);
             }
 
-            // Config has already been validated at planning time in resolveMetadata. Here we
-            // pass the same map through to withConfig and unwrap the resolved reader.
+            // Config was validated at planning in resolveMetadata; unwrap the reader.
             FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config)
                 .value()
                 .withPushedFilter(context.pushedFilter())
@@ -244,11 +242,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
     /**
      * Rejects any WITH-clause key that no layer claims. The union of {@code storageConsumed},
      * {@code formatConsumed}, and {@link #COORDINATOR_KEYS} must cover {@code config.keySet()};
-     * anything left over is treated as a typo and produces a planning-time error naming the
-     * offending key plus the union of recognised keys for the user's reference.
-     * <p>
-     * The "all keys, sorted" message keeps the error deterministic across runs and stable
-     * for snapshot tests; the offending key is listed first so it is the first thing the user reads.
+     * anything left over throws {@link IllegalArgumentException} listing the unknown keys (sorted,
+     * for deterministic messages) and the recognised options.
      */
     static void validateConfigKeys(Map<String, Object> config, Set<String> storageConsumed, Set<String> formatConsumed) {
         if (config == null || config.isEmpty()) {

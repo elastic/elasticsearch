@@ -115,9 +115,7 @@ public class StorageManager implements Closeable {
             );
         }
 
-        // When config is provided, create a fresh provider with the per-query config.
-        // Consumed-key set is discarded here — coordinator-level WITH-clause validation runs in
-        // FileSourceFactory.resolveMetadata; this caller only needs the provider itself.
+        // Config is validated at planning in FileSourceFactory; here we only need the provider.
         if (config instanceof Map<?, ?> configMap && configMap.isEmpty() == false) {
             StorageProvider provider = registry.createProvider(scheme, settings, (Map<String, Object>) configMap).value();
             perQueryProviders.add(provider);

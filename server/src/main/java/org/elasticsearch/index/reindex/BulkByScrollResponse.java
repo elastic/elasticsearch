@@ -96,11 +96,12 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         this.pitId = pitId;
     }
 
-    public BulkByScrollResponse(Iterable<BulkByScrollResponse> toMerge, @Nullable String reasonCancelled) {
-        this(toMerge, reasonCancelled, null);
-    }
-
-    public BulkByScrollResponse(Iterable<BulkByScrollResponse> toMerge, @Nullable String reasonCancelled, @Nullable BytesReference pitId) {
+    public BulkByScrollResponse(
+        Iterable<BulkByScrollResponse> toMerge,
+        @Nullable String reasonCancelled,
+        @Nullable BytesReference pitId,
+        float requestsPerSecond
+    ) {
         long mergedTook = 0;
         List<BulkByScrollTask.StatusOrException> statuses = new ArrayList<>();
         bulkFailures = new ArrayList<>();
@@ -113,7 +114,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
             timedOut |= response.isTimedOut();
         }
         took = timeValueMillis(mergedTook);
-        status = new BulkByScrollTask.Status(statuses, reasonCancelled);
+        status = new BulkByScrollTask.Status(statuses, reasonCancelled, requestsPerSecond);
         resumeInfo = null;
         this.pitId = pitId;
     }

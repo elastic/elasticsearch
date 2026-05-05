@@ -48,6 +48,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.predicate.fulltext.FullTextPredicate;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlBuiltinFunctionDefinitions;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
@@ -176,12 +178,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     );
 
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
-    private static final List<Class<?>> UNRESOLVED_CLASSES = List.of(
+    private static final List<Class<?>> UNRESOLVED_EXPRESSIONS = List.of(
         UnresolvedAttribute.class,
         UnresolvedException.class,
         UnresolvedFunction.class,
-        UnresolvedNamedExpression.class,
-        UnresolvedPromqlFunction.class
+        UnresolvedNamedExpression.class
     );
 
     private final Class<T> subclass;
@@ -569,6 +570,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return Rounding.builder(TimeValue.timeValueHours(1)).build().prepareForUnknown();
         }
 
+        if (argClass == PromqlFunctionDefinition.class) {
+            return PromqlBuiltinFunctionDefinitions.VECTOR;
+        }
+
         try {
             return mock(argClass);
         } catch (MockitoException e) {
@@ -652,9 +657,22 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     }
 
     public static <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
+        if (nodeClass.equals(UnresolvedPromqlFunction.class)) {
+            /*
+             * Promql's functions turn into WithinSeriesAggregate or AcrossSeriesAggregate or something.
+             * It's like an unresolved expression. Building it from makeNode will make invalid trees.
+             */
+            throw new IllegalArgumentException("can't make an UnresolvedPromqlFunction");
+        }
         if (Modifier.isAbstract(nodeClass.getModifiers())) {
             var subclasses = innerSubclassesOf(nodeClass);
-            nodeClass = randomValueOtherThanMany(UNRESOLVED_CLASSES::contains, () -> randomFrom(subclasses));
+            /*
+             * Promql's functions turn into WithinSeriesAggregate or AcrossSeriesAggregate or something.
+             * It's like an unresolved expression. Building it from makeNode will make invalid trees.
+             */
+            subclasses.remove(UnresolvedPromqlFunction.class);
+            // It *is* safe to build an UnresoledRelation here because it is a leaf node.
+            nodeClass = randomFrom(subclasses);
         }
         Class<?> testSubclassFor = testClassFor(nodeClass);
         if (testSubclassFor != null) {
@@ -763,7 +781,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         if (Modifier.isAbstract(argClass.getModifiers())) {
             while (true) {
                 var candidate = randomFrom(subclassesOf(asNodeSubclass, CLASSNAME_FILTER));
-                if (UNRESOLVED_CLASSES.stream().allMatch(unresolved -> unresolved.isAssignableFrom(candidate) == false)) {
+                if (UNRESOLVED_EXPRESSIONS.stream().allMatch(unresolved -> unresolved.isAssignableFrom(candidate) == false)) {
                     asNodeSubclass = candidate;
                     break;
                 }

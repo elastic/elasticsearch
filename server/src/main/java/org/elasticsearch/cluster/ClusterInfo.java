@@ -518,6 +518,10 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         }
     }
 
+    public void invalidateNodeMaxShardWriteLoadProportion(String nodeId) {
+        nodeMaxShardWriteLoadProportion.remove(nodeId);
+    }
+
     /**
      * Return true if the shard has moved since the time ClusterInfo was created.
      */
@@ -581,7 +585,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, false);
+        return Strings.toTruncatedString(this, true, false);
     }
 
     // exposed for tests, computed here rather than exposing all the collections separately

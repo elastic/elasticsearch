@@ -1,0 +1,257 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.cache.reader;
+
+import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.CachePopulationSource;
+import org.elasticsearch.blobcache.common.ByteBufferReference;
+import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Streams;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
+import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.LongSupplier;
+
+import static org.elasticsearch.blobcache.BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY;
+import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
+import static org.elasticsearch.threadpool.ThreadPool.Names.SEARCH;
+import static org.elasticsearch.xpack.stateless.StatelessPlugin.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL;
+
+/**
+ * Used by {@link BlobCacheIndexInput} to read data from the cache using a given {@link StatelessSharedBlobCacheService.CacheFile} instance.
+ * When bytes are not cached, the reader uses the provided {@link CacheBlobReader} to fetch data from different sources.
+ */
+public class CacheFileReader {
+
+    private static final Logger logger = LogManager.getLogger(CacheFileReader.class);
+    private static final Map<String, Object> BLOB_POPULATION_SOURCE_ATTRIBUTES = Map.of(
+        CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY,
+        CachePopulationSource.BlobStore.name()
+    );
+    private static final Map<String, Object> PEER_POPULATION_SOURCE_ATTRIBUTES = Map.of(
+        CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY,
+        CachePopulationSource.BlobStore.name()
+    );
+
+    private final StatelessSharedBlobCacheService.CacheFile cacheFile;
+    private final CacheBlobReader cacheBlobReader;
+    private final BlobFileRanges blobFileRanges;
+    private final BlobCacheMetrics blobCacheMetrics;
+    private final LongSupplier relativeTimeInMillisSupplier;
+
+    public CacheFileReader(
+        StatelessSharedBlobCacheService.CacheFile cacheFile,
+        CacheBlobReader cacheBlobReader,
+        BlobFileRanges blobFileRanges,
+        BlobCacheMetrics blobCacheMetrics,
+        LongSupplier relativeTimeInMillisSupplier
+    ) {
+        this.cacheFile = Objects.requireNonNull(cacheFile);
+        this.cacheBlobReader = Objects.requireNonNull(cacheBlobReader);
+        this.blobFileRanges = Objects.requireNonNull(blobFileRanges);
+        this.blobCacheMetrics = blobCacheMetrics;
+        this.relativeTimeInMillisSupplier = relativeTimeInMillisSupplier;
+    }
+
+    /**
+     * @return a new instance that is a copy of the current instance
+     */
+    public CacheFileReader copy() {
+        return new CacheFileReader(cacheFile.copy(), cacheBlobReader, blobFileRanges, blobCacheMetrics, relativeTimeInMillisSupplier);
+    }
+
+    /**
+     * Attempts to prefetch byte(s) from the local cache using the fast path.
+     *
+     * <p>This method is best-effort and non-blocking. It only attempts to
+     * prefetch data that is already present in the local cache and may
+     * bring it into memory. If the fast path cannot be used, this method
+     * returns {@code false} and no prefetching is performed.</p>
+     *
+     * @param offset the starting offset to prefetch from
+     * @param length the number of bytes to prefetch
+     * @return {@code true} if the fast-path prefetch succeeded,
+     *         {@code false} otherwise
+     * @throws IOException if an I/O error occurs
+     */
+    public final boolean tryPrefetch(long offset, long length) throws IOException {
+        return cacheFile.tryPrefetch(offset, length);
+    }
+
+    /**
+     * Attempts to read byte(s) from the cache using the fast path.
+     *
+     * @param b the {@link ByteBuffer} to write bytes into
+     * @param position the starting position to read from
+     * @return true is reading using the fast path succeeded, false otherwise
+     * @throws IOException if an I/O error occurs
+     */
+    public final boolean tryRead(ByteBuffer b, long position) throws IOException {
+        return cacheFile.tryRead(b, position);
+    }
+
+    /**
+     * If a direct byte buffer view is available for the given range, passes it
+     * to {@code action} and returns {@code true}. Otherwise returns
+     * {@code false} without invoking the action.
+     *
+     * @param offset the byte offset within the file
+     * @param length the number of bytes requested
+     * @param action the action to perform with the byte buffer
+     * @return {@code true} if a buffer was available and the action was invoked
+     */
+    public final boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+        return cacheFile.withByteBufferSlice(offset, length, action);
+    }
+
+    public final boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
+        throws IOException {
+        return cacheFile.withByteBufferSlices(offsets, length, count, action);
+    }
+
+    /**
+     * Reads byte(s) from the cache, potentially fetching the data from a remote source if the data are not present in cache (slow path).
+     *
+     * @param initiator     the caller (used for debug logging)
+     * @param b             the {@link ByteBuffer} to write bytes into
+     * @param position      the starting position to read from
+     * @param length        the length of bytes to read
+     * @param endOfInput    the length of the {@link BlobCacheIndexInput} that triggers the read (used for assertions)
+     * @param resourceDescription the underlying {@link BlobCacheIndexInput} resource description
+     * @throws Exception    if an error occurs
+     */
+    public void read(Object initiator, ByteBuffer b, long position, int length, long endOfInput, String resourceDescription)
+        throws Exception {
+        // the executor can be null if the calling thread is not an {@link org.elasticsearch.common.util.concurrent.EsExecutors.EsThread}
+        String executorName = EsExecutors.executorName(Thread.currentThread());
+
+        if (executorName != null
+            && (executorName.equals(SEARCH) || executorName.equals(GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL))) {
+            long start = relativeTimeInMillisSupplier.getAsLong();
+            doRead(initiator, b, blobFileRanges.getPosition(position, length), length, endOfInput, resourceDescription);
+            blobCacheMetrics.getSearchOriginDownloadTime()
+                .record(
+                    relativeTimeInMillisSupplier.getAsLong() - start,
+                    executorName.equals(SEARCH) ? BLOB_POPULATION_SOURCE_ATTRIBUTES : PEER_POPULATION_SOURCE_ATTRIBUTES
+                );
+        } else {
+            doRead(initiator, b, blobFileRanges.getPosition(position, length), length, endOfInput, resourceDescription);
+        }
+    }
+
+    private void doRead(Object initiator, ByteBuffer b, long position, int length, long endOfInput, String resourceDescription)
+        throws Exception {
+        // Semaphore that, when all permits are acquired, ensures that async callbacks (such as those used by readCacheFile) are not
+        // accessing the byte buffer anymore that was passed to doReadInternal
+        // In particular, it's important to acquire all permits before adapting the ByteBuffer's offset
+        final ByteBufferReference byteBufferReference = new ByteBufferReference(b);
+        try {
+            // Compute the range of bytes of the blob to fetch and to write to the cache.
+            //
+            // The range represents one or more full regions to fetch. It can also be larger (in both directions) than the file opened by
+            // the current BlobCacheIndexInput instance. The range can also be larger than the real length of the blob in the object store.
+            // This is OK, we rely on the object store to return as many bytes as possible without failing.
+
+            // we use the length from `cacheFile` since this allows reading beyond the slice'd portion of the file, important for
+            // reading beyond individual files inside CFS.
+            long remainingFileLength = cacheFile.getLength() - position;
+            assert remainingFileLength >= 0 : remainingFileLength;
+            assert length <= remainingFileLength : length + " > " + remainingFileLength;
+            assert remainingFileLength >= endOfInput - position
+                : "cache file length smaller than file length " + cacheFile.getLength() + " < " + endOfInput;
+            final ByteRange rangeToWrite = cacheBlobReader.getRange(position, length, remainingFileLength);
+
+            assert rangeToWrite.start() <= position && position + length <= rangeToWrite.end()
+                : "[" + position + "-" + (position + length) + "] vs " + rangeToWrite;
+            final ByteRange rangeToRead = ByteRange.of(position, position + length);
+
+            int bytesRead = 0;
+            try {
+                bytesRead = cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
+                    logger.trace(
+                        "{}: reading cached [{}][{}-{}]",
+                        initiator.toString(),
+                        cacheFile.getCacheKey().fileName(),
+                        rangeToRead.start(),
+                        rangeToRead.start() + len
+                    );
+                    return SharedBytes.readCacheFile(channel, channelPos, relativePos, len, byteBufferReference);
+                },
+                    // Can be executed on different thread pool depending on whether we read from
+                    // the ObjectStoreCacheBlobReader (SHARD_READ pool) or the IndexingShardCacheBlobReader (VBCC pool)
+                    new SequentialRangeMissingHandler(
+                        initiator,
+                        cacheFile.getCacheKey().fileName(),
+                        rangeToWrite,
+                        cacheBlobReader,
+                        () -> writeBuffer.get().clear(),
+                        bytesCopied -> {},
+                        StatelessPlugin.SHARD_READ_THREAD_POOL,
+                        StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                    ),
+                    resourceDescription
+                );
+                byteBufferReference.finish(bytesRead);
+            } catch (Exception e) {
+                if (e instanceof AlreadyClosedException || e.getCause() instanceof AlreadyClosedException) {
+                    assert bytesRead == 0 : "expecting bytes read to be 0 but got: " + bytesRead + " for " + cacheFile.getCacheKey();
+                    int len = length - bytesRead;
+                    // TODO ideally we would make it async, but it should be safe
+                    // since the future is created on the shard read thread pool or GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL.
+                    // ObjectStoreCacheBlobReader is completed on the same thread and before actually waiting on the future, and
+                    // IndexingShardCacheBlobReader should be completed on the FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                    var readFuture = new PlainActionFuture<Integer>();
+                    cacheBlobReader.getRangeInputStream(position, len, readFuture.map(in -> {
+                        try (in) {
+                            final int read = Streams.read(in, b, len);
+                            if (read == -1) {
+                                BlobCacheUtils.throwEOF(position, len);
+                            }
+                            return read;
+                        }
+                    }));
+                    bytesRead += cacheFile.recordWait(len, readFuture);
+                    blobCacheMetrics.recordBypassRead();
+                } else {
+                    throw e;
+                }
+            }
+            assert bytesRead == length : bytesRead + " vs " + length;
+        } finally {
+            byteBufferReference.finish(0);
+        }
+    }
+
+    // package-private for testing
+    StatelessSharedBlobCacheService.CacheFile getCacheFile() {
+        return cacheFile;
+    }
+
+    @Override
+    public String toString() {
+        return cacheFile.toString();
+    }
+
+    private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
+        () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
+    );
+}

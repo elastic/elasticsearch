@@ -9,9 +9,7 @@
 
 package org.elasticsearch.reindex.management;
 
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -19,40 +17,34 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Optional;
 
 /**
  * Response returned from {@code POST /_reindex/{taskId}/_cancel}.
+ * <p>
+ * When the request was issued with {@code wait_for_completion=true}, the response embeds the completed reindex task result; otherwise the
+ * response is just an {@code acknowledged} marker indicating that cancellation has been initiated.
  */
-public class CancelReindexResponse extends BaseTasksResponse implements ToXContentObject {
+public class CancelReindexResponse extends ActionResponse implements ToXContentObject {
 
     @Nullable
     private final GetReindexResponse completedReindexResponse;
 
-    public CancelReindexResponse(
-        final List<TaskOperationFailure> taskFailures,
-        final List<FailedNodeException> failedNodes,
-        @Nullable final GetReindexResponse completedReindexResponse
-    ) {
-        super(taskFailures, failedNodes);
+    public CancelReindexResponse(@Nullable final GetReindexResponse completedReindexResponse) {
         this.completedReindexResponse = completedReindexResponse;
     }
 
     public CancelReindexResponse(final StreamInput in) throws IOException {
-        super(in);
         this.completedReindexResponse = in.readOptionalWriteable(GetReindexResponse::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeOptionalWriteable(completedReindexResponse);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        assert getNodeFailures().isEmpty() && getTaskFailures().isEmpty() : "should be thrown before being able to call serialization";
         if (completedReindexResponse != null) {
             return completedReindexResponse.toXContent(builder, params);
         }

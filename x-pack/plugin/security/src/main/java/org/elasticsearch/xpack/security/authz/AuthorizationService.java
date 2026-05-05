@@ -610,6 +610,11 @@ public class AuthorizationService {
     ) {
         if (request instanceof IndicesRequest.CrossProjectCandidate crossProjectCandidate
             && indicesAndAliasesResolver.resolvesCrossProject(request)) {
+            final TargetProjects existing = crossProjectCandidate.getResolvedTargetProjects();
+            if (existing != null) {
+                // see https://github.com/elastic/elasticsearch/issues/135799 and ES-4376
+                return existing;
+            }
             final TargetProjects targetProjects = projectRoutingResolver.resolve(
                 crossProjectCandidate.getProjectRouting(),
                 projectMetadata,

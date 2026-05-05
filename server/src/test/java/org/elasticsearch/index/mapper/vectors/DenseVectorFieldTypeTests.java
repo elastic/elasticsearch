@@ -829,7 +829,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertThat(ivf.toString("ignored"), containsString("[20]"));
     }
 
-    public void testBBQDiskAdjustedKUsesMaxPersistedRescoreAcrossLeavesWhenReaderProvided() throws IOException {
+    public void testBBQDiskAdjustedKUsesMaxPersistedForRescoring() throws IOException {
         float oLow = 2.0f;
         float oHigh = 5.0f;
         try (

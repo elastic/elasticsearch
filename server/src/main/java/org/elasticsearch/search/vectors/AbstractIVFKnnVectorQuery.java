@@ -326,7 +326,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // preserve the existing 2x overspill multiplier
         int innerK = (int) Math.ceil(kRequest * oversampleSeg);
         int collectorK = Math.round(2f * innerK);
-        return Math.clamp(collectorK, 1, Math.max(1, maxK));
+        return Math.max(1, collectorK);
     }
 
     private static float readPersistedOversample(LeafReaderContext context, String field) {

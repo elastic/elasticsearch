@@ -120,7 +120,6 @@ public record TestConfiguration(
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
     static final ParseField FLAT_VECTOR_THRESHOLD = new ParseField("flat_vector_threshold");
-    static final ParseField PERSIST_IVF_SEGMENT_CONFIG = new ParseField("persist_ivf_segment_config");
     static final ParseField DIRECTORY_TYPE_FIELD = new ParseField("directory_type");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
@@ -186,7 +185,6 @@ public record TestConfiguration(
         PARSER.declareInt(Builder::setMergeWorkers, MERGE_WORKERS_FIELD);
         PARSER.declareInt(Builder::setFlatVectorThreshold, FLAT_VECTOR_THRESHOLD);
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
-        PARSER.declareBoolean(Builder::setPersistIvfSegmentConfig, PERSIST_IVF_SEGMENT_CONFIG);
         PARSER.declareString(Builder::setDirectoryType, DIRECTORY_TYPE_FIELD);
     }
 
@@ -406,7 +404,6 @@ public record TestConfiguration(
         private int flatVectorThreshold = -1; // -1 mean use default (vectorPerCluster * 3)
         private int secondaryClusterSize = -1;
         private int flatIndexThreshold = -1; // use format's default threshold
-        private boolean persistIvfSegmentConfig = false;
         private String directoryType = "default";
 
         /**
@@ -445,11 +442,6 @@ public record TestConfiguration(
 
         public Builder setFlatVectorThreshold(int flatVectorThreshold) {
             this.flatVectorThreshold = flatVectorThreshold;
-            return this;
-        }
-
-        public Builder setPersistIvfSegmentConfig(boolean persistIvfSegmentConfig) {
-            this.persistIvfSegmentConfig = persistIvfSegmentConfig;
             return this;
         }
 
@@ -961,9 +953,6 @@ public record TestConfiguration(
                 builder.field(SEARCH_PARAMS.getPreferredName(), searchParams);
             }
             builder.field(FLAT_VECTOR_THRESHOLD.getPreferredName(), flatVectorThreshold);
-            if (persistIvfSegmentConfig) {
-                builder.field(PERSIST_IVF_SEGMENT_CONFIG.getPreferredName(), true);
-            }
             builder.field(DIRECTORY_TYPE_FIELD.getPreferredName(), directoryType);
             return builder.endObject();
         }

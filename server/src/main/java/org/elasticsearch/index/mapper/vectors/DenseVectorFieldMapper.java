@@ -2997,7 +2997,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             FilterHeuristic heuristic,
             boolean hnswEarlyTermination,
             IndexReader indexReader
-        ) throws IOException {
+        ) {
             if (indexType.hasVectors() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
@@ -3157,14 +3157,20 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         /**
-         * Max rescore oversample from DiskBBQ mivf across leaves, or {@link Float#NaN} if none are finite.
+         * read max rescore oversample across leaves.
+         * it reads at most 10 segments.
          */
-        private static float readStoredBbqIvfRescoreOversample(IndexReader reader, String fieldName) {
+        private static float readStoredRescoreOversample(IndexReader reader, String fieldName) {
             if (reader == null) {
                 return Float.NaN;
             }
             float best = Float.NaN;
+            int i = 0;
             for (LeafReaderContext ctx : reader.leaves()) {
+                if (i >= 10) {
+                    // avoid reading from too many segments
+                    break;
+                }
                 LeafReader leaf = ctx.reader();
                 SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf);
                 if (segmentReader == null) {
@@ -3184,6 +3190,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         best = v;
                     }
                 }
+                i++;
             }
             return best;
         }
@@ -3218,12 +3225,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int adjustedK = k;
             // precedence: query oversample > persisted (per-segment) > mapping rescore_vector
             Float oversample = queryOversample;
-            if (oversample == null && indexOptions instanceof BBQIVFIndexOptions && indexReader != null) {
-                float stored = readStoredBbqIvfRescoreOversample(indexReader, name());
-                if (Float.isFinite(stored)) {
-                    oversample = stored;
-                }
-            }
             Float mappingOversampleDefault = indexOptions instanceof QuantizedIndexOptions qio && qio.rescoreVector != null
                 ? qio.rescoreVector.oversample
                 : null;
@@ -3251,9 +3252,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
                 // when query oversample is null, read per segment persisted oversample
                 // mapping oversample works as fallback for segments without persisted oversample
-                boolean perSegment = rescore && queryOversample == null && adjustedK > k;
-                int kRequest = perSegment ? k : adjustedK;
-                float oversampleFallback = perSegment && mappingOversampleDefault != null ? mappingOversampleDefault : Float.NaN;
+                boolean perSegment = rescore && queryOversample == null;
+                int kRequest;
+                if (perSegment) {
+                    kRequest = k;
+                    // use max persisted oversample, if available, for (late) rescoring
+                    float maxStoredOversample = readStoredRescoreOversample(indexReader, name());
+                    if (Float.isFinite(maxStoredOversample)) {
+                        adjustedK = Math.min((int) Math.ceil(kRequest * maxStoredOversample), OVERSAMPLE_LIMIT);
+                    }
+                } else {
+                    kRequest = adjustedK;
+                }
+                float oversampleFallback = perSegment ? mappingOversampleDefault : Float.NaN;
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),

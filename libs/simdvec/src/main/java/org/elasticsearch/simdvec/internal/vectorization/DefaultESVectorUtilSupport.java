@@ -13,6 +13,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.BFloat16Support;
 import org.elasticsearch.simdvec.MathUtils;
 import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
@@ -30,23 +31,15 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
     }
 
-    static short floatToBFloat16(float f) {
-        // copied from BFloat16.floatToBFloat16
-        int bits = Float.floatToIntBits(f);
-        int roundingBias = 0x7fff + ((bits >> 16) & 1);
-        bits += roundingBias;
-        return (short) (bits >> 16);
-    }
-
     static void floatToBFloat16(float[] floats, ShortBuffer bFloats, int startOffset) {
         for (int i = startOffset; i < floats.length; i++) {
-            bFloats.put(floatToBFloat16(floats[i]));
+            bFloats.put(BFloat16Support.floatToBFloat16(floats[i]));
         }
     }
 
     static void bFloat16ToFloat(ShortBuffer bFloats, float[] floats, int startOffset) {
         for (int i = startOffset; i < floats.length; i++) {
-            floats[i] = Float.intBitsToFloat(bFloats.get() << 16);
+            floats[i] = BFloat16Support.bFloat16ToFloat(bFloats.get());
         }
     }
 

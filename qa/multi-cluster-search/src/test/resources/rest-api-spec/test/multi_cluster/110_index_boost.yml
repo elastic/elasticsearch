@@ -1,0 +1,63 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: boost_test_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "boost_test_index"}}'
+          - '{"f1": "local_cluster", "animal": "dog", "filter_field": 0}'
+          - '{"index": {"_index": "boost_test_index"}}'
+          - '{"f1": "local_cluster", "animal": "pig", "filter_field": 0}'
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: boost_test_index
+        ignore_unavailable: true
+---
+"Test index boosting":
+  - requires:
+      cluster_features: [ "search.indices_boost_remote_index_support" ]
+      reason: "indices_boost remote index support contains the change"
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: boost_test_index,my_remote_cluster:test_index
+        body:
+          query:
+            term:
+              animal: "pig"
+          indices_boost: [ { my_remote_cluster:test_index: 100.0 } ]
+          sort: "_score"
+
+  - match: { _clusters.total: 2 }
+  - match: { _clusters.successful: 2 }
+  - match: { _clusters.skipped: 0 }
+  - match: { hits.hits.0._index: "my_remote_cluster:test_index" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: boost_test_index,my_remote_cluster:test_index
+        body:
+          query:
+            term:
+              animal: "pig"
+          indices_boost: [ { _origin:boost_test_index: 100.0 } ]
+          sort: "_score"
+
+  - match: { _clusters.total: 2 }
+  - match: { _clusters.successful: 2 }
+  - match: { _clusters.skipped: 0 }
+  - match: { hits.hits.0._index: "boost_test_index" }

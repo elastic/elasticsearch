@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -138,10 +137,7 @@ public class ReindexListRelocationIT extends ESIntegTestCase {
     }
 
     private List<Map<String, Object>> getRunningReindexes() throws IOException {
-        final ListReindexResponse response = client().execute(
-            TransportListReindexAction.TYPE,
-            new ListReindexRequest().setActions(ReindexAction.NAME)
-        ).actionGet();
+        final ListReindexResponse response = client().execute(TransportListReindexAction.TYPE, new ListReindexRequest(true)).actionGet();
         final Map<String, Object> responseMap = XContentTestUtils.convertToMap(response);
         return ObjectPath.evaluate(responseMap, "reindex");
     }

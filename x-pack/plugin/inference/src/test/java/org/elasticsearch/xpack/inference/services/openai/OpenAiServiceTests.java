@@ -114,8 +114,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isA;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -213,8 +211,8 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                 }
 
                 @Override
-                protected ModelSecrets createModelSecrets() {
-                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap()));
+                protected ModelSecrets createModelSecrets(ConfigurationParseContext context) {
+                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap(), context));
                 }
 
                 @Override
@@ -403,7 +401,6 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -431,7 +428,6 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -461,7 +457,6 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -493,7 +488,6 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -558,11 +552,6 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
 
     public void testInfer_ReturnsErrorWhenCallingInfer_WithChatCompletion() throws IOException {
         var sender = mock(HttpRequestSender.class);
-        doAnswer(invocation -> {
-            ActionListener<Void> listener = invocation.getArgument(0);
-            listener.onResponse(null);
-            return Void.TYPE;
-        }).when(sender).startAsynchronously(any());
 
         var s = mock(HttpRequestSender.Factory.class);
         when(s.createSender()).thenReturn(sender);
@@ -1223,7 +1212,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                 new EmbeddingRequest(
                     List.of(
                         new InferenceStringGroup("abc"),
-                        new InferenceStringGroup(new InferenceString(DataType.IMAGE, InferenceStringTests.TEST_IMAGE_DATA_URI))
+                        new InferenceStringGroup(new InferenceString(DataType.IMAGE, InferenceStringTests.TEST_DATA_URI))
                     ),
                     InputType.UNSPECIFIED,
                     Map.of()
@@ -1234,7 +1223,7 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
 
             var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
-            assertThat(exception.getMessage(), is("The openai service does not support embedding with image inputs"));
+            assertThat(exception.getMessage(), is("The openai service does not support embedding with non-text inputs"));
         }
     }
 

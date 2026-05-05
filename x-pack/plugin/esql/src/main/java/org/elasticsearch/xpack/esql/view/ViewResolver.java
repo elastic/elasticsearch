@@ -181,6 +181,7 @@ public class ViewResolver {
                 case Fork fork -> {
                     replaceViewsFork(fork, parser, seenInner, viewQueries, depth, planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
+                        result.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
                     }));
                     return;
@@ -195,6 +196,9 @@ public class ViewResolver {
                         depth,
                         planListener.delegateFailureAndWrap((l, result) -> {
                             plan.forEachDown(resolvedPlans::add);
+                            // Also mark the resolved result subtree so transformDown does not
+                            // re-process view-body nodes the UR was replaced with.
+                            result.forEachDown(resolvedPlans::add);
                             l.onResponse(result);
                         })
                     );
@@ -266,6 +270,14 @@ public class ViewResolver {
         var patterns = Arrays.stream(unresolvedRelation.indexPattern().indexPattern().split(","))
             .filter(pattern -> Regex.isSimpleMatchPattern(pattern) == false || seenWildcards.contains(pattern) == false)
             .toArray(String[]::new);
+        if (patterns.length == 0) {
+            // All patterns are wildcards already resolved in this scope. Returning without a
+            // request is a no-op AND avoids the security layer's empty-indices → "_all"
+            // normalization, which would otherwise re-expand to the full cluster lookup and
+            // leak "_all" as a literal pattern into downstream merge/concat code.
+            listener.onResponse(unresolvedRelation);
+            return;
+        }
         for (String pattern : patterns) {
             if (Regex.isSimpleMatchPattern(pattern)) {
                 seenWildcards.add(pattern);
@@ -325,8 +337,14 @@ public class ViewResolver {
         String[] originalPatterns
     ) {
         List<ViewPlan> result = new ArrayList<>();
-        List<String> unresolvedPatterns = new ArrayList<>();
         HashSet<String> addedViews = new HashSet<>();
+        // Positive patterns that must remain in the unresolved UR because they contribute non-view
+        // resources or were not visible / unauthorized. We collect them here during the first pass
+        // but emit them into unresolvedPatterns in original-query order during the second pass,
+        // so exclusion patterns stay at their original positions — reordering them changes the
+        // semantics of {@link IndexAbstractionResolver}, which applies exclusions against state
+        // accumulated so far.
+        HashSet<String> patternsNeedingUnresolved = new HashSet<>();
         int unresolvedInsertPos = -1;
 
         for (var expr : response.getResolvedIndexExpressions().expressions()) {
@@ -338,7 +356,7 @@ public class ViewResolver {
                 if (unresolvedInsertPos < 0) {
                     unresolvedInsertPos = result.size();
                 }
-                unresolvedPatterns.add(expr.original());
+                patternsNeedingUnresolved.add(expr.original());
                 continue;
             }
 
@@ -372,18 +390,28 @@ public class ViewResolver {
                 if (unresolvedInsertPos < 0) {
                     unresolvedInsertPos = result.size();
                 }
-                unresolvedPatterns.add(expr.original());
+                patternsNeedingUnresolved.add(expr.original());
             }
         }
 
-        // Preserve exclusion patterns targeting non-view resources
-        if (unresolvedPatterns.isEmpty() == false) {
-            var viewNames = getMetadata().views();
-            for (String pattern : originalPatterns) {
-                if (patternIsExclusion(pattern) && isConcreteViewExclusion(pattern, viewNames::containsKey) == false) {
+        // Second pass: build unresolvedPatterns from originalPatterns in original order, keeping
+        // positive patterns flagged above and exclusions that don't target concrete views.
+        List<String> unresolvedPatterns = new ArrayList<>();
+        var viewNames = getMetadata().views();
+        for (String pattern : originalPatterns) {
+            if (patternIsExclusion(pattern)) {
+                if (isConcreteViewExclusion(pattern, viewNames::containsKey) == false) {
                     unresolvedPatterns.add(pattern);
                 }
+            } else if (patternsNeedingUnresolved.contains(pattern)) {
+                unresolvedPatterns.add(pattern);
             }
+        }
+
+        // Only emit the UR plan if it would contribute at least one positive pattern.
+        // A UR with only exclusions has no positive basis to match against and would be a
+        // semantically empty input — preserve prior behavior of omitting it in that case.
+        if (patternsNeedingUnresolved.isEmpty() == false) {
             result.add(unresolvedInsertPos, createUnresolvedRelationPlan(unresolvedRelation, unresolvedPatterns));
         }
 
@@ -666,17 +694,30 @@ public class ViewResolver {
             LogicalPlan inner = (value instanceof NamedSubquery ns) ? ns.child() : value;
             hasInnerFork = true;
             if (inner instanceof ViewUnionAll innerVua) {
-                // Named branches from inner ViewUnionAll: lift with their own names
+                // Named branches from inner ViewUnionAll: lift with their own names. A bare UR with
+                // an exclusion must be wrapped in a NamedSubquery before lifting — otherwise the
+                // subsequent merge step would concatenate its pattern list with a sibling outer UR,
+                // widening the exclusion's scope beyond the inner view body it came from.
                 for (Map.Entry<String, LogicalPlan> innerEntry : innerVua.namedSubqueries().entrySet()) {
-                    flat.put(makeUniqueKey(flat, innerEntry.getKey()), innerEntry.getValue());
+                    String innerKey = innerEntry.getKey();
+                    LogicalPlan innerValue = innerEntry.getValue();
+                    if (innerValue instanceof UnresolvedRelation innerUr && containsExclusion(innerUr)) {
+                        innerValue = new NamedSubquery(innerUr.source(), innerUr, innerKey);
+                    }
+                    flat.put(makeUniqueKey(flat, innerKey), innerValue);
                 }
             } else {
-                // Plain Fork/UnionAll from user-written subqueries: lift children with suffixed parent name
+                // Plain Fork/UnionAll from user-written subqueries: lift children with suffixed parent name.
+                // As in the ViewUnionAll branch above, a bare UR child with an exclusion must be wrapped in
+                // a NamedSubquery before lifting so the subsequent merge step does not widen its scope.
                 Fork fork = (Fork) inner;
                 int childIndex = 1;
                 for (LogicalPlan child : fork.children()) {
                     LogicalPlan unwrapped = (child instanceof Subquery sq) ? sq.child() : child;
                     String childKey = parentKey + "#" + childIndex++;
+                    if (unwrapped instanceof UnresolvedRelation childUr && containsExclusion(childUr)) {
+                        unwrapped = new NamedSubquery(childUr.source(), childUr, childKey);
+                    }
                     flat.put(makeUniqueKey(flat, childKey), unwrapped);
                 }
             }
@@ -786,12 +827,24 @@ public class ViewResolver {
         // Parse the view query with the view name, which causes all Source objects
         // to be tagged with the view name during parsing
         LogicalPlan subquery = parser.apply(view.query(), view.name());
-        if (subquery instanceof UnresolvedRelation ur) {
-            // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them together and avoid branched plans
+        if (subquery instanceof UnresolvedRelation ur && containsExclusion(ur) == false) {
+            // Simple UnresolvedRelation subqueries are not kept as views, so we can compact them together and avoid branched plans.
+            // But exclusion patterns must stay scoped to the view body — a bare UR with an exclusion that gets merged with sibling
+            // or outer URs would have its exclusion's scope widened across the merged pattern list (see #146XXX), so those are
+            // wrapped in a NamedSubquery via the else branch to prevent merging.
             return ur;
         } else {
-            // More complex subqueries are maintained with the view name for branch identification
+            // More complex subqueries (or simple URs containing exclusions) are maintained with the view name for branch identification
             return new NamedSubquery(subquery.source(), subquery, view.name());
         }
+    }
+
+    private static boolean containsExclusion(UnresolvedRelation ur) {
+        for (String pattern : ur.indexPattern().indexPattern().split(",")) {
+            if (patternIsExclusion(pattern)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

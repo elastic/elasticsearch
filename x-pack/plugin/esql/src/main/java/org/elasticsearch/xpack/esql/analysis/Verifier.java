@@ -37,7 +37,9 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -143,6 +145,8 @@ public class Verifier {
             checkFlattenedSubFieldLoad(plan, failures);
         }
 
+        checkTStepIncompatibleWithTRange(plan, failures);
+
         // collect plan checkers
         var planCheckers = planCheckers(plan);
         planCheckers.addAll(extraCheckers);
@@ -179,6 +183,27 @@ public class Verifier {
         }
 
         return failures.failures();
+    }
+
+    private static void checkTStepIncompatibleWithTRange(LogicalPlan plan, Failures failures) {
+        var hasTRange = new Holder<>(false);
+        plan.forEachUp(p -> p.forEachExpression(TRange.class, tr -> hasTRange.set(true)));
+        if (hasTRange.get() == false) {
+            return;
+        }
+        var reported = new Holder<>(false);
+        plan.forEachUp(p -> p.forEachExpression(TStep.class, tstep -> {
+            if (reported.get() == false) {
+                failures.add(
+                    fail(
+                        tstep,
+                        "[{}] cannot be used together with TRANGE; use a `@timestamp` range in the request query filter instead",
+                        tstep.sourceText()
+                    )
+                );
+                reported.set(true);
+            }
+        }));
     }
 
     private static void checkUnresolvedAttributes(LogicalPlan plan, Failures failures, boolean skipUnresolvedTimestamp) {
@@ -510,10 +535,12 @@ public class Verifier {
         Set<String> names = new HashSet<>();
 
         for (Attribute attribute : attributes) {
-            if (attribute instanceof FieldAttribute fa
-                && fa.field() instanceof UnsupportedEsField uef
-                && uef.getOriginalTypes().contains(FlattenedFieldMapper.CONTENT_TYPE)) {
-                names.add(fa.name());
+            if (attribute instanceof FieldAttribute fa) {
+                if (fa.field() instanceof UnsupportedEsField uef && uef.getOriginalTypes().contains(FlattenedFieldMapper.CONTENT_TYPE)) {
+                    names.add(fa.name());
+                } else if (fa.dataType() == DataType.FLATTENED) {
+                    names.add(fa.name());
+                }
             }
         }
 

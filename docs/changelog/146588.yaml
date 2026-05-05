@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 146588
+summary: DiskBBQ Bulk collect knn docs to improve query latency
+type: enhancement

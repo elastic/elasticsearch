@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
 import java.util.List;
@@ -68,10 +68,10 @@ public class OpenAiEmbeddingsResponseEntity {
      * </code>
      * </pre>
      */
-    public static EmbeddingFloatResults fromResponse(Request request, HttpResult response) throws IOException {
+    public static EmbeddingFloatResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
         try (var p = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, response.body())) {
             var result = EmbeddingFloatResult.PARSER.apply(p, null);
-            if (request.getTaskType().equals(TaskType.TEXT_EMBEDDING)) {
+            if (outboundRequest.getTaskType().equals(TaskType.TEXT_EMBEDDING)) {
                 return result.toDenseEmbeddingFloatResults();
             } else {
                 return result.toGenericDenseEmbeddingFloatResults();

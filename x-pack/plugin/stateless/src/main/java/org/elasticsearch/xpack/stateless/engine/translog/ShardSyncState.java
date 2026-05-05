@@ -208,6 +208,15 @@ class ShardSyncState {
         ActionListener.onResponse(toComplete, null);
     }
 
+    void failPendingListeners(Exception e) {
+        var toFail = new ArrayList<ActionListener<Void>>();
+        synchronized (listeners) {
+            toFail.addAll(listeners);
+            listeners.clear();
+        }
+        ActionListener.onFailure(toFail, e);
+    }
+
     public void updateProcessedLocation(Translog.Location newProcessedLocation) {
         assert newProcessedLocation.compareTo(processedLocation) > 0;
         processedLocation = newProcessedLocation;
@@ -235,7 +244,6 @@ class ShardSyncState {
     }
 
     public void close() {
-        final ArrayList<ActionListener<Void>> toComplete;
         isClosed = true;
         synchronized (translogFiles) {
             // The relocation hand-off forces a flush while holding the operation permits to a clean relocation should fully release the
@@ -247,12 +255,7 @@ class ShardSyncState {
             });
             translogFiles.clear();
         }
-        synchronized (listeners) {
-            toComplete = new ArrayList<>(listeners);
-            listeners.clear();
-        }
-
-        ActionListener.onFailure(toComplete, alreadyClosedException(shardId));
+        failPendingListeners(alreadyClosedException(shardId));
     }
 
     private record SyncListener(Translog.Location location, ActionListener<Void> listener)

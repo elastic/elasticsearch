@@ -80,6 +80,12 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
     int max();
 
     /**
+     * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
+     * Always {@code Integer.BYTES} since all int values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
+
+    /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
      * given object is a IntVector, and both vectors are {@link #equals(IntVector, IntVector) equal}.
      */

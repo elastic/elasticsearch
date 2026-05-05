@@ -207,76 +207,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     static final String CONFIG_FORMAT = "format";
-    static final String CONFIG_MAX_ERRORS = "max_errors";
-    static final String CONFIG_MAX_ERROR_RATIO = "max_error_ratio";
-    static final String CONFIG_ERROR_MODE = "error_mode";
 
+    /** Delegates to {@link ErrorPolicy#fromConfig(Map, ErrorPolicy)} with the format's default
+     *  policy as the fallback. Kept here so existing call sites and tests do not have to change. */
     static ErrorPolicy resolveErrorPolicy(Map<String, Object> config, FormatReader format) {
-        if (config == null) {
-            return format.defaultErrorPolicy();
-        }
-        Object maxErrorsValue = config.get(CONFIG_MAX_ERRORS);
-        Object maxErrorRatioValue = config.get(CONFIG_MAX_ERROR_RATIO);
-        Object errorModeValue = config.get(CONFIG_ERROR_MODE);
-        if (maxErrorsValue == null && maxErrorRatioValue == null && errorModeValue == null) {
-            return format.defaultErrorPolicy();
-        }
-
-        // When only budget keys are set (no explicit mode), default to SKIP_ROW.
-        // When only mode is set, budget defaults depend on the mode.
-        ErrorPolicy.Mode mode = ErrorPolicy.Mode.SKIP_ROW;
-        if (errorModeValue != null) {
-            String modeStr = errorModeValue.toString();
-            try {
-                mode = ErrorPolicy.Mode.parse(modeStr);
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Invalid value for [" + CONFIG_ERROR_MODE + "]: [" + errorModeValue + "]", e);
-            }
-            if (mode == null) {
-                throw new IllegalArgumentException("Invalid value for [" + CONFIG_ERROR_MODE + "]: [" + errorModeValue + "]");
-            }
-        }
-
-        // FAIL_FAST is incompatible with budget settings — it always aborts on the first error.
-        if (mode == ErrorPolicy.Mode.FAIL_FAST) {
-            if (maxErrorsValue != null || maxErrorRatioValue != null) {
-                throw new IllegalArgumentException(
-                    "["
-                        + CONFIG_MAX_ERRORS
-                        + "] and ["
-                        + CONFIG_MAX_ERROR_RATIO
-                        + "] cannot be used with ["
-                        + CONFIG_ERROR_MODE
-                        + "="
-                        + mode
-                        + "]; fail_fast always aborts on the first error"
-                );
-            }
-            return ErrorPolicy.STRICT;
-        }
-
-        long maxErrors;
-        if (maxErrorsValue != null) {
-            try {
-                maxErrors = Long.parseLong(maxErrorsValue.toString());
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid value for [" + CONFIG_MAX_ERRORS + "]: [" + maxErrorsValue + "]", e);
-            }
-        } else {
-            maxErrors = Long.MAX_VALUE;
-        }
-
-        double maxErrorRatio = 0.0;
-        if (maxErrorRatioValue != null) {
-            try {
-                maxErrorRatio = Double.parseDouble(maxErrorRatioValue.toString());
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid value for [" + CONFIG_MAX_ERROR_RATIO + "]: [" + maxErrorRatioValue + "]", e);
-            }
-        }
-
-        boolean logErrors = maxErrors < Long.MAX_VALUE || maxErrorRatio > 0.0;
-        return new ErrorPolicy(mode, maxErrors, maxErrorRatio, logErrors);
+        return ErrorPolicy.fromConfig(config, format.defaultErrorPolicy());
     }
 
     private FormatReader resolveFormatReader(String objectName, Map<String, Object> config) {

@@ -23,7 +23,7 @@ import java.util.Locale;
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * Reindex-from-remote against external Elasticsearch clusters (see {@code modules/reindex/build.gradle}).
+ * Reindex-from-remote against external Elasticsearch clusters
  */
 public class ReindexFromRemoteIT extends ESRestTestCase {
 

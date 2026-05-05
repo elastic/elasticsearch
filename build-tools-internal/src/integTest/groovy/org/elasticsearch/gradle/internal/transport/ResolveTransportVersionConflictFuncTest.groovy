@@ -174,6 +174,7 @@ class ResolveTransportVersionConflictFuncTest extends AbstractTransportVersionFu
 
         then:
         assertResolveAndValidateSuccess(result)
+        assertOutputContains(result.output, "Resolving transport version conflicts by accepting upstream changes...")
         assertReferableDefinition("upstream_new_tv2", "8125000,8012002")
         assertUpperBound("9.2", "upstream_new_tv2,8125000")
         assertUpperBound("9.1", "upstream_new_tv2,8012002")

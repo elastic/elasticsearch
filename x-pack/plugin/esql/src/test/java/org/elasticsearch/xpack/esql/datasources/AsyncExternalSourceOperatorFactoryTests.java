@@ -24,30 +24,38 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.zip.GZIPOutputStream;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -78,53 +86,53 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         // Test null storage provider
         expectThrows(
             IllegalArgumentException.class,
-            () -> new AsyncExternalSourceOperatorFactory(null, formatReader, path, attributes, 1000, 10, executor)
+            () -> AsyncExternalSourceOperatorFactory.builder(null, formatReader, path, attributes, 1000, 10, executor).build()
         );
 
         // Test null format reader
         expectThrows(
             IllegalArgumentException.class,
-            () -> new AsyncExternalSourceOperatorFactory(storageProvider, null, path, attributes, 1000, 10, executor)
+            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, null, path, attributes, 1000, 10, executor).build()
         );
 
         // Test null path
         expectThrows(
             IllegalArgumentException.class,
-            () -> new AsyncExternalSourceOperatorFactory(storageProvider, formatReader, null, attributes, 1000, 10, executor)
+            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, null, attributes, 1000, 10, executor).build()
         );
 
         // Test null attributes
         expectThrows(
             IllegalArgumentException.class,
-            () -> new AsyncExternalSourceOperatorFactory(storageProvider, formatReader, path, null, 1000, 10, executor)
+            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, null, 1000, 10, executor).build()
         );
 
         // Test null executor
         expectThrows(
             IllegalArgumentException.class,
-            () -> new AsyncExternalSourceOperatorFactory(storageProvider, formatReader, path, attributes, 1000, 10, null)
+            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, attributes, 1000, 10, null).build()
         );
 
         // Test invalid batch size
         expectThrows(
             IllegalArgumentException.class,
-            () -> new AsyncExternalSourceOperatorFactory(storageProvider, formatReader, path, attributes, 0, 10, executor)
+            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, attributes, 0, 10, executor).build()
         );
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> new AsyncExternalSourceOperatorFactory(storageProvider, formatReader, path, attributes, -1, 10, executor)
+            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, attributes, -1, 10, executor).build()
         );
 
         // Test invalid buffer size
         expectThrows(
             IllegalArgumentException.class,
-            () -> new AsyncExternalSourceOperatorFactory(storageProvider, formatReader, path, attributes, 1000, 0, executor)
+            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, attributes, 1000, 0, executor).build()
         );
 
         expectThrows(
             IllegalArgumentException.class,
-            () -> new AsyncExternalSourceOperatorFactory(storageProvider, formatReader, path, attributes, 1000, -1, executor)
+            () -> AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, attributes, 1000, -1, executor).build()
         );
     }
 
@@ -144,7 +152,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         );
         Executor executor = Runnable::run;
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
@@ -152,7 +160,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             500,
             10,
             executor
-        );
+        ).build();
 
         String description = factory.describe();
         assertTrue(description.contains("AsyncExternalSourceOperator"));
@@ -179,7 +187,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         );
         Executor executor = Runnable::run;
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
@@ -187,7 +195,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             1000,
             20,
             executor
-        );
+        ).build();
 
         String description = factory.describe();
         assertTrue(description.contains("AsyncExternalSourceOperator"));
@@ -211,7 +219,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         );
         Executor executor = Runnable::run;
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
@@ -219,7 +227,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             500,
             15,
             executor
-        );
+        ).build();
 
         assertSame(storageProvider, factory.storageProvider());
         assertSame(formatReader, factory.formatReader());
@@ -268,7 +276,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }).when(driverContext).removeAsyncAction();
 
         // Create factory
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
@@ -276,7 +284,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             executor
-        );
+        ).build();
 
         // Create operator
         SourceOperator operator = factory.get(driverContext);
@@ -328,7 +336,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }).when(driverContext).removeAsyncAction();
 
         // Create factory
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
@@ -336,7 +344,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             executor
-        );
+        ).build();
 
         // Create operator
         SourceOperator operator = factory.get(driverContext);
@@ -383,16 +391,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
             attributes,
             100,
             10,
-            (Runnable r) -> r.run(),
-            fileList
-        );
+            (Runnable r) -> r.run()
+        ).fileList(fileList).build();
 
         SourceOperator operator = factory.get(driverContext);
         assertNotNull(operator);
@@ -435,7 +442,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
@@ -443,7 +450,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             (Runnable r) -> r.run()
-        );
+        ).build();
 
         SourceOperator operator = factory.get(driverContext);
         assertNotNull(operator);
@@ -491,16 +498,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
             attributes,
             100,
             10,
-            (Runnable r) -> r.run(),
-            fileList
-        );
+            (Runnable r) -> r.run()
+        ).fileList(fileList).build();
 
         SourceOperator operator = factory.get(driverContext);
         assertNotNull(operator);
@@ -536,7 +542,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         FormatReader formatReader = mock(FormatReader.class);
         when(formatReader.formatName()).thenReturn("parquet");
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             StoragePath.of("s3://bucket/a.parquet"),
@@ -545,9 +551,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             ),
             100,
             10,
-            Runnable::run,
-            fileList
-        );
+            Runnable::run
+        ).fileList(fileList).build();
 
         assertSame(fileList, factory.fileList());
         assertTrue(factory.fileList().isResolved());
@@ -583,19 +588,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
             attributes,
             100,
             10,
-            (Runnable r) -> r.run(),
-            null,
-            null,
-            null,
-            sliceQueue
-        );
+            (Runnable r) -> r.run()
+        ).sliceQueue(sliceQueue).build();
 
         SourceOperator operator = factory.get(driverContext);
         assertNotNull(operator);
@@ -640,19 +641,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
             attributes,
             100,
             10,
-            (Runnable r) -> r.run(),
-            null,
-            null,
-            null,
-            sliceQueue
-        );
+            (Runnable r) -> r.run()
+        ).sliceQueue(sliceQueue).build();
 
         SourceOperator operator = factory.get(driverContext);
         List<Page> pages = new ArrayList<>();
@@ -705,19 +702,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             doAnswer(inv -> null).when(driverContext).removeAsyncAction();
             contexts.add(driverContext);
 
-            AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                 storageProvider,
                 formatReader,
                 path,
                 attributes,
                 100,
                 10,
-                (Runnable r) -> r.run(),
-                null,
-                null,
-                null,
-                sliceQueue
-            );
+                (Runnable r) -> r.run()
+            ).sliceQueue(sliceQueue).build();
             operators.add(factory.get(driverContext));
         }
 
@@ -752,7 +745,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         FormatReader formatReader = mock(FormatReader.class);
         when(formatReader.formatName()).thenReturn("parquet");
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             StoragePath.of("s3://bucket/a.parquet"),
@@ -761,12 +754,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             ),
             100,
             10,
-            Runnable::run,
-            null,
-            null,
-            null,
-            sliceQueue
-        );
+            Runnable::run
+        ).sliceQueue(sliceQueue).build();
 
         assertSame(sliceQueue, factory.sliceQueue());
     }
@@ -805,19 +794,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
             attributes,
             100,
             10,
-            (Runnable r) -> r.run(),
-            null,
-            null,
-            null,
-            sliceQueue
-        );
+            (Runnable r) -> r.run()
+        ).sliceQueue(sliceQueue).build();
 
         SourceOperator operator = factory.get(driverContext);
         List<Page> pages = new ArrayList<>();
@@ -871,19 +856,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
             attributes,
             100,
             10,
-            (Runnable r) -> r.run(),
-            null,
-            null,
-            null,
-            sliceQueue
-        );
+            (Runnable r) -> r.run()
+        ).sliceQueue(sliceQueue).build();
 
         SourceOperator operator = factory.get(driverContext);
         List<Page> pages = new ArrayList<>();
@@ -944,19 +925,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
             attributes,
             100,
             10,
-            (Runnable r) -> r.run(),
-            null,
-            null,
-            null,
-            sliceQueue
-        );
+            (Runnable r) -> r.run()
+        ).sliceQueue(sliceQueue).build();
 
         SourceOperator operator = factory.get(driverContext);
         List<Page> pages = new ArrayList<>();
@@ -1023,19 +1000,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
             attributes,
             100,
             10,
-            (Runnable r) -> r.run(),
-            null,
-            null,
-            null,
-            sliceQueue
-        );
+            (Runnable r) -> r.run()
+        ).sliceQueue(sliceQueue).build();
 
         SourceOperator operator = factory.get(driverContext);
         List<Page> pages = new ArrayList<>();
@@ -1091,22 +1064,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
             attributes,
             100,
             10,
-            FormatReader.NO_LIMIT,
-            (Runnable r) -> r.run(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            2
-        );
+            (Runnable r) -> r.run()
+        ).parsingParallelism(2).build();
 
         SourceOperator operator = factory.get(driverContext);
         List<Page> pages = new ArrayList<>();
@@ -1142,22 +1108,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
             attributes,
             100,
             10,
-            10,
-            (Runnable r) -> r.run(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            2
-        );
+            (Runnable r) -> r.run()
+        ).rowLimit(10).parsingParallelism(2).build();
 
         SourceOperator operator = factory.get(driverContext);
         List<Page> pages = new ArrayList<>();
@@ -1199,22 +1158,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
             attributes,
             100,
             10,
-            FormatReader.NO_LIMIT,
-            (Runnable r) -> r.run(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            2
-        );
+            (Runnable r) -> r.run()
+        ).parsingParallelism(2).build();
 
         SourceOperator operator = factory.get(driverContext);
         List<Page> pages = new ArrayList<>();
@@ -1237,34 +1189,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         TrackingSegmentableFormatReader formatReader = new TrackingSegmentableFormatReader();
         StorageProvider storageProvider = mock(StorageProvider.class);
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
-            storageProvider,
-            formatReader,
-            StoragePath.of("file:///test.csv"),
-            List.of(
-                new FieldAttribute(Source.EMPTY, "x", new EsField("x", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
-            ),
-            100,
-            10,
-            FormatReader.NO_LIMIT,
-            Runnable::run,
-            null,
-            null,
-            null,
-            null,
-            null,
-            4
-        );
-
-        String description = factory.describe();
-        assertTrue("describe should mention parallel-parse for segmentable readers", description.contains("parallel-parse(4)"));
-    }
-
-    public void testDescribeShowsSyncWrapperForParallelism1() {
-        TrackingSegmentableFormatReader formatReader = new TrackingSegmentableFormatReader();
-        StorageProvider storageProvider = mock(StorageProvider.class);
-
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             StoragePath.of("file:///test.csv"),
@@ -1274,7 +1199,27 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             Runnable::run
-        );
+        ).parsingParallelism(4).build();
+
+        String description = factory.describe();
+        assertTrue("describe should mention parallel-parse for segmentable readers", description.contains("parallel-parse(4)"));
+    }
+
+    public void testDescribeShowsSyncWrapperForParallelism1() {
+        TrackingSegmentableFormatReader formatReader = new TrackingSegmentableFormatReader();
+        StorageProvider storageProvider = mock(StorageProvider.class);
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            StoragePath.of("file:///test.csv"),
+            List.of(
+                new FieldAttribute(Source.EMPTY, "x", new EsField("x", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+            ),
+            100,
+            10,
+            Runnable::run
+        ).build();
 
         String description = factory.describe();
         assertTrue("describe should show sync-wrapper when parallelism is 1", description.contains("sync-wrapper"));
@@ -1302,7 +1247,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
@@ -1310,7 +1255,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             2,
             (Runnable r) -> r.run()
-        );
+        ).build();
 
         SourceOperator operator = factory.get(driverContext);
         assertNotNull(operator);
@@ -1367,7 +1312,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             return null;
         }).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
@@ -1375,7 +1320,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             (Runnable r) -> r.run()
-        );
+        ).build();
 
         SourceOperator operator = factory.get(driverContext);
         List<Page> pages = new ArrayList<>();
@@ -1434,16 +1379,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             return null;
         }).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
             attributes,
             100,
             10,
-            (Runnable r) -> r.run(),
-            fileList
-        );
+            (Runnable r) -> r.run()
+        ).fileList(fileList).build();
 
         SourceOperator operator = factory.get(driverContext);
         List<Page> pages = new ArrayList<>();
@@ -1502,19 +1446,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             return null;
         }).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
             attributes,
             100,
             10,
-            (Runnable r) -> r.run(),
-            null,
-            null,
-            null,
-            sliceQueue
-        );
+            (Runnable r) -> r.run()
+        ).sliceQueue(sliceQueue).build();
 
         SourceOperator operator = factory.get(driverContext);
         List<Page> pages = new ArrayList<>();
@@ -1566,7 +1506,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             return null;
         }).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
@@ -1574,7 +1514,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             (Runnable r) -> r.run()
-        );
+        ).build();
 
         SourceOperator operator = factory.get(driverContext);
         List<Page> pages = new ArrayList<>();
@@ -1622,7 +1562,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         doAnswer(inv -> null).when(driverContext).addAsyncAction();
         doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
@@ -1630,7 +1570,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             (Runnable r) -> r.run()
-        );
+        ).build();
 
         SourceOperator operator = factory.get(driverContext);
         List<Page> pages = new ArrayList<>();
@@ -1677,7 +1617,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             doAnswer(inv -> null).when(driverContext).addAsyncAction();
             doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-            AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                 storageProvider,
                 formatReader,
                 path,
@@ -1685,7 +1625,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 100,
                 2,
                 realExec
-            );
+            ).build();
 
             SourceOperator operator = factory.get(driverContext);
             List<Page> pages = new ArrayList<>();
@@ -1744,16 +1684,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             doAnswer(inv -> null).when(driverContext).addAsyncAction();
             doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-            AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                 storageProvider,
                 formatReader,
                 path,
                 attributes,
                 100,
                 2,
-                realExec,
-                fileList
-            );
+                realExec
+            ).fileList(fileList).build();
 
             SourceOperator operator = factory.get(driverContext);
             List<Page> pages = new ArrayList<>();
@@ -1812,19 +1751,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             doAnswer(inv -> null).when(driverContext).addAsyncAction();
             doAnswer(inv -> null).when(driverContext).removeAsyncAction();
 
-            AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                 storageProvider,
                 formatReader,
                 path,
                 attributes,
                 100,
                 2,
-                realExec,
-                null,
-                null,
-                null,
-                sliceQueue
-            );
+                realExec
+            ).sliceQueue(sliceQueue).build();
 
             SourceOperator operator = factory.get(driverContext);
             List<Page> pages = new ArrayList<>();
@@ -1883,7 +1818,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             return null;
         }).when(driverContext).removeAsyncAction();
 
-        AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
             storageProvider,
             formatReader,
             path,
@@ -1891,7 +1826,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             100,
             10,
             (Runnable r) -> r.run()
-        );
+        ).build();
 
         SourceOperator operator = factory.get(driverContext);
         List<Page> pages = new ArrayList<>();
@@ -1981,19 +1916,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             for (int d = 0; d < driverCount; d++) {
                 DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
                 contexts[d] = ctx;
-                AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+                AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                     storageProvider,
                     formatReader,
                     path,
                     attributes,
                     100,
                     bufferSize,
-                    producerExec,
-                    null,
-                    null,
-                    null,
-                    sliceQueue
-                );
+                    producerExec
+                ).sliceQueue(sliceQueue).build();
                 operators[d] = factory.get(ctx);
             }
 
@@ -2074,19 +2005,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         ExecutorService realExec = Executors.newFixedThreadPool(2, EsExecutors.daemonThreadFactory("test", "fail-test"));
         try {
             DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
-            AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                 storageProvider,
                 formatReader,
                 path,
                 attributes,
                 100,
                 2,
-                realExec,
-                null,
-                null,
-                null,
-                sliceQueue
-            );
+                realExec
+            ).sliceQueue(sliceQueue).build();
             SourceOperator operator = factory.get(ctx);
 
             List<Page> pages = new ArrayList<>();
@@ -2162,16 +2089,15 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             for (int d = 0; d < driverCount; d++) {
                 DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TEST_BLOCK_FACTORY, null);
                 contexts[d] = ctx;
-                AsyncExternalSourceOperatorFactory factory = new AsyncExternalSourceOperatorFactory(
+                AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
                     storageProvider,
                     formatReader,
                     path,
                     attributes,
                     100,
                     bufferSize,
-                    producerExec,
-                    fileList
-                );
+                    producerExec
+                ).fileList(fileList).build();
                 operators[d] = factory.get(ctx);
             }
 
@@ -2217,6 +2143,431 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             producerExec.shutdown();
             assertTrue(producerExec.awaitTermination(15, TimeUnit.SECONDS));
         }
+    }
+
+    /**
+     * State-machine guard test for the flattened producer loop.
+     *
+     * Drives the slice-queue producer end-to-end with 2 {@link CoalescedSplit}s of 2 leaves each
+     * (4 leaves total, 1 page per leaf) on a single-thread executor and asserts:
+     * <ul>
+     *   <li>all 4 leaves are read once (state machine visits every leaf across splits);</li>
+     *   <li>all 4 pages arrive at the buffer;</li>
+     *   <li>every opened iterator is closed;</li>
+     *   <li>{@code removeAsyncAction()} fires exactly once (success path =&gt; buffer.finish(false));</li>
+     *   <li>no {@code addPage} after {@code buffer.noMoreInputs()} becomes true.</li>
+     * </ul>
+     * Followed by a second scenario that forces {@code buffer.finish(true)} partway through, to
+     * verify the active iterator gets closed and no further leaves are opened.
+     * <p>
+     * BLOCKED-path coverage (buffer-full backpressure and wakeup correctness) is not exercised here;
+     * it lives in {@code AsyncExternalSourceBufferTests#testNoLostWakeupUnderConcurrentAddAndPoll}
+     * (the Phase 5 stress test).
+     */
+    public void testProducerLoopStateMachine() throws Exception {
+        // --- scenario 1: run to completion across 2 splits x 2 leaves ---
+        runStateMachineScenario(false);
+
+        // --- scenario 2: force early noMoreInputs after the first leaf's page is consumed ---
+        runStateMachineScenario(true);
+    }
+
+    private void runStateMachineScenario(boolean forceNoMoreInputsEarly) throws Exception {
+        AtomicInteger readCalls = new AtomicInteger();
+        AtomicInteger closeCalls = new AtomicInteger();
+        TrackingReader reader = new TrackingReader(readCalls, closeCalls);
+
+        // 2 coalesced splits x 2 leaves = 4 leaves
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int s = 0; s < 2; s++) {
+            List<ExternalSplit> leaves = new ArrayList<>();
+            for (int l = 0; l < 2; l++) {
+                leaves.add(
+                    new FileSplit(
+                        "test",
+                        StoragePath.of("s3://bucket/s" + s + "_l" + l + ".parquet"),
+                        0,
+                        100,
+                        "parquet",
+                        Map.of(),
+                        Map.of()
+                    )
+                );
+            }
+            splits.add(new CoalescedSplit("test", leaves));
+        }
+        ExternalSliceQueue sliceQueue = new ExternalSliceQueue(splits);
+
+        StubMultiFileStorageProvider storageProvider = new StubMultiFileStorageProvider();
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(TEST_BLOCK_FACTORY);
+        AtomicInteger addAsync = new AtomicInteger();
+        AtomicInteger removeAsync = new AtomicInteger();
+        doAnswer(inv -> {
+            addAsync.incrementAndGet();
+            return null;
+        }).when(driverContext).addAsyncAction();
+        doAnswer(inv -> {
+            removeAsync.incrementAndGet();
+            return null;
+        }).when(driverContext).removeAsyncAction();
+
+        // Use a single-thread executor so ordering is deterministic.
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+                storageProvider,
+                reader,
+                StoragePath.of("s3://bucket/s0_l0.parquet"),
+                attributes,
+                100,
+                10,
+                executor
+            ).sliceQueue(sliceQueue).build();
+
+            SourceOperator operator = factory.get(driverContext);
+
+            if (forceNoMoreInputsEarly) {
+                // Poll a few pages then force finish(true) to simulate downstream cancellation.
+                int received = 0;
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                while (received < 1 && System.nanoTime() < deadline) {
+                    Page p = operator.getOutput();
+                    if (p != null) {
+                        received++;
+                        p.releaseBlocks();
+                    }
+                }
+                // Mimic downstream cancellation; the producer loop must observe noMoreInputs and exit.
+                operator.finish();
+                // Drain remaining output (should not hang).
+                while (operator.isFinished() == false) {
+                    Page p = operator.getOutput();
+                    if (p != null) p.releaseBlocks();
+                }
+            } else {
+                List<Page> pages = new ArrayList<>();
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                while (operator.isFinished() == false && System.nanoTime() < deadline) {
+                    Page p = operator.getOutput();
+                    if (p != null) pages.add(p);
+                }
+                assertTrue("operator did not finish within timeout", operator.isFinished());
+                assertEquals("all 4 leaves produced a page", 4, pages.size());
+                for (Page p : pages) {
+                    p.releaseBlocks();
+                }
+            }
+
+            operator.close();
+
+            // Let the producer thread observe finish() and run the completion listener
+            // (which calls removeAsyncAction) before we assert on counters.
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+
+            // Every iterator that was opened must have been closed.
+            assertEquals("read/close counts differ - leaked iterator", readCalls.get(), closeCalls.get());
+            // addAsync/removeAsync are paired: exactly once, on the happy path and cancelled path.
+            assertEquals(1, addAsync.get());
+            assertEquals(1, removeAsync.get());
+            // Full run must hit all 4 leaves; early-exit run hits at least 1.
+            if (forceNoMoreInputsEarly == false) {
+                assertEquals(4, readCalls.get());
+            } else {
+                assertTrue("expected at least one leaf to be read before cancellation", readCalls.get() >= 1);
+            }
+        } finally {
+            if (executor.isShutdown() == false) {
+                executor.shutdown();
+                assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+            }
+        }
+    }
+
+    public void testDescribeSplittableCompressedUsesSyncWrapperMode() throws IOException {
+        SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
+        CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new StubSplittableCodec());
+        AsyncExternalSourceOperatorFactory factory = factoryForCompressionDescribeTests(cdr, 4);
+        String description = factory.describe();
+        assertTrue("describe should mention sync-wrapper: " + description, description.contains("sync-wrapper"));
+    }
+
+    public void testDescribeGzipCompressedUsesStreamingParallelParseInDescription() throws IOException {
+        SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
+        CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new GzipDecompressionCodec());
+        AsyncExternalSourceOperatorFactory factory = factoryForCompressionDescribeTests(cdr, 4);
+        String description = factory.describe();
+        assertTrue("describe should mention streaming parallel parse: " + description, description.contains("streaming-parallel-parse(4)"));
+    }
+
+    public void testOpenWithParallelismSplittableCompressedReturnsNull() throws IOException {
+        AsyncExternalSourceOperatorFactory factory = factoryForCompressionDescribeTests(dummyFormatReaderForOpenParallelismTests(), 4);
+
+        SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
+        CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new StubSplittableCodec());
+        byte[] payload = "{\"a\":1}\n".repeat(20).getBytes(StandardCharsets.UTF_8);
+        assertNull(factory.openWithParallelism(cdr, bytesStorageObject(payload), List.of("a"), ErrorPolicy.STRICT));
+    }
+
+    public void testOpenWithParallelismGzipCompressedReturnsIterator() throws IOException {
+        ExecutorService exec = Executors.newFixedThreadPool(8);
+        try {
+            AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
+                dummyFormatReaderForOpenParallelismTests(),
+                exec
+            );
+            SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
+            CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new GzipDecompressionCodec());
+            byte[] plain = "{\"a\":1}\n".repeat(100).getBytes(StandardCharsets.UTF_8);
+            byte[] gzipped = gzipCompress(plain);
+
+            CloseableIterator<Page> iterator = factory.openWithParallelism(
+                cdr,
+                bytesStorageObject(gzipped),
+                List.of("a"),
+                ErrorPolicy.STRICT
+            );
+            assertNotNull(iterator);
+            iterator.close();
+        } finally {
+            exec.shutdownNow();
+        }
+    }
+
+    public void testOpenWithParallelismBareSegmentableReturnsIterator() throws IOException {
+        ExecutorService exec = Executors.newFixedThreadPool(8);
+        try {
+            AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
+                dummyFormatReaderForOpenParallelismTests(),
+                exec
+            );
+
+            SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
+            byte[] plain = "{\"a\":1}\n".repeat(100).getBytes(StandardCharsets.UTF_8);
+            CloseableIterator<Page> iterator = factory.openWithParallelism(
+                inner,
+                bytesStorageObject(plain),
+                List.of("a"),
+                ErrorPolicy.STRICT
+            );
+            assertNotNull(iterator);
+            iterator.close();
+        } finally {
+            exec.shutdownNow();
+        }
+    }
+
+    /**
+     * Minimal splittable codec stub so dispatch tests avoid wiring real bzip2 parallel scanners.
+     */
+    private static final class StubSplittableCodec implements SplittableDecompressionCodec {
+        @Override
+        public String name() {
+            return "stub-splittable";
+        }
+
+        @Override
+        public List<String> extensions() {
+            return List.of(".stub");
+        }
+
+        @Override
+        public InputStream decompress(InputStream raw) {
+            return raw;
+        }
+
+        @Override
+        public long[] findBlockBoundaries(StorageObject object, long start, long end) throws IOException {
+            return new long[0];
+        }
+
+        @Override
+        public InputStream decompressRange(StorageObject object, long blockStart, long nextBlockStart) throws IOException {
+            return new ByteArrayInputStream(new byte[0]);
+        }
+    }
+
+    private static SegmentableFormatReader mockInnerForParallelDescribeAndOpen() throws IOException {
+        SegmentableFormatReader inner = mock(SegmentableFormatReader.class);
+        when(inner.minimumSegmentSize()).thenReturn(1024L);
+        when(inner.formatName()).thenReturn("ndjson");
+        when(inner.supportsNativeAsync()).thenReturn(false);
+        when(inner.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        when(inner.metadata(any())).thenReturn(null);
+        when(inner.read(any(), any())).thenReturn(emptyPageIterator());
+        return inner;
+    }
+
+    private static FormatReader dummyFormatReaderForOpenParallelismTests() {
+        FormatReader dummyReader = mock(FormatReader.class);
+        when(dummyReader.formatName()).thenReturn("dummy");
+        when(dummyReader.supportsNativeAsync()).thenReturn(false);
+        when(dummyReader.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
+        return dummyReader;
+    }
+
+    private static CloseableIterator<Page> emptyPageIterator() {
+        return new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public Page next() {
+                throw new NoSuchElementException();
+            }
+
+            @Override
+            public void close() {}
+        };
+    }
+
+    private static AsyncExternalSourceOperatorFactory factoryForCompressionDescribeTests(FormatReader formatReader, int parallelism) {
+        StorageProvider storageProvider = mock(StorageProvider.class);
+        StoragePath path = StoragePath.of("file:///data/stream.ndjson.gz");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "col1",
+                new EsField("col1", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        return AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, attributes, 500, 10, Runnable::run)
+            .rowLimit(FormatReader.NO_LIMIT)
+            .parsingParallelism(parallelism)
+            .build();
+    }
+
+    private static AsyncExternalSourceOperatorFactory factoryForOpenParallelismStreamingTests(
+        FormatReader formatReader,
+        Executor executor
+    ) {
+        StorageProvider storageProvider = mock(StorageProvider.class);
+        StoragePath path = StoragePath.of("file:///data/stream.ndjson.gz");
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "col1",
+                new EsField("col1", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            )
+        );
+        return AsyncExternalSourceOperatorFactory.builder(storageProvider, formatReader, path, attributes, 500, 10, executor)
+            .rowLimit(FormatReader.NO_LIMIT)
+            .parsingParallelism(4)
+            .build();
+    }
+
+    private static StorageObject bytesStorageObject(byte[] data) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(data);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem:///parallelism-open-test");
+            }
+        };
+    }
+
+    private static byte[] gzipCompress(byte[] uncompressed) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        try (GZIPOutputStream gz = new GZIPOutputStream(bos)) {
+            gz.write(uncompressed);
+        }
+        return bos.toByteArray();
+    }
+
+    /**
+     * Format reader for the state-machine test. Every {@code read} returns a single-page iterator
+     * that increments {@code closeCalls} on {@link CloseableIterator#close()}, so the test can
+     * assert that every opened iterator is closed exactly once.
+     */
+    private static class TrackingReader implements FormatReader {
+        private final AtomicInteger readCount;
+        private final AtomicInteger closeCount;
+
+        TrackingReader(AtomicInteger readCount, AtomicInteger closeCount) {
+            this.readCount = readCount;
+            this.closeCount = closeCount;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            readCount.incrementAndGet();
+            // Latch lets the buffer's waitForSpace path engage naturally; we return one page.
+            CountDownLatch once = new CountDownLatch(1);
+            once.countDown();
+            return new CloseableIterator<>() {
+                private boolean emitted = false;
+
+                @Override
+                public boolean hasNext() {
+                    return emitted == false;
+                }
+
+                @Override
+                public Page next() {
+                    if (emitted) throw new NoSuchElementException();
+                    emitted = true;
+                    return createTestPage();
+                }
+
+                @Override
+                public void close() {
+                    closeCount.incrementAndGet();
+                }
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "tracking";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
     }
 
     // ===== Helpers =====

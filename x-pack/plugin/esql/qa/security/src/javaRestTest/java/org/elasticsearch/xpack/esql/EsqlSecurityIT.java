@@ -739,6 +739,121 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(e.getResponse().getEntity()), containsString("Unknown column [org]"));
     }
 
+    /**
+     * FLS-denied fields are invisible in field_caps, so the analyzer treats them as unmapped.
+     * With {@code unmapped_fields="nullify"}, referencing the denied field yields a NULL column —
+     * FLS is enforced and no data leaks.
+     */
+    public void testFieldLevelSecurityWithUnmappedFieldsNullify() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=NULLIFY support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.capabilityName()))
+        );
+        // fls_user is granted [value, partial] on `index`; `org` is FLS-denied on every accessible index.
+        Response resp = runESQLCommand("fls_user", "SET unmapped_fields=\"nullify\"; FROM index | KEEP value, org | SORT value | LIMIT 2");
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "org").entry("type", "null")
+                    )
+                )
+                .entry("values", List.of(Arrays.asList(10.0, null), Arrays.asList(20.0, null)))
+        );
+    }
+
+    /**
+     * Security-sensitive: with {@code unmapped_fields="load"} the engine attempts to read the
+     * denied field from {@code _source}. FLS must also strip the field from {@code _source},
+     * so the loaded value must be null — otherwise FLS is bypassed.
+     */
+    public void testFieldLevelSecurityWithUnmappedFieldsLoad() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        Response resp = runESQLCommand("fls_user", "SET unmapped_fields=\"load\"; FROM index | KEEP value, org | SORT value | LIMIT 2");
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "org").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(Arrays.asList(10.0, null), Arrays.asList(20.0, null)))
+        );
+    }
+
+    /**
+     * For {@code fls_user}, {@code partial} is FLS-allowed on {@code index} but denied on
+     * {@code indexpartial} — i.e. partially unmapped. With {@code nullify}, rows from the
+     * FLS-denied index must show null for the partially-unmapped attribute.
+     */
+    public void testFieldLevelSecurityPartiallyUnmappedNullify() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=NULLIFY support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.capabilityName()))
+        );
+        Response resp = runESQLCommand(
+            "fls_user",
+            "SET unmapped_fields=\"nullify\"; FROM index,indexpartial METADATA _index " + "| KEEP _index, value, partial | SORT value"
+        );
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) respMap.get("values");
+        assertThat(
+            values,
+            equalTo(
+                List.of(
+                    List.of("index", 10.0, "sales10.0"),
+                    List.of("index", 20.0, "engineering20.0"),
+                    Arrays.asList("indexpartial", 32.0, null),
+                    Arrays.asList("indexpartial", 40.0, null)
+                )
+            )
+        );
+    }
+
+    /**
+     * Security-sensitive: with {@code load} on a partially FLS-denied field, rows from the
+     * permitted index ({@code index}) must surface real values, while rows from the denied
+     * index ({@code indexpartial}) must remain null — FLS strips {@code _source} too.
+     */
+    public void testFieldLevelSecurityPartiallyUnmappedLoad() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        Response resp = runESQLCommand(
+            "fls_user",
+            "SET unmapped_fields=\"load\"; FROM index,indexpartial METADATA _index " + "| KEEP _index, value, partial | SORT value"
+        );
+        assertOK(resp);
+        Map<String, Object> respMap = entityAsMap(resp);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> values = (List<List<Object>>) respMap.get("values");
+        assertThat(
+            values,
+            equalTo(
+                List.of(
+                    List.of("index", 10.0, "sales10.0"),
+                    List.of("index", 20.0, "engineering20.0"),
+                    Arrays.asList("indexpartial", 32.0, null),
+                    Arrays.asList("indexpartial", 40.0, null)
+                )
+            )
+        );
+    }
+
     public void testRowCommand() throws Exception {
         String user = randomFrom("test-admin", "user1", "user2");
         Response resp = runESQLCommand(user, "row a = 5, b = 2 | stats count=sum(b) by a");
@@ -1558,6 +1673,51 @@ public class EsqlSecurityIT extends ESRestTestCase {
         var viewNames = views.stream().map(view -> view.get("name")).collect(Collectors.toSet());
         assertThat(viewNames, hasSize(2));
         assertThat(viewNames, containsInAnyOrder("view-user1", "view"));
+    }
+
+    // TODO: use named privileges when available — https://github.com/elastic/elasticsearch/issues/147017
+    public void testDataSourceCrudForbiddenWithoutClusterManage() {
+        // user2 has cluster: []. All three data source actions are cluster-level → 403.
+        for (String path : List.of("/_query/data_source/ds_x", "/_query/data_source")) {
+            Request get = new Request("GET", path);
+            setUser(get, "user2");
+            ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(get));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        }
+
+        Request put = new Request("PUT", "/_query/data_source/ds_x");
+        put.setJsonEntity("{\"type\":\"s3\"}");
+        setUser(put, "user2");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(put));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+
+        Request del = new Request("DELETE", "/_query/data_source/ds_x");
+        setUser(del, "user2");
+        ex = expectThrows(ResponseException.class, () -> client().performRequest(del));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+    }
+
+    public void testDatasetCrudForbiddenWithoutIndexManage() {
+        // user3 has only `read` on `index`. Dataset actions need index `manage`.
+        Request put = new Request("PUT", "/_query/dataset/index");
+        put.setJsonEntity("{\"data_source\":\"parent\",\"resource\":\"s3://b/\"}");
+        setUser(put, "user3");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(put));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+
+        Request del = new Request("DELETE", "/_query/dataset/index");
+        setUser(del, "user3");
+        ex = expectThrows(ResponseException.class, () -> client().performRequest(del));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+    }
+
+    public void testDataSourceAdminListEmpty() throws IOException {
+        // test-admin has cluster:all. GET list on an empty cluster returns 200 with an empty array.
+        Request req = new Request("GET", "/_query/data_source");
+        Response resp = client().performRequest(req);
+        assertOK(resp);
+        Map<String, Object> body = entityAsMap(resp);
+        assertThat(body.get("data_sources"), equalTo(List.of()));
     }
 
     private static final Request GET_QUERY_REQUEST = new Request(

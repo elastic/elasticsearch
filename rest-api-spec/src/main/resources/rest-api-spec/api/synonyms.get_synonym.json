@@ -30,13 +30,17 @@
     "params": {
       "from": {
         "type": "int",
-        "description": "Starting offset",
+        "description": "Starting offset for offset-based pagination",
         "default": 0
       },
       "size": {
         "type": "int",
-        "description": "specifies a max number of results to get",
+        "description": "Maximum number of results to retrieve",
         "default": 10
+      },
+      "search_after": {
+        "type": "string",
+        "description": "The rule ID of the last result from the previous page, for cursor-based pagination"
       }
     }
   }

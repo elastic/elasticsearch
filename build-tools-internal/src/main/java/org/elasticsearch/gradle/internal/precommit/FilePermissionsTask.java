@@ -19,6 +19,8 @@ import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.StopExecutionException;
 import org.gradle.api.tasks.TaskAction;
@@ -79,6 +81,7 @@ public abstract class FilePermissionsTask extends DefaultTask {
     @InputFiles
     @IgnoreEmptyDirectories
     @SkipWhenEmpty
+    @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getFiles() {
         return getSources().get()
             .stream()

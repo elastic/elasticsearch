@@ -19,7 +19,6 @@ import com.google.cloud.storage.spi.v1.HttpStorageRpc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
@@ -30,8 +29,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.file.NoSuchFileException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -103,24 +100,21 @@ class GoogleCloudStorageRetryingInputStream extends InputStream {
         this.start = start;
         this.end = end;
         this.maxAttempts = client.getOptions().getRetrySettings().getMaxAttempts();
-        SpecialPermission.check();
         this.storage = storage.get();   // to bypass static init for unit testing
         this.currentStream = openStream();
     }
 
     @SuppressForbidden(reason = "need access to storage client")
     private static com.google.api.services.storage.Storage getStorage(Storage client) {
-        return AccessController.doPrivileged((PrivilegedAction<com.google.api.services.storage.Storage>) () -> {
-            assert client.getOptions().getRpc() instanceof HttpStorageRpc;
-            assert Stream.of(client.getOptions().getRpc().getClass().getDeclaredFields()).anyMatch(f -> f.getName().equals("storage"));
-            try {
-                final Field storageField = client.getOptions().getRpc().getClass().getDeclaredField("storage");
-                storageField.setAccessible(true);
-                return (com.google.api.services.storage.Storage) storageField.get(client.getOptions().getRpc());
-            } catch (Exception e) {
-                throw new IllegalStateException("storage could not be set up", e);
-            }
-        });
+        assert client.getOptions().getRpc() instanceof HttpStorageRpc;
+        assert Stream.of(client.getOptions().getRpc().getClass().getDeclaredFields()).anyMatch(f -> f.getName().equals("storage"));
+        try {
+            final Field storageField = client.getOptions().getRpc().getClass().getDeclaredField("storage");
+            storageField.setAccessible(true);
+            return (com.google.api.services.storage.Storage) storageField.get(client.getOptions().getRpc());
+        } catch (Exception e) {
+            throw new IllegalStateException("storage could not be set up", e);
+        }
     }
 
     private InputStream openStream() throws IOException {

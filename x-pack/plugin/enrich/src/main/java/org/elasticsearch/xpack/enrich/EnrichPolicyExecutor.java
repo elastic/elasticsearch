@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +36,8 @@ import org.elasticsearch.xpack.enrich.action.InternalExecutePolicyAction.Request
 
 import java.util.concurrent.Semaphore;
 import java.util.function.LongSupplier;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 public class EnrichPolicyExecutor {
 
@@ -165,7 +168,8 @@ public class EnrichPolicyExecutor {
         final String enrichIndexName
     ) {
         GetTaskRequest getTaskRequest = new GetTaskRequest().setTaskId(taskId).setWaitForCompletion(true).setTimeout(TimeValue.MAX_VALUE);
-        client.admin().cluster().getTask(getTaskRequest, new ActionListener<>() {
+        // it is not required for the user to have security privileges to retrieve tasks
+        new OriginSettingClient(client, ENRICH_ORIGIN).admin().cluster().getTask(getTaskRequest, new ActionListener<>() {
             @Override
             public void onResponse(GetTaskResponse getTaskResponse) {
                 policyLock.close();

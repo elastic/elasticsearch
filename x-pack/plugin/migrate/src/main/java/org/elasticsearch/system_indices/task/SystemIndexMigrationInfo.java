@@ -8,6 +8,7 @@
 package org.elasticsearch.system_indices.task;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -148,7 +149,8 @@ final class SystemIndexMigrationInfo extends SystemResourceMigrationInfo {
             settings = copySettingsForNewIndex(currentIndex.getSettings(), indexScopedSettings);
 
             // Copy mapping from the old index
-            mapping = currentIndex.mapping().source().string();
+            MappingMetadata mappingMetadata = currentIndex.mapping();
+            mapping = mappingMetadata != null ? mappingMetadata.source().string() : null;
         }
         return new SystemIndexMigrationInfo(
             currentIndex,

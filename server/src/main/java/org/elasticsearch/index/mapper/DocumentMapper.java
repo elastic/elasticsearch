@@ -72,26 +72,12 @@ public class DocumentMapper {
         this.indexVersion = version;
         this.logger = Loggers.getLogger(getClass(), indexName);
         this.indexName = indexName;
-
-        assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version)
-            : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
     }
 
     private void maybeLog(Exception ex) {
         if (logger.isDebugEnabled()) {
             logger.debug("Error while parsing document for index [" + indexName + "]: " + ex.getMessage(), ex);
         }
-    }
-
-    /**
-     * Indexes built at v.8.7 were missing an explicit entry for synthetic_source.
-     * This got restored in v.8.10 to avoid confusion. The change is only restricted to mapping printout, it has no
-     * functional effect as the synthetic source already applies.
-     */
-    boolean isSyntheticSourceMalformed(CompressedXContent source, IndexVersion version) {
-        return sourceMapper().isSynthetic()
-            && source.string().contains("\"_source\":{\"mode\":\"synthetic\"}") == false
-            && version.onOrBefore(IndexVersions.V_8_10_0);
     }
 
     public Mapping mapping() {

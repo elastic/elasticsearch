@@ -82,8 +82,13 @@ public final class ApplicationPermission {
      * </ul>
      */
     public boolean grants(ApplicationPrivilege other, String resource) {
-        Automaton resourceAutomaton = Automatons.patterns(resource);
-        final boolean matched = permissions.stream().anyMatch(e -> e.grants(other, resourceAutomaton));
+        final boolean matched;
+        if (Automatons.isLiteralPattern(resource)) {
+            matched = permissions.stream().anyMatch(e -> e.grantsResourceLiteral(other, resource));
+        } else {
+            Automaton resourceAutomaton = Automatons.patterns(resource);
+            matched = permissions.stream().anyMatch(e -> e.grants(other, resourceAutomaton));
+        }
         logger.trace("Permission [{}] {} grant [{} , {}]", this, matched ? "does" : "does not", other, resource);
         return matched;
     }
@@ -178,16 +183,22 @@ public final class ApplicationPermission {
         private final Predicate<String> application;
         private final Set<String> resourceNames;
         private final Automaton resourceAutomaton;
+        private final Predicate<String> resourcePredicate;
 
         private PermissionEntry(ApplicationPrivilege privilege, Set<String> resourceNames, Automaton resourceAutomaton) {
             this.privilege = privilege;
             this.application = Automatons.predicate(privilege.getApplication());
             this.resourceNames = resourceNames;
             this.resourceAutomaton = resourceAutomaton;
+            this.resourcePredicate = Automatons.predicate(resourceAutomaton);
         }
 
         private boolean grants(ApplicationPrivilege other, Automaton resource) {
             return matchesPrivilege(other) && Operations.subsetOf(resource, this.resourceAutomaton);
+        }
+
+        private boolean grantsResourceLiteral(ApplicationPrivilege other, String resource) {
+            return matchesPrivilege(other) && resourcePredicate.test(resource);
         }
 
         private boolean matchesPrivilege(ApplicationPrivilege other) {

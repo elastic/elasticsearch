@@ -249,6 +249,7 @@ public class JobDataDeleter {
      */
     public void deleteResultsFromTime(long cutoffEpochMs, ActionListener<Boolean> listener) {
         QueryBuilder query = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
             .filter(
                 QueryBuilders.termsQuery(
                     Result.RESULT_TYPE.getPreferredName(),
@@ -260,6 +261,7 @@ public class JobDataDeleter {
                 )
             )
             .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(cutoffEpochMs));
+
         String[] indicesToQuery = removeReadOnlyIndices(
             List.of(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)),
             listener,

@@ -437,7 +437,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Flag that is set to {@code true} if this instance is started with {@link #metadata} that has a higher value for
      * {@link RepositoryMetadata#pendingGeneration()} than for {@link RepositoryMetadata#generation()} indicating a full cluster restart
-     * potentially accounting for the the last {@code index-N} write in the cluster state.
+     * potentially accounting for the last {@code index-N} write in the cluster state.
      * Note: While it is true that this value could also be set to {@code true} for an instance on a node that is just joining the cluster
      * during a new {@code index-N} write, this does not present a problem. The node will still load the correct {@link RepositoryData} in
      * all cases and simply do a redundant listing of the repository contents if it tries to load {@link RepositoryData} and falls back
@@ -2737,7 +2737,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // Last resort check: we shouldn't have been able to mark the repository as readonly while the operation that led to
                     // this writeIndexGen() call was in progress, and conversely shouldn't have started any such operation if the repo
                     // was already readonly, but these invariants are not obviously true and it is disastrous to proceed here.
-                    throw new RepositoryException(meta.name(), "repository is readonly, cannot update root blob");
+                    throw new IllegalArgumentException("[" + meta.name() + "] repository is readonly, cannot update root blob");
                 }
 
                 final long genInState = meta.generation();

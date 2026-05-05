@@ -25,7 +25,7 @@
 # Extract Elasticsearch artifact
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:11d66ae7ec7ca1d5a7289750bdd96eb3d8eb592e5b7377f1fc8e4fb556fa7383 AS builder
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:42fc42555b3ee77a677ee6875edf7dec09c01928f97e0a5a4d0a2ba4ddaf6191 AS builder
 
 # Install required packages to extract the Elasticsearch distribution
 RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
@@ -37,7 +37,7 @@ WORKDIR /usr/share/elasticsearch
 # Keep this command on one line - it is replaced with a `COPY` during local builds.
 # It uses the `arch` shell command to fetch the correct distro for the build machine,
 # which is needed for Docker Hub builds.
-RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
+RUN curl -f --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
 
 RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1
 
@@ -93,7 +93,6 @@ RUN chown 1000:1000 /opt/plugins/archive/*
 RUN chmod 0444 /opt/plugins/archive/*
 
 COPY fips/resources/fips_java.security /usr/share/elasticsearch/config/fips_java.security
-COPY fips/resources/fips_java.policy /usr/share/elasticsearch/config/fips_java.policy
 
 WORKDIR /usr/share/elasticsearch/config
 
@@ -104,7 +103,7 @@ WORKDIR /usr/share/elasticsearch/config
 # Add entrypoint
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:11d66ae7ec7ca1d5a7289750bdd96eb3d8eb592e5b7377f1fc8e4fb556fa7383
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:42fc42555b3ee77a677ee6875edf7dec09c01928f97e0a5a4d0a2ba4ddaf6191
 
 RUN <%= retry.loop(package_manager,
           "export DEBIAN_FRONTEND=noninteractive && \n" +
@@ -124,6 +123,7 @@ RUN groupadd -g 1000 elasticsearch && \
     chown -R 0:0 /usr/share/elasticsearch
 
 ENV ELASTIC_CONTAINER=true
+ENV GLIBC_TUNABLES=glibc.malloc.hugetlb=0
 
 WORKDIR /usr/share/elasticsearch
 
@@ -172,7 +172,6 @@ RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
 -Djavax.net.ssl.keyStoreType=BCFKS
 -Dorg.bouncycastle.fips.approved_only=true
 -Djava.security.properties=config/fips_java.security
--Djava.security.policy=config/fips_java.policy
 -Djavax.net.ssl.trustStoreType=BCFKS
 -Djavax.net.ssl.trustStore=config/cacerts.bcfks
 -Djavax.net.ssl.trustStorePassword=passwordcacert

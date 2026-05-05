@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 
@@ -44,6 +46,14 @@ public class TransportVersionUtils {
     /** Returns a random {@link TransportVersion} from all available versions. */
     public static TransportVersion randomVersion(Random random) {
         return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
+    }
+
+    /**
+     * Returns a random {@link TransportVersion} that does not support the provided version. Effectively, this returns a version
+     * "before" the given version.
+     */
+    public static TransportVersion randomVersionNotSupporting(Random random, TransportVersion version) {
+        return RandomPicks.randomFrom(random, allReleasedVersions().stream().filter(v -> v.supports(version) == false).toList());
     }
 
     /** Returns a random {@link TransportVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */

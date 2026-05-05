@@ -132,6 +132,7 @@ public class MrjarPlugin implements Plugin<Project> {
             compileTask.getJavaCompiler()
                 .set(javaToolchains.compilerFor(spec -> { spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion)); }));
             compileTask.setSourceCompatibility(Integer.toString(javaVersion));
+            compileTask.setTargetCompatibility(Integer.toString(javaVersion));
             CompileOptions compileOptions = compileTask.getOptions();
             compileOptions.getRelease().set(javaVersion);
             compileOptions.getCompilerArgs().add("--enable-preview");

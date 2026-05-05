@@ -186,8 +186,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             // Disable test failure reporting since this stuff is now captured in build scans
             task.getExtensions().getByType(ErrorReportingTestListener.class).setDumpOutputOnFailure(false);
 
-            // Disable the security manager and syscall filter since the test framework needs to fork processes
-            task.systemProperty("tests.security.manager", "false");
+            // Disable the syscall filter since the test framework needs to fork processes
             task.systemProperty("tests.system_call_filter", "false");
 
             // Register plugins and modules as task inputs and pass paths as system properties to tests

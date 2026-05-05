@@ -25,7 +25,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.io.InputStreamReader;
@@ -91,7 +90,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
                 )
                 .setDefaultCredentialsProvider(provider)
                 .build();
-            CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(new HttpGet(getNodeUrl())))
+            CloseableHttpResponse response = client.execute(new HttpGet(getNodeUrl()))
         ) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
             String data = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
@@ -113,7 +112,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
             NoopHostnameVerifier.INSTANCE
         );
         try (CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(sf).build()) {
-            expectThrows(SSLHandshakeException.class, () -> SocketAccess.doPrivileged(() -> client.execute(new HttpGet(getNodeUrl()))));
+            expectThrows(SSLHandshakeException.class, () -> client.execute(new HttpGet(getNodeUrl())));
         }
     }
 

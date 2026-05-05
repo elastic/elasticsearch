@@ -90,7 +90,7 @@ Find this by https://www.mongodb.com/docs/atlas/tutorial/connect-to-your-cluster
 In this example, we'll use the `sample_mflix` database.
 * *Collection*: The name of the collection you want to sync.
 In this example, we'll use the `comments` collection of the `sample_mflix` database.
-* *Username*: The username you created earlier, in the the setup phase.
+* *Username*: The username you created earlier, in the setup phase.
 * *Password*: The password you created earlier.
 
 Keep these details handy!

@@ -110,8 +110,8 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
     }
 
     @Override
-    public String nodeString() {
-        return toString();
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(toString());
     }
 
     @Override

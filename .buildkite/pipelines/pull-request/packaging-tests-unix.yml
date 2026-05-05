@@ -14,21 +14,22 @@ steps:
               - debian-12
               - debian-13
               - opensuse-leap-15
-              - oraclelinux-7
               - oraclelinux-8
               - oraclelinux-9
               - sles-12
+              - oraclelinux-10
               - sles-15
               - ubuntu-2204
               - ubuntu-2404
               - rocky-8
               - rocky-9
-              - rhel-7
+              - rocky-10
               - rhel-8
               - rhel-9
               - rhel-10
               - almalinux-8
               - almalinux-9
+              - almalinux-10
             PACKAGING_TASK:
               - docker-cloud-ess
               - packages
@@ -37,4 +38,25 @@ steps:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
           diskSizeGb: 350
-          machineType: custom-16-32768
+          machineType: n4-custom-16-32768
+          diskType: hyperdisk-balanced
+  - group: packaging-tests-unix-legacy
+    steps:
+      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-unix-legacy"
+        key: "packaging-tests-unix-legacy"
+        command: ./.ci/scripts/packaging-test.sh destructiveDistroTest.{{matrix.PACKAGING_TASK}}
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - oraclelinux-7
+              - rhel-7
+            PACKAGING_TASK:
+              - docker-cloud-ess
+              - packages
+              - archives
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          diskSizeGb: 350
+          machineType: n1-standard-32

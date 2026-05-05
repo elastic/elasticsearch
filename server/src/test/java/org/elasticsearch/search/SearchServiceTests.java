@@ -20,7 +20,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
@@ -40,13 +43,17 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -230,6 +237,106 @@ public class SearchServiceTests extends IndexShardTestCase {
             listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), nodeId, shardId, taskId, threadPool);
             listener.onFailure(e);
         }
+    }
+
+    public void testBuildQueryWithCircuitBreakerAccountsMemory() throws IOException {
+        IndexShard indexShard = newShard(true);
+        try {
+            recoverShardFromStore(indexShard);
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+                CircuitBreaker cb = createQueryConstructionBreaker("100mb");
+                SearchExecutionContext context = new SearchExecutionContext(
+                    createSearchExecutionContext((mappedFieldType, fieldDataContext) -> null, searcher),
+                    cb
+                );
+
+                try {
+                    long cbBefore = cb.getUsed();
+                    assertEquals("Freshly created breaker must start at zero", 0L, cbBefore);
+
+                    WildcardQueryBuilder queryBuilder = new WildcardQueryBuilder("field", "*test*pattern*");
+                    assertNotNull(queryBuilder.toQuery(context));
+
+                    long cbAfter = cb.getUsed();
+                    long tracked = context.getQueryConstructionMemoryUsed();
+
+                    assertTrue("Circuit breaker should have accounted memory", cbAfter > cbBefore);
+                    assertTrue("Context should have tracked memory", tracked > 0);
+                    assertEquals("CB delta must match tracked memory", cbAfter - cbBefore, tracked);
+                } finally {
+                    context.releaseQueryConstructionMemory();
+                }
+            }
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    public void testBuildQueryWithCircuitBreakerTripsOnLimitExceeded() throws IOException {
+        IndexShard indexShard = newShard(true);
+        try {
+            recoverShardFromStore(indexShard);
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+                CircuitBreaker cb = createQueryConstructionBreaker("1kb");
+                SearchExecutionContext context = new SearchExecutionContext(
+                    createSearchExecutionContext((mappedFieldType, fieldDataContext) -> null, searcher),
+                    cb
+                );
+
+                try {
+                    BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+                    for (int i = 0; i < 50; i++) {
+                        boolQuery.should(new WildcardQueryBuilder("field", "*a*b*c*" + i + "*"));
+                    }
+
+                    expectThrows(CircuitBreakingException.class, () -> boolQuery.toQuery(context));
+                } finally {
+                    context.releaseQueryConstructionMemory();
+                }
+            }
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    public void testQueryConstructionMemoryReleasedOnContextClose() throws IOException {
+        IndexShard indexShard = newShard(true);
+        try {
+            recoverShardFromStore(indexShard);
+            try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+                CircuitBreaker cb = createQueryConstructionBreaker("100mb");
+                SearchExecutionContext context = new SearchExecutionContext(
+                    createSearchExecutionContext((mappedFieldType, fieldDataContext) -> null, searcher),
+                    cb
+                );
+
+                for (int i = 0; i < 3; i++) {
+                    new WildcardQueryBuilder("field", "*test" + i + "*").toQuery(context);
+                }
+
+                long cbAfterBuild = cb.getUsed();
+                long tracked = context.getQueryConstructionMemoryUsed();
+                assertTrue("Memory should be accounted before release", cbAfterBuild > 0);
+                assertEquals("Tracked memory should match CB", cbAfterBuild, tracked);
+
+                context.releaseQueryConstructionMemory();
+
+                assertEquals("CB must be fully released", 0L, cb.getUsed());
+                assertEquals("Tracked memory must be zeroed", 0L, context.getQueryConstructionMemoryUsed());
+            }
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    private CircuitBreaker createQueryConstructionBreaker(String limit) {
+        Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), limit)
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        return new HierarchyCircuitBreakerService(CircuitBreakerMetrics.NOOP, settings, Collections.emptyList(), clusterSettings)
+            .getBreaker(CircuitBreaker.REQUEST);
     }
 
     private void doTestCanMatch(

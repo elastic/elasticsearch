@@ -35,11 +35,8 @@ import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
-import java.security.AccessController;
 import java.security.Principal;
 import java.security.PrivilegedAction;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -52,16 +49,6 @@ import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryInte
 
 @ThreadLeakFilters(filters = { HdfsClientThreadLeakFilter.class })
 public class HdfsBlobStoreContainerTests extends ESTestCase {
-
-    private FileContext createTestContext() {
-        FileContext fileContext;
-        try {
-            fileContext = AccessController.doPrivileged((PrivilegedExceptionAction<FileContext>) () -> createContext(new URI("hdfs:///")));
-        } catch (PrivilegedActionException e) {
-            throw new RuntimeException(e.getCause());
-        }
-        return fileContext;
-    }
 
     @SuppressForbidden(reason = "lesser of two evils (the other being a bunch of JNI/classloader nightmares)")
     private FileContext createContext(URI uri) {
@@ -108,7 +95,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
     }
 
     public void testReadOnly() throws Exception {
-        FileContext fileContext = createTestContext();
+        FileContext fileContext = createContext(URI.create("hdfs:///"));
         // Constructor will not create dir if read only
         HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, true);
         FileContext.Util util = fileContext.util();
@@ -137,7 +124,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
     }
 
     public void testReadRange() throws Exception {
-        FileContext fileContext = createTestContext();
+        FileContext fileContext = createContext(URI.create("hdfs:///"));
         // Constructor will not create dir if read only
         HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, true);
         FileContext.Util util = fileContext.util();
@@ -168,7 +155,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
     }
 
     public void testReplicationFactor() throws Exception {
-        FileContext fileContext = createTestContext();
+        FileContext fileContext = createContext(URI.create("hdfs:///"));
         short replicationFactor = 8;
 
         HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, false, false, replicationFactor);
@@ -192,7 +179,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
     }
 
     public void testListBlobsByPrefix() throws Exception {
-        FileContext fileContext = createTestContext();
+        FileContext fileContext = createContext(URI.create("hdfs:///"));
         HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, false);
         FileContext.Util util = fileContext.util();
         Path root = fileContext.makeQualified(new Path("dir"));

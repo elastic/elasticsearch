@@ -556,7 +556,7 @@ public abstract class AggregationContext implements Releasable {
             // Removing an aggregator is done after calling Aggregator#buildTopLevel which happens on an executor thread.
             // We need to synchronize the removal because he AggregatorContext it is shared between executor threads.
             assert releaseMe.contains(aggregator)
-                : "removing non-existing aggregator [" + aggregator.name() + "] from the the aggregation context";
+                : "removing non-existing aggregator [" + aggregator.name() + "] from the aggregation context";
             releaseMe.remove(aggregator);
         }
 

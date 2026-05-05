@@ -123,7 +123,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     private static final Predicate<String> CLASSNAME_FILTER = className -> {
         boolean esqlCore = className.startsWith(ESQL_CORE_CLASS_PREFIX) != false;
         boolean esqlProper = className.startsWith(ESQL_CLASS_PREFIX) != false;
-        return (esqlCore || esqlProper);
+        if ((esqlCore || esqlProper) == false) {
+            return false;
+        }
+        int dollarIdx = className.indexOf('$');
+        return dollarIdx < 0 || false == className.substring(0, dollarIdx).endsWith("Tests");
     };
 
     /**
@@ -743,9 +747,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             int rootLength = root.toString().length() + 1;
 
             // load classes from jar files
-            // NIO FileSystem API is not used since it trips the SecurityManager
-            // https://bugs.openjdk.java.net/browse/JDK-8160798
-            // so iterate the jar "by hand"
+            // iterate the jar "by hand"
             if (path.endsWith(".jar") && path.contains(ESQL_CORE_JAR_LOCATION_SUBSTRING)) {
                 try (JarInputStream jar = jarStream(root)) {
                     JarEntry je = null;

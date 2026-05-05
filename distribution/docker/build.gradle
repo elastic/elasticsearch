@@ -551,7 +551,7 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
       DockerBase base = DockerBase.WOLFI
 
       TaskProvider<DockerBuildTask> buildBaseTask = tasks.named(taskName("build", architecture, base, "DockerImage"))
-      inputs.files(buildBaseTask)
+      inputs.files(buildBaseTask).withPathSensitivity(PathSensitivity.RELATIVE)
 
       dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
 
@@ -573,13 +573,10 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
 }
 
 // fips
-String fipsPolicySourceFilename = isFips140_3 ? 'fips_java_bc2.policy' : 'fips_java.policy'
-
 TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = tasks.register('fipsDockerResources', ExportElasticsearchBuildResourcesTask)
 fipsResourcesTask.configure {
   outputDir = project.layout.buildDirectory.dir('fips-docker-resources').get().asFile
   copy 'fips_java.security'
-  copy fipsPolicySourceFilename, 'fips_java.policy'
 }
 
 for (final Architecture architecture : Architecture.values()) {
@@ -633,7 +630,7 @@ subprojects { Project subProject ->
     final String tarFile = "${parent.projectDir}/build/${artifactName}_${VersionProperties.elasticsearch}.${extension}"
 
     def exportTask = tasks.register(exportTaskName, LoggedExec) {
-      inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
+      inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker").withPathSensitivity(PathSensitivity.RELATIVE)
       executable = 'docker'
       outputs.file(tarFile)
       outputs.doNotCacheIf("Build cache is disabled for export tasks") { true }

@@ -61,6 +61,9 @@ tsdb_execute_painless_api:
 
 ---
 can't shadow dimensions:
+  - requires:
+      cluster_features: [ "gte_v8.1.0" ]
+      reason: introduced in 8.1.0
   - do:
       indices.create:
         index: test
@@ -131,6 +134,9 @@ can't shadow dimensions:
 
 ---
 can't shadow metrics:
+  - requires:
+      cluster_features: [ "gte_v8.1.0" ]
+      reason: introduced in 8.1.0
   - do:
       indices.create:
         index: test

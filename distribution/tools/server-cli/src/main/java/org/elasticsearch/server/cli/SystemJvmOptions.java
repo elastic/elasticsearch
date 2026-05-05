@@ -11,7 +11,6 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.jdk.RuntimeVersionFeature;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -78,7 +77,6 @@ final class SystemJvmOptions {
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
-            maybeAllowSecurityManager(useEntitlements),
             maybeAttachEntitlementAgent(esHome, useEntitlements)
         ).flatMap(s -> s).toList();
     }
@@ -162,13 +160,6 @@ final class SystemJvmOptions {
         return Stream.of();
     }
 
-    private static Stream<String> maybeAllowSecurityManager(boolean useEntitlements) {
-        if (RuntimeVersionFeature.isSecurityManagerAvailable() && useEntitlements == false) {
-            return Stream.of("-Djava.security.manager=allow");
-        }
-        return Stream.of();
-    }
-
     private static Stream<String> maybeAttachEntitlementAgent(Path esHome, boolean useEntitlements) {
         if (useEntitlements == false) {
             return Stream.empty();
@@ -188,11 +179,11 @@ final class SystemJvmOptions {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
+
         // We instrument classes in these modules to call the bridge. Because the bridge gets patched
         // into java.base, we must export the bridge from java.base to these modules, as a comma-separated list
-        String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
+        String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net,jdk.zipfs";
         return Stream.of(
-            "-Des.entitlements.enabled=true",
             "-XX:+EnableDynamicAgentLoading",
             "-Djdk.attach.allowAttachSelf=true",
             "--patch-module=java.base=" + bridgeJar,

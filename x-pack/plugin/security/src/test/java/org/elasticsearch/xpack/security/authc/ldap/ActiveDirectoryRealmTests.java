@@ -66,9 +66,6 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TestRule;
 
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -153,11 +150,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
                 new Attribute("objectClass", "top", "domain", "extensibleObject")
             );
             directoryServer.importFromLDIF(false, getDataPath("ad.ldif").toString());
-            // Must have privileged access because underlying server will accept socket connections
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                directoryServer.startListening();
-                return null;
-            });
+            directoryServer.startListening();
             directoryServers[i] = directoryServer;
         }
         threadPool = new TestThreadPool("active directory realm tests");
@@ -171,16 +164,9 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     }
 
     private void tryConnect(InMemoryDirectoryServer ds) {
-        try {
-            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                try (var c = ds.getConnection()) {
-                    assertThat("Failed to connect to " + ds, c.isConnected(), is(true));
-                } catch (LDAPException e) {
-                    throw new AssertionError("Failed to connect to " + ds, e);
-                }
-                return null;
-            });
-        } catch (PrivilegedActionException e) {
+        try (var c = ds.getConnection()) {
+            assertThat("Failed to connect to " + ds, c.isConnected(), is(true));
+        } catch (LDAPException e) {
             throw new AssertionError("Failed to connect to " + ds, e);
         }
     }

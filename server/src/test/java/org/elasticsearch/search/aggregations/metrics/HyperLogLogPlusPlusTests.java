@@ -32,6 +32,7 @@ import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityA
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -191,6 +192,24 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
             ByteSizeValue.ofBytes((initialBucketCount << precision) + initialBucketCount * 4 + PageCacheRecycler.PAGE_SIZE_IN_BYTES * 2),
             bigArrays -> new HyperLogLogPlusPlus(precision, bigArrays, initialBucketCount)
         );
+    }
+
+    public void testMaxOrdIsExclusiveUpperBound() {
+        final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
+        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        // Use initialBucketCount=1 so that hll.maxOrd() stays at 1 and doesn't mask lc.maxOrd() bugs.
+        // Iterate through enough buckets to guarantee we cross at least one internal array growth boundary,
+        // where the off-by-one in LinearCounting.maxOrd() would surface.
+        try (HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 1)) {
+            for (int bucket = 0; bucket < 50; bucket++) {
+                counts.collect(bucket, BitMixer.mix64(bucket));
+                assertThat(
+                    "maxOrd must be an exclusive upper bound after collecting into bucket " + bucket,
+                    (long) bucket,
+                    lessThan(counts.maxOrd())
+                );
+            }
+        }
     }
 
     public void testDynamicGrowth() {

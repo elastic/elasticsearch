@@ -9,13 +9,16 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -129,7 +132,13 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 value = value.toLowerCase(Locale.ROOT);
                 indexName = indexName.toLowerCase(Locale.ROOT);
             }
-            if (Regex.simpleMatch(value, indexName)) {
+            CharacterRunAutomaton runAutomaton;
+            try {
+                runAutomaton = new CharacterRunAutomaton(WildcardQuery.toAutomaton(new Term(null, value)));
+            } catch (TooComplexToDeterminizeException e) {
+                throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+            }
+            if (runAutomaton.run(indexName)) {
                 return new MatchAllDocsQuery();
             }
             return new MatchNoDocsQuery("The \"" + indexName + "\" query was rewritten to a \"match_none\" query.");

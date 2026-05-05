@@ -360,15 +360,14 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             factory.releaseBuffer(result);
             result = null;
         }
-        long bValueCount = b.valueCount();
-        long aValueCount = a.valueCount();
-        if (bValueCount == 0) {
+        if (b.isEmpty()) {
             // fast path, subtracting an empty histogram does nothing.
-            // This check is placed before the scale check because the ExponentialHistogram.empty() singleton
-            // uses the maximum scale, so we never want to fail when subtracting an empty histogram.
             this.add(a);
             return true;
         }
+
+        long bValueCount = b.valueCount();
+        long aValueCount = a.valueCount();
         if (aValueCount == bValueCount) {
             // fast path, we assume that the histograms are equal and that therefore the difference is zero (the empty histogram)
             // We use the other aggregates to verify that the histograms are actually equal (and therefore cumulative)

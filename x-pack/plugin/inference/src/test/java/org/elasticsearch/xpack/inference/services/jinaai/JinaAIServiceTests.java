@@ -25,7 +25,7 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
-import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -87,7 +87,6 @@ import java.util.function.Function;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.DataFormat.BASE64;
 import static org.elasticsearch.inference.DataType.IMAGE;
-import static org.elasticsearch.inference.DataType.TEXT;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
@@ -1798,7 +1797,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             // Add an InferenceStringGroup with multiple InferenceStrings at a random point in the input list
             var indexToAdd = randomIntBetween(0, inputs.size() - 1);
             var multipleInferenceStrings = new InferenceStringGroup(
-                List.of(new InferenceString(TEXT, DataFormat.TEXT, "first_input"), new InferenceString(IMAGE, BASE64, TEST_DATA_URI))
+                List.of(new InferenceString(DataType.TEXT, "first_input"), new InferenceString(IMAGE, BASE64, TEST_DATA_URI))
             );
             inputs.add(indexToAdd, multipleInferenceStrings);
             service.embeddingInfer(model, new EmbeddingRequest(inputs, InputType.UNSPECIFIED, Map.of()), null, listener);

@@ -408,6 +408,11 @@ public class EsqlCapabilities {
         LOAD_FLATTENED_FIELD,
 
         /**
+         * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.
+         */
+        FLATTENED_DATATYPE(Build.current().isSnapshot()),
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -1999,6 +2004,11 @@ public class EsqlCapabilities {
         FIX_TIME_SERIES_WINDOW_BACKWARD(Build.current().isSnapshot()),
 
         /**
+         * PromQL uses TSTEP instead of TBUCKET.
+         */
+        FIX_PROMQL_TIME_BUCKET(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
+
+        /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
          */
         LIKE_PARAMETER_SUPPORT,
@@ -2357,6 +2367,12 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_IP_SUPPORT(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Support for the {@code header_row} (and the related {@code column_prefix}) CSV options
+         * on the {@code EXTERNAL} command, used to read headerless CSV files.
+         */
+        EXTERNAL_CSV_HEADER_ROW_OPTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.
          * See <a href="https://github.com/elastic/elasticsearch/pull/145334">#145334</a>. Used to gate the affected
          * {@code external-basic.csv-spec} tests so they are skipped on mixed clusters where a pre-change coordinator
@@ -2499,7 +2515,7 @@ public class EsqlCapabilities {
         /**
          * TSDB Temporality support which is guarded by a feature flag.
          */
-        TSDB_TEMPORALITY_SUPPORT_V4(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V5(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
 
         /**
          * Support the null column type for the CHANGE_POINT command

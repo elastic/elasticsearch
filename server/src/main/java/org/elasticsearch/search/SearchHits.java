@@ -95,11 +95,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         this.refCounted = refCounted;
     }
 
-    public static SearchHits unpooled(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
-        return unpooled(hits, totalHits, maxScore, null, null, null);
-    }
-
-    public static SearchHits unpooled(
+    private static SearchHits unpooled(
         SearchHit[] hits,
         @Nullable TotalHits totalHits,
         float maxScore,
@@ -277,18 +273,6 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     @Override
     public boolean hasReferences() {
         return refCounted.hasReferences();
-    }
-
-    public SearchHits asUnpooled() {
-        assert hasReferences();
-        if (refCounted == ALWAYS_REFERENCED) {
-            return this;
-        }
-        final SearchHit[] unpooledHits = new SearchHit[hits.length];
-        for (int i = 0; i < hits.length; i++) {
-            unpooledHits[i] = hits[i].asUnpooled();
-        }
-        return unpooled(unpooledHits, totalHits, maxScore, sortFields, collapseField, collapseValues);
     }
 
     public static final class Fields {

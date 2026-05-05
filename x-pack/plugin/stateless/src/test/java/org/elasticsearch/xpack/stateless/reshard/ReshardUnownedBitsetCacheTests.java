@@ -50,11 +50,11 @@ public class ReshardUnownedBitsetCacheTests extends ESTestCase {
             cache.getBitSet(query, ctx);
             assertEquals(1, cache.entryCount());
             cache.verifyInternalConsistency();
-            assertEquals(0, cache.entryCount());
         } finally {
             cache.close();
             directory.close();
         }
+        assertEquals(0, cache.entryCount());
     }
 
     public void testTinyMaxSizeStillCompletesLookup() throws Exception {
@@ -79,6 +79,8 @@ public class ReshardUnownedBitsetCacheTests extends ESTestCase {
 
             LeafReaderContext ctx = reader.leaves().get(0);
             assertNotNull(cache.getBitSet(query, ctx));
+            // Cache is too small to hold an entry
+            assertEquals(0, cache.entryCount());
         } finally {
             cache.close();
             directory.close();

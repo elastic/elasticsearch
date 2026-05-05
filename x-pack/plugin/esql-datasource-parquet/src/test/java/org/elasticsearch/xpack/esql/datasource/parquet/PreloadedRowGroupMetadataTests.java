@@ -23,6 +23,7 @@ import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -31,9 +32,13 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.NavigableMap;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -215,6 +220,73 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
         }
     }
 
+    /**
+     * Simulates the async-dispatch behavior of native async storage backends like S3, where every
+     * {@code readBytesAsync} call is completed on a worker thread rather than inline. Verifies
+     * that the pre-warm map is still populated correctly when reads complete out of order on
+     * different threads, and that subsequent parquet-mr dictionary reads against the installed
+     * pre-warm cache are served from memory without triggering any new range GETs.
+     *
+     * <p>Note: the coalesced reader merges all dictionary pages within a configurable gap into a
+     * single batched request — for a small test file this can collapse to one merged range. The
+     * parallelism on S3 only matters when the file is large enough that dictionary ranges from
+     * different row groups exceed the coalesce gap; here we exercise the async completion path
+     * itself rather than asserting on observed parallelism.
+     */
+    public void testPreWarmFetchedCorrectlyOnAsyncStorage() throws IOException, InterruptedException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("schema");
+        long[] values = new long[65_536];
+        for (int i = 0; i < values.length; i++) {
+            values[i] = i % 16;
+        }
+        byte[] parquetData = writeDictionaryEncodedInt64Parquet(schema, values);
+
+        ExecutorService ioPool = Executors.newFixedThreadPool(4, r -> {
+            Thread t = new Thread(r, "test-async-io");
+            t.setDaemon(true);
+            return t;
+        });
+        try {
+            AtomicInteger asyncReadCount = new AtomicInteger();
+            StorageObject asyncStorage = createAsyncRangeReadStorageObject(parquetData, ioPool, asyncReadCount);
+
+            ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+            ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(asyncStorage);
+            try (ParquetFileReader reader = ParquetFileReader.open(adapter, options)) {
+                PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, asyncStorage, Set.of("v"));
+                NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = metadata.preWarmedChunks();
+                assertFalse("Pre-warm map must contain dictionary chunks even when reads complete async", chunks.isEmpty());
+                assertTrue("Async reads must have been dispatched", asyncReadCount.get() > 0);
+
+                int asyncReadsAfterPreload = asyncReadCount.get();
+                adapter.installPreWarmedChunks(chunks);
+
+                // Every dictionary page should now be served from the pre-warm map — no new
+                // async reads should be dispatched for those byte ranges.
+                ColumnDescriptor desc = reader.getFileMetaData().getSchema().getColumns().get(0);
+                for (int rg = 0; rg < reader.getRowGroups().size(); rg++) {
+                    var col = reader.getRowGroups().get(rg).getColumns().get(0);
+                    if (col.hasDictionaryPage() == false) {
+                        continue;
+                    }
+                    try (DictionaryPageReadStore dictStore = reader.getDictionaryReader(reader.getRowGroups().get(rg))) {
+                        DictionaryPage dictPage = dictStore.readDictionaryPage(desc);
+                        assertNotNull("Dictionary page must be readable from pre-warm for rg " + rg, dictPage);
+                    }
+                }
+
+                assertEquals(
+                    "Dictionary reads after pre-warm install must not trigger any new async range reads",
+                    asyncReadsAfterPreload,
+                    asyncReadCount.get()
+                );
+            }
+        } finally {
+            ioPool.shutdownNow();
+            assertTrue("Async io pool failed to terminate", ioPool.awaitTermination(5, TimeUnit.SECONDS));
+        }
+    }
+
     private static byte[] writeDictionaryEncodedInt64Parquet(MessageType schema, long[] values) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         OutputFile outputFile = createOutputFile(out);
@@ -299,6 +371,68 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
     @FunctionalInterface
     private interface RangeReadObserver {
         void onRangeRead(long position, long length);
+    }
+
+    /**
+     * Builds a {@link StorageObject} that completes {@code readBytesAsync} on the supplied pool.
+     * The {@code asyncReadCount} counter records how many async dispatches actually happened so
+     * the test can assert that pre-warm install eliminates further async reads.
+     */
+    private static StorageObject createAsyncRangeReadStorageObject(byte[] data, ExecutorService pool, AtomicInteger asyncReadCount) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(data);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public void readBytesAsync(
+                long position,
+                long length,
+                java.util.concurrent.Executor ignored,
+                ActionListener<ByteBuffer> listener
+            ) {
+                asyncReadCount.incrementAndGet();
+                pool.execute(() -> {
+                    try {
+                        int pos = (int) position;
+                        int len = (int) Math.min(length, data.length - position);
+                        byte[] slice = new byte[len];
+                        System.arraycopy(data, pos, slice, 0, len);
+                        listener.onResponse(ByteBuffer.wrap(slice));
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                    }
+                });
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://preload-async-test.parquet");
+            }
+        };
     }
 
     private static StorageObject createRangeReadCountingStorageObject(byte[] data, RangeReadObserver observer) {

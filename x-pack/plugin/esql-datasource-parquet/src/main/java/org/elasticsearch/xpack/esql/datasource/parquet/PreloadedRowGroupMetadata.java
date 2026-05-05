@@ -142,6 +142,15 @@ final class PreloadedRowGroupMetadata {
      * ranges for predicate columns when supplied, fetches them in one coalesced batch, then
      * parses index ranges into typed objects and retains dictionary/bloom ranges as raw byte
      * chunks for {@link ParquetStorageObjectAdapter} pre-warming.
+     *
+     * <p><b>Parallelism:</b> {@link CoalescedRangeReader#readCoalesced} dispatches one
+     * {@code readBytesAsync} call per merged range back-to-back without waiting between calls.
+     * Dictionary pages from different row groups typically do not coalesce with each other
+     * (they are separated by the row group's data pages), so each row group contributes its own
+     * merged range. For native async storage backends like S3, the SDK runs all those requests
+     * on its own event loop in parallel — turning what was N synchronous TLS handshakes into one
+     * batch of concurrent connections. For local/default storage the dispatch is sequential on
+     * the calling thread, but local reads are microseconds so the lack of parallelism is moot.
      */
     private static PreloadedRowGroupMetadata preloadCoalesced(
         ParquetFileReader reader,

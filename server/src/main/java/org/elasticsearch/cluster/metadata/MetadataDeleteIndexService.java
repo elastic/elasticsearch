@@ -112,6 +112,7 @@ public class MetadataDeleteIndexService {
         if (indices == null || indices.isEmpty()) {
             throw new IllegalArgumentException("Indices are required");
         }
+        final long startNanos = System.nanoTime();
         SubscribableListener
             // Step 1: publish delete and wait for publication acks
             .<AcknowledgedResponse>newForked(
@@ -126,9 +127,10 @@ public class MetadataDeleteIndexService {
                 // TODO re-use code between here, MetadataMappingService, and MetadataUpdateSettingsService
                 final var clusterState = clusterService.state();
                 final var nodes = clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
+                final var remainingTime = TimeValue.timeValueNanos(Math.max(0, ackTimeout.nanos() - (System.nanoTime() - startNanos)));
                 client.execute(
                     TransportAwaitClusterStateVersionAppliedAction.TYPE,
-                    new AwaitClusterStateVersionAppliedRequest(clusterState.version(), ackTimeout, nodes),
+                    new AwaitClusterStateVersionAppliedRequest(clusterState.version(), remainingTime, nodes),
                     new ActionListener<>() {
                         @Override
                         public void onResponse(AwaitClusterStateVersionAppliedResponse awaitResponse) {

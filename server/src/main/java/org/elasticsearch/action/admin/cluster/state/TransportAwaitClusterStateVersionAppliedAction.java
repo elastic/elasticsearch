@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -57,13 +56,11 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
 
     private static final Logger logger = LogManager.getLogger(TransportAwaitClusterStateVersionAppliedAction.class);
 
-    private final IndicesClusterStateService indicesClusterStateService;
     private final ThreadPool threadPool;
 
     @Inject
     public TransportAwaitClusterStateVersionAppliedAction(
         ClusterService clusterService,
-        IndicesClusterStateService indicesClusterStateService,
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool
@@ -76,7 +73,6 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
             NodeRequest::new,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );
-        this.indicesClusterStateService = indicesClusterStateService;
         this.threadPool = threadPool;
     }
 
@@ -139,7 +135,7 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
                 if (onceListener.isDone()) {
                     l.onResponse(null);
                 } else {
-                    indicesClusterStateService.addApplyListener(l);
+                    clusterService.getClusterApplierService().awaitAllAsyncAppliers(l);
                 }
             })
             // Step 3: complete listener

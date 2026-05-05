@@ -427,6 +427,7 @@ public class MetadataUpdateSettingsService {
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
+        final long startNanos = System.nanoTime();
         SubscribableListener
             // Step 1: apply update
             .<AcknowledgedResponse>newForked(
@@ -443,9 +444,12 @@ public class MetadataUpdateSettingsService {
                 // TODO re-use code between here and MetadataMappingService
                 final var clusterState = clusterService.state();
                 final var nodes = clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
+                final var remainingTime = TimeValue.timeValueNanos(
+                    Math.max(0, request.ackTimeout().nanos() - (System.nanoTime() - startNanos))
+                );
                 client.execute(
                     TransportAwaitClusterStateVersionAppliedAction.TYPE,
-                    new AwaitClusterStateVersionAppliedRequest(clusterState.version(), request.ackTimeout(), nodes),
+                    new AwaitClusterStateVersionAppliedRequest(clusterState.version(), remainingTime, nodes),
                     new ActionListener<>() {
                         @Override
                         public void onResponse(AwaitClusterStateVersionAppliedResponse awaitResponse) {

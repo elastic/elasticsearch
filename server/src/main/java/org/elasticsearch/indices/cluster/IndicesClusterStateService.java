@@ -146,7 +146,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     // A list of shards that failed during recovery.
     // We keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update.
     final ConcurrentMap<ShardId, FailedShardCacheEntry> failedShardsCache = ConcurrentCollections.newConcurrentMap();
-    private final Map<ShardId, PendingShardCreation> pendingShardCreations = new HashMap<>();
+    private final ConcurrentMap<ShardId, PendingShardCreation> pendingShardCreations = ConcurrentCollections.newConcurrentMap();
     private final RepositoriesService repositoriesService;
 
     private final FailedShardHandler failedShardHandler = new FailedShardHandler();
@@ -814,10 +814,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             ActionListener.noop() // on the failure path, did not create the shard, so don't need to wait for it to close
                         );
                     }
-                }, () -> {
-                    assertApplierThread();
-                    pendingShardCreations.remove(shardId, pendingShardCreation);
-                })
+                }, () -> pendingShardCreations.remove(shardId, pendingShardCreation))
             );
         } catch (Exception e) {
             assert pendingShardCreations.get(shardId) == null
@@ -827,14 +824,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     private PendingShardCreation createOrRefreshPendingShardCreation(ShardId shardId, String clusterStateUUID) {
-        assertApplierThread();
-        final var currentPendingShardCreation = pendingShardCreations.get(shardId);
-        final var newPendingShardCreation = new PendingShardCreation(
-            clusterStateUUID,
-            currentPendingShardCreation == null ? threadPool.relativeTimeInMillis() : currentPendingShardCreation.startTimeMillis()
+        return pendingShardCreations.compute(
+            shardId,
+            (id, current) -> new PendingShardCreation(
+                clusterStateUUID,
+                current == null ? threadPool.relativeTimeInMillis() : current.startTimeMillis()
+            )
         );
-        pendingShardCreations.put(shardId, newPendingShardCreation);
-        return newPendingShardCreation;
     }
 
     private void createShardWhenLockAvailable(

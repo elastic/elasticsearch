@@ -545,9 +545,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithoutFailures
   issue: https://github.com/elastic/elasticsearch/issues/148310
-- class: org.elasticsearch.xpack.watcher.test.integration.SingleNodeTests
-  method: testThatLoadingWithNonExistingIndexWorks
-  issue: https://github.com/elastic/elasticsearch/issues/148323
 - class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
   method: testWithByteBufferSlicesReturnsFalseAfterEviction
   issue: https://github.com/elastic/elasticsearch/issues/148330

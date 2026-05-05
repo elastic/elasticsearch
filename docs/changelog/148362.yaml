@@ -1,5 +1,5 @@
-area: "Infra/Logging, Search"
+area: "Infra/Logging"
 issues: []
 pr: 148362
-summary: Capture exceptions in processing too and log them as failures
+summary: Monitor exceptions in processing queries and log them as failures
 type: bug

@@ -656,7 +656,7 @@ public class EsqlFunctionRegistry {
 
     public static class ArgSignature {
 
-        public record Hint(String entityType, Map<String, String> constraints) {}
+        public record Hint(String entityType, String kind, Map<String, String> constraints) {}
 
         protected final String name;
         protected final String[] type;
@@ -903,15 +903,36 @@ public class EsqlFunctionRegistry {
         return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, functionInfo.type());
     }
 
+    private static boolean shouldRenderHint(Param.Hint hint) {
+        return hint.entityType() != Param.Hint.ENTITY_TYPE.NONE || hint.kind() != Param.Hint.Kind.STANDARD;
+    }
+
     public static ArgSignature param(Param param, boolean variadic) {
         String[] type = removeUnderConstruction(param.type());
         String desc = param.description().replace('\n', ' ');
         DataType targetDataType = getTargetType(type);
         ArgSignature.Hint hint = null;
-        if (param.hint() != null && param.hint().entityType() != Param.Hint.ENTITY_TYPE.NONE) {
+        if (shouldRenderHint(param.hint())) {
             Map<String, String> constraints = Arrays.stream(param.hint().constraints())
                 .collect(Collectors.toMap(Param.Hint.Constraint::name, Param.Hint.Constraint::value));
-            hint = new ArgSignature.Hint(param.hint().entityType().name().toLowerCase(Locale.ROOT), constraints);
+            String entityType = param.hint().entityType() != Param.Hint.ENTITY_TYPE.NONE
+                ? param.hint().entityType().name().toLowerCase(Locale.ROOT)
+                : null;
+            if (entityType != null && param.hint().kind() != Param.Hint.Kind.ENTITY) {
+                throw new IllegalArgumentException(
+                    "Param ["
+                        + param.name()
+                        + "] has entityType ["
+                        + entityType
+                        + "] but kind is ["
+                        + param.hint().kind()
+                        + "], expected ["
+                        + Param.Hint.Kind.ENTITY
+                        + "]"
+                );
+            }
+            String kind = param.hint().kind() != Param.Hint.Kind.STANDARD ? param.hint().kind().name().toLowerCase(Locale.ROOT) : null;
+            hint = new ArgSignature.Hint(entityType, kind, constraints);
         }
 
         return new EsqlFunctionRegistry.ArgSignature(

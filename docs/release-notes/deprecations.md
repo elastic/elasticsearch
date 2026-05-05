@@ -16,14 +16,20 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
-## 9.3.4 [elasticsearch-9.3.4-deprecations]
+## 9.4.0 [elasticsearch-9.4.0-deprecations]
 ```{applies_to}
-stack: ga 9.3.4
+stack: ga 9.4.0
 ```
 
-There are no deprecations associated with this release.
+Data streams:
+* Deprecate the 'logs' stream type [#142148](https://github.com/elastic/elasticsearch/pull/142148)
 
-## 9.3.3 [elasticsearch-9.3.3-deprecations]
+Mapping:
+* Deprecate the `default_metric` parameter in the `aggregate_metric_double` mapping configuration. [#141877](https://github.com/elastic/elasticsearch/pull/141877) (issue: [#128356](https://github.com/elastic/elasticsearch/issues/128356))
+
+
+
+## 9.3.4 [elasticsearch-9.3.4-deprecations]
 
 There are no deprecations associated with this release.
 
@@ -31,11 +37,15 @@ There are no deprecations associated with this release.
 
 There are no deprecations associated with this release.
 
-## 9.3.2 [elasticsearch-9.3.2-deprecations]
+## 9.3.3 [elasticsearch-9.3.3-deprecations]
 
 There are no deprecations associated with this release.
 
 ## 9.2.7 [elasticsearch-9.2.7-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.3.2 [elasticsearch-9.3.2-deprecations]
 
 There are no deprecations associated with this release.
 

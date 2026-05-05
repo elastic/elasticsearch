@@ -2387,7 +2387,7 @@ FROM k8s, k8s_unmapped METADATA _index
 | WHERE network.cost::double > 12.0
 | EVAL cost = network.cost::keyword
 | KEEP _index, cost
-| SORT cost, _index
+| SORT _index, cost
 ;
 
 _index:keyword | cost:keyword
@@ -2395,19 +2395,19 @@ k8s            | 12.125
 k8s            | 12.125
 k8s            | 12.125
 k8s            | 12.125
-k8s_unmapped   | 12.125
-k8s_unmapped   | 12.125
-k8s_unmapped   | 12.125
-k8s_unmapped   | 12.125
 k8s            | 12.25
-k8s_unmapped   | 12.25
 k8s            | 12.375
 k8s            | 12.375
 k8s            | 12.375
-k8s_unmapped   | 12.375
-k8s_unmapped   | 12.375
-k8s_unmapped   | 12.375
 k8s            | 12.5
+k8s_unmapped   | 12.125
+k8s_unmapped   | 12.125
+k8s_unmapped   | 12.125
+k8s_unmapped   | 12.125
+k8s_unmapped   | 12.25
+k8s_unmapped   | 12.375
+k8s_unmapped   | 12.375
+k8s_unmapped   | 12.375
 k8s_unmapped   | 12.5
 ;
 

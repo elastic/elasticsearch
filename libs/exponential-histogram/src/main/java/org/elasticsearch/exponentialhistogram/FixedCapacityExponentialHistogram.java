@@ -183,6 +183,19 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
         }
     }
 
+    /**
+     * Scales all bucket counts (negative, zero, positive) so that the total count equals the desired value.
+     * <p>
+     * Rounding is performed on cumulative counts rather than on individual buckets. This means that rounding
+     * errors do not accumulate but are instead compensated by neighboring buckets: each bucket's scaled count
+     * is derived as the difference between two rounded cumulative totals. As a result, individual bucket counts
+     * may differ by up to 1 from the naively rounded value, but the overall total count is always exactly
+     * {@code desiredTotalCount}.
+     * <p>
+     * Buckets whose count rounds to zero are pruned from the histogram.
+     *
+     * @param desiredTotalCount the exact total count the histogram should have after scaling
+     */
     void scaleBucketCountsTo(long desiredTotalCount) {
         long currentCount = valueCount();
         if (currentCount == desiredTotalCount) {

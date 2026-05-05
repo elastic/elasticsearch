@@ -20,6 +20,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -67,7 +68,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInva
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedTaskTypeStatusException;
 import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator.USER_ROLE;
 
-public class ElasticInferenceService extends SenderService<ElasticInferenceServiceModel> {
+public class ElasticInferenceService extends SenderService<ElasticInferenceServiceModel> implements RerankingInferenceService {
 
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
@@ -440,5 +441,14 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             .setTaskTypes(enabledTaskTypes)
             .setConfigurations(configurationMap)
             .build();
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        // Jina AI rerank models, which are the only ones currently supported via the Elastic service, have an 8000 token
+        // input length https://jina.ai/models/jina-reranker-v2-base-multilingual
+        // Using 1 token = 0.75 words as a rough estimate, we get 6000 words
+        // allowing for some headroom, we set the window size below 6000 words
+        return 5500;
     }
 }

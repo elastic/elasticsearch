@@ -11,6 +11,7 @@ cd $(dirname $0)/..
 
 # Compute the sha1 of normalized source files (strips CR that may be present on Windows).
 # It will be used to version the artifacts
+# Keep in sync with src-sha1.ps1
 (find .cargo -type f; find src -type f; echo 'Cargo.toml'; echo 'Cargo.lock') \
   | sort | xargs cat | tr -d '\r' \
   | sha1sum | cut -d " " -f 1

@@ -176,6 +176,7 @@ public abstract class DocumentParserContext {
 
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
+    private final Set<String> singleValuedFields;
     private Scope currentScope;
 
     private final Map<String, List<Mapper.Builder>> dynamicMappers;
@@ -228,13 +229,15 @@ public abstract class DocumentParserContext {
         Set<String> mappingCopyToFields,
         Set<String> copyToFields,
         DynamicMapperSize dynamicMapperSize,
-        boolean recordedSource
+        boolean recordedSource,
+        Set<String> singleValuedFields
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
+        this.singleValuedFields = singleValuedFields;
         this.currentScope = currentScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
@@ -277,7 +280,8 @@ public abstract class DocumentParserContext {
             in.mappingCopyToFields,
             in.copyToFields,
             in.dynamicMappersSize,
-            in.recordedSource
+            in.recordedSource,
+            in.singleValuedFields
         );
     }
 
@@ -309,7 +313,8 @@ public abstract class DocumentParserContext {
             mappingLookup.fieldTypesLookup().getCopyToDestinationFields(),
             new HashSet<>(),
             new DynamicMapperSize(),
-            false
+            false,
+            new HashSet<>()
         );
     }
 
@@ -351,6 +356,19 @@ public abstract class DocumentParserContext {
 
     public final String routing() {
         return mappingParserContext.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? null : sourceToParse.routing();
+    }
+
+    /**
+     * Enforces that a field configured with {@code multi_value=no} receives at most one value per document. The first call for a given
+     * field name succeeds; a subsequent call for the same name throws {@link IllegalArgumentException}. Shared across all child contexts
+     * so the constraint is respected regardless of which context sub-tree the duplicate value comes from.
+     */
+    public final void enforceSingleValue(String fieldName) {
+        if (singleValuedFields.add(fieldName) == false) {
+            throw new IllegalArgumentException(
+                "Field [" + fieldName + "] is configured with [multi_value=no] but encountered multiple values in the same document"
+            );
+        }
     }
 
     /**

@@ -11,7 +11,7 @@ package org.elasticsearch.cli.keystore;
 
 import joptsimple.OptionSet;
 
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.env.Environment;
 

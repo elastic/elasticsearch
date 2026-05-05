@@ -41,6 +41,15 @@ query.
 :::
 ::::
 
+When a time series aggregation function is used **directly** in `STATS` (that is, not
+wrapped in an outer aggregation such as `AVG()` or `SUM()`), results are implicitly
+grouped by every time series dimension and include a `_timeseries` column. You can
+narrow or make this grouping explicit with the
+[`WITHOUT`](/reference/query-languages/esql/functions-operators/grouping-functions/without.md)
+grouping function ({applies_to}`stack: ga 9.4`). Refer to
+[Grouping time series](/reference/query-languages/esql/commands/ts.md#grouping-time-series)
+for details and examples.
+
 The following time series aggregation functions are supported:
 
 :::{include} ../_snippets/lists/time-series-aggregation-functions.md

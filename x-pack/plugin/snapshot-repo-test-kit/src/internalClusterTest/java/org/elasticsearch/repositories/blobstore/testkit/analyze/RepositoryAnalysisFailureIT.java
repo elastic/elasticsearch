@@ -675,6 +675,57 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
+    public void testFailsWhenExistingBlobNotFoundByExistenceCheck() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean onBlobExistenceCheck(String blobName, boolean actualExists) {
+                // Always report every blob as not existing, causing the blob-exists check to fail
+                return false;
+            }
+        });
+
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    public void testFailsWhenNonExistentBlobReportedAsExistingByExistenceCheck() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean onBlobExistenceCheck(String blobName, boolean actualExists) {
+                // Always report every blob as existing, causing the non-existent-blob check to fail
+                return true;
+            }
+        });
+
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    public void testFailsOnBlobExistenceException() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean onBlobExistenceCheck(String blobName, boolean actualExists) throws IOException {
+                throw new IOException("simulated");
+            }
+        });
+
+        final Exception exception = analyseRepositoryExpectFailure(request);
+        assertAnalysisFailureMessage(exception.getMessage());
+        final IOException ioException = (IOException) ExceptionsHelper.unwrap(exception, IOException.class);
+        assert ioException != null : exception;
+        assertThat(ioException.getMessage(), equalTo("simulated"));
+    }
+
     private RepositoryVerificationException analyseRepositoryExpectFailure(RepositoryAnalyzeAction.Request request) {
         return safeAwaitAndUnwrapFailure(
             RepositoryVerificationException.class,
@@ -827,6 +878,10 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             return register.compareAndExchange(expected, updated);
         }
 
+        default boolean onBlobExistenceCheck(String blobName, boolean actualExists) throws IOException {
+            return actualExists;
+        }
+
         default Map<String, BlobMetadata> onPrefixList(String prefix, Map<String, BlobMetadata> filteredListing) throws IOException {
             return filteredListing;
         }
@@ -852,9 +907,9 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public boolean blobExists(OperationPurpose purpose, String blobName) {
+        public boolean blobExists(OperationPurpose purpose, String blobName) throws IOException {
             assertPurpose(purpose);
-            return blobs.containsKey(blobName);
+            return disruption.onBlobExistenceCheck(blobName, blobs.containsKey(blobName));
         }
 
         @Override

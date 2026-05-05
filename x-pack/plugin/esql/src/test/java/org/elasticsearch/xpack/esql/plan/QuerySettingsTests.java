@@ -125,6 +125,15 @@ public class QuerySettingsTests extends ESTestCase {
                     + Arrays.toString(values)
             );
         }
+
+        Source settingSource = new Source(3, 10, "SET unmapped_fields = \"UNKNOWN\"");
+        assertInvalidWithSource(
+            setting.name(),
+            settingSource,
+            of("UNKNOWN"),
+            "line 3:11: Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
+                + Arrays.toString(values)
+        );
     }
 
     public void testValidate_Approximation() {
@@ -164,38 +173,44 @@ public class QuerySettingsTests extends ESTestCase {
             equalTo(new ApproximationSettings(10000, 0.9))
         );
 
-        assertInvalid(
+        Source settingSource = new Source(2, 5, "SET approximation = ...");
+        assertInvalidWithSource(
             def.name(),
+            settingSource,
             new MapExpression(Source.EMPTY, List.of(Literal.keyword(Source.EMPTY, "rows"), Literal.integer(Source.EMPTY, 9999))),
-            "line -1:-1: Error validating setting [approximation]: Approximation configuration [rows] must be at least 10000"
+            "line 2:6: Error validating setting [approximation]: Approximation configuration [rows] must be at least 10000"
         );
 
-        assertInvalid(
+        assertInvalidWithSource(
             def.name(),
+            settingSource,
             new MapExpression(
                 Source.EMPTY,
                 List.of(Literal.keyword(Source.EMPTY, "confidence_level"), Literal.fromDouble(Source.EMPTY, 0.999))
             ),
-            "line -1:-1: Error validating setting [approximation]: "
+            "line 2:6: Error validating setting [approximation]: "
                 + "Approximation configuration [confidence_level] must be between 0.5 and 0.95"
         );
 
-        assertInvalid(
+        assertInvalidWithSource(
             def.name(),
+            settingSource,
             Literal.integer(Source.EMPTY, 12),
-            "line -1:-1: Error validating setting [approximation]: Invalid approximation configuration [12]"
+            "line 2:6: Error validating setting [approximation]: Invalid approximation configuration [12]"
         );
 
-        assertInvalid(
+        assertInvalidWithSource(
             def.name(),
+            settingSource,
             Literal.keyword(Source.EMPTY, "foo"),
-            "line -1:-1: Error validating setting [approximation]: Invalid approximation configuration [foo]"
+            "line 2:6: Error validating setting [approximation]: Invalid approximation configuration [foo]"
         );
 
-        assertInvalid(
+        assertInvalidWithSource(
             def.name(),
+            settingSource,
             new MapExpression(Source.EMPTY, List.of(Literal.keyword(Source.EMPTY, "foo"), Literal.integer(Source.EMPTY, 10))),
-            "line -1:-1: Error validating setting [approximation]: Approximation configuration contains unknown key [foo]"
+            "line 2:6: Error validating setting [approximation]: Approximation configuration contains unknown key [foo]"
         );
     }
 
@@ -228,7 +243,26 @@ public class QuerySettingsTests extends ESTestCase {
         Expression valueExpression,
         String expectedMessage
     ) {
-        QuerySetting setting = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, settingName, valueExpression));
+        assertInvalidWithSource(settingName, Source.EMPTY, ctx, valueExpression, expectedMessage);
+    }
+
+    private static void assertInvalidWithSource(
+        String settingName,
+        Source settingSource,
+        Expression valueExpression,
+        String expectedMessage
+    ) {
+        assertInvalidWithSource(settingName, settingSource, SNAPSHOT_CTX_WITH_CPS_ENABLED, valueExpression, expectedMessage);
+    }
+
+    private static void assertInvalidWithSource(
+        String settingName,
+        Source settingSource,
+        SettingsValidationContext ctx,
+        Expression valueExpression,
+        String expectedMessage
+    ) {
+        QuerySetting setting = new QuerySetting(settingSource, new Alias(Source.EMPTY, settingName, valueExpression));
         EsqlStatement statement = new EsqlStatement(null, List.of(setting));
         assertThat(
             expectThrows(ParsingException.class, () -> QuerySettings.validate(statement, ctx)).getMessage(),

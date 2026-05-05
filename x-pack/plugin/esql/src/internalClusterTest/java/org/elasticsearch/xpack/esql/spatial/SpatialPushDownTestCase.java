@@ -201,7 +201,13 @@ public abstract class SpatialPushDownTestCase<T extends Geometry> extends ESInte
 
     protected abstract void assertQuantizedXY();
 
-    protected abstract Point quantizePoint(Point point);
+    protected abstract double quantizeX(double x);
+
+    protected abstract double quantizeY(double y);
+
+    protected final Point quantizePoint(Point point) {
+        return new Point(quantizeX(point.getX()), quantizeY(point.getY()));
+    }
 
     protected abstract T quantize(T shape);
 

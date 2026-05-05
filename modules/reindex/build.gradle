@@ -129,6 +129,7 @@ if (OS.current() == OS.WINDOWS) {
     systemProperty "tests.fromRemote7x", "false"
     systemProperty "tests.fromRemote7xEs79", "false"
     systemProperty "tests.fromRemote7xEs710", "false"
+    systemProperty "tests.fromRemoteEs812", "false"
   }
 } else if (rootProject.rootDir.toString().contains(" ")) {
   logger.warn("Disabling reindex-from-old tests because Elasticsearch 1.7 won't start with spaces in the path")
@@ -137,6 +138,7 @@ if (OS.current() == OS.WINDOWS) {
     systemProperty "tests.fromRemote7x", "false"
     systemProperty "tests.fromRemote7xEs79", "false"
     systemProperty "tests.fromRemote7xEs710", "false"
+    systemProperty "tests.fromRemoteEs812", "false"
   }
 } else {
   /* Register a gradle artifact transformation to unpack resolved elasticsearch distributions. We only resolve
@@ -257,6 +259,15 @@ if (OS.current() == OS.WINDOWS) {
     remoteEs710Fixture = registerRemoteReindex7xFixture("remoteEs710Fixture", remoteEs710Dist)
   }
 
+  ElasticsearchDistribution remoteEs812Dist = distributions.findByName("remote_reindex_es812")
+  if (remoteEs812Dist == null) {
+    remoteEs812Dist = distributions.create("remote_reindex_es812") { ElasticsearchDistribution d ->
+      d.version = "8.12.2"
+      d.architecture = Architecture.current()
+    }
+  }
+  def remoteEs812Fixture = registerRemoteReindex7xFixture("remoteEs812Fixture", remoteEs812Dist)
+
   tasks.named("javaRestTest").configure {
     if (remoteEs710Fixture != null) {
       dependsOn remoteEs710Fixture
@@ -264,15 +275,18 @@ if (OS.current() == OS.WINDOWS) {
     if (remoteEs79Fixture != null) {
       dependsOn remoteEs79Fixture
     }
+    dependsOn remoteEs812Fixture
     systemProperty "tests.fromRemote7x", "true"
     systemProperty "tests.fromRemote7xEs79", macOsAarch64 ? "false" : "true"
     systemProperty "tests.fromRemote7xEs710", macOsAarch64 ? "false" : "true"
+    systemProperty "tests.fromRemoteEs812", "true"
     if (remoteEs79Fixture != null) {
       nonInputProperties.systemProperty "es79.port", remoteEs79Fixture.map(f -> f.addressAndPort)
     }
     if (remoteEs710Fixture != null) {
       nonInputProperties.systemProperty "es710.port", remoteEs710Fixture.map(f -> f.addressAndPort)
     }
+    nonInputProperties.systemProperty "es812.port", remoteEs812Fixture.map(f -> f.addressAndPort)
   }
 }
 

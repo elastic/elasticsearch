@@ -18,20 +18,18 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * Reindex-from-remote against Elasticsearch 7.9.x (remote scroll) and 7.10.0 (remote PIT when supported).
+ * Reindex-from-remote against external Elasticsearch clusters (see {@code modules/reindex/build.gradle}).
  */
-public class ReindexFromRemote7xIT extends ESRestTestCase {
+public class ReindexFromRemoteIT extends ESRestTestCase {
 
     private static final int DOCS = 10;
 
-    private void reindexFromRemote7x(String portProperty, String remoteIndex, String destIndex) throws IOException {
-        boolean enabled = Booleans.parseBoolean(System.getProperty("tests.fromRemote7x"));
-        assumeTrue("test is disabled (windows, path with spaces, or fixtures not wired)", enabled);
-
+    private void reindexFromRemoteCluster(String portProperty, String remoteIndex, String destIndex) throws IOException {
         int remotePort = Integer.parseInt(System.getProperty(portProperty));
         boolean success = false;
         try (RestClient remote = RestClient.builder(new HttpHost("127.0.0.1", remotePort)).build()) {
@@ -53,7 +51,7 @@ public class ReindexFromRemote7xIT extends ESRestTestCase {
                     String id = "doc" + i;
                     bulkBody.append(
                         String.format(
-                            java.util.Locale.ROOT,
+                            Locale.ROOT,
                             "{\"index\":{\"_index\":\"%s\",\"_id\":\"%s\"}}\n{\"id\":\"%s\"}\n",
                             remoteIndex,
                             id,
@@ -69,7 +67,7 @@ public class ReindexFromRemote7xIT extends ESRestTestCase {
                 Request reindex = new Request("POST", "/_reindex");
                 reindex.addParameter("refresh", "true");
                 reindex.addParameter("pretty", "true");
-                reindex.setJsonEntity(String.format(java.util.Locale.ROOT, """
+                reindex.setJsonEntity(String.format(Locale.ROOT, """
                     {
                       "source": {
                         "index": "%s",
@@ -108,21 +106,40 @@ public class ReindexFromRemote7xIT extends ESRestTestCase {
         }
     }
 
-    /** Remote is 7.9.0, so the reindex client uses scroll search */
+    /** Remote is 7.9.x; the reindex client uses scroll search. */
     public void testReindexFromRemote79() throws IOException {
+        assumeTrue(
+            "test is disabled (windows, path with spaces, or fixtures not wired)",
+            Booleans.parseBoolean(System.getProperty("tests.fromRemote7x"))
+        );
         assumeTrue(
             "remote 7.9 fixture not run on this platform (e.g. darwin-aarch64 has no 7.9 archive)",
             Booleans.parseBoolean(System.getProperty("tests.fromRemote7xEs79", "true"))
         );
-        reindexFromRemote7x("es79.port", "reindex_remote_79_src", "reindex_remote_79_dest");
+        reindexFromRemoteCluster("es79.port", "reindex_remote_79_src", "reindex_remote_79_dest");
     }
 
-    /** Remote is 7.10.0, so the reindex client uses PIT search */
+    /** Remote is 7.10.0; the reindex client uses PIT search. */
     public void testReindexFromRemote710() throws IOException {
+        assumeTrue(
+            "test is disabled (windows, path with spaces, or fixtures not wired)",
+            Booleans.parseBoolean(System.getProperty("tests.fromRemote7x"))
+        );
         assumeTrue(
             "remote 7.10.0 fixture not run on this platform (e.g. darwin-aarch64 has no 7.10 archive)",
             Booleans.parseBoolean(System.getProperty("tests.fromRemote7xEs710", "true"))
         );
-        reindexFromRemote7x("es710.port", "reindex_remote_710_src", "reindex_remote_710_dest");
+        reindexFromRemoteCluster("es710.port", "reindex_remote_710_src", "reindex_remote_710_dest");
+    }
+
+    /**
+     * Remote is 8.12.x; the reindex client uses PIT search. Open PIT may include {@code index_filter} when applicable.
+     */
+    public void testReindexFromRemote812() throws IOException {
+        assumeTrue(
+            "test is disabled (windows, path with spaces, or fixture not wired)",
+            Booleans.parseBoolean(System.getProperty("tests.fromRemoteEs812"))
+        );
+        reindexFromRemoteCluster("es812.port", "reindex_remote_812_src", "reindex_remote_812_dest");
     }
 }

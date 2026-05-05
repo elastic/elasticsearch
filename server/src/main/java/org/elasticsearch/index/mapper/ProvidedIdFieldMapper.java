@@ -107,11 +107,8 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                 case COLUMNAR:
                     return COLUMNAR_ID;
                 case DEFAULT:
-                    if (fieldDataEnabled.getAsBoolean()) {
-                        return new ProvidedIdFieldMapper(fieldDataEnabled, mode);
-                    } else {
-                        return DOCUMENT_ID_NO_FIELD_DATA;
-                    }
+                    // TODO: return constant:
+                    return new ProvidedIdFieldMapper(fieldDataEnabled, mode);
                 default:
                     throw new IllegalArgumentException("Unsupported id field mode [" + mode + "]");
             }
@@ -290,10 +287,6 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         super(mode == Mode.COLUMNAR ? new ColumnarIdFieldType() : new IdFieldType(fieldDataEnabled));
         this.fieldDataEnabled = fieldDataEnabled;
         this.mode = mode;
-    }
-
-    BooleanSupplier fieldDataEnabled() {
-        return fieldDataEnabled;
     }
 
     @Override

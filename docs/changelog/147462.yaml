@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 146364
-pr: 147462
-summary: Fix `_index` LIKE with ? wildcard
-type: bug

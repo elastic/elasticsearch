@@ -108,4 +108,28 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
             }
         };
     }
+
+    public <Req, R> void wrapAndRun(
+        ActionListener<R> listener,
+        ActivityLoggerContextBuilder<Context, Req, R> contextBuilder,
+        Consumer<ActionListener<R>> action
+    ) {
+        if (enabled == false) {
+            action.accept(listener);
+            return;
+        }
+        try {
+            action.accept(wrap(listener, contextBuilder));
+        } catch (Exception e) {
+            handleException(e, contextBuilder);
+            throw e;
+        }
+    }
+
+    public <Req, R> void handleException(Exception e, ActivityLoggerContextBuilder<Context, Req, R> contextBuilder) {
+        if (enabled) {
+            Context ctx = contextBuilder.build(e);
+            logAction(ctx);
+        }
+    }
 }

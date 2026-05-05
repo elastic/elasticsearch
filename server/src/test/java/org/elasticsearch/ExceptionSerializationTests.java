@@ -15,7 +15,9 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.TimestampParsingException;
+import org.elasticsearch.action.bulk.BulkOperationTests;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.search.SearchContextMissingNodesException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -53,7 +55,10 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.engine.OCCNotSupportedException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
+import org.elasticsearch.index.engine.UpdateNotSupportedException;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
@@ -154,7 +159,8 @@ public class ExceptionSerializationTests extends ESTestCase {
             AbstractClientHeadersTestCase.InternalException.class,
             ElasticsearchExceptionTests.TimeoutSubclass.class,
             ElasticsearchExceptionTests.Exception4xx.class,
-            ElasticsearchExceptionTests.Exception5xx.class
+            ElasticsearchExceptionTests.Exception5xx.class,
+            BulkOperationTests.BulkOperation429Exception.class
         );
         FileVisitor<Path> visitor = new FileVisitor<Path>() {
             private Path pkgPrefix = PathUtils.get(path).getParent();
@@ -466,6 +472,13 @@ public class ExceptionSerializationTests extends ESTestCase {
         assertEquals("idx", ex.getIndex().getName());
         assertEquals("id", ex.getId());
         assertEquals("routing is required for [idx]/[id]", ex.getMessage());
+    }
+
+    public void testSliceMissingException() throws IOException {
+        SliceMissingException ex = serialize(new SliceMissingException("idx", "id"), SliceIndexing.SLICE_MISSING_EXCEPTION_VERSION);
+        assertEquals("idx", ex.getIndex().getName());
+        assertEquals("id", ex.getId());
+        assertEquals("_slice is required for [idx]/[id]", ex.getMessage());
     }
 
     public void testRepositoryException() throws IOException {
@@ -876,6 +889,12 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(186, IndexLimitExceededException.class);
         ids.put(187, StaleRequestException.class);
         ids.put(188, SearchContextMissingNodesException.class);
+        ids.put(189, OCCNotSupportedException.class);
+        ids.put(190, UpdateNotSupportedException.class);
+        ids.put(191, org.elasticsearch.action.fieldcaps.RemoteViewNotSupportedException.class);
+        ids.put(192, org.elasticsearch.search.crossproject.InvalidProjectRoutingException.class);
+        ids.put(193, org.elasticsearch.index.reindex.TaskRelocatedException.class);
+        ids.put(194, org.elasticsearch.action.SliceMissingException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

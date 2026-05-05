@@ -82,7 +82,7 @@ public class BFloat16RankVectorsDocValuesField extends RankVectorsDocValuesField
             return RankVectors.EMPTY;
         }
         decodeVectorIfNecessary();
-        return new FloatRankVectors(vectorValues, magnitudesValue, numVectors, dims);
+        return new BFloat16RankVectors(vectorValues, magnitudesValue, numVectors, dims, value);
     }
 
     @Override
@@ -91,7 +91,7 @@ public class BFloat16RankVectorsDocValuesField extends RankVectorsDocValuesField
             return defaultValue;
         }
         decodeVectorIfNecessary();
-        return new FloatRankVectors(vectorValues, magnitudesValue, numVectors, dims);
+        return new BFloat16RankVectors(vectorValues, magnitudesValue, numVectors, dims, value);
     }
 
     @Override

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -29,6 +28,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
 
@@ -177,6 +178,17 @@ public class FollowingEngine extends InternalEngine {
         return true;
     }
 
+    @Override
+    public List<IndexResult> indexBatch(List<Index> operations) throws IOException {
+        // CCR following engine has special versioning semantics that are not compatible with
+        // the optimized batch indexing path in InternalEngine. Fall back to sequential indexing.
+        List<IndexResult> results = new ArrayList<>(operations.size());
+        for (Index op : operations) {
+            results.add(index(op));
+        }
+        return results;
+    }
+
     private OptionalLong lookupPrimaryTerm(final long seqNo) throws IOException {
         // Don't need to look up term for operations before the global checkpoint for they were processed on every copies already.
         if (seqNo <= engineConfig.getGlobalCheckpointSupplier().getAsLong()) {
@@ -188,7 +200,7 @@ public class FollowingEngine extends InternalEngine {
             final IndexSearcher searcher = new IndexSearcher(reader);
             searcher.setQueryCache(null);
             final Query query = new BooleanQuery.Builder().add(
-                LongPoint.newExactQuery(SeqNoFieldMapper.NAME, seqNo),
+                SeqNoFieldMapper.exactQueryForSeqNo(engineConfig.getIndexSettings().seqNoIndexOptions(), seqNo),
                 BooleanClause.Occur.FILTER
             )
                 // excludes the non-root nested documents which don't have primary_term.
@@ -206,6 +218,8 @@ public class FollowingEngine extends InternalEngine {
             }
             if (seqNo <= engineConfig.getGlobalCheckpointSupplier().getAsLong()) {
                 return OptionalLong.empty(); // we have merged away the looking up operation.
+            } else if (engineConfig.getIndexSettings().sequenceNumbersDisabled()) {
+                return OptionalLong.empty(); // seq_no data may have been pruned
             } else {
                 assert false : "seq_no[" + seqNo + "] does not have primary_term, total_hits=[" + topDocs.totalHits + "]";
                 throw new IllegalStateException("seq_no[" + seqNo + "] does not have primary_term (total_hits=" + topDocs.totalHits + ")");

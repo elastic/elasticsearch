@@ -33,7 +33,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.script.DateFieldScript;
@@ -87,6 +87,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("format", b -> b.field("format", "yyyy-MM-dd"));
         checker.registerConflictCheck("locale", b -> b.field("locale", "es"));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "34500000"));
+        registerScriptChecks(checker);
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -119,6 +120,89 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertEquals("LongField <field:1457654400000>", field.toString());
         assertEquals(DocValuesType.SORTED_NUMERIC, field.fieldType().docValuesType());
         assertFalse(field.fieldType().stored());
+    }
+
+    public void testMultiValueSorted() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "sorted").endObject();
+        }));
+        DateFieldMapper mapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(
+            mapper.docValuesParameters(),
+            equalTo(
+                new FieldMapper.DocValuesParameter.Values(
+                    true,
+                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
+                )
+            )
+        );
+    }
+
+    public void testMultiValueSortedSetNotAllowed() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        var e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "sorted_set").endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString("Unknown value [sorted_set] for field [multi_value] - accepted values are [no, sorted, arrays]")
+        );
+    }
+
+    public void testMultiValueDefaultIsSorted() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        DateFieldMapper mapper = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED));
+    }
+
+    public void testMultiValueNoAcceptsSingleValue() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
+        mapper.parse(source(b -> b.field("field", "2016-03-11")));
+    }
+
+    public void testMultiValueNoRejectsArray() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", "2016-03-11", "2016-03-12")))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        );
+    }
+
+    public void testMultiValueNoUsesNumericDocValues() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", "no").endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertFalse("expected at least one indexable field for [field]", fields.isEmpty());
+        boolean hasDocValuesField = false;
+        for (IndexableField f : fields) {
+            DocValuesType dvType = f.fieldType().docValuesType();
+            if (dvType != DocValuesType.NONE) {
+                hasDocValuesField = true;
+                assertEquals("multi_value=no must use NUMERIC doc values, not SORTED_NUMERIC", DocValuesType.NUMERIC, dvType);
+            }
+        }
+        assertTrue("expected a doc values field for [field]", hasDocValuesField);
     }
 
     public void testNotIndexed() throws Exception {
@@ -178,7 +262,10 @@ public class DateFieldMapperTests extends MapperTestCase {
             exampleMalformedValue("hello world").mapping(mappingWithFormat("strict_date_optional_time"))
                 .errorMatches("failed to parse date field [hello world]"),
             exampleMalformedValue("true").mapping(mappingWithFormat("strict_date_optional_time"))
-                .errorMatches("failed to parse date field [true]")
+                .errorMatches("failed to parse date field [true]"),
+            exampleMalformedValue(b -> b.startObject().field("string", "hello").endObject()).errorMatches(
+                "Cannot parse object or array as a date value"
+            )
         );
     }
 
@@ -585,6 +672,24 @@ public class DateFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testIgnoreMalformedWithObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "date");
+            b.field("ignore_malformed", true);
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.startObject("field").field("string", "hello").endObject()));
+        assertThat(doc.rootDoc().getFields("field"), empty());
+    }
+
+    public void testObjectValueWithoutIgnoreMalformed() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date")));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject("field").field("string", "hello").endObject()))
+        );
+        assertThat(e.getCause().getMessage(), containsString("Cannot parse object or array as a date value"));
+    }
+
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return syntheticSourceSupportInternal(ignoreMalformed, true);
@@ -633,10 +738,14 @@ public class DateFieldMapperTests extends MapperTestCase {
                     .map(Value::output)
                     .toList();
 
-                Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+                List<Object> malformedOutput = values.stream()
+                    .filter(v -> v.malformedOutput != null)
+                    .map(Value::malformedOutput)
+                    .sorted(SyntheticSourceMalformedValueSorter.comparator())
+                    .toList();
 
-                // Malformed values are always last in the implementation.
-                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
+                // Malformed values are always last in the implementation (sorted by encoded BytesRef).
+                List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput.stream()).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
                 return new SyntheticSourceExample(in, out, this::mapping);
@@ -839,7 +948,7 @@ public class DateFieldMapperTests extends MapperTestCase {
             IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random()));
             iwc.setLeafSorter(DataStream.TIMESERIES_LEAF_READERS_SORTER);
             iwc.setIndexSort(new Sort(new SortField("@timestamp", SortField.Type.LONG, true)));
-            iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat()));
+            iwc.setCodec(TestUtil.alwaysDocValuesFormat(new ES819Version3TSDBDocValuesFormat()));
             try (IndexWriter iw = new IndexWriter(directory, iwc)) {
                 for (long i = from; i < to; i++) {
                     LuceneDocument doc = new LuceneDocument();

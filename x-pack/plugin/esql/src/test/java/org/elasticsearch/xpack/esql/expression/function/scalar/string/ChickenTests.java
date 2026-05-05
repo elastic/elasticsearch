@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -165,8 +165,9 @@ public class ChickenTests extends AbstractScalarFunctionTestCase {
         MapExpression optionsMap = createOptions(style, width);
 
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(new Chicken(Source.EMPTY, field("message", DataType.KEYWORD), optionsMap))
-                .get(driverContext());
+            ExpressionEvaluator eval = evaluator(new Chicken(Source.EMPTY, field("message", DataType.KEYWORD), optionsMap)).get(
+                driverContext()
+            );
             Block block = eval.eval(row(List.of(new BytesRef(message))))
         ) {
             if (block.isNull(0)) {

@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 145376
+summary: Add option to enable accurate leaf arrays for flattened fields
+type: enhancement

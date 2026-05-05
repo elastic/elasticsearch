@@ -32,6 +32,7 @@ import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.datageneration.matchers.Matcher;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -101,7 +102,7 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
             .withDataSourceHandlers(List.of(new DefaultMappingParametersHandler() {
                 @Override
                 protected Object extendedDocValuesParams() {
-                    if (oldClusterHasFeature("mapper.keyword.store_high_cardinality_in_binary_doc_values")) {
+                    if (oldClusterHasFeature(MapperFeatures.DOC_VALUES_MULTI_VALUE)) {
                         return super.extendedDocValuesParams();
                     }
 
@@ -150,15 +151,13 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
             indexAndQueryDocuments(indexConfigs[i]);
         }
 
-        int numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
-        for (int i = 0; i < numNodes; i++) {
-            flush(indexNameBase + "*", true);
-            upgradeNode(i);
+        flush(indexNameBase + "*", true);
+        clusterRollingUpgrade(index -> {
             ensureGreen(indexNameBase + "*");
             for (int j = 0; j < NUM_INDICES; j++) {
                 indexAndQueryDocuments(indexConfigs[j]);
             }
-        }
+        });
     }
 
     public void testIndexingStandardSource() throws IOException {

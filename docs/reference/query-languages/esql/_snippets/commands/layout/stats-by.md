@@ -6,6 +6,10 @@ stack: ga
 The `STATS` processing command groups rows according to a common value
 and calculates one or more aggregated values over the grouped rows.
 
+::::{note}
+For fast approximate results with confidence intervals, see [Approximate `STATS` queries](/reference/query-languages/esql/esql-query-approximation.md).
+::::
+
 ## Syntax
 
 ```esql
@@ -63,7 +67,10 @@ The following [aggregation functions](/reference/query-languages/esql/functions-
 
 When `STATS` is used under the [`TS`](/reference/query-languages/esql/commands/ts.md) source command,
 [time series aggregation functions](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions.md)
-are also supported.
+are also supported, with different semantics when `BY` is omitted or combined with
+[`WITHOUT`](/reference/query-languages/esql/functions-operators/grouping-functions/without.md)
+({applies_to}`stack: ga 9.4`). For more details, check out the
+[`TS`](/reference/query-languages/esql/commands/ts.md) source command.
 
 The following [grouping functions](/reference/query-languages/esql/functions-operators/grouping-functions.md) are supported:
 
@@ -80,7 +87,7 @@ Grouping on a single expression is currently much more optimized than grouping
 on many expressions. In some tests we have seen grouping on a single `keyword`
 column to be five times faster than grouping on two `keyword` columns. Do
 not try to work around this by combining the two columns together with
-something like [`CONCAT`](/reference/query-languages/esql/functions-operators/string-functions.md#esql-concat)
+something like [`CONCAT`](/reference/query-languages/esql/functions-operators/string-functions/concat.md)
 and then grouping - that is not going to be faster.
 ::::
 
@@ -186,7 +193,7 @@ employee, then pass the result to `AVG`:
 :::{include} ../examples/stats.csv-spec/docsStatsAvgNestedExpression.md
 :::
 
-Grouping expressions aren't limited to column references — any expression
+Grouping expressions aren't limited to column references: any expression
 works. For example, group by a derived value using `LEFT`:
 
 :::{include} ../examples/stats.csv-spec/docsStatsByExpression.md

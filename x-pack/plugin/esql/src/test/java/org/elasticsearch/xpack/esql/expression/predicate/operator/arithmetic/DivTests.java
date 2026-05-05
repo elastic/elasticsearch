@@ -21,7 +21,6 @@ import org.hamcrest.Matcher;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -68,13 +67,16 @@ public class DivTests extends AbstractScalarFunctionTestCase {
                     if (lhs.type() != DataType.DOUBLE || rhs.type() != DataType.DOUBLE) {
                         return List.of();
                     }
-                    double v = ((Double) lhs.getValue()) / ((Double) rhs.getValue());
+                    double rhsVal = (Double) rhs.getValue();
+                    double v = ((Double) lhs.getValue()) / rhsVal;
                     if (Double.isFinite(v)) {
                         return List.of();
                     }
                     return List.of(
                         "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                        "Line 1:1: java.lang.ArithmeticException: / by zero"
+                        rhsVal == 0.0
+                            ? "Line 1:1: java.lang.ArithmeticException: / by zero"
+                            : "Line 1:1: java.lang.ArithmeticException: not a finite double number: " + v
                     );
                 },
                 false
@@ -222,20 +224,42 @@ public class DivTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), DivTests::divErrorMessageString);
+        // Overflows
+        suppliers.addAll(
+            List.of(
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(0.1, DataType.DOUBLE, "rhs")
+                        ),
+                        "DivDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: Infinity")
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.DOUBLE, DataType.DOUBLE),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(-Double.MAX_VALUE, DataType.DOUBLE, "lhs"),
+                            new TestCaseSupplier.TypedData(0.1, DataType.DOUBLE, "rhs")
+                        ),
+                        "DivDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                        DataType.DOUBLE,
+                        equalTo(null)
+                    ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: -Infinity")
+                )
+            )
+        );
+
+        suppliers = anyNullIsNull(true, suppliers);
 
         // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(suppliers);
-    }
-
-    private static String divErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
-        try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "numeric or dense_vector");
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is from the combination
-            return "[/] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
-
-        }
     }
 
     @Override

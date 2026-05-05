@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.client;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 
-import org.elasticsearch.xpack.sql.client.JreHttpUrlConnection.ResponseOrException;
 import org.elasticsearch.xpack.sql.proto.AbstractSqlRequest;
 import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
@@ -31,7 +30,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.PrivilegedAction;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
@@ -85,12 +83,12 @@ public class HttpClient {
     }
 
     public SqlQueryResponse basicQuery(String query, int fetchSize, boolean fieldMultiValueLeniency) throws SQLException {
-        return basicQuery(query, fetchSize, fieldMultiValueLeniency, cfg.allowPartialSearchResults(), cfg.projectRouting());
+        return basicQuery(query, fetchSize, fieldMultiValueLeniency, cfg.allowPartialSearchResults());
     }
 
     public SqlQueryResponse basicQuery(String query, int fetchSize, boolean fieldMultiValueLeniency, boolean allowPartialSearchResults)
         throws SQLException {
-        return basicQuery(query, fetchSize, fieldMultiValueLeniency, allowPartialSearchResults, cfg.projectRouting());
+        return basicQuery(query, fetchSize, fieldMultiValueLeniency, allowPartialSearchResults, null);
     }
 
     public SqlQueryResponse basicQuery(
@@ -102,6 +100,10 @@ public class HttpClient {
     ) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         // method called only from CLI
+
+        if (projectRouting == null) {
+            projectRouting = cfg.projectRouting();
+        }
         SqlQueryRequest sqlRequest = new SqlQueryRequest(
             query,
             emptyList(),
@@ -119,6 +121,7 @@ public class HttpClient {
             allowPartialSearchResults,
             projectRouting
         );
+
         return query(sqlRequest).response();
     }
 
@@ -156,17 +159,15 @@ public class HttpClient {
     ) throws SQLException {
         byte[] requestBytes = toContent(request);
         String query = "error_trace";
-        Tuple<Function<String, List<String>>, byte[]> response = java.security.AccessController.doPrivileged(
-            (PrivilegedAction<ResponseOrException<Tuple<Function<String, List<String>>, byte[]>>>) () -> JreHttpUrlConnection.http(
-                path,
-                query,
-                cfg,
-                con -> con.request(
-                    (out) -> out.write(requestBytes),
-                    HttpClient::readFrom,
-                    "POST",
-                    requestBodyContentType.mediaTypeWithoutParameters() // "application/cbor" or "application/json"
-                )
+        Tuple<Function<String, List<String>>, byte[]> response = JreHttpUrlConnection.http(
+            path,
+            query,
+            cfg,
+            con -> con.request(
+                (out) -> out.write(requestBytes),
+                HttpClient::readFrom,
+                "POST",
+                requestBodyContentType.mediaTypeWithoutParameters() // "application/cbor" or "application/json"
             )
         ).getResponseOrThrowException();
         List<String> warnings = response.v1().apply("Warning");
@@ -196,22 +197,18 @@ public class HttpClient {
             cfg.projectRouting()
         );
         try {
-            return java.security.AccessController.doPrivileged(
-                (PrivilegedAction<Boolean>) () -> JreHttpUrlConnection.http(path, "error_trace", pingCfg, JreHttpUrlConnection::head)
-            );
+            return JreHttpUrlConnection.http(path, "error_trace", pingCfg, JreHttpUrlConnection::head);
         } catch (ClientException ex) {
             throw new SQLException("Cannot ping server", ex);
         }
     }
 
     private <Response> Response get(String path, CheckedFunction<JsonParser, Response, IOException> responseParser) throws SQLException {
-        Tuple<Function<String, List<String>>, byte[]> response = java.security.AccessController.doPrivileged(
-            (PrivilegedAction<ResponseOrException<Tuple<Function<String, List<String>>, byte[]>>>) () -> JreHttpUrlConnection.http(
-                path,
-                "error_trace",
-                cfg,
-                con -> con.request(null, HttpClient::readFrom, "GET")
-            )
+        Tuple<Function<String, List<String>>, byte[]> response = JreHttpUrlConnection.http(
+            path,
+            "error_trace",
+            cfg,
+            con -> con.request(null, HttpClient::readFrom, "GET")
         ).getResponseOrThrowException();
         return fromContent(contentType(response.v1()), response.v2(), responseParser);
     }

@@ -37,6 +37,8 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -45,7 +47,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -57,7 +58,6 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
-import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionServiceSettings;
@@ -145,7 +145,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             new CommonConfig(TEXT_EMBEDDING, SPARSE_EMBEDDING, EnumSet.of(TEXT_EMBEDDING, COMPLETION, CHAT_COMPLETION, RERANK)) {
 
                 @Override
-                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                protected NvidiaService createService(ThreadPool threadPool, HttpClientManager clientManager) {
                     return NvidiaServiceTests.createService(threadPool, clientManager);
                 }
 
@@ -200,8 +200,8 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 }
 
                 @Override
-                protected ModelSecrets createModelSecrets() {
-                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap()));
+                protected ModelSecrets createModelSecrets(ConfigurationParseContext context) {
+                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap(), context));
                 }
 
                 @Override
@@ -255,7 +255,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             }
         ).enableUpdateModelTests(new UpdateModelConfiguration() {
             @Override
-            protected NvidiaEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
+            protected NvidiaEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure, TaskType taskType) {
                 return createInternalEmbeddingModel(similarityMeasure);
             }
         }).build();
@@ -317,7 +317,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
         assertThat(nvidiaModel.getTaskType(), is(RERANK));
     }
 
-    public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+    public static NvidiaService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         return new NvidiaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
@@ -327,8 +327,8 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             return buildServiceSettingsMap(
                 MODEL_VALUE,
                 URL_VALUE,
-                SIMILARITY_MEASURE_VALUE.toString(),
                 DIMENSIONS_VALUE,
+                SIMILARITY_MEASURE_VALUE.toString(),
                 MAX_INPUT_TOKENS_VALUE,
                 null
             );
@@ -342,8 +342,8 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 return buildServiceSettingsMap(
                     MODEL_VALUE,
                     URL_VALUE,
-                    SIMILARITY_MEASURE_VALUE.toString(),
                     null,
+                    SIMILARITY_MEASURE_VALUE.toString(),
                     MAX_INPUT_TOKENS_VALUE,
                     null
                 );
@@ -351,8 +351,8 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 return buildServiceSettingsMap(
                     MODEL_VALUE,
                     URL_VALUE,
-                    SIMILARITY_MEASURE_VALUE.toString(),
                     DIMENSIONS_VALUE,
+                    SIMILARITY_MEASURE_VALUE.toString(),
                     MAX_INPUT_TOKENS_VALUE,
                     null
                 );
@@ -540,17 +540,8 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(
-                        new UnifiedCompletionRequest.Message(
-                            new UnifiedCompletionRequest.ContentString(CONTENT_VALUE),
-                            ROLE_VALUE,
-                            null,
-                            null
-                        )
-                    )
-                ),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
+                null,
                 listener
             );
 
@@ -584,17 +575,8 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(
-                        new UnifiedCompletionRequest.Message(
-                            new UnifiedCompletionRequest.ContentString(CONTENT_VALUE),
-                            ROLE_VALUE,
-                            null,
-                            null
-                        )
-                    )
-                ),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
+                null,
                 ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
                     try (var builder = XContentFactory.jsonBuilder()) {
                         var t = unwrapCause(e);
@@ -674,17 +656,8 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(
-                        new UnifiedCompletionRequest.Message(
-                            new UnifiedCompletionRequest.ContentString(CONTENT_VALUE),
-                            ROLE_VALUE,
-                            null,
-                            null
-                        )
-                    )
-                ),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString(CONTENT_VALUE), ROLE_VALUE, null, null))),
+                null,
                 listener
             );
 
@@ -849,7 +822,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 List.of(new ChunkInferenceInput(FIRST_PART_OF_INPUT_VALUE), new ChunkInferenceInput(SECOND_PART_OF_INPUT_VALUE)),
                 new HashMap<>(),
                 null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -907,7 +880,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "service": "nvidia",
-                       "name": "Nvidia",
+                       "name": "NVIDIA",
                        "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
                        "configurations": {
                            "api_key": {
@@ -920,7 +893,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                                "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                            },
                            "model_id": {
-                               "description": "The name of the model to use for the inference task. Refer to the Nvidia models \
+                               "description": "The name of the model to use for the inference task. Refer to the NVIDIA models \
                 documentation for the list of available models.",
                                "label": "Model ID",
                                "required": true,
@@ -979,7 +952,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
                 true,
                 new HashMap<>(),
                 InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1011,7 +984,7 @@ public class NvidiaServiceTests extends AbstractInferenceServiceTests {
     }
 
     private static Map<String, Object> getEmbeddingsServiceSettingsMap() {
-        return buildServiceSettingsMap(INFERENCE_ID_VALUE, URL_VALUE, SIMILARITY_MEASURE_VALUE.toString(), null, null, null);
+        return buildServiceSettingsMap(INFERENCE_ID_VALUE, URL_VALUE, null, SIMILARITY_MEASURE_VALUE.toString(), null, null);
     }
 
     @Override

@@ -1,0 +1,65 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.docker.NativeImageBuildTask
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
+apply plugin: 'elasticsearch.build'
+
+configurations {
+  nativeLinuxX64 {
+    canBeConsumed = true
+    canBeResolved = false
+  }
+  nativeLinuxAarch64 {
+    canBeConsumed = true
+    canBeResolved = false
+  }
+}
+
+dependencies {
+  implementation project(':libs:server-launcher-common')
+  implementation project(':libs:cli-terminal')
+  testImplementation project(':test:framework')
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  // ServerLauncher uses various forbidden APIs such as System.exit() and printing directly to stdout and stderr.
+  enabled = false
+}
+
+// --- GraalVM native-image build (Linux only, Docker-based) ---
+def graalVmMajor = "25" // A relatively recent LTS version
+def nativeImageImage = "ghcr.io/graalvm/native-image-community:${graalVmMajor}-ol8"
+def launcherMainClass = 'org.elasticsearch.server.launcher.ServerLauncher'
+
+def nativeImageLinuxX64 = tasks.register('nativeImageLinuxX64', NativeImageBuildTask) {
+  description = 'Builds Linux x86_64 native server-launcher binary via Docker'
+  group = 'build'
+  classpath = sourceSets.main.runtimeClasspath
+  imageTag = nativeImageImage
+  platform = 'linux/amd64'
+  mainClass = launcherMainClass
+  outputFile = layout.buildDirectory.file('native/linux-x86_64/server-launcher')
+}
+
+def nativeImageLinuxAarch64 = tasks.register('nativeImageLinuxAarch64', NativeImageBuildTask) {
+  description = 'Builds Linux aarch64 native server-launcher binary via Docker'
+  group = 'build'
+  classpath = sourceSets.main.runtimeClasspath
+  imageTag = nativeImageImage
+  platform = 'linux/arm64'
+  mainClass = launcherMainClass
+  outputFile = layout.buildDirectory.file('native/linux-aarch64/server-launcher')
+}
+
+artifacts {
+  nativeLinuxX64(nativeImageLinuxX64)
+  nativeLinuxAarch64(nativeImageLinuxAarch64)
+}

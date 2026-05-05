@@ -248,7 +248,9 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
                     mock(TransformAuditor.class),
                     new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
                     mock(TransformNode.class),
-                    mock(CrossProjectModeDecider.class)
+                    mock(CrossProjectModeDecider.class),
+                    projectId -> false,
+                    DefaultProjectResolver.INSTANCE
                 ),
                 DefaultProjectResolver.INSTANCE
             );

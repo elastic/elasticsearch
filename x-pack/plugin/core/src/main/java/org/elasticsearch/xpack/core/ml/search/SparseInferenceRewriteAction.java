@@ -27,7 +27,7 @@ public class SparseInferenceRewriteAction extends QueryRewriteAsyncAction<TextEx
     private final String inferenceId;
     private final String query;
 
-    SparseInferenceRewriteAction(String inferenceId, String query) {
+    public SparseInferenceRewriteAction(String inferenceId, String query) {
         this.inferenceId = inferenceId;
         this.query = query;
     }

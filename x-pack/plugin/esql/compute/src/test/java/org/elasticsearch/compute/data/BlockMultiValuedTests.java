@@ -82,6 +82,7 @@ public class BlockMultiValuedTests extends ESTestCase {
 
             assertThat(b.block().mayHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
             assertThat(b.block().doesHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
+            assertThat(b.block().valueMaxByteSize(), equalTo(b.valueMaxByteSize()));
             assertInsertNulls(b.block());
         } finally {
             b.block().close();
@@ -296,9 +297,8 @@ public class BlockMultiValuedTests extends ESTestCase {
      */
     protected BlockFactory blockFactory() { // TODO move this to driverContext once everyone supports breaking
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        BlockFactory factory = new MockBlockFactory(breaker, bigArrays);
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        BlockFactory factory = new MockBlockFactory(BlockFactory.builder(bigArrays));
         blockFactories.add(factory);
         return factory;
     }

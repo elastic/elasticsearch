@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -36,11 +37,13 @@ import static org.elasticsearch.core.Strings.format;
 
 class DefaultCheckpointProvider implements CheckpointProvider {
 
-    // threshold when to audit concrete index names, above this threshold we only report the number of changes
+    // threshold when to audit concrete index names, above this threshold we only
+    // report the number of changes
     private static final int AUDIT_CONCRETED_SOURCE_INDEX_CHANGES = 10;
 
     // Huge timeout for getting index checkpoints internally.
-    // It might help to release cluster resources earlier if e.g.: someone configures a transform that ends up checkpointing 100000
+    // It might help to release cluster resources earlier if e.g.: someone
+    // configures a transform that ends up checkpointing 100000
     // searchable snapshot indices that all have to be retrieved from blob storage.
     protected static final TimeValue INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT = TimeValue.timeValueHours(12);
 
@@ -97,10 +100,17 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                     .build()
                 : IndicesOptions.LENIENT_EXPAND_OPEN;
 
+            // Only use the query for shard filtering when there are no runtime mappings,
+            // because SearchShardsRequest does not support runtime_mappings and the query
+            // may reference runtime fields
+            final QueryBuilder queryForShardFiltering = transformConfig.getSource().getRuntimeMappings().isEmpty()
+                ? transformConfig.getSource().getQueryConfig().getQuery()
+                : null;
+
             var getCheckpointRequest = new GetCheckpointAction.Request(
                 transformConfig.getSource().getIndex(),
                 indicesOption,
-                transformConfig.getSource().getQueryConfig().getQuery(),
+                queryForShardFiltering,
                 RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
                 timeout,
                 transformConfig.getSource().getProjectRouting(),
@@ -210,7 +220,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
      * Inspect source changes and report differences
      *
      * @param lastSourceIndexes the set of indexes seen in the previous checkpoint
-     * @param newSourceIndexes the set of indexes seen in the new checkpoint
+     * @param newSourceIndexes  the set of indexes seen in the new checkpoint
      */
     void reportSourceIndexChanges(final Set<String> lastSourceIndexes, final Set<String> newSourceIndexes) {
         // spam protection: only warn the first time

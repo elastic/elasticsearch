@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -80,6 +81,11 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public PagedBytesCursor get(int position, PagedBytesCursor scratch) {
+        return bytes.get(ordinals.getInt(position), scratch);
+    }
+
+    @Override
     public OrdinalBytesRefBlock asBlock() {
         return new OrdinalBytesRefBlock(ordinals.asBlock(), bytes);
     }
@@ -120,6 +126,17 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public BytesRefVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        IntVector slicedOrdinals = ordinals.slice(beginInclusive, endExclusive);
+        bytes.incRef();
+        return new OrdinalBytesRefVector(slicedOrdinals, bytes);
+    }
+
+    @Override
     public OrdinalBytesRefVector deepCopy(BlockFactory blockFactory) {
         IntVector copiedOrdinals = null;
         BytesRefVector copiedBytes = null;
@@ -143,6 +160,11 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     @Override
     public ElementType elementType() {
         return bytes.elementType();
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return bytes.valueMaxByteSize();
     }
 
     @Override

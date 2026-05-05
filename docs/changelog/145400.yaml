@@ -1,0 +1,24 @@
+area: "ILM"
+breaking:
+  area: "ILM"
+  details: The downsampling ILM action will not force merge the downsampled index by default.
+  impact: The downsampled index will not be forced merged by default, if a user was relying on this behaviour they will need to update their ILM policy.
+  notable: true
+  title: Downsampling ILM action will not perform a force merge by default.
+issues:
+ - 140811
+pr: 145400
+summary: >-
+
+  In earlier versions of Elasticsearch the downsampling API was force merging the downsampled index.
+  In Elasticsearch 9.3.0 and later we moved this behaviour from the downsampling API to the ILM downsampling action
+  and we enabled by default. This allowed users to disabled it if they wished.
+
+  Seeing that the force merge is not inherently needed by the downsampling operation, in Elasticsearch 9.4.0, we
+  choose to disable it by default. This change only affects the downsampling ILM actions; other actions that
+  force merge an index by default, such as the searchable snapshot action, will remain unchanged.
+
+  If a user was relying on this behaviour they will need to update their ILM policy, either by adding a force merge action
+  in the same or a subsequent phase of the policy or by setting the `force_merge_index` parameter of the downsample action
+  to `true`.
+type: breaking

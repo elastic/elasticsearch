@@ -1,0 +1,2 @@
+from all_types
+| stats count(*) by x = round_to(integer, 1,2,3,4)

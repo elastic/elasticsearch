@@ -13,15 +13,16 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.SearchShardRouting;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -37,16 +38,20 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.FilterOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.BlockOptimization;
+import org.elasticsearch.compute.operator.lookup.BulkKeywordLookup;
+import org.elasticsearch.compute.operator.lookup.BulkLookupSingleValued;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -102,7 +107,7 @@ import java.util.stream.IntStream;
  * </p>
  * <p>
  * The join process spawns a {@link Driver} per incoming page which runs in
- * two or three stages:
+ * two, three or four stages:
  * </p>
  * <p>
  * Stage 1: Finding matching document IDs for the input page. This stage is done
@@ -115,7 +120,11 @@ import java.util.stream.IntStream;
  * {@code [DocVector, IntBlock: positions, Block: field1, Block: field2,...]}.
  * </p>
  * <p>
- * Stage 3: Optionally this combines the extracted values based on positions and filling
+ * Stage 3: Optionally the BulkLookupMvFilterOperator removes false-positive
+ * multivalue matches when the {@link BulkKeywordLookup} optimization is active.
+ * </p>
+ * <p>
+ * Stage 4: Optionally this combines the extracted values based on positions and filling
  * nulls for positions without matches. This is done by {@link MergePositionsOperator}.
  * The output page is represented as {@code [Block: field1, Block: field2,...]}.
  * </p>
@@ -217,7 +226,15 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     /**
      * Build the response.
      */
-    protected abstract LookupResponse createLookupResponse(List<Page> resultPages, BlockFactory blockFactory) throws IOException;
+    protected abstract LookupResponse createLookupResponse(List<Page> resultPages, BlockFactory blockFactory);
+
+    /**
+     * Helper to create a LookupResponse from pages and send it to the listener.
+     * The response is released after sending via {@link ActionListener#respondAndRelease}.
+     */
+    protected final void respondWithPages(ActionListener<LookupResponse> listener, List<Page> pages) {
+        ActionListener.respondAndRelease(listener, createLookupResponse(pages, blockFactory));
+    }
 
     /**
      * Read the response from a {@link StreamInput}.
@@ -234,33 +251,78 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     }
 
     /**
-     * Perform the actual lookup.
+     * Get the shard iterator for the lookup index. Returns null if validation fails
+     * (after calling listener.onFailure).
      */
-    public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
-        ClusterState clusterState = clusterService.state();
-        var projectState = projectResolver.getProjectState(clusterState);
+    @Nullable
+    private ShardIterator getShardIterator(R request, ActionListener<LookupResponse> listener) {
+        var projectState = projectResolver.getProjectState(clusterService.state());
         List<SearchShardRouting> shardIterators = clusterService.operationRouting()
             .searchShards(projectState, new String[] { request.index }, Map.of(), "_local");
         if (shardIterators.size() != 1) {
-            outListener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
+            listener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
+            return null;
+        }
+        return shardIterators.get(0);
+    }
+
+    /**
+     * Perform the actual lookup, returning the full {@link LookupResponse}.
+     * Callers can access pages via {@link LookupResponse#takePages()} and must call {@link LookupResponse#decRef()} when done.
+     * This method determines the target node internally via shard routing.
+     */
+    public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<LookupResponse> outListener) {
+        ShardIterator shardIt = getShardIterator(request, outListener);
+        if (shardIt == null) {
             return;
         }
-        ShardIterator shardIt = shardIterators.get(0);
         ShardRouting shardRouting = shardIt.nextOrNull();
-        ShardId shardId = shardIt.shardId();
         if (shardRouting == null) {
-            outListener.onFailure(new UnavailableShardsException(shardId, "target index is not available"));
+            outListener.onFailure(new UnavailableShardsException(shardIt.shardId(), "target index is not available"));
             return;
         }
-        DiscoveryNode targetNode = clusterState.nodes().get(shardRouting.currentNodeId());
-        T transportRequest = transportRequest(request, shardId);
+        DiscoveryNode targetNode = clusterService.state().nodes().get(shardRouting.currentNodeId());
         // TODO: handle retry and avoid forking for the local lookup
+        T transportRequest = transportRequest(request, shardIt.shardId());
+        sendChildRequest(parentTask, outListener, targetNode, transportRequest);
+    }
+
+    /**
+     * Perform the actual lookup using an explicit target node.
+     * Use this overload when the caller has already determined which node should handle the request,
+     * to avoid inconsistent node selection when replicas exist.
+     */
+    public final void lookupAsync(
+        R request,
+        DiscoveryNode targetNode,
+        CancellableTask parentTask,
+        ActionListener<LookupResponse> outListener
+    ) {
+        ShardIterator shardIt = getShardIterator(request, outListener);
+        if (shardIt == null) {
+            return;
+        }
+        // Validate that the target node has a copy of the shard
+        boolean nodeHasShard = false;
+        for (ShardRouting routing : shardIt) {
+            if (targetNode.getId().equals(routing.currentNodeId())) {
+                nodeHasShard = true;
+                break;
+            }
+        }
+        if (nodeHasShard == false) {
+            outListener.onFailure(
+                new UnavailableShardsException(shardIt.shardId(), "target node [" + targetNode.getId() + "] does not have this shard")
+            );
+            return;
+        }
+        T transportRequest = transportRequest(request, shardIt.shardId());
         sendChildRequest(parentTask, outListener, targetNode, transportRequest);
     }
 
     protected void sendChildRequest(
         CancellableTask parentTask,
-        ActionListener<List<Page>> delegate,
+        ActionListener<LookupResponse> delegate,
         DiscoveryNode targetNode,
         T transportRequest
     ) {
@@ -270,15 +332,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             transportRequest,
             parentTask,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(
-                delegate.map(LookupResponse::takePages),
-                in -> readLookupResponse(in, blockFactory),
-                executor
-            )
+            new ActionListenerResponseHandler<>(delegate, in -> readLookupResponse(in, blockFactory), executor)
         );
     }
 
-    protected void doLookup(T request, CancellableTask task, ActionListener<List<Page>> listener) {
+    protected void doLookup(T request, CancellableTask task, ActionListener<LookupResponse> listener) {
         PlannerSettings plannerSettings = this.plannerSettings.get();
         for (int j = 0; j < request.inputPage.getBlockCount(); j++) {
             Block inputBlock = request.inputPage.getBlock(j);
@@ -286,7 +344,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 List<Page> nullResponse = mergePages
                     ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
                     : List.of();
-                listener.onResponse(nullResponse);
+                respondWithPages(listener, nullResponse);
                 return;
             }
         }
@@ -350,6 +408,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             releasables.add(finishPages);
             var warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, request.source);
             LookupEnrichQueryGenerator queryList = queryList(request, shardContext.executionContext, aliasFilter, warnings);
+
+            // Stage 1
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
                 EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
@@ -363,6 +423,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             );
             releasables.add(queryOperator);
 
+            // Stage 2
             List<Operator> operators = new ArrayList<>();
             if (request.extractFields.isEmpty() == false) {
                 var extractFieldsOperator = extractFieldsOperator(
@@ -374,6 +435,14 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 releasables.add(extractFieldsOperator);
                 operators.add(extractFieldsOperator);
             }
+
+            // Stage 3
+            Operator bulkLookupMvFilterOperator = bulkLookupMvFilterOperator(queryList, driverContext, warnings);
+            if (bulkLookupMvFilterOperator != null) {
+                operators.add(bulkLookupMvFilterOperator);
+            }
+
+            // Stage 4
             operators.add(finishPages);
 
             /*
@@ -413,7 +482,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                     if (mergePages && out.isEmpty()) {
                         out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
                     }
-                    listener.onResponse(out);
+                    respondWithPages(listener, out);
                 }
 
                 @Override
@@ -451,6 +520,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 extractField.dataType() == DataType.UNSUPPORTED,
                 MappedFieldType.FieldExtractPreference.NONE,
                 null,
+                null,
                 plannerSettings.blockLoaderSizeOrdinals(),
                 plannerSettings.blockLoaderSizeScript()
             );
@@ -459,7 +529,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                     fieldName,
                     PlannerUtils.toElementType(extractField.dataType()),
                     false,
-                    shardIdx -> {
+                    (ctx, shardIdx) -> {
                         if (shardIdx != 0) {
                             throw new IllegalStateException("only one shard");
                         }
@@ -480,14 +550,20 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 )
             ),
             true,
-            0
+            0,
+            PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY),
+            PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
         );
     }
 
-    /**
-     * Extracts field name from a NamedExpression, handling FieldAttribute and Alias cases.
-     * For Alias, recursively extracts the field name from the child expression.
-     */
+    public CircuitBreaker getBreaker() {
+        return blockFactory.breaker();
+    }
+
+    public Executor getExecutor() {
+        return executor;
+    }
+
     public static String extractFieldName(NamedExpression extractField) {
         return extractField instanceof FieldAttribute fa ? fa.fieldName().string()
             : extractField instanceof Alias a ? extractFieldName((NamedExpression) a.child())
@@ -504,6 +580,27 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             projection.add(i);
         }
         return new ProjectOperator(projection);
+    }
+
+    /**
+     * Returns an operator to remove false-positive multivalue matches from
+     * BulkKeywordLookup or null when that optimization is not used.
+     */
+    private static Operator bulkLookupMvFilterOperator(
+        LookupEnrichQueryGenerator queryList,
+        DriverContext driverContext,
+        Warnings warnings
+    ) {
+        final BulkKeywordLookup bulkLookup = queryList.getBulkKeywordLookup();
+        if (bulkLookup != null) {
+
+            // at this point the output page [DocVector, IntBlock: positions, Block: field1, Block: field2,...]
+            // get the channel ignoring the DocVector and IntBlock
+            //
+            final int channelOffset = 2 + bulkLookup.getExtractChannelOffset();
+            return new FilterOperator(new BulkLookupSingleValued(driverContext, channelOffset, warnings));
+        }
+        return null;
     }
 
     protected Page createNullResponse(int positionCount, List<NamedExpression> extractFields) {
@@ -525,13 +622,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         public void messageReceived(T request, TransportChannel channel, Task task) {
             request.incRef();
             ActionListener<LookupResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), request::decRef);
-            doLookup(
-                request,
-                (CancellableTask) task,
-                listener.delegateFailureAndWrap(
-                    (l, resultPages) -> ActionListener.respondAndRelease(l, createLookupResponse(resultPages, blockFactory))
-                )
-            );
+            doLookup(request, (CancellableTask) task, listener);
         }
     }
 
@@ -671,6 +762,15 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
         protected abstract List<Page> takePages();
 
+        /**
+         * Returns the plan string for profile output, or null if not available.
+         * Subclasses can override to provide a plan string when profiling is enabled.
+         */
+        @Nullable
+        public String planString() {
+            return null;
+        }
+
         private void release() {
             blockFactory.breaker().addWithoutBreaking(-reservedBytes);
             innerRelease();
@@ -707,7 +807,15 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
         static LookupShardContextFactory fromSearchService(SearchService searchService) {
             return shardId -> {
-                ShardSearchRequest shardSearchRequest = new ShardSearchRequest(shardId, 0, AliasFilter.EMPTY);
+                // Lookup indices always have one shard and can't be resharded so the value of `SplitShardCountSummary`
+                // doesn't matter.
+                ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+                    shardId,
+                    0,
+                    AliasFilter.EMPTY,
+                    null,
+                    SplitShardCountSummary.IRRELEVANT
+                );
                 return LookupShardContext.fromSearchContext(
                     searchService.createSearchContext(shardSearchRequest, SearchService.NO_TIMEOUT)
                 );

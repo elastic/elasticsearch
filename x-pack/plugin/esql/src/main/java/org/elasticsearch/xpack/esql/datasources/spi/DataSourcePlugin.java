@@ -26,7 +26,8 @@ import java.util.concurrent.ExecutorService;
  *   <li>Format readers (Parquet, CSV, ORC) for parsing data files - keyed by format name</li>
  *   <li>Table catalog connectors (Iceberg, Delta Lake) for table metadata - keyed by catalog type</li>
  *   <li>Custom operator factories for complex datasources - keyed by source type</li>
- *   <li>Filter pushdown support for predicate pushdown optimization - keyed by source type</li>
+ *   <li>Decompression codecs for compound extensions (e.g. .csv.gz) - via {@link #decompressionCodecs(Settings)} or
+ *       {@link #decompressionCodecs(Settings, ExecutorService)}</li>
  * </ul>
  *
  * <p>All methods have default implementations returning empty maps/lists, allowing
@@ -55,17 +56,11 @@ public interface DataSourcePlugin {
     }
 
     /**
-     * Format names this plugin provides (e.g. "csv", "parquet").
-     * Keys must match {@link #formatReaders(Settings)} keys.
+     * Format descriptors this plugin provides. Each {@link FormatSpec} pairs a logical
+     * format name with the file extensions that select it. Format names must match
+     * the keys returned by {@link #formatReaders(Settings)}.
      */
-    default Set<String> supportedFormats() {
-        return Set.of();
-    }
-
-    /**
-     * File extensions this plugin's format readers handle (with leading dot, e.g. ".csv", ".parquet").
-     */
-    default Set<String> supportedExtensions() {
+    default Set<FormatSpec> formatSpecs() {
         return Set.of();
     }
 
@@ -89,6 +84,24 @@ public interface DataSourcePlugin {
         return Map.of();
     }
 
+    /**
+     * Decompression codecs this plugin provides (e.g. gzip for .gz, .gzip).
+     * Used for compound extensions like .csv.gz or .ndjson.gz.
+     */
+    default List<DecompressionCodec> decompressionCodecs(Settings settings) {
+        return List.of();
+    }
+
+    /**
+     * Decompression codecs with access to the datasource module's Elasticsearch-managed
+     * {@link ExecutorService} (typically the {@code generic} thread pool).
+     * Codecs that parallelize work (e.g. scanning compressed block boundaries) should use this executor
+     * instead of creating ad-hoc thread pools.
+     */
+    default List<DecompressionCodec> decompressionCodecs(Settings settings, ExecutorService executor) {
+        return decompressionCodecs(settings);
+    }
+
     // Complete external source factories
     default Map<String, ExternalSourceFactory> sourceFactories(Settings settings) {
         return Map.of();
@@ -96,7 +109,7 @@ public interface DataSourcePlugin {
 
     // FIXME: the methods below are superseded by sourceFactories() and ExternalSourceFactory capabilities.
     // Migrate plugins from connectors()/tableCatalogs() to sourceFactories(),
-    // and from operatorFactories()/filterPushdownSupport() to ExternalSourceFactory methods.
+    // and from operatorFactories() to ExternalSourceFactory methods.
     default Map<String, TableCatalogFactory> tableCatalogs(Settings settings) {
         return Map.of();
     }
@@ -109,11 +122,16 @@ public interface DataSourcePlugin {
         return Map.of();
     }
 
-    default Map<String, FilterPushdownSupport> filterPushdownSupport(Settings settings) {
-        return Map.of();
-    }
-
     default List<NamedWriteableRegistry.Entry> namedWriteables() {
         return List.of();
+    }
+
+    /**
+     * CRUD-time validators for datasource and dataset settings, keyed by type name.
+     * Receives node {@link Settings} so implementations can read cluster admin overrides
+     * (e.g. limits, allowed auth modes, default field values) when constructing validators.
+     */
+    default Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+        return Map.of();
     }
 }

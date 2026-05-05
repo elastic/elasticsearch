@@ -35,6 +35,8 @@ import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
@@ -94,6 +96,7 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -128,6 +131,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -334,8 +338,16 @@ public abstract class ESTestCase extends LuceneTestCase {
             @Override
             public void append(LogEvent event) {
                 if (Level.WARN.equals(event.getLevel())) {
+                    final String message = event.getMessage().getFormattedMessage();
+                    // gRPC's Netty transport can sometimes throw from an internal ChannelFutureListener during stream shutdown,
+                    // which Netty logs as a WARN on DefaultPromise:
+                    // "An exception was thrown by io.grpc.netty.NettyServerHandler$X.operationComplete()"
+                    // This is a known source of test flakiness for Arrow Flight based tests and is not actionable here.
+                    if (message.contains("An exception was thrown by io.grpc.netty.NettyServerHandler")) {
+                        return;
+                    }
                     synchronized (loggedLeaks) {
-                        loggedLeaks.add(event.getMessage().getFormattedMessage());
+                        loggedLeaks.add(message);
                     }
                 }
             }
@@ -459,7 +471,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());
-    private ThreadContext threadContext;
+    protected ThreadContext threadContext;
 
     // -----------------------------------------------------------------
     // Suite and test case setup/cleanup.
@@ -621,9 +633,15 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
     protected static CircuitBreaker newLimitedBreaker(ByteSizeValue max) {
-        CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("<es-test-case>", max);
+        CircuitBreaker breaker = new LimitedBreaker("<es-test-case>", max);
         breakers.add(breaker);
         return breaker;
+    }
+
+    protected static CircuitBreakerService newLimitedBreakerService(ByteSizeValue max) {
+        CircuitBreakerService service = LimitedBreaker.service("<es-test-case>", max);
+        breakers.add(service.getBreaker(CircuitBreaker.REQUEST));
+        return service;
     }
 
     @After
@@ -1188,6 +1206,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static long randomLong() {
         return random().nextLong();
+    }
+
+    /** A random long from 0..max (inclusive). */
+    public static long randomLong(long max) {
+        return RandomNumbers.randomLongBetween(random(), 0L, max);
     }
 
     public static LongStream randomLongs() {
@@ -3186,6 +3209,20 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new BytesRef(newBytesArray, offset, bytesRef.length);
     }
 
+    /**
+     * Randomly wraps a {@link Directory} in zero or more {@link FilterDirectory} layers, simulating how Elasticsearch
+     * wraps directories in production (e.g. {@code Store.StoreDirectory -> ByteSizeCachingDirectory -> MMapDirectory}).
+     * Use this when testing code that receives a {@link Directory} and must tolerate wrapper layers.
+     */
+    public static Directory maybeWrapDirectoryInFilterDirectory(Directory dir) {
+        Directory wrapped = dir;
+        int layers = randomIntBetween(0, 3);
+        for (int i = 0; i < layers; i++) {
+            wrapped = new FilterDirectory(wrapped) {};
+        }
+        return wrapped;
+    }
+
     private static boolean previousFailureSkipsRemaining;
     @Rule
     public final TestWatcher previousFailureSkipsRemainingRule = new TestWatcher() {
@@ -3224,5 +3261,4 @@ public abstract class ESTestCase extends LuceneTestCase {
     protected boolean previousFailureSkipsRemaining() {
         return previousFailureSkipsRemaining;
     }
-
 }

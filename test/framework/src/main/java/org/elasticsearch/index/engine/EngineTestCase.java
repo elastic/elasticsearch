@@ -14,6 +14,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
@@ -54,8 +56,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -63,6 +67,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -77,14 +82,18 @@ import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -255,7 +264,13 @@ public abstract class EngineTestCase extends ESTestCase {
         Lucene.cleanLuceneIndex(store.directory());
         Lucene.cleanLuceneIndex(storeReplica.directory());
         primaryTranslogDir = createTempDir("translog-primary");
-        mapperService = createMapperService(defaultSettings.getSettings(), defaultMapping(), extraMappers());
+        String defaultMapping = defaultMapping();
+        if (randomBoolean()) {
+            var parsedMapping = XContentHelper.convertToMap(XContentFactory.xContent(defaultMapping), defaultMapping, true);
+            parsedMapping.put(RoutingFieldMapper.NAME, Map.of("doc_values", true));
+            defaultMapping = Strings.toString(XContentFactory.jsonBuilder().map(parsedMapping));
+        }
+        mapperService = createMapperService(defaultSettings.getSettings(), defaultMapping, extraMappers());
         translogHandler = createTranslogHandler(mapperService);
         mergeMetrics = MergeMetrics.NOOP;
         engine = createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy());
@@ -461,17 +476,22 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing) {
-        return testParsedDocument(id, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), null, false);
+        return testParsedDocument(id, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), null, false, false);
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing, boolean recoverySource) {
+        return createParsedDoc(id, routing, recoverySource, false);
+    }
+
+    public static ParsedDocument createParsedDoc(String id, String routing, boolean recoverySource, boolean syntheticId) {
         return testParsedDocument(
             id,
             routing,
             testDocumentWithTextField(),
             new BytesArray("{ \"value\" : \"test\" }"),
             null,
-            recoverySource
+            recoverySource,
+            syntheticId
         );
     }
 
@@ -480,9 +500,9 @@ public abstract class EngineTestCase extends ESTestCase {
         String routing,
         LuceneDocument document,
         BytesReference source,
-        Mapping mappingUpdate
+        CompressedXContent mappingUpdate
     ) {
-        return testParsedDocument(id, routing, document, source, mappingUpdate, false);
+        return testParsedDocument(id, routing, document, source, mappingUpdate, false, false);
     }
 
     protected static ParsedDocument testParsedDocument(
@@ -490,10 +510,40 @@ public abstract class EngineTestCase extends ESTestCase {
         String routing,
         LuceneDocument document,
         BytesReference source,
-        Mapping mappingUpdate,
+        CompressedXContent mappingUpdate,
         boolean recoverySource
     ) {
-        Field idField = new StringField("_id", Uid.encodeId(id), Field.Store.YES);
+        return testParsedDocument(id, routing, document, source, mappingUpdate, recoverySource, false);
+    }
+
+    protected static ParsedDocument testParsedDocument(
+        String id,
+        String routing,
+        LuceneDocument document,
+        BytesReference source,
+        CompressedXContent mappingUpdate,
+        boolean recoverySource,
+        boolean syntheticId
+    ) {
+        var uid = Uid.encodeId(id);
+        final Field idField;
+        if (syntheticId) {
+            idField = IdFieldMapper.syntheticIdField(uid);
+            var timeSeriesId = TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(uid);
+            var timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid);
+            int routingHash = TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId(uid);
+
+            document.add(SortedDocValuesField.indexedField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
+            document.add(SortedNumericDocValuesField.indexedField("@timestamp", timestamp));
+            document.add(
+                new SortedDocValuesField(
+                    TimeSeriesRoutingHashFieldMapper.NAME,
+                    Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(routingHash))
+                )
+            );
+        } else {
+            idField = new StringField("_id", Uid.encodeId(id), Field.Store.YES);
+        }
         Field versionField = new NumericDocValuesField("_version", 0);
         var seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(seqNoIndexOptions);
         document.add(idField);

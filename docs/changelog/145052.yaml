@@ -1,0 +1,6 @@
+pr: 145052
+summary: "ESQL: enable `unmapped_fields=\"load\"` in tech preview"
+area: ES|QL
+type: enhancement
+issues:
+  - 142369

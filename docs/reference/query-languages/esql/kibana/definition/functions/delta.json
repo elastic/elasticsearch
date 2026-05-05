@@ -62,6 +62,6 @@
   "examples" : [
     "TS k8s\n| WHERE pod == \"one\"\n| STATS tx = SUM(DELTA(network.bytes_in)) BY cluster, time_bucket = TBUCKET(10minute)"
   ],
-  "preview" : true,
+  "preview" : false,
   "snapshot_only" : false
 }

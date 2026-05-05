@@ -13,6 +13,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
 // end generated imports
 
 /**
@@ -36,8 +38,18 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, long[] dst, int dstPosition, int length) {
+        Arrays.fill(dst, dstPosition, dstPosition + length, value);
+    }
+
+    @Override
     public LongBlock asBlock() {
         return new LongVectorBlock(this);
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return Long.BYTES;
     }
 
     @Override
@@ -91,6 +103,15 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
             return ReleasableIterator.single(positions.blockFactory().newConstantLongBlockWith(value, positions.getPositionCount()));
         }
         return new LongLookup(asBlock(), positions, targetBlockSize);
+    }
+
+    @Override
+    public LongVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantLongVector(value, endExclusive - beginInclusive);
     }
 
     @Override

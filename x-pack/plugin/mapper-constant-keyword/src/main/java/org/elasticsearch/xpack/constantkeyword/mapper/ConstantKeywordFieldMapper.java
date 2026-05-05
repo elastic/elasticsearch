@@ -33,14 +33,16 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
@@ -331,6 +333,16 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    public boolean supportsBatchIndexing() {
+        // Constant keyword can be driven through parseCreateField by the bulk batch path only
+        // once the value is pinned. While the value is unset, parseCreateField triggers a
+        // dynamic mapping update, which the v1 batch path does not support. copy_to and
+        // multi-fields pull in behavior that the v1 batch path does not support either; scripts
+        // are not configurable on this mapper.
+        return fieldType().value() != null && copyTo().copyToFields().isEmpty() && multiFields().iterator().hasNext() == false;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         XContentParser parser = context.parser();
         final String value = parser.textOrNull();
@@ -341,9 +353,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         if (fieldType().value == null) {
             Builder builder = new Builder(leafName()).setValue(value);
-            boolean dynamicMapperAdded = context.addDynamicMapper(builder, fullPath());
+            Mapper result = context.getDynamicMapper(builder);
             // the mapper is already part of the mapping, we're just updating it with the new value
-            assert dynamicMapperAdded;
+            assert result != null;
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException(
                 "[constant_keyword] field ["
@@ -376,11 +388,12 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);
         }
 
-        return new SyntheticSourceSupport.Native(() -> new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), false) {
-            @Override
-            protected void writeValue(XContentBuilder b, long ignored) throws IOException {
-                b.value(const_value);
-            }
-        });
+        return new SyntheticSourceSupport.Native(
+            () -> new CompositeSyntheticFieldLoader(
+                leafName(),
+                fullPath(),
+                new SortedNumericDocValuesSyntheticFieldLoaderLayer(fullPath(), (b, ignored) -> b.value(const_value))
+            )
+        );
     }
 }

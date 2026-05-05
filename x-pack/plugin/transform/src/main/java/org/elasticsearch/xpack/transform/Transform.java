@@ -21,16 +21,13 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
@@ -41,10 +38,8 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -52,6 +47,7 @@ import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.action.SetUpgradeModeActionRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.crossproject.LinkedProjectsProvider;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -75,6 +71,8 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpgradeTransformsAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointNodeAction;
@@ -122,6 +120,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -148,17 +147,23 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     public static final TimeValue DEFAULT_TRANSFORM_FREQUENCY = TimeValue.timeValueSeconds(60);
 
     /**
-     * Hard-coded timeout used for {@link org.elasticsearch.action.support.master.MasterNodeRequest#masterNodeTimeout()} for requests to
-     * the master node from transforms code. Wherever possible, prefer to use a user-controlled timeout instead of this.
+     * Hard-coded timeout used for
+     * {@link org.elasticsearch.action.support.master.MasterNodeRequest#masterNodeTimeout()}
+     * for requests to
+     * the master node from transforms code. Wherever possible, prefer to use a
+     * user-controlled timeout instead of this.
      *
-     * @see <a href="https://github.com/elastic/elasticsearch/issues/107984">#107984</a>
+     * @see <a href=
+     *      "https://github.com/elastic/elasticsearch/issues/107984">#107984</a>
      */
     public static final TimeValue HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT = TimeValue.THIRTY_SECONDS;
 
     public static final int DEFAULT_FAILURE_RETRIES = 10;
     // How many times the transform task can retry on a non-critical failure.
-    // This cluster-level setting is deprecated, the users should be using transform-level setting instead.
-    // In order to ensure BWC, this cluster-level setting serves as a fallback in case the transform-level setting is not specified.
+    // This cluster-level setting is deprecated, the users should be using
+    // transform-level setting instead.
+    // In order to ensure BWC, this cluster-level setting serves as a fallback in
+    // case the transform-level setting is not specified.
     public static final Setting<Integer> NUM_FAILURE_RETRIES_SETTING = Setting.intSetting(
         "xpack.transform.num_transform_failure_retries",
         DEFAULT_FAILURE_RETRIES,
@@ -189,12 +194,14 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public void prepareForIndicesMigration(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
         if (TransformMetadata.upgradeMode(project)) {
-            // Transform is already in upgrade mode, so nothing will write to the Transform system indices during their upgrade
+            // Transform is already in upgrade mode, so nothing will write to the Transform
+            // system indices during their upgrade
             listener.onResponse(Map.of("already_in_upgrade_mode", true));
             return;
         }
 
-        // Enable Transform upgrade mode before upgrading the system indices to ensure nothing writes to them during the upgrade
+        // Enable Transform upgrade mode before upgrading the system indices to ensure
+        // nothing writes to them during the upgrade
         var originClient = new OriginSettingClient(client, TRANSFORM_ORIGIN);
         originClient.execute(
             SetTransformUpgradeModeAction.INSTANCE,
@@ -207,7 +214,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     public void indicesMigrationComplete(Map<String, Object> preUpgradeMetadata, Client client, ActionListener<Boolean> listener) {
         var wasAlreadyInUpgradeMode = (boolean) preUpgradeMetadata.getOrDefault("already_in_upgrade_mode", false);
         if (wasAlreadyInUpgradeMode) {
-            // Transform was already in upgrade mode before system indices upgrade started - we shouldn't disable it
+            // Transform was already in upgrade mode before system indices upgrade started -
+            // we shouldn't disable it
             listener.onResponse(true);
             return;
         }
@@ -222,26 +230,22 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public List<RestHandler> getRestHandlers(
-        final Settings unused,
-        NamedWriteableRegistry namedWriteableRegistry,
-        final RestController restController,
-        final ClusterSettings clusterSettings,
-        final IndexScopedSettings indexScopedSettings,
-        final SettingsFilter settingsFilter,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         final Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-
+        var transformParsingContext = new TransformParsingContext(
+            restHandlersServices.crossProjectModeDecider().crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+        );
         return Arrays.asList(
-            new RestPutTransformAction(),
+            new RestPutTransformAction(transformParsingContext),
             new RestStartTransformAction(),
             new RestStopTransformAction(),
             new RestDeleteTransformAction(),
             new RestGetTransformAction(),
             new RestGetTransformStatsAction(),
-            new RestPreviewTransformAction(),
-            new RestUpdateTransformAction(),
+            new RestPreviewTransformAction(transformParsingContext),
+            new RestUpdateTransformAction(transformParsingContext),
             new RestCatTransformAction(),
             new RestUpgradeTransformsAction(),
             new RestResetTransformAction(),
@@ -286,11 +290,17 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Client client = services.client();
         ClusterService clusterService = services.clusterService();
 
+        var crossProjectModeDecider = services.crossProjectModeDecider();
+        var transformParsingContext = new TransformParsingContext(
+            crossProjectModeDecider.crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+        );
+
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(
             clusterService,
             services.indexNameExpressionResolver(),
             client,
-            services.xContentRegistry()
+            services.xContentRegistry(),
+            transformParsingContext
         );
         TransformAuditor auditor = new TransformAuditor(
             client,
@@ -301,7 +311,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         );
         this.transformAuditor.set(auditor);
         Clock clock = Clock.systemUTC();
-        var crossProjectModeDecider = new CrossProjectModeDecider(settings);
         TransformCheckpointService checkpointService = new TransformCheckpointService(
             clock,
             configManager,
@@ -317,9 +326,28 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         scheduler.start();
         var clusterStateListener = new TransformClusterStateListener(clusterService, client);
         var transformNode = new TransformNode(clusterStateListener);
+        Function<ProjectId, Boolean> hasLinkedProjects;
+        if (crossProjectModeDecider.crossProjectEnabled()) {
+            var linkedProjectsProvider = LinkedProjectsProvider.Factory.create(
+                services.projectResolver(),
+                services.linkedProjectConfigService()
+            );
+            hasLinkedProjects = projectId -> linkedProjectsProvider.getLinkedProjects(projectId).isEmpty() == false;
+        } else {
+            hasLinkedProjects = projectId -> false;
+        }
 
         transformServices.set(
-            new TransformServices(configManager, checkpointService, auditor, scheduler, transformNode, crossProjectModeDecider)
+            new TransformServices(
+                configManager,
+                checkpointService,
+                auditor,
+                scheduler,
+                transformNode,
+                crossProjectModeDecider,
+                hasLinkedProjects,
+                services.projectResolver()
+            )
         );
 
         var transformMeterRegistry = TransformMeterRegistry.create(services.telemetryProvider().getMeterRegistry());
@@ -407,8 +435,10 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return templates -> {
-            // These are all legacy templates that were created in old versions. None are needed now.
-            // The "internal" indices became system indices and the "notifications" indices now use composable templates.
+            // These are all legacy templates that were created in old versions. None are
+            // needed now.
+            // The "internal" indices became system indices and the "notifications" indices
+            // now use composable templates.
             templates.remove(".data-frame-internal-1");
             templates.remove(".data-frame-internal-2");
             templates.remove(".transform-internal-003");
@@ -544,7 +574,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
                 true,
                 // Set force=false in order to let transforms finish gracefully.
                 false,
-                // Do not give it too much time. If there is a problem, there will be another try with force=true.
+                // Do not give it too much time. If there is a problem, there will be another
+                // try with force=true.
                 TimeValue.timeValueSeconds(10),
                 true,
                 false

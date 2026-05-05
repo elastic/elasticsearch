@@ -266,6 +266,8 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                         buildTookInMillis(),
                         buildShardFailures(),
                         SearchResponse.Clusters.EMPTY,
+                        null,
+                        null,
                         null
                     )
                 );
@@ -343,6 +345,6 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                 topDocs.add(td.topDocs);
             }
         }
-        return SearchPhaseController.reducedQueryPhase(queryResults, null, topDocs, topDocsStats, 0, true, null);
+        return SearchPhaseController.reducedQueryPhase(queryResults, null, topDocs, topDocsStats, 0, true, null, null);
     }
 }

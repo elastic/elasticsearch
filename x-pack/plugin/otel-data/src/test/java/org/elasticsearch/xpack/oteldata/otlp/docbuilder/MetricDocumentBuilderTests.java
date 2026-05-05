@@ -22,7 +22,10 @@ import io.opentelemetry.proto.resource.v1.Resource;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -65,6 +68,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
     private final DataPointGroupingContext dataPointGroupingContext = new DataPointGroupingContext(new BufferedByteStringAccessor());
     private final long timestamp = randomLong();
     private final long startTimestamp = randomLong();
+    private final IndexVersion indexVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.TSID_SINGLE_PREFIX_BYTE_FEATURE_FLAG);
 
     public void testBuildMetricDocument() throws IOException {
         List<KeyValue> resourceAttributes = new ArrayList<>();
@@ -114,7 +118,13 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
             Map<String, Map<String, String>> dynamicTemplateParams = new HashMap<>();
-            BytesRef tsid = documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, dynamicTemplateParams);
+            BytesRef tsid = documentBuilder.buildMetricDocument(
+                builder,
+                dataPointGroup,
+                dynamicTemplates,
+                dynamicTemplateParams,
+                indexVersion
+            );
             ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
             assertThat(doc.<Number>evaluate("@timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(timestamp)));
@@ -149,7 +159,7 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             expectedTsidBuilder.addStringDimension("attributes.operation", "test");
             expectedTsidBuilder.addStringDimension("attributes.environment", "production");
             expectedTsidBuilder.addStringDimension("unit", "{test}");
-            assertThat(tsid, equalTo(expectedTsidBuilder.buildTsid()));
+            assertThat(tsid, equalTo(expectedTsidBuilder.buildTsid(indexVersion)));
 
             assertThat(dynamicTemplateParams, hasEntry("metrics.system.cpu.usage", Map.of("unit", "{test}")));
             assertThat(dynamicTemplateParams, hasEntry("metrics.system.network.packets", Map.of("unit", "{test}")));
@@ -168,10 +178,10 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(createGaugeMetric("test.metric", "", List.of(createDoubleDataPoint(timestamp, startTimestamp, List.of()))))
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            documentBuilder.buildMetricDocument(builder, dataPointGroup, new HashMap<>(), new HashMap<>());
+            documentBuilder.buildMetricDocument(builder, dataPointGroup, new HashMap<>(), new HashMap<>(), indexVersion);
 
             ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
@@ -194,11 +204,11 @@ public class MetricDocumentBuilderTests extends ESTestCase {
 
         ExportMetricsServiceRequest metricsRequest = ExportMetricsServiceRequest.newBuilder().addResourceMetrics(resourceMetrics).build();
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
-            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>());
+            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>(), indexVersion);
 
             ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
@@ -226,11 +236,11 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(createExponentialHistogramMetric("exponential_histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
-            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>());
+            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>(), indexVersion);
 
             ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
@@ -253,11 +263,11 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(createExponentialHistogramMetric("histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
-            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>());
+            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>(), indexVersion);
 
             ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
@@ -290,11 +300,11 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(createExponentialHistogramMetric("exponential_histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
-            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>());
+            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>(), indexVersion);
 
             ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
@@ -324,11 +334,11 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(createHistogramMetric("histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
-            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>());
+            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>(), indexVersion);
 
             ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
@@ -351,11 +361,11 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(createHistogramMetric("histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
-            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>());
+            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>(), indexVersion);
 
             ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
@@ -385,11 +395,11 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(createHistogramMetric("exponential_histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
-            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>());
+            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>(), indexVersion);
 
             ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
@@ -419,11 +429,11 @@ public class MetricDocumentBuilderTests extends ESTestCase {
             List.of(createSummaryMetric("summary", "", List.of(dataPoint)))
         );
         dataPointGroupingContext.groupDataPoints(metricsRequest);
-        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        assertThat(dataPointGroupingContext.totalItems(), equalTo(1));
         dataPointGroupingContext.consume(dataPointGroup -> {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             HashMap<String, String> dynamicTemplates = new HashMap<>();
-            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>());
+            documentBuilder.buildMetricDocument(builder, dataPointGroup, dynamicTemplates, new HashMap<>(), IndexVersion.current());
 
             ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 

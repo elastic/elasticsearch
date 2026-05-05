@@ -70,6 +70,11 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Long.BYTES * 2;
+    }
+
+    @Override
     public BlockFactory blockFactory() {
         return fromBlock.blockFactory();
     }
@@ -103,6 +108,27 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
     @Override
     public boolean doesHaveMultivaluedFields() {
         return fromBlock.doesHaveMultivaluedFields() || toBlock.doesHaveMultivaluedFields();
+    }
+
+    @Override
+    public LongRangeBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        LongRangeBlock result = null;
+        LongBlock newFromBlock = null;
+        LongBlock newToBlock = null;
+        try {
+            newFromBlock = fromBlock.slice(beginInclusive, endExclusive);
+            newToBlock = toBlock.slice(beginInclusive, endExclusive);
+            result = new LongRangeArrayBlock(newFromBlock, newToBlock);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.closeExpectNoException(newFromBlock, newToBlock);
+            }
+        }
     }
 
     @Override

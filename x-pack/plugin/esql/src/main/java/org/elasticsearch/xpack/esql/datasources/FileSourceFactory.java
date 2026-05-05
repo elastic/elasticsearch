@@ -8,16 +8,27 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Framework-internal factory that bridges the building-block registries
@@ -32,18 +43,34 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     private final StorageProviderRegistry storageRegistry;
     private final FormatReaderRegistry formatRegistry;
+    private final DecompressionCodecRegistry codecRegistry;
     private final Settings settings;
+    @Nullable
+    private final ExecutorService splitDiscoveryExecutor;
 
-    FileSourceFactory(StorageProviderRegistry storageRegistry, FormatReaderRegistry formatRegistry, Settings settings) {
-        if (storageRegistry == null) {
-            throw new IllegalArgumentException("storageRegistry cannot be null");
-        }
-        if (formatRegistry == null) {
-            throw new IllegalArgumentException("formatRegistry cannot be null");
-        }
+    FileSourceFactory(
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        DecompressionCodecRegistry codecRegistry,
+        Settings settings
+    ) {
+        this(storageRegistry, formatRegistry, codecRegistry, settings, null);
+    }
+
+    FileSourceFactory(
+        StorageProviderRegistry storageRegistry,
+        FormatReaderRegistry formatRegistry,
+        DecompressionCodecRegistry codecRegistry,
+        Settings settings,
+        @Nullable ExecutorService splitDiscoveryExecutor
+    ) {
+        Check.notNull(storageRegistry, "storageRegistry cannot be null");
+        Check.notNull(formatRegistry, "formatRegistry cannot be null");
         this.storageRegistry = storageRegistry;
         this.formatRegistry = formatRegistry;
+        this.codecRegistry = codecRegistry != null ? codecRegistry : new DecompressionCodecRegistry();
         this.settings = settings != null ? settings : Settings.EMPTY;
+        this.splitDiscoveryExecutor = splitDiscoveryExecutor;
     }
 
     @Override
@@ -71,7 +98,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 return false;
             }
             String ext = objectName.substring(objectName.lastIndexOf('.'));
-            return formatRegistry.hasExtension(ext);
+            if (formatRegistry.hasExtension(ext)) {
+                return true;
+            }
+            if (codecRegistry.hasCompressionExtension(ext) && formatRegistry.hasCompressedExtension(objectName)) {
+                return true;
+            }
+            return false;
         } catch (IllegalArgumentException e) {
             return false;
         }
@@ -91,11 +124,26 @@ final class FileSourceFactory implements ExternalSourceFactory {
             }
 
             StorageObject storageObject = provider.newObject(storagePath);
-            FormatReader reader = formatRegistry.byExtension(storagePath.objectName());
+            if (storageObject.exists() == false) {
+                throw new IOException("File does not exist: " + location);
+            }
+            FormatReader reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
             return reader.metadata(storageObject);
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);
         }
+    }
+
+    @Override
+    public SplitProvider splitProvider() {
+        return new FileSplitProvider(
+            FileSplitProvider.DEFAULT_TARGET_SPLIT_SIZE,
+            codecRegistry,
+            storageRegistry,
+            formatRegistry,
+            settings,
+            splitDiscoveryExecutor
+        );
     }
 
     @Override
@@ -111,18 +159,71 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 storage = storageRegistry.provider(path);
             }
 
-            FormatReader format = formatRegistry.byExtension(path.objectName());
+            FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config)
+                .withPushedFilter(context.pushedFilter())
+                .withSchema(context.attributes());
+            ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
 
-            return new AsyncExternalSourceOperatorFactory(
+            Map<String, Object> partitionValues = Map.of();
+            if (context.split() instanceof FileSplit fileSplit) {
+                partitionValues = fileSplit.partitionValues();
+            }
+
+            List<Expression> pushedExpressions = context.pushedExpressions();
+            FilterPushdownSupport pushdownSupport = (pushedExpressions != null && pushedExpressions.isEmpty() == false)
+                ? format.filterPushdownSupport()
+                : null;
+
+            Closeable onClose = null;
+            ConcurrencyBudgetAllocator allocator = storageRegistry.allocatorForScheme(path.scheme().toLowerCase(Locale.ROOT));
+            if (allocator != null) {
+                QueryBudgetedStorageProvider budgeted = new QueryBudgetedStorageProvider(storage, allocator.register());
+                storage = budgeted;
+                onClose = budgeted;
+            }
+
+            Executor readExecutor = context.fileReadExecutor() != null ? context.fileReadExecutor() : context.executor();
+            return AsyncExternalSourceOperatorFactory.builder(
                 storage,
                 format,
                 path,
                 context.attributes(),
                 context.batchSize(),
                 context.maxBufferSize(),
-                context.executor(),
-                context.fileSet()
-            );
+                readExecutor
+            )
+                .rowLimit(context.rowLimit())
+                .fileList(context.fileList())
+                .partitionColumnNames(context.partitionColumnNames())
+                .partitionValues(partitionValues)
+                .sliceQueue(context.sliceQueue())
+                .errorPolicy(errorPolicy)
+                .parsingParallelism(context.parsingParallelism())
+                .pushedExpressions(pushedExpressions)
+                .pushdownSupport(pushdownSupport)
+                .onClose(onClose)
+                .build();
         };
+    }
+
+    static final String CONFIG_FORMAT = "format";
+
+    /** Delegates to {@link ErrorPolicy#fromConfig(Map, ErrorPolicy)} with the format's default
+     *  policy as the fallback. Kept here so existing call sites and tests do not have to change. */
+    static ErrorPolicy resolveErrorPolicy(Map<String, Object> config, FormatReader format) {
+        return ErrorPolicy.fromConfig(config, format.defaultErrorPolicy());
+    }
+
+    private FormatReader resolveFormatReader(String objectName, Map<String, Object> config) {
+        if (config != null) {
+            Object formatOverride = config.get(CONFIG_FORMAT);
+            if (formatOverride != null) {
+                String formatName = formatOverride.toString();
+                if (formatName.isEmpty() == false) {
+                    return formatRegistry.byName(formatName);
+                }
+            }
+        }
+        return formatRegistry.byExtension(objectName);
     }
 }

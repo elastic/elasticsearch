@@ -184,6 +184,11 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
     }
 
     @Override
+    public boolean isEmpty() {
+        return negativeBuckets.numBuckets == 0 && positiveBuckets.numBuckets == 0 && zeroBucket.count() == 0;
+    }
+
+    @Override
     public int scale() {
         return bucketScale;
     }
@@ -288,7 +293,15 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
         @Override
         public CopyableBucketIterator iterator() {
             int start = startSlot();
-            return new BucketArrayIterator(bucketScale, bucketCounts, bucketIndices, start, start + numBuckets);
+            int limit = start + numBuckets;
+            return BucketArrayIterator.create(bucketScale, bucketCounts, bucketIndices, start, limit);
+        }
+
+        @Override
+        public CopyableBucketIterator reverseIterator() {
+            int start = startSlot();
+            int limit = start + numBuckets;
+            return BucketArrayIterator.createReversed(bucketScale, bucketCounts, bucketIndices, start, limit);
         }
 
         @Override

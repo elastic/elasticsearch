@@ -14,11 +14,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.datageneration.Mapping;
-import org.elasticsearch.datageneration.datasource.ASCIIStringsHandler;
 import org.elasticsearch.datageneration.matchers.source.FlattenedFieldMatcher;
-import org.elasticsearch.index.mapper.BlockLoaderTestCase;
+import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestRunner;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -26,13 +26,15 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-public class FlattenedFieldRootBlockLoaderTests extends BlockLoaderTestCase {
+public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
 
     public FlattenedFieldRootBlockLoaderTests(Params params) {
-        super("flattened", List.of(new ASCIIStringsHandler()), params);
+        super("flattened", params);
     }
 
     @Override
@@ -96,7 +98,59 @@ public class FlattenedFieldRootBlockLoaderTests extends BlockLoaderTestCase {
 
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
+        var nullValue = (String) fieldMapping.get("null_value");
+        if (nullValue == null) {
+            return value;
+        }
+
+        var ignoreAbove = fieldMapping.get("ignore_above");
+
+        boolean hasDocValues = hasDocValues(fieldMapping, true);
+        boolean usesDocValues = hasDocValues && (ignoreAbove == null || params.syntheticSource());
+        if (usesDocValues) {
+            return applyFlattenedNullValue(value, nullValue);
+        }
+
         return value;
+    }
+
+    /**
+     * Mirrors flattened source normalization by materializing mapped {@code null_value}
+     * for null leaves in the expected source tree before comparison.
+     */
+    private static Object applyFlattenedNullValue(Object value, String nullValue) {
+        return switch (value) {
+            case null -> nullValue;
+            case Map<?, ?> map -> map.entrySet()
+                .stream()
+                .collect(
+                    Collectors.toMap(
+                        e -> (String) e.getKey(),
+                        e -> applyFlattenedNullValue(e.getValue(), nullValue),
+                        (a, b) -> b,
+                        LinkedHashMap::new
+                    )
+                );
+            case List<?> list -> list.stream().map(v -> applyFlattenedNullValue(v, nullValue)).toList();
+            default -> value;
+        };
+    }
+
+    public void testBlockLoaderOutputFlatStructure() throws IOException {
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+        runner.document(Map.of("field", Map.of("a", Map.of("x", "10"), "b", Map.of("y", "20"))));
+        runner.fieldName("field");
+
+        Mapping mapping = new Mapping(
+            Map.of("_doc", Map.of("properties", Map.of("field", Map.of("type", "flattened")))),
+            Map.of("field", Map.of("type", "flattened"))
+        );
+
+        String expected = "{\"a.x\":\"10\",\"b.y\":\"20\"}";
+
+        var settings = getSettingsForParams();
+        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.run(new BytesRef(expected));
     }
 
     @Override

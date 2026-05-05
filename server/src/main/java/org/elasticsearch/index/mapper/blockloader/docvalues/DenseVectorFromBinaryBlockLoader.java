@@ -45,10 +45,10 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         TrackingBinaryDocValues dv = TrackingBinaryDocValues.get(breaker, context, fieldName);
         if (dv == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         return switch (elementType) {
             case FLOAT -> new FloatDenseVectorFromBinary(dv, dims, indexVersion);
@@ -75,11 +75,6 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
         @Override
         public int docId() {
             return docValues.docValues().docID();
-        }
-
-        @Override
-        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (BlockLoader.FloatBuilder) builder);
         }
 
         @Override

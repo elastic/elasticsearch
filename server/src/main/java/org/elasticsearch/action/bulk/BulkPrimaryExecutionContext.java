@@ -210,7 +210,7 @@ class BulkPrimaryExecutionContext {
             // as no state has changed in the meantime (the mapping version is still the same),
             // we can't expect another retry would yield a different result
             // a possible cause:
-            // maybe we added more dynamic mappers in DocumentParserContext.addDynamicMapper than possible according to the field limit
+            // maybe we added more dynamic mappers in DocumentParserContext.getDynamicMapper than possible according to the field limit
             // the additional fields are then ignored by the mapping merge and the process repeats
             String message = "On retry, this indexing request resulted in another noop mapping update. "
                 + "Failing the indexing operation to prevent an infinite retry loop.";
@@ -309,6 +309,10 @@ class BulkPrimaryExecutionContext {
                     docWriteRequest.opType(),
                     new BulkItemResponse.Failure(index, result.getId(), result.getFailure(), result.getSeqNo(), result.getTerm())
                 );
+                // A FAILURE result can still carry a translog location when InternalEngine converts it into a no-op.
+                if (result.getTranslogLocation() != null) {
+                    locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
+                }
             }
             default -> throw new AssertionError("unknown result type for " + getCurrentItem() + ": " + result.getResultType());
         }
@@ -321,6 +325,12 @@ class BulkPrimaryExecutionContext {
         assert executionResult != null && translatedResponse.getItemId() == executionResult.getItemId();
         assert translatedResponse.getItemId() == getCurrentItem().id();
 
+        // If the primary is not searchable we know that we are in serverless and that we do not need to hold the request into memory
+        // anymore.
+        if (primary.routingEntry().isSearchable() == false) {
+            requestToExecute = null;
+        }
+
         if (translatedResponse.isFailed() == false && requestToExecute != null && requestToExecute != getCurrent()) {
             request.items()[currentIndex] = new BulkItemRequest(request.items()[currentIndex].id(), requestToExecute);
         }
@@ -332,10 +342,12 @@ class BulkPrimaryExecutionContext {
     /** builds the bulk shard response to return to the user */
     public BulkShardResponse buildShardResponse() {
         assert hasMoreOperationsToExecute() == false;
-        return new BulkShardResponse(
-            request.shardId(),
-            Arrays.stream(request.items()).map(BulkItemRequest::getPrimaryResponse).toArray(BulkItemResponse[]::new)
-        );
+        final BulkItemRequest[] requests = request.items();
+        final BulkItemResponse[] responses = new BulkItemResponse[requests.length];
+        for (int i = 0; i < responses.length; i++) {
+            responses[i] = requests[i].getPrimaryResponse();
+        }
+        return new BulkShardResponse(request.shardId(), responses);
     }
 
     private boolean assertInvariants(ItemProcessingState... expectedCurrentState) {
@@ -361,7 +373,7 @@ class BulkPrimaryExecutionContext {
                 assert executionResult != null;
                 break;
             case COMPLETED:
-                assert requestToExecute != null;
+                // requestToExecute can be null if the primary is not searchable (serverless)
                 assert executionResult != null;
                 assert getCurrentItem().getPrimaryResponse() != null;
                 break;

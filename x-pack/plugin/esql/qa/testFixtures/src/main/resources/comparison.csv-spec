@@ -73,7 +73,7 @@ emp_no:integer
 10005
 ;
 
-intToLong
+intToLongWithLiteral
 from employees
 | where 2.0 > languages
 | keep emp_no

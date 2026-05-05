@@ -9,20 +9,21 @@
 
 package org.elasticsearch.action.search;
 
-import joptsimple.internal.Strings;
-
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
+import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContent;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.function.Predicate;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-public class SearchLogContext extends ActivityLoggerContext {
-    private static final String TYPE = "search";
+public class SearchLogContext extends QueryLoggerContext {
+    public static final String TYPE = "dsl";
     private final SearchRequest request;
     private final @Nullable SearchResponse response;
     private final NamedWriteableRegistry namedWriteableRegistry;
@@ -47,15 +48,22 @@ public class SearchLogContext extends ActivityLoggerContext {
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
-    public SearchLogContext(Task task, NamedWriteableRegistry namedWriteableRegistry, SearchRequest request, SearchResponse response) {
-        this(task, namedWriteableRegistry, request, response, response.getTook().nanos(), null);
+    SearchLogContext(
+        Task task,
+        NamedWriteableRegistry namedWriteableRegistry,
+        SearchRequest request,
+        long tookInNanos,
+        SearchResponse response
+    ) {
+        this(task, namedWriteableRegistry, request, response, tookInNanos, null);
     }
 
     SearchLogContext(Task task, NamedWriteableRegistry namedWriteableRegistry, SearchRequest request, long tookInNanos, Exception error) {
         this(task, namedWriteableRegistry, request, null, tookInNanos, error);
     }
 
-    String getQuery() {
+    @Override
+    public String getQuery() {
         var source = request.source();
         if (source == null) {
             return "{}";
@@ -64,11 +72,19 @@ public class SearchLogContext extends ActivityLoggerContext {
         }
     }
 
-    long getHits() {
-        if (response == null || response.getHits() == null || response.getHits().getTotalHits() == null) {
+    @Override
+    public int getResultCount() {
+        if (response == null || response.getHits() == null || response.getHits().getHits() == null) {
             return 0;
         }
-        return response.getHits().getTotalHits().value();
+        return response.getHits().getHits().length;
+    }
+
+    TotalHits getTotalHits() {
+        if (response == null || response.getHits() == null) {
+            return null;
+        }
+        return response.getHits().getTotalHits();
     }
 
     String[] getIndexNames() {
@@ -83,28 +99,43 @@ public class SearchLogContext extends ActivityLoggerContext {
         return indexNames;
     }
 
-    boolean isSystemSearch(Predicate<String> systemChecker) {
-        if (isSystemSearch == null) {
-            isSystemSearch = false;
-            String[] indices = getIndexNames();
-            // Request that only asks for system indices is system search
-            if (indices.length > 0 && Arrays.stream(indices).allMatch(systemChecker)) {
-                isSystemSearch = true;
-            }
-        }
-        return isSystemSearch;
-    }
-
     @Override
     public boolean isTimedOut() {
         return response != null && response.isTimedOut();
     }
 
-    public String getIndices() {
-        return Strings.join(getIndexNames(), ",");
+    @Override
+    public String[] getIndices() {
+        return getIndexNames();
     }
 
     public boolean hasAggregations() {
         return response != null && response.hasAggregations();
+    }
+
+    @Override
+    public Optional<ShardInfo> shardInfo() {
+        return Optional.ofNullable(response)
+            .map(response -> new ShardInfo(response.getSuccessfulShards(), response.getSkippedShards(), response.getFailedShards()));
+    }
+
+    // CCS stuff
+
+    /**
+     * Non-null alias means the request is from a remote cluster.
+     */
+    public boolean isFromRemote() {
+        return request.getLocalClusterAlias() != null;
+    }
+
+    @Override
+    public Map<String, String> getClusters() {
+        if (response == null) {
+            return Map.of();
+        }
+        var clusters = response.getClusters();
+        return clusters.getClusterAliases()
+            .stream()
+            .collect(Collectors.toMap(Function.identity(), alias -> clusters.getCluster(alias).getStatus().toString()));
     }
 }

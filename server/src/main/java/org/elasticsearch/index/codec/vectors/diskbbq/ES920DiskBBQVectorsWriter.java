@@ -62,7 +62,8 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         int vectorPerCluster,
         int centroidsPerParentCluster,
         TaskExecutor mergeExec,
-        int numMergeWorkers
+        int numMergeWorkers,
+        int flatVectorThreshold
     ) throws IOException {
         this(
             state,
@@ -73,7 +74,8 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
             centroidsPerParentCluster,
             ES920DiskBBQVectorsFormat.VERSION_CURRENT,
             mergeExec,
-            numMergeWorkers
+            numMergeWorkers,
+            flatVectorThreshold
         );
     }
 
@@ -86,9 +88,22 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         int centroidsPerParentCluster,
         int writeVersion,
         TaskExecutor mergeExec,
-        int numMergeWorkers
+        int numMergeWorkers,
+        int flatVectorThreshold
     ) throws IOException {
-        super(state, rawVectorFormatName, useDirectIOReads, rawVectorDelegate, writeVersion);
+        super(
+            state,
+            rawVectorFormatName,
+            useDirectIOReads,
+            rawVectorDelegate,
+            writeVersion,
+            ES920DiskBBQVectorsFormat.NAME,
+            ES920DiskBBQVectorsFormat.IVF_META_EXTENSION,
+            ES920DiskBBQVectorsFormat.CENTROID_EXTENSION,
+            ES920DiskBBQVectorsFormat.CLUSTER_EXTENSION,
+            writeVersion >= ES920DiskBBQVectorsFormat.VERSION_DIRECT_IO,
+            flatVectorThreshold
+        );
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
         this.mergeExec = mergeExec;
@@ -387,8 +402,13 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    public CentroidSupplier createCentroidSupplier(IndexInput centroidsInput, int numCentroids, FieldInfo fieldInfo, float[] globalCentroid)
-        throws IOException {
+    public CentroidSupplier createCentroidSupplier(
+        IndexInput centroidsInput,
+        CentroidSlices centroidSlices,
+        int numCentroids,
+        FieldInfo fieldInfo,
+        float[] globalCentroid
+    ) throws IOException {
         CentroidSupplier supplier = new OffHeapCentroidSupplier(centroidsInput, numCentroids, KMeansResult.EMPTY, fieldInfo);
         if (supplier.size() > centroidsPerParentCluster * centroidsPerParentCluster) {
             final KMeansResult centroidGroups = buildSecondLevelClusters(fieldInfo, supplier, true);
@@ -490,8 +510,15 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    public void doWriteMeta(IndexOutput ivfMeta, FieldInfo field, int numCentroids, long preconditionerOfffset, long preconditionerLength)
-        throws IOException {
+    public void doWriteMeta(
+        IndexOutput ivfMeta,
+        FieldInfo field,
+        int numCentroids,
+        long preconditionerOffset,
+        long preconditionerLength,
+        int numberOfSlices,
+        int maxSliceSize
+    ) {
         // Do Nothing Extra
     }
 

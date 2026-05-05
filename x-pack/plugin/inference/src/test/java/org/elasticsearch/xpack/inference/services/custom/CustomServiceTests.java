@@ -29,7 +29,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
@@ -42,7 +41,6 @@ import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
 import org.elasticsearch.xpack.inference.services.custom.response.CustomResponseParser;
@@ -93,7 +91,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK, TaskType.COMPLETION)
             ) {
                 @Override
-                protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+                protected CustomService createService(ThreadPool threadPool, HttpClientManager clientManager) {
                     return CustomServiceTests.createService(threadPool, clientManager);
                 }
 
@@ -133,7 +131,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 }
 
                 @Override
-                protected ModelSecrets createModelSecrets() {
+                protected ModelSecrets createModelSecrets(ConfigurationParseContext context) {
                     return new ModelSecrets(CustomSecretSettings.fromMap(createSecretSettingsMap()));
                 }
 
@@ -167,7 +165,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             }
         ).enableUpdateModelTests(new UpdateModelConfiguration() {
             @Override
-            protected CustomModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
+            protected CustomModel createEmbeddingModel(SimilarityMeasure similarityMeasure, TaskType taskType) {
                 return createInternalEmbeddingModel(similarityMeasure);
             }
         }).build();
@@ -226,7 +224,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
         assertThat(customModel.getServiceSettings().getResponseJsonParser(), instanceOf(RerankResponseParser.class));
     }
 
-    public static SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
+    public static CustomService createService(ThreadPool threadPool, HttpClientManager clientManager) {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         return new CustomService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
@@ -417,7 +415,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 false,
                 new HashMap<>(),
                 InputType.INTERNAL_SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -475,7 +473,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 false,
                 new HashMap<>(),
                 InputType.INTERNAL_SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -548,7 +546,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 false,
                 new HashMap<>(),
                 InputType.INTERNAL_SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -620,7 +618,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 false,
                 new HashMap<>(),
                 InputType.INTERNAL_SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -686,7 +684,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 false,
                 new HashMap<>(),
                 InputType.INTERNAL_SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -836,7 +834,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -911,7 +909,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 List.of(new ChunkInferenceInput("a")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -999,7 +997,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1111,7 +1109,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1172,15 +1170,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
         try (var service = createService(threadPool, clientManager)) {
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                List.of(),
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, empty());
@@ -1224,16 +1214,11 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 thrownException.getMessage(),
                 CoreMatchers.is(
                     org.elasticsearch.core.Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        INFERENCE_ID_VALUE,
-                        CustomService.NAME,
+                        "The [%s] service does not support task type [%s]",
                         CustomService.NAME,
                         TaskType.CHAT_COMPLETION
                     )
                 )
-
             );
         }
     }

@@ -263,9 +263,86 @@ to communicate with Elasticsearch.
 
 # Cluster Coordination
 
-(Sketch of important classes? Might inform more sections to add for details.)
+### Node Roles
 
-(A node can coordinate a search across several other nodes, when the node itself does not have the data, and then return a result to the caller. Explain this coordinating role)
+[DiscoveryNodeRole]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodeRole.java
+
+[DiscoveryNode]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNode.java
+
+Every Elasticsearch node in a cluster is assigned a set
+of [roles](https://www.elastic.co/docs/deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles) that
+define the kind of responsibilities it can own. Roles are represented internally by the [DiscoveryNodeRole] class.
+Possible values are `master`, `data`, `data_content`, `data_hot`, `data_warm`, `data_cold`, `data_frozen`, `ingest`,
+`voting_only`, `remote_cluster_client`, `ml`, `transform`, `index` and `search`.
+
+Roles are configured via the `node.roles` config field in `elasticsearch.yml`. If `node.roles` is not explicitly set,
+the node starts with
+all [default-enabled](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodeRole.java#L72)
+roles. If `node.roles` is explicitly set, only the listed roles are enabled.
+
+A node with the `master` role is master-eligible: it can participate in master elections and can be elected as the
+cluster's master node.
+
+A node with the `data` role (relevant for stateful ES only) can host shards and perform data related operations such as
+CRUD, search, and aggregations.
+
+[Data-tier](https://www.elastic.co/docs/manage-data/lifecycle/data-tiers) roles (relevant for stateful ES only) allow
+users to move indices to specific hardware specs as data grows older. This is managed
+by [index lifecycle management policies](https://www.elastic.co/docs/manage-data/lifecycle/index-lifecycle-management).
+The available data tier roles are:
+
+- `data_content` for long-lived indices that can be queried and updated frequently, no matter how old they are.
+- `data_hot`, which holds the most recent, and frequently queried, time-series data.
+- `data_warm`, which typically holds less recent time-series data, that will not be read as often as the hot
+  tier and rarely needs to be updated.
+- `data_cold`, for infrequently accessed time-series data, sometimes in the form of searchable snapshots.
+- `data_frozen`, which holds rarely accessed data stored entirely as searchable snapshots.
+
+A node with the `ingest` role can
+execute [ingest pipelines](https://www.elastic.co/docs/manage-data/ingest/transform-enrich/ingest-pipelines).
+
+A node with the `ml` role can run machine learning jobs and trained model inference. Typically, those are memory and
+CPU-intensive workloads so having dedicated nodes with this role avoids contention with indexing and searching.
+
+A node with the `remote_cluster_client` role can establish outbound connections to remote clusters
+for [cross-cluster search](https://www.elastic.co/docs/explore-analyze/cross-cluster-search) (CCS)
+and [cross-cluster replication](https://www.elastic.co/docs/deploy-manage/tools/cross-cluster-replication) (CCR).
+
+A node with the `transform` role can execute [transform](https://www.elastic.co/docs/explore-analyze/transforms) jobs.
+
+A node with the `voting_only` role participates in master elections and cluster state publication quorum, but can never
+be elected as master itself. The `voting_only`
+role [must always be combined](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodeRole.java#L229)
+with the `master` role. Voting-only nodes are useful for providing an additional vote for quorum without requiring the
+node to handle the full master
+workload ([tiebreaker](https://www.elastic.co/docs/deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles#voting-only-node)
+nodes).
+
+A node configured with an empty role list (`node.roles: []`) has no specific role and acts as
+a [coordinating-only](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNode.java#L61)
+node. Such nodes can receive client requests, route them to the appropriate data or master nodes, and aggregate results.
+They do not hold data, run ingest pipelines, or participate in master elections.
+
+#### Stateless Roles
+
+In [stateless](https://www.elastic.co/blog/elastic-serverless-architecture) deployments, data is persisted in a shared
+object storage and nodes' disk is only used as a cache layer. The `data` (and data tier) roles are disabled in favor of
+two new roles:
+
+- `index`: indexing nodes, which host primary shards and handle all write operations.
+- `search`: search nodes, which host search-only replica shards and handle read operations.
+
+#### Master Node Role
+
+Master-eligible (`master` role) nodes form the cluster's [voting configuration](#quorum) and participate
+in [master elections](#master-elections).
+
+The elected master node is responsible for cluster-wide coordination: it processes all [cluster state](#cluster-state)
+updates and publishes them to the rest of the cluster. The cluster maintains (conceptually, see [term](#term)
+section) at most a single master at all times; if the master fails, a new one is elected from the remaining
+master-eligible nodes (excluding `voting_only` nodes, which can vote but cannot be elected).
+
+The next few sections explore the cluster state and the master election process in more detail.
 
 ### Cluster State
 
@@ -273,13 +350,405 @@ to communicate with Elasticsearch.
 
 [Metadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
 
-(Detail the different components of the [ClusterState] and its persisted [Metadata])
+[PersistedClusterStateService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java
 
-### Node Roles
+[IndexMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java
 
-(Explain the
-distinct [node roles](https://www.elastic.co/docs/deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles)
-an elasticsearch node can be assigned and their implication)
+The [ClusterState] is the portion of the cluster state which is held in-memory by every node. To ensure
+correctness, updates to the `ClusterState` require strong
+consistency ([linearizability](https://en.wikipedia.org/wiki/Linearizability)). Without strong consistency, nodes could
+observe conflicting cluster states (eg two nodes could believe they both hold the primary for the same shard, or apply
+different mappings to the same index) leading to data loss or corruption.
+
+The `ClusterState` is (conceptually) immutable: every update produces a new instance of the `ClusterState` class. The
+elected master is responsible for coordinating all cluster state updates and publishing the latest to the other nodes in
+the cluster. Note that `ClusterState` updates are expensive, often taking hundreds of milliseconds or more, so they
+should only be executed when absolutely necessary.
+
+The [Metadata] part of the `ClusterState` is persisted to disk via the [PersistedClusterStateService] and will survive
+restarts. The rest of the `ClusterState` components are in-memory only, and need to be rebuilt every time there is a
+full cluster restart.
+
+#### Persisted State
+
+[ClusterState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
+
+[Metadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
+
+[ProjectMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/ProjectMetadata.java
+
+The [Metadata] of a [ClusterState] is persisted on disk and comprises information from two categories:
+
+1. Cluster-scoped information
+
+A few standouts are:
+
+- `clusterUUID`: the cluster unique id.
+- `coordinationMetadata`: the current term, voting configurations ... etc. (see [Master Elections](#master-elections)
+  section).
+- `persistentSettings`: cluster-level settings applied
+  via [the cluster settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings).
+- `customs`: cluster-level custom metadata: `NodesShutdownMetadata`, `RepositoriesMetadata` .. etc.
+
+2. Project-scoped information (located in the [ProjectMetadata])
+
+Notable components of the `ProjectMetadata` include:
+
+- `id`: the project unique id.
+- `indices`: map of index name to [IndexMetadata] (settings, mappings, aliases, number of shards/replicas, etc.).
+  Contains all indices in this project.
+- `aliasedIndices` and `templates`. See [aliases](https://www.elastic.co/docs/manage-data/data-store/aliases)
+  and [templates](https://www.elastic.co/docs/manage-data/data-store/templates) for more details.
+- `customs`: project-level custom metadata. Includes data stream definitions (via `DataStreamMetadata` project custom),
+  index lifecycle metadata (`IndexLifecycleMetadata`) and others.
+
+Note that some concepts are applicable to both cluster and project scopes, e.g. [persistent tasks](#persistent-tasks).
+
+#### Ephemeral State
+
+[DiscoveryNodes]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodes.java
+
+[GlobalRoutingTable]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/GlobalRoutingTable.java
+
+[RoutingTable]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/RoutingTable.java
+
+[IndexRoutingTable]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/IndexRoutingTable.java
+
+[IndexShardRoutingTable]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/IndexShardRoutingTable.java
+
+[ShardRouting]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/ShardRouting.java
+
+[ClusterBlocks]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/block/ClusterBlocks.java
+
+[SnapshotsInProgress]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/SnapshotsInProgress.java
+
+[RestoreInProgress]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/RestoreInProgress.java
+
+[SnapshotDeletionsInProgress]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/SnapshotDeletionsInProgress.java
+
+[HealthMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/health/metadata/HealthMetadata.java
+
+[CompatibilityVersions]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/version/CompatibilityVersions.java
+
+[TransportVersion]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/TransportVersion.java
+
+[ClusterFeatures]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterFeatures.java
+
+The rest of the [ClusterState] is ephemeral, it is not persisted to disk and is rebuilt from scratch if the cluster
+restarts. Some key components are:
+
+- `nodes` ([DiscoveryNodes])
+
+The set of all nodes currently in the cluster. Tracks the `masterNodeId`, the `localNodeId` and categorizes nodes by
+role (master-eligible, data and ingest). Also records the minimum and maximum node versions and supported index versions
+across the cluster.
+
+- `routingTable` ([GlobalRoutingTable])
+
+Maps each project to its [RoutingTable], which itself maps each index to an [IndexRoutingTable] containing
+an [IndexShardRoutingTable] per shard. Each `IndexShardRoutingTable` lists the [ShardRouting] entries for a shard,
+detailing which node owns its, its state (`UNASSIGNED`,`INITIALIZING`, `STARTED` or `RELOCATING`), and whether
+it is a primary or replica.
+
+- `blocks` ([ClusterBlocks])
+
+Cluster-level, project-level and index-level blocks that restrict certain operations for the relevant scope. For
+example, an index can be blocked for writes during a close operation, or the entire cluster can be set to read-only.
+Blocks operate at
+five [levels](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/block/ClusterBlockLevel.java):
+`READ`, `WRITE`, `METADATA_READ`, `METADATA_WRITE`, and `REFRESH`.
+
+- `customs`
+
+Additional custom ephemeral state. Examples
+include [SnapshotsInProgress], [RestoreInProgress], [SnapshotDeletionsInProgress], and [HealthMetadata].
+
+- `compatibilityVersions` and `minVersions` ([CompatibilityVersions])
+
+Per-node and cluster-wide min [TransportVersion] and system index mappings versions used to figure out serialization
+compatibility across the cluster.
+
+- `clusterFeatures` ([ClusterFeatures])
+
+Info on what features are present throughout the cluster.
+
+- Cluster state version fields
+
+The `version` field is
+a [monotonically increasing](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java#L162)
+`long` that uniquely identifies committed states. It is technically persisted to disk by [PersistedClusterStateService],
+which stores it as `last_accepted_version` in the Lucene commit user data alongside the cluster metadata. On node
+startup, this version is loaded back and used to initialize the in-memory cluster state, so the monotonically-increasing
+property is preserved across restarts.
+The `stateUUID` field uniquely identifies every state, including uncommitted ones. It is not persisted.
+
+#### Master Service
+
+[MasterService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java
+
+[Priority]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/Priority.java
+
+[SnapshotsService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/snapshots/SnapshotsService.java
+
+[ClusterStateTaskExecutor]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateTaskExecutor.java
+
+The [MasterService] is the single-threaded coordinator for all cluster state updates on the master node. It organizes
+pending cluster state update tasks into [Priority]-based queues: `IMMEDIATE`, `URGENT`, `HIGH`, `NORMAL`, `LOW`, and
+`LANGUID`. It processes them in that order, highest priority first.
+
+The `MasterService` uses a batching framework that groups multiple cluster state update tasks together, processing them
+as a single batch and publishing only one resulting `ClusterState` update. This avoids triggering a distinct publication
+for each individual task, which would be very costly.
+
+Producers of cluster state update tasks, such as [SnapshotsService], can
+then [define](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L1516)
+their own task queues, priority and batch executors ([ClusterStateTaskExecutor]), which the `MasterService` uses to
+group and process related tasks together.
+
+A [queue processor](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L1313),
+backed by a single-threaded `java.util.concurrent.ExecutorService`, processes batches one at a time.
+The [executeAndPublishBatch](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L336)
+method takes the next batch, invokes the batch's `ClusterStateTaskExecutor` to compute a new [ClusterState], and
+publishes the result.
+
+If the new state is identical to the previous one (by reference), no publication takes place. Otherwise, the master
+assigns a new `version` and `stateUUID` to the state and proceeds to publication.
+
+#### Cluster State Publication
+
+```mermaid
+sequenceDiagram
+    participant M as Master Node
+    participant F as Follower Node
+
+    rect rgb(255, 248, 240)
+    Note over M,F: Phase 1 — Publish
+    M->>F: PublishRequest (diff or full state)
+    M->>M: Local PublishRequest/Response
+    Note right of F: PublicationTransportHandler<br/>::handleIncomingPublishRequest<br/>Deserializes state
+    Note right of F: CoordinationState<br/>::handlePublishRequest<br/>Validates term/version,<br/>persists as lastAcceptedState
+    F->>M: PublishResponse (term, version)
+    Note left of M: CoordinationState<br/>::handlePublishResponse<br/>Collects responses until quorum
+    end
+
+    rect rgb(255, 220, 220)
+    alt Quorum not reached
+        Note over M: FailedToCommitClusterStateException<br/>Master steps down, new election begins
+    end
+    end
+
+    rect rgb(255, 248, 240)
+    Note over M,F: Phase 2 — Commit
+    M->>F: ApplyCommitRequest
+    M->>M: Local ApplyCommitRequest/Response
+    Note right of F: Coordinator::handleApplyCommit<br/>Marks last accepted state as committed
+    Note right of F: ClusterApplierService<br/>::onNewClusterState<br/>Applies new ClusterState
+    F->>M: ACK (after application completes)
+    Note left of M: ClusterApplierService<br/>::onNewClusterState<br/>Master applies its own state
+    end
+```
+
+[Coordinator]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java
+
+[Publication]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java
+
+[PublicationTransportHandler]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java
+
+[CoordinationState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java
+
+[ClusterStatePublisher]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterStatePublisher.java
+
+[ApplyCommitRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ApplyCommitRequest.java
+
+[ClusterStateDiff]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
+
+[PublishRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublishRequest.java#L19
+
+[CoordinatorPublication]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1944
+
+[PublishResponse]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublishResponse.java#L21
+
+Once the [MasterService] has computed a new [ClusterState], it passes it to the [Coordinator], which is responsible for
+then sharing with it with all nodes in the cluster.
+This [publication](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1620)
+process follows a two-step commit protocol.
+The progress of the publication for each follower node is tracked via
+a [PublicationTarget](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L235)
+object which maintains a
+[PublicationTargetState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L226)
+state.
+
+The `Coordinator` creates
+a [PublicationContext](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L261)
+via the [PublicationTransportHandler], which pre-serializes the cluster state into shared, reference-counted byte
+buffers. A [ClusterStateDiff] against the previous state is prepared. A full serialization is also prepared when
+the previous state's `blocks` had its disable state persistence flag set, or when a node present in the new state was
+absent from the previous one (since that node will not have a previous state to apply a diff against).
+It then builds a [PublishRequest] and creates a [CoordinatorPublication]
+to [coordinate](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1711)
+the protocol.
+
+1. **Publish**
+
+The master
+then [sends](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L374)
+the serialized cluster state to every node in the cluster. As an optimization, the diff is sent to nodes that were
+already part of the cluster, while new nodes receive the full state directly. If a node
+responds
+with [IncompatibleClusterStateVersionException](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/IncompatibleClusterStateVersionException.java#L20)
+the `PublicationTransportHandler`
+then [retries](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L484)
+with the full state.
+
+The recipient
+nodes [verify](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L125)
+the received state is valid, compare it against their local state
+via [CoordinationState.handlePublishRequest](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L377)
+and send back a [PublishResponse] containing the new cluster state term and version. At that point, the recipient nodes
+have [persisted](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L405)
+the new state but have not yet applied it.
+
+2. **Commit**
+
+Once the master has collected enough `PublishResponse`s from master-eligible nodes to satisfy quorum (
+see [Quorum](#quorum) section), it creates an [ApplyCommitRequest]. The master then sends this commit message to all
+nodes that responded to the `PublishRequest`.
+
+When receiving this request, each
+node [marks this last accepted state as committed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L517)
+and proceeds to apply the new state (see [Cluster State Application](#cluster-state-application) section). The node
+only ACKs the `ApplyCommitRequest` back to the master after application completes (i.e. after
+`ClusterApplierService.onNewClusterState` finishes).
+
+If the master cannot achieve a [PublishResponse] quorum (e.g. too many nodes are faulty), the [Publication] will fail
+the entire publication with
+a [FailedToCommitClusterStateException](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FailedToCommitClusterStateException.java).
+The master will then step down (it can no longer be master if it is not able to publish cluster states) and a new
+election begins.
+
+Once the `ApplyCommitRequest`s have been sent, the master will
+try [waiting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L103)
+for all nodes to apply the new state
+before [applying its own state](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L2056)
+and moving on. No quorum of responses is needed at that point. If follower nodes time out, the master will still
+move on to applying the new cluster state locally.
+
+#### Cluster State Application
+
+[ClusterApplierService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java
+
+[ClusterStateApplier]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateApplier.java
+
+[ClusterStateListener]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateListener.java
+
+[ClusterChangedEvent]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterChangedEvent.java
+
+When a new [ClusterState] is committed, the follower nodes need to apply the committed state locally.
+This is the responsibility of the [ClusterApplierService] class, which runs on
+a [single dedicated thread](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L159).
+
+When [receiving](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L412)
+an [ApplyCommitRequest] from the master, the [Coordinator] will hand over the committed state to
+the `ClusterApplierService`, which
+will [submit](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L374)
+an [UpdateTask](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L399)
+to the executor. If the new state differs from the currently applied state (by reference), the
+service [applies](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L538)
+the changes through the following sequence of steps:
+
+1. A [ClusterChangedEvent] is created, holding the new state, the previous state, and their deltas.
+
+2. The
+   node [opens](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L551)
+   network connections to newly added nodes (blocking call).
+
+3. If needed, the updated cluster settings
+   are [applied](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L559).
+
+4. [ClusterStateApplier]s (which update the node's internal state) are
+   invoked [in priority order](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L590).
+   Example high-priority appliers are [IndicesClusterStateService], which creates, deletes and updates local shard
+   copies, and [RepositoriesService], which manages snapshot repository lifecycle.
+
+5. Transport connections to nodes that are no longer in the cluster are closed (non-blocking call).
+
+6. `ClusterApplierService::state`
+   is [updated](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L569)
+   to the new state, making it visible to the rest of the classes on the node.
+
+7. [ClusterStateListener]s
+   are [notified](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L571).
+   Unlike appliers, listeners run _after_ the state is visible. Examples include the [PersistentTasksNodeService] which
+   reacts to changes in persistent tasks, and the [SnapshotShardsService] which watches for snapshot-related shard
+   assignments.
+
+Once application completes, the `Coordinator`'s
+callback [onClusterStateApplied](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L463)
+closes the election scheduler (if active) and stops peer finding, since the node is now part of a cluster with a
+functioning master.
+
+#### Persistence
+
+[LucenePersistedState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/GatewayMetaState.java#L533
+
+[AsyncPersistedState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/GatewayMetaState.java#L391
+
+[PersistedState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L540
+
+As mentioned in previous sections, only the [Metadata] portion of the [ClusterState] is persisted to disk (
+see [Persisted State](#persisted-state)). The rest of the `ClusterState` (routing table, node membership, in-progress
+snapshots ... etc.) is ephemeral and rebuilt from scratch after each full cluster restart.
+
+The [PersistedClusterStateService] is responsible for storing the cluster metadata in a simple Lucene index in each of
+the node's data paths, under the
+`_state` [directory](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L172).
+The metadata is split across several documents and is written incrementally where possible.
+
+The `PersistedClusterStateService` uses 3 types of documents, each identified by a `type` string field: `global`,
+`index` and `mapping`. Each document type stores its content in the `data` field as compressed SMILE-encoded XContent.
+All documents are paged (default 1MB per page).
+
+The `global` document serializes almost all the Metadata object: coordination metadata, persistent settings, customs,
+all project-scoped data, except individual index metadata and mappings. The `index` documents (one document per index,
+keyed by `index_uuid`) store all the [IndexMetadata]: settings, aliases, number of shards, etc., except for
+the index mapping. The `mapping` documents (one document per mapping, keyed by `mapping_hash`) store index mappings.
+Storing mappings separately is a deduplication optimization: multiple indices that share the same mapping (common
+occurrence, eg in data streams) all reference the same mapping hash, so only one copy is stored.
+
+During [incremental writes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L1011),
+the `PersistedClusterStateService` will first add new mappings and delete obsolete ones. It will then compare the index
+metadata for each index UUID between the old and new state. If the version changed, the old document is deleted and a
+fresh one is written. Unchanged indices are skipped entirely. The `global` document update is not incremental. If the
+new state's `global` fields differ from the old ones, the `global` document
+is [deleted and rewritten entirely](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L1080).
+
+Each Lucene commit
+also [records](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L884)
+the current term, the last accepted cluster state version, the node ID, the node version, the oldest index version (used
+for compatibility checks on node startup) and the cluster UUID in
+the [commit user data](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/index/IndexWriter.html#setLiveCommitData(java.lang.Iterable)).
+
+The coordination layer interacts with the recorded state on disk through the [PersistedState] interface, which
+the [CoordinationState] calls at three key points during the publication protocol:
+
+- [setCurrentTerm](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L195):
+  when the node joins a new term (via `handleStartJoin`).
+- [setLastAcceptedState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L405):
+  after the node receives a [PublishRequest] from the master. The new state is persisted before
+  the node sends its [PublishResponse].
+- [markLastAcceptedStateAsCommitted](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L517):
+  when the node processes an [ApplyCommitRequest] from the master.
+
+On master-eligible nodes, the `PersistedState` implementation is [LucenePersistedState], which writes synchronously on
+the cluster coordination thread. On non-master-eligible nodes, the [AsyncPersistedState] wrapper is used instead. It
+applies updates to an in-memory state immediately and queues the disk write to a background thread. This avoids blocking
+the coordination thread on disk I/O for nodes that do not participate in master elections.
+
+On startup, the
+node [reads](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L432)
+the Lucene index, selects the persisted state with the highest accepted term, and reconstructs the
+`Metadata` from the stored documents and commit user data. This metadata is then used to build the initial
+`ClusterState` that the node starts with.
 
 ### Master Elections
 
@@ -355,7 +824,7 @@ provide more detailed explanations of the mechanics and rationale behind each st
 
 A follower detects current master failure.
 
-``` 
+```
 LeaderChecker
 Coordinator.onLeaderFailure()
 ```
@@ -377,8 +846,8 @@ there is a current master and what other master-eligible nodes are in the cluste
 
 ```
 PeerFinder.handleWakeUp()
-ConfiguredHostsResolver 
-PeerFinder.startProbe(...) 
+ConfiguredHostsResolver
+PeerFinder.startProbe(...)
 PeersRequest
 PeersResponse
 ```
@@ -678,27 +1147,88 @@ the latest heartbeat from the blob store and starts the election if it's older t
 seconds). To become master, the candidate node will atomically override the current term in the blob store via a CAS
 operation.
 
-### Master Service
-
-#### Cluster State Publication
-
-(Majority consensus to apply, what happens if a master-eligible node falls behind / is incommunicado.)
-
-#### Cluster State Application
-
-(Go over the two kinds of listeners -- ClusterStateApplier and ClusterStateListener?)
-
-#### Persistence
-
-(Sketch ephemeral vs persisted cluster state.)
-
-(What's the format for persisted metadata)
-
 ### New Cluster Formation
 
-(What happens when a cluster starts from scratch)
+[ClusterBootstrapService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java
+
+[UnsafeBootstrapMasterCommand]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/UnsafeBootstrapMasterCommand.java
+
+[DetachClusterCommand]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/DetachClusterCommand.java
+
+When a cluster starts from scratch, no persisted cluster state exists on disk. The [PersistedClusterStateService]
+returns an empty on-disk state with a `CoordinationMetadata` containing `VotingConfiguration.EMPTY_CONFIG` for both the
+last-committed and last-accepted configurations. The cluster first needs to
+[bootstrap](https://www.elastic.co/docs/deploy-manage/distributed-architecture/discovery-cluster-formation/modules-discovery-bootstrap-cluster)
+and establish its initial voting configuration before an election can take place.
+The [ClusterBootstrapService] is responsible for this one-time bootstrapping process and runs on master-eligible nodes.
+
+For production clusters, the operator has to provide the list of master-eligible nodes that should form the initial
+cluster via the [
+`cluster.initial_master_nodes`](https://www.elastic.co/docs/deploy-manage/deploy/self-managed/important-settings-configuration#initial_master_nodes)
+setting.
+`ClusterBootstrapService` uses this setting
+to [construct](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L107)
+its `bootstrapRequirements`.
+
+On startup, a master-eligible node will
+first [become candidate](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1198),
+which will also start the discovery process (see [Discovery](#discovery) section). Each time the [PeerFinder] reports
+newly discovered peers, `ClusterBootstrapService`
+will [check](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L173)
+whether the discovered nodes satisfy the bootstrap requirements, i.e. when
+a [strict majority](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L198)
+of the nodes specified in `cluster.initial_master_nodes` are found.
+
+When this condition is met, `ClusterBootstrapService`
+will [construct](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L265)
+a [VotingConfiguration] from the discovered node IDs
+and [set](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1382)
+the initial cluster state. The node will
+then [schedule](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1390)
+an election (see [Master Elections](#master-elections) for more details). Any requirements that could not be matched to
+a discovered node are added
+as [placeholder](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L61)
+entries. These placeholders occupy slots in the voting configuration's `nodeIds` set and affect the quorum size, but
+they cannot cast a vote until the real nodes come online and replace them.
+
+When `cluster.initial_master_nodes` is not present,
+and [no discovery config is provided](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L122)
+either, [ClusterBootstrapService]
+will [schedule](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterBootstrapService.java#L204)
+a best-effort bootstrap after the `discovery.unconfigured_bootstrap_timeout` (default 3 seconds). This simply uses all
+master-eligible nodes discovered so far. This is inherently unsafe and is only intended for development and testing.
+
+#### Single-Node Discovery
+
+If `discovery.type: single-node` is set, [ClusterBootstrapService] uses the local node name as the sole bootstrap
+requirement. The node bootstraps itself immediately.
+
+#### Disaster Recovery
+
+If more than half of the master-eligible nodes are permanently lost and no snapshot is available, the last-resort
+[UnsafeBootstrapMasterCommand] (`elasticsearch-node unsafe-bootstrap`) can force a single surviving master-eligible
+node to become the new cluster leader. It works by [setting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/UnsafeBootstrapMasterCommand.java#L91) both voting configurations
+to a single-node configuration containing only the local node and [regenerating](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/UnsafeBootstrapMasterCommand.java#L102) the cluster UUID.
+
+The remaining data nodes cannot join the newly bootstrapped master because their persisted state still references the
+old cluster. The [DetachClusterCommand] (`elasticsearch-node detach-cluster`) sets both their voting configurations
+to `VotingConfiguration.MUST_JOIN_ELECTED_MASTER`, containing the single node ID `_must_join_elected_master_`,
+which prevents nodes from starting their own elections and forces them to discover and join the already-elected master.
+It then [resets](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/DetachClusterCommand.java#L57)
+the persisted term to `0` and marks `clusterUUIDCommitted` as false.
 
 ### Master Transport Actions
+
+[TransportMasterNodeAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/master/TransportMasterNodeAction.java
+
+Many cluster operations
+([creating indices](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/admin/indices/create/TransportCreateIndexAction.java),
+[managing snapshots](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/admin/cluster/snapshots/create/TransportCreateSnapshotAction.java), etc.)
+run on the elected master node because they result in [ClusterState] updates. The [TransportMasterNodeAction] class
+is the base class for such operations. It provides a common framework that handles routing requests to the current
+master, retrying when the master changes, and checking for cluster blocks.
+
+See `TransportMasterNodeAction` Javadoc for a detailed description of the execution flow and retry mechanism.
 
 # Replication
 
@@ -732,23 +1262,280 @@ operation.
 
 ### Lucene Locking
 
-# Engine
+# Engine & Store
 
-(What does Engine mean in the distrib layer? Distinguish Engine vs Directory vs Lucene)
+[Engine]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/Engine.java
 
-(High level explanation of how translog ties in with Lucene)
+[InternalEngine]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java
 
-(contrast Lucene vs ES flush / refresh / fsync)
+[IndexShard]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java
 
-### Refresh for Read
+[Translog]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/translog/Translog.java
 
-(internal vs external reader manager refreshes? flush vs refresh)
+### IndexShard
 
-### Reference Counting
+The [IndexShard] class is the single entry point for all shard-level operations: indexing, deletion, real-time GET,
+refresh, flush, recovery, and snapshot. There is exactly one `IndexShard` object per allocated shard.
+
+An `IndexShard` holds references to:
+
+- The shard's [Store], which wraps a Lucene `Directory` and provides access to the shard's Lucene index files on disk.
+- The shard's [Engine], which manages all indexing and search operations for this shard, writing to both the
+  [Translog] and the Lucene files managed by the `Store`.
+
+The lifecycle of these objects (creation, recovery, and teardown) is controlled by the [IndicesClusterStateService],
+which reacts to cluster state changes and updates local state accordingly (see
+the [IndicesClusterStateService](#indicesclusterstateservice) section).
 
 ### Store
 
-(Data lives beyond a high level IndexShard instance. Continue to exist until all references to the Store go away, then Lucene data is removed)
+[Store]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java
+
+[RefCounted]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/core/RefCounted.java
+
+[StoreFileMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/StoreFileMetadata.java
+
+[FsDirectoryFactory]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/FsDirectoryFactory.java
+
+The [Store] is the lowest-level Elasticsearch persistence abstraction for a shard. Each shard has a single
+dedicated `Store` that wraps a
+Lucene [Directory](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/Directory.html), which is Lucene's
+own file-system abstraction used to read and write index files on disk.
+Lucene's `Directory` is a pure I/O abstraction: callers open
+an [IndexInput](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/IndexInput.html) to read a named file
+and create an [IndexOutput](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/IndexOutput.html) to
+write one. The `Store` builds on the Lucene `Directory` capabilities by adding reference counting and corruption
+detection, exposing committed file metadata and enforcing integrity invariants.
+
+#### Reference Counting and Lifecycle
+
+The `Store` implements [RefCounted]. Callers call `store.incRef()` before using it and `store.decRef()` in
+a `finally` block when done. Once the reference count drops to zero the store is closed and the underlying Lucene
+directory is cleaned up. The `Store` also receives a [ShardLock] at construction time and only releases it
+once closed, allowing other threads waiting to acquire the lock for this shard to proceed.
+
+#### Backing Directory
+
+The Lucene `Directory` used by a `Store` is created by
+an [IndexStorePlugin.DirectoryFactory](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/plugins/IndexStorePlugin.java#L40).
+The default built-in implementation is [FsDirectoryFactory], which
+supports [several store types](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/FsDirectoryFactory.java#L107)
+selectable via the
+`index.store.type` [setting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexModule.java#L111):
+
+- `hybridfs` (default):
+  a [HybridDirectory](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/FsDirectoryFactory.java#L180)
+  that delegates
+  to a [MMapDirectory](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/MMapDirectory.html) for
+  performance-sensitive file types (postings, term vectors index, norms, vectors, etc.)
+  and [NIOFSDirectory](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/store/NIOFSDirectory.html) for files
+  where sequential access is preferred (e.g. stored fields). Direct I/O is also enabled for vector index files when
+  supported by the OS. The `HybridDirectory` selects between mmap and NIO on a per-file basis
+  by [checking](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/FsDirectoryFactory.java#L252)
+  the file's Lucene extension and I/O context.
+- `mmapfs`: uses `MMapDirectory` for all files.
+- `niofs`: uses `NIOFSDirectory` for all files.
+- `fs`: automatically selects the best type for the underlying file system.
+
+#### MetadataSnapshot
+
+The `Store`
+exposes [MetadataSnapshots](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L820)
+for each index commit, read and constructed from the Lucene `segments_N` files. A `MetadataSnapshot` is a point-in-time
+map from filename to [StoreFileMetadata] for the committed files belonging to a Lucene index commit, produced by an
+Elasticsearch flush.
+Each [StoreFileMetadata] includes the file's name, on-disk length, CRC32 checksum (from the Lucene file footer), the
+Lucene version that wrote it, and a `writerUuid` that uniquely identifies the writer.
+
+`MetadataSnapshot`s are leveraged by several Elasticsearch workflows, including [peer recovery](#peer-recovery) and
+replica shard allocation (via `TransportNodesListShardStoreMetadata`). They are used to compare the on-disk state of two
+distinct shards and calculate how much data needs to be transferred to bring them into sync.
+
+#### Concurrency
+
+[NodeEnvironment]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/env/NodeEnvironment.java
+
+[ShardLock]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/env/ShardLock.java
+
+Access to a shard's on-disk data is protected by three layers of locking, each scoped to a different level.
+
+The [ShardLock] is a node-wide, coarse-grained lock managed by [NodeEnvironment]. It is backed by a
+`Semaphore` and guarantees that at most one owner at a time has write access to a given shard directory
+within a JVM process. The
+`Store` [is given](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L169)
+a `ShardLock` at creation time. It holds this lock for its entire lifetime, ensuring that write operations (e.g.
+creating an `IndexWriter`, deleting shard files, or recovering from another shard) have exclusive access to the shard
+directory.
+Callers that need to access the directory without a live `Store` (e.g. `TransportNodesListShardStoreMetadata` reading
+metadata for allocation
+decisions) [acquire a temporary](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/store/TransportNodesListShardStoreMetadata.java#L182)
+`ShardLock` for the duration of the read.
+
+The [metadataLock](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L168)
+is an in-process `ReentrantReadWriteLock` inside the `Store`. It guards access to the
+directory's file listing and segment metadata. Operations that only read metadata (e.g. `getMetadata` with an
+existing
+commit) [take the read lock](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L300),
+allowing concurrent readers. Operations that structurally modify the
+directory (e.g. renaming temporary recovery files via `renameTempFilesSafe`, cleaning up stale files
+via `cleanupAndVerify`, or running `CheckIndex`) take the write lock, which excludes all readers and other
+writers until the operation completes.
+
+Lucene's [IndexWriter](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/index/IndexWriter.html) write lock
+is a native file lock (`write.lock`) that Lucene places in the index
+directory. It prevents two `IndexWriter` instances from ever opening the same directory simultaneously, even
+across processes. When the `Store` needs to read metadata from a directory that has no active engine (e.g.
+during `getMetadata(commit=null, lockDirectory=true)`), it acquires the Lucene write lock together with the
+`metadataLock` write lock, ensuring no writer can interfere. In normal operation, the running `InternalEngine`
+already holds this
+lock [through its IndexWriter](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L149).
+
+To summarize, `ShardLock` is a JVM-level lock enforced across the entire node, `metadataLock`
+coordinates in-process readers and writers within the `Store`, and the Lucene write lock guards the raw
+directory at the file-system level.
+
+#### Corruption
+
+The `Store` maintains
+corruption [markers](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L142)
+as special files prefixed with `corrupted_` written into the Lucene directory.
+When an unrecoverable I/O error or checksum mismatch
+is [detected](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/Store.java#L1372),
+a marker file is written containing the serialized exception. Subsequent calls to `failIfCorrupted()` scan for these
+marker files and throw a `CorruptIndexException` if any are found, preventing any further operations on a known-bad
+shard. Corruption markers are removed only after the shard has been successfully recovered from another source (e.g. a
+primary or a snapshot).
+
+### Engine
+
+The [Engine] abstract class is the Elasticsearch abstraction that manages and coordinates operations on the running
+shard index. Where the `Store` manages files on disk, the `Engine` owns the write
+path (indexing, deletion, no-ops), the read path (searcher acquisition, real-time GET), and Lucene lifecycle
+operations (refresh, flush, merge). It also controls the translog, ensuring that every acknowledged write is
+durably recorded before a response is sent.
+
+The main implementation is [InternalEngine], used for all read-write shards (primary and replica). Other
+implementations serve more specialized roles. For example,
+the [ReadOnlyEngine](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ReadOnlyEngine.java)
+gives read-only access to a frozen shard, and
+the [NoOpEngine](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/NoOpEngine.java)
+acts as a placeholder for shards belonging to a closed index. It exists to allow shards of closed indices to be
+correctly replicated in case of a node failure.
+
+#### Segments, Refresh, and Flush
+
+Lucene organizes index data on disk into immutable files called *segments*. They are created whenever the in-memory
+write buffer is flushed or when merges combine existing segments into larger ones.
+The [IndexWriter](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/index/IndexWriter.html)
+accumulates writes in memory and periodically flushes new segments. The `InternalEngine` wraps an `IndexWriter` (for
+writes) and a pair of internal and
+external [reader manager](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L151)
+that wrap
+Lucene [DirectoryReader](https://lucene.apache.org/core/10_3_2/core/org/apache/lucene/index/DirectoryReader.html)s and
+map Elasticsearch concepts onto Lucene's:
+
+- An Elasticsearch `refresh` triggers a Lucene NRT reader reopen (via `DirectoryReader.openIfChanged()`), making
+  recently indexed documents searchable without writing a full commit to disk. Refreshes do not call
+  `IndexWriter.commit()` and do not persist data durably.
+- An Elasticsearch `flush` calls `IndexWriter.commit()`, writing a durable commit point to disk. A flush is
+  what allows the translog to be safely truncated up to that commit.
+
+This distinction is a core piece of Elasticsearch's durability model. Documents are searchable after a refresh but
+only durably stored after a flush. In between, the translog bridges the gap. Every write is appended to the
+translog on disk before being acknowledged, so that it can be replayed in the event of a crash.
+
+The detailed mechanics of how a write flows through the engine (including translog interaction, sequence number
+assignment, and version map updates) are covered in the [Translog](#translog) and [Indexing / CRUD](#indexing--crud)
+sections.
+
+### IndicesClusterStateService
+
+[ClusterStateApplier]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateApplier.java
+
+[ShardStateAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/action/shard/ShardStateAction.java
+
+[RecoverySource]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/RecoverySource.java
+
+[ShardRouting]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/ShardRouting.java
+
+The [IndicesClusterStateService] is a high-priority [ClusterStateApplier] of the [ClusterApplierService] (
+see [Cluster State Application](#cluster-state-application)).
+Any time a new cluster state is published, [IndicesClusterStateService] checks whether the state of indices
+and shards has changed and updates the local node's shards to match accordingly.
+
+Its `doApplyClusterState` method goes through the following operations in order each time a new cluster state
+is applied:
+
+1. [Delete indices](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java#L353)
+   that no longer exist in the new cluster state: closes each `IndexShard` (which closes its
+   `Engine`, flushing first), releases the `Store` reference, and deletes the on-disk shard directory.
+2. [Remove shards](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java#L355)
+   that are no longer assigned to this node: closes the `Engine` (without flushing, unflushed data is already in the
+   translog and safe), releases the `Store` reference, but leaves the on-disk files intact for later cleanup by
+   `IndicesStore`.
+3. [Update index metadata](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java#L357):
+   if index settings changed, propagates them in-memory to each `IndexShard` and then to its `Engine` (e.g. merge
+   scheduler config, GC deletes policy, soft-delete retention). If mappings changed, updates the `MapperService`. No
+   disk writes happen here.
+4. [Create or update shards](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java#L359):
+   for each [ShardRouting] targeting this node in `INITIALIZING` state, creates a new `Store` and `IndexShard` and kicks
+   off recovery. For already-active shards, updates their routing metadata in-place.
+
+The below diagram illustrates the end-to-end flow from a master publishing a new cluster state containing a
+newly assigned shard down to the `Engine` becoming active.
+
+```mermaid
+sequenceDiagram
+    participant M as Master Node
+    participant CA as ClusterApplierService
+    participant ICSS as IndicesClusterStateService
+    participant IS as IndexShard
+    participant S as Store
+    participant E as InternalEngine
+
+    rect rgb(255, 248, 240)
+    Note over M,CA: Cluster State Committed
+    M->>CA: ApplyCommitRequest (new ClusterState)
+    CA->>ICSS: applyClusterState(ClusterChangedEvent)
+    end
+
+    rect rgb(240, 248, 255)
+    Note over ICSS,S: Shard Creation
+    ICSS->>ICSS: doApplyClusterState()<br/>deleteIndices()<br/>removeIndicesAndShards()<br/>updateIndices()
+    ICSS->>S: new Store(shardDirectory)
+    ICSS->>IS: new IndexShard(store, shardRouting, ...)
+    ICSS->>IS: startRecovery(recoverySource)
+    end
+
+    rect rgb(240, 255, 240)
+    Note over IS,E: Recovery and Engine Start
+    IS->>S: validate / prepare directory
+    IS->>E: new InternalEngine(engineConfig)
+    E->>S: IndexWriter.open(store.directory)
+    Note right of E: Engine open, shard STARTED
+    end
+
+    rect rgb(255, 240, 240)
+    Note over IS,M: Report Back to Master
+    IS->>M: ShardStateAction.shardStarted()
+    Note left of M: Master updates ClusterState<br/>marks shard as STARTED
+    end
+```
+
+For a newly assigned shard, `createShard`
+first [acquires](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java#L754)
+a `ShardLock` (preventing concurrent access to the same shard directory from a concurrent request) or throws a
+`ShardLockObtainFailedException` if it fails to do so. It
+then [creates](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexService.java#L560)
+a `Store` referencing the shard's on-disk directory,
+and [instantiates](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexService.java#L569)
+an `IndexShard`. Recovery is
+then [triggered](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/IndicesService.java#L993)
+based on the [RecoverySource] in the [ShardRouting].
+
+The details of recovery, including how the `Engine` is created and started, are covered in the
+[Peer Recovery](#peer-recovery), [Snapshot Recovery](#snapshot-recovery), and [Local Shards Recovery](#local-shards-recovery)
+sections.
 
 ### Translog
 
@@ -789,7 +1576,8 @@ Flushes may also be automatically initiated by Elasticsearch, e.g., if the trans
 [`Location`]:https://github.com/elastic/elasticsearch/blob/693f3bfe30271d77a6b3147e4519b4915cbb395d/server/src/main/java/org/elasticsearch/index/translog/Translog.java#L977
 [`AsyncIOProcessor`]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/common/util/concurrent/AsyncIOProcessor.java
 
-A bulk request will repeateadly call ultimately the Engine methods such as [`index()` or `delete()`] which adds operations to the Translog.
+A bulk request will repeatedly call ultimately the Engine methods such as [`index()` or `delete()`] which adds
+operations to the Translog.
 Finally, the AfterWrite action of the [`TransportWriteAction`] will call [`indexShard.syncAfterWrite()`] which will put the last written translog [`Location`] of the bulk request into a [`AsyncIOProcessor`] that is responsible for gradually fsync'ing the Translog and notifying any waiters.
 Ultimately the bulk request is notified that the translog has fsync'ed past the requested location, and can continue to acknowledge the bulk request.
 This process involves multiple writes to the translog before the next fsync(), and this is done so that we amortize the cost of the translog's fsync() operations across all writes.
@@ -850,18 +1638,263 @@ That is because after a refresh, any documents in the old map are now searchable
 
 ### Index Version
 
+[IndexVersion]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersion.java
+
+[IndexVersions]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java
+
+The [IndexVersion] tracks the on-disk format of an index. It is conceptually similar to [TransportVersion]
+(which controls wire-protocol compatibility between nodes) but instead targets how index data and metadata are
+serialized to Lucene files. Every time the serialization format of mappings, postings, doc values, or any other
+persisted index structure changes, a new `IndexVersion` constant must be added.
+
+The `IndexVersion` class contains two fields: an integer `id` and the
+Lucene [Version](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/util/Version.html)
+that the index was written with. The stored Lucene version is used for Lucene API calls that depend on the version,
+such as [reading segment metadata](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/lucene/Lucene.java#L173).
+
+The `IndexVersion` class was [introduced](https://github.com/elastic/elasticsearch/pull/94827) in 8.8.0. Before that,
+the node release `Version` was used for both purposes. Prior to 8.9.0 the `id` field was the same as the release version,
+for backwards compatibility. In 8.9.0 it changed to an incrementing number, and disconnected from the release version.
+
+All known versions are declared as constants in [IndexVersions] (e.g. `UPGRADE_TO_LUCENE_10_4_0`,
+`SEMANTIC_TEXT_FIELD_TYPE`, or `GENERIC_DENSE_VECTOR_FORMAT`).
+This [list](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java#L62)
+serves as the source of truth for version-to-Lucene mappings and merge-conflict checks.
+
+The `IndexVersion`
+is [stamped](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/MetadataCreateIndexService.java#L1231)
+on every index at creation time via
+the [IndexMetadata](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java)
+`index.version.created` setting. The setting is [`Property.PrivateIndex`](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java#L374): the cluster assigns it at creation and clients cannot set it explicitly. This version is immutable for the lifetime of the index and determines which code
+paths are used when reading its data
+([PostRecoveryMerger optimization example](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/indices/PostRecoveryMerger.java#L100)).
+
+A separate `index.version.compatibility`
+[setting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java#L394)
+(defaulting to `index.version.created`)
+can [be set](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/MetadataCreateIndexService.java#L1874)
+to a newer version to opt in to newer behavior while retaining backward-compatible defaults. For example, when
+restoring a snapshot of an index with an `index.version.created` older than `MINIMUM_READONLY_COMPATIBLE`,
+[RestoreService.convertLegacyIndex()](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/snapshots/RestoreService.java#L1801)
+sets `index.version.compatibility` to the minimum index version supported by the cluster's nodes and adds
+a write block, so that the index can be opened as a read-only archive. The subsequent paragraphs contain more details
+about index version compatibility.
+
+Elasticsearch supports a two-major-version compatibility window for index data. Indices created in the current
+major version (N) or the previous major version (N-1) are fully supported for reading and writing. The minimum
+index version for this full support is defined by
+[IndexVersions.MINIMUM_COMPATIBLE](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java#L268).
+Note that Lucene [enforces similar constraints](https://github.com/apache/lucene/issues/10708).
+
+Indices created in the penultimate major version (N-2), i.e. older than `MINIMUM_COMPATIBLE` but at or above
+[IndexVersions.MINIMUM_READONLY_COMPATIBLE](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/IndexVersions.java#L269),
+can only be opened in read-only mode. They must have been marked as read-only (with a write block) on the previous
+major version before upgrading. Their mappings and field types are still fully understood by the current version. Only
+writes are blocked.
+
+Indices older than `MINIMUM_READONLY_COMPATIBLE` are classified as legacy. Their on-disk format
+is too old for the current version to fully understand their mappings or field types, so they are automatically converted
+to degraded read-only archives via [RestoreService.convertLegacyIndex()](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/snapshots/RestoreService.java#L1801)
+when restored from a snapshot.
+Both `MINIMUM_COMPATIBLE` and `MINIMUM_READONLY_COMPATIBLE` are bumped with each new major release to maintain this
+window.
+
+#### Enforcement of IndexVersion compatibility in a cluster
+
+Index version acts as a cluster-wide contract. New indices must use a format every data and master-eligible node
+can read and write. A node is only admitted to the cluster if it can open every existing index. Allocation must not
+move shards to nodes running an older Lucene version that cannot read segments already written by a newer one.
+
+The cluster state's `DiscoveryNodes` field (see
+the [Cluster State section](#cluster-state) for more details) computes and
+records `maxDataNodeCompatibleIndexVersion`, which
+is [the minimum of](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodes.java#L855)
+all data and master-eligible node's `versionInfo.maxIndexVersion()`. This is the
+highest index version the whole cluster supports.
+
+[Creating an index](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/MetadataCreateIndexService.java#L1128)
+sets `index.version.created` to the minimum of `IndexVersion.current()` and
+`getMaxDataNodeCompatibleIndexVersion()`. During a rolling upgrade, old and new nodes coexist: the cluster-wide value
+stays at the lower ceiling until the last pre-upgrade node is gone, so indices created mid-upgrade get the same index
+version as before the upgrade. Code paths and features that are gated on index version therefore stay on
+backward-compatible behavior until the cluster is fully upgraded.
+
+[A joining node](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/NodeJoinExecutor.java#L405)
+is validated by `NodeJoinExecutor.ensureIndexCompatibility`: every index in metadata (open or closed) must fall within
+that node's supported index-version range. Otherwise the join fails: for example, a node whose maximum index version is
+too low cannot join while indices exist that were created with a newer format, and indices older than the joiner's
+minimum writable version are only allowed if they still qualify as read-only-supported on that node.
+
+The stamped `index.version.created` value ensures the index's on-disk format and feature gates are within the range
+supported by the whole cluster. However, it does not pin the Lucene segment format: during a rolling upgrade, a shard
+hosted on a newer node may flush or merge segments in a Lucene format that older nodes cannot read, even though they
+still support the index's `IndexVersion`. To prevent allocating such shards onto incompatible nodes, [IndexVersionAllocationDecider](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/allocation/decider/IndexVersionAllocationDecider.java)
+only allows shard movement/recovery from a source node to a target node whose `DiscoveryNode#getMaxIndexVersion` is
+equal-or-newer than the source node's. In other words, primary relocation and replica allocation are permitted only if
+`target.maxIndexVersion >= source.maxIndexVersion`.
+
+For more details on how index format compatibility interacts with upgrades,
+see the [Index Format Backwards Compatibility](https://github.com/elastic/elasticsearch/blob/main/docs/internal/GeneralArchitectureGuide.md#index-format-backwards-compatibility)
+section in the General Architecture Guide.
+
 ### Lucene
 
-(copy a sketch of the files Lucene can have here and explain)
+[Apache Lucene](https://lucene.apache.org/) is the search and indexing library at the core of every Elasticsearch shard.
+Each shard is a Lucene index. Instead of treating Lucene as an opaque storage engine at the bottom of the
+stack, Elasticsearch deeply integrates with it. It customizes file I/O, codecs, merge behavior, and reader
+lifecycle.
 
-(Explain about SearchIndexInput -- IndexWriter, IndexReader -- and the shared blob cache)
+For more details on how Elasticsearch wraps Lucene's `Directory` for file I/O, see the [Store](#store) section.
+For how the `IndexWriter` and `DirectoryReader` are managed, including the distinction between "refresh"
+(NRT reopen) and "flush" (durable Lucene commit), see [Segments, Refresh, and Flush](#segments-refresh-and-flush).
 
-(Lucene uses Directory, ES extends/overrides the Directory class to implement different forms of file storage.
-Lucene contains a map of where all the data is located in files and offsites, and fetches it from various files.
-ES doesn't just treat Lucene as a storage engine at the bottom (the end) of the stack. Rather ES has other information that
-works in parallel with the storage engine.)
+#### Lucene File Layout
+
+A Lucene index on disk is a collection of segment files plus a
+`segments_N` [info file](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/SegmentInfos.html) that
+records which segments belong to the latest commit. Each segment is a self-contained, immutable mini-index composed
+of several file types, each responsible for a different data structure:
+
+| Extension | Content |
+|-----------|---------|
+| `.si`     | Segment metadata (doc count, unique id, diagnostics, Lucene version). |
+| `.fnm`    | Field infos: field names, types (string, numeric, etc.), and index options (stored, indexed, doc values). |
+| `.fdm`, `.fdt` | Stored fields metadata and data (original JSON `_source`, stored field values). |
+| `.tim`, `.tip`, `.doc`, `.pos`, `.pay` | The inverted index: term dictionary, postings lists, positions, and payloads. |
+| `.dvd`, `.dvm` | Doc values data and metadata (columnar storage for sorting, aggregations, scripting). |
+| `.tvd`, `.tvx` | Term vectors data and index. |
+| `.nvm`, `.nvd` | Norms (per-field length normalization factors used in scoring). |
+| `.liv`    | Live documents bitset (tracks which docs have been deleted within the segment). |
+| `.vec`, `.vex`, `.vem` | KNN vector data and graph (HNSW or other ANN structure). |
+| `.kdm`, `.kdi`, `.kdd` | Points / BKD tree (numeric range queries, geo). |
+
+Check out the
+Lucene [documentation](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/codecs/lucene104/package-summary.html)
+for more details on each of those specific files. Elasticsearch also maintains a registry of all known Lucene file
+extensions in
+[LuceneFilesExtensions](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/store/LuceneFilesExtensions.java).
+
+The `segments_N` file and the `write.lock` file live at the directory root. A commit atomically publishes a new
+`segments_N+1` as the active commit point, making the new set of segments visible.
+The old segment files are removed once they are no longer
+[referenced](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexReader.html#decRef()) by any open
+`IndexReader` or any retained commits. Elasticsearch's
+[CombinedDeletionPolicy](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/CombinedDeletionPolicy.java), which implements Lucene's
+[IndexDeletionPolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexDeletionPolicy.html),
+manages which commits are retained. All commits more recent than
+the [safe commit](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/CombinedDeletionPolicy.java#L55)
+(the most recent commit whose max sequence number is at most the global checkpoint, used as the starting point
+for peer recovery) are preserved. Older commits can also
+be [pinned](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/CombinedDeletionPolicy.java#L216)
+by external consumers (e.g., snapshot operations). `CombinedDeletionPolicy` also
+[communicates the safe commit checkpoint information](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/CombinedDeletionPolicy.java#L109)
+with the translog deletion policy.
+
+#### Codecs
+
+[PerFieldMapperCodec]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/PerFieldMapperCodec.java
+[Mapper]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/Mapper.java
+[PerFieldFormatSupplier]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/PerFieldFormatSupplier.java
+[CodecService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/CodecService.java
+[TSDBSyntheticIdPostingsFormat]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/tsdb/TSDBSyntheticIdPostingsFormat.java
+[TSDBSyntheticIdStoredFieldsReader]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/tsdb/TSDBSyntheticIdStoredFieldsReader.java
+
+Lucene's [Codec](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/codecs/package-summary.html) abstraction
+lets each field type choose its own on-disk format. A codec is a bundle of format implementations: one for postings,
+one for stored fields, one for doc values, one for vectors, etc.
+
+Elasticsearch ships its own codec stack, managed by the [CodecService] class. It extends the current Lucene codec
+(e.g. [Lucene104Codec](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/codecs/lucene104/Lucene104Codec.html))
+with Elasticsearch-specific customizations:
+
+- The [PerFieldMapperCodec] delegates postings, doc values, and KNN vector format selection
+  to each field's [Mapper], allowing field types to choose specialized formats (See the [PerFieldFormatSupplier] for
+  specific examples).
+- The [DeduplicateFieldInfosCodec](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/CodecService.java#L115)
+  [wraps](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/CodecService.java#L93)
+  codecs registered in `CodecService` to
+  deduplicate [FieldInfos](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/FieldInfo.html)
+  metadata objects loaded from each segment's `.fnm` file. Field names, attribute keys, and attribute maps that are
+  identical across segments are [interned](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/DeduplicatingFieldInfosFormat.java#L50)
+  so they share a single object in memory, reducing heap usage on indices with many segments.
+- For time-series indices with synthetic IDs enabled (`index.mapping.synthetic_id`), the `AbstractTSDBSyntheticIdCodec`
+  [avoids writing](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/SyntheticIdField.java#L32)
+  the `_id` inverted index and stored field to disk. The `_id` field is still declared as indexed, but
+  [SyntheticIdField](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/SyntheticIdField.java)
+  produces an empty token stream so no postings are actually written on flush.
+  At read time, the [TSDBSyntheticIdPostingsFormat] reconstructs postings from `_tsid`, `@timestamp`, and
+  `_ts_routing_hash` doc values, and the [TSDBSyntheticIdStoredFieldsReader] synthesizes `_id` stored-field values on
+  the fly from the same doc values. An
+  [ES94BloomFilterDocValuesFormat](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/bloomfilter/ES94BloomFilterDocValuesFormat.java)
+  bloom filter is also built for the `_id` field so that existence checks during indexing can avoid `_tsid` and
+  `@timestamp` doc-values lookups per document. The synthetic ID feature reduces the storage overhead for
+  high-cardinality time-series indices.
+
+As the [IndexVersion](#index-version) advances with each Lucene upgrade, new codec implementations are
+introduced (e.g. [Elasticsearch92Lucene103Codec](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/codec/Elasticsearch92Lucene103Codec.java)). Older segments written by previous codecs remain readable
+because Lucene's [SPI](https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/ServiceLoader.html)
+mechanism loads the codec that originally wrote each segment.
 
 #### Segment Merges
+
+[MergePolicyConfig]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/MergePolicyConfig.java
+[ThreadPoolMergeScheduler]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ThreadPoolMergeScheduler.java
+[SoftDeletesPolicy]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/SoftDeletesPolicy.java
+[PrunePostingsMergePolicy]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/PrunePostingsMergePolicy.java
+[PruningMergePolicy]:https://github.com/elastic/elasticsearch/blob/6b105b2e26988377532837e0360ddaaef87d279f/server/src/main/java/org/elasticsearch/index/engine/PruningMergePolicy.java
+[ShuffleForcedMergePolicy]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ShuffleForcedMergePolicy.java
+[ThreadPoolMergeExecutorService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/ThreadPoolMergeExecutorService.java
+
+Because Lucene segments are immutable, updates and deletes cannot modify documents in place. Over time,
+small segments accumulate from successive flushes.
+[Merges](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/MergePolicy.html) combine multiple
+segments into fewer, larger ones. Merges both reclaim space from obsolete documents and improve query performance by
+reducing the number of segments a search must visit.
+
+[MergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/MergePolicy.html)s decide
+which segments to merge and when. Elasticsearch configures this through [MergePolicyConfig], which uses
+Lucene's [TieredMergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/TieredMergePolicy.html)
+as the default base policy, and
+[LogByteSizeMergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/LogByteSizeMergePolicy.html)
+for time-series indices. Then the `InternalEngine`
+[wraps](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L2808)
+this base policy with several layers:
+
+- [SoftDeletesRetentionMergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/SoftDeletesRetentionMergePolicy.html):
+  retains soft-deleted documents (more details about soft deletes in subsequent paragraphs).
+- [PrunePostingsMergePolicy]: drops the `_id` field postings for deleted documents during segment merges, maintaining
+  consistent update performance even when a large number of soft deleted/updated documents are retained.
+- [PruningMergePolicy]: prunes `_recovery_source` stored fields and `_seq_no`-related fields for documents
+  that no longer need them for replication.
+- [ShuffleForcedMergePolicy]: randomizes segment ordering during force merges so that recently-indexed
+  documents are not always co-located at the end, improving the efficiency of time-based queries.
+
+[MergeScheduler](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/MergeScheduler.html)s decide how
+merges are executed. The default implementation is [ThreadPoolMergeScheduler], which runs merges on the
+[ThreadPoolMergeExecutorService] shared node-level thread pool with disk-aware I/O throttling.
+
+Elasticsearch never hard-deletes documents from Lucene. Instead, both updates and deletes
+use Lucene's [soft-delete](https://issues.apache.org/jira/browse/LUCENE-8198) mechanism. The [InternalEngine]
+[calls](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1645)
+[IndexWriter.softUpdateDocument](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/IndexWriter.html#softUpdateDocument(org.apache.lucene.index.Term,java.lang.Iterable,org.apache.lucene.document.Field...)),
+which atomically marks the previous version of a document as soft-deleted
+(by setting a `__soft_deletes` numeric doc-values field to `1`) and writes the new version or a delete
+tombstone into the current segment.
+The old document is also marked as deleted in the `.liv` bitset, just like a hard delete. The soft-delete update
+triggers a new generational `.liv` file for the segment that contained the previous version of the document.
+The difference between hard and soft deletes is that hard-deleted documents are always discarded during merges,
+whereas documents carrying the `__soft_deletes` marker can be selectively retained. Lucene's
+[SoftDeletesRetentionMergePolicy](https://lucene.apache.org/core/10_4_0/core/org/apache/lucene/index/SoftDeletesRetentionMergePolicy.html)
+decides which soft-deleted documents to keep by evaluating a retention query at merge time.
+Elasticsearch provides this query through its [SoftDeletesPolicy], which evaluates whether a document can be discarded
+based on the minimum sequence number to retain (evaluated from the global checkpoint), the
+`index.soft_deletes.retention.operations` setting, and any active retention leases held by replicas or CCR followers.
+
+Soft deletes are an essential feature for [CCR](#cross-cluster-replication-ccr).
+CCR followers replay operations from their leader Lucene index to stay up to date. Without soft deletes, the leader
+Lucene index could discard deleted documents during merges, leaving no trace that the delete operation ever occurred.
+CCR followers that fall behind would no longer be able to catch up via operation replay. Soft-deleted tombstones
+prevent this by preserving delete operations in the Lucene index until all followers have processed them.
 
 # Recovery
 
@@ -1620,23 +2653,340 @@ Tasks are integrated with the ElasticSearch APM infrastructure. They implement t
 
 # Indexing / CRUD
 
-(Explain that the Distributed team is responsible for the write path, while the Search team owns the read path.)
+[RestBulkAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestBulkAction.java
+[RestIndexAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestIndexAction.java
+[RestDeleteAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestDeleteAction.java
+[RestUpdateAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestUpdateAction.java
+[TransportBulkAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportBulkAction.java
+[TransportAbstractBulkAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportAbstractBulkAction.java
+[IngestActionForwarder]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/ingest/IngestActionForwarder.java
+[BulkOperation]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkOperation.java
+[TransportShardBulkAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportShardBulkAction.java
+[TransportIndexAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/index/TransportIndexAction.java
+[TransportDeleteAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/delete/TransportDeleteAction.java
+[TransportUpdateAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/update/TransportUpdateAction.java
+[TransportReplicationAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java
+[TransportWriteAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportWriteAction.java
+[IndexRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/index/IndexRequest.java
+[DeleteRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/delete/DeleteRequest.java
+[GlobalCheckpointSyncAction]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/GlobalCheckpointSyncAction.java
+[UpdateRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/update/UpdateRequest.java
+[BulkRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkRequest.java
+[IndexShardOperationPermits]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShardOperationPermits.java
+[SequenceNumbers]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/SequenceNumbers.java
+[LocalCheckpointTracker]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/LocalCheckpointTracker.java
+[ReplicationTracker]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/ReplicationTracker.java
+[SeqNoFieldMapper]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/mapper/SeqNoFieldMapper.java
+[ReplicationOperation]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java
 
-(Generating document IDs. Same across shard replicas, \_id field)
+The Distributed team owns Elasticsearch's write path. A typical write begins as an HTTP/REST request, is routed to
+the appropriate primary shard, is applied to the shard's engine and translog, and is finally replicated across replicas
+before an ack is sent back to the client.
 
-(Sequence number: different than ID)
+Note that in serverless Elasticsearch, there is no replication process needed. The same reliability and fault tolerance
+are instead achieved by uploading the translog to a blob store and relying on the store's durability and fault tolerance
+guarantees. See this [blog post](https://www.elastic.co/search-labs/blog/thin-indexing-shards-elasticsearch-serverless)
+for more details.
 
-### Reindex
+The Distributed team also owns select parts of the read path (e.g. real-time `GET` requests targeting the
+[translog](#translog)), but broader search capabilities like query execution, scoring, and aggregations fall under 
+the Search team.
 
-### Locking
+This section follows a bulk index request end to end in stateful Elasticsearch, using [RestBulkAction]
+as the starting point.
 
-(what limits write concurrency, and how do we minimize)
+For a higher-level overview of the read and write paths, see
+[Reading and writing documents](https://www.elastic.co/docs/deploy-manage/distributed-architecture/reading-and-writing-documents).
 
-### Soft Deletes
+## The Write Path
 
-### Refresh
+### Coordinator: REST to Transport
 
-(explain visibility of writes, and reference the Lucene section for more details (whatever makes more sense explained there))
+A user sends a `POST` to `/_bulk` with a newline-delimited body of index, update, or delete actions
+(see [documentation](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk)).
+The HTTP stack (described in [HTTP Server](#http-server)) hands the request to [RestBulkAction], which
+[parses](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestBulkAction.java#L120)
+the body into a [BulkRequest] containing one [IndexRequest] (or [UpdateRequest] / [DeleteRequest]) per requested
+operation. It then [executes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/rest/action/document/RestBulkAction.java#L138)
+a [TransportBulkAction] on the receiving node (see the [Transport](#transport) section for more details).
+
+Single-document requests (`PUT` or `POST` to `/{index}/_doc/{id}`) follow the same path: [RestIndexAction]
+builds an [IndexRequest] that [TransportIndexAction] wraps in a one-item [BulkRequest] before delegating to
+[TransportBulkAction].
+
+The node that received the request is the coordinating node for this request. On that node, [TransportBulkAction]
+coordinates the rest of the write path.
+
+Before routing to shards, [TransportAbstractBulkAction] (the parent class of [TransportBulkAction])
+[resolves](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportAbstractBulkAction.java#L277)
+the ingest pipeline for each item by checking the request's `pipeline` parameter, the index's `default_pipeline`, and
+the `final_pipeline` from the matching index template. If any item has a pipeline, the coordinating node either executes
+the pipelines locally (if it is an ingest node, see the [Node Roles](#node-roles) section) or
+[forwards](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportAbstractBulkAction.java#L315)
+the entire request to an ingest node via [IngestActionForwarder]. Once ingest finishes, each processed request has
+its `pipeline` and `finalPipeline` fields
+[reset](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/ingest/IngestService.java#L1092)
+to `"_none"` and the request is
+[re-submitted](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportAbstractBulkAction.java#L364)
+through `TransportAbstractBulkAction#applyPipelinesAndDoInternalExecute`. On this second pass `hasPipeline` is false
+for every item and the ingest path is skipped.
+
+[TransportBulkAction] also
+[checks](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportBulkAction.java#L327)
+whether the target index or data stream exists, auto-creating missing indices via `AutoCreateAction` and
+[rolling over](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportBulkAction.java#L410)
+data streams marked for lazy rollover before proceeding.
+
+It then eventually runs a [BulkOperation] on the coordinator. `BulkOperation` is the class that resolves each item to
+a concrete index and shard before sending work to primaries.
+
+If the client did not supply an `_id`, one is
+[generated](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkOperation.java#L333)
+before routing. The latest applied [ClusterState](#cluster-state) supplies routing for the chosen index (`routingTable`,
+[ShardRouting](#cluster-state)). A routing key is chosen: by default the document `_id`, though the request may
+[set](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-index) `routing` explicitly.
+The routing key is then hashed to a shard number by `IndexRouting.hashToShardId`. For time series indices the key is
+[derived from the document's dimension fields](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/IndexRouting.java#L62).
+For indices with a `routing_path` configured, it is derived from the configured value.
+
+The coordinator now knows which shard holds the document. It still needs the current primary node for that shard.
+
+Note that for a bulk request
+([multiple documents in one HTTP call](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-bulk)),
+[BulkOperation] [groups](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkOperation.java#L194)
+items by shard before dispatching each shard’s work to the appropriate primaries.
+
+### Primary Routing & Execution
+
+#### Primary Routing
+
+Elasticsearch uses primary–backup replication. The primary shard copy defines the ordered write history and replicas
+apply the same operations.
+
+After matching each document to a shard, [BulkOperation] will
+[hand over](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/BulkOperation.java#L485)
+the rest of the execution to a [TransportShardBulkAction]. This is a subclass of [TransportReplicationAction], which
+holds the core replication framework logic for document writes and deletes.
+
+The coordinator uses the cluster state routing table ([Cluster State](#cluster-state)) to send the shard request to
+the node that currently holds the primary.
+
+In practice, the request can take more than one transport hop before it executes on the primary. The receiving node
+re-samples cluster state, and if the active primary for that shard is assigned elsewhere, [TransportReplicationAction]
+[forwards](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1043)
+the replication request to that node. That “chase the primary” step can repeat while routing metadata
+converges. To avoid redirect loops between nodes whose cluster state versions differ, the request carries a
+[routedBasedOnClusterVersion](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1021)
+field. Each forward updates it to the forwarding node’s cluster state version so the next receiver
+[is on at least](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L898)
+that version before it redirects again. Retries and awaiting cluster state updates are
+[bounded by the request’s timeout](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L874).
+On each retry attempt the node [checks](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1102)
+whether the timeout has expired, and if so fails the request.
+
+Once the request
+[reaches](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L964)
+the node that actually hosts the primary, it will get
+[wrapped](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L988)
+in a [ConcreteShardRequest](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1388) 
+that includes the shard’s primary term and target allocation id. That lets the primary and replicas refuse operations 
+that were built for a superseded primary generation.
+
+#### Primary Execution
+
+On the primary node, `TransportShardBulkAction`
+[applies](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/bulk/TransportShardBulkAction.java#L441)
+the shard's bulk items through [IndexShard], the single entry point for shard-level work
+(see [IndexShard](#indexshard) in [Engine & Store](#engine--store) sections for more details).
+
+The primary will first try to
+[acquire](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L484)
+an operation permit via [IndexShardOperationPermits]. Note that recovery and relocation are operations that can
+intentionally grab all available permits with the goal of blocking in-flight writes. In that case, the incoming
+operation is [queued](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShardOperationPermits.java#L219)
+and will resume once the block lifts. If the permit is successfully acquired, the primary will then validate and
+[prepare](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java#L1026)
+the operation: create the mapping (if not already existing), parse the source, etc. `IndexShard` will then hand over the
+request to the engine (typically [InternalEngine], see [Engine](#engine) section for more details) that
+[generates](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1239)
+the sequence number for the operation, [updates](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1262)
+Lucene via an `IndexWriter`, and then
+[appends](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1276)
+the operation to the [Translog](#translog).
+
+Note that the translog write happens after the Lucene update. The translog is primarily a durability and recovery log for
+acknowledged operations, not a write-ahead log in the classic database sense. The translog entry type also depends on 
+the Lucene outcome. A successful Lucene apply writes the full operation, while a failure with an already-assigned seq_no
+[writes a no-op](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1278)
+to preserve the sequence number history.
+
+Note that updates and deletes use soft deletes in Lucene (tombstones and retention policies), not physical deletion,
+and are therefore quite similar to writes.
+See [Engine & Store](#engine--store) and [Segment Merges](#segment-merges) for more details.
+
+### Replication
+
+After the primary applies the operation, a [ReplicationOperation]
+[wrapper object](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L592)
+will coordinate the rest. It
+[loads](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java#L151)
+the replication group after the primary write (to avoid missing new recovery targets),
+captures the global checkpoint and related metadata from the primary, then
+[forwards the request](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java#L188)
+to each replica in that group. Each replica
+[applies](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1331)
+the same operation (using the same `seq_no` and primary term) to its engine and returns checkpoint information.
+
+Allocation ids that are still in the in-sync set but no longer have a live shard in routing are
+[marked stale](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java#L187)
+on the primary. The master will update the cluster state to drop those allocation ids from the index’s
+[in-sync set](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java#L651)
+before the write is acknowledged back to the client. Similarly, if a replica fails to execute the replicated operation,
+it will also get dropped from the in-sync set before the write is acknowledged back. The primary will not
+acknowledge the replication operation as “done” while the cluster state still reports an in-sync copy that has failed
+the operation.
+[A ref-counting listener](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java#L108)
+also waits for the primary shard application, each replica response, and post-replication hooks. The client only gets an
+ack after that coordinated completion, together with `wait_for_active_shards` and translog / `syncAfterWrite` behaviour (see
+[Translog](#translog) and `TransportWriteAction`).
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant CN as Coordinating node
+    participant P as Primary shard copy
+    participant R as Replica shard copy
+    participant M as Elected master
+
+    C->>CN: REST index (RestIndexAction → IndexRequest)
+    CN->>CN: Bulk coordinator: route to shard
+    CN->>P: Shard bulk on primary (TransportShardBulkAction)
+    P->>P: IndexShard / engine (Translog + Lucene)
+    Note over P: ReplicationOperation: stale in-sync ids, then replica fan-out
+    P->>R: Replica request (seq_no, primary_term, checkpoints)
+    alt replica applies successfully
+        R->>R: Engine apply (Translog + Lucene)
+        R-->>P: ReplicaResponse (checkpoints)
+    else replica fails replication
+        R-->>P: failure
+        P->>M: remoteShardFailed (shard-failed -> update in-sync / routing)
+        M->>M: Cluster state task (drop failed copy from in-sync set, etc.)
+        M-->>P: shard-failed applied (listener completes)
+    end
+    P-->>CN: Primary result + shard info (after all pending replica / master / post steps)
+    CN-->>C: HTTP response (may include shard failures in body)
+```
+
+When replication and the ref-counted coordination above have finished, the primary completes the shard-level request and
+returns the result to the node that issued that shard-level transport request. For a normal REST bulk request, that
+issuer is the HTTP request coordinating node, which then completes the write action and sends
+the HTTP response to the client. The same shard-level transport requests can also be generated internally, for example 
+via [TriggeredWatchStore#putAll](https://github.com/elastic/elasticsearch/blob/v9.3.0/x-pack/plugin/watcher/src/main/java/org/elasticsearch/xpack/watcher/execution/TriggeredWatchStore.java#L84)
+in Watcher. The issuer is then whichever node runs that internal client, and the primary returns the result to that 
+transport caller.
+
+### Primary Terms & Sequence Numbers
+
+Every successful index, update, or delete operation on a shard is tagged with a sequence number (`seq_no`) and a primary term.
+Together they identify that logical change for replication, recovery, and optimistic concurrency. Sentinel values and
+helpers are defined on [SequenceNumbers] (for example `UNASSIGNED_SEQ_NO` on the way into the primary, and
+`UNASSIGNED_PRIMARY_TERM` before a shard is operational).
+
+The primary term is a monotonically increasing counter per shard, recorded in cluster state metadata (see
+[IndexMetadata#primaryTerm](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java#L1199)).
+It advances when a new primary must take over following a primary failure, e.g. when a replica is promoted to primary
+because the current primary crashed or became unavailable. Note that the primary term is not increased during graceful
+primary relocation. The shard stamps all operations with the
+[current term](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/shard/IndexShard.java#L514).
+
+The sequence number is another monotonically increasing id for mutations on the shard history. It is
+[computed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1163)
+by the primary's [InternalEngine] before it applies an operation locally. Replicas apply the same `seq_no` supplied
+by the primary. Their engine
+[records](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1256)
+that sequence number as "seen" before indexing. After the operation, the local checkpoint also gets updated (see the following [Checkpoints](#checkpoints--gaps) subsection).
+
+Both values are stored in Lucene for each live document. [SeqNoFieldMapper] indexes `_seq_no` as a numeric field (for
+search and sort) and stores the primary term in doc values. If two copies
+ever share the same `_seq_no` (for example after a primary promotion), the copy with the higher primary term wins.
+Clients can also supply `if_seq_no` / `if_primary_term` on write requests (see
+[IndexRequest#setIfSeqNo](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/index/IndexRequest.java#L623)),
+in which case the engine will use optimistic concurrency control against the last known sequence number.
+
+```mermaid
+flowchart LR
+    subgraph prim["Primary shard"]
+        MD[IndexMetadata.primaryTerm in cluster state]
+        TR[ReplicationTracker operation term]
+        LCT[LocalCheckpointTracker next seq_no]
+        ENG[InternalEngine assigns seq_no + term]
+        MD --> TR
+        TR --> ENG
+        LCT --> ENG
+    end
+    ENG --> TX[ConcreteShardRequest / replica transport]
+    TX --> REP[Replica engine applies fixed seq_no + term]
+```
+
+### Checkpoints & Gaps
+
+Each shard copy tracks how far it has applied the shared history of `seq_no` values using a local checkpoint,
+which is the highest sequence number for which that copy has processed every earlier `seq_no` (inclusive). 
+The [InternalEngine] holds a [LocalCheckpointTracker]
+[field](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L172)
+that maintains that marker and a separate persisted checkpoint for what is durably on disk.
+
+The primary also tracks a
+[global checkpoint](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/ReplicationTracker.java#L147),
+which is the sequence number up to which all in-sync copies have
+processed every earlier operation. The [ReplicationTracker] computes it as the minimum of those per-copy local checkpoints among in-sync shard copies.
+The primary [updates](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/ReplicationTracker.java#L1375)
+the global checkpoint whenever an in-sync copy’s local checkpoint advances, when the primary activates or takes over
+after relocation, when a copy becomes in-sync, or when cluster state drops tracked copies.
+During operation replication,
+[replica responses carry](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/ReplicationOperation.java#L290)
+local and global checkpoint fields so the primary can [derive](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/ReplicationTracker.java#L1320)
+peer progress. After a successful write, [TransportReplicationAction] will also
+[trigger](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L568)
+a [GlobalCheckpointSyncAction] when there are no more operations in-flight (`maxSeqNo == globalCheckpoint`).
+Indeed, the global checkpoint is piggybacked on every replication operation, but once the last operation completes,
+the checkpoint may advance further with no subsequent operation to carry it to the replicas.
+
+The global checkpoint is the replication-group safety line: it is the highest `seq_no` known to be processed
+on every in-sync copy, so it underpins
+[retention leases](https://www.elastic.co/docs/reference/elasticsearch/index-settings/history-retention),
+[translog](#translog) truncation, [soft-delete retention](#segment-merges), and [peer recovery](#peer-recovery)
+coordination.
+
+Because replication fan-out is concurrent, a replica may receive operations with out-of-order `seq_no` values.
+The engine still applies each operation once its prerequisites are satisfied. The `LocalCheckpointTracker`
+[records](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1299)
+which sequence numbers have been processed (including pending gaps) so the local checkpoint only advances when
+the [contiguous prefix is complete](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/LocalCheckpointTracker.java#L194).
+To save memory, `LocalCheckpointTracker` tracks which `seq_no` values are still pending
+[using sparse bit sets](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/seqno/LocalCheckpointTracker.java#L32)
+in chunk-keyed maps.
+
+Replicas cache the global checkpoint value the primary advertises and refresh it from ongoing replication traffic
+(for example, each [ConcreteReplicaRequest](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1525)
+carries the primary’s global checkpoint for the replica permit path,
+and each [ReplicaResponse](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/action/support/replication/TransportReplicationAction.java#L1284)
+returns the replica’s local checkpoint and last synced global checkpoint).
+
+Note that the `InternalEngine` also tracks the
+[maxSeqNoOfUpdatesOrDeletes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/Engine.java#L2512)
+(MSU) for write path optimization purposes. The [Engine](#engine)
+[javadoc](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/Engine.java#L2479)
+goes into details about the `LCP < MSU` versus `MSU <= LCP` cases.
+
+The engine also applies an append-only
+[optimization](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1328)
+for auto-generated `_id`s. When a document has an auto-generated ID and the operation is not flagged as a retry,
+the engine will try to
+[assert](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/index/engine/InternalEngine.java#L1513)
+that no concurrent retry with an equal or higher timestamp has landed on the shard so it can skip the version map
+lookup entirely and call `IndexWriter.addDocument` instead of `updateDocument`. If the check fails, the engine falls
+back to `updateDocument` to guard against creating a duplicate.
 
 # Server Startup
 
@@ -1790,4 +3140,3 @@ PUT _watcher/watch/log_error_watch
   - In older versions (before 8.17), the counter for the interval schedule restarts if the shard moves. For example, if the interval is once every 12 hours, and the shard moves 10 hours into that interval, it will be at least 12 more hours until it runs.
   - Calls to remote systems ([EmailAction] and [WebhookAction]) are a frequent source of failures. Watcher sends the request but doesn't know what happens after that. If you see that the call was successful in `.watcher_history`, the best way to continue the investigation is in the logs of the remote system.
   - Even if watcher fails during a call to a remote system, the error is likely to be outside of watcher (e.g. network problems). Check the error message in `.watcher_history`.
-

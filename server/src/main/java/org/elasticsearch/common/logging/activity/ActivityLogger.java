@@ -12,20 +12,13 @@ package org.elasticsearch.common.logging.activity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.index.ActionLoggingFieldsContext;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.logging.Level;
 
 import java.util.Optional;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-
-import static org.elasticsearch.common.settings.Setting.boolSetting;
-import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 /**
  * Generic wrapper to log completion (whether successful or not) of any action, with necessary details.
@@ -36,40 +29,13 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
     private final ActivityLogProducer<Context> producer;
     private final ActivityLogWriter writer;
     private final ActionLoggingFields additionalFields;
-    private boolean enabled = false;
-    private long threshold = -1;
-    private Level logLevel = Level.INFO;
+    protected final Consumer<Boolean> setincludeUserInformation;
 
-    public static final String ACTIVITY_LOGGER_SETTINGS_PREFIX = "elasticsearch.activitylog.";
-    public static final Setting.AffixSetting<Boolean> ACTIVITY_LOGGER_ENABLED = Setting.affixKeySetting(
-        ACTIVITY_LOGGER_SETTINGS_PREFIX,
-        "enabled",
-        key -> boolSetting(key, false, Setting.Property.Dynamic, Setting.Property.NodeScope)
-    );
-
-    public static final Setting.AffixSetting<TimeValue> ACTIVITY_LOGGER_THRESHOLD = Setting.affixKeySetting(
-        ACTIVITY_LOGGER_SETTINGS_PREFIX,
-        "threshold",
-        key -> timeSetting(key, TimeValue.MINUS_ONE, Setting.Property.Dynamic, Setting.Property.NodeScope)
-    );
-
-    // Level for this log type. Presently set as operator configurable.
-    public static final Setting.AffixSetting<Level> ACTIVITY_LOGGER_LEVEL = Setting.affixKeySetting(
-        ACTIVITY_LOGGER_SETTINGS_PREFIX,
-        "log_level",
-        key -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Setting.Property.OperatorDynamic, Setting.Property.NodeScope)
-    );
-
-    // Whether to include authentication information in the log
-    public static final Setting.AffixSetting<Boolean> ACTIVITY_LOGGER_INCLUDE_USER = Setting.affixKeySetting(
-        ACTIVITY_LOGGER_SETTINGS_PREFIX,
-        "include.user",
-        key -> boolSetting(key, true, Setting.Property.Dynamic, Setting.Property.NodeScope)
-    );
+    protected boolean enabled = false;
+    protected long threshold = -1;
+    protected Level logLevel = Level.INFO;
 
     public ActivityLogger(
-        String name,
-        ClusterSettings settings,
         ActivityLogProducer<Context> producer,
         ActivityLogWriterProvider writerProvider,
         ActionLoggingFieldsProvider fieldsProvider
@@ -77,24 +43,11 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
         this.producer = producer;
         this.writer = writerProvider.getWriter(producer.loggerName());
         var context = new ActionLoggingFieldsContext(true);
-        // Initialize
         this.additionalFields = fieldsProvider.create(context);
-        this.enabled = settings.get(ACTIVITY_LOGGER_ENABLED.getConcreteSettingForNamespace(name));
-        this.threshold = settings.get(ACTIVITY_LOGGER_THRESHOLD.getConcreteSettingForNamespace(name)).nanos();
-        setLogLevel(settings.get(ACTIVITY_LOGGER_LEVEL.getConcreteSettingForNamespace(name)));
-        context.setIncludeUserInformation(settings.get(ACTIVITY_LOGGER_INCLUDE_USER.getConcreteSettingForNamespace(name)));
-
-        settings.addAffixUpdateConsumer(ACTIVITY_LOGGER_ENABLED, updater(name, v -> enabled = v), (k, v) -> {});
-        settings.addAffixUpdateConsumer(ACTIVITY_LOGGER_THRESHOLD, updater(name, v -> threshold = v.nanos()), (k, v) -> {});
-        settings.addAffixUpdateConsumer(ACTIVITY_LOGGER_LEVEL, updater(name, this::setLogLevel), (k, v) -> {
-            if (v.equals(Level.ERROR) || v.equals(Level.FATAL)) {
-                throw new IllegalStateException("Log level can not be " + v.name() + " for " + k);
-            }
-        });
-        settings.addAffixUpdateConsumer(ACTIVITY_LOGGER_INCLUDE_USER, updater(name, context::setIncludeUserInformation), (k, v) -> {});
+        this.setincludeUserInformation = context::setIncludeUserInformation;
     }
 
-    private void setLogLevel(Level level) {
+    protected void setLogLevel(Level level) {
         if (level.equals(Level.ERROR) || level.equals(Level.FATAL)) {
             throw new IllegalStateException("Log level can not be " + level.name());
         }
@@ -106,18 +59,21 @@ public class ActivityLogger<Context extends ActivityLoggerContext> {
         return logLevel;
     }
 
-    private <T> BiConsumer<String, T> updater(String name, Consumer<T> updater) {
-        return (k, v) -> { if (name.equals(k)) updater.accept(v); };
+    protected boolean shouldLog(Context context) {
+        return enabled != false && (threshold <= 0 || context.getTookInNanos() >= threshold);
     }
 
     // Accessible for tests
     void logAction(Context context) {
-        if (enabled == false || (threshold > -1 && context.getTookInNanos() < threshold)) {
+        if (shouldLog(context) == false) {
             return;
         }
         Optional<ESLogMessage> event = producer.produce(context, additionalFields);
+        event.ifPresent(logMessage -> addFields(context, logMessage));
         event.ifPresent(logMessage -> writer.write(logLevel, logMessage));
     }
+
+    protected void addFields(Context context, ESLogMessage logMessage) {}
 
     public <Req, R> ActionListener<R> wrap(ActionListener<R> listener, final ActivityLoggerContextBuilder<Context, Req, R> contextBuilder) {
         if (enabled == false) {

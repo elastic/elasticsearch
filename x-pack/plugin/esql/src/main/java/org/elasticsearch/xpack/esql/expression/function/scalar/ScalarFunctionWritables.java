@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -21,9 +22,13 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateUnitCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
@@ -46,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Md5;
@@ -87,6 +93,7 @@ public class ScalarFunctionWritables {
         entries.add(Greatest.ENTRY);
         entries.add(CopySign.ENTRY);
         entries.add(Hash.ENTRY);
+        entries.add(JsonExtract.ENTRY);
         entries.add(Hypot.ENTRY);
         entries.add(In.ENTRY);
         entries.add(InsensitiveEquals.ENTRY);
@@ -95,8 +102,12 @@ public class ScalarFunctionWritables {
         entries.add(DateFormat.ENTRY);
         entries.add(DateParse.ENTRY);
         entries.add(DateTrunc.ENTRY);
+        entries.add(DateUnitCount.ENTRY);
         entries.add(DayName.ENTRY);
+        entries.add(RangeWithin.ENTRY);
         entries.add(MonthName.ENTRY);
+        entries.add(RangeMax.ENTRY);
+        entries.add(RangeMin.ENTRY);
         entries.add(IpPrefix.ENTRY);
         entries.add(Least.ENTRY);
         entries.add(ClampMax.ENTRY);
@@ -126,6 +137,7 @@ public class ScalarFunctionWritables {
         entries.add(ToUpper.ENTRY);
         entries.add(HistogramPercentile.ENTRY);
         entries.add(ExtractHistogramComponent.ENTRY);
+        entries.add(WindowFilter.ENTRY);
 
         entries.addAll(GroupingWritables.getNamedWriteables());
         return entries;

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 146076
+summary: Cleanup post-merge nits in DataSourceValidator SPI
+type: enhancement

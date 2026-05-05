@@ -2278,24 +2278,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             this.preview = preview;
         }
 
-        private TypedData(
-            Object data,
-            DataType type,
-            String name,
-            boolean forceLiteral,
-            boolean multiRow,
-            List<FunctionAppliesTo> appliesTo
-        ) {
-            this(data, type, name, forceLiteral, multiRow, appliesTo, false);
-        }
-
         /**
          * @param data value to test against
          * @param type type of the value, for building expressions
          * @param name a name for the value, used for generating test case names
          */
         public TypedData(Object data, DataType type, String name) {
-            this(data, type, name, false, false, List.of());
+            this(data, type, name, false, false, List.of(), false);
         }
 
         /**
@@ -2316,7 +2305,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * @param name a name for the value, used for generating test case names
          */
         public static TypedData multiRow(List<?> data, DataType type, String name) {
-            return new TypedData(data, type, name, false, true, List.of());
+            return new TypedData(data, type, name, false, true, List.of(), false);
         }
 
         /**
@@ -2325,7 +2314,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * must be constants.
          */
         public TypedData forceLiteral() {
-            return new TypedData(data, type, name, true, multiRow, appliesTo);
+            return new TypedData(data, type, name, true, multiRow, appliesTo, preview);
         }
 
         /**

@@ -44,12 +44,12 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
-import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -264,11 +264,18 @@ public class OrcFormatReader implements RangeAwareFormatReader {
         Path path = new Path(object.path().toString());
         try (Reader reader = OrcFile.createReader(path, orcReaderOptions(fs))) {
             List<StripeInformation> stripes = reader.getStripes();
-            if (stripes.size() <= 1) {
+            if (stripes.isEmpty()) {
                 return List.of();
             }
             List<StripeStatistics> stripeStats = reader.getStripeStatistics();
             TypeDescription schema = reader.getSchema();
+            if (stripes.size() == 1) {
+                StripeInformation stripe = stripes.getFirst();
+                Map<String, Object> stats = stripeStats.isEmpty() == false
+                    ? buildStripeStats(stripe, stripeStats.getFirst(), schema)
+                    : Map.of();
+                return List.of(new SplitRange(stripe.getOffset(), stripe.getLength(), stats));
+            }
             List<SplitRange> ranges = new ArrayList<>(stripes.size());
             for (int i = 0; i < stripes.size(); i++) {
                 StripeInformation stripe = stripes.get(i);
@@ -320,15 +327,13 @@ public class OrcFormatReader implements RangeAwareFormatReader {
      * structural (corrupt stripe, schema mismatch) rather than row-level.
      */
     @Override
-    public CloseableIterator<Page> readRange(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        long rangeStart,
-        long rangeEnd,
-        List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
-    ) throws IOException {
+    public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException {
+        long rangeStart = context.rangeStart();
+        long rangeEnd = context.rangeEnd();
+        List<String> projectedColumns = context.projectedColumns();
+        int batchSize = context.batchSize();
+        List<Attribute> resolvedAttributes = context.resolvedAttributes();
+
         if (rangeEnd <= rangeStart) {
             throw new IllegalArgumentException("rangeEnd [" + rangeEnd + "] must be greater than rangeStart [" + rangeStart + "]");
         }

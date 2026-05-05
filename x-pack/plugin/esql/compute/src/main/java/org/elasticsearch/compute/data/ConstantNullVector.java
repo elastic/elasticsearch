@@ -181,6 +181,11 @@ public final class ConstantNullVector extends AbstractVector
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return 0;
+    }
+
+    @Override
     public boolean isConstant() {
         return true;
     }

@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitStats;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -64,7 +64,7 @@ final class SplitFilterClassifier {
      * Supports AND, OR, NOT, and leaf comparisons (field op literal).
      */
     public static SplitMatch classifyExpression(Expression filter, SplitStats splitStats) {
-        if (filter == null || splitStats == null || splitStats.columnCount() == 0) {
+        if (filter == null || splitStats == null) {
             return SplitMatch.AMBIGUOUS;
         }
         return classifyRecursive(filter, splitStats);

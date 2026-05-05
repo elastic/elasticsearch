@@ -201,7 +201,7 @@ public class WatcherServiceTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[count];
         for (int i = 0; i < count; i++) {
             String id = String.valueOf(i);
-            SearchHit hit = SearchHit.unpooled(1, id);
+            SearchHit hit = new SearchHit(1, id);
             hit.version(1L);
             hit.shard(new SearchShardTarget("nodeId", new ShardId(watchIndex, 0), "whatever"));
             hits[i] = hit;
@@ -217,10 +217,11 @@ public class WatcherServiceTests extends ESTestCase {
             when(watch.status()).thenReturn(watchStatus);
             when(parser.parse(eq(id), eq(true), any(), eq(XContentType.JSON), anyLong(), anyLong())).thenReturn(watch);
         }
-        SearchHits searchHits = SearchHits.unpooled(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1.0f);
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1.0f);
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             ActionListener.respondAndRelease(listener, SearchResponseUtils.response(searchHits).scrollId("scrollId").build());
+            searchHits.decRef(); // transfer initial ref after use; lambda fires once
             return null;
         }).when(client).execute(eq(TransportSearchAction.TYPE), any(SearchRequest.class), anyActionListener());
 

@@ -108,7 +108,7 @@ public class WriteLoadConstraintSettings {
      */
     public static final Setting<TimeValue> WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING = Setting.timeSetting(
         SETTING_PREFIX + "queue_latency_threshold",
-        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueSeconds(3),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -119,8 +119,15 @@ public class WriteLoadConstraintSettings {
      */
     public static final Setting<RatioValue> WRITE_LOAD_DECIDER_HOTSPOT_UTILIZATION_THRESHOLD_SETTING = new Setting<>(
         SETTING_PREFIX + "hotspot_utilization_threshold",
-        "0%",
+        "50%",
         RatioValue::parseRatioValue,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Boolean> CLUSTER_INFO_WRITE_LOAD_FORECASTER_ENABLED_SETTING = Setting.boolSetting(
+        "cluster_info_write_load_forecaster.enabled",
+        false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

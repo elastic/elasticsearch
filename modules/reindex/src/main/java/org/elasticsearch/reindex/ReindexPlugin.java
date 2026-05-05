@@ -110,9 +110,11 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
         return List.of(
             new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService()),
             new ReindexMetrics(services.telemetryProvider().getMeterRegistry()),
+            new BulkByScrollSearchContextMetrics(services.telemetryProvider().getMeterRegistry()),
             new UpdateByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
             new DeleteByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
-            new PluginComponentBinding<>(ReindexRelocationNodePicker.class, getReindexRelocationNodePicker(services.environment()))
+            new PluginComponentBinding<>(ReindexRelocationNodePicker.class, getReindexRelocationNodePicker(services.environment())),
+            new ReindexSettings(services.clusterService().getClusterSettings())
         );
     }
 
@@ -121,6 +123,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
         final List<Setting<?>> settings = new ArrayList<>();
         settings.add(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
         settings.add(TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST);
+        settings.add(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING);
         settings.addAll(ReindexSslConfig.getSettings());
         return settings;
     }

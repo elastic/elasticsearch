@@ -69,6 +69,10 @@ public class TopSnippetsSerializationTests extends AbstractExpressionSerializati
                 entries.add(Literal.keyword(Source.EMPTY, randomFrom("default", "html")));
             }
         }
+        if (randomBoolean()) {
+            entries.add(Literal.keyword(Source.EMPTY, "order"));
+            entries.add(Literal.keyword(Source.EMPTY, randomFrom("score", "none")));
+        }
         return new MapExpression(Source.EMPTY, entries);
     }
 }

@@ -23,7 +23,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.MathUtils;
+import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
+import org.elasticsearch.simdvec.MultiByteVectorsSource;
+import org.elasticsearch.simdvec.MultiFloatVectorsSource;
+import org.elasticsearch.simdvec.MultiVectorsSource;
 import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.lang.foreign.MemorySegment;
@@ -39,6 +44,7 @@ import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPO
 public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     static final int VECTOR_BITSIZE = PanamaVectorConstants.PREFERRED_VECTOR_BITSIZE;
+    private static final DefaultESVectorUtilSupport DEFAULT = new DefaultESVectorUtilSupport();
 
     private static final VectorSpecies<Float> FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
     private static final VectorSpecies<Integer> INTEGER_SPECIES = PanamaVectorConstants.PREFERRED_INTEGER_SPECIES;
@@ -112,6 +118,75 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         return SUPPORTS_NATIVE_VECTORS && SUPPORTS_HEAP_SEGMENTS
             ? Similarities.dotProductI8(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
             : VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+        if (canUseF32BulkPath(source)) {
+            final BytesRef vectors = source.vectorBytes();
+            final MemorySegment vectorsSegment = MemorySegment.ofArray(vectors.bytes)
+                .asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount());
+            final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
+            float sum = 0f;
+            for (float[] floats : query) {
+                Similarities.dotProductF32Bulk(
+                    vectorsSegment,
+                    MemorySegment.ofArray(floats),
+                    source.vectorDims(),
+                    source.vectorCount(),
+                    scoresSegment
+                );
+                sum += ESVectorUtil.max(scoresScratch, source.vectorCount());
+            }
+            return sum;
+        }
+        return DEFAULT.maxSimDotProduct(source, query, scoresScratch);
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        if (canUseBFloat16Path(source)) {
+            final BytesRef vectors = source.vectorBytes();
+            final MemorySegment vectorsSegment = MemorySegment.ofArray(vectors.bytes)
+                .asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount());
+            final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
+            float sum = 0f;
+            for (float[] floats : query) {
+                Similarities.dotProductDBF16QF32Bulk(
+                    vectorsSegment,
+                    MemorySegment.ofArray(floats),
+                    source.vectorDims(),
+                    source.vectorCount(),
+                    scoresSegment
+                );
+                sum += ESVectorUtil.max(scoresScratch, source.vectorCount());
+            }
+            return sum;
+        }
+        return DEFAULT.maxSimDotProduct(source, query, scoresScratch);
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
+        if (canUseI8BulkPath(source)) {
+            final BytesRef vectors = source.vectorBytes();
+            final MemorySegment vectorsSegment = MemorySegment.ofArray(vectors.bytes)
+                .asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount());
+            final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
+            float sum = 0f;
+            for (byte[] bytes : query) {
+                Similarities.dotProductI8Bulk(
+                    vectorsSegment,
+                    MemorySegment.ofArray(bytes),
+                    source.vectorDims(),
+                    source.vectorCount(),
+                    scoresSegment
+                );
+                sum += ESVectorUtil.max(scoresScratch, source.vectorCount());
+            }
+            return sum;
+        }
+        return DEFAULT.maxSimDotProduct(source, query, scoresScratch);
     }
 
     @Override
@@ -885,8 +960,8 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
-        squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, distances);
+    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances) {
+        squareDistanceBulk(query, 0, query.length, v0, v1, v2, v3, distancesOffset, distances);
     }
 
     @Override
@@ -898,6 +973,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         float[] v1,
         float[] v2,
         float[] v3,
+        int distancesOffset,
         float[] distances
     ) {
         FloatVector sv0 = FloatVector.zero(FLOAT_SPECIES);
@@ -938,10 +1014,10 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             distance2 = fma(diff2, diff2, distance2);
             distance3 = fma(diff3, diff3, distance3);
         }
-        distances[0] = distance0;
-        distances[1] = distance1;
-        distances[2] = distance2;
-        distances[3] = distance3;
+        distances[distancesOffset] = distance0;
+        distances[distancesOffset + 1] = distance1;
+        distances[distancesOffset + 2] = distance2;
+        distances[distancesOffset + 3] = distance3;
     }
 
     @Override
@@ -1301,18 +1377,39 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     public void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
         assert other.length == dest.length;
 
+        final FloatVector scaleDestVec = FloatVector.broadcast(FLOAT_SPECIES, scaleDest);
         final int limit = FLOAT_SPECIES.loopBound(dest.length);
         int i = 0;
         for (; i < limit; i += FLOAT_SPECIES.length()) {
             FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, i);
             FloatVector otherVec = FloatVector.fromArray(FLOAT_SPECIES, other, i);
-            destVec = destVec.mul(scaleDest).add(otherVec.mul(scaleOther));
+            destVec = fma(destVec, scaleDestVec, otherVec.mul(scaleOther));
             destVec.intoArray(dest, i);
         }
 
         // tail
         for (; i < dest.length; i++) {
-            dest[i] = scaleOther * other[i] + scaleDest * dest[i];
+            dest[i] = fma(scaleOther, other[i], scaleDest * dest[i]);
+        }
+    }
+
+    @Override
+    public void linearCombination(float scaleOther, float[] other, float[] dest) {
+        assert other.length == dest.length;
+
+        final FloatVector scaleOtherVec = FloatVector.broadcast(FLOAT_SPECIES, scaleOther);
+        final int limit = FLOAT_SPECIES.loopBound(dest.length);
+        int i = 0;
+        for (; i < limit; i += FLOAT_SPECIES.length()) {
+            FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, i);
+            FloatVector otherVec = FloatVector.fromArray(FLOAT_SPECIES, other, i);
+            destVec = fma(otherVec, scaleOtherVec, destVec);
+            destVec.intoArray(dest, i);
+        }
+
+        // tail
+        for (; i < dest.length; i++) {
+            dest[i] = fma(other[i], scaleOther, dest[i]);
         }
     }
 
@@ -1441,4 +1538,25 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         FloatVector powerOf2 = pBits.reinterpretAsFloats();
         return m.mul(powerOf2).max(0.0f);
     }
+
+    private static boolean canUseBulkPath(MultiVectorsSource<?> source) {
+        return SUPPORTS_NATIVE_VECTORS
+            && SUPPORTS_HEAP_SEGMENTS
+            && source.vectorBytes() != null
+            && source.vectorCount() > 0
+            && source.vectorBytes().length == source.vectorCount() * source.vectorByteSize();
+    }
+
+    private static boolean canUseF32BulkPath(MultiFloatVectorsSource source) {
+        return canUseBulkPath(source) && source.vectorByteSize() == source.vectorDims() * Float.BYTES;
+    }
+
+    private static boolean canUseBFloat16Path(MultiBFloat16VectorsSource source) {
+        return canUseBulkPath(source) && source.vectorByteSize() == source.vectorDims() * Short.BYTES;
+    }
+
+    private static boolean canUseI8BulkPath(MultiByteVectorsSource source) {
+        return canUseBulkPath(source) && source.vectorByteSize() == source.vectorDims();
+    }
+
 }

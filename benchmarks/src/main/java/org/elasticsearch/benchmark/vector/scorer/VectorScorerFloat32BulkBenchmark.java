@@ -143,9 +143,9 @@ public class VectorScorerFloat32BulkBenchmark extends VectorScorerBulkBenchmark 
                 }
                 break;
             case NATIVE:
-                scorer = factory.getFloatVectorScorerSupplier(function, in, values).orElseThrow().scorer();
+                scorer = factory.getFloat32VectorScorerSupplier(function, in, values).orElseThrow().scorer();
                 if (supportsHeapSegments()) {
-                    queryScorer = factory.getFloatVectorScorer(function.function(), values, ((VectorData) vectorData).queryVector)
+                    queryScorer = factory.getFloat32VectorScorer(function.function(), values, ((VectorData) vectorData).queryVector)
                         .orElseThrow();
                 }
                 break;

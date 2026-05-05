@@ -353,45 +353,20 @@ public abstract class GoldenTestCase extends ESTestCase {
                     if (stages.contains(Stage.NODE_REDUCE)) {
                         var dualFileOutput = (DualFileOutput) Stage.NODE_REDUCE.fileOutput;
                         result.addAll(
-                            addDualPlanResult(
-                                Stage.NODE_REDUCE,
-                                reductionPlan,
-                                dualFileOutput.nodeReduceOutput(),
-                                dualFileOutput.dataNodeOutput()
-                            )
+                            addNodeReduceDualPlanResult(reductionPlan, dualFileOutput.nodeReduceOutput(), dualFileOutput.dataNodeOutput())
                         );
                     }
                     if (stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
-                        var dualFileOutput = (DualFileOutput) Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION.fileOutput;
-                        switch (reductionPlan.localPhysicalOptimization()) {
-                            // If there is no local node-reduce physical optimization, there's nothing to verify!
-                            case DISABLED -> {
-                                result.add(
-                                    Tuple.tuple(
-                                        Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
-                                        verifyOrWrite(
-                                            localOptimize(reductionPlan.dataNodePlan(), configuration),
-                                            outputPath(dualFileOutput.dataNodeOutput())
-                                        )
-                                    )
-                                );
-                            }
-                            case ENABLED -> {
-                                var finalizedResult = new ReductionPlan(
-                                    (ExchangeSinkExec) localOptimize(reductionPlan.nodeReducePlan(), configuration),
-                                    (ExchangeSinkExec) localOptimize(reductionPlan.dataNodePlan(), configuration),
-                                    reductionPlan.localPhysicalOptimization()
-                                );
-                                result.addAll(
-                                    addDualPlanResult(
-                                        Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
-                                        finalizedResult,
-                                        dualFileOutput.nodeReduceOutput(),
-                                        dualFileOutput.dataNodeOutput()
-                                    )
-                                );
-                            }
-                        }
+                        var singleFileOutput = (SingleFileOutput) Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION.fileOutput;
+                        result.add(
+                            Tuple.tuple(
+                                Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
+                                verifyOrWrite(
+                                    localOptimize(reductionPlan.dataNodePlan(), configuration),
+                                    outputPath(singleFileOutput.output())
+                                )
+                            )
+                        );
                     }
                 }
             }
@@ -404,12 +379,9 @@ public abstract class GoldenTestCase extends ESTestCase {
             CREATED
         }
 
-        private List<Tuple<Stage, TestResult>> addDualPlanResult(
-            Stage stage,
-            ReductionPlan plan,
-            String nodeReduceName,
-            String dataNodeName
-        ) throws IOException {
+        private List<Tuple<Stage, TestResult>> addNodeReduceDualPlanResult(ReductionPlan plan, String nodeReduceName, String dataNodeName)
+            throws IOException {
+            var stage = Stage.NODE_REDUCE;
             var reduceResult = verifyOrWrite(plan.nodeReducePlan(), outputPath(nodeReduceName));
             var dataResult = verifyOrWrite(plan.dataNodePlan(), outputPath(dataNodeName));
             var result = new ArrayList<Tuple<Stage, TestResult>>();
@@ -545,8 +517,13 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     /**
      * Normalizes synthetic attribute names of the form $$something($something)* that are followed by # (node id).
-     * Digit-only segments (generated at run time) are replaced with a stable running integer; text segments are kept as-is.
-     * Digits may appear anywhere in the name, including in the middle (e.g. {@code $$SUM$field$0$sum}).
+     * Each distinct synthetic name is assigned a stable id by order of first appearance in the plan, and that id
+     * replaces every digit-only segment in the name when rebuilt; text segments are kept as-is. Digits may appear
+     * anywhere in the name, including in the middle (e.g. {@code $$SUM$field$0$sum}).
+     * <p>
+     * Keying by the full name (rather than just the digit segments) ensures that two unrelated synthetic names
+     * with different text prefixes get independent ids, even when their digit tails happen to collide because
+     * the JVM-global counters that produced them drifted differently across test runs.
      */
     private static String normalizeSyntheticNames(String full) {
         return replaceMatches(full, SYNTHETIC_PATTERN, (matcher, idMap) -> {
@@ -558,7 +535,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     appendSegment(numericSegments, seg);
                 } else {
                     if (numericSegments.isEmpty() == false) {
-                        appendSegment(result, idMap.getId(numericSegments.toString()));
+                        appendSegment(result, idMap.getId(matcher.group(1)));
                         numericSegments.setLength(0);
                         hasNormalized = true;
                     }
@@ -566,7 +543,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 }
             }
             if (numericSegments.isEmpty() == false) {
-                appendSegment(result, idMap.getId(numericSegments.toString()));
+                appendSegment(result, idMap.getId(matcher.group(1)));
                 hasNormalized = true;
             }
             return hasNormalized ? result.toString() : matcher.group();
@@ -682,14 +659,12 @@ public abstract class GoldenTestCase extends ESTestCase {
          * data nodes.
          */
         NODE_REDUCE(new DualFileOutput("local_reduce_planned_reduce_driver", "local_reduce_planned_data_driver")),
+
         /**
-         * A combination of {@link Stage#NODE_REDUCE} and {@link  Stage#LOCAL_PHYSICAL_OPTIMIZATION}: first produce the node
-         * reduce and data node plans, and then perform local physical optimization on both.
+         * A {@link Stage#LOCAL_PHYSICAL_OPTIMIZATION} performed on the data node plan after splitting off the node reduce plan. Since
+         * the node-reduce plan isn't optimized after being created, there is only one output to test here.
          */
-        // TODO should result in only one plan, see https://github.com/elastic/elasticsearch/issues/142392.
-        NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION(
-            new DualFileOutput("local_reduce_physical_optimization_reduce_driver", "local_reduce_physical_optimization_data_driver")
-        );
+        NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION(new SingleFileOutput("local_reduce_physical_optimization_data_driver"));
 
         private final StageOutput fileOutput;
 
@@ -697,12 +672,6 @@ public abstract class GoldenTestCase extends ESTestCase {
             this.fileOutput = fileOutput;
         }
     }
-
-    private sealed interface TestOutput {}
-
-    private record SingleTestOutput(String output) implements TestOutput {}
-
-    private record DualTestOutput(String nodeReduceOutput, String dataNodeOutput) implements TestOutput {}
 
     private static String normalize(String s) {
         return s.lines().map(String::strip).collect(Collectors.joining("\n"));

@@ -28,70 +28,79 @@ import static org.mockito.Mockito.when;
 
 public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
 
+    private String write(FlattenedFieldSyntheticWriterHelper writer, FlattenedFieldSyntheticWriterHelper.OutputStructure outputStructure)
+        throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        XContentBuilder b = new XContentBuilder(XContentType.JSON.xContent(), baos);
+
+        // WHEN
+        b.startObject();
+        writer.write(b, outputStructure);
+        b.endObject();
+        b.flush();
+
+        return baos.toString(StandardCharsets.UTF_8);
+    }
+
     public void testSingleField() throws IOException {
         // GIVEN
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
         when(dv.getValueCount()).thenReturn(1L);
         when(dv.docValueCount()).thenReturn(1);
         byte[] bytes = ("test" + '\0' + "one").getBytes(StandardCharsets.UTF_8);
-        when(dv.nextOrd()).thenReturn(0L);
+        when(dv.nextOrd()).thenReturn(0L).thenReturn(0L);
         when(dv.lookupOrd(0L)).thenReturn(new BytesRef(bytes, 0, bytes.length));
+        var values = new SortedSetSortedKeyedValues(dv);
         FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
-            new SortedSetSortedKeyedValues(dv),
+            values,
             FlattenedFieldSyntheticWriterHelper.SortedOffsetValues.NONE
         );
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        XContentBuilder b = new XContentBuilder(XContentType.JSON.xContent(), baos);
-
-        // WHEN
-        b.startObject();
-        writer.write(b);
-        b.endObject();
-        b.flush();
 
         // THEN
-        assertEquals("{\"test\":\"one\"}", baos.toString(StandardCharsets.UTF_8));
+        assertEquals("{\"test\":\"one\"}", write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.NESTED));
+        values.reset();
+        assertEquals("{\"test\":\"one\"}", write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.FLATTENED));
     }
 
     public void testFlatObject() throws IOException {
         // GIVEN
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
+        var values = new SortedSetSortedKeyedValues(dv);
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
-            new SortedSetSortedKeyedValues(dv),
+            values,
             FlattenedFieldSyntheticWriterHelper.SortedOffsetValues.NONE
         );
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         final List<byte[]> bytes = List.of("a" + '\0' + "value_a", "b" + '\0' + "value_b", "c" + '\0' + "value_c", "d" + '\0' + "value_d")
             .stream()
             .map(x -> x.getBytes(StandardCharsets.UTF_8))
             .collect(Collectors.toList());
         when(dv.getValueCount()).thenReturn(Long.valueOf(bytes.size()));
         when(dv.docValueCount()).thenReturn(bytes.size());
-        when(dv.nextOrd()).thenReturn(0L, 1L, 2L, 3L);
+        when(dv.nextOrd()).thenReturn(0L, 1L, 2L, 3L).thenReturn(0L, 1L, 2L, 3L);
         for (int i = 0; i < bytes.size(); i++) {
             when(dv.lookupOrd(ArgumentMatchers.eq((long) i))).thenReturn(new BytesRef(bytes.get(i), 0, bytes.get(i).length));
         }
 
-        // WHEN
-        builder.startObject();
-        writer.write(builder);
-        builder.endObject();
-        builder.flush();
-
         // THEN
-        assertEquals("{\"a\":\"value_a\",\"b\":\"value_b\",\"c\":\"value_c\",\"d\":\"value_d\"}", baos.toString(StandardCharsets.UTF_8));
+        assertEquals(
+            "{\"a\":\"value_a\",\"b\":\"value_b\",\"c\":\"value_c\",\"d\":\"value_d\"}",
+            write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.NESTED)
+        );
+        values.reset();
+        assertEquals(
+            "{\"a\":\"value_a\",\"b\":\"value_b\",\"c\":\"value_c\",\"d\":\"value_d\"}",
+            write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.FLATTENED)
+        );
     }
 
     public void testSingleObject() throws IOException {
         // GIVEN
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
+        var values = new SortedSetSortedKeyedValues(dv);
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
-            new SortedSetSortedKeyedValues(dv),
+            values,
             FlattenedFieldSyntheticWriterHelper.SortedOffsetValues.NONE
         );
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         final List<byte[]> bytes = List.of(
             "a" + '\0' + "value_a",
             "a.b" + '\0' + "value_b",
@@ -100,93 +109,92 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
         ).stream().map(x -> x.getBytes(StandardCharsets.UTF_8)).collect(Collectors.toList());
         when(dv.getValueCount()).thenReturn(Long.valueOf(bytes.size()));
         when(dv.docValueCount()).thenReturn(bytes.size());
-        when(dv.nextOrd()).thenReturn(0L, 1L, 2L, 3L);
+        when(dv.nextOrd()).thenReturn(0L, 1L, 2L, 3L).thenReturn(0L, 1L, 2L, 3L);
         for (int i = 0; i < bytes.size(); i++) {
             when(dv.lookupOrd(ArgumentMatchers.eq((long) i))).thenReturn(new BytesRef(bytes.get(i), 0, bytes.get(i).length));
         }
 
-        // WHEN
-        builder.startObject();
-        writer.write(builder);
-        builder.endObject();
-        builder.flush();
-
         // THEN
         assertEquals(
             "{\"a\":\"value_a\",\"a.b\":\"value_b\",\"a.b.c\":\"value_c\",\"a.d\":\"value_d\"}",
-            baos.toString(StandardCharsets.UTF_8)
+            write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.NESTED)
+        );
+        values.reset();
+        assertEquals(
+            "{\"a\":\"value_a\",\"a.b\":\"value_b\",\"a.b.c\":\"value_c\",\"a.d\":\"value_d\"}",
+            write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.FLATTENED)
         );
     }
 
     public void testMultipleObjects() throws IOException {
         // GIVEN
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
+        var values = new SortedSetSortedKeyedValues(dv);
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
-            new SortedSetSortedKeyedValues(dv),
+            values,
             FlattenedFieldSyntheticWriterHelper.SortedOffsetValues.NONE
         );
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         final List<byte[]> bytes = List.of("a.x" + '\0' + "10", "a.y" + '\0' + "20", "b.a" + '\0' + "30", "b.c" + '\0' + "40")
             .stream()
             .map(x -> x.getBytes(StandardCharsets.UTF_8))
             .collect(Collectors.toList());
         when(dv.getValueCount()).thenReturn(Long.valueOf(bytes.size()));
         when(dv.docValueCount()).thenReturn(bytes.size());
-        when(dv.nextOrd()).thenReturn(0L, 1L, 2L, 3L);
+        when(dv.nextOrd()).thenReturn(0L, 1L, 2L, 3L).thenReturn(0L, 1L, 2L, 3L);
         for (int i = 0; i < bytes.size(); i++) {
             when(dv.lookupOrd(ArgumentMatchers.eq((long) i))).thenReturn(new BytesRef(bytes.get(i), 0, bytes.get(i).length));
         }
 
-        // WHEN
-        builder.startObject();
-        writer.write(builder);
-        builder.endObject();
-        builder.flush();
-
         // THEN
-        assertEquals("{\"a\":{\"x\":\"10\",\"y\":\"20\"},\"b\":{\"a\":\"30\",\"c\":\"40\"}}", baos.toString(StandardCharsets.UTF_8));
+        assertEquals(
+            "{\"a\":{\"x\":\"10\",\"y\":\"20\"},\"b\":{\"a\":\"30\",\"c\":\"40\"}}",
+            write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.NESTED)
+        );
+        values.reset();
+        assertEquals(
+            "{\"a.x\":\"10\",\"a.y\":\"20\",\"b.a\":\"30\",\"b.c\":\"40\"}",
+            write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.FLATTENED)
+        );
     }
 
     public void testSingleArray() throws IOException {
         // GIVEN
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
+        var values = new SortedSetSortedKeyedValues(dv);
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
-            new SortedSetSortedKeyedValues(dv),
+            values,
             FlattenedFieldSyntheticWriterHelper.SortedOffsetValues.NONE
         );
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         final List<byte[]> bytes = List.of("a.x" + '\0' + "10", "a.x" + '\0' + "20", "a.x" + '\0' + "30", "a.x" + '\0' + "40")
             .stream()
             .map(x -> x.getBytes(StandardCharsets.UTF_8))
             .collect(Collectors.toList());
         when(dv.getValueCount()).thenReturn(Long.valueOf(bytes.size()));
         when(dv.docValueCount()).thenReturn(bytes.size());
-        when(dv.nextOrd()).thenReturn(0L, 1L, 2L, 3L);
+        when(dv.nextOrd()).thenReturn(0L, 1L, 2L, 3L).thenReturn(0L, 1L, 2L, 3L);
         for (int i = 0; i < bytes.size(); i++) {
             when(dv.lookupOrd(ArgumentMatchers.eq((long) i))).thenReturn(new BytesRef(bytes.get(i), 0, bytes.get(i).length));
         }
-
-        // WHEN
-        builder.startObject();
-        writer.write(builder);
-        builder.endObject();
-        builder.flush();
-
         // THEN
-        assertEquals("{\"a\":{\"x\":[\"10\",\"20\",\"30\",\"40\"]}}", baos.toString(StandardCharsets.UTF_8));
+        assertEquals(
+            "{\"a\":{\"x\":[\"10\",\"20\",\"30\",\"40\"]}}",
+            write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.NESTED)
+        );
+        values.reset();
+        assertEquals(
+            "{\"a.x\":[\"10\",\"20\",\"30\",\"40\"]}",
+            write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.FLATTENED)
+        );
     }
 
     public void testMultipleArrays() throws IOException {
         // GIVEN
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
+        var values = new SortedSetSortedKeyedValues(dv);
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
-            new SortedSetSortedKeyedValues(dv),
+            values,
             FlattenedFieldSyntheticWriterHelper.SortedOffsetValues.NONE
         );
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         final List<byte[]> bytes = List.of(
             "a.x" + '\0' + "10",
             "a.x" + '\0' + "20",
@@ -196,19 +204,21 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
         ).stream().map(x -> x.getBytes(StandardCharsets.UTF_8)).collect(Collectors.toList());
         when(dv.getValueCount()).thenReturn(Long.valueOf(bytes.size()));
         when(dv.docValueCount()).thenReturn(bytes.size());
-        when(dv.nextOrd()).thenReturn(0L, 1L, 2L, 3L, 4L);
+        when(dv.nextOrd()).thenReturn(0L, 1L, 2L, 3L, 4L).thenReturn(0L, 1L, 2L, 3L, 4L);
         for (int i = 0; i < bytes.size(); i++) {
             when(dv.lookupOrd(ArgumentMatchers.eq((long) i))).thenReturn(new BytesRef(bytes.get(i), 0, bytes.get(i).length));
         }
 
-        // WHEN
-        builder.startObject();
-        writer.write(builder);
-        builder.endObject();
-        builder.flush();
-
         // THEN
-        assertEquals("{\"a\":{\"x\":[\"10\",\"20\"]},\"b\":{\"y\":[\"30\",\"40\",\"50\"]}}", baos.toString(StandardCharsets.UTF_8));
+        assertEquals(
+            "{\"a\":{\"x\":[\"10\",\"20\"]},\"b\":{\"y\":[\"30\",\"40\",\"50\"]}}",
+            write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.NESTED)
+        );
+        values.reset();
+        assertEquals(
+            "{\"a.x\":[\"10\",\"20\"],\"b.y\":[\"30\",\"40\",\"50\"]}",
+            write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.FLATTENED)
+        );
     }
 
     public void testSingleArrayWithOffsets() throws IOException {
@@ -216,147 +226,135 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
 
         final var offsets = List.of(new FlattenedFieldArrayContext.KeyedOffsetField("a.x", new int[] { 1, 0, -1, 1, 3, 3, 2, -1 }));
-        final var offsetsIterator = offsets.iterator();
+        int[] offsetsIdx = { 0 };
 
+        var values = new SortedSetSortedKeyedValues(dv);
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
-            new SortedSetSortedKeyedValues(dv),
-            () -> offsetsIterator.hasNext() ? offsetsIterator.next() : null
+            values,
+            () -> offsetsIdx[0] >= offsets.size() ? null : offsets.get(offsetsIdx[0]++)
         );
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         final List<byte[]> bytes = List.of("a.x" + '\0' + "10", "a.x" + '\0' + "20", "a.x" + '\0' + "30", "a.x" + '\0' + "40")
             .stream()
             .map(x -> x.getBytes(StandardCharsets.UTF_8))
             .collect(Collectors.toList());
         when(dv.getValueCount()).thenReturn(Long.valueOf(bytes.size()));
         when(dv.docValueCount()).thenReturn(bytes.size());
-        when(dv.nextOrd()).thenReturn(0L, 1L, 2L, 3L);
+        when(dv.nextOrd()).thenReturn(0L, 1L, 2L, 3L).thenReturn(0L, 1L, 2L, 3L);
         for (int i = 0; i < bytes.size(); i++) {
             when(dv.lookupOrd(ArgumentMatchers.eq((long) i))).thenReturn(new BytesRef(bytes.get(i), 0, bytes.get(i).length));
         }
 
-        // WHEN
-        builder.startObject();
-        writer.write(builder);
-        builder.endObject();
-        builder.flush();
-
         // THEN
-        assertEquals("{\"a\":{\"x\":[\"20\",\"10\",null,\"20\",\"40\",\"40\",\"30\",null]}}", baos.toString(StandardCharsets.UTF_8));
+        assertEquals(
+            "{\"a\":{\"x\":[\"20\",\"10\",null,\"20\",\"40\",\"40\",\"30\",null]}}",
+            write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.NESTED)
+        );
+        values.reset();
+        offsetsIdx[0] = 0;
+        assertEquals(
+            "{\"a.x\":[\"20\",\"10\",null,\"20\",\"40\",\"40\",\"30\",null]}",
+            write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.FLATTENED)
+        );
     }
 
     public void testSameLeafDifferentPrefix() throws IOException {
         // GIVEN
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
+        var values = new SortedSetSortedKeyedValues(dv);
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
-            new SortedSetSortedKeyedValues(dv),
+            values,
             FlattenedFieldSyntheticWriterHelper.SortedOffsetValues.NONE
         );
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         final List<byte[]> bytes = List.of("a.x" + '\0' + "10", "b.x" + '\0' + "20")
             .stream()
             .map(x -> x.getBytes(StandardCharsets.UTF_8))
             .collect(Collectors.toList());
         when(dv.getValueCount()).thenReturn(Long.valueOf(bytes.size()));
         when(dv.docValueCount()).thenReturn(bytes.size());
-        when(dv.nextOrd()).thenReturn(0L, 1L);
+        when(dv.nextOrd()).thenReturn(0L, 1L).thenReturn(0L, 1L);
         for (int i = 0; i < bytes.size(); i++) {
             when(dv.lookupOrd(ArgumentMatchers.eq((long) i))).thenReturn(new BytesRef(bytes.get(i), 0, bytes.get(i).length));
         }
 
-        // WHEN
-        builder.startObject();
-        writer.write(builder);
-        builder.endObject();
-        builder.flush();
-
         // THEN
-        assertEquals("{\"a\":{\"x\":\"10\"},\"b\":{\"x\":\"20\"}}", baos.toString(StandardCharsets.UTF_8));
+        assertEquals(
+            "{\"a\":{\"x\":\"10\"},\"b\":{\"x\":\"20\"}}",
+            write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.NESTED)
+        );
+        values.reset();
+        assertEquals("{\"a.x\":\"10\",\"b.x\":\"20\"}", write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.FLATTENED));
     }
 
     public void testScalarObjectMismatchInNestedObject() throws IOException {
         // GIVEN
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
+        var values = new SortedSetSortedKeyedValues(dv);
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
-            new SortedSetSortedKeyedValues(dv),
+            values,
             FlattenedFieldSyntheticWriterHelper.SortedOffsetValues.NONE
         );
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         final List<byte[]> bytes = List.of("a.b.c" + '\0' + "10", "a.b.c.d" + '\0' + "20")
             .stream()
             .map(x -> x.getBytes(StandardCharsets.UTF_8))
             .collect(Collectors.toList());
         when(dv.getValueCount()).thenReturn(Long.valueOf(bytes.size()));
         when(dv.docValueCount()).thenReturn(bytes.size());
-        when(dv.nextOrd()).thenReturn(0L, 1L);
+        when(dv.nextOrd()).thenReturn(0L, 1L).thenReturn(0L, 1L);
         for (int i = 0; i < bytes.size(); i++) {
             when(dv.lookupOrd(ArgumentMatchers.eq((long) i))).thenReturn(new BytesRef(bytes.get(i), 0, bytes.get(i).length));
         }
 
-        // WHEN
-        builder.startObject();
-        writer.write(builder);
-        builder.endObject();
-        builder.flush();
-
         // THEN
-        assertEquals("{\"a\":{\"b\":{\"c\":\"10\",\"c.d\":\"20\"}}}", baos.toString(StandardCharsets.UTF_8));
+        assertEquals(
+            "{\"a\":{\"b\":{\"c\":\"10\",\"c.d\":\"20\"}}}",
+            write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.NESTED)
+        );
+        values.reset();
+        assertEquals("{\"a.b.c\":\"10\",\"a.b.c.d\":\"20\"}", write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.FLATTENED));
     }
 
     public void testSingleDotPath() throws IOException {
         // GIVEN
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
+        var values = new SortedSetSortedKeyedValues(dv);
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
-            new SortedSetSortedKeyedValues(dv),
+            values,
             FlattenedFieldSyntheticWriterHelper.SortedOffsetValues.NONE
         );
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         final List<byte[]> bytes = Stream.of("." + '\0' + "10").map(x -> x.getBytes(StandardCharsets.UTF_8)).toList();
         when(dv.getValueCount()).thenReturn(Long.valueOf(bytes.size()));
         when(dv.docValueCount()).thenReturn(bytes.size());
+        when(dv.nextOrd()).thenReturn(0L).thenReturn(0L);
         for (int i = 0; i < bytes.size(); i++) {
-            when(dv.nextOrd()).thenReturn((long) i);
             when(dv.lookupOrd(ArgumentMatchers.eq((long) i))).thenReturn(new BytesRef(bytes.get(i), 0, bytes.get(i).length));
         }
 
-        // WHEN
-        builder.startObject();
-        writer.write(builder);
-        builder.endObject();
-        builder.flush();
-
         // THEN
-        assertEquals("{\"\":{\"\":\"10\"}}", baos.toString(StandardCharsets.UTF_8));
+        assertEquals("{\"\":{\"\":\"10\"}}", write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.NESTED));
+        values.reset();
+        assertEquals("{\".\":\"10\"}", write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.FLATTENED));
     }
 
     public void testTrailingDotsPath() throws IOException {
         // GIVEN
         final SortedSetDocValues dv = mock(SortedSetDocValues.class);
+        var values = new SortedSetSortedKeyedValues(dv);
         final FlattenedFieldSyntheticWriterHelper writer = new FlattenedFieldSyntheticWriterHelper(
-            new SortedSetSortedKeyedValues(dv),
+            values,
             FlattenedFieldSyntheticWriterHelper.SortedOffsetValues.NONE
         );
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        final XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         final List<byte[]> bytes = Stream.of("cat.." + '\0' + "10").map(x -> x.getBytes(StandardCharsets.UTF_8)).toList();
         when(dv.getValueCount()).thenReturn(Long.valueOf(bytes.size()));
         when(dv.docValueCount()).thenReturn(bytes.size());
+        when(dv.nextOrd()).thenReturn(0L).thenReturn(0L);
         for (int i = 0; i < bytes.size(); i++) {
-            when(dv.nextOrd()).thenReturn((long) i);
             when(dv.lookupOrd(ArgumentMatchers.eq((long) i))).thenReturn(new BytesRef(bytes.get(i), 0, bytes.get(i).length));
         }
 
-        // WHEN
-        builder.startObject();
-        writer.write(builder);
-        builder.endObject();
-        builder.flush();
-
         // THEN
-        assertEquals("{\"cat\":{\"\":{\"\":\"10\"}}}", baos.toString(StandardCharsets.UTF_8));
+        assertEquals("{\"cat\":{\"\":{\"\":\"10\"}}}", write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.NESTED));
+        values.reset();
+        assertEquals("{\"cat..\":\"10\"}", write(writer, FlattenedFieldSyntheticWriterHelper.OutputStructure.FLATTENED));
     }
 
     private class SortedSetSortedKeyedValues implements FlattenedFieldSyntheticWriterHelper.SortedKeyedValues {
@@ -375,6 +373,10 @@ public class FlattenedFieldSyntheticWriterHelperTests extends ESTestCase {
             }
 
             return null;
+        }
+
+        public void reset() {
+            seen = 0;
         }
     }
 }

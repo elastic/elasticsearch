@@ -58,6 +58,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
@@ -73,6 +74,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -327,7 +329,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             r -> fail(),
             ExceptionsHelper::reThrowIfNotNull,
             new ParentTaskAssigningClient(client, localNode, testTask),
-            testRequest.getSearchRequest()
+            testRequest.getSearchRequest(),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
         paginatedHitSource.setScrollId(scrollId());
         paginatedHitSource.requestNextBatch(TimeValue.timeValueSeconds(0));
@@ -355,7 +358,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             r -> fail(),
             ExceptionsHelper::reThrowIfNotNull,
             new ParentTaskAssigningClient(client, localNode, testTask),
-            testRequest.getSearchRequest()
+            testRequest.getSearchRequest(),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
         paginatedHitSource.setSearchAfterValues(new Object[] { "search_after" });
         paginatedHitSource.requestNextBatch(TimeValue.timeValueSeconds(0));
@@ -387,7 +391,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 r -> fail(),
                 validingOnFail,
                 new ParentTaskAssigningClient(client, localNode, testTask),
-                testRequest.getSearchRequest()
+                testRequest.getSearchRequest(),
+                new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
             );
             paginatedHitSource.setScrollId(scrollId());
             paginatedHitSource.requestNextBatch(TimeValue.timeValueSeconds(0));
@@ -416,7 +421,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 r -> fail(),
                 validingOnFail,
                 new ParentTaskAssigningClient(client, localNode, testTask),
-                testRequest.getSearchRequest()
+                testRequest.getSearchRequest(),
+                new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
             );
             paginatedHitSource.setSearchAfterValues(new Object[] { "search_after" });
             paginatedHitSource.requestNextBatch(TimeValue.timeValueSeconds(0));
@@ -921,14 +927,14 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         worker.rethrottle(1f);
         action.start();
 
-        SearchHit hit = SearchHit.unpooled(0, "id").sourceRef(new BytesArray("{}"));
-        hit.sortValues(new Object[] { 0L, "id" }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
-        SearchHits hits = SearchHits.unpooled(
-            IntStream.range(0, 100).mapToObj(i -> hit).toArray(SearchHit[]::new),
-            new TotalHits(0, TotalHits.Relation.EQUAL_TO),
-            0
-        );
+        SearchHit[] hitArray = IntStream.range(0, 100).mapToObj(i -> {
+            SearchHit h = new SearchHit(i, "id").sourceRef(new BytesArray("{}"));
+            h.sortValues(new Object[] { 0L, "id" }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
+            return h;
+        }).toArray(SearchHit[]::new);
+        SearchHits hits = new SearchHits(hitArray, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0);
         SearchResponse searchResponse = SearchResponseUtils.response(hits).pointInTimeId(TEST_PIT_ID).shards(5, 4, 0).build();
+        hits.decRef(); // transfer ownership to searchResponse
         try {
             client.lastSearch.get().listener.onResponse(searchResponse);
 
@@ -1370,7 +1376,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testEnableScrollByDefault() {
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
         assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
 
@@ -1378,7 +1384,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest.setMaxDocs(between(101, 1000));
         testRequest.getSearchRequest().source().size(100);
 
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
 
         assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
@@ -1387,9 +1393,24 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest.setMaxDocs(between(1, 100));
         testRequest.getSearchRequest().source().size(100);
 
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
 
         assertThat(preparedSearchRequest.scroll(), nullValue());
+    }
+
+    /**
+     * Sliced bulk-by-scroll must retain scroll when {@code max_docs} is at most the batch size. Otherwise, the search has
+     * {@code slice} with neither scroll nor point-in-time, which fails request validation.
+     */
+    public void testKeepScrollWhenMaxDocsAtMostScrollSizeButSliced() {
+        configurePitOrScroll(false);
+        testRequest.setMaxDocs(between(1, 100));
+        testRequest.getSearchRequest().source().size(100);
+        testRequest.getSearchRequest().source().slice(new SliceBuilder(IdFieldMapper.NAME, 0, 5));
+
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+
+        assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
 
     public void testEnableScrollWhenProceedOnVersionConflict() {
@@ -1397,7 +1418,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testRequest.getSearchRequest().source().size(100);
         testRequest.setAbortOnVersionConflict(false);
 
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
 
         assertThat(preparedSearchRequest.scroll(), notNullValue());
     }
@@ -1407,7 +1428,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      */
     public void testPrepareSearchRequestWithPITDisablesScrollAndSetsFromZero() {
         configurePitOrScroll(true);
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
         assertThat(preparedSearchRequest.scroll(), nullValue());
         assertEquals(0, preparedSearchRequest.source().from());
     }
@@ -1418,11 +1439,31 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      */
     public void testPrepareSearchRequestWithPITUsesShardDocSort() {
         configurePitOrScroll(true);
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
         assertThat(preparedSearchRequest.source().sorts(), hasSize(1));
         assertThat(preparedSearchRequest.source().sorts().getFirst(), instanceOf(FieldSortBuilder.class));
         assertEquals(
             FieldSortBuilder.SHARD_DOC_FIELD_NAME,
+            ((FieldSortBuilder) preparedSearchRequest.source().sorts().getFirst()).getFieldName()
+        );
+    }
+
+    /**
+     * Remote clusters before 7.12 do not support {@code _shard_doc} sort. Use {@code _doc} instead for PIT pagination
+     */
+    public void testPrepareSearchRequestWithPITUsesDocSortWhenRemoteBefore712() {
+        configurePitOrScroll(true);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(
+            testRequest,
+            false,
+            false,
+            false,
+            Version.V_7_10_0
+        );
+        assertThat(preparedSearchRequest.source().sorts(), hasSize(1));
+        assertThat(preparedSearchRequest.source().sorts().getFirst(), instanceOf(FieldSortBuilder.class));
+        assertEquals(
+            FieldSortBuilder.DOC_FIELD_NAME,
             ((FieldSortBuilder) preparedSearchRequest.source().sorts().getFirst()).getFieldName()
         );
     }
@@ -1433,7 +1474,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
      */
     public void testPrepareSearchRequestWithScrollUsesDocSort() {
         configurePitOrScroll(false);
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
         assertThat(preparedSearchRequest.source().sorts(), hasSize(1));
         assertThat(preparedSearchRequest.source().sorts().getFirst(), instanceOf(FieldSortBuilder.class));
         assertEquals("_doc", ((FieldSortBuilder) preparedSearchRequest.source().sorts().getFirst()).getFieldName());
@@ -1446,7 +1487,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     public void testPrepareSearchRequestPreservesUserSort() {
         configurePitOrScroll(true);
         testRequest.getSearchRequest().source().sort("timestamp");
-        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
         assertThat(preparedSearchRequest.source().sorts(), hasSize(1));
         assertEquals("timestamp", ((FieldSortBuilder) preparedSearchRequest.source().sorts().getFirst()).getFieldName());
     }
@@ -1507,7 +1548,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                     this::onScrollResponse,
                     this::finishHim,
                     new ParentTaskAssigningClient(client, localNode, testTask),
-                    searchRequest
+                    searchRequest,
+                    new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
                 ) {
                     @Override
                     protected void cleanup(Runnable onCompletion) {
@@ -1568,7 +1610,8 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                     this::onScrollResponse,
                     this::finishHim,
                     new ParentTaskAssigningClient(client, localNode, testTask),
-                    searchRequest
+                    searchRequest,
+                    new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
                 ) {
                     @Override
                     protected void cleanup(Runnable onCompletion) {
@@ -1988,6 +2031,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 listener,
                 null,
                 null,
+                null,
+                randomFrom(BulkByScrollSearchContextMetrics.TaskKind.values()),
+                false,
                 maxTaskShutdownGracePeriod
             );
         }
@@ -2034,7 +2080,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
 
         @Override
-        public DummyAbstractBulkByScrollRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
+        public DummyAbstractBulkByScrollRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
             throw new UnsupportedOperationException();
         }
 

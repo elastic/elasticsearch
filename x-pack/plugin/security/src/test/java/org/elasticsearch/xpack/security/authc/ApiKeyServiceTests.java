@@ -465,7 +465,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         CheckedSupplier<SearchResponse, IOException> searchResponseSupplier = () -> {
             // 2 API keys, one with a "null" (missing) realm type
             SearchHit[] searchHits = new SearchHit[2];
-            searchHits[0] = SearchHit.unpooled(randomIntBetween(0, Integer.MAX_VALUE), "0");
+            searchHits[0] = new SearchHit(randomIntBetween(0, Integer.MAX_VALUE), "0");
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 Map<String, Object> apiKeySourceDoc = buildApiKeySourceDoc("some_hash".toCharArray());
                 ((Map<String, Object>) apiKeySourceDoc.get("creator")).put("realm", realm1);
@@ -473,7 +473,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 builder.map(apiKeySourceDoc);
                 searchHits[0].sourceRef(BytesReference.bytes(builder));
             }
-            searchHits[1] = SearchHit.unpooled(randomIntBetween(0, Integer.MAX_VALUE), "1");
+            searchHits[1] = new SearchHit(randomIntBetween(0, Integer.MAX_VALUE), "1");
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 Map<String, Object> apiKeySourceDoc = buildApiKeySourceDoc("some_hash".toCharArray());
                 ((Map<String, Object>) apiKeySourceDoc.get("creator")).put("realm", realm2);
@@ -485,16 +485,17 @@ public class ApiKeyServiceTests extends ESTestCase {
                 builder.map(apiKeySourceDoc);
                 searchHits[1].sourceRef(BytesReference.bytes(builder));
             }
-            return SearchResponseUtils.successfulResponse(
-                SearchHits.unpooled(
-                    searchHits,
-                    new TotalHits(searchHits.length, TotalHits.Relation.EQUAL_TO),
-                    randomFloat(),
-                    null,
-                    null,
-                    null
-                )
+            var responseHits = new SearchHits(
+                searchHits,
+                new TotalHits(searchHits.length, TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
             );
+            var searchResponse = SearchResponseUtils.successfulResponse(responseHits);
+            responseHits.decRef(); // transfer ownership to searchResponse
+            return searchResponse;
         };
         doAnswer(invocation -> {
             ActionListener.respondAndRelease((ActionListener<SearchResponse>) invocation.getArguments()[1], searchResponseSupplier.get());
@@ -624,24 +625,22 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
         doAnswer(invocation -> {
             final var listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-            final var searchHit = SearchHit.unpooled(docId, apiKeyId);
+            final var searchHit = new SearchHit(docId, apiKeyId);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 builder.map(buildApiKeySourceDoc("some_hash".toCharArray()));
                 searchHit.sourceRef(BytesReference.bytes(builder));
             }
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.successfulResponse(
-                    SearchHits.unpooled(
-                        new SearchHit[] { searchHit },
-                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    )
-                )
+            var responseHits = new SearchHits(
+                new SearchHit[] { searchHit },
+                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
             );
+            var searchResponse = SearchResponseUtils.successfulResponse(responseHits);
+            responseHits.decRef(); // transfer ownership to searchResponse
+            ActionListener.respondAndRelease(listener, searchResponse);
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
 
@@ -705,7 +704,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
         doAnswer(invocation -> {
             final var listener = (ActionListener<SearchResponse>) invocation.getArguments()[1];
-            final var searchHit = SearchHit.unpooled(docId, apiKeyId);
+            final var searchHit = new SearchHit(docId, apiKeyId);
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {
                 Map<String, Object> apiKeyDocMap = buildApiKeySourceDoc("some_hash".toCharArray());
                 // Ensure type is null
@@ -713,19 +712,17 @@ public class ApiKeyServiceTests extends ESTestCase {
                 builder.map(apiKeyDocMap);
                 searchHit.sourceRef(BytesReference.bytes(builder));
             }
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.successfulResponse(
-                    SearchHits.unpooled(
-                        new SearchHit[] { searchHit },
-                        new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    )
-                )
+            var responseHits = new SearchHits(
+                new SearchHit[] { searchHit },
+                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
             );
+            var searchResponse = SearchResponseUtils.successfulResponse(responseHits);
+            responseHits.decRef(); // transfer ownership to searchResponse
+            ActionListener.respondAndRelease(listener, searchResponse);
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
 
@@ -1255,19 +1252,17 @@ public class ApiKeyServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             searchRequest.set(invocationOnMock.getArgument(0));
             final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(1);
-            ActionListener.respondAndRelease(
-                listener,
-                SearchResponseUtils.successfulResponse(
-                    SearchHits.unpooled(
-                        searchHits.toArray(SearchHit[]::new),
-                        new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),
-                        randomFloat(),
-                        null,
-                        null,
-                        null
-                    )
-                )
+            SearchHits hits = new SearchHits(
+                searchHits.toArray(SearchHit[]::new),
+                new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),
+                randomFloat(),
+                null,
+                null,
+                null
             );
+            SearchResponse response = SearchResponseUtils.successfulResponse(hits);
+            hits.decRef(); // transfer ownership to response
+            ActionListener.respondAndRelease(listener, response);
             return null;
         }).when(client).search(any(SearchRequest.class), anyActionListener());
 
@@ -1312,7 +1307,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         };
         final int docId = randomIntBetween(0, Integer.MAX_VALUE);
         final String apiKeyId = randomAlphaOfLength(20);
-        final var searchHit = SearchHit.unpooled(docId, apiKeyId);
+        final var searchHit = new SearchHit(docId, apiKeyId);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.map(XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.format("""
                 {

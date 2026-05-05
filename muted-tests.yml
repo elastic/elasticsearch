@@ -533,18 +533,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
   method: testEstimatedHeapHighWatermarkMonitorTriggersReroute
   issue: https://github.com/elastic/elasticsearch/issues/148246
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
-  method: test {csv-spec:exponential_histogram.All aggs grouped by Date Trunc and Instance (time series mode)}
-  issue: https://github.com/elastic/elasticsearch/issues/148250
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
-  method: test {csv-spec:spatial.centroidFromAirportsAfterIntersectsCompoundPredicateNotIndexed}
-  issue: https://github.com/elastic/elasticsearch/issues/148251
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
-  method: test {csv-spec:date.monthNameTruncate}
-  issue: https://github.com/elastic/elasticsearch/issues/148252
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeApproximationIT
-  method: test {csv-spec:tdigest.Group Aggs By Bucket and Instance (standard mode)}
-  issue: https://github.com/elastic/elasticsearch/issues/148254
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testCacheIsWarmedBeforeSearchShardRecovery
   issue: https://github.com/elastic/elasticsearch/issues/148275

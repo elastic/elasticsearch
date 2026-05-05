@@ -33,29 +33,27 @@ import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * An irate grouping aggregation definition for long.
- * This class is generated. Edit `X-IrateAggregator.java.st` instead.
+ * An irate grouping aggregation definition for int.
+ * This class is generated. Edit `X-LegacyIrateAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    value = {
-        @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
-        @IntermediateState(name = "values", type = "LONG_BLOCK"),
-        @IntermediateState(name = "isCumulative", type = "BOOLEAN"),
-        @IntermediateState(name = "failed", type = "BOOLEAN") },
-    processNulls = true,
-    warnExceptions = InvalidTemporalityException.class
+    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "INT_BLOCK") },
+    processNulls = true
 )
-public class IrateLongAggregator {
+public class LegacyIrateIntAggregator {
 
-    public static LongIrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos) {
+    public static final String DELTA_UNSUPPORTED_WARNING = "Some nodes in your cluster don't support delta temporality for counters yet."
+        + " The affected time series are excluded from irate calculations. Upgrade your cluster to fix this.";
+
+    public static IntIrateGroupingState initGrouping(DriverContext driverContext, boolean isDateNanos, Warnings warnings) {
         final int dateFactor = isDateNanos ? 1_000_000_000 : 1000;
-        return new LongIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor);
+        return new IntIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), dateFactor, warnings);
     }
 
     public static void combine(
-        LongIrateGroupingState current,
+        IntIrateGroupingState current,
         int groupId,
-        long value,
+        int value,
         long timestamp,
         @Position int position,
         BytesRefBlock temporality
@@ -64,46 +62,50 @@ public class IrateLongAggregator {
             current.cachedTemporalityAccessor = TemporalityAccessor.create(temporality, Temporality.CUMULATIVE);
             assert current.cachedTemporalityAccessor.block() == temporality;
         }
-        boolean cumulative = current.cachedTemporalityAccessor.get(position) == Temporality.CUMULATIVE;
-        current.ensureCapacity(groupId);
-        current.append(groupId, timestamp, value, cumulative);
+        try {
+            if (current.cachedTemporalityAccessor.get(position) == Temporality.CUMULATIVE) {
+                current.ensureCapacity(groupId);
+                current.append(groupId, timestamp, value);
+            } else {
+                current.warnings.registerException(IllegalArgumentException.class, DELTA_UNSUPPORTED_WARNING);
+            }
+        } catch (InvalidTemporalityException e) {
+            // We can't use @GroupingAggregator(warnExceptions=..) here because that would require a breaking change to the
+            // intermediate state
+            current.warnings.registerException(e);
+        }
     }
 
     public static String describe() {
-        return "instant change of longs";
+        return "instant change of ints";
     }
 
     public static void combineIntermediate(
-        LongIrateGroupingState current,
+        IntIrateGroupingState current,
         int groupId,
         LongBlock timestamps,
-        LongBlock values,
-        boolean isCumulative,
-        boolean failed,
+        IntBlock values,
         int otherPosition
     ) {
-        current.combine(groupId, timestamps, values, isCumulative, failed, otherPosition);
+        current.combine(groupId, timestamps, values, otherPosition);
     }
 
-    public static Block evaluateFinal(LongIrateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
+    public static Block evaluateFinal(IntIrateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
         return state.evaluateFinal(selected, evalContext);
     }
 
-    private static class LongIrateState {
-        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(LongIrateState.class);
+    private static class IntIrateState {
+        static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject(IntIrateState.class);
         long lastTimestamp;
         long secondLastTimestamp = -1;
-        long lastValue;
-        long secondLastValue;
+        int lastValue;
+        int secondLastValue;
         boolean hasSecond;
-        final boolean isCumulative;
-        boolean failed;
 
-        LongIrateState(long lastTimestamp, long lastValue, boolean isCumulative) {
+        IntIrateState(long lastTimestamp, int lastValue) {
             this.lastTimestamp = lastTimestamp;
             this.lastValue = lastValue;
             this.hasSecond = false;
-            this.isCumulative = isCumulative;
         }
 
         long bytesUsed() {
@@ -111,37 +113,21 @@ public class IrateLongAggregator {
         }
     }
 
-    public static final class LongIrateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
+    public static final class IntIrateGroupingState implements Releasable, Accountable, GroupingAggregatorState {
         private TemporalityAccessor cachedTemporalityAccessor;
-        private ObjectArray<LongIrateState> states;
+        private ObjectArray<IntIrateState> states;
+        private final Warnings warnings;
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
         private final int dateFactor;
 
-        LongIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor) {
+        IntIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, int dateFactor, Warnings warnings) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
             this.dateFactor = dateFactor;
-        }
-
-        boolean hasFailed(int groupId) {
-            var state = groupId < states.size() ? states.get(groupId) : null;
-            return state != null && state.failed;
-        }
-
-        void setFailed(int groupId) {
-            ensureCapacity(groupId);
-            var state = states.get(groupId);
-            if (state == null) {
-                state = new LongIrateState(0, 0, true);
-                state.failed = true;
-                states.set(groupId, state);
-                adjustBreaker(state.bytesUsed());
-            } else {
-                state.failed = true;
-            }
+            this.warnings = warnings;
         }
 
         void ensureCapacity(int groupId) {
@@ -154,14 +140,13 @@ public class IrateLongAggregator {
             assert stateBytes >= 0 : stateBytes;
         }
 
-        void append(int groupId, long timestamp, long value, boolean isCumulative) {
+        void append(int groupId, long timestamp, int value) {
             var state = states.get(groupId);
             if (state == null) {
-                state = new LongIrateState(timestamp, value, isCumulative);
+                state = new IntIrateState(timestamp, value);
                 states.set(groupId, state);
                 adjustBreaker(state.bytesUsed());
             } else {
-                assert state.isCumulative == isCumulative : "Temporality should be the same across all points per series";
                 // We only need the last two values, but we need to keep them sorted by timestamp.
                 if (timestamp > state.lastTimestamp) {
                     // new timestamp is the most recent
@@ -179,11 +164,7 @@ public class IrateLongAggregator {
             }
         }
 
-        void combine(int groupId, LongBlock timestamps, LongBlock values, boolean isCumulative, boolean failed, int otherPosition) {
-            if (failed) {
-                setFailed(groupId);
-                return;
-            }
+        void combine(int groupId, LongBlock timestamps, IntBlock values, int otherPosition) {
             final int valueCount = timestamps.getValueCount(otherPosition);
             if (valueCount == 0) {
                 return;
@@ -191,10 +172,10 @@ public class IrateLongAggregator {
             final int firstTs = timestamps.getFirstValueIndex(otherPosition);
             final int firstIndex = values.getFirstValueIndex(otherPosition);
             ensureCapacity(groupId);
-            append(groupId, timestamps.getLong(firstTs), values.getLong(firstIndex), isCumulative);
+            append(groupId, timestamps.getLong(firstTs), values.getInt(firstIndex));
             if (valueCount > 1) {
                 ensureCapacity(groupId);
-                append(groupId, timestamps.getLong(firstTs + 1), values.getLong(firstIndex + 1), isCumulative);
+                append(groupId, timestamps.getLong(firstTs + 1), values.getInt(firstIndex + 1));
             }
         }
 
@@ -209,14 +190,12 @@ public class IrateLongAggregator {
         }
 
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            assert blocks.length >= offset + 4 : "blocks=" + blocks.length + ",offset=" + offset;
+            assert blocks.length >= offset + 2 : "blocks=" + blocks.length + ",offset=" + offset;
             final BlockFactory blockFactory = driverContext.blockFactory();
             final int positionCount = selected.getPositionCount();
             try (
                 LongBlock.Builder timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
-                LongBlock.Builder values = blockFactory.newLongBlockBuilder(positionCount * 2);
-                var isCumulative = blockFactory.newBooleanVectorFixedBuilder(positionCount);
-                var failedBuilder = blockFactory.newBooleanVectorFixedBuilder(positionCount);
+                IntBlock.Builder values = blockFactory.newIntBlockBuilder(positionCount * 2);
             ) {
                 for (int i = 0; i < positionCount; i++) {
                     final var groupId = selected.getInt(i);
@@ -230,25 +209,18 @@ public class IrateLongAggregator {
                         timestamps.endPositionEntry();
 
                         values.beginPositionEntry();
-                        values.appendLong(state.lastValue);
+                        values.appendInt(state.lastValue);
                         if (state.hasSecond) {
-                            values.appendLong(state.secondLastValue);
+                            values.appendInt(state.secondLastValue);
                         }
                         values.endPositionEntry();
-
-                        isCumulative.appendBoolean(i, state.isCumulative);
-                        failedBuilder.appendBoolean(i, state.failed);
                     } else {
                         timestamps.appendNull();
                         values.appendNull();
-                        isCumulative.appendBoolean(i, true);
-                        failedBuilder.appendBoolean(i, false);
                     }
                 }
                 blocks[offset] = timestamps.build();
                 blocks[offset + 1] = values.build();
-                blocks[offset + 2] = isCumulative.build().asBlock();
-                blocks[offset + 3] = failedBuilder.build().asBlock();
             }
         }
 
@@ -258,17 +230,15 @@ public class IrateLongAggregator {
                 for (int p = 0; p < positionCount; p++) {
                     final var groupId = selected.getInt(p);
                     final var state = groupId < states.size() ? states.get(groupId) : null;
-                    if (state == null || state.hasSecond == false || state.failed) {
+                    if (state == null || state.hasSecond == false) {
                         rates.appendNull();
                         continue;
                     }
-                    double ydiff;
-                    if (state.isCumulative && state.lastValue >= state.secondLastValue) {
-                        ydiff = state.lastValue - state.secondLastValue;
-                    } else {
-                        // We either have cumulative temporality and detected a reset or we have delta temporality
-                        ydiff = state.lastValue == -0.0 ? 0 : state.lastValue;
-                    }
+                    // When the last value is less than the previous one, we assume a reset
+                    // and use the last value directly.
+                    final double ydiff = state.lastValue >= state.secondLastValue
+                        ? state.lastValue - state.secondLastValue
+                        : state.lastValue;
                     final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
                     rates.appendDouble(ydiff / xdiff * dateFactor);
                 }

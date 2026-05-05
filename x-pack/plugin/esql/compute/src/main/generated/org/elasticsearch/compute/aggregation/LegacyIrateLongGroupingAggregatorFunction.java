@@ -10,12 +10,10 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -24,17 +22,15 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link IrateIntAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link LegacyIrateLongAggregator}.
  * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
  */
-public final class IrateIntGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class LegacyIrateLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("timestamps", ElementType.LONG),
-      new IntermediateStateDesc("values", ElementType.INT),
-      new IntermediateStateDesc("isCumulative", ElementType.BOOLEAN),
-      new IntermediateStateDesc("failed", ElementType.BOOLEAN)  );
+      new IntermediateStateDesc("values", ElementType.LONG)  );
 
-  private final IrateIntAggregator.IntIrateGroupingState state;
+  private final LegacyIrateLongAggregator.LongIrateGroupingState state;
 
   private final Warnings warnings;
 
@@ -44,12 +40,12 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
 
   private final boolean isDateNanos;
 
-  IrateIntGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
+  LegacyIrateLongGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
       DriverContext driverContext, boolean isDateNanos) {
     this.isDateNanos = isDateNanos;
     this.warnings = warnings;
     this.channels = channels;
-    this.state = IrateIntAggregator.initGrouping(driverContext, isDateNanos);
+    this.state = LegacyIrateLongAggregator.initGrouping(driverContext, isDateNanos, warnings);
     this.driverContext = driverContext;
   }
 
@@ -65,7 +61,7 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    IntBlock valueBlock = page.getBlock(channels.get(0));
+    LongBlock valueBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
     BytesRefBlock temporalityBlock = page.getBlock(channels.get(2));
     if (valueBlock.areAllValuesNull()) {
@@ -86,7 +82,7 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
       state.enableGroupIdTracking(seenGroupIds);
       return null;
     }
-    IntVector valueVector = valueBlock.asVector();
+    LongVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock, temporalityBlock);
       return new GroupingAggregatorFunction.AddInput() {
@@ -156,7 +152,7 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
     };
   }
 
-  private void addRawInput(int positionOffset, IntArrayBlock groups, IntBlock valueBlock,
+  private void addRawInput(int positionOffset, IntArrayBlock groups, LongBlock valueBlock,
       LongBlock timestampBlock, BytesRefBlock temporalityBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -173,30 +169,22 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (state.hasFailed(groupId)) {
-          continue;
-        }
         int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
         int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
         for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-          int valueValue = valueBlock.getInt(valueOffset);
+          long valueValue = valueBlock.getLong(valueOffset);
           int timestampStart = timestampBlock.getFirstValueIndex(valuesPosition);
           int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
           for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
             long timestampValue = timestampBlock.getLong(timestampOffset);
-            try {
-              IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
-            } catch (InvalidTemporalityException e) {
-              warnings.registerException(e);
-              state.setFailed(groupId);
-            }
+            LegacyIrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
           }
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntArrayBlock groups, IntVector valueVector,
+  private void addRawInput(int positionOffset, IntArrayBlock groups, LongVector valueVector,
       LongVector timestampVector, BytesRefBlock temporalityBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -207,17 +195,9 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (state.hasFailed(groupId)) {
-          continue;
-        }
-        int valueValue = valueVector.getInt(valuesPosition);
+        long valueValue = valueVector.getLong(valuesPosition);
         long timestampValue = timestampVector.getLong(valuesPosition);
-        try {
-          IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
-        } catch (InvalidTemporalityException e) {
-          warnings.registerException(e);
-          state.setFailed(groupId);
-        }
+        LegacyIrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
       }
     }
   }
@@ -229,12 +209,8 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
     Block timestampsUncast = page.getBlock(channels.get(0));
     LongBlock timestamps = (LongBlock) timestampsUncast;
     Block valuesUncast = page.getBlock(channels.get(1));
-    IntBlock values = (IntBlock) valuesUncast;
-    Block isCumulativeUncast = page.getBlock(channels.get(2));
-    BooleanBlock isCumulative = (BooleanBlock) isCumulativeUncast;
-    Block failedUncast = page.getBlock(channels.get(3));
-    BooleanBlock failed = (BooleanBlock) failedUncast;
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == isCumulative.getPositionCount() && timestamps.getPositionCount() == failed.getPositionCount();
+    LongBlock values = (LongBlock) valuesUncast;
+    assert timestamps.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -244,12 +220,12 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        IrateIntAggregator.combineIntermediate(state, groupId, timestamps, values, isCumulative.getBoolean(valuesPosition), failed.getBoolean(valuesPosition), valuesPosition);
+        LegacyIrateLongAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntBlock valueBlock,
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, LongBlock valueBlock,
       LongBlock timestampBlock, BytesRefBlock temporalityBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -266,30 +242,22 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (state.hasFailed(groupId)) {
-          continue;
-        }
         int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
         int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
         for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-          int valueValue = valueBlock.getInt(valueOffset);
+          long valueValue = valueBlock.getLong(valueOffset);
           int timestampStart = timestampBlock.getFirstValueIndex(valuesPosition);
           int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
           for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
             long timestampValue = timestampBlock.getLong(timestampOffset);
-            try {
-              IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
-            } catch (InvalidTemporalityException e) {
-              warnings.registerException(e);
-              state.setFailed(groupId);
-            }
+            LegacyIrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
           }
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntVector valueVector,
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, LongVector valueVector,
       LongVector timestampVector, BytesRefBlock temporalityBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -300,17 +268,9 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (state.hasFailed(groupId)) {
-          continue;
-        }
-        int valueValue = valueVector.getInt(valuesPosition);
+        long valueValue = valueVector.getLong(valuesPosition);
         long timestampValue = timestampVector.getLong(valuesPosition);
-        try {
-          IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
-        } catch (InvalidTemporalityException e) {
-          warnings.registerException(e);
-          state.setFailed(groupId);
-        }
+        LegacyIrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
       }
     }
   }
@@ -322,12 +282,8 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
     Block timestampsUncast = page.getBlock(channels.get(0));
     LongBlock timestamps = (LongBlock) timestampsUncast;
     Block valuesUncast = page.getBlock(channels.get(1));
-    IntBlock values = (IntBlock) valuesUncast;
-    Block isCumulativeUncast = page.getBlock(channels.get(2));
-    BooleanBlock isCumulative = (BooleanBlock) isCumulativeUncast;
-    Block failedUncast = page.getBlock(channels.get(3));
-    BooleanBlock failed = (BooleanBlock) failedUncast;
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == isCumulative.getPositionCount() && timestamps.getPositionCount() == failed.getPositionCount();
+    LongBlock values = (LongBlock) valuesUncast;
+    assert timestamps.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -337,12 +293,12 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        IrateIntAggregator.combineIntermediate(state, groupId, timestamps, values, isCumulative.getBoolean(valuesPosition), failed.getBoolean(valuesPosition), valuesPosition);
+        LegacyIrateLongAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, IntBlock valueBlock,
+  private void addRawInput(int positionOffset, IntVector groups, LongBlock valueBlock,
       LongBlock timestampBlock, BytesRefBlock temporalityBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
@@ -353,44 +309,28 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
         continue;
       }
       int groupId = groups.getInt(groupPosition);
-      if (state.hasFailed(groupId)) {
-        continue;
-      }
       int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
       int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-        int valueValue = valueBlock.getInt(valueOffset);
+        long valueValue = valueBlock.getLong(valueOffset);
         int timestampStart = timestampBlock.getFirstValueIndex(valuesPosition);
         int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
-          try {
-            IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
-          } catch (InvalidTemporalityException e) {
-            warnings.registerException(e);
-            state.setFailed(groupId);
-          }
+          LegacyIrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, IntVector valueVector,
+  private void addRawInput(int positionOffset, IntVector groups, LongVector valueVector,
       LongVector timestampVector, BytesRefBlock temporalityBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
-      if (state.hasFailed(groupId)) {
-        continue;
-      }
-      int valueValue = valueVector.getInt(valuesPosition);
+      long valueValue = valueVector.getLong(valuesPosition);
       long timestampValue = timestampVector.getLong(valuesPosition);
-      try {
-        IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
-      } catch (InvalidTemporalityException e) {
-        warnings.registerException(e);
-        state.setFailed(groupId);
-      }
+      LegacyIrateLongAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
     }
   }
 
@@ -401,20 +341,16 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
     Block timestampsUncast = page.getBlock(channels.get(0));
     LongBlock timestamps = (LongBlock) timestampsUncast;
     Block valuesUncast = page.getBlock(channels.get(1));
-    IntBlock values = (IntBlock) valuesUncast;
-    Block isCumulativeUncast = page.getBlock(channels.get(2));
-    BooleanBlock isCumulative = (BooleanBlock) isCumulativeUncast;
-    Block failedUncast = page.getBlock(channels.get(3));
-    BooleanBlock failed = (BooleanBlock) failedUncast;
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == isCumulative.getPositionCount() && timestamps.getPositionCount() == failed.getPositionCount();
+    LongBlock values = (LongBlock) valuesUncast;
+    assert timestamps.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      IrateIntAggregator.combineIntermediate(state, groupId, timestamps, values, isCumulative.getBoolean(valuesPosition), failed.getBoolean(valuesPosition), valuesPosition);
+      LegacyIrateLongAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
     }
   }
 
-  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, IntBlock valueBlock,
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, LongBlock valueBlock,
       LongBlock timestampBlock, BytesRefBlock temporalityBlock) {
     if (valueBlock.mayHaveNulls()) {
       /*
@@ -465,7 +401,7 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
 
   private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = IrateIntAggregator.evaluateFinal(state, selectedInPage, ctx);
+    blocks[offset] = LegacyIrateLongAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

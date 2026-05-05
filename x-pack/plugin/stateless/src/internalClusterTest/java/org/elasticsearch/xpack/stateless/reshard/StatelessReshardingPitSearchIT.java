@@ -286,7 +286,7 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
         // And PIT should still work.
         pit = assertPit(searchCoordinator, pit, 2, indexedDocuments.keySet());
 
-        // Relocate back.
+        // Relocate again.
         var newClusterState = internalCluster().clusterService(masterNode).state();
         relocateSearchShard(newClusterState, index, 0);
 
@@ -401,7 +401,7 @@ public class StatelessReshardingPitSearchIT extends AbstractStatelessPluginInteg
                 .allMatch(s -> s == IndexReshardingState.Split.TargetShardState.SPLIT)
         );
 
-        // We get a PIT that uses two shard with search filters applied.
+        // We get a PIT that uses two shards with search filters applied.
         var pit = openPit(searchCoordinator, indexName, 2);
         pit = assertPit(searchCoordinator, pit, 2, indexedDocuments.keySet());
 

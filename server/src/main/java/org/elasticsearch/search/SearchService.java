@@ -1483,8 +1483,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         shard,
                         searcherSupplier,
                         getDefaultKeepAliveInMillis(),
-                        null,
-                        SplitShardCountSummary.UNSET
+                        null, // ReadOnlyEngine and the like that we are working with don't support resharding
+                        request.getSplitShardCountSummary()
                     );
                     logger.debug("Recreated reader context [{}]", readerContext.id());
                 } else {

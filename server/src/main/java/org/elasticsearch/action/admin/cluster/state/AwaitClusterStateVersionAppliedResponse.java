@@ -20,7 +20,6 @@ import org.elasticsearch.transport.ActionNotFoundTransportException;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class AwaitClusterStateVersionAppliedResponse extends BaseNodesResponse<
     TransportAwaitClusterStateVersionAppliedAction.NodeResponse> {
@@ -37,7 +36,7 @@ public class AwaitClusterStateVersionAppliedResponse extends BaseNodesResponse<
         super(clusterName, nodeResponses, failures);
         this.actualFailures = failures().stream()
             .filter(f -> ExceptionsHelper.unwrap(f, ActionNotFoundTransportException.class) == null)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     public List<FailedNodeException> actualFailures() {

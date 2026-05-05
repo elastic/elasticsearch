@@ -18,9 +18,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.ClusterStateVersionAppliedListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.VersionAppliedListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -125,7 +125,7 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
                 l -> clusterService.getClusterApplierService()
                     .addTimeoutListener(
                         null,
-                        new VersionAppliedListener(
+                        new ClusterStateVersionAppliedListener(
                             request.clusterStateVersion,
                             clusterService,
                             r -> onceListener.addListener(ActionListener.running(r)),

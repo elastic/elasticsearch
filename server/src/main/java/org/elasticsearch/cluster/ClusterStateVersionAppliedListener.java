@@ -7,11 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.cluster.service;
+package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.TimeoutClusterStateListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -29,9 +28,9 @@ import java.util.function.Consumer;
 /// Pass `null` as the timeout to [ClusterApplierService#addTimeoutListener] — this listener does not support
 /// timeouts and will log an error and assert if [#onTimeout] is called.
 /// On node close the listener is failed with [NodeClosedException].
-public final class VersionAppliedListener implements TimeoutClusterStateListener {
+public final class ClusterStateVersionAppliedListener implements TimeoutClusterStateListener {
 
-    private static final Logger logger = LogManager.getLogger(VersionAppliedListener.class);
+    private static final Logger logger = LogManager.getLogger(ClusterStateVersionAppliedListener.class);
 
     private final long clusterStateVersion;
     private final ClusterService clusterService;
@@ -46,7 +45,7 @@ public final class VersionAppliedListener implements TimeoutClusterStateListener
     ///                            (e.g., on task cancellation)
     /// @param listener            completed with `null` once the version is published, or with a failure
     ///                            on node close
-    public VersionAppliedListener(
+    public ClusterStateVersionAppliedListener(
         long clusterStateVersion,
         ClusterService clusterService,
         @Nullable Consumer<Runnable> cancelSubscriber,

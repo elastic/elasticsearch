@@ -11,8 +11,8 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterStateVersionAppliedListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.VersionAppliedListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -42,7 +42,7 @@ public class PeerRecoverySourceClusterStateDelay {
                 // Wait for the cluster state version to be published
                 .<Void>newForked(
                     l -> clusterService.getClusterApplierService()
-                        .addTimeoutListener(null, new VersionAppliedListener(clusterStateVersion, clusterService, null, l))
+                        .addTimeoutListener(null, new ClusterStateVersionAppliedListener(clusterStateVersion, clusterService, null, l))
                 )
                 // Wait for async appliers to finish applying the new state
                 .<Void>andThen(l -> clusterService.getClusterApplierService().awaitAllAsyncAppliers(l))

@@ -253,7 +253,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }, (mappingUpdateListener, initialMappingVersion) -> observer.waitForState(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
-                mappingUpdateListener.onResponse(null);
+                // The cluster state now contains the new mapping, but ICSS applies mappings asynchronously.
+                // Wait for async appliers to finish so that mapperService reflects the new mapping before retrying.
+                // TODO: switch this to watching for a specific version
+                clusterService.getClusterApplierService().awaitAllAsyncAppliers(mappingUpdateListener);
             }
 
             @Override

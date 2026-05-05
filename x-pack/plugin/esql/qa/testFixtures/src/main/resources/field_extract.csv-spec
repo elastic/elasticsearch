@@ -242,30 +242,6 @@ FROM flattened_otel_logs
 2020-01-01T11:43:13.255Z | filebeat-6t7v6        | low
 ;
 
-// Multi-valued sub-key (e.g. host.ip is a JSON array in some docs).
-// Current Phase B behavior: the array is returned as a single keyword
-// holding its JSON representation. Multi-value semantics is a Phase C item.
-// We probe the shape via STARTS_WITH/ENDS_WITH/CONTAINS rather than asserting
-// the literal JSON string, because the csv-spec parser would otherwise treat
-// `[a, b]` as a multi-valued column.
-multiValuedSubkeyAsJsonString
-required_capability: field_extract_function
-required_capability: flattened_datatype
-required_capability: fn_field_extract
-
-FROM flattened_otel_logs
-| WHERE @timestamp == "2020-01-01T00:07:43.000Z"
-| EVAL ips = field_extract(resource.attributes, "host.ip")
-| EVAL is_array = STARTS_WITH(ips, "[") AND ENDS_WITH(ips, "]")
-| EVAL has_v4 = CONTAINS(ips, "10.224.0.170")
-| EVAL has_v6 = CONTAINS(ips, "fe80::4001:aff:fee0:aa")
-| KEEP is_array, has_v4, has_v6
-;
-
-is_array:boolean | has_v4:boolean | has_v6:boolean
-true             | true           | true
-;
-
 // Numeric leaves in a flattened root come out as their stringified value
 // in doc values, so FIELD_EXTRACT returns them as a keyword.
 numericLeafReturnedAsKeyword

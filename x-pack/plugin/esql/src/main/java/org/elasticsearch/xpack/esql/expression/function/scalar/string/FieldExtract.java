@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -196,12 +195,6 @@ public class FieldExtract extends EsqlScalarFunction {
         extractTopLevelKey(builder, flattenedJson, path);
     }
 
-    /**
-     * Looks up {@code key} as a literal top-level field name in the (possibly XContent-encoded) JSON
-     * blob produced by the flattened block loader and appends the value to {@code builder}.
-     * Throws {@link IllegalArgumentException} if the input is not a valid JSON object or the key is
-     * absent, so the evaluator can report it as a per-row warning and emit {@code null}.
-     */
     private static void extractTopLevelKey(BytesRefBlock.Builder builder, BytesRef str, String key) {
         // Flattened doc values are JSON objects, but _source loaders can deliver SMILE/CBOR/YAML.
         XContentType type = XContentFactory.xContentType(str.bytes, str.offset, str.length);
@@ -212,15 +205,13 @@ public class FieldExtract extends EsqlScalarFunction {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("path [" + key + "] does not exist");
             }
-            byte[] rawBytes = type == XContentType.JSON ? str.bytes : null;
-            int rawOffset = type == XContentType.JSON ? str.offset : 0;
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String name = parser.currentName();
-                    parser.nextToken(); // advance to value
+                    parser.nextToken();
                     if (name.equals(key)) {
-                        appendCurrentValue(builder, parser, rawBytes, rawOffset);
+                        builder.appendBytesRef(new BytesRef(parser.text()));
                         return;
                     }
                     parser.skipChildren();
@@ -229,53 +220,6 @@ public class FieldExtract extends EsqlScalarFunction {
             throw new IllegalArgumentException("path [" + key + "] does not exist");
         } catch (IOException | XContentParseException e) {
             throw new IllegalArgumentException("invalid JSON input");
-        }
-    }
-
-    /**
-     * Appends the current parser value to {@code builder}, preferring zero-copy byte slicing when the
-     * input is JSON. Scalars are returned stringified, and objects or arrays are returned as their
-     * JSON serialization.
-     */
-    private static void appendCurrentValue(BytesRefBlock.Builder builder, XContentParser parser, byte[] rawBytes, int rawOffset)
-        throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        switch (token) {
-            case VALUE_STRING -> builder.appendBytesRef(new BytesRef(parser.text()));
-            case VALUE_NUMBER -> {
-                if (rawBytes != null) {
-                    XContentLocation tokenLocation = parser.getTokenLocation();
-                    XContentLocation currentLocation = parser.getCurrentLocation();
-                    if (tokenLocation.hasValidByteOffset() && currentLocation.hasValidByteOffset()) {
-                        int start = (int) tokenLocation.byteOffset() + rawOffset;
-                        int end = (int) currentLocation.byteOffset() + rawOffset;
-                        builder.appendBytesRef(new BytesRef(rawBytes, start, end - start));
-                    } else {
-                        builder.appendBytesRef(new BytesRef(parser.text()));
-                    }
-                } else {
-                    builder.appendBytesRef(new BytesRef(parser.text()));
-                }
-            }
-            case VALUE_BOOLEAN -> builder.appendBytesRef(parser.booleanValue() ? TRUE_BYTES : FALSE_BYTES);
-            case VALUE_NULL -> builder.appendNull();
-            case START_OBJECT, START_ARRAY -> {
-                if (rawBytes != null) {
-                    XContentLocation startLocation = parser.getTokenLocation();
-                    parser.skipChildren();
-                    XContentLocation endLocation = parser.getCurrentLocation();
-                    if (startLocation.hasValidByteOffset() && endLocation.hasValidByteOffset()) {
-                        int start = (int) startLocation.byteOffset() + rawOffset;
-                        int end = (int) endLocation.byteOffset() + rawOffset;
-                        builder.appendBytesRef(new BytesRef(rawBytes, start, end - start));
-                    } else {
-                        copyCurrentStructureFallback(builder, parser);
-                    }
-                } else {
-                    copyCurrentStructureFallback(builder, parser);
-                }
-            }
-            default -> throw new IllegalArgumentException("unexpected token: " + token);
         }
     }
 

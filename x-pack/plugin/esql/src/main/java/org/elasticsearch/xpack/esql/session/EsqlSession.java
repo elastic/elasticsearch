@@ -875,18 +875,14 @@ public class EsqlSession {
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
 
+        TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
+        preAnalysisProfile.start();
         // Rewrite FROM targets that resolve to datasets into UnresolvedExternalRelation so the rest of
         // pre-analysis + analysis treats them identically to the inline EXTERNAL command. Pattern
         // expansion (wildcards, exclusions, date math, etc.) flows through the same
         // IndexNameExpressionResolver path indices use. The rewriter bails internally when the feature
-        // flag is off or no datasets are registered. Profiled separately so its (potentially non-trivial)
-        // cost on wildcard dataset queries is visible rather than hidden inside pre-analysis.
-        TimeSpanMarker datasetResolutionProfile = executionInfo.queryProfile().datasetResolution();
-        datasetResolutionProfile.start();
+        // flag is off or no datasets are registered.
         parsed = DatasetRewriter.rewrite(parsed, projectMetadata, indexNameExpressionResolver);
-        datasetResolutionProfile.stop();
-        TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
-        preAnalysisProfile.start();
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         preAnalysisProfile.stop();
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in

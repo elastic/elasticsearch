@@ -37,7 +37,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.BitSet;
 
 /**
  * Page-level batch column reader that bypasses {@code ColumnReadStoreImpl} and works directly
@@ -45,7 +44,7 @@ import java.util.BitSet;
  * <ol>
  *   <li>Reads data pages from the {@link PageReader}</li>
  *   <li>Splits V1/V2 pages into def-level and value streams</li>
- *   <li>Bulk-decodes def levels via {@link DefinitionLevelDecoder} → null {@link BitSet}</li>
+ *   <li>Bulk-decodes def levels via {@link DefinitionLevelDecoder} → null {@link WordMask}</li>
  *   <li>Bulk-decodes values via {@link PlainValueDecoder} or {@link DictionaryValueDecoder}</li>
  *   <li>Assembles into ESQL {@link Block}s</li>
  * </ol>
@@ -298,9 +297,9 @@ final class PageColumnReader {
 
     private void initDecoders() {
         if (maxDefLevel > 0 && currentDefLevelBytes != null) {
-            defDecoder.init(currentDefLevelBytes, currentPageValueCount, maxDefLevel, currentPageIsV1);
+            defDecoder.init(currentDefLevelBytes, maxDefLevel, currentPageIsV1);
         } else {
-            defDecoder.init(EMPTY_BYTE_BUFFER.duplicate(), currentPageValueCount, 0, false);
+            defDecoder.init(EMPTY_BYTE_BUFFER.duplicate(), 0, false);
         }
 
         if (currentEncoding.usesDictionary()) {

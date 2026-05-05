@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 147369
-summary: Top snippets analyzer option local context
+summary: Add analyzer option in ES|QL `TOP_SNIPPETS` function
 type: enhancement

@@ -35,7 +35,7 @@ class DocTrackingKnnQuery<T extends Query & PostFilterableKnnQuery> extends Quer
     private final Holder<DocTrackingCollectorManager> collectorManagerHolder;
     private int[] trackedDocs = new int[0];
 
-    public DocTrackingKnnQuery(T delegate, Holder<DocTrackingCollectorManager> collectorManagerHolder) {
+    DocTrackingKnnQuery(T delegate, Holder<DocTrackingCollectorManager> collectorManagerHolder) {
         this.delegate = delegate;
         this.collectorManagerHolder = collectorManagerHolder;
     }

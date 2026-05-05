@@ -41,8 +41,8 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * Responsible for loading the _id from stored fields, doc values, or for TSDB synthesizing the _id from the routing, _tsid and
- * @timestamp fields.
+ * Responsible for loading the _id from stored fields, doc values, or for TSDB synthesizing the _id from the routing, _tsid
+ * and @timestamp fields.
  */
 public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdLoader, IdLoader.DocValuesIdLoader {
 

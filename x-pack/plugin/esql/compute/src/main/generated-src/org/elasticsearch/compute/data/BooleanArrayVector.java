@@ -84,6 +84,11 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Byte.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BOOLEAN;
     }

@@ -821,7 +821,13 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             );
             clusterService.addListener(snapshotsCommitService);
             this.closedShardService = new ClosedShardService();
-            this.translogReplicator = new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService);
+            this.translogReplicator = new TranslogReplicator(
+                threadPool,
+                settings,
+                objectStoreService,
+                consistencyService,
+                projectResolver.supportsMultipleProjects()
+            );
 
             hollowShardsService = mock(HollowShardsService.class);
             // Let hollowShardsService pass on mutable operation check

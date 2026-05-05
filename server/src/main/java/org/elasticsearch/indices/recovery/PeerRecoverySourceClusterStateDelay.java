@@ -11,9 +11,8 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.VersionAppliedListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -26,9 +25,7 @@ public class PeerRecoverySourceClusterStateDelay {
 
     private static final Logger logger = LogManager.getLogger(PeerRecoverySourceClusterStateDelay.class);
 
-    /**
-     * Waits for the given cluster state version to be applied locally before proceeding with recovery
-     */
+    /// Waits for the given cluster state version to be applied locally before proceeding with recovery
     public static <T> void ensureClusterStateVersion(
         long clusterStateVersion,
         ClusterService clusterService,
@@ -37,35 +34,20 @@ public class PeerRecoverySourceClusterStateDelay {
         ActionListener<T> listener,
         Consumer<ActionListener<T>> proceedWithRecovery
     ) {
-        if (clusterStateVersion <= clusterService.state().version()) {
-            // either our locally-applied cluster state is already fresh enough, or request.clusterStateVersion() == 0 for bwc
+        if (clusterStateVersion <= clusterService.asyncAppliedClusterStateVersion()) {
             proceedWithRecovery.accept(listener);
         } else {
             logger.debug("delaying {} until application of cluster state version {}", proceedWithRecovery, clusterStateVersion);
-            final var waitListener = new SubscribableListener<Void>();
-            final var clusterStateVersionListener = new ClusterStateListener() {
-                @Override
-                public void clusterChanged(ClusterChangedEvent event) {
-                    if (clusterStateVersion <= event.state().version()) {
-                        waitListener.onResponse(null);
-                    }
-                }
-
-                @Override
-                public String toString() {
-                    return "ClusterStateListener for " + proceedWithRecovery;
-                }
-            };
-            clusterService.addListener(clusterStateVersionListener);
-            waitListener.addListener(ActionListener.running(() -> clusterService.removeListener(clusterStateVersionListener)));
-            if (clusterStateVersion <= clusterService.state().version()) {
-                waitListener.onResponse(null);
-            }
-            waitListener.addListener(
-                listener.delegateFailureAndWrap((l, ignored) -> proceedWithRecovery.accept(l)),
-                executor,
-                threadContext
-            );
+            SubscribableListener
+                // Wait for the cluster state version to be published
+                .<Void>newForked(
+                    l -> clusterService.getClusterApplierService()
+                        .addTimeoutListener(null, new VersionAppliedListener(clusterStateVersion, clusterService, null, l))
+                )
+                // Wait for async appliers to finish applying the new state
+                .<Void>andThen(l -> clusterService.getClusterApplierService().awaitAllAsyncAppliers(l))
+                // Proceed with recovery on the recovery executor
+                .addListener(listener.delegateFailureAndWrap((l, ignored) -> proceedWithRecovery.accept(l)), executor, threadContext);
             // NB no timeout. If we never apply the fresh cluster state then eventually we leave the cluster which removes the recovery
             // from the routing table so the target shard will fail.
         }

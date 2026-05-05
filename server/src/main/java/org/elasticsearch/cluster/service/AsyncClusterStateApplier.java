@@ -34,7 +34,7 @@ public class AsyncClusterStateApplier implements ClusterStateApplier {
     private final ClusterStateApplier applier;
 
     @Nullable // before calling setInitialState
-    private ClusterState appliedState;
+    private volatile ClusterState appliedState;
 
     /// When `false`, the applier is idle: [#pendingState] is `null`, [#listeners] is complete, and no application
     /// is enqueued on [#executor]. When `true`, the applier is active ([#applierRunnable] is either enqueued or running).
@@ -55,6 +55,12 @@ public class AsyncClusterStateApplier implements ClusterStateApplier {
     public AsyncClusterStateApplier(ClusterStateApplier applier, Executor executor) {
         this.executor = executor;
         this.applier = applier;
+    }
+
+    /// Returns the version of the last [ClusterState] fully applied by the delegate applier, or -1 if none yet.
+    public long appliedStateVersion() {
+        final var state = appliedState;
+        return state == null ? -1L : state.version();
     }
 
     /// Subscribe the given listener to the active cluster state applications, such that the listener will be completed

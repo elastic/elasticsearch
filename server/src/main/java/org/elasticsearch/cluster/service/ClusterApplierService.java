@@ -764,6 +764,27 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
     }
 
+    /// Returns the cluster state version that has been fully applied by all [AsyncClusterStateApplier]s.
+    public long asyncAppliedClusterStateVersion() {
+        long min = state().version();
+        for (final var applier : highPriorityStateAppliers) {
+            if (applier instanceof AsyncClusterStateApplier async) {
+                min = Math.min(min, async.appliedStateVersion());
+            }
+        }
+        for (final var applier : normalPriorityStateAppliers) {
+            if (applier instanceof AsyncClusterStateApplier async) {
+                min = Math.min(min, async.appliedStateVersion());
+            }
+        }
+        for (final var applier : lowPriorityStateAppliers) {
+            if (applier instanceof AsyncClusterStateApplier async) {
+                min = Math.min(min, async.appliedStateVersion());
+            }
+        }
+        return min;
+    }
+
     public void awaitAllAsyncAppliers(ActionListener<Void> listener) {
         try (var listeners = new RefCountingListener(listener)) {
             awaitAsyncAppliers(highPriorityStateAppliers, listeners);

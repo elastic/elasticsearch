@@ -18,10 +18,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.VersionAppliedListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -41,7 +39,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 /// An action that waits until a given cluster state version is applied on each target [DiscoveryNode].
 ///
@@ -110,53 +107,6 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
         throw new UnsupportedOperationException();
     }
 
-    private class VersionAppliedListener implements TimeoutClusterStateListener {
-
-        private final long clusterStateVersion;
-        private final Consumer<Runnable> cancelSubscriber;
-        private final ActionListener<Void> listener;
-
-        VersionAppliedListener(long clusterStateVersion, Consumer<Runnable> cancelSubscriber, ActionListener<Void> listener) {
-            this.clusterStateVersion = clusterStateVersion;
-            this.cancelSubscriber = cancelSubscriber;
-            this.listener = listener;
-        }
-
-        @Override
-        public void postAdded() {
-            if (clusterService.state().version() >= clusterStateVersion) {
-                removeListener();
-                listener.onResponse(null);
-            } else {
-                cancelSubscriber.accept(VersionAppliedListener.this::removeListener);
-            }
-        }
-
-        private void removeListener() {
-            clusterService.getClusterApplierService().removeTimeoutListener(VersionAppliedListener.this);
-        }
-
-        @Override
-        public void onClose() {
-            removeListener();
-            listener.onFailure(new NodeClosedException(clusterService.localNode()));
-        }
-
-        @Override
-        public void onTimeout(TimeValue timeout) {
-            logger.error("no timeout configured");
-            assert false : "no timeout configured";
-        }
-
-        @Override
-        public void clusterChanged(ClusterChangedEvent event) {
-            if (event.state().version() >= clusterStateVersion) {
-                removeListener();
-                listener.onResponse(null);
-            }
-        }
-    }
-
     @Override
     protected void nodeOperationAsync(NodeRequest request, Task task, ActionListener<NodeResponse> listener) {
         final var onceListener = new SubscribableListener<Void>();
@@ -166,7 +116,7 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
             onceListener.addTimeout(request.timeout, threadPool, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
-        var cancellableTask = (CancellableTask) task;
+        final var cancellableTask = (CancellableTask) task;
         cancellableTask.addListener(() -> onceListener.onFailure(new TaskCancelledException(cancellableTask.getReasonCancelled())));
 
         SubscribableListener
@@ -175,7 +125,12 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
                 l -> clusterService.getClusterApplierService()
                     .addTimeoutListener(
                         null,
-                        new VersionAppliedListener(request.clusterStateVersion, r -> onceListener.addListener(ActionListener.running(r)), l)
+                        new VersionAppliedListener(
+                            request.clusterStateVersion,
+                            clusterService,
+                            r -> onceListener.addListener(ActionListener.running(r)),
+                            l
+                        )
                     )
             )
             // Step 2: wait for async application

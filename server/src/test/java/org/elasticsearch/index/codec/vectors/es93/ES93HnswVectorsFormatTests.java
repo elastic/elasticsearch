@@ -71,7 +71,7 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
     }
 
     public void testDefaultHnswGraphThreshold() {
-        KnnVectorsFormat format = createFormat(16, 100);
+        KnnVectorsFormat format = new ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT);
         assertThat(format, hasToString(containsString("hnswGraphThreshold=" + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD)));
     }
 

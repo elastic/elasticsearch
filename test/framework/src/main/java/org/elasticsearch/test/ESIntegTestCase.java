@@ -1243,6 +1243,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (status != null) {
             assertThat(actionGet.getStatus(), equalTo(status));
         }
+        // waitForNoRelocatingShards only ensures the cluster state shows the relocation as complete. With async ICSS,
+        // the source node's IndicesService still holds the old shard until its ICSS processes the updated state.
+        safeAwait(newStateFullyAppliedListener());
         return actionGet.getStatus();
     }
 
@@ -1937,10 +1940,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
             ClusterInfoService.class,
             internalCluster().getMasterName()
         );
-        if (clusterInfoService instanceof InternalClusterInfoService) {
-            return ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
+        if (clusterInfoService instanceof InternalClusterInfoService == false) {
+            return null;
         }
-        return null;
+        final ClusterInfo result = ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
+        // The refresh synchronously calls listeners such as DiskThresholdMonitor.onNewInfo, which may submit
+        // cluster state updates. Those updates must be fully applied by async ICSS before callers can rely on
+        // the resulting state (e.g. index blocks being present or absent).
+        safeAwait(newStateFullyAppliedListener());
+        return result;
     }
 
     /**
@@ -2004,7 +2012,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         NetworkDisruption.ensureFullyConnectedCluster(internalCluster());
     }
 
-    protected SubscribableListener<Void> newStateFullyAppliedListener() {
+    protected static SubscribableListener<Void> newStateFullyAppliedListener() {
         return ClusterServiceUtils.newStateFullyAppliedListener(client(), internalCluster().getInstances(ClusterService.class).iterator());
     }
 

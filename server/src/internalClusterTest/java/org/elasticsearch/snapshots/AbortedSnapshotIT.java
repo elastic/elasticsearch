@@ -65,9 +65,12 @@ public class AbortedSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setWaitForCompletion(false)
             .setPartial(true)
             .get();
-        // resulting cluster state has been applied on all nodes, which means the first task for the SNAPSHOT pool is queued up
 
-        final var snapshot = SnapshotsInProgress.get(clusterService.state()).forRepo(repoName).get(0).snapshot();
+        // IndicesClusterStateService applies async and SnapshotShardsService will awaitAllAsyncAppliers
+        // before enqueuing tasks into the SNAPSHOT thread pool.
+        safeAwait(newStateFullyAppliedListener());
+
+        final var snapshot = SnapshotsInProgress.get(clusterService.state()).forRepo(repoName).getFirst().snapshot();
         final var snapshotShardsService = internalCluster().getInstance(SnapshotShardsService.class, dataNode);
 
         // Run up to 3 snapshot tasks, which are (in order):

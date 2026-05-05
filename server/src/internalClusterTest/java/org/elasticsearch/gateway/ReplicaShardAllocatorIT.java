@@ -318,6 +318,8 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         String nodeWithHigherMatching = randomFrom(internalCluster().nodesInclude(indexName));
         Settings nodeWithHigherMatchingSettings = internalCluster().dataPathSettings(nodeWithHigherMatching);
         internalCluster().stopNode(nodeWithHigherMatching);
+        // Wait for IndicesClusterStateService to apply the node-removal cluster state before continuing.
+        safeAwait(newStateFullyAppliedListener());
         if (usually()) {
             indexRandom(
                 randomBoolean(),

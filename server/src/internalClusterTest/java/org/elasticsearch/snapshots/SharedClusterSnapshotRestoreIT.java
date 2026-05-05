@@ -2110,6 +2110,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             .execute()
             .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+        // Wait for IndicesClusterStateService to start the restored shards before checking their stats.
+        safeAwait(newStateFullyAppliedListener());
 
         IndicesStatsResponse stats = indicesAdmin().prepareStats(indexName).clear().get();
         ShardStats shardStats = stats.getShards()[0];

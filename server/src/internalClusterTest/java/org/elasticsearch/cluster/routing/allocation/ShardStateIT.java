@@ -52,6 +52,8 @@ public class ShardStateIT extends ESIntegTestCase {
                 equalTo(ClusterHealthStatus.YELLOW)
             )
         );
+        // Wait for IndicesClusterStateService to apply the shard allocation changes before reading primary terms.
+        safeAwait(newStateFullyAppliedListener());
 
         final long term0 = shard == 0 ? 2 : 1;
         final long term1 = shard == 1 ? 2 : 1;

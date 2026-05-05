@@ -175,7 +175,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
-    public void testStartSnapshotsConcurrently() {
+    public void testStartSnapshotsConcurrently() throws Exception {
         internalCluster().startMasterOnlyNode();
         final var dataNode = internalCluster().startDataOnlyNode();
 
@@ -210,7 +210,13 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
         );
 
         // one task for each snapshot thread (throttled) or shard (if fewer), plus one for runSyncTasksEagerly()
-        assertEquals(Math.min(snapshotThreadCount, shardCount) + 1, getSnapshotQueueLength(threadPool));
+        // IndicesClusterStateService applies async and SnapshotShardsService will awaitAllAsyncAppliers
+        // before enqueuing tasks into the SNAPSHOT thread pool.
+        assertBusy(
+            () -> assertEquals(Math.min(snapshotThreadCount, shardCount) + 1, getSnapshotQueueLength(threadPool)),
+            5,
+            TimeUnit.SECONDS
+        );
 
         // release all the snapshot threads
         safeAwait(barrier);

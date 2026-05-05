@@ -157,7 +157,9 @@ public class SharedCacheEvictionTests extends BaseFrozenSearchableSnapshotsInteg
         updateClusterSettings(Settings.builder().put("cluster.routing.allocation.require._name", targetNode));
 
         try {
-            waitForRelocation();
+            waitForRelocation(ClusterHealthStatus.GREEN);
+            // Wait for IndicesClusterStateService to call beforeIndexShardClosed on the failed shards, which triggers forceEvict.
+            safeAwait(newStateFullyAppliedListener());
 
             final SharedBlobCacheService<CacheKey> sharedBlobCacheService = sharedBlobCacheServices.get(getNodeId(targetNode));
             verify(sharedBlobCacheService, never()).forceEvictAsync(ArgumentMatchers.any());

@@ -24,3 +24,6 @@ serverless: preview
 
 :::{include} ../examples/st_simplify.md
 :::
+
+:::{include} ../diagrams/st_simplify.md
+:::

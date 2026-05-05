@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.approximation;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
@@ -25,6 +27,15 @@ public class ApproximationPlanTests extends ApproximationTestCase {
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
+    }
+
+    /**
+     * The placeholder will always be substituted with a concrete non-null double before execution.
+     * It must not be treated as nullable by optimizer rules (e.g. FoldNull, PropagateNullable).
+     */
+    public void testSampleProbabilityPlaceHolderIsNotNullable() {
+        var placeholder = new ApproximationPlan.SampleProbabilityPlaceHolder(Source.EMPTY);
+        assertThat(placeholder.nullable(), equalTo(Nullability.FALSE));
     }
 
     public void testApproximationPlan_createsConfidenceInterval_withoutGrouping() throws Exception {

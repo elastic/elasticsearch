@@ -466,6 +466,7 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
             Map<String, Integer> dictionary = new HashMap<>();
             Set<String> keys = dictionary(maxValuesPerPosition);
             List<List<Object>> values = new ArrayList<>(positionCount);
+            int valueMaxByteSize = 0;
             try (
                 IntBlock.Builder ordinals = TestBlockFactory.getNonBreakingInstance()
                     .newIntBlockBuilder(positionCount * maxValuesPerPosition);
@@ -487,7 +488,9 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                             bytes.appendBytesRef(new BytesRef(k));
                             return dictionary.size();
                         });
-                        valuesAtPosition.add(new BytesRef(key));
+                        BytesRef keyBytesRef = new BytesRef(key);
+                        valuesAtPosition.add(keyBytesRef);
+                        valueMaxByteSize = Math.max(valueMaxByteSize, keyBytesRef.length);
                         ordinals.appendInt(ordinal);
                         ordsAtPosition.add(ordinal);
                     }
@@ -498,7 +501,7 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                         ordinals.endPositionEntry();
                     }
                 }
-                return new RandomBlock(values, new OrdinalBytesRefBlock(ordinals.build(), bytes.build()));
+                return new RandomBlock(values, new OrdinalBytesRefBlock(ordinals.build(), bytes.build()), valueMaxByteSize);
             }
         }
 

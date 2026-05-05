@@ -2331,7 +2331,9 @@ public class EsqlCapabilities {
         STR_COMMANDS_ACCEPT_NULL,
 
         /**
-         * Support for the EXTERNAL command (datasource access).
+         * Support for external data-source access via either inline {@code EXTERNAL "..." WITH {...}} or
+         * {@code FROM <dataset>}. Both surfaces share {@code ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG}, so
+         * a single capability gate is honest about lockstep enablement.
          */
         EXTERNAL_COMMAND(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 

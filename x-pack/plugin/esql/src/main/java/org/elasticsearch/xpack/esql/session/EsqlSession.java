@@ -160,8 +160,6 @@ public class EsqlSession {
 
     private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");
 
-    private static final ViewCompaction VIEW_COMPACTION = new ViewCompaction();
-
     private final String sessionId;
     private final TransportVersion localClusterMinimumVersion;
     private final AnalyzerSettings analyzerSettings;
@@ -323,11 +321,12 @@ public class EsqlSession {
             viewResolution.viewQueries()
         );
 
-        // Compact the uncompacted plan that ViewResolver produces (UnionAll/ViewUnionAll rewriting,
-        // sibling-UnresolvedRelation merging, NamedSubquery unwrapping). Must run BEFORE
-        // PreAnalyzer so the index patterns extracted for field-caps match what the analyzer's
-        // ResolveTable rule looks up later. See {@link ViewCompaction} for the rationale.
-        LogicalPlan plan = VIEW_COMPACTION.apply(viewResolution.plan());
+        // Pre-analysis pass over the uncompacted plan from ViewResolver: reshape user-written
+        // Subquery/UnionAll structures into ViewUnionAll. ViewShadowRelation siblings and nested
+        // ViewUnionAlls are intentionally preserved here — they are stripped/flattened in
+        // ViewCompaction.postAnalysis(), which runs as an analyzer rule after ResolveTable so
+        // lenient field-caps (Phase B) can pair each shadow with its strict sibling.
+        LogicalPlan plan = ViewCompaction.preAnalysis(viewResolution.plan());
         Configuration configurationToUse = configuration;
         if (plan instanceof Explain explain) {
             explainMode = true;

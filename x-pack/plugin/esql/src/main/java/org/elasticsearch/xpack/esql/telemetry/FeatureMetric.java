@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
+import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -126,7 +127,8 @@ public enum FeatureMetric {
         FuseScoreEval.class,
         Aggregate.class, // STATS is managed in another way, see above
         LocalRelation.class, // produced as a short-circuit for empty index patterns (e.g. PROMQL on missing index)
-        NamedSubquery.class // temporary plan node used as part of view resolution, but is removed by Analyzer
+        NamedSubquery.class, // temporary plan node used as part of view resolution, but is removed by Analyzer
+        ViewShadowRelation.class // CPS lenient-lookup marker, stripped by ViewCompactionPostAnalysis after ResolveTable
     );
 
     private Predicate<LogicalPlan> planCheck;

@@ -25,31 +25,29 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Rule that compacts the nested plan produced by {@link ViewResolver} into the form expected by the
- * rest of the query pipeline. This work used to live as a post-pass at the bottom of
- * {@link ViewResolver#replaceViews}, but was moved out so the resolver can return an uncompacted
- * plan — needed for CPS to attach lenient field-caps calls to specific resolution levels (see
- * <a href="https://github.com/elastic/esql-planning/issues/543">esql-planning#543</a> and
- * <a href="https://github.com/elastic/esql-planning/issues/472">#472</a>).
- * <p>
- * Despite the {@link Rule} type and naming, this is not currently registered in the analyzer's rule
- * batches. {@code EsqlSession} invokes it explicitly between view resolution and pre-analysis, so
- * PreAnalyzer extracts the same index patterns that the analyzer's {@code ResolveTable} rule looks
- * up later. Keeping it as a {@link Rule} subclass makes it trivial to relocate into the analyzer
- * pipeline once #543 introduces a post-field-caps semantic-analysis phase that can re-invoke it.
- * <p>
- * Behaviour is intended to be identical to the previous in-resolver compaction:
+ * Compacts the nested plan produced by {@link ViewResolver} into the form expected by the rest
+ * of the query pipeline. The work is split into two phases so that {@link ViewShadowRelation}
+ * siblings (CPS lenient lookups) survive long enough to be paired with their strict
+ * {@link UnresolvedRelation} sibling at field-caps time:
  * <ol>
- *   <li>{@link #rewriteUnionAllsWithNamedSubqueries} — convert plain {@link UnionAll} containing at
- *       least one {@link NamedSubquery} child into {@link ViewUnionAll}.</li>
- *   <li>{@link #compactNestedViewUnionAlls} — bottom-up flatten nested {@link ViewUnionAll} (and
- *       merge sibling bare {@link UnresolvedRelation}s when an inner Fork is lifted). Also unwraps
- *       {@link NamedSubquery} wrappers whose child has been reduced to a bare
- *       {@link UnresolvedRelation} without exclusions, so the outer level's compaction can see them
- *       as bare {@link UnresolvedRelation}s.</li>
- *   <li>Unwrap remaining {@link NamedSubquery} wrappers — they only existed to defeat the merge
- *       step in scope-sensitive cases.</li>
+ *   <li>{@link #preAnalysis(LogicalPlan)} — runs from {@code EsqlSession} before {@code PreAnalyzer}.
+ *       Reshapes user-written {@link Subquery}/{@link UnionAll} structures into {@link ViewUnionAll}
+ *       so the analyzer sees a uniform tree shape. Leaves shadows in place; leaves nested
+ *       {@link ViewUnionAll}s nested. The {@link UnresolvedRelation} index patterns it leaves in
+ *       the tree are exactly what {@code PreAnalyzer} hands to field-caps and what
+ *       {@code ResolveTable} later looks up.</li>
+ *   <li>{@link #postAnalysis(LogicalPlan)} — runs as an analyzer rule after {@code ResolveTable}.
+ *       Strips any {@link ViewShadowRelation} that lenient field-caps did not fold into a sibling
+ *       {@code EsRelation} (in Phase A this is all of them, since lenient field-caps is not yet
+ *       wired up — see esql-planning#543), then flattens nested {@link ViewUnionAll}s and unwraps
+ *       remaining {@link NamedSubquery} wrappers.</li>
  * </ol>
+ * <p>
+ * The split is what lets a colleague implement lenient field-caps purely as a Phase B analyzer
+ * rule that lives between {@code ResolveTable} and {@link #postAnalysis}: shadows that match
+ * remote indices get rewritten to {@link UnresolvedRelation}/{@code EsRelation}; shadows that
+ * fail to match are simply left unresolved and {@link #postAnalysis} sweeps them away. Ordering
+ * details: see <a href="https://github.com/elastic/esql-planning/issues/472">esql-planning#472</a>.
  * <p>
  * Note: a small amount of compaction stays inside {@link ViewResolver#buildPlanFromBranches} —
  * specifically the per-level sibling {@link UnresolvedRelation} merge — to keep the resolved tree
@@ -59,15 +57,44 @@ import java.util.Map;
  */
 public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
 
+    /**
+     * Backward-compatible helper: runs {@link #preAnalysis(LogicalPlan)} followed by
+     * {@link #postAnalysis(LogicalPlan)}. Production code calls the two phases separately;
+     * tests that exercise the compaction logic without going through the full analyzer call
+     * this to get the same end state as the live pipeline produces.
+     */
     @Override
     public LogicalPlan apply(LogicalPlan plan) {
-        // Phase A: ViewResolver emits ViewShadowRelation siblings to mark each per-resolution-level
-        // CPS lenient lookup. They have no consumer yet — Phase B will add a post-ResolveTable
-        // analyzer rule that resolves them via lenient field-caps. Until that lands, strip them
-        // here so the rest of the pipeline (PreAnalyzer, ResolveTable, the runtime) doesn't see
-        // them. Without this strip, every existing test would change shape, and PreAnalyzer would
-        // walk into them looking for an indexPattern() it doesn't currently understand.
+        return postAnalysis(preAnalysis(plan));
+    }
+
+    /**
+     * Phase 1, runs before {@code PreAnalyzer}. Reshapes user-written {@link Subquery}/
+     * {@link UnionAll} structures into {@link ViewUnionAll} for uniform downstream handling.
+     * Deliberately does NOT strip {@link ViewShadowRelation} siblings or flatten nested
+     * {@link ViewUnionAll}s — those are deferred to {@link #postAnalysis} so lenient field-caps
+     * (Phase B) can pair each shadow with its strict resolution at field-caps time.
+     */
+    public static LogicalPlan preAnalysis(LogicalPlan plan) {
+        return rewriteUnionAllsWithNamedSubqueries(plan);
+    }
+
+    /**
+     * Phase 2, runs as an analyzer rule after {@code ResolveTable}. Strips
+     * {@link ViewShadowRelation} siblings that lenient field-caps did not resolve, then flattens
+     * nested {@link ViewUnionAll} structures and unwraps remaining {@link NamedSubquery}
+     * wrappers. By the time this runs, all reachable {@link UnresolvedRelation}s have been
+     * replaced by {@code EsRelation}s, so the {@link UnresolvedRelation}-merge step inside
+     * {@link #compactNestedViewUnionAlls} is effectively a no-op — sibling {@code EsRelation}s
+     * stay separate (Strategy A from esql-planning#543).
+     */
+    public static LogicalPlan postAnalysis(LogicalPlan plan) {
         plan = stripViewShadowRelations(plan);
+        // Strip can collapse a {@code ViewUnionAll[NamedSubquery, ViewShadowRelation]} to its sole
+        // {@link NamedSubquery} when the shadow is removed. That exposes a {@code Subquery[NamedSubquery]}
+        // pattern (and a parent {@link UnionAll} containing a {@link NamedSubquery} child) that
+        // {@link #rewriteUnionAllsWithNamedSubqueries} needs to see in order to unwrap and convert
+        // to {@link ViewUnionAll}, so we re-run the rewrite after the strip.
         plan = rewriteUnionAllsWithNamedSubqueries(plan);
         plan = compactNestedViewUnionAlls(plan);
         plan = plan.transformDown(NamedSubquery.class, UnaryPlan::child);

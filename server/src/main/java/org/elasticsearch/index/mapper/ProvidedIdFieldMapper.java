@@ -14,6 +14,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
@@ -43,7 +44,9 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Locale;
 import java.util.function.BooleanSupplier;
 
@@ -62,7 +65,10 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             + "If you require sorting or aggregating on this field you should also include the id in the "
             + "body of your documents, and map this field as a keyword field that has [doc_values] enabled";
 
-    public static final ProvidedIdFieldMapper NO_FIELD_DATA = new ProvidedIdFieldMapper(() -> false, IdFieldMapper.Mode.DEFAULT);
+    public static final ProvidedIdFieldMapper DOCUMENT_ID_NO_FIELD_DATA = new ProvidedIdFieldMapper(
+        () -> false,
+        IdFieldMapper.Mode.DEFAULT
+    );
     public static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(() -> false, Mode.COLUMNAR);
 
     /**
@@ -103,9 +109,13 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                 case COLUMNAR:
                     return COLUMNAR_ID;
                 case DEFAULT:
-                    return new ProvidedIdFieldMapper(fieldDataEnabled, mode);
+                    if (fieldDataEnabled.getAsBoolean()) {
+                        return new ProvidedIdFieldMapper(fieldDataEnabled, mode);
+                    } else {
+                        return DOCUMENT_ID_NO_FIELD_DATA;
+                    }
                 default:
-                throw new IllegalArgumentException("Unsupported id field mode [" + mode + "]");
+                    throw new IllegalArgumentException("Unsupported id field mode [" + mode + "]");
             }
         }
 
@@ -219,6 +229,12 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
         }
+
+        @Override
+        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+            return DocValueFormat.ID;
+        }
+
     }
 
     private static LeafFieldData wrap(LeafFieldData in) {

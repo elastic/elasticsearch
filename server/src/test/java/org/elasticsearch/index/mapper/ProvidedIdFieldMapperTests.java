@@ -97,7 +97,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     public void testSourceDescription() throws IOException {
         String id = randomAlphaOfLength(4);
         assertThat(
-            ProvidedIdFieldMapper.NO_FIELD_DATA.documentDescription(
+            ProvidedIdFieldMapper.DOCUMENT_ID_NO_FIELD_DATA.documentDescription(
                 new TestDocumentParserContext(MappingLookup.EMPTY, source(id, b -> {}, randomAlphaOfLength(2)))
             ),
             equalTo("document with id '" + id + "'")
@@ -108,7 +108,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
         String id = randomAlphaOfLength(4);
         ParsedDocument document = mapper.parse(source(id, b -> {}, null));
-        assertThat(ProvidedIdFieldMapper.NO_FIELD_DATA.documentDescription(document), equalTo("[" + id + "]"));
+        assertThat(ProvidedIdFieldMapper.DOCUMENT_ID_NO_FIELD_DATA.documentDescription(document), equalTo("[" + id + "]"));
     }
 
     public void testColumnarModeStoresBinaryDocValues() throws IOException {

@@ -24,6 +24,7 @@ import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
@@ -798,4 +799,29 @@ public interface DocValueFormat extends NamedWriteable {
             }
         }
     };
+
+    DocValueFormat ID = new IdFormat();
+
+    final class IdFormat implements DocValueFormat {
+
+        private IdFormat() {}
+
+        @Override
+        public String getWriteableName() {
+            return "_id";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        public String format(BytesRef value) {
+            return Uid.decodeId(value);
+        }
+
+        @Override
+        public BytesRef parseBytesRef(Object value) {
+            return Uid.encodeId(value.toString());
+        }
+    }
 }

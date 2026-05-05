@@ -57,6 +57,28 @@ public class NdJsonPageDecoder implements Closeable {
     private static final Logger logger = LogManager.getLogger(NdJsonPageDecoder.class);
 
     private InputStream input;
+    /**
+     * Non-null when the decoder is reading from a fully buffered byte array (no {@link InputStream}
+     * indirection); in that case {@link #input} is {@code null} and recovery uses the byte-array
+     * fast path. Streaming-parallel parsing uses this path because every chunk is already a
+     * bounded {@code byte[]} region — going straight to Jackson's {@code createParser(byte[])}
+     * skips the per-call dispatch through {@link InputStream#read} and lets Jackson 2.16+ pick
+     * its small-input fast paths.
+     */
+    private final byte[] sourceBytes;
+    /**
+     * Exclusive end of the readable region in {@link #sourceBytes}. The decoder may read bytes in
+     * the half-open range {@code [parserSliceStart, sourceEnd)}; everything outside it must not
+     * be touched (e.g. when the byte array is a large pooled buffer and only a prefix is data).
+     */
+    private final int sourceEnd;
+    /**
+     * Absolute offset (within {@link #sourceBytes}) where {@link #parser}'s input slice starts;
+     * tracked because {@code JsonParser.getCurrentLocation().getByteOffset()} is relative to the
+     * slice the parser was created over, not to the underlying byte array. Updated each time
+     * {@link #recoverFromParseException} restarts the parser at a later offset.
+     */
+    private int parserSliceStart;
     private final BlockDecoder decoder;
     private final int batchSize;
     private final BlockFactory blockFactory;
@@ -93,7 +115,58 @@ public class NdJsonPageDecoder implements Closeable {
         ErrorPolicy errorPolicy,
         String sourceLocation
     ) throws IOException {
+        this(input, null, 0, 0, attributes, projectedColumns, batchSize, blockFactory, errorPolicy, sourceLocation);
+    }
+
+    /**
+     * Buffered-bytes constructor for the streaming-parallel path: {@code data[offset .. offset+length)}
+     * is the entire input. Recovery from {@link JsonParseException} stays inside the byte array
+     * (no buffered-bytes shuttling through {@link NdJsonUtils#moveToNextLine}) by scanning for the
+     * next {@code '\n'} from the parser's current byte offset.
+     */
+    NdJsonPageDecoder(
+        byte[] data,
+        int offset,
+        int length,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation
+    ) throws IOException {
+        this(null, data, offset, length, attributes, projectedColumns, batchSize, blockFactory, errorPolicy, sourceLocation);
+    }
+
+    private NdJsonPageDecoder(
+        InputStream input,
+        byte[] sourceBytes,
+        int sourceOffset,
+        int sourceLength,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation
+    ) throws IOException {
         this.input = input;
+        this.sourceBytes = sourceBytes;
+        if (sourceBytes != null) {
+            Check.isTrue(sourceOffset >= 0, "sourceOffset must be non-negative, got: {}", sourceOffset);
+            Check.isTrue(sourceLength >= 0, "sourceLength must be non-negative, got: {}", sourceLength);
+            int end = Math.addExact(sourceOffset, sourceLength);
+            Check.isTrue(end <= sourceBytes.length, "byte slice [{}, {}) exceeds buffer length {}", sourceOffset, end, sourceBytes.length);
+            this.sourceEnd = end;
+            this.parserSliceStart = sourceOffset;
+        } else {
+            // The default-zero values are unreachable on the InputStream path: every read of these
+            // fields is gated on {@code sourceBytes != null}. Assign explicitly so the dependency is
+            // self-documenting and a future refactor that lifts the gate fails at the source rather
+            // than reading silently from a zero-initialized field.
+            this.sourceEnd = 0;
+            this.parserSliceStart = 0;
+        }
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.errorPolicy = errorPolicy;
         this.skipWarnings = SkipWarnings.of(
@@ -140,12 +213,54 @@ public class NdJsonPageDecoder implements Closeable {
         this.projectedAttributes = projectedAttributes;
         this.blockTracker = new BitSet(projectedAttributes.size());
 
-        this.parser = NdJsonUtils.JSON_FACTORY.createParser(input);
+        if (sourceBytes != null) {
+            this.parser = NdJsonUtils.JSON_FACTORY.createParser(sourceBytes, sourceOffset, sourceLength);
+        } else {
+            this.parser = NdJsonUtils.JSON_FACTORY.createParser(input);
+        }
     }
 
     private void recoverFromParseException(JsonParser failedParser) throws IOException {
-        this.input = NdJsonUtils.moveToNextLine(failedParser, this.input);
-        this.parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
+        if (sourceBytes != null) {
+            int next = nextLineStartByteAfter(failedParser);
+            failedParser.close();
+            this.parserSliceStart = next;
+            this.parser = NdJsonUtils.JSON_FACTORY.createParser(sourceBytes, next, sourceEnd - next);
+        } else {
+            this.input = NdJsonUtils.moveToNextLine(failedParser, this.input);
+            this.parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
+        }
+    }
+
+    /**
+     * Returns the absolute byte offset (into {@link #sourceBytes}) of the start of the line
+     * following the failed parser's current position (the byte after the next {@code '\n'} or
+     * {@code '\r'}, or {@link #sourceEnd} on EOF). The new parser created from this offset will
+     * not re-encounter the malformed line. {@code getByteOffset()} is added to
+     * {@link #parserSliceStart} because it is relative to the slice the failed parser was created
+     * over, not to {@link #sourceBytes}. Both LF and CR terminate a line so the byte-array path
+     * handles the same record terminators as {@link NdJsonUtils#moveToNextLine}.
+     */
+    private int nextLineStartByteAfter(JsonParser failedParser) {
+        long sliceOffsetLong = failedParser.getCurrentLocation().getByteOffset();
+        // getByteOffset() returns -1 only for non-byte-backed sources; we always pass byte[].
+        int sliceOffset = sliceOffsetLong < 0 ? (sourceEnd - parserSliceStart) : Math.toIntExact(sliceOffsetLong);
+        int from = Math.min(parserSliceStart + sliceOffset, sourceEnd);
+        for (int i = from; i < sourceEnd; i++) {
+            byte b = sourceBytes[i];
+            if (b == '\n') {
+                return i + 1;
+            }
+            if (b == '\r') {
+                // Consume an immediately-following LF so CRLF advances by two bytes (matches the
+                // streaming-side scanForTerminator semantics).
+                if (i + 1 < sourceEnd && sourceBytes[i + 1] == '\n') {
+                    return i + 2;
+                }
+                return i + 1;
+            }
+        }
+        return sourceEnd;
     }
 
     /**
@@ -400,8 +515,13 @@ public class NdJsonPageDecoder implements Closeable {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(input);
+        // input may be null on the byte-array fast path; IOUtils.close tolerates null entries.
+        // We also close `parser` so its internal buffers (small but real) are released on the byte-array
+        // path, where there is no `input` to close. AUTO_CLOSE_SOURCE is disabled on the shared
+        // JsonFactory, so closing the parser does not double-close the wrapping codec stream.
+        IOUtils.close(parser, input);
         input = null;
+        parser = null;
     }
 
     // ---------------------------------------------------------------------------------------------

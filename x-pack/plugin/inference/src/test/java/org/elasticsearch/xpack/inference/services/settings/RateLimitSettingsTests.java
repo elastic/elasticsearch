@@ -32,8 +32,8 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
     private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
         "inference_api_disable_eis_rate_limiting"
     );
-    private static final String TEST_SERVICE_NAME = "test";
-    private static final String TEST_SCOPE = "scope";
+    private static final String TEST_SERVICE_NAME = "test-service";
+    private static final String TEST_SCOPE = "some-scope";
     private static final int TEST_REQUESTS_PER_MINUTE = 100;
     private static final String TEST_UNKNOWN_FIELD_NAME = "some-unknown-field";
 
@@ -79,7 +79,6 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
             settingsMap,
             createRandom(),
             validationException,
-            TEST_SERVICE_NAME,
             randomFrom(ConfigurationParseContext.values())
         );
 
@@ -95,13 +94,7 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         );
         var defaultValue = createRandom();
 
-        var settings = RateLimitSettings.of(
-            settingsMap,
-            defaultValue,
-            validationException,
-            TEST_SERVICE_NAME,
-            randomFrom(ConfigurationParseContext.values())
-        );
+        var settings = RateLimitSettings.of(settingsMap, defaultValue, validationException, randomFrom(ConfigurationParseContext.values()));
 
         assertThat(settings, sameInstance(defaultValue));
         assertTrue(settings.isEnabled());
@@ -113,13 +106,7 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         Map<String, Object> settingsMap = new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>()));
         var defaultValue = createRandom();
 
-        var settings = RateLimitSettings.of(
-            settingsMap,
-            defaultValue,
-            validationException,
-            TEST_SERVICE_NAME,
-            randomFrom(ConfigurationParseContext.values())
-        );
+        var settings = RateLimitSettings.of(settingsMap, defaultValue, validationException, randomFrom(ConfigurationParseContext.values()));
 
         assertThat(settings, sameInstance(defaultValue));
         assertTrue(settings.isEnabled());
@@ -143,13 +130,7 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         );
         var defaultValue = createRandom();
 
-        var settings = RateLimitSettings.of(
-            settingsMap,
-            defaultValue,
-            validationException,
-            TEST_SERVICE_NAME,
-            randomFrom(ConfigurationParseContext.values())
-        );
+        var settings = RateLimitSettings.of(settingsMap, defaultValue, validationException, randomFrom(ConfigurationParseContext.values()));
 
         assertThat(settings, sameInstance(defaultValue));
         assertThat(validationException.validationErrors().size(), is(1));
@@ -183,27 +164,14 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         );
         var defaultValue = createRandom();
 
-        var settings = RateLimitSettings.of(
-            settingsMap,
-            defaultValue,
-            validationException,
-            TEST_SERVICE_NAME,
-            ConfigurationParseContext.REQUEST
-        );
+        var settings = RateLimitSettings.of(settingsMap, defaultValue, validationException, ConfigurationParseContext.REQUEST);
 
         assertThat(settings, sameInstance(defaultValue));
         assertTrue(settings.isEnabled());
         assertThat(validationException.validationErrors().size(), is(1));
         assertThat(
             validationException.validationErrors().getFirst(),
-            is(
-                Strings.format(
-                    "Rate limit settings contain entries [{%s=%d}] unknown to the [%s] service",
-                    TEST_UNKNOWN_FIELD_NAME,
-                    TEST_REQUESTS_PER_MINUTE,
-                    TEST_SERVICE_NAME
-                )
-            )
+            is(Strings.format("Rate limit settings contain unknown entries [{%s=%d}]", TEST_UNKNOWN_FIELD_NAME, TEST_REQUESTS_PER_MINUTE))
         );
     }
 
@@ -214,13 +182,7 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         );
         var defaultValue = createRandom();
 
-        var settings = RateLimitSettings.of(
-            settingsMap,
-            defaultValue,
-            validationException,
-            TEST_SERVICE_NAME,
-            ConfigurationParseContext.PERSISTENT
-        );
+        var settings = RateLimitSettings.of(settingsMap, defaultValue, validationException, ConfigurationParseContext.PERSISTENT);
 
         assertThat(settings, sameInstance(defaultValue));
         assertTrue(settings.isEnabled());

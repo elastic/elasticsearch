@@ -50,7 +50,6 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
      * @param defaultValue the default value to return if the map does not contain valid rate limit settings
      * @param validationException the {@link ValidationException} to which validation errors will be added
      *                            if the map contains invalid rate limit settings
-     * @param serviceName the name of the service, used for error messaging in validation
      * @param context the context of the configuration parsing, used to determine if validation should be applied
      * @return a new instance of {@link RateLimitSettings} based on the provided map,
      * or the default value if the map does not contain valid rate limit settings
@@ -59,7 +58,6 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         Map<String, Object> serviceSettingsMap,
         RateLimitSettings defaultValue,
         ValidationException validationException,
-        String serviceName,
         ConfigurationParseContext context
     ) {
         var rateLimitSettings = removeFromMapOrDefaultEmpty(serviceSettingsMap, FIELD_NAME);
@@ -67,11 +65,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
 
         if (ConfigurationParseContext.isRequestContext(context) && rateLimitSettings.isEmpty() == false) {
             validationException.addValidationError(
-                Strings.format(
-                    "Rate limit settings contain entries [%s] unknown to the [%s] service",
-                    rateLimitSettings.toString(),
-                    serviceName
-                )
+                Strings.format("Rate limit settings contain unknown entries [%s]", rateLimitSettings.toString())
             );
             return defaultValue;
         }

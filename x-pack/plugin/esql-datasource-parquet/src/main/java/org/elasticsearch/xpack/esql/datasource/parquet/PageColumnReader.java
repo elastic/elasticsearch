@@ -21,8 +21,13 @@ import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.column.values.ValuesReader;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.io.IOException;
@@ -51,6 +56,21 @@ import java.util.BitSet;
  * ranges are skipped entirely in {@link #loadNextPage()}. This is a safety net for the
  * sequential builder path (when prefetch is unavailable and the builder cannot pre-filter
  * pages) and a no-op for the filtered builder path.
+ *
+ * <p>For dictionary-encoded BINARY/UTF8 columns, {@code readBytesBatch} takes an ordinal
+ * fast path that emits an {@link OrdinalBytesRefBlock} so downstream {@code BlockHash} can
+ * hash only the {@code k} dictionary entries instead of the {@code N} row values. The
+ * dictionary {@code BytesRefVector} is rebuilt per batch (deep-copying the bytes via
+ * {@link BytesRefArray#append}) so each emitted block fully owns its memory and is safe to
+ * outlive the {@link PageColumnReader} or its row group — pages can be buffered and
+ * consumed asynchronously by a different driver thread without aliasing into Parquet-side
+ * state. UUID-typed columns skip the ordinal path because their values need per-row byte
+ * formatting that would have to be applied to dictionary entries instead.
+ *
+ * <p>If a non-dictionary page is encountered mid-batch (rare in practice — Parquet writers
+ * keep encoding consistent across all data pages of a column chunk), the partial ordinal
+ * batch is resolved through the dictionary and the remainder is read via the materialized
+ * binary path.
  */
 final class PageColumnReader {
 
@@ -919,6 +939,12 @@ final class PageColumnReader {
 
     private Block readBytesBatch(int maxRows, BlockFactory blockFactory) {
         boolean isUuid = info.logicalType() instanceof LogicalTypeAnnotation.UUIDLogicalTypeAnnotation;
+        // Dictionary-encoded chunk: emit an OrdinalBytesRefBlock so downstream BlockHash can
+        // hash only k dictionary entries instead of N row values. Skip for UUID, where each
+        // value needs per-row byte formatting that the ordinal path does not perform.
+        if (dictionary != null && isUuid == false) {
+            return readBytesBatchAsOrdinals(maxRows, blockFactory);
+        }
         if (maxDefLevel == 0) {
             BytesRef[] allValues = new BytesRef[maxRows];
             int produced = 0;
@@ -992,6 +1018,166 @@ final class PageColumnReader {
         BytesRef[] values = new BytesRef[count];
         readBinariesDispatch(values, 0, count);
         return values;
+    }
+
+    private Block readBytesBatchAsOrdinals(int maxRows, BlockFactory blockFactory) {
+        int[] ordinals = new int[maxRows];
+        WordMask nulls = maxDefLevel > 0 ? buffers.nullsMask(maxRows) : null;
+        int produced = 0;
+        int remaining = maxRows;
+        boolean fallback = false;
+        while (remaining > 0 && ensurePage()) {
+            if (currentEncoding.usesDictionary() == false) {
+                fallback = true;
+                break;
+            }
+            int fromPage = Math.min(remaining, availableInPage());
+            if (nulls == null) {
+                dictDecoder.readIndices(ordinals, produced, fromPage);
+            } else {
+                int nonNull = defDecoder.readBatch(fromPage, nulls, produced);
+                if (nonNull == fromPage) {
+                    dictDecoder.readIndices(ordinals, produced, fromPage);
+                } else if (nonNull > 0) {
+                    int[] packed = new int[nonNull];
+                    dictDecoder.readIndices(packed, 0, nonNull);
+                    int pi = 0;
+                    for (int i = 0; i < fromPage; i++) {
+                        if (nulls.get(produced + i) == false) {
+                            ordinals[produced + i] = packed[pi++];
+                        }
+                    }
+                }
+            }
+            advancePosition(fromPage);
+            produced += fromPage;
+            remaining -= fromPage;
+        }
+        if (fallback) {
+            return finishMaterializedFallback(ordinals, nulls, produced, remaining, blockFactory);
+        }
+        return buildOrdinalResult(ordinals, nulls, produced, blockFactory);
+    }
+
+    private Block buildOrdinalResult(int[] ordinals, WordMask nulls, int produced, BlockFactory blockFactory) {
+        BytesRef[] dict = dictDecoder.getDictionaryBytesRefs(dictionary);
+        if (produced == 0) {
+            return blockFactory.newConstantNullBlock(0);
+        }
+        if (nulls != null && nulls.popCount() == produced) {
+            return blockFactory.newConstantNullBlock(produced);
+        }
+        // Non-null, all-equal indices: emit a constant block to skip the ordinal indirection.
+        if (nulls == null || nulls.isEmpty()) {
+            int constantOrdinal = detectConstantOrdinal(ordinals, produced);
+            if (constantOrdinal >= 0) {
+                return blockFactory.newConstantBytesRefBlockWith(dict[constantOrdinal], produced);
+            }
+        }
+        IntBlock ordinalsBlock = null;
+        BytesRefVector dictVector = null;
+        boolean success = false;
+        try {
+            ordinalsBlock = buildOrdinalsBlock(ordinals, nulls, produced, blockFactory);
+            dictVector = buildDictionaryVector(dict, blockFactory);
+            OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(ordinalsBlock, dictVector);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(ordinalsBlock, dictVector);
+            }
+        }
+    }
+
+    private static int detectConstantOrdinal(int[] ordinals, int produced) {
+        if (produced == 0) {
+            return -1;
+        }
+        int first = ordinals[0];
+        for (int i = 1; i < produced; i++) {
+            if (ordinals[i] != first) {
+                return -1;
+            }
+        }
+        return first;
+    }
+
+    private IntBlock buildOrdinalsBlock(int[] ordinals, WordMask nulls, int produced, BlockFactory blockFactory) {
+        int[] sized = produced < ordinals.length ? Arrays.copyOf(ordinals, produced) : ordinals;
+        if (nulls == null || nulls.isEmpty()) {
+            return blockFactory.newIntArrayVector(sized, produced).asBlock();
+        }
+        return blockFactory.newIntArrayBlock(sized, produced, null, nulls.toBitSet(), Block.MvOrdering.UNORDERED);
+    }
+
+    private BytesRefVector buildDictionaryVector(BytesRef[] entries, BlockFactory blockFactory) {
+        BytesRefArray array = new BytesRefArray(entries.length, blockFactory.bigArrays());
+        boolean success = false;
+        try {
+            for (BytesRef entry : entries) {
+                array.append(entry);
+            }
+            BytesRefVector vector = blockFactory.newBytesRefArrayVector(array, entries.length);
+            success = true;
+            return vector;
+        } finally {
+            if (success == false) {
+                array.close();
+            }
+        }
+    }
+
+    private Block finishMaterializedFallback(int[] ordinals, WordMask nulls, int produced, int remaining, BlockFactory blockFactory) {
+        BytesRef[] dict = dictDecoder.getDictionaryBytesRefs(dictionary);
+        int total = produced + remaining;
+        BytesRef[] all = new BytesRef[total];
+        WordMask combinedNulls = nulls;
+        for (int i = 0; i < produced; i++) {
+            if (combinedNulls != null && combinedNulls.get(i)) {
+                continue;
+            }
+            all[i] = dict[ordinals[i]];
+        }
+        int filled = produced;
+        while (remaining > 0 && ensurePage()) {
+            int fromPage = Math.min(remaining, availableInPage());
+            if (combinedNulls == null) {
+                BytesRef[] vals = readBinaryValues(fromPage);
+                System.arraycopy(vals, 0, all, filled, fromPage);
+            } else {
+                WordMask pageNulls = buffers.valueSelection(fromPage);
+                int nonNull = defDecoder.readBatch(fromPage, pageNulls, 0);
+                BytesRef[] vals = nonNull > 0 ? readBinaryValues(nonNull) : null;
+                int valIdx = 0;
+                for (int i = 0; i < fromPage; i++) {
+                    if (pageNulls.get(i)) {
+                        combinedNulls.set(filled + i);
+                    } else {
+                        all[filled + i] = vals[valIdx++];
+                    }
+                }
+            }
+            advancePosition(fromPage);
+            filled += fromPage;
+            remaining -= fromPage;
+        }
+        if (combinedNulls != null && combinedNulls.isEmpty() == false) {
+            Block allNull = ConstantBlockDetection.tryAllNull(combinedNulls.toBitSet(), filled, blockFactory);
+            if (allNull != null) {
+                return allNull;
+            }
+        }
+        try (var builder = blockFactory.newBytesRefBlockBuilder(filled)) {
+            for (int i = 0; i < filled; i++) {
+                if (combinedNulls != null && combinedNulls.get(i)) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(all[i]);
+                }
+            }
+            return builder.build();
+        }
     }
 
     // --- Datetime ---

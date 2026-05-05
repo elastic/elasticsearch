@@ -27,7 +27,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -38,6 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCase {
 
@@ -203,7 +206,97 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         assertThat(esBreaker.getUsed(), equalTo(0L));
     }
 
-    public void testDifference() {
+    public void testDifferenceForRandomHistos() {
+        ExponentialHistogram a = ExponentialHistogramTestUtils.randomHistogram();
+        ExponentialHistogram b = ExponentialHistogramTestUtils.randomHistogram();
+        // Make sure that a.count() > b.count
+        if (a.valueCount() <= b.valueCount()) {
+            ExponentialHistogram temp = a;
+            a = b;
+            b = temp;
+        }
+
+        CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        try (
+            ExponentialHistogramMerger.Factory factory = ExponentialHistogramMerger.createFactory(1000, breaker(esBreaker));
+            ExponentialHistogramMerger diffMerger = factory.createMerger();
+        ) {
+            boolean isCumulative = diffMerger.setToDifference(a, b);
+
+            ExponentialHistogram diff = diffMerger.get();
+            assertThat(diff.valueCount(), equalTo(a.valueCount() - b.valueCount()));
+
+            if (a.valueCount() == b.valueCount()) {
+                assertThat(diff, equalTo(ExponentialHistogram.empty()));
+            } else {
+                assertThat(diff.sum(), closeTo(a.sum() - b.sum(), 0.000001));
+                assertThat(diff.min(), greaterThanOrEqualTo(a.min()));
+                assertThat(diff.max(), lessThanOrEqualTo(a.max()));
+                assertThat(diff.min(), lessThanOrEqualTo(diff.max()));
+                // it is unlikely for the two random histograms to be cumulative, unless b is empty.
+                // however, to prevent flakes and to be sure that isCumulative is actually correct we still
+                // validate both cases
+                if (isCumulative) {
+                    int scale = Math.min(a.scale(), b.scale());
+                    ExponentialHistogramMerger merger = ExponentialHistogramMerger.createWithMaxScale(
+                        1000,
+                        scale,
+                        ExponentialHistogramCircuitBreaker.noop()
+                    );
+                    merger.add(diff);
+                    merger.add(b);
+                    ExponentialHistogram merged = merger.get();
+                    // adjust the sum of merged to exactly match a
+                    ExponentialHistogramBuilder correctedBuilder = ExponentialHistogram.builder(
+                        merged,
+                        ExponentialHistogramCircuitBreaker.noop()
+                    );
+                    correctedBuilder.sum(a.sum());
+                    if (diff.zeroBucket().count() == 0) {
+                        // zero threshold is lost in this case, preserve it
+                        correctedBuilder.zeroBucket(a.zeroBucket().withCount(merged.zeroBucket().count()));
+                    }
+                    assertThat(correctedBuilder.build(), equalTo(a));
+                } else {
+                    // Make sure that all buckets that are present in the result correspond to bucekts that happened to be cumulative
+                    assertOnlyCumulativeBucketsPresent(a.negativeBuckets(), b.negativeBuckets(), diff.negativeBuckets());
+                    assertOnlyCumulativeBucketsPresent(a.positiveBuckets(), b.positiveBuckets(), diff.positiveBuckets());
+                }
+            }
+        }
+    }
+
+    private static void assertOnlyCumulativeBucketsPresent(
+        ExponentialHistogram.Buckets bucketsA,
+        ExponentialHistogram.Buckets bucketsB,
+        ExponentialHistogram.Buckets diffBuckets
+    ) {
+        Map<Long, Long> rawDiffByIndex = new HashMap<>();
+        MergingBucketIterator rawDiff = new MergingBucketIterator(
+            bucketsA.iterator(),
+            bucketsB.iterator(),
+            diffBuckets.iterator().scale(),
+            (aCount, bCount) -> aCount - bCount
+        );
+        while (rawDiff.hasNext()) {
+            rawDiffByIndex.put(rawDiff.peekIndex(), rawDiff.peekCount());
+            rawDiff.advance();
+        }
+
+        BucketIterator diffIt = diffBuckets.iterator();
+        while (diffIt.hasNext()) {
+            long diffIndex = diffIt.peekIndex();
+            Long rawCount = rawDiffByIndex.get(diffIndex);
+            assertThat("diff bucket at index " + diffIndex + " has no corresponding bucket in raw subtraction", rawCount, notNullValue());
+            assertThat("diff bucket at index " + diffIndex + " exists but raw a.count <= b.count", rawCount, greaterThan(0L));
+            diffIt.advance();
+        }
+    }
+
+    /**
+     * Tests the happy path when the subtracted histograms are actually cumulative.
+     */
+    public void testDifferenceForCumulativeHistos() {
         ExponentialHistogram a = ExponentialHistogramTestUtils.randomHistogram();
         ExponentialHistogram b = ExponentialHistogramTestUtils.randomHistogram();
         CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
@@ -236,7 +329,7 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
             // Add a histogram to the merger just to make sure it is properly cleared when setToDifference is called
             diffMerger.add(ExponentialHistogramTestUtils.randomHistogram());
 
-            diffMerger.setToDifference(merged.get(), b);
+            boolean areHistosCumulative = diffMerger.setToDifference(merged.get(), b);
             ExponentialHistogram diff = diffMerger.get();
 
             if (reference.zeroBucket().count() == 0) {
@@ -284,6 +377,7 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
                 assertThat(diff.min(), equalTo(Double.NaN));
                 assertThat(diff.max(), equalTo(Double.NaN));
             }
+            assertThat(areHistosCumulative, equalTo(true));
         }
     }
 

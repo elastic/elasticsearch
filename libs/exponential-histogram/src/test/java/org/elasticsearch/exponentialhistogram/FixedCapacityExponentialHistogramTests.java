@@ -186,8 +186,8 @@ public class FixedCapacityExponentialHistogramTests extends ExponentialHistogram
         if (factor < 1.0) {
             maxValue = Math.min(maxValue, origCount);
         }
-        assertThat("zero bucket", scaledCount, greaterThanOrEqualTo(minValue));
-        assertThat("zero bucket", scaledCount, lessThanOrEqualTo(maxValue));
+        assertThat(scaledCount, greaterThanOrEqualTo(minValue));
+        assertThat(scaledCount, lessThanOrEqualTo(maxValue));
     }
 
     private void assertBucketBounds(BucketIterator origIt, BucketIterator scaledIt, double factor) {
@@ -210,7 +210,8 @@ public class FixedCapacityExponentialHistogramTests extends ExponentialHistogram
                 origIt.advance();
                 continue; // bucket was pruned because it rounded to 0
             }
-            assertTrue("expected bucket at index " + origIt.peekIndex() + " to be present", scaledIt.hasNext());
+            assertThat(scaledIt.peekCount(), greaterThan(0L));
+            assertThat("expected bucket at index " + origIt.peekIndex() + " to be present", scaledIt.hasNext(), equalTo(true));
             assertThat(scaledIt.peekIndex(), equalTo(origIt.peekIndex()));
             long scaledCount = scaledIt.peekCount();
             assertThat(scaledCount, greaterThanOrEqualTo(minValue));
@@ -218,7 +219,7 @@ public class FixedCapacityExponentialHistogramTests extends ExponentialHistogram
             origIt.advance();
             scaledIt.advance();
         }
-        assertFalse("unexpected extra buckets after scaling", scaledIt.hasNext());
+        assertThat("unexpected extra buckets after scaling", scaledIt.hasNext(), equalTo(false));
     }
 
     protected void concurrentTest(Runnable r) throws InterruptedException, ExecutionException {

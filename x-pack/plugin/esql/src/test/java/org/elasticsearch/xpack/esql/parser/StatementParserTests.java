@@ -3559,10 +3559,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testFillNullWithPositionalParameter() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        LogicalPlan plan = query(
-            "row a = 1 | fillnull WITH ? a",
-            new QueryParams(List.of(paramAsConstant(null, "missing")))
-        );
+        LogicalPlan plan = query("row a = 1 | fillnull WITH ? a", new QueryParams(List.of(paramAsConstant(null, "missing"))));
         FillNull fillNull = as(plan, FillNull.class);
         Literal lit = as(fillNull.fillValue(), Literal.class);
         assertEquals(BytesRefs.toBytesRef("missing"), lit.value());
@@ -3573,10 +3570,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testFillNullWithNamedParameter() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        LogicalPlan plan = query(
-            "row a = 1 | fillnull WITH ?fill a",
-            new QueryParams(List.of(paramAsConstant("fill", 42)))
-        );
+        LogicalPlan plan = query("row a = 1 | fillnull WITH ?fill a", new QueryParams(List.of(paramAsConstant("fill", 42))));
         FillNull fillNull = as(plan, FillNull.class);
         Literal lit = as(fillNull.fillValue(), Literal.class);
         assertEquals(42, lit.value());

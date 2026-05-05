@@ -45,8 +45,7 @@ public interface ProjectRoutingResolver extends Closeable {
     TargetProjects resolve(String projectRouting, ProjectMetadata projectMetadata, TargetProjects targetProjects);
 
     @Override
-    default void close() throws IOException {
-    }
+    default void close() throws IOException {}
 
     /** No-op router - just returns the provided target projects. */
     ProjectRoutingResolver NOOP = new ProjectRoutingResolver() {

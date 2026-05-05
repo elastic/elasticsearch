@@ -553,7 +553,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
         ChunkingSettings chunkingSettings = numWords > 0 ? new SentenceBoundaryChunkingSettings(numWords, 0) : null;
 
-        Analyzer resolvedAnalyzer = analyzerName != null ? toEvaluator.getAnalyzer(analyzerName) : new StandardAnalyzer();
+        Analyzer resolvedAnalyzer = analyzerName == null ? new StandardAnalyzer() : toEvaluator.getAnalyzer(analyzerName);
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer(resolvedAnalyzer);
 
         Object foldedQuery = query.fold(toEvaluator.foldCtx());

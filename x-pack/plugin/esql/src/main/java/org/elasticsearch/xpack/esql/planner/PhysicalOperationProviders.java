@@ -31,7 +31,7 @@ interface PhysicalOperationProviders {
 
     /**
      * Returns the node-level {@link AnalysisRegistry} for resolving analyzers by name,
-     * or {@code null} if this provider doesn't have one (e.g. tests, lookup providers).
+     * or {@code null} if this provider doesn't have one.
      */
     default AnalysisRegistry analysisRegistry() {
         return null;

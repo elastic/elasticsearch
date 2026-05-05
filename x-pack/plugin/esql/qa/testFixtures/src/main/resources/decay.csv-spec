@@ -25,7 +25,7 @@ decay_result:double
 ;
 
 intLinearMixedNumericTypes1
-required_capability: decay_function
+required_capability: decay_function_unsigned_long
 
 ROW value = 5
 | EVAL decay_result = decay(value, 10::double, 10::long, {"offset": 0, "decay": 0.5, "type": "linear"}) 
@@ -36,7 +36,7 @@ decay_result:double
 ;
 
 intLinearMixedNumericTypes2
-required_capability: decay_function
+required_capability: decay_function_unsigned_long
 
 ROW value = 5
 | EVAL decay_result = decay(value, 10::unsigned_long, 10::long, {"offset": 0, "decay": 0.5, "type": "linear"}) 
@@ -200,7 +200,7 @@ decay_result:double
 ;
 
 doubleLinearMixedNumericTypes1
-required_capability: decay_function
+required_capability: decay_function_unsigned_long
 
 ROW value = 5.0
 | EVAL decay_result = decay(value, 10.0::int, 10.0::long, {"offset": 0.0, "decay": 0.5, "type": "linear"}) 
@@ -211,7 +211,7 @@ decay_result:double
 ;
 
 doubleLinearMixedNumericTypes2
-required_capability: decay_function
+required_capability: decay_function_unsigned_long
 
 ROW value = 5.0
 | EVAL decay_result = decay(value, 10.0::int, 10.0::unsigned_long, {"offset": 0.0, "decay": 0.5, "type": "linear"}) 
@@ -266,7 +266,7 @@ decay_result:double
 ;
 
 longLinearMixedNumericTypes1
-required_capability: decay_function
+required_capability: decay_function_unsigned_long
 
 ROW value = 15::long
 | EVAL decay_result = decay(value, 10::int, 10::unsigned_long, {"offset": 10000000000, "decay": 0.5, "type": "linear"}) 
@@ -277,7 +277,7 @@ decay_result:double
 ;
 
 longLinearMixedNumericTypes2
-required_capability: decay_function
+required_capability: decay_function_unsigned_long
 
 ROW value = 15::unsigned_long
 | EVAL decay_result = decay(value, 10::double, 10::int, {"offset": 10000000000, "decay": 0.5, "type": "linear"}) 
@@ -299,7 +299,7 @@ decay_result:double
 ;
 
 unsignedLongLinear
-required_capability: decay_function
+required_capability: decay_function_unsigned_long
 
 ROW value = 15::unsigned_long
 | EVAL decay_result = decay(value, 10::unsigned_long, 10::unsigned_long, {"offset": 0, "decay": 0.5, "type": "linear"})
@@ -310,7 +310,7 @@ decay_result:double
 ;
 
 unsignedLongMixedNumericParameters
-required_capability: decay_function
+required_capability: decay_function_unsigned_long
 
 ROW value = 15::unsigned_long
 | EVAL decay_result = decay(value, 10, 10, {"offset": 0, "decay": 0.5, "type": "linear"})
@@ -321,7 +321,7 @@ decay_result:double
 ;
 
 unsignedLongLinearMaxOffset
-required_capability: decay_function
+required_capability: decay_function_unsigned_long
 
 ROW value = 15::unsigned_long
 | EVAL decay_result = decay(value, 10::unsigned_long, 10::unsigned_long, {"offset": 18446744073709551615, "decay": 0.5, "type": "linear"}) 
@@ -332,7 +332,7 @@ decay_result:double
 ;
 
 unsignedLongLinearMixedNumericTypes1
-required_capability: decay_function
+required_capability: decay_function_unsigned_long
 
 ROW value = 15::unsigned_long
 | EVAL decay_result = decay(value, 10::long, 10::integer, {"offset": 18446744073709551615, "decay": 0.5, "type": "linear"}) 
@@ -343,10 +343,21 @@ decay_result:double
 ;
 
 unsignedLongLinearMixedNumericTypes2
-required_capability: decay_function
+required_capability: decay_function_unsigned_long
 
 ROW value = 15::unsigned_long
 | EVAL decay_result = decay(value, 10::double, 10::integer, {"offset": 18446744073709551615, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+longLinearUnsignedLongOriginAbovePrecision
+required_capability: decay_function_unsigned_long
+
+ROW value = 9007199254740993::long
+| EVAL decay_result = decay(value, 9007199254740993::unsigned_long, 10::long, {"offset": 0, "decay": 0.5, "type": "linear"})
 | KEEP decay_result;
 
 decay_result:double

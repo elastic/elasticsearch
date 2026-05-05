@@ -1590,6 +1590,11 @@ public class EsqlCapabilities {
         DECAY_FUNCTION_PARAMETER_CONVERSION,
 
         /**
+         * Support DECAY with unsigned_long parameters for {@code DECAY}.
+         */
+        DECAY_FUNCTION_UNSIGNED_LONG,
+
+        /**
          * Support correct counting of skipped shards.
          */
         CORRECT_SKIPPED_SHARDS_COUNT,

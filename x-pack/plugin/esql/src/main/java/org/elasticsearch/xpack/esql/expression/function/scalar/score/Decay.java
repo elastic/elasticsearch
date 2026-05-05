@@ -77,7 +77,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isGeoPoint;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTimeDuration;
-import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToUnsignedLong;
 
 /**
  * Decay a numeric, spatial or date type value based on the distance of it to an origin.
@@ -756,20 +755,15 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     }
 
     private static Object convertNumericParam(Object value, DataType valueType, DataType targetType) {
-        if (!targetType.isNumeric()) {
-            // Non-numeric values should pass through unchanged.
+        if (value == null || !targetType.isNumeric() || valueType == targetType) {
+            // Null and non-numeric targets pass through unchanged; matching types need no conversion.
             return value;
         }
 
-        if (valueType == targetType) {
-            // Value already matches target type.
-            return value;
-        }
         Object normalized = value;
         if (valueType == UNSIGNED_LONG) {
-            // UNSIGNED_LONG is stored as encoded signed long in blocks.
-            // Decode it to a regular numeric magnitude before generic conversion.
-            normalized = NumericUtils.unsignedLongToDouble(((Number) value).longValue());
+            // Decode unsigned long to a precision-preserving Number.
+            normalized = NumericUtils.unsignedLongAsNumber(((Number) value).longValue());
         }
         Object converted = DataTypeConverter.convert(normalized, targetType);
         if (targetType == UNSIGNED_LONG && converted instanceof BigInteger bi) {

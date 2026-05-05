@@ -548,3 +548,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalParquetCountPushdownIT
   method: testCountStarPushdown
   issue: https://github.com/elastic/elasticsearch/issues/148118
+- class: org.elasticsearch.xpack.esql.action.ExternalParquetCountPushdownIT
+  method: testCountStarPushdownSingleRowGroup
+  issue: https://github.com/elastic/elasticsearch/issues/148119
+- class: org.elasticsearch.xpack.esql.action.ExternalParquetCountPushdownIT
+  method: testCountStarPushdownManyRowGroups
+  issue: https://github.com/elastic/elasticsearch/issues/148117

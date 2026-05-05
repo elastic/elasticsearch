@@ -9,14 +9,17 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -284,6 +287,12 @@ public class ViewResolver {
             }
         }
 
+        // Strip selectors from concrete view-name patterns and remember them. Two reasons:
+        // the abstraction lookup keys by bare name and misses "name::failures"; and the body's
+        // own selectors must be overridable by the outer reference's selector. The selector is
+        // re-applied to the body's leaves below.
+        Map<String, String> viewSelectors = stripAndRememberViewSelectors(patterns);
+
         var req = new EsqlResolveViewAction.Request(REST_MASTER_TIMEOUT_DEFAULT);
         req.indices(patterns);
 
@@ -308,7 +317,9 @@ public class ViewResolver {
                         viewQueries,
                         depth + 1,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
-                            ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
+                            String selector = viewSelectors.get(view.name());
+                            LogicalPlan body = selector == null ? fullyResolved : applySelectorToLeaves(fullyResolved, selector);
+                            ViewPlan viewPlan = new ViewPlan(view.name(), body);
                             resolvedViews.put(view.name(), viewPlan);
                             l3.onResponse(null);
                         })
@@ -395,12 +406,15 @@ public class ViewResolver {
         }
 
         // Second pass: build unresolvedPatterns from originalPatterns in original order, keeping
-        // positive patterns flagged above and exclusions that don't target concrete views.
+        // positive patterns flagged above and exclusions that we want to forward to field caps.
+        // Under CPS, concrete-view exclusions are preserved alongside any preserved wildcard so
+        // they propagate to linked-project fan-out.
         List<String> unresolvedPatterns = new ArrayList<>();
         var viewNames = getMetadata().views();
+        boolean cpsEnabled = crossProjectModeDecider.crossProjectEnabled();
         for (String pattern : originalPatterns) {
             if (patternIsExclusion(pattern)) {
-                if (isConcreteViewExclusion(pattern, viewNames::containsKey) == false) {
+                if (isConcreteViewExclusion(pattern, viewNames::containsKey) == false || cpsEnabled) {
                     unresolvedPatterns.add(pattern);
                 }
             } else if (patternsNeedingUnresolved.contains(pattern)) {
@@ -416,6 +430,74 @@ public class ViewResolver {
         }
 
         return result;
+    }
+
+    /**
+     * For each pattern of shape {@code name::selector} where {@code name} exists in the view
+     * registry, mutates {@code patterns} in place to replace the pattern with the bare
+     * {@code name} and returns a map of view name to its requested selector. Both DATA and
+     * non-DATA selectors are stripped — the selector is re-applied (via
+     * {@link IndexNameExpressionResolver#combineSelectorExpression}) to the body's leaves,
+     * which gives the outer reference a way to override any selector the body specifies.
+     */
+    private Map<String, String> stripAndRememberViewSelectors(String[] patterns) {
+        Map<String, String> selectors = new HashMap<>();
+        var registry = getMetadata().views();
+        for (int i = 0; i < patterns.length; i++) {
+            String p = patterns[i];
+            if (patternIsExclusion(p) || Regex.isSimpleMatchPattern(p)) {
+                continue;
+            }
+            Tuple<String, String> nameAndSelector = IndexNameExpressionResolver.splitSelectorExpression(p);
+            String selector = nameAndSelector.v2();
+            if (selector == null) {
+                continue;
+            }
+            String name = nameAndSelector.v1();
+            if (registry.containsKey(name)) {
+                patterns[i] = name;
+                selectors.put(name, selector);
+            }
+        }
+        return selectors;
+    }
+
+    /**
+     * Walks {@code plan} and rewrites every leaf {@link UnresolvedRelation}'s pattern so that each
+     * non-exclusion entry carries {@code selector}, overriding any selector the leaf already had.
+     * Used when an outer reference {@code name::selector} resolves to a view whose body must carry
+     * the requested selector through to its underlying indices.
+     */
+    private static LogicalPlan applySelectorToLeaves(LogicalPlan plan, String selector) {
+        return plan.transformDown(UnresolvedRelation.class, ur -> {
+            String[] currentPatterns = ur.indexPattern().indexPattern().split(",");
+            String[] newPatterns = new String[currentPatterns.length];
+            boolean changed = false;
+            for (int i = 0; i < currentPatterns.length; i++) {
+                String p = currentPatterns[i];
+                if (patternIsExclusion(p)) {
+                    newPatterns[i] = p;
+                    continue;
+                }
+                Tuple<String, String> ns = IndexNameExpressionResolver.splitSelectorExpression(p);
+                String rewritten = IndexNameExpressionResolver.combineSelectorExpression(ns.v1(), selector);
+                newPatterns[i] = rewritten;
+                if (rewritten.equals(p) == false) {
+                    changed = true;
+                }
+            }
+            if (changed == false) {
+                return ur;
+            }
+            return new UnresolvedRelation(
+                ur.source(),
+                new IndexPattern(ur.indexPattern().source(), String.join(",", newPatterns)),
+                ur.frozen(),
+                ur.metadataFields(),
+                ur.indexMode(),
+                ur.unresolvedMessage()
+            );
+        });
     }
 
     private void validateViewReferenceAndMarkSeen(String viewName, LinkedHashSet<String> seenViews) {

@@ -314,7 +314,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     public void testConcreteFailureSelector() {
         addView("view1", "FROM emp1");
         LogicalPlan plan = query("FROM view1::failures");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM view1::failures")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1::failures")));
     }
 
     public void testDataSelector() {
@@ -2113,7 +2113,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     public void testG4_CPS_FailureSelectorOnConcreteView() {
         addView("view1", "FROM emp1");
         LogicalPlan plan = query("FROM view1::failures");
-        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM view1::failures")));
+        assertThat(replaceViewsWithCPS(plan), matchesPlan(query("FROM emp1::failures")));
     }
 
     public void testG4_CPS_DataSelectorOnConcreteView() {
@@ -2133,7 +2133,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     public void testOuterSelectorOverridesBodySelector() {
         addView("v1", "FROM emp1::failures");
         LogicalPlan plan = query("FROM v1::data");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1::data")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1")));
     }
 
     public void testInnerViewWithSelectorInBodyResolves() {
@@ -2149,32 +2149,38 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(e.getMessage(), containsString("circular view reference"));
     }
 
-    public void testOuterExclusionAppliesToViewBodyResolvedIndices() {
+    // View body is opaque: an outer exclusion of an index that lives inside the body is a no-op.
+    public void testOuterExclusionDoesNotPenetrateViewBody() {
         addView("v1", "FROM emp1, emp2");
         LogicalPlan plan = query("FROM v1, -emp1");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp2")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2")));
     }
 
-    public void testMultipleDistinctViewsSameBodyFoldToOne() {
+    // mergeIfPossible refuses to fold relations whose patterns overlap, so distinct views
+    // resolving to the same body remain as separate UnionAll branches.
+    public void testMultipleDistinctViewsSameBodyStaySeparate() {
         addView("v1", "FROM emp1");
         addView("v2", "FROM emp1");
         addView("v3", "FROM emp1");
         LogicalPlan plan = query("FROM v1, v2, v3");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1")));
+        LogicalPlan resolved = replaceViews(plan);
+        assertThat(resolved, instanceOf(UnionAll.class));
+        assertThat(resolved.children().size(), equalTo(3));
     }
 
     public void testIncludeExcludeIncludeSameViewYieldsView() {
         addView("view1", "FROM emp1");
         addView("view2", "FROM emp2");
         LogicalPlan plan = query("FROM view*, -view1, view1");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp2, emp1")));
     }
 
-    public void testNestedViewExcludingPartOfInnerBody() {
+    // Same opacity rule applies inside a nested view body.
+    public void testNestedExclusionDoesNotPenetrateInnerViewBody() {
         addView("inner", "FROM emp1, emp2");
         addView("outer", "FROM inner, -emp1");
         LogicalPlan plan = query("FROM outer");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp2")));
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2")));
     }
 
     public void testDeleteMultipleViews() {

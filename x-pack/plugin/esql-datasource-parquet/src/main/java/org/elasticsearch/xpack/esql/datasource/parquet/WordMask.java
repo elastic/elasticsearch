@@ -81,6 +81,10 @@ final class WordMask {
      * Sets all bits in the half-open range {@code [from, to)} using word-level operations.
      * This is significantly faster than calling {@link #set(int)} in a loop for long runs,
      * which is the common case when bulk-decoding RLE def-level streams of all-null rows.
+     *
+     * <p>The caller must ensure {@code 0 <= from <= to <= numBits}; out-of-range indices
+     * silently set bits beyond the logical mask size, since (like {@link #set(int)}) this
+     * helper does no bounds validation against {@code numBits}.
      */
     void setRange(int from, int to) {
         if (from >= to) {

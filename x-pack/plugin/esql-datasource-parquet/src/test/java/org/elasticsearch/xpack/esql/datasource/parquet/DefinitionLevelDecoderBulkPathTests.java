@@ -21,15 +21,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Targeted tests for the bulk 64-bits-at-a-time fast path in {@link DefinitionLevelDecoder}.
+ * Tests that decode {@link DefinitionLevelDecoder} output and parquet-mr's
+ * {@link RunLengthBitPackingHybridDecoder} from the same encoded byte stream and assert
+ * bit-by-bit equivalence — i.e. parquet-mr's decoder is the ground truth, not the original
+ * {@code int[]} of def levels. This guards against any drift between our format reading and
+ * parquet-mr's wire-format interpretation, even in cases where the def-level array round-trips
+ * correctly through both encoder and decoder by coincidence.
  *
- * <p>The general {@link DefinitionLevelDecoderTests} suite asserts against an expected
- * {@code int[]} of def levels. This suite goes one step further and decodes the exact same
- * bytes with parquet-mr's {@link RunLengthBitPackingHybridDecoder} as ground truth, then
- * asserts the bit-mask produced by our bulk path is identical at every position. That way, if
- * our notion of the format ever drifts from parquet-mr's, the test catches it.
- *
- * <p>These tests deliberately:
+ * <p>The bulk of this suite targets the bulk 64-bits-at-a-time fast path for {@code bitWidth==1}:
  * <ul>
  *   <li>Force runs long enough ({@code >= 64}) that the bulk path is exercised.</li>
  *   <li>Vary the alignment of the destination offset within the {@link WordMask} to cover
@@ -38,6 +37,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  *       gets entered/exited at varying state-machine points.</li>
  *   <li>Cover all-null, all-present, sparse-null, dense-null and random patterns.</li>
  * </ul>
+ *
+ * <p>An additional case covers the {@code unpack8Values} {@code default} branch (bit widths
+ * other than 1, 2, 4, 8) by driving {@code bitWidth==3}, so the general bit-shifted readout
+ * path is also tied to parquet-mr's wire format.
  */
 public class DefinitionLevelDecoderBulkPathTests extends ESTestCase {
 
@@ -160,10 +163,11 @@ public class DefinitionLevelDecoderBulkPathTests extends ESTestCase {
     }
 
     public void testBulkPathInterleavedRleAndBitPacked() throws IOException {
-        // Mixed scenario: long all-present RLE (handled by setRange) interleaved with long
-        // bit-packed runs (where the bulk path should dominate).
+        // Mixed scenario: long all-present RLE (no-op for the mask; readBatch only touches
+        // it for null runs via setRange) interleaved with long bit-packed runs (where the
+        // bulk path should dominate) and long all-null RLE runs (which exercise setRange).
         int[] defs = new int[2048];
-        // 0..199: all present (RLE)
+        // 0..199: all present (RLE; mask is not touched here)
         for (int i = 0; i < 200; i++) {
             defs[i] = 1;
         }
@@ -171,7 +175,7 @@ public class DefinitionLevelDecoderBulkPathTests extends ESTestCase {
         for (int i = 200; i < 600; i++) {
             defs[i] = i & 1;
         }
-        // 600..899: all null (RLE)
+        // 600..899: all null (RLE; setRange path)
         for (int i = 600; i < 900; i++) {
             defs[i] = 0;
         }
@@ -294,6 +298,21 @@ public class DefinitionLevelDecoderBulkPathTests extends ESTestCase {
                 assertEquals("trial=" + trial + " offset=" + offset + " bit=" + j, expectedNulls[j], mask.get(offset + j));
             }
         }
+    }
+
+    public void testParityWithParquetMrForBitWidth3DefaultUnpackBranch() throws IOException {
+        // bitWidth=3 (maxDefLevel=7) hits unpack8Values' `default` branch, which routes through
+        // the generic readBitsLE bit-shifted readout. Bit widths 4 and 8 are covered by dedicated
+        // switch cases (and in DefinitionLevelDecoderTests). This test ties the default branch
+        // directly to parquet-mr's wire format by decoding the same bytes with both decoders.
+        int[] defs = new int[1024];
+        for (int i = 0; i < defs.length; i++) {
+            defs[i] = randomIntBetween(0, 7);
+        }
+        assertParityWithParquetMrDecoder(defs, 7);
+        // Guard-rail: random 0..7 values are entropy-rich enough that the encoder will emit
+        // at least one bit-packed run, ensuring readBitsLE actually ran.
+        assertHasBitPackedRunOfAtLeast(defs, 7, 8);
     }
 
     public void testBulkPathExercisesSanityForceLongBitPackedRun() throws IOException {

@@ -1,0 +1,8 @@
+Limit[1000[INTEGER],false,false]
+\_InlineJoin[LEFT,[],[]]
+  |_EsRelation[employees][avg_worked_seconds{f}#0, birth_date{f}#1, emp_no{f}#2, first_name{f}#3, gender{f}#4, height{f}#5, height.float{f}#6, height.half_float{f}#7, height.scaled_float{f}#8, hire_date{f}#9, is_rehired{f}#10, job_positions{f}#11, languages{f}#12, languages.byte{f}#13, languages.long{f}#14, languages.short{f}#15, last_name{f}#16, salary{f}#17, salary_change{f}#18, salary_change.int{f}#19, salary_change.keyword{f}#20, salary_change.long{f}#21, still_hired{f}#22]
+  \_Project[[s1{r}#23, s2{r}#24]]
+    \_Eval[[$$emp_no$MVSINGLEVALUEORNULL_SUM$0{r$}#25 + 1[INTEGER] * $$emp_no$MVSINGLEVALUEORNULL_COUNT$1{r$}#26 AS s1#23, $$emp_no$MVSINGLEVALUEORNULL_SUM$0{r$}#25 + 2[INTEGER] * $$emp_no$MVSINGLEVALUEORNULL_COUNT$1{r$}#26 AS s2#24]]
+      \_Aggregate[[],[SUM($$emp_no$MVSINGLEVALUEORNULL$2{r$}#27,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS $$emp_no$MVSINGLEVALUEORNULL_SUM$0#25, COUNT($$emp_no$MVSINGLEVALUEORNULL$2{r$}#27,true[BOOLEAN],PT0S[TIME_DURATION]) AS $$emp_no$MVSINGLEVALUEORNULL_COUNT$1#26]]
+        \_Eval[[MVSINGLEVALUEORNULL(emp_no{f}#2) AS $$emp_no$MVSINGLEVALUEORNULL$2#27]]
+          \_StubRelation[[avg_worked_seconds{f}#0, birth_date{f}#1, emp_no{f}#2, first_name{f}#3, gender{f}#4, height{f}#5, height.float{f}#6, height.half_float{f}#7, height.scaled_float{f}#8, hire_date{f}#9, is_rehired{f}#10, job_positions{f}#11, languages{f}#12, languages.byte{f}#13, languages.long{f}#14, languages.short{f}#15, last_name{f}#16, salary{f}#17, salary_change{f}#18, salary_change.int{f}#19, salary_change.keyword{f}#20, salary_change.long{f}#21, still_hired{f}#22]]

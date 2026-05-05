@@ -59,12 +59,7 @@ public class StorageProviderCache implements Closeable {
      */
     public record CacheKey(String scheme, Map<String, Object> config) {}
 
-    /**
-     * Factory interface for creating a new {@link StorageProvider} on cache miss. The returned
-     * {@link Configured} pairs the provider with the keys consumed from the cache key's config —
-     * the consumed-key set is invariant given (scheme, config), so it is cached alongside the
-     * provider rather than recomputed on every hit.
-     */
+    /** Supplier invoked on cache miss; returns the provider plus the keys it consumed from config. */
     @FunctionalInterface
     public interface ProviderFactory {
         Configured<StorageProvider> create() throws Exception;

@@ -115,7 +115,6 @@ public class StorageManager implements Closeable {
             );
         }
 
-        // Config is validated at planning in FileSourceFactory; here we only need the provider.
         if (config instanceof Map<?, ?> configMap && configMap.isEmpty() == false) {
             StorageProvider provider = registry.createProvider(scheme, settings, (Map<String, Object>) configMap).value();
             perQueryProviders.add(provider);

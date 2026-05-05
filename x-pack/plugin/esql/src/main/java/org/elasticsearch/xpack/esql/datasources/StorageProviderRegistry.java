@@ -120,7 +120,6 @@ public class StorageProviderRegistry implements Closeable {
 
         // Cache providers by (scheme, config) so queries with the same WITH-clause config
         // reuse the same cloud client and connection pool instead of constructing a new one.
-        // The consumed-key set is invariant for a given (scheme, config) and is cached alongside.
         StorageProviderCache.CacheKey cacheKey = new StorageProviderCache.CacheKey(normalizedScheme, config);
         try {
             return configuredProviderCache.getOrCreate(cacheKey, () -> {

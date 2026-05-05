@@ -162,11 +162,7 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     public static final String CONFIG_MAX_ERROR_RATIO = "max_error_ratio";
     public static final String CONFIG_ERROR_MODE = "error_mode";
 
-    /**
-     * Set view of all keys recognised by {@link #fromConfig}. Used by the FileSourceFactory
-     * coordinator validation to mark these keys as consumed regardless of which layer
-     * (storage or format) is wired.
-     */
+    /** Keys recognised by {@link #fromConfig}. */
     public static final java.util.Set<String> CONFIG_KEYS = java.util.Set.of(CONFIG_MAX_ERRORS, CONFIG_MAX_ERROR_RATIO, CONFIG_ERROR_MODE);
 
     /**

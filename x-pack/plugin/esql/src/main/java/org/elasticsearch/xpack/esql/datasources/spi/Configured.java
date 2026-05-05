@@ -9,17 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import java.util.Set;
 
-/**
- * Result of a "configure with this map" operation. Carries both the configured value and the set of
- * keys the operation consumed from the input map.
- * <p>
- * Used to propagate the per-layer consumed-keys set to the coordinator so the coordinator can union
- * the consumed sets across storage and format layers and reject anything left over (typos, options
- * that belong to no layer).
- *
- * @param value         the configured object (e.g. a storage configuration, a format reader)
- * @param consumedKeys  the keys this operation consumed from the input map; never {@code null}
- */
+/** Carrier for "configure with this map" operations: a value plus the keys it consumed. */
 public record Configured<T>(T value, Set<String> consumedKeys) {
 
     public Configured {

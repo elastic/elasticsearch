@@ -142,7 +142,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
             if (storageObject.exists() == false) {
                 throw new IOException("File does not exist: " + location);
             }
-            // Idempotent: provider + reader resolution above is cached, so this re-resolves cheaply.
             validateConfig(location, config);
             FormatReader reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config).value();
             return reader.metadata(storageObject);
@@ -176,7 +175,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 storage = storageRegistry.provider(path);
             }
 
-            // Config was validated at planning in resolveMetadata; unwrap the reader.
             FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config)
                 .value()
                 .withPushedFilter(context.pushedFilter())
@@ -227,12 +225,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     static final String CONFIG_FORMAT = "format";
 
-    /**
-     * Coordinator-level WITH-clause keys claimed by {@link FileSourceFactory} itself, independent
-     * of any single storage or format layer. Includes {@link #CONFIG_FORMAT} (used by
-     * {@link #resolveFormatReader} to override extension-based format selection) and
-     * {@link ErrorPolicy#CONFIG_KEYS} (used by {@link #resolveErrorPolicy}).
-     */
+    /** Keys claimed by the coordinator itself: {@link #CONFIG_FORMAT} and {@link ErrorPolicy#CONFIG_KEYS}. */
     static final Set<String> COORDINATOR_KEYS;
 
     static {

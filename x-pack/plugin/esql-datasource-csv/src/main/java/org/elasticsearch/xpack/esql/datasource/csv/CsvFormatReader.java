@@ -389,12 +389,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return new CsvFormatReader(blockFactory, options, format, extensions, schema, schemaSampleSize, effectivePolicy);
     }
 
-    /**
-     * Keys recognised by {@link #withConfig(Map)}. Used by the coordinator to detect typos:
-     * any key in the WITH clause that is not in this set, in the storage layer's known fields,
-     * and not in {@link ErrorPolicy#CONFIG_KEYS} or the FileSourceFactory coordinator keys, is
-     * treated as unknown and rejected.
-     */
+    /** Keys recognised by {@link #withConfig(Map)}. */
     static final Set<String> RECOGNIZED_KEYS = Set.of(
         "delimiter",
         "quote",

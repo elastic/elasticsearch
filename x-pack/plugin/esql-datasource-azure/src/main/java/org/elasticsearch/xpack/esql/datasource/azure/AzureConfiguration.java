@@ -54,12 +54,9 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
     }
 
     /**
-     * Lenient factory for query-time WITH clauses, which may carry format-level options
-     * (e.g. {@code header_row}) alongside storage-level options. Filters unknown keys
-     * before construction; cross-field validation (auth/credential conflicts) still runs.
-     * <p>
-     * Returns the configuration plus the set of keys consumed from {@code raw}. The coordinator
-     * unions this with the format layer's consumed set to identify truly-unknown keys.
+     * Lenient factory for query-time WITH clauses. Filters unknown keys before construction so
+     * format-level options carried in the same map don't fail storage parsing; cross-field
+     * validation (auth/credential conflicts) still runs.
      */
     public static Configured<AzureConfiguration> fromQueryConfig(Map<String, Object> raw) {
         Configured<Map<String, Object>> filtered = filterKnown(raw, FIELDS);

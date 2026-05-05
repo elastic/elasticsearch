@@ -271,9 +271,6 @@ public class LocalExecutionPlanner {
         IndexedByShardId<? extends ShardContext> shardContexts
     ) {
         final boolean timeSeries = localPhysicalPlan.anyMatch(p -> p instanceof TimeSeriesAggregateExec);
-        final AnalysisRegistry analysisRegistry = physicalOperationProviders instanceof AbstractPhysicalOperationProviders abstractProviders
-            ? abstractProviders.analysisRegistry()
-            : null;
         var context = new LocalExecutionPlannerContext(
             description,
             new ArrayList<>(),
@@ -286,7 +283,7 @@ public class LocalExecutionPlanner {
             timeSeries,
             settings,
             shardContexts,
-            analysisRegistry
+            physicalOperationProviders.analysisRegistry()
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782

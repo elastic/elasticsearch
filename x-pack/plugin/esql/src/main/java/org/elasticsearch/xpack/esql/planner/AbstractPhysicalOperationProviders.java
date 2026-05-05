@@ -61,9 +61,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         this.analysisRegistry = analysisRegistry;
     }
 
-    /**
-     * Returns the node-level {@link AnalysisRegistry} for resolving analyzers by name.
-     */
+    @Override
     public AnalysisRegistry analysisRegistry() {
         return analysisRegistry;
     }

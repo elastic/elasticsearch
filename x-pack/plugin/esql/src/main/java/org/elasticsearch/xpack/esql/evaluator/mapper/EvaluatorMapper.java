@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.evaluator.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
@@ -15,7 +16,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -43,12 +43,12 @@ public interface EvaluatorMapper {
         }
 
         /**
-         * Returns the node-level {@link AnalysisRegistry}, which can resolve any globally-registered
-         * (prebuilt or plugin-contributed) analyzer by name without requiring an index context.
-         * Returns {@code null} when no registry is available (e.g. during folding or in tests).
+         * Returns the {@link Analyzer} registered (prebuilt or plugin-contributed) under the given name.
+         * Implementations that have access to an analysis registry resolve the name; the default
+         * throws because no registry is available (e.g. during folding or in tests).
          */
-        default AnalysisRegistry analysisRegistry() {
-            return null;
+        default Analyzer getAnalyzer(String name) {
+            throw new UnsupportedOperationException("Analyzer lookup is not available in this evaluator context");
         }
     }
 

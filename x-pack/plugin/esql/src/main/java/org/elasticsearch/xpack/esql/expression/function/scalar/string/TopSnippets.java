@@ -30,7 +30,6 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
@@ -355,47 +354,6 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         }
     }
 
-    /**
-     * Resolves a Lucene {@link Analyzer} for snippet scoring and highlighting.
-     * <p>
-     * {@code TOP_SNIPPETS} never pushes to Lucene, so it resolves without a
-     * {@code ShardContext}: an explicit name is looked up in the node-level
-     * {@link AnalysisRegistry}, otherwise we fall back to {@link StandardAnalyzer}.
-     * The resolution site is the same whether the function executes on the coordinator
-     * (e.g. {@code EVAL TOP_SNIPPETS(...)}) or on a data node after filter push-down
-     * (e.g. {@code WHERE mv_count(TOP_SNIPPETS(...)) > 0}), since both paths build
-     * their {@link org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext}
-     * from an {@link org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders}
-     * constructed with {@code searchService.getIndicesService().getAnalysis()}.
-     * <p>
-     * The registry is surfaced to the function via
-     * {@link org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper.ToEvaluator#analysisRegistry()}.
-     * It is {@code null} on the synthetic {@code ToEvaluator} built inside
-     * {@link org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper#fold} — an
-     * explicit analyzer name without a registry is therefore a plan-time / fold-time error.
-     * <p>
-     * The returned analyzer is <strong>not</strong> closed by callers: registry-owned
-     * analyzers are shared across requests and must not be closed, and {@link StandardAnalyzer}
-     * is cheap enough to leave to GC.
-     */
-    static Analyzer resolveAnalyzer(String analyzerName, AnalysisRegistry registry) {
-        if (analyzerName != null) {
-            if (registry == null) {
-                throw new InvalidArgumentException("'{}' option cannot be resolved without an analysis registry", ANALYZER);
-            }
-            try {
-                Analyzer analyzer = registry.getAnalyzer(analyzerName);
-                if (analyzer != null) {
-                    return analyzer;
-                }
-            } catch (IOException e) {
-                throw new InvalidArgumentException("failed to load analyzer [{}]", e, analyzerName);
-            }
-            throw new InvalidArgumentException("'{}' must be a registered analyzer, found [{}]", ANALYZER, analyzerName);
-        }
-        return new StandardAnalyzer();
-    }
-
     private static void validateHighlightOnlyOptions(Map<String, Object> options) {
         boolean highlight = Boolean.TRUE.equals(options.get(HIGHLIGHT));
         if (highlight == false) {
@@ -413,7 +371,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     @Override
     public boolean foldable() {
-        return field().foldable() && query().foldable();
+        return field().foldable() && query().foldable() && (options() == null || options().foldable());
     }
 
     @Override
@@ -595,7 +553,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
         ChunkingSettings chunkingSettings = numWords > 0 ? new SentenceBoundaryChunkingSettings(numWords, 0) : null;
 
-        Analyzer resolvedAnalyzer = resolveAnalyzer(analyzerName, toEvaluator.analysisRegistry());
+        Analyzer resolvedAnalyzer = analyzerName != null ? toEvaluator.getAnalyzer(analyzerName) : new StandardAnalyzer();
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer(resolvedAnalyzer);
 
         Object foldedQuery = query.fold(toEvaluator.foldCtx());

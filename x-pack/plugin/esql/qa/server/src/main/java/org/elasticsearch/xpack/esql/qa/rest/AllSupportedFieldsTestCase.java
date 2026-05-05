@@ -911,6 +911,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 case DENSE_VECTOR -> doc.value(List.of(0.5, 10, 6));
                 case HISTOGRAM -> createHistogramValue(doc);
                 case TDIGEST -> createTDigestValue(doc);
+                case FLATTENED -> {
+                    doc.startObject();
+                    doc.field("a", "foo");
+                    doc.endObject();
+                }
                 default -> throw new AssertionError("unsupported field type [" + type + "]");
             }
         }
@@ -1073,6 +1078,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 }
                 yield nullValue();
             }
+            case FLATTENED -> {
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    yield anyOf(nullValue(), equalTo(Map.of("a", "foo")));
+                }
+                yield nullValue();
+            }
 
             default -> throw new AssertionError("unsupported field type [" + type + "]");
         };
@@ -1110,6 +1121,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case EXPONENTIAL_HISTOGRAM -> DataType.EXPONENTIAL_HISTOGRAM.supportedVersion()
                 .supportedOn(version, Build.current().isSnapshot());
             case TDIGEST -> DataType.TDIGEST.supportedVersion().supportedOn(version, Build.current().isSnapshot());
+            case FLATTENED -> DataType.FLATTENED.supportedVersion().supportedOn(version, Build.current().isSnapshot());
             default -> true;
         };
     }
@@ -1229,6 +1241,12 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     yield equalTo("unsupported");
                 }
                 yield equalTo("histogram");
+            }
+            case FLATTENED -> {
+                if (DataType.FLATTENED.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
+                    yield anyOf(equalTo("flattened"), equalTo("unsupported"));
+                }
+                yield equalTo("unsupported");
             }
             default -> equalTo(type.esType());
         };
@@ -1372,6 +1390,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Doubles")
                 : matchesList().item("column_at_a_time:DoublesFromDocValues.Singleton");
             case EXPONENTIAL_HISTOGRAM -> matchesList().item("column_at_a_time:BlockDocValuesReader.ExponentialHistogram");
+            case FLATTENED -> matchesList().item("column_at_a_time:");
             case DENSE_VECTOR -> matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
             case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.STORED || syntheticSourceByDefault() == false
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Geometries")

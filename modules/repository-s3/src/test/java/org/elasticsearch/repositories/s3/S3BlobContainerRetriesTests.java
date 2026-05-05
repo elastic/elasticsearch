@@ -1790,7 +1790,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(getAttributes(tenaciousRecordingMeterRegistry).size(), equalTo(3));
         assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("repo_type"), equalTo("s3"));
         assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("operation"), equalTo("ListObjects"));
-        assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("operation_purpose"), equalTo(OperationPurpose.INDICES.getKey()));
+        assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("purpose"), equalTo(OperationPurpose.INDICES.getKey()));
 
     }
 }

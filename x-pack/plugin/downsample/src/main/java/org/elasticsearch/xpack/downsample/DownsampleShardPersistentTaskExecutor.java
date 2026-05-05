@@ -166,10 +166,14 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         }
         // Considering the downsampling task is a long-running operation,
         // we try to distribute it among the available nodes as much as possible
-        return new PersistentTasksCustomMetadata.Assignment(
-            selectLeastLoadedNode(clusterState, candidateNodes, candidate -> shardNodes.contains(candidate.getId())).getId(),
-            "downsampling using node holding shard [" + shardId + "]"
+        DiscoveryNode selectedNode = selectLeastLoadedNode(
+            clusterState,
+            candidateNodes,
+            candidate -> shardNodes.contains(candidate.getId())
         );
+        return selectedNode == null
+            ? NO_NODE_FOUND
+            : new PersistentTasksCustomMetadata.Assignment(selectedNode.getId(), "downsampling using node holding shard [" + shardId + "]");
     }
 
     /**

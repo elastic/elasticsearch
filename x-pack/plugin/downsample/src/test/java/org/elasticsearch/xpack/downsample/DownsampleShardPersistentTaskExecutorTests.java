@@ -196,6 +196,43 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
         assertThat(result.getExplanation(), equalTo("a node to fail and stop this persistent task"));
     }
 
+    public void testNoPossibleAssignment() {
+        var backingIndex = initialClusterState.metadata().getProject(projectId).dataStreams().get("metrics-app1").getWriteIndex();
+        var nodeWithPrimary = newNode();
+        var nodeWithReplica = newNode();
+        var otherNode = newNode();
+        var shardId = new ShardId(backingIndex, 0);
+        var clusterState = ClusterState.builder(initialClusterState)
+            .nodes(new DiscoveryNodes.Builder().add(nodeWithPrimary).add(nodeWithReplica).add(otherNode).build())
+            .putRoutingTable(
+                projectId,
+                RoutingTable.builder()
+                    .add(
+                        IndexRoutingTable.builder(backingIndex)
+                            .addShard(shardRoutingBuilder(shardId, nodeWithPrimary.getId(), true, STARTED).withRecoverySource(null).build())
+                            .addShard(
+                                shardRoutingBuilder(shardId, nodeWithReplica.getId(), false, STARTED).withRecoverySource(null).build()
+                            )
+                    )
+                    .build()
+            )
+            .build();
+
+        var params = new DownsampleShardTaskParams(
+            new DownsampleConfig(new DateHistogramInterval("1h"), randomSamplingMethod()),
+            shardId.getIndexName(),
+            1,
+            1,
+            shardId,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            Map.of()
+        );
+        var result = executor.getAssignment(params, Set.of(otherNode), clusterState, projectId);
+        assertThat(result.getExecutorNode(), nullValue());
+    }
+
     public void ensureOnlySearchableShardsAreConsidered() {
         executor = new DownsampleShardPersistentTaskExecutor(mock(Client.class), DownsampleShardTask.TASK_NAME, mock(Executor.class));
         var backingIndex = initialClusterState.metadata().getProject(projectId).dataStreams().get("metrics-app1").getWriteIndex();

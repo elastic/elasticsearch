@@ -16,6 +16,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -46,21 +47,23 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         COLUMNAR
     }
 
-    public static final TypeParser PARSER = new TypeParser() {
-        @Override
-        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
-            IdFieldMapper existing = parserContext.idFieldMapper();
-            if (existing instanceof ProvidedIdFieldMapper provided) {
-                var builder = new ProvidedIdFieldMapper.Builder(provided.fieldDataEnabled());
-                builder.parseMetadataField(name, parserContext, node);
-                return builder;
-            }
-            throw new MapperParsingException(name + " is not configurable");
+    public static final TypeParser PARSER = new ConfigurableTypeParser(mappingParserContext -> {
+        var indexMode = mappingParserContext.getIndexSettings().getMode();
+        if (indexMode == IndexMode.TIME_SERIES) {
+            return new ConstantBuilder(TsidExtractingIdFieldMapper.INSTANCE);
+        } else {
+            return new ProvidedIdFieldMapper.Builder(mappingParserContext.getFieldDataEnabled());
         }
+    }) {
 
         @Override
-        public Builder getDefaultBuilder(MappingParserContext parserContext) {
-            return (Builder) parserContext.idFieldMapper().getMergeBuilder();
+        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
+            var indexMode = parserContext.getIndexSettings().getMode();
+            if (indexMode == IndexMode.TIME_SERIES) {
+                throw new MapperParsingException(name + " is not configurable");
+            } else {
+                return super.parse(name, node, parserContext);
+            }
         }
     };
 

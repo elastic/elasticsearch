@@ -203,7 +203,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         List<SearchOperationListener> searchOperationListeners,
         List<IndexingOperationListener> indexingOperationListeners,
         NamedWriteableRegistry namedWriteableRegistry,
-        IdFieldMapper idFieldMapper,
+        BooleanSupplier fieldDataEnabled,
         BooleanSupplier allowExpensiveQueries,
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
@@ -242,7 +242,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 mapperRegistry,
                 // we parse all percolator queries as they would be parsed on shard 0
                 () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap(), null, null),
-                idFieldMapper,
+                fieldDataEnabled,
                 scriptService,
                 bitsetFilterCache::getBitSetProducer,
                 mapperMetrics,

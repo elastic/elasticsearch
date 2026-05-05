@@ -75,7 +75,7 @@ public class MapperServiceFactory {
             () -> {
                 throw new UnsupportedOperationException();
             },
-            new ProvidedIdFieldMapper(() -> true),
+            () -> true,
             new ScriptCompiler() {
                 @Override
                 public <T> T compile(Script script, ScriptContext<T> scriptContext) {

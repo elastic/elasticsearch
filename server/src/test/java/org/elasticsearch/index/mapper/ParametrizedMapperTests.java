@@ -278,7 +278,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
             mapperService.getIndexSettings(),
-            mapperService.getIndexSettings().getMode().idFieldMapperWithoutFieldData(),
+            () -> false,
             query -> {
                 throw new UnsupportedOperationException();
             },

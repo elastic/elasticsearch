@@ -347,7 +347,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 () -> {
                     throw new UnsupportedOperationException();
                 },
-                indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
+                idFieldDataEnabled,
                 scriptCompiler,
                 bitsetFilterCache::getBitSetProducer,
                 mapperMetrics,

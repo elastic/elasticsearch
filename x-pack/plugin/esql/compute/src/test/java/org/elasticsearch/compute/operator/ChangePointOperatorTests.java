@@ -100,6 +100,20 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         // Change point cannot work with empty input, so skip this test
     }
 
+    public void testGroupedFactoryDescribe() {
+        // The OperatorTestCase-driven simple() above exercises the ungrouped form (groupingChannels=[]).
+        // This asserts that grouping channels round-trip into the factory's describe() output.
+        var factory = new ChangePointOperator.Factory(0, List.of(1, 2), new TestWarningsSource(null));
+        assertThat(factory.describe(), equalTo("ChangePointOperator[channel=0, groupingChannels=[1, 2]]"));
+    }
+
+    public void testGroupedOperatorToString() {
+        DriverContext ctx = driverContext();
+        try (ChangePointOperator op = new ChangePointOperator(ctx, 0, new int[] { 1, 2 }, new TestWarningsSource(null))) {
+            assertThat(op.toString(), equalTo("ChangePointOperator[channel=0, groupingChannels=[1, 2]]"));
+        }
+    }
+
     public void testNonGroupedFlushOnFinish() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();
@@ -418,7 +432,7 @@ public class ChangePointOperatorTests extends OperatorTestCase {
             assertChangePointAt(outputPages.get(1), 500);
             assertWarnings(
                 "Line 1:1: warnings during evaluation of [null]. Only first 20 failures recorded.",
-                "Line 1:1: java.lang.IllegalArgumentException: too many values; keeping only first 1000 values"
+                "Line 1:1: java.lang.IllegalArgumentException: too many values in a group; keeping only first 1000 values per group"
             );
         } finally {
             outputPages.forEach(Page::releaseBlocks);

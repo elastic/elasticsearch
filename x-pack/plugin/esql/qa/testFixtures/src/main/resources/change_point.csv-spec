@@ -1457,3 +1457,80 @@ k:integer | a:integer | value:integer | type:keyword
 13        | 1         | 42            | spike
 13        | 2         | 42            | step_change
 ;
+
+
+not enough buckets per group
+required_capability: change_point_by
+
+ROW k=[1,2,3,4,5], grp=["a","b"]
+  | MV_EXPAND k
+  | MV_EXPAND grp
+  | EVAL value=k
+  | CHANGE_POINT value ON k BY grp
+  | KEEP k, grp, type
+  | SORT grp, k
+;
+
+warning:Line 5:3: evaluation of [CHANGE_POINT value ON k BY grp] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:3: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [5]
+
+k:integer | grp:keyword | type:keyword
+1         | a           | null
+2         | a           | null
+3         | a           | null
+4         | a           | null
+5         | a           | null
+1         | b           | null
+2         | b           | null
+3         | b           | null
+4         | b           | null
+5         | b           | null
+;
+
+
+nulls in groups
+required_capability: change_point_by
+
+ROW k=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25], grp=["a","b"]
+  | MV_EXPAND k
+  | MV_EXPAND grp
+  | EVAL value=CASE(k < 13, 0, 42)
+  | EVAL value=CASE(k == 4, NULL, value)
+  | CHANGE_POINT value ON k BY grp
+  | WHERE type IS NOT NULL
+  | KEEP k, grp, value, type
+  | SORT grp, k
+;
+
+warning:Line 6:3: warnings during evaluation of [CHANGE_POINT value ON k BY grp]. Only first 20 failures recorded.
+warning:Line 6:3: java.lang.IllegalArgumentException: values contain nulls; skipping them
+
+k:integer | grp:keyword | value:integer | type:keyword
+13        | a           | 42            | step_change
+13        | b           | 42            | step_change
+;
+
+
+multivalued in groups
+required_capability: change_point_by
+
+// Each group has 25 rows with one multivalued entry at k=4. Skipping the multivalued
+// row leaves 24 valid rows per group, so the step_change at k=13 is still detected.
+ROW k=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25], grp=["a","b"]
+  | MV_EXPAND k
+  | MV_EXPAND grp
+  | EVAL value=CASE(k < 13, 0, 42)
+  | EVAL value=CASE(k == 4, [1, 2, 3], value)
+  | CHANGE_POINT value ON k BY grp
+  | WHERE type IS NOT NULL
+  | KEEP k, grp, type
+  | SORT grp, k
+;
+
+warning:Line 6:3: warnings during evaluation of [CHANGE_POINT value ON k BY grp]. Only first 20 failures recorded.
+warning:Line 6:3: java.lang.IllegalArgumentException: values contains multivalued entries; skipping them (please consider reducing them with e.g. MV_AVG or MV_SUM)
+
+k:integer | grp:keyword | type:keyword
+13        | a           | step_change
+13        | b           | step_change
+;

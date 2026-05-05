@@ -36,7 +36,14 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
 
     @Override
     protected KnnVectorsFormat createFormat() {
-        return new ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT);
+        return new ES93HnswVectorsFormat(
+            DEFAULT_MAX_CONN,
+            DEFAULT_BEAM_WIDTH,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            DEFAULT_NUM_MERGE_WORKER,
+            null,
+            random().nextInt(1, 20)
+        );
     }
 
     @Override
@@ -47,7 +54,7 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
             DenseVectorFieldMapper.ElementType.FLOAT,
             DEFAULT_NUM_MERGE_WORKER,
             null,
-            random().nextInt(1, 100)
+            random().nextInt(1, 20)
         );
     }
 
@@ -59,7 +66,7 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
             DenseVectorFieldMapper.ElementType.FLOAT,
             numMergeWorkers,
             service,
-            random().nextInt(1, 100)
+            random().nextInt(1, 20)
         );
     }
 
@@ -104,10 +111,14 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
 
     public void testToString() {
         int hnswGraphThreshold = random().nextInt(1, 1001);
-        String expected = "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn=10, beamWidth=20, hnswGraphThreshold="
-            + hnswGraphThreshold
-            + ", flatVectorFormat=%s)";
-        expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
+        String expected =
+            "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn=10, beamWidth=20, hnswGraphThreshold=%s, flatVectorFormat=%s)";
+        expected = format(
+            Locale.ROOT,
+            expected,
+            hnswGraphThreshold,
+            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)"
+        );
         expected = format(Locale.ROOT, expected, "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=%s)");
         expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorScorer(delegate=%s)");
         String defaultScorer = format(Locale.ROOT, expected, "DefaultFlatVectorScorer()");

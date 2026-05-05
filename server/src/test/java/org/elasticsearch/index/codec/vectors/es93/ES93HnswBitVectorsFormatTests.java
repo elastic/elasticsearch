@@ -49,7 +49,7 @@ public class ES93HnswBitVectorsFormatTests extends BaseKnnBitVectorsFormatTestCa
                 DenseVectorFieldMapper.ElementType.BIT,
                 DEFAULT_NUM_MERGE_WORKER,
                 null,
-                random().nextInt(1, 100)
+                random().nextInt(1, 20)
             )
         );
     }

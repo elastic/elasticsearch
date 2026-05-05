@@ -37,7 +37,14 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
 
     @Override
     protected KnnVectorsFormat createFormat() {
-        return new ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16);
+        return new ES93HnswVectorsFormat(
+            DEFAULT_MAX_CONN,
+            DEFAULT_BEAM_WIDTH,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            DEFAULT_NUM_MERGE_WORKER,
+            null,
+            random().nextInt(1, 20)
+        );
     }
 
     @Override
@@ -48,7 +55,7 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
             DenseVectorFieldMapper.ElementType.BFLOAT16,
             DEFAULT_NUM_MERGE_WORKER,
             null,
-            random().nextInt(1, 100)
+            random().nextInt(1, 20)
         );
     }
 
@@ -60,7 +67,7 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
             DenseVectorFieldMapper.ElementType.BFLOAT16,
             numMergeWorkers,
             service,
-            random().nextInt(1, 100)
+            random().nextInt(1, 20)
         );
     }
 
@@ -104,9 +111,15 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
     }
 
     public void testToString() {
+        int hnswGraphThreshold = random().nextInt(1, 1001);
         String expected =
-            "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn=10, beamWidth=20, hnswGraphThreshold=150, flatVectorFormat=%s)";
-        expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
+            "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn=10, beamWidth=20, hnswGraphThreshold=%s, flatVectorFormat=%s)";
+        expected = format(
+            Locale.ROOT,
+            expected,
+            hnswGraphThreshold,
+            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)"
+        );
         expected = format(
             Locale.ROOT,
             expected,
@@ -115,7 +128,7 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
         String defaultScorer = format(Locale.ROOT, expected, "DefaultFlatVectorScorer");
         String memSegScorer = format(Locale.ROOT, expected, "Lucene99MemorySegmentFlatVectorsScorer");
 
-        KnnVectorsFormat format = createFormat(10, 20, 1, null);
+        KnnVectorsFormat format = createFormat(10, 20, 1, null, hnswGraphThreshold);
         assertThat(format, hasToString(is(oneOf(defaultScorer, memSegScorer))));
     }
 

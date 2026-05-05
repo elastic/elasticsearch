@@ -304,18 +304,20 @@ public final class IndexSortConfig {
 
         if (IndexSettings.SLICE_ENABLED.get(settings) && INDEX_SORT_FIELD_SETTING.exists(settings)) {
             List<String> fields = settings.getAsList(INDEX_SORT_FIELD_SETTING.getKey());
-            if (fields.contains(RoutingFieldMapper.NAME) || fields.contains(SliceIndexing.PARAM_NAME)) {
-                throw new IllegalArgumentException(
-                    "setting ["
-                        + INDEX_SORT_FIELD_SETTING.getKey()
-                        + "] must not contain ["
-                        + RoutingFieldMapper.NAME
-                        + "] or ["
-                        + SliceIndexing.PARAM_NAME
-                        + "] when ["
-                        + IndexSettings.SLICE_ENABLED.getKey()
-                        + "] is true"
-                );
+            for (String field : fields) {
+                if (field.equals(RoutingFieldMapper.NAME) || field.equals(SliceIndexing.PARAM_NAME)) {
+                    throw new IllegalArgumentException(
+                        "setting ["
+                            + INDEX_SORT_FIELD_SETTING.getKey()
+                            + "] must not contain ["
+                            + RoutingFieldMapper.NAME
+                            + "] or ["
+                            + SliceIndexing.PARAM_NAME
+                            + "] when ["
+                            + IndexSettings.SLICE_ENABLED.getKey()
+                            + "] is true"
+                    );
+                }
             }
         }
 
@@ -370,19 +372,10 @@ public final class IndexSortConfig {
         List<MultiValueMode> modes,
         List<String> missingValues
     ) {
-        for (int i = fields.size() - 1; i >= 0; i--) {
-            if (RoutingFieldMapper.NAME.equals(fields.get(i))) {
-                fields.remove(i);
-                orders.remove(i);
-                modes.remove(i);
-                missingValues.remove(i);
-            }
-        }
-
-        fields.add(0, RoutingFieldMapper.NAME);
-        orders.add(0, SortOrder.ASC);
-        modes.add(0, MultiValueMode.MIN);
-        missingValues.add(0, "_last");
+        fields.addFirst(RoutingFieldMapper.NAME);
+        orders.addFirst(SortOrder.ASC);
+        modes.addFirst(MultiValueMode.MIN);
+        missingValues.addFirst("_last");
     }
 
     /**

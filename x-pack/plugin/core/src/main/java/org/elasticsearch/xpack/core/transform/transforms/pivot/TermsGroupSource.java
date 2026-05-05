@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -141,7 +142,7 @@ public class TermsGroupSource extends SingleGroupSource {
     // max_terms_for_change_detection must be suppressed during that serialization path, otherwise the
     // parser rejects them as unknown. Pivot passes EXCLUDE_TRANSFORM_METADATA=true for this purpose.
     private static boolean excludeTransformMetadata(Params params) {
-        return Boolean.parseBoolean(params.param(TransformField.EXCLUDE_TRANSFORM_METADATA, "false"));
+        return Booleans.parseBoolean(params.param(TransformField.EXCLUDE_TRANSFORM_METADATA, "false"));
     }
 
     @Override

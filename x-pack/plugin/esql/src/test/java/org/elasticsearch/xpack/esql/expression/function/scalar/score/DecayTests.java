@@ -849,8 +849,11 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(randomValue, DataType.UNSIGNED_LONG, "value"),
                         new TestCaseSupplier.TypedData(randomOrigin, DataType.UNSIGNED_LONG, "origin").forceLiteral(),
                         new TestCaseSupplier.TypedData(randomScale, DataType.UNSIGNED_LONG, "scale").forceLiteral(),
-                        new TestCaseSupplier.TypedData(createOptionsMap(randomOffsetBig, randomDecay, randomType), DataType.SOURCE, "options")
-                            .forceLiteral()
+                        new TestCaseSupplier.TypedData(
+                            createOptionsMap(randomOffsetBig, randomDecay, randomType),
+                            DataType.SOURCE,
+                            "options"
+                        ).forceLiteral()
                     ),
                     startsWith("DecayUnsignedLongEvaluator["),
                     DataType.DOUBLE,

@@ -6,10 +6,8 @@
  */
 package org.elasticsearch.xpack.ql.index;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
@@ -26,8 +24,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
-import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
@@ -121,13 +119,9 @@ public class IndexResolver {
     private static final IndicesOptions INDICES_ONLY_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .wildcardOptions(
-            IndicesOptions.WildcardOptions.builder()
-                .matchOpen(true)
-                .matchClosed(false)
-                .includeHidden(false)
-                .allowEmptyExpressions(true)
-                .resolveAliases(false)
+            IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(false).includeHidden(false).allowEmptyExpressions(true)
         )
+        .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false).build())
         .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
@@ -135,13 +129,9 @@ public class IndexResolver {
     private static final IndicesOptions FROZEN_INDICES_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .wildcardOptions(
-            IndicesOptions.WildcardOptions.builder()
-                .matchOpen(true)
-                .matchClosed(false)
-                .includeHidden(false)
-                .allowEmptyExpressions(true)
-                .resolveAliases(false)
+            IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(false).includeHidden(false).allowEmptyExpressions(true)
         )
+        .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false).build())
         .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(false).allowClosedIndices(true).allowAliasToMultipleIndices(true)
         )
@@ -150,12 +140,7 @@ public class IndexResolver {
     public static final IndicesOptions FIELD_CAPS_INDICES_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .wildcardOptions(
-            IndicesOptions.WildcardOptions.builder()
-                .matchOpen(true)
-                .matchClosed(false)
-                .includeHidden(false)
-                .allowEmptyExpressions(true)
-                .resolveAliases(true)
+            IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(false).includeHidden(false).allowEmptyExpressions(true)
         )
         .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(true).allowClosedIndices(true).allowAliasToMultipleIndices(true)
@@ -164,12 +149,7 @@ public class IndexResolver {
     public static final IndicesOptions FIELD_CAPS_FROZEN_INDICES_OPTIONS = IndicesOptions.builder()
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .wildcardOptions(
-            IndicesOptions.WildcardOptions.builder()
-                .matchOpen(true)
-                .matchClosed(false)
-                .includeHidden(false)
-                .allowEmptyExpressions(true)
-                .resolveAliases(true)
+            IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(false).includeHidden(false).allowEmptyExpressions(true)
         )
         .gatekeeperOptions(
             IndicesOptions.GatekeeperOptions.builder().ignoreThrottled(false).allowClosedIndices(true).allowAliasToMultipleIndices(true)
@@ -366,33 +346,16 @@ public class IndexResolver {
         Map<String, Object> runtimeMappings,
         boolean crossProjectEnabled,
         String projectRouting,
-        ResolvedIndexExpressions resolvedIndexExpressions,
         ActionListener<IndexResolution> listener
     ) {
-        IndicesOptions iOpts;
-        if (crossProjectEnabled) {
-            iOpts = CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(indicesOptions);
-        } else {
-            iOpts = indicesOptions;
-        }
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, iOpts, runtimeMappings);
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, indicesOptions, runtimeMappings);
         if (crossProjectEnabled) {
             fieldRequest.includeResolvedTo(true);
+            if (projectRouting != null) {
+                fieldRequest.projectRouting(projectRouting);
+            }
         }
         client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((l, response) -> {
-            if (crossProjectEnabled) {
-                Map<String, ResolvedIndexExpressions> resolvedRemotely = response.getResolvedRemotely();
-                ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(
-                    iOpts,
-                    projectRouting,
-                    resolvedIndexExpressions,
-                    resolvedRemotely
-                );
-                if (ex != null) {
-                    l.onFailure(ex);
-                    return;
-                }
-            }
             l.onResponse(mergedMappings(typeRegistry, indexWildcard, response));
         }));
     }
@@ -742,22 +705,36 @@ public class IndexResolver {
             }
         }
         client.fieldCaps(fieldRequest, listener.delegateFailureAndWrap((delegate, response) -> {
-            client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases -> {
-                delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));
-            }, ex -> {
-                if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
-                    delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
-                } else {
-                    delegate.onFailure(ex);
-                }
-            }));
+            GetAliasesRequest request = createGetAliasesRequest(response, includeFrozen);
+            if (request.indices().length == 0) {
+                delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
+            } else {
+                client.admin().indices().getAliases(request, wrap(aliases -> {
+                    delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases()));
+                }, ex -> {
+                    if (ex instanceof IndexNotFoundException || ex instanceof ElasticsearchSecurityException) {
+                        delegate.onResponse(separateMappings(typeRegistry, javaRegex, response, null));
+                    } else {
+                        delegate.onFailure(ex);
+                    }
+                }));
+            }
         }));
 
     }
 
+    /**
+     * Filter out remote index expressions.
+     * TODO: SQL Metadata commands currently do not support remote indices.
+     * See also: showTablesIdentifierPatternOnAliases-Ignore
+     */
+    private static String[] onlyLocalIndices(String[] indices) {
+        return Arrays.stream(indices).filter(i -> RemoteClusterAware.isRemoteIndexName(i) == false).toArray(String[]::new);
+    }
+
     private static GetAliasesRequest createGetAliasesRequest(FieldCapabilitiesResponse response, boolean includeFrozen) {
         return new GetAliasesRequest(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT).aliases("*")
-            .indices(response.getIndices())
+            .indices(onlyLocalIndices(response.getIndices()))
             .indicesOptions(includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS);
     }
 

@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.slm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -309,11 +312,10 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         ActionListener<AcknowledgedResponse> listener
     ) {
         logger.info("[{}] snapshot retention deleting snapshot [{}]", repo, snapshot);
-        // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
-        client.admin()
-            .cluster()
-            .prepareDeleteSnapshot(TimeValue.MAX_VALUE, repo, snapshot.getName())
-            .execute(ActionListener.wrap(acknowledgedResponse -> {
+        client.execute(
+            TransportDeleteSnapshotAction.TYPE,
+            new DeleteSnapshotRequest(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT, repo, snapshot.getName()),
+            ActionListener.wrap(acknowledgedResponse -> {
                 slmStats.getAndUpdate(s -> s.withDeletedIncremented(slmPolicy));
                 listener.onResponse(acknowledgedResponse);
             }, e -> {
@@ -323,7 +325,8 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                 } finally {
                     listener.onFailure(e);
                 }
-            }));
+            })
+        );
     }
 
     void updateStateWithStats(SnapshotLifecycleStats newStats) {

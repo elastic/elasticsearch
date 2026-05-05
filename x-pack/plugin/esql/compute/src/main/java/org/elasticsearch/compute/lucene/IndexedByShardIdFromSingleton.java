@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.lucene;
 
-import java.util.Collection;
 import java.util.List;
 
 /** A simple implementation when there's only a single value being used. */
@@ -33,8 +32,13 @@ public class IndexedByShardIdFromSingleton<T> implements IndexedByShardId<T> {
     }
 
     @Override
-    public Collection<? extends T> collection() {
+    public Iterable<? extends T> iterable() {
         return List.of(value);
+    }
+
+    @Override
+    public int size() {
+        return 1;
     }
 
     @Override

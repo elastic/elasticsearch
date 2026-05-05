@@ -9,21 +9,31 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.eirf.EirfBatch;
+import org.elasticsearch.eirf.EirfRowBuilder;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberTypeOutOfRangeSpec;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.ShardBatchMapper;
+import org.elasticsearch.index.mapper.ShardBatchMapper.BatchMapperResolution;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.WholeNumberFieldMapperTests;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
@@ -34,6 +44,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -43,12 +54,21 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new UnsignedLongMapperPlugin());
+    }
+
+    @Override
+    protected FieldMapper.DocValuesParameter.Values getDocValuesParameters(MapperService mapperService) {
+        UnsignedLongFieldMapper mapper = (UnsignedLongFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        return mapper.docValuesParameters();
     }
 
     @Override
@@ -72,6 +92,8 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
+        registerDimensionChecks(checker);
+        checker.registerConflictCheck("time_series_metric", b -> b.field("time_series_metric", "gauge"));
     }
 
     public void testDefaults() throws Exception {
@@ -445,10 +467,15 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
                 .map(Value::output)
                 .sorted()
                 .toList();
-            Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+            // Malformed values are stored as BytesRef with a type-prefix byte and sorted lexicographically.
+            List<Object> malformedOutput = values.stream()
+                .filter(v -> v.malformedOutput != null)
+                .map(Value::malformedOutput)
+                .sorted(Comparator.comparing(Object::toString))
+                .toList();
 
             // Malformed values are always last in the implementation.
-            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
+            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput.stream()).toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
 
             return new SyntheticSourceExample(in, out, this::mapping);
@@ -510,5 +537,102 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+    }
+
+    public void testSupportsBatchIndexingHappyPath() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "unsigned_long")));
+        FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertTrue(mapper.supportsBatchIndexing());
+    }
+
+    public void testSupportsBatchIndexingWithIgnoreMalformed() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "unsigned_long").field("ignore_malformed", true))
+        );
+        FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertTrue(mapper.supportsBatchIndexing());
+    }
+
+    public void testSupportsBatchIndexingFalseWithMetric() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "unsigned_long").field("time_series_metric", "gauge"))
+        );
+        FieldMapper mapper = (FieldMapper) mapperService.mappingLookup().getMapper("field");
+        assertFalse(mapper.supportsBatchIndexing());
+    }
+
+    public void testBatchResolveHappyPath() throws IOException {
+        MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "unsigned_long")));
+        try (EirfBatch batch = singleStringRowBatch("field", "1")) {
+            BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), ms.mappingLookup());
+            assertNotNull(resolution);
+            assertEquals(1, resolution.columnMappers().length);
+            assertThat(resolution.columnMappers()[0], instanceOf(UnsignedLongFieldMapper.class));
+        }
+    }
+
+    public void testBatchResolveFallsBackWithMetric() throws IOException {
+        MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "unsigned_long").field("time_series_metric", "gauge")));
+        try (EirfBatch batch = singleStringRowBatch("field", "1")) {
+            assertNull(ShardBatchMapper.resolveMappers(batch.schema(), ms.mappingLookup()));
+        }
+    }
+
+    public void testBatchParseEncodesValue() throws IOException {
+        // Max unsigned long string → encoded as Long.MAX_VALUE in the sortable signed-long form
+        // used by doc values; max signed long → encoded as -1.
+        MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "unsigned_long")));
+        BulkItemRequest[] items = {
+            new BulkItemRequest(0, new IndexRequest("idx").id("1")),
+            new BulkItemRequest(1, new IndexRequest("idx").id("2")) };
+        try (EirfRowBuilder builder = new EirfRowBuilder()) {
+            builder.startDocument();
+            builder.setString("field", "18446744073709551615"); // 2^64 - 1
+            builder.endDocument();
+            builder.startDocument();
+            builder.setString("field", "9223372036854775807"); // 2^63 - 1
+            builder.endDocument();
+            try (EirfBatch batch = builder.build()) {
+                List<Engine.Index> ops = parseBatch(ms, batch, items);
+                assertThat(ops.get(0).parsedDoc().rootDoc().getField("field").numericValue().longValue(), equalTo(Long.MAX_VALUE));
+                assertThat(ops.get(1).parsedDoc().rootDoc().getField("field").numericValue().longValue(), equalTo(-1L));
+            }
+        }
+    }
+
+    public void testBatchParseIgnoreMalformed() throws IOException {
+        MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "unsigned_long").field("ignore_malformed", true)));
+        BulkItemRequest[] items = { new BulkItemRequest(0, new IndexRequest("idx").id("1")) };
+        try (EirfBatch batch = singleStringRowBatch("field", "not-a-number")) {
+            List<Engine.Index> ops = parseBatch(ms, batch, items);
+            LuceneDocument doc = ops.get(0).parsedDoc().rootDoc();
+            assertThat(doc.getFields("field"), empty());
+            assertTrue(
+                "ignore_malformed should record the field name in _ignored",
+                doc.getFields("_ignored").stream().anyMatch(f -> "field".equals(f.stringValue()))
+            );
+        }
+    }
+
+    private static EirfBatch singleStringRowBatch(String field, String value) {
+        try (EirfRowBuilder builder = new EirfRowBuilder()) {
+            builder.startDocument();
+            builder.setString(field, value);
+            builder.endDocument();
+            return builder.build();
+        }
+    }
+
+    private static List<Engine.Index> parseBatch(MapperService ms, EirfBatch batch, BulkItemRequest[] items) throws IOException {
+        BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(batch.schema(), ms.mappingLookup());
+        assertNotNull("expected batch path to support this mapping", resolution);
+        IndexShard primary = mock(IndexShard.class);
+        when(primary.mapperService()).thenReturn(ms);
+        when(primary.getOperationPrimaryTerm()).thenReturn(1L);
+        when(primary.getRelativeTimeInNanos()).thenReturn(0L);
+        List<Engine.Index> ops = ShardBatchMapper.parseMappings(items, batch, primary, items.length, 0, resolution);
+        assertNotNull("parseMappings returned null (fallback signal)", ops);
+        assertThat(ops, hasSize(items.length));
+        return ops;
     }
 }

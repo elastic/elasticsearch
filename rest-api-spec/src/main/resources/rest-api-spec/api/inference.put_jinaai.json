@@ -26,6 +26,7 @@
               "type": "enum",
               "description": "The task type",
               "options": [
+                "embedding",
                 "rerank",
                 "text_embedding"
               ]

@@ -28,6 +28,7 @@ module org.elasticsearch.xcore {
     requires org.slf4j;
     requires com.ibm.icu;
     requires org.elasticsearch.exponentialhistogram;
+    requires org.elasticsearch.logging;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;
@@ -46,8 +47,9 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.action.util;
     exports org.elasticsearch.xpack.core.action;
     exports org.elasticsearch.xpack.core.aggregatemetric;
-    exports org.elasticsearch.xpack.core.analytics.action;
     exports org.elasticsearch.xpack.core.analytics;
+    exports org.elasticsearch.xpack.core.analytics.action;
+    exports org.elasticsearch.xpack.core.analytics.mapper;
     exports org.elasticsearch.xpack.core.api.filtering;
     exports org.elasticsearch.xpack.core.application;
     exports org.elasticsearch.xpack.core.archive;
@@ -56,12 +58,13 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ccr;
     exports org.elasticsearch.xpack.core.common.notifications;
     exports org.elasticsearch.xpack.core.common.search.aggregations;
-    exports org.elasticsearch.xpack.core.common.socket;
+
     exports org.elasticsearch.xpack.core.common.stats;
     exports org.elasticsearch.xpack.core.common.table;
     exports org.elasticsearch.xpack.core.common.time;
     exports org.elasticsearch.xpack.core.common.validation;
     exports org.elasticsearch.xpack.core.common;
+    exports org.elasticsearch.xpack.core.crossproject;
     exports org.elasticsearch.xpack.core.datastreams;
     exports org.elasticsearch.xpack.core.datatiers;
     exports org.elasticsearch.xpack.core.deprecation;
@@ -73,12 +76,14 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.esql.action;
     exports org.elasticsearch.xpack.core.exponentialhistogram.fielddata;
     exports org.elasticsearch.xpack.core.frozen;
+    exports org.elasticsearch.xpack.core.gpu;
     exports org.elasticsearch.xpack.core.graph.action;
     exports org.elasticsearch.xpack.core.graph;
     exports org.elasticsearch.xpack.core.ilm.action;
     exports org.elasticsearch.xpack.core.ilm.step.info;
     exports org.elasticsearch.xpack.core.ilm;
     exports org.elasticsearch.xpack.core.indexing;
+    exports org.elasticsearch.xpack.core.crypto;
     exports org.elasticsearch.xpack.core.inference.action;
     exports org.elasticsearch.xpack.core.inference.results;
     exports org.elasticsearch.xpack.core.inference.usage;

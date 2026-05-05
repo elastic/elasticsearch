@@ -16,7 +16,7 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.Options;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.zone.ZoneRulesException;
 import java.util.ArrayList;
@@ -59,6 +61,9 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
         "DateParse",
         DateParse::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(DateParse.class)
+        .ternaryConfig(DateParse::new)
+        .name("date_parse");
 
     private static final String TIME_ZONE_PARAM_NAME = "time_zone";
     private static final String LOCALE_PARAM_NAME = "locale";
@@ -232,7 +237,11 @@ public class DateParse extends EsqlConfigurationFunction implements TwoOptionalA
     }
 
     private static long parse(String date, DateFormatter formatter, ZoneId zoneId, Locale locale) {
-        return DateFormatters.from(formatter.parse(date), locale, zoneId).toInstant().toEpochMilli();
+        try {
+            return DateFormatters.from(formatter.parse(date), locale, zoneId).toInstant().toEpochMilli();
+        } catch (DateTimeException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
+        }
     }
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(

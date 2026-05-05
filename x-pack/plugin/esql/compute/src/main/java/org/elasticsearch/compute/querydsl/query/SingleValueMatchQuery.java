@@ -18,6 +18,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -39,6 +40,8 @@ import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.index.fielddata.SortedBinaryDocValues.ValueMode;
 
 /**
  * Finds all fields with a single-value. If a field has a multi-value, it emits
@@ -121,6 +124,11 @@ public final class SingleValueMatchQuery extends Query {
                     if (DocValues.unwrapSingleton(o.getOrdinalsValues()) != null) {
                         return true;
                     }
+                } else {
+                    var sortedBinaryDocValues = lfd.getBytesValues();
+                    if (sortedBinaryDocValues.getValueMode() == ValueMode.SINGLE_VALUED) {
+                        return true;
+                    }
                 }
                 // don't cache so we can emit warnings
                 return false;
@@ -148,7 +156,8 @@ public final class SingleValueMatchQuery extends Query {
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                var approximationIterator = getApproximationIterator(context.reader(), fieldData.getFieldName(), maxDoc);
+                return new PredicateScorerSupplier(boost, scoreMode, approximationIterator, MULTI_VALUE_MATCH_COST, predicate);
             }
 
             private ScorerSupplier scorerSupplier(
@@ -173,7 +182,8 @@ public final class SingleValueMatchQuery extends Query {
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                var approximationIterator = getApproximationIterator(context.reader(), fieldData.getFieldName(), maxDoc);
+                return new PredicateScorerSupplier(boost, scoreMode, approximationIterator, MULTI_VALUE_MATCH_COST, predicate);
             }
 
             private ScorerSupplier scorerSupplier(
@@ -181,13 +191,15 @@ public final class SingleValueMatchQuery extends Query {
                 SortedBinaryDocValues sortedBinaryDocValues,
                 float boost,
                 ScoreMode scoreMode
-            ) {
+            ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                if (FieldData.unwrapSingleton(sortedBinaryDocValues) != null) {
+                var approximationIterator = getApproximationIterator(context.reader(), fieldData.getFieldName(), maxDoc);
+                if (FieldData.unwrapSingleton(sortedBinaryDocValues) != null
+                    || sortedBinaryDocValues.getValueMode() == ValueMode.SINGLE_VALUED) {
                     return new PredicateScorerSupplier(
                         boost,
                         scoreMode,
-                        maxDoc,
+                        approximationIterator,
                         MULTI_VALUE_MATCH_COST,
                         sortedBinaryDocValues::advanceExact
                     );
@@ -202,7 +214,7 @@ public final class SingleValueMatchQuery extends Query {
                     }
                     return true;
                 };
-                return new PredicateScorerSupplier(boost, scoreMode, maxDoc, MULTI_VALUE_MATCH_COST, predicate);
+                return new PredicateScorerSupplier(boost, scoreMode, approximationIterator, MULTI_VALUE_MATCH_COST, predicate);
             }
         };
     }
@@ -217,7 +229,7 @@ public final class SingleValueMatchQuery extends Query {
             final int maxDoc = reader.maxDoc();
             final LeafFieldData lfd = fieldData.load(context);
             if (lfd instanceof LeafNumericFieldData) {
-                NumericDocValues singleton = DocValues.unwrapSingleton(reader.getSortedNumericDocValues(fieldData.getFieldName()));
+                NumericDocValues singleton = DocValues.unwrapSingleton(DocValues.getSortedNumeric(reader, fieldData.getFieldName()));
                 if (singleton != null) {
                     singleton.nextDoc();
                     if (singleton.docIDRunEnd() == maxDoc) {
@@ -231,7 +243,7 @@ public final class SingleValueMatchQuery extends Query {
                 }
                 return super.rewrite(indexSearcher);
             } else if (lfd instanceof LeafOrdinalsFieldData) {
-                SortedDocValues singleton = DocValues.unwrapSingleton(reader.getSortedSetDocValues(fieldData.getFieldName()));
+                SortedDocValues singleton = DocValues.unwrapSingleton(DocValues.getSortedSet(reader, fieldData.getFieldName()));
                 if (singleton != null) {
                     singleton.nextDoc();
                     if (singleton.docIDRunEnd() == maxDoc) {
@@ -245,6 +257,11 @@ public final class SingleValueMatchQuery extends Query {
                 }
                 return super.rewrite(indexSearcher);
             } else {
+                var sortedBinaryDocValues = lfd.getBytesValues();
+                if (sortedBinaryDocValues.getValueMode() == ValueMode.SINGLE_VALUED
+                    && sortedBinaryDocValues.getSparsity() == SortedBinaryDocValues.Sparsity.DENSE) {
+                    continue;
+                }
                 return super.rewrite(indexSearcher);
             }
         }
@@ -302,24 +319,39 @@ public final class SingleValueMatchQuery extends Query {
         warnings.registerException(IllegalArgumentException.class, multiValueExceptionMessage);
     }
 
+    static DocIdSetIterator getApproximationIterator(LeafReader reader, String fieldName, int maxDoc) throws IOException {
+        var iterator = FieldExistsQuery.getDocValuesDocIdSetIterator(fieldName, reader);
+        if (iterator != null) {
+            return iterator;
+        } else {
+            return DocIdSetIterator.all(maxDoc);
+        }
+    }
+
     private static class PredicateScorerSupplier extends ScorerSupplier {
         private final float score;
         private final ScoreMode scoreMode;
-        private final int maxDoc;
         private final int matchCost;
         private final CheckedIntPredicate predicate;
+        private final DocIdSetIterator approximation;
 
-        private PredicateScorerSupplier(float score, ScoreMode scoreMode, int maxDoc, int matchCost, CheckedIntPredicate predicate) {
+        private PredicateScorerSupplier(
+            float score,
+            ScoreMode scoreMode,
+            DocIdSetIterator approximation,
+            int matchCost,
+            CheckedIntPredicate predicate
+        ) {
             this.score = score;
             this.scoreMode = scoreMode;
-            this.maxDoc = maxDoc;
             this.matchCost = matchCost;
             this.predicate = predicate;
+            this.approximation = approximation;
         }
 
         @Override
         public Scorer get(long leadCost) {
-            TwoPhaseIterator iterator = new TwoPhaseIterator(DocIdSetIterator.all(maxDoc)) {
+            TwoPhaseIterator iterator = new TwoPhaseIterator(approximation) {
                 @Override
                 public boolean matches() throws IOException {
                     return predicate.test(approximation.docID());
@@ -335,7 +367,7 @@ public final class SingleValueMatchQuery extends Query {
 
         @Override
         public long cost() {
-            return maxDoc;
+            return approximation.cost();
         }
     }
 

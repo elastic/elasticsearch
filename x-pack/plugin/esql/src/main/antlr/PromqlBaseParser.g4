@@ -150,6 +150,7 @@ timeValue
     : TIME_VALUE_WITH_COLON
     | TIME_VALUE
     | number
+    | NAMED_OR_POSITIONAL_PARAM
     ;
 
 // declared tokens that can be used without special escaping

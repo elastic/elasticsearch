@@ -24,14 +24,17 @@
     "params": {
       "names": {
         "type": "list",
+        "default": [],
         "description": "A comma-separated list of node names to prevalidate"
       },
       "ids": {
         "type": "list",
+        "default": [],
         "description": "A comma-separated list of node IDs to prevalidate"
       },
       "external_ids": {
         "type": "list",
+        "default": [],
         "description": "A comma-separated list of node external IDs to prevalidate"
       },
       "master_timeout": {
@@ -41,6 +44,7 @@
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       }
     }

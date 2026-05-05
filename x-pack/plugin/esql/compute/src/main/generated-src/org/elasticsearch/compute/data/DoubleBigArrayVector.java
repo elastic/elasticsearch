@@ -64,6 +64,25 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
     }
 
     @Override
+    public DoubleVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (DoubleVector.FixedBuilder builder = blockFactory().newDoubleVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendDouble(getDouble(i));
+            }
+            return builder.build();
+        }
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return Double.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.DOUBLE;
     }
@@ -79,7 +98,7 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
     }
 
     @Override
-    public DoubleVector filter(int... positions) {
+    public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
         var blockFactory = blockFactory();
         final DoubleArray filtered = blockFactory.bigArrays().newDoubleArray(positions.length);
         for (int i = 0; i < positions.length; i++) {

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.telemetry.InferenceStats;
@@ -21,7 +20,10 @@ import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 
+import java.util.Arrays;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
@@ -34,6 +36,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportEmbeddingActionTests extends BaseTransportInferenceActionTestCase<EmbeddingAction.Request> {
+
+    private static final Set<TaskType> NON_EMBEDDING_MODEL_TASK_TYPES = Arrays.stream(TaskType.values())
+        .filter(t -> t.isAnyOrSame(TaskType.EMBEDDING) == false)
+        .collect(Collectors.toSet());
 
     public TransportEmbeddingActionTests() {
         super(TaskType.EMBEDDING);
@@ -48,7 +54,6 @@ public class TransportEmbeddingActionTests extends BaseTransportInferenceActionT
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        NodeClient nodeClient,
         ThreadPool threadPool
     ) {
         return new TransportEmbeddingAction(
@@ -59,7 +64,6 @@ public class TransportEmbeddingActionTests extends BaseTransportInferenceActionT
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,
-            nodeClient,
             threadPool
         );
     }
@@ -70,8 +74,8 @@ public class TransportEmbeddingActionTests extends BaseTransportInferenceActionT
     }
 
     public void testThrowsIncompatibleTaskTypeException_whenUsingNonEmbeddingInferenceEndpoint() {
-        var modelTaskType = randomValueOtherThan(TaskType.EMBEDDING, () -> randomFrom(TaskType.values()));
-        var requestTaskType = modelTaskType;
+        var modelTaskType = randomFrom(NON_EMBEDDING_MODEL_TASK_TYPES);
+        var requestTaskType = TaskType.ANY;  // Use ANY to satisfy model task type equality checks
         mockInferenceEndpointRegistry(modelTaskType);
         when(serviceRegistry.getService(any())).thenReturn(Optional.of(mock()));
 
@@ -81,7 +85,13 @@ public class TransportEmbeddingActionTests extends BaseTransportInferenceActionT
             assertThat(e, isA(ElasticsearchStatusException.class));
             assertThat(
                 e.getMessage(),
-                is("Incompatible task_type for embedding API, the requested type [" + requestTaskType + "] must be one of [embedding]")
+                is(
+                    "Incompatible task_type for embedding API, the inference endpoint ["
+                        + inferenceId
+                        + "] has task type ["
+                        + modelTaskType.toString()
+                        + "], expected [embedding]"
+                )
             );
             assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
@@ -94,9 +104,9 @@ public class TransportEmbeddingActionTests extends BaseTransportInferenceActionT
         }));
     }
 
-    public void testThrowsIncompatibleTaskTypeException_whenModelTaskTypeIsAny_andRequestTaskTypeIsUnsupported() {
-        var modelTaskType = TaskType.ANY;
-        var requestTaskType = randomValueOtherThan(TaskType.EMBEDDING, () -> randomFrom(TaskType.values()));
+    public void testThrowsIncompatibleTaskTypeException_whenRequestTaskTypeIsUnsupported() {
+        var modelTaskType = TaskType.EMBEDDING;
+        var requestTaskType = randomFrom(NON_EMBEDDING_MODEL_TASK_TYPES);
         mockInferenceEndpointRegistry(modelTaskType);
         when(serviceRegistry.getService(any())).thenReturn(Optional.of(mock()));
 
@@ -106,7 +116,7 @@ public class TransportEmbeddingActionTests extends BaseTransportInferenceActionT
             assertThat(e, isA(ElasticsearchStatusException.class));
             assertThat(
                 e.getMessage(),
-                is("Incompatible task_type for embedding API, the requested type [" + requestTaskType + "] must be one of [embedding]")
+                is("Incompatible task_type, the requested type [" + requestTaskType + "] does not match the model type [embedding]")
             );
             assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.BAD_REQUEST));
         }));

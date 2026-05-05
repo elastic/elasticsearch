@@ -33,7 +33,7 @@ import static org.elasticsearch.xcontent.ObjectParser.fromList;
 /**
  * A query that will return only documents matching specific ids (and a type).
  */
-public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
+public class IdsQueryBuilder extends LeafQueryBuilder<IdsQueryBuilder> {
 
     public static final String NAME = "ids";
     private static final ParseField VALUES_FIELD = new ParseField("values");
@@ -125,6 +125,11 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        if (ids.size() > context.indexSettings.getMaxResultWindow()) {
+            throw new IllegalStateException(
+                "Too many ids specified, allowed max result window is [" + context.indexSettings.getMaxResultWindow() + "]"
+            );
+        }
         MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
         if (idField == null || ids.isEmpty()) {
             throw new IllegalStateException("Rewrite first");

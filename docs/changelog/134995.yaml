@@ -1,0 +1,14 @@
+pr: 134995
+summary: ES|QL Views support
+area: ES|QL
+type: feature
+issues: []
+highlight:
+  title: "ES|QL Views support"
+  notable: true
+  body: |-
+    ES|QL now supports Views: virtual indices whose fields are produced by an ES|QL query.
+    A view is referenced inside a `FROM` clause exactly like a regular index, alongside other indices, views, and wildcards.
+    Complex processing pipelines can be hidden behind a view, exposing a stable set of columns without requiring callers to know the underlying source structure.
+    A single query can combine multiple pre-processed data sources by listing several views in one `FROM` clause, with each view's pipeline running independently.
+    Common transformations such as renames, type conversions, derived fields, and aggregations can be defined once in a view and reused across many queries, dashboards, and alerts.

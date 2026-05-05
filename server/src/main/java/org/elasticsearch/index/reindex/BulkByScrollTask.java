@@ -10,6 +10,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -33,8 +35,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
@@ -43,23 +47,41 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
 /**
  * Task storing information about a currently running BulkByScroll request.
  *
- * When the request is not sliced, this task is the only task created, and starts an action to perform search requests.
+ * <p>When the request is not sliced, this task is the only task created, and starts an action to perform search requests.
  *
- * When the request is sliced, this task can either represent a coordinating task (using
- * {@link BulkByScrollTask#setWorkerCount(int)}) or a worker task that performs search queries (using
+ * <p>When the request is sliced, this task can either represent a coordinating task (using
+ * {@link BulkByScrollTask#setWorkerCount(int, float)}) or a worker task that performs search queries (using
  * {@link BulkByScrollTask#setWorker(float, Integer)}).
  *
- * We don't always know if this task will be a leader or worker task when it's created, because if slices is set to "auto" it may
+ * <p>We don't always know if this task will be a leader or worker task when it's created, because if slices is set to "auto" it may
  * be either depending on the number of shards in the source indices. We figure that out when the request is handled and set it on this
- * class with {@link #setWorkerCount(int)} or {@link #setWorker(float, Integer)}.
+ * class with {@link #setWorkerCount(int, float)} or {@link #setWorker(float, Integer)}.
  */
 public class BulkByScrollTask extends CancellableTask {
 
+    private final boolean eligibleForRelocationOnShutdown;
+    private final boolean relocatedTask;
+    // if task is a slice, RelocationOrigin won't be correct because it won't be the leader here, but it's overridden in the leader state
+    private final ResumeInfo.RelocationOrigin relocationOrigin;
+    private final RelocationProgress relocationProgress = new RelocationProgress();
     private volatile LeaderBulkByScrollTaskState leaderState;
     private volatile WorkerBulkByScrollTaskState workerState;
+    private volatile boolean relocationRequested = false;
 
-    public BulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
-        super(id, type, action, description, parentTaskId, headers);
+    public BulkByScrollTask(
+        TaskId taskId,
+        String type,
+        String action,
+        String description,
+        TaskId parentTaskId,
+        Map<String, String> headers,
+        boolean eligibleForRelocationOnShutdown,
+        @Nullable ResumeInfo.RelocationOrigin relocationOrigin
+    ) {
+        super(taskId.getId(), type, action, description, parentTaskId, headers);
+        this.eligibleForRelocationOnShutdown = eligibleForRelocationOnShutdown;
+        this.relocatedTask = relocationOrigin != null;
+        this.relocationOrigin = relocationOrigin != null ? relocationOrigin : new ResumeInfo.RelocationOrigin(taskId, this.startTime);
     }
 
     @Override
@@ -96,7 +118,7 @@ public class BulkByScrollTask extends CancellableTask {
     }
 
     private BulkByScrollTask.Status emptyStatus() {
-        return new Status(Collections.emptyList(), getReasonCancelled());
+        return new Status(Collections.emptyList(), getReasonCancelled(), 0f);
     }
 
     /**
@@ -108,8 +130,9 @@ public class BulkByScrollTask extends CancellableTask {
 
     /**
      * Sets this task to be a leader task for {@code slices} sliced subtasks
+     * @param requestsPerSecond the initial total RPS for the leader, tracked in leader as source-of-truth RPS for relocation
      */
-    public void setWorkerCount(int slices) {
+    public void setWorkerCount(int slices, float requestsPerSecond) {
         if (isLeader()) {
             throw new IllegalStateException("This task is already a leader for other slice subtasks");
         }
@@ -117,7 +140,7 @@ public class BulkByScrollTask extends CancellableTask {
             throw new IllegalStateException("This task is already a worker");
         }
 
-        leaderState = new LeaderBulkByScrollTaskState(this, slices);
+        leaderState = new LeaderBulkByScrollTaskState(this, slices, requestsPerSecond);
     }
 
     /**
@@ -168,6 +191,19 @@ public class BulkByScrollTask extends CancellableTask {
         return workerState;
     }
 
+    /// Claims cancellation on the task's [RelocationProgress]. Throws [ElasticsearchStatusException] with
+    /// [RestStatus#SERVICE_UNAVAILABLE] if the relocation handoff has already committed, since cancelling the
+    /// source at that point would leave the resumed task on the destination unaware.
+    @Override
+    public void ensureCancellable() {
+        if (relocationProgress.tryPrepareCancellation() == false) {
+            throw new ElasticsearchStatusException(
+                "cannot cancel task [" + getId() + "] because it is being relocated",
+                RestStatus.SERVICE_UNAVAILABLE
+            );
+        }
+    }
+
     @Override
     public void onCancelled() {
         /*
@@ -178,6 +214,131 @@ public class BulkByScrollTask extends CancellableTask {
          */
         if (isWorker()) {
             workerState.handleCancel();
+        }
+    }
+
+    /**
+     * Returns whether we should attempt to relocate this task to another node when the current node is preparing to shut down.
+     */
+    public boolean isEligibleForRelocationOnShutdown() {
+        return eligibleForRelocationOnShutdown;
+    }
+
+    /**
+     * Marks this task as requiring relocation to another node, e.g. because this node is about to shut down.
+     *
+     * <p>This method is fire-and-forget and does not guarantee that relocation actually happens. (That can depend on various factors, such
+     * as whether a suitable new node is available, and whether the task is able to get to an appropriate point to stop work and trigger the
+     * relocation in time.)
+     *
+     * <p>This should only be called on tasks where {@link #isEligibleForRelocationOnShutdown() returns true}.
+     */
+    public void requestRelocation() {
+        if (eligibleForRelocationOnShutdown == false) {
+            throw new IllegalStateException("Called requestRelocation when eligibleForRelocationOnShutdown is false");
+        }
+        relocationRequested = true;
+    }
+
+    /**
+     * Returns whether this task has been marked as requiring relocation to another node. See {@link #requestRelocation()}.
+     */
+    public boolean isRelocationRequested() {
+        return relocationRequested;
+    }
+
+    /**
+     * Claims the relocation handoff on the task's {@link RelocationProgress}. Returns {@code false} if a concurrent
+     * cancellation has won the race; callers must then abort the handoff. See {@link RelocationProgress#tryInitiateHandoff}.
+     */
+    public boolean tryInitiateRelocationHandoff() {
+        return relocationProgress.tryInitiateHandoff();
+    }
+
+    /** Returns the task's relocation state machine. Visible for tests and diagnostics. */
+    protected RelocationProgress getRelocationProgress() {
+        return relocationProgress;
+    }
+
+    /**
+     * Once the handoff has committed, the destination may have already stored the task result, so the source must
+     * use create-if-absent semantics to avoid overwriting it.
+     */
+    @Override
+    public boolean useCreateSemanticsForResultStorage() {
+        return isRelocationHandoffInitiated();
+    }
+
+    /** Returns {@code true} if the relocation handoff has committed on this task. */
+    public boolean isRelocationHandoffInitiated() {
+        return relocationProgress.current() == RelocationProgress.State.HANDOFF_INITIATED;
+    }
+
+    /** Returns the relocation origin if this task is a relocated continuation. */
+    public ResumeInfo.RelocationOrigin relocationOrigin() {
+        return relocationOrigin;
+    }
+
+    /** Returns true if this task was created via relocation from another node. */
+    public boolean isRelocatedTask() {
+        return relocatedTask;
+    }
+
+    @Override
+    protected Optional<OriginalTaskInfo> getOriginalTaskInfo() {
+        if (relocatedTask && getParentTaskId().isSet() == false) { // children have no OriginalTaskInfo
+            return Optional.of(new OriginalTaskInfo(relocationOrigin.originalTaskId(), relocationOrigin.originalStartTimeMillis()));
+        } else {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Tracks the relocation progress of this task, essentially a state machine to coordinate the relocation with
+     * other operations.
+     *
+     * For example: cancellation must be mutually exclusive with relocation, committing both sides can leave the source
+     * cancelled while the destination unknowingly runs the resumed task.
+     */
+    public static final class RelocationProgress {
+
+        /** The three possible states. {@link #NOT_STARTED} is the initial state; the other two are terminal. */
+        public enum State {
+            /** Initial state; neither relocation handoff nor cancellation has claimed the task. */
+            NOT_STARTED,
+            /** The resume request has been sent to the destination; the task must not be cancelled on the source. */
+            HANDOFF_INITIATED,
+            /** The task is being cancelled on this node; relocation handoff must not proceed. */
+            TASK_CANCELLED
+        }
+
+        private final AtomicReference<State> state = new AtomicReference<>(State.NOT_STARTED);
+
+        /** Returns the current state. */
+        public State current() {
+            return state.get();
+        }
+
+        /**
+         * CAS the state into {@link State#HANDOFF_INITIATED} so relocation may proceed. Returns {@code false} only
+         * if a concurrent cancellation has already won the race. Idempotent across repeated calls on the same side.
+         */
+        public boolean tryInitiateHandoff() {
+            if (state.compareAndSet(State.NOT_STARTED, State.HANDOFF_INITIATED)) {
+                return true;
+            }
+            return state.get() != State.TASK_CANCELLED;
+        }
+
+        /**
+         * CAS the state into {@link State#TASK_CANCELLED} so cancellation may proceed. Returns {@code false} only
+         * if a concurrent relocation handoff has already committed. Idempotent across repeated calls on the same side.
+         */
+        public boolean tryPrepareCancellation() {
+            if (state.compareAndSet(State.NOT_STARTED, State.TASK_CANCELLED)) {
+                return true;
+            }
+            return state.get() != State.HANDOFF_INITIATED;
         }
     }
 
@@ -306,7 +467,7 @@ public class BulkByScrollTask extends CancellableTask {
                     throw new IllegalArgumentException("a required field is null when building Status");
                 }
             } else {
-                return new Status(sliceStatuses, reasonCancelled);
+                return new Status(sliceStatuses, reasonCancelled, requestsPerSecond);
             }
         }
     }
@@ -424,13 +585,10 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         /**
-         * Constructor merging many statuses.
-         *
-         * @param sliceStatuses Statuses of sub requests that this task was sliced into.
-         * @param reasonCancelled Reason that this *this* task was cancelled. Note that each entry in {@code sliceStatuses} can be cancelled
-         *        independently of this task but if this task is cancelled then the workers *should* be cancelled.
+         * Constructor merging many statuses. The caller provides the authoritative requestsPerSecond rather than
+         * summing from children, which can be stale after rethrottle with completed slices.
          */
-        public Status(List<StatusOrException> sliceStatuses, @Nullable String reasonCancelled) {
+        public Status(List<StatusOrException> sliceStatuses, @Nullable String reasonCancelled, float requestsPerSecond) {
             sliceId = null;
             this.reasonCancelled = reasonCancelled;
 
@@ -444,7 +602,6 @@ public class BulkByScrollTask extends CancellableTask {
             long mergedBulkRetries = 0;
             long mergedSearchRetries = 0;
             long mergedThrottled = 0;
-            float mergedRequestsPerSecond = 0;
             long mergedThrottledUntil = Long.MAX_VALUE;
 
             for (StatusOrException slice : sliceStatuses) {
@@ -466,7 +623,6 @@ public class BulkByScrollTask extends CancellableTask {
                 mergedBulkRetries += slice.status.getBulkRetries();
                 mergedSearchRetries += slice.status.getSearchRetries();
                 mergedThrottled += slice.status.getThrottled().nanos();
-                mergedRequestsPerSecond += slice.status.getRequestsPerSecond();
                 mergedThrottledUntil = min(mergedThrottledUntil, slice.status.getThrottledUntil().nanos());
             }
 
@@ -480,7 +636,7 @@ public class BulkByScrollTask extends CancellableTask {
             bulkRetries = mergedBulkRetries;
             searchRetries = mergedSearchRetries;
             throttled = timeValueNanos(mergedThrottled);
-            requestsPerSecond = mergedRequestsPerSecond;
+            this.requestsPerSecond = requestsPerSecond;
             throttledUntil = timeValueNanos(mergedThrottledUntil == Long.MAX_VALUE ? 0 : mergedThrottledUntil);
             this.sliceStatuses = sliceStatuses;
         }

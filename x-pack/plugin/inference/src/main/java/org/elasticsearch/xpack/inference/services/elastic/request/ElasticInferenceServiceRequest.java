@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.inference.services.elastic.request;
 
 import org.apache.http.client.methods.HttpRequestBase;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 
 import java.util.Objects;
@@ -21,7 +22,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_ES_VERSION;
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 
-public abstract class ElasticInferenceServiceRequest implements Request {
+public abstract class ElasticInferenceServiceRequest implements OutboundRequest {
 
     private final ElasticInferenceServiceRequestMetadata metadata;
     protected final CCMAuthenticationApplierFactory.AuthApplier authApplier;
@@ -39,7 +40,7 @@ public abstract class ElasticInferenceServiceRequest implements Request {
     }
 
     @Override
-    public final HttpRequest createHttpRequest() {
+    public final void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpRequestBase request = createHttpRequestBase();
         // TODO: consider moving tracing here, too
 
@@ -61,7 +62,7 @@ public abstract class ElasticInferenceServiceRequest implements Request {
 
         request = authApplier.apply(request);
 
-        return new HttpRequest(request, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(request, getInferenceEntityId()));
     }
 
     protected abstract HttpRequestBase createHttpRequestBase();

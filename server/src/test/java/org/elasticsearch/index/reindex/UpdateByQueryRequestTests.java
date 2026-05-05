@@ -9,12 +9,19 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCase<UpdateByQueryRequest> {
     public void testUpdateByQueryRequestImplementsIndicesRequestReplaceable() {
@@ -48,6 +55,21 @@ public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
         for (int i = 0; i < numNewIndices; i++) {
             assertEquals(newIndices[i], request.getSearchRequest().indices()[i]);
         }
+    }
+
+    public void testValidateGivenRemoteIndex() {
+        SearchRequest searchRequest = new SearchRequest();
+        UpdateByQueryRequest updateByQueryRequest = new UpdateByQueryRequest(searchRequest);
+        updateByQueryRequest.indices("remote:index");
+        searchRequest.source().query(QueryBuilders.matchAllQuery());
+
+        ActionRequestValidationException e = updateByQueryRequest.validate();
+
+        assertThat(e, is(not(nullValue())));
+        assertThat(
+            e.getMessage(),
+            containsString("Cross-cluster calls are not supported in this context but remote indices were requested")
+        );
     }
 
     @Override

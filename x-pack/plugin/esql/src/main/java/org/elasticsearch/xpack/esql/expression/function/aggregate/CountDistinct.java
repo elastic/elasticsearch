@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -53,6 +54,9 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         "CountDistinct",
         CountDistinct::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountDistinct.class)
+        .binary(CountDistinct::new)
+        .name("count_distinct");
 
     private static final Map<DataType, Function<Integer, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         // Booleans ignore the precision because there are only two possible values anyway
@@ -76,7 +80,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         returnType = "long",
         description = "Returns the approximate number of distinct values.",
         note = "[Counts are approximate](/reference/query-languages/esql/functions-operators/"
-            + "aggregation-functions.md#esql-agg-count-distinct-approximate).",
+            + "aggregation-functions/count_distinct.md#esql-agg-count-distinct-approximate).",
         appendix = """
             ### Counts are approximate [esql-agg-count-distinct-approximate]
 

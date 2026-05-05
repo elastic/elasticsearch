@@ -70,6 +70,7 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -139,12 +140,27 @@ final class TranslogDirectoryReader extends DirectoryReader {
     }
 
     @Override
+    protected DirectoryReader doOpenIfChanged(ExecutorService executorService) {
+        throw unsupported();
+    }
+
+    @Override
     protected DirectoryReader doOpenIfChanged(IndexCommit commit) {
         throw unsupported();
     }
 
     @Override
+    protected DirectoryReader doOpenIfChanged(IndexCommit commit, ExecutorService executorService) {
+        throw unsupported();
+    }
+
+    @Override
     protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) {
+        throw unsupported();
+    }
+
+    @Override
+    protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes, ExecutorService executorService) {
         throw unsupported();
     }
 

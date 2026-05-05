@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 145634
+summary: Add info into the profile of METRICS_INFO and TS_INFO
+type: enhancement

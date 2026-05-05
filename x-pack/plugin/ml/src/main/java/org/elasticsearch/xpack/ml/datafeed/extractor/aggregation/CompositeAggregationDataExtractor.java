@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
@@ -27,6 +28,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -57,6 +59,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     private volatile boolean isCancelled;
     private volatile long nextBucketOnCancel;
     private boolean hasNext;
+    private List<LinkedClusterState> lastLinkedClusterStates = List.of();
 
     CompositeAggregationDataExtractor(
         CompositeAggregationBuilder compositeAggregationBuilder,
@@ -112,9 +115,9 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             LOGGER.trace("[{}] extraction finished", context.jobId);
             hasNext = false;
             afterKey = null;
-            return new Result(searchInterval, Optional.empty());
+            return new Result(searchInterval, Optional.empty(), lastLinkedClusterStates);
         }
-        return new Result(searchInterval, Optional.of(processAggs(aggs)));
+        return new Result(searchInterval, Optional.of(processAggs(aggs)), lastLinkedClusterStates);
     }
 
     private InternalAggregations search() {
@@ -153,6 +156,10 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         try {
             LOGGER.trace("[{}] Search composite response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                lastLinkedClusterStates,
+                DataExtractorUtils.extractLinkedClusterStates(searchResponse)
+            );
             InternalAggregations aggregations = searchResponse.getAggregations();
             if (aggregations == null) {
                 return null;

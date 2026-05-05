@@ -176,3 +176,15 @@
       update_by_query:
         slices: 0
         index: test
+---
+"Remote indices are not allowed in update-by-query":
+  - do:
+      catch: bad_request
+      update_by_query:
+        index: "remote:test"
+        body:
+          query:
+            match_all: {}
+  - match: { status: 400 }
+  - match: { error.type: "action_request_validation_exception" }
+  - match: { error.reason: "Validation Failed: 1: Cross-cluster calls are not supported in this context but remote indices were requested: [remote:test];" }

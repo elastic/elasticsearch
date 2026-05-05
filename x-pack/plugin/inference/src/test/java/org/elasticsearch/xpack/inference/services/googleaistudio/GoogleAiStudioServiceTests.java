@@ -29,14 +29,16 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -87,7 +89,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -97,6 +98,10 @@ import static org.mockito.Mockito.when;
 public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
 
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String INFERENCE_ENTITY_ID_VALUE = "id";
+    private static final String MODEL_ID_VALUE = "model";
+    private static final String API_KEY_VALUE = "secret";
+    private static final String URL_VALUE = "url";
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
 
@@ -117,25 +122,22 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_CreatesAGoogleAiStudioCompletionModel() throws IOException {
-        var apiKey = "apiKey";
-        var modelId = "model";
-
         try (var service = createGoogleAiStudioService()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 
                 var completionModel = (GoogleAiStudioCompletionModel) model;
-                assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
-                assertThat(completionModel.getSecretSettings().apiKey().toString(), is(apiKey));
+                assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
+                assertThat(completionModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.COMPLETION,
                 getRequestConfigMap(
-                    new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                    new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
                     new HashMap<>(Map.of()),
-                    getSecretSettingsMap(apiKey)
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
             );
@@ -143,25 +145,22 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_CreatesAGoogleAiStudioEmbeddingsModel() throws IOException {
-        var apiKey = "apiKey";
-        var modelId = "model";
-
         try (var service = createGoogleAiStudioService()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
 
                 var embeddingsModel = (GoogleAiStudioEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(apiKey));
+                assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                    new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
                     new HashMap<>(Map.of()),
-                    getSecretSettingsMap(apiKey)
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
             );
@@ -169,27 +168,24 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_CreatesAGoogleAiStudioEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        var apiKey = "apiKey";
-        var modelId = "model";
-
         try (var service = createGoogleAiStudioService()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
 
                 var embeddingsModel = (GoogleAiStudioEmbeddingsModel) model;
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(apiKey));
+                assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                    new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
                     new HashMap<>(Map.of()),
                     createRandomChunkingSettingsMap(),
-                    getSecretSettingsMap(apiKey)
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
             );
@@ -197,26 +193,23 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_CreatesAGoogleAiStudioEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        var apiKey = "apiKey";
-        var modelId = "model";
-
         try (var service = createGoogleAiStudioService()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
 
                 var embeddingsModel = (GoogleAiStudioEmbeddingsModel) model;
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(apiKey));
+                assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                    new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
                     new HashMap<>(Map.of()),
-                    getSecretSettingsMap(apiKey)
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
             );
@@ -231,12 +224,12 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
             );
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ENTITY_ID_VALUE,
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
-                    new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model")),
+                    new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
                     new HashMap<>(Map.of()),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 failureListener
             );
@@ -246,9 +239,9 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createGoogleAiStudioService()) {
             var config = getRequestConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model")),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
                 getTaskSettingsMapEmpty(),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
             config.put("extra_key", "value");
 
@@ -256,13 +249,13 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, config, failureListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         try (var service = createGoogleAiStudioService()) {
-            Map<String, Object> serviceSettings = new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model"));
+            Map<String, Object> serviceSettings = new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE));
             serviceSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(serviceSettings, getTaskSettingsMapEmpty(), getSecretSettingsMap("api_key"));
@@ -271,7 +264,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, config, failureListener);
         }
     }
 
@@ -281,26 +274,26 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
             taskSettingsMap.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model")),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
                 taskSettingsMap,
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, config, failureListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap() throws IOException {
         try (var service = createGoogleAiStudioService()) {
-            Map<String, Object> secretSettings = getSecretSettingsMap("secret");
+            Map<String, Object> secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             secretSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model")),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
                 getTaskSettingsMapEmpty(),
                 secretSettings
             );
@@ -309,268 +302,284 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [googleaistudio] service"
             );
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, failureListener);
+            service.parseRequestConfig(INFERENCE_ENTITY_ID_VALUE, TaskType.COMPLETION, config, failureListener);
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAGoogleAiStudioCompletionModel() throws IOException {
-        var modelId = "model";
-        var apiKey = "apiKey";
-
+    public void testParsePersistedConfig_WithSecrets_CreatesAGoogleAiStudioCompletionModel() throws IOException {
         try (var service = createGoogleAiStudioService()) {
             var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
                 getTaskSettingsMapEmpty(),
-                getSecretSettingsMap(apiKey)
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.COMPLETION,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.COMPLETION,
+                    GoogleAiStudioService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 
             var completionModel = (GoogleAiStudioCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
             assertThat(completionModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-            assertThat(completionModel.getSecretSettings().apiKey().toString(), is(apiKey));
+            assertThat(completionModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAGoogleAiStudioEmbeddingsModel() throws IOException {
-        var modelId = "model";
-        var apiKey = "apiKey";
-
+    public void testParsePersistedConfig_WithSecrets_CreatesAGoogleAiStudioEmbeddingsModel() throws IOException {
         try (var service = createGoogleAiStudioService()) {
             var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
                 getTaskSettingsMapEmpty(),
-                getSecretSettingsMap(apiKey)
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    GoogleAiStudioService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
 
             var embeddingsModel = (GoogleAiStudioEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(apiKey));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAGoogleAiStudioEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        var modelId = "model";
-        var apiKey = "apiKey";
-
+    public void testParsePersistedConfig_WithSecrets_CreatesAGoogleAiStudioEmbeddingsModelWhenChunkingSettingsProvided()
+        throws IOException {
         try (var service = createGoogleAiStudioService()) {
             var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
                 getTaskSettingsMapEmpty(),
                 createRandomChunkingSettingsMap(),
-                getSecretSettingsMap(apiKey)
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
-
-            var embeddingsModel = (GoogleAiStudioEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-            assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), Matchers.instanceOf(ChunkingSettings.class));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(apiKey));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        var modelId = "model";
-        var apiKey = "apiKey";
-
-        try (var service = createGoogleAiStudioService()) {
-            var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
-                getTaskSettingsMapEmpty(),
-                getSecretSettingsMap(apiKey)
-            );
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    GoogleAiStudioService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
 
             var embeddingsModel = (GoogleAiStudioEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), Matchers.instanceOf(ChunkingSettings.class));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(apiKey));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
-        var modelId = "model";
-        var apiKey = "apiKey";
-
+    public void testParsePersistedConfig_WithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createGoogleAiStudioService()) {
             var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
                 getTaskSettingsMapEmpty(),
-                getSecretSettingsMap(apiKey)
+                getSecretSettingsMap(API_KEY_VALUE)
+            );
+
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    GoogleAiStudioService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
+            );
+
+            assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
+
+            var embeddingsModel = (GoogleAiStudioEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
+            assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), Matchers.instanceOf(ChunkingSettings.class));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+        }
+    }
+
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
+        try (var service = createGoogleAiStudioService()) {
+            var persistedConfig = getPersistedConfigMap(
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
+                getTaskSettingsMapEmpty(),
+                getSecretSettingsMap(API_KEY_VALUE)
             );
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.COMPLETION,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.COMPLETION,
+                    GoogleAiStudioService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 
             var completionModel = (GoogleAiStudioCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
             assertThat(completionModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-            assertThat(completionModel.getSecretSettings().apiKey(), is(apiKey));
+            assertThat(completionModel.getSecretSettings().apiKey(), is(API_KEY_VALUE));
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
-        var modelId = "model";
-        var apiKey = "apiKey";
-
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         try (var service = createGoogleAiStudioService()) {
-            var secretSettingsMap = getSecretSettingsMap(apiKey);
+            var secretSettingsMap = getSecretSettingsMap(API_KEY_VALUE);
             secretSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
                 getTaskSettingsMapEmpty(),
                 secretSettingsMap
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.COMPLETION,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.COMPLETION,
+                    GoogleAiStudioService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 
             var completionModel = (GoogleAiStudioCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
             assertThat(completionModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-            assertThat(completionModel.getSecretSettings().apiKey().toString(), is(apiKey));
+            assertThat(completionModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
-        var modelId = "model";
-        var apiKey = "apiKey";
-
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createGoogleAiStudioService()) {
-            Map<String, Object> serviceSettingsMap = new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId));
+            Map<String, Object> serviceSettingsMap = new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE));
             serviceSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMapEmpty(), getSecretSettingsMap(apiKey));
+            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMapEmpty(), getSecretSettingsMap(API_KEY_VALUE));
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.COMPLETION,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.COMPLETION,
+                    GoogleAiStudioService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 
             var completionModel = (GoogleAiStudioCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
             assertThat(completionModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-            assertThat(completionModel.getSecretSettings().apiKey().toString(), is(apiKey));
+            assertThat(completionModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
-        var modelId = "model";
-        var apiKey = "apiKey";
-
+    public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (var service = createGoogleAiStudioService()) {
             Map<String, Object> taskSettings = getTaskSettingsMapEmpty();
             taskSettings.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
                 taskSettings,
-                getSecretSettingsMap(apiKey)
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.COMPLETION,
-                persistedConfig.config(),
-                persistedConfig.secrets()
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.COMPLETION,
+                    GoogleAiStudioService.NAME,
+                    persistedConfig.config(),
+                    persistedConfig.secrets()
+                )
             );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 
             var completionModel = (GoogleAiStudioCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
             assertThat(completionModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-            assertThat(completionModel.getSecretSettings().apiKey().toString(), is(apiKey));
+            assertThat(completionModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfig_CreatesAGoogleAiStudioCompletionModel() throws IOException {
-        var modelId = "model";
-
         try (var service = createGoogleAiStudioService()) {
-            var persistedConfig = getPersistedConfigMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)), getTaskSettingsMapEmpty());
+            var persistedConfig = getPersistedConfigMap(
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
+                getTaskSettingsMapEmpty()
+            );
 
-            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.COMPLETION,
+                    GoogleAiStudioService.NAME,
+                    persistedConfig.config(),
+                    null
+                )
+            );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 
             var completionModel = (GoogleAiStudioCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
             assertThat(completionModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
             assertNull(completionModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_CreatesAGoogleAiStudioEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        var modelId = "model";
-
         try (var service = createGoogleAiStudioService()) {
             var persistedConfig = getPersistedConfigMap(
-                new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)),
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
                 getTaskSettingsMapEmpty(),
                 createRandomChunkingSettingsMap()
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    GoogleAiStudioService.NAME,
+                    persistedConfig.config(),
+                    null
+                )
+            );
 
             assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
 
             var embeddingsModel = (GoogleAiStudioEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
@@ -578,17 +587,26 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_CreatesAGoogleAiStudioEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        var modelId = "model";
-
         try (var service = createGoogleAiStudioService()) {
-            var persistedConfig = getPersistedConfigMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)), getTaskSettingsMapEmpty());
+            var persistedConfig = getPersistedConfigMap(
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
+                getTaskSettingsMapEmpty()
+            );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.TEXT_EMBEDDING,
+                    GoogleAiStudioService.NAME,
+                    persistedConfig.config(),
+                    null
+                )
+            );
 
             assertThat(model, instanceOf(GoogleAiStudioEmbeddingsModel.class));
 
             var embeddingsModel = (GoogleAiStudioEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
@@ -596,58 +614,79 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
-        var modelId = "model";
-
         try (var service = createGoogleAiStudioService()) {
-            var persistedConfig = getPersistedConfigMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)), getTaskSettingsMapEmpty());
+            var persistedConfig = getPersistedConfigMap(
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)),
+                getTaskSettingsMapEmpty()
+            );
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.COMPLETION,
+                    GoogleAiStudioService.NAME,
+                    persistedConfig.config(),
+                    null
+                )
+            );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 
             var completionModel = (GoogleAiStudioCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
             assertThat(completionModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
             assertNull(completionModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
-        var modelId = "model";
-
         try (var service = createGoogleAiStudioService()) {
-            Map<String, Object> serviceSettingsMap = new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId));
+            Map<String, Object> serviceSettingsMap = new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE));
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMapEmpty());
 
-            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.COMPLETION,
+                    GoogleAiStudioService.NAME,
+                    persistedConfig.config(),
+                    null
+                )
+            );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 
             var completionModel = (GoogleAiStudioCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
             assertThat(completionModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
             assertNull(completionModel.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
-        var modelId = "model";
-
         try (var service = createGoogleAiStudioService()) {
             Map<String, Object> taskSettings = getTaskSettingsMapEmpty();
             taskSettings.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId)), taskSettings);
+            var persistedConfig = getPersistedConfigMap(new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_ID_VALUE)), taskSettings);
 
-            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel(
+                    INFERENCE_ENTITY_ID_VALUE,
+                    TaskType.COMPLETION,
+                    GoogleAiStudioService.NAME,
+                    persistedConfig.config(),
+                    null
+                )
+            );
 
             assertThat(model, instanceOf(GoogleAiStudioCompletionModel.class));
 
             var completionModel = (GoogleAiStudioCompletionModel) model;
-            assertThat(completionModel.getServiceSettings().modelId(), is(modelId));
+            assertThat(completionModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
             assertThat(completionModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
             assertNull(completionModel.getSecretSettings());
         }
@@ -659,31 +698,19 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        var mockModel = getInvalidModel("model_id", "service_name");
+        var mockModel = getInvalidModel(INFERENCE_ENTITY_ID_VALUE, "service_name");
 
         try (var service = new GoogleAiStudioService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                mockModel,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             MatcherAssert.assertThat(
                 thrownException.getMessage(),
-                is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
+                is("The internal model was invalid, please delete the service [service_name] with id [id] and add it again.")
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -697,23 +724,12 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        var model = GoogleAiStudioEmbeddingsModelTests.createModel("model", getUrl(webServer), "secret");
+        var model = GoogleAiStudioEmbeddingsModelTests.createModel(MODEL_ID_VALUE, API_KEY_VALUE, getUrl(webServer));
 
         try (var service = new GoogleAiStudioService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -722,7 +738,6 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -778,20 +793,9 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = GoogleAiStudioCompletionModelTests.createModel("model", getUrl(webServer), "secret");
+            var model = GoogleAiStudioCompletionModelTests.createModel(MODEL_ID_VALUE, getUrl(webServer), API_KEY_VALUE);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("input"),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("input"), false, new HashMap<>(), InputType.INGEST, null, listener);
             var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationCompletions(List.of("result"))));
@@ -815,8 +819,6 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
     }
 
     public void testInfer_SendsEmbeddingsRequest() throws IOException {
-        var modelId = "model";
-        var apiKey = "apiKey";
         var input = "input";
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
@@ -837,25 +839,14 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = GoogleAiStudioEmbeddingsModelTests.createModel(modelId, apiKey, getUrl(webServer));
+            var model = GoogleAiStudioEmbeddingsModelTests.createModel(MODEL_ID_VALUE, API_KEY_VALUE, getUrl(webServer));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of(input),
-                false,
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of(input), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
             var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().get(0).getUri().getQuery(), endsWith(apiKey));
+            assertThat(webServer.requests().get(0).getUri().getQuery(), endsWith(API_KEY_VALUE));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
@@ -866,7 +857,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                     List.of(
                         Map.of(
                             "model",
-                            Strings.format("%s/%s", "models", modelId),
+                            Strings.format("%s/%s", "models", MODEL_ID_VALUE),
                             "content",
                             Map.of("parts", List.of(Map.of("text", input))),
                             "taskType",
@@ -879,37 +870,35 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
     }
 
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
-        var modelId = "modelId";
-        var apiKey = "apiKey";
-        var model = GoogleAiStudioEmbeddingsModelTests.createModel(modelId, null, apiKey, getUrl(webServer));
+        var model = GoogleAiStudioEmbeddingsModelTests.createModel(MODEL_ID_VALUE, null, API_KEY_VALUE, getUrl(webServer));
 
-        testChunkedInfer(modelId, apiKey, model);
+        testChunkedInfer(model);
     }
 
     public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
-        var modelId = "modelId";
-        var apiKey = "apiKey";
-        var model = GoogleAiStudioEmbeddingsModelTests.createModel(modelId, createRandomChunkingSettings(), apiKey, getUrl(webServer));
+        var model = GoogleAiStudioEmbeddingsModelTests.createModel(
+            MODEL_ID_VALUE,
+            createRandomChunkingSettings(),
+            API_KEY_VALUE,
+            getUrl(webServer)
+        );
 
-        testChunkedInfer(modelId, apiKey, model);
+        testChunkedInfer(model);
     }
 
     public void testChunkedInfer_noInputs() throws IOException {
-        var model = GoogleAiStudioEmbeddingsModelTests.createModel("modelId", createRandomChunkingSettings(), "apiKey", getUrl(webServer));
+        var model = GoogleAiStudioEmbeddingsModelTests.createModel(
+            MODEL_ID_VALUE,
+            createRandomChunkingSettings(),
+            API_KEY_VALUE,
+            getUrl(webServer)
+        );
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new GoogleAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                List.of(),
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, empty());
@@ -917,7 +906,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    private void testChunkedInfer(String modelId, String apiKey, GoogleAiStudioEmbeddingsModel model) throws IOException {
+    private void testChunkedInfer(GoogleAiStudioEmbeddingsModel model) throws IOException {
 
         var input = List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb"));
 
@@ -946,15 +935,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                input,
-                new HashMap<>(),
-                InputType.INTERNAL_INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(2));
@@ -990,7 +971,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
             }
 
             assertThat(webServer.requests(), hasSize(1));
-            assertThat(webServer.requests().get(0).getUri().getQuery(), endsWith(apiKey));
+            assertThat(webServer.requests().get(0).getUri().getQuery(), endsWith(API_KEY_VALUE));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
@@ -1001,7 +982,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                     List.of(
                         Map.of(
                             "model",
-                            Strings.format("%s/%s", "models", modelId),
+                            Strings.format("%s/%s", "models", MODEL_ID_VALUE),
                             "content",
                             Map.of("parts", List.of(Map.of("text", input.get(0).inputText()))),
                             "taskType",
@@ -1009,7 +990,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                         ),
                         Map.of(
                             "model",
-                            Strings.format("%s/%s", "models", modelId),
+                            Strings.format("%s/%s", "models", MODEL_ID_VALUE),
                             "content",
                             Map.of("parts", List.of(Map.of("text", input.get(1).inputText()))),
                             "taskType",
@@ -1035,20 +1016,9 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
 
-            var model = GoogleAiStudioCompletionModelTests.createModel("model", getUrl(webServer), "secret");
+            var model = GoogleAiStudioCompletionModelTests.createModel(MODEL_ID_VALUE, getUrl(webServer), API_KEY_VALUE);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(error.getMessage(), containsString("Resource not found at "));
@@ -1164,7 +1134,7 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
     }
 
     private static ActionListener<Model> getModelListenerForException(Class<?> exceptionClass, String expectedMessage) {
-        return ActionListener.<Model>wrap((model) -> fail("Model parsing should have failed"), e -> {
+        return ActionListener.<Model>wrap(model -> fail("Model parsing should have failed"), e -> {
             assertThat(e, Matchers.instanceOf(exceptionClass));
             assertThat(e.getMessage(), is(expectedMessage));
         });
@@ -1207,5 +1177,49 @@ public class GoogleAiStudioServiceTests extends InferenceServiceTestCase {
     @Override
     public InferenceService createInferenceService() {
         return createGoogleAiStudioService();
+    }
+
+    public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {
+        var model = createTestModel(TaskType.TEXT_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Completion() throws IOException {
+        var model = createTestModel(TaskType.COMPLETION);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
+        var modelConfigurations = new ModelConfigurations(
+            INFERENCE_ENTITY_ID_VALUE,
+            TaskType.CHAT_COMPLETION,
+            GoogleAiStudioService.NAME,
+            mock(ServiceSettings.class)
+        );
+        try (var inferenceService = createInferenceService()) {
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is(Strings.format("The [%s] service does not support task type [%s]", GoogleAiStudioService.NAME, TaskType.CHAT_COMPLETION))
+            );
+        }
+    }
+
+    private Model createTestModel(TaskType taskType) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> GoogleAiStudioEmbeddingsModelTests.createModel(MODEL_ID_VALUE, API_KEY_VALUE, URL_VALUE);
+            case COMPLETION -> GoogleAiStudioCompletionModelTests.createModel(MODEL_ID_VALUE, API_KEY_VALUE);
+            default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
+        };
+    }
+
+    private void validateModelBuilding(Model model) throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
+            assertThat(resultModel, is(model));
+        }
     }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
@@ -32,6 +33,8 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
     @Nullable
     private String preference;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
+
+    private ResolvedIndexExpressions resolvedIndexExpressions;
 
     public ClusterSearchShardsRequest(TimeValue masterNodeTimeout, String... indices) {
         super(masterNodeTimeout);
@@ -131,5 +134,15 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
 
     public String preference() {
         return this.preference;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
     }
 }

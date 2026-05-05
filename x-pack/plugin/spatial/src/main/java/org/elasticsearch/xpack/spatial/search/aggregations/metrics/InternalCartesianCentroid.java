@@ -26,6 +26,13 @@ public class InternalCartesianCentroid extends InternalCentroid implements Carte
     }
 
     /**
+     * Constructor for shape centroid results that carry raw weighted sums for correct cross-shard reduction.
+     */
+    public InternalCartesianCentroid(String name, SpatialPoint centroid, long count, ShapeData shapeData, Map<String, Object> metadata) {
+        super(name, centroid, count, shapeData, metadata);
+    }
+
+    /**
      * Read from a stream.
      */
     public InternalCartesianCentroid(StreamInput in) throws IOException {
@@ -70,6 +77,17 @@ public class InternalCartesianCentroid extends InternalCentroid implements Carte
     protected InternalCartesianCentroid copyWith(double firstSum, double secondSum, long totalCount) {
         final CartesianPoint result = (Double.isNaN(firstSum)) ? null : new CartesianPoint(firstSum / totalCount, secondSum / totalCount);
         return copyWith(result, totalCount);
+    }
+
+    @Override
+    protected InternalCartesianCentroid copyWithShapeFields(ShapeData shapeData, long count) {
+        final CartesianPoint result = shapeData.totalWeight() > 0
+            ? new CartesianPoint(
+                shapeData.firstWeightedSum() / shapeData.totalWeight(),
+                shapeData.secondWeightedSum() / shapeData.totalWeight()
+            )
+            : null;
+        return new InternalCartesianCentroid(name, result, count, shapeData, getMetadata());
     }
 
     @Override

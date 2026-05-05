@@ -20,8 +20,11 @@ module org.elasticsearch.nativeaccess {
         to
             org.elasticsearch.server,
             org.elasticsearch.blobcache,
+            org.elasticsearch.parquetrs,
+            org.elasticsearch.searchablesnapshots,
             org.elasticsearch.simdvec,
-            org.elasticsearch.systemd;
+            org.elasticsearch.systemd,
+            org.elasticsearch.xpack.stateless;
 
     uses NativeLibraryProvider;
 

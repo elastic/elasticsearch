@@ -9,6 +9,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -32,11 +33,21 @@ public class CreateIndexCapabilities {
 
     private static final String HUNSPELL_DICT_400 = "hunspell_dict_400";
 
-    public static final Set<String> CAPABILITIES = Set.of(
-        LOGSDB_INDEX_MODE_CAPABILITY,
-        LOOKUP_INDEX_MODE_CAPABILITY,
-        NESTED_DENSE_VECTOR_SYNTHETIC_TEST,
-        POORLY_FORMATTED_BAD_REQUEST,
-        HUNSPELL_DICT_400
-    );
+    static final String DISABLE_SEQUENCE_NUMBERS_CAPABILITY = "disable_sequence_numbers";
+
+    public static final Set<String> CAPABILITIES;
+
+    static {
+        var caps = new HashSet<>(
+            Set.of(
+                LOGSDB_INDEX_MODE_CAPABILITY,
+                LOOKUP_INDEX_MODE_CAPABILITY,
+                NESTED_DENSE_VECTOR_SYNTHETIC_TEST,
+                POORLY_FORMATTED_BAD_REQUEST,
+                HUNSPELL_DICT_400,
+                DISABLE_SEQUENCE_NUMBERS_CAPABILITY
+            )
+        );
+        CAPABILITIES = Set.copyOf(caps);
+    }
 }

@@ -16,10 +16,10 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.esql.MockAppender;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
@@ -32,12 +32,15 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.ANALYSIS;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.ENRICH_RESOLUTION;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.INDICES_RESOLUTION;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.INFERENCE_RESOLUTION;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.PARSING;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.PLANNING;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.PRE_ANALYSIS;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.VIEW_RESOLUTION;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.elasticsearch.xpack.esql.action.PlanningProfile.ANALYSIS;
-import static org.elasticsearch.xpack.esql.action.PlanningProfile.DEPENDENCY_RESOLUTION;
-import static org.elasticsearch.xpack.esql.action.PlanningProfile.PARSING;
-import static org.elasticsearch.xpack.esql.action.PlanningProfile.PLANNING;
-import static org.elasticsearch.xpack.esql.action.PlanningProfile.PRE_ANALYSIS;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_TYPE;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREFIX;
@@ -191,7 +194,16 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
                     assertThat(tookMillis, is(tookMillisExpected));
 
                     if (expectedException == null) {
-                        for (String timing : List.of(PLANNING, PARSING, PRE_ANALYSIS, DEPENDENCY_RESOLUTION, ANALYSIS)) {
+                        for (String timing : List.of(
+                            PLANNING,
+                            PARSING,
+                            VIEW_RESOLUTION,
+                            PRE_ANALYSIS,
+                            INDICES_RESOLUTION,
+                            ENRICH_RESOLUTION,
+                            INFERENCE_RESOLUTION,
+                            ANALYSIS
+                        )) {
                             long timingTook = Long.valueOf(
                                 msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timing + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX)
                             );

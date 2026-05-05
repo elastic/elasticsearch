@@ -42,9 +42,7 @@ public class CompletionResponseParser extends BaseCustomResponseParser {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new CompletionResponseParser(path);
     }
@@ -114,5 +112,10 @@ public class CompletionResponseParser extends BaseCustomResponseParser {
                 )
             );
         }
+    }
+
+    @Override
+    public CompletionResponseParser updateFromMap(Map<String, Object> map, String scope, ValidationException validationException) {
+        return fromMap(map, scope, validationException);
     }
 }

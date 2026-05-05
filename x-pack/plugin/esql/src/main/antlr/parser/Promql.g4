@@ -7,8 +7,10 @@
 parser grammar Promql;
 
 promqlCommand
-    : DEV_PROMQL promqlParam* (valueName ASSIGN)? LP promqlQueryPart+ RP
-    | DEV_PROMQL promqlParam* promqlQueryPart+
+    : PROMQL promqlParam* (valueName ASSIGN)? LP NAMED_OR_POSITIONAL_PARAM RP  // ?param as the entire PromQL expression (parenthesized)
+    | PROMQL promqlParam* (valueName ASSIGN)? NAMED_OR_POSITIONAL_PARAM        // ?param as the entire PromQL expression (unparenthesized)
+    | PROMQL promqlParam* (valueName ASSIGN)? LP promqlQueryPart+ RP
+    | PROMQL promqlParam* promqlQueryPart+
     ;
 
 valueName

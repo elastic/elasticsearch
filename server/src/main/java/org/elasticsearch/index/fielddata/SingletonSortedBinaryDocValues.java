@@ -37,6 +37,11 @@ final class SingletonSortedBinaryDocValues extends SortedBinaryDocValues {
         return in.binaryValue();
     }
 
+    @Override
+    public ValueMode getValueMode() {
+        return ValueMode.SINGLE_VALUED;
+    }
+
     public BinaryDocValues getBinaryDocValues() {
         return in;
     }

@@ -360,6 +360,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 if (threadsPerAllocation > 1) {
                     validationException.addValidationError("[" + THREADS_PER_ALLOCATION + "] must be 1 when [" + PRIORITY + "] is low");
                 }
+                if (adaptiveAllocationsSettings != null
+                    && adaptiveAllocationsSettings.getMaxNumberOfAllocations() != null
+                    && adaptiveAllocationsSettings.getMaxNumberOfAllocations() > 1) {
+                    validationException.addValidationError(
+                        "[" + AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS + "] must be 1 when [" + PRIORITY + "] is low"
+                    );
+                }
             }
             return validationException.validationErrors().isEmpty() ? null : validationException;
         }

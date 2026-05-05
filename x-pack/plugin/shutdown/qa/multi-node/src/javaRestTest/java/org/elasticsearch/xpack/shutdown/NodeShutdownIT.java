@@ -89,6 +89,10 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertThat(nodesArray.get(0).get("allocation_delay"), equalsOptionalTimeValue(allocationDelay));
             assertThat(nodesArray.get(0).get("target_node_name"), equalTo(targetNodeName));
             assertThat(nodesArray.get(0).get("grace_period"), equalsOptionalTimeValue(grace));
+            assertThat(
+                nodesArray.getFirst().get("shard_snapshots"),
+                equalTo(Map.of("completed_shards", 0, "paused_shards", 0, "running_shards", 0, "status", "COMPLETE"))
+            );
         }
 
         if (delete) {
@@ -325,7 +329,7 @@ public class NodeShutdownIT extends ESRestTestCase {
 
         // Mark the node for shutdown
         putNodeShutdown(nodeIdToShutdown, "remove");
-        {
+        assertBusy(() -> {
             // Now check the shard migration status
             Request getStatusRequest = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
             Response statusResponse = client().performRequest(getStatusRequest);
@@ -340,7 +344,7 @@ public class NodeShutdownIT extends ESRestTestCase {
                 )
             );
             assertThat(ObjectPath.eval("nodes.0.shard_migration.node_allocation_decision", status), notNullValue());
-        }
+        });
 
         // Now update the allocation requirements to unblock shard relocation
         Request updateSettingsRequest = new Request("PUT", indexName + "/_settings");

@@ -9,8 +9,10 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.core.Nullable;
+
+import java.util.Optional;
 
 /**
  * Interface for helper to pick a node to relocate a running reindex task to when the current node is about to shut down.
@@ -21,8 +23,8 @@ public interface ReindexRelocationNodePicker {
      * Picks a suitable node.
      *
      * @param nodes The set of nodes to pick from
-     * @return The ID of the selected node, or null if there are no suitable nodes
+     * @param nodeShutdowns Information about nodes currently marked for shutdown
+     * @return The ID of the selected node, or empty if there are no suitable nodes
      */
-    @Nullable
-    String pickNode(DiscoveryNodes nodes);
+    Optional<String> pickNode(DiscoveryNodes nodes, NodesShutdownMetadata nodeShutdowns);
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.Model;
@@ -52,6 +53,7 @@ import static org.mockito.Mockito.when;
 public final class Utils {
 
     public static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
+    private static final int MAX_THREADS = 4;
 
     private Utils() {
         throw new UnsupportedOperationException("Utils is a utility class and should not be instantiated");
@@ -64,7 +66,7 @@ public final class Utils {
     public static ClusterService mockClusterService(Settings settings) {
         var clusterService = mock(ClusterService.class);
 
-        var registeredSettings = InferencePlugin.getInferenceSettings();
+        var registeredSettings = InferencePlugin.getClusterSettings();
 
         var cSettings = new ClusterSettings(settings, registeredSettings);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
@@ -73,11 +75,15 @@ public final class Utils {
     }
 
     public static ScalingExecutorBuilder[] inferenceUtilityExecutors() {
+        return inferenceUtilityExecutors(MAX_THREADS, MAX_THREADS);
+    }
+
+    public static ScalingExecutorBuilder[] inferenceUtilityExecutors(int maxUtilityThreads, int maxResponseThreads) {
         return new ScalingExecutorBuilder[] {
             new ScalingExecutorBuilder(
                 UTILITY_THREAD_POOL_NAME,
                 1,
-                4,
+                maxUtilityThreads,
                 TimeValue.timeValueMinutes(10),
                 false,
                 "xpack.inference.utility_thread_pool"
@@ -85,7 +91,7 @@ public final class Utils {
             new ScalingExecutorBuilder(
                 INFERENCE_RESPONSE_THREAD_POOL_NAME,
                 1,
-                4,
+                maxResponseThreads,
                 TimeValue.timeValueMinutes(10),
                 false,
                 "xpack.inference.inference_response_thread_pool"
@@ -152,15 +158,24 @@ public final class Utils {
 
     public record PersistedConfig(Map<String, Object> config, Map<String, Object> secrets) {}
 
+    public record ModelConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {}
+
     public static PersistedConfig getPersistedConfigMap(
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        Map<String, Object> chunkingSettings,
-        Map<String, Object> secretSettings
+        @Nullable Map<String, Object> chunkingSettings,
+        @Nullable Map<String, Object> secretSettings
     ) {
+        var secrets = secretSettings == null ? null : new HashMap<String, Object>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings));
 
-        var persistedConfigMap = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
-        persistedConfigMap.config.put(ModelConfigurations.CHUNKING_SETTINGS, chunkingSettings);
+        var persistedConfigMap = new PersistedConfig(
+            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
+            secrets
+        );
+
+        if (chunkingSettings != null) {
+            persistedConfigMap.config.put(ModelConfigurations.CHUNKING_SETTINGS, chunkingSettings);
+        }
 
         return persistedConfigMap;
     }
@@ -168,25 +183,17 @@ public final class Utils {
     public static PersistedConfig getPersistedConfigMap(
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        Map<String, Object> secretSettings
+        @Nullable Map<String, Object> secretSettings
     ) {
-        var secrets = secretSettings == null ? null : new HashMap<String, Object>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings));
+        return getPersistedConfigMap(serviceSettings, taskSettings, null, secretSettings);
+    }
 
-        return new PersistedConfig(
-            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
-            secrets
-        );
+    public static PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings, Map<String, Object> taskSettings) {
+        return Utils.getPersistedConfigMap(serviceSettings, taskSettings, null);
     }
 
     public static PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings) {
         return Utils.getPersistedConfigMap(serviceSettings, new HashMap<>(), null);
-    }
-
-    public static PersistedConfig getPersistedConfigMap(Map<String, Object> serviceSettings, Map<String, Object> taskSettings) {
-        return new PersistedConfig(
-            new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
-            null
-        );
     }
 
     public static Map<String, Object> getRequestConfigMap(
@@ -223,7 +230,7 @@ public final class Utils {
     }
 
     public static ActionListener<Model> getModelListenerForException(Class<?> exceptionClass, String expectedMessage) {
-        return ActionListener.<Model>wrap((model) -> fail("Model parsing should have failed"), e -> {
+        return ActionListener.<Model>wrap(model -> fail("Model parsing should have failed"), e -> {
             assertThat(e, Matchers.instanceOf(exceptionClass));
             assertThat(e.getMessage(), is(expectedMessage));
         });

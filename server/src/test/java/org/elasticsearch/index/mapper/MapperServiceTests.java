@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -47,7 +48,10 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
     public void testPreflightUpdateDoesNotChangeMapping() throws Throwable {
         final MapperService mapperService = createMapperService(mapping(b -> {}));
-        merge(mapperService, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, mapping(b -> createMappingSpecifyingNumberOfFields(b, 1)));
+        String update = """
+            {"_doc":{"properties":{"field0":{"type":"keyword"}}}}
+            """;
+        mapperService.isNoOpUpdate(new CompressedXContent(update));
         assertThat("field was not created by preflight check", mapperService.fieldType("field0"), nullValue());
         merge(
             mapperService,
@@ -127,6 +131,26 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         // valid partitioned index
         createMapperService(settings, topMapping(b -> b.startObject("_routing").field("required", true).endObject()));
+    }
+
+    public void testSliceEnabledRequiresRouting() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        assertTrue(mapperService.documentMapper().routingFieldMapper().required());
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(settings, topMapping(b -> b.startObject("_routing").field("required", false).endObject()))
+        );
+        assertThat(e.getMessage(), containsString("must not configure [_routing] settings when [index.slice.enabled] is true"));
+
+        MapperService explicitRequired = createMapperService(
+            settings,
+            topMapping(b -> b.startObject("_routing").field("required", true).endObject())
+        );
+        assertTrue(explicitRequired.documentMapper().routingFieldMapper().required());
     }
 
     public void testIndexSortWithNestedFields() throws IOException {
@@ -307,7 +331,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
     }
 
     public void testIsMetadataField() throws IOException {
-        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion();
 
         CheckedFunction<IndexMode, MapperService, IOException> initMapperService = (indexMode) -> {
             Settings.Builder settingsBuilder = Settings.builder()
@@ -358,34 +382,6 @@ public class MapperServiceTests extends MapperServiceTestCase {
         for (IndexMode indexMode : IndexMode.values()) {
             MapperService mapperService = initMapperService.apply(indexMode);
             assertMapperService.accept(mapperService);
-        }
-    }
-
-    public void testMappingUpdateChecks() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "text")));
-
-        {
-            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
-            builder.settings(indexSettings(IndexVersion.current(), 1, 0));
-
-            // Text fields are not stored by default, so an incoming update that is identical but
-            // just has `stored:false` should not require an update
-            builder.putMapping("""
-                {"properties":{"field":{"type":"text","store":"false"}}}""");
-            assertTrue(mapperService.assertNoUpdateRequired(builder.build()));
-        }
-
-        {
-            IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
-            builder.settings(indexSettings(IndexVersion.current(), 1, 0));
-
-            // However, an update that really does need a rebuild will throw an exception
-            builder.putMapping("""
-                {"properties":{"field":{"type":"text","store":"true"}}}""");
-            Exception e = expectThrows(IllegalStateException.class, () -> mapperService.assertNoUpdateRequired(builder.build()));
-
-            assertThat(e.getMessage(), containsString("expected current mapping ["));
-            assertThat(e.getMessage(), containsString("to be the same as new mapping"));
         }
     }
 
@@ -605,6 +601,43 @@ public class MapperServiceTests extends MapperServiceTestCase {
         DocumentMapper subobjectsFirst = mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
         DocumentMapper subobjectsLast = mapperService.merge("_doc", List.of(mapping2, mapping1), MergeReason.INDEX_TEMPLATE);
         assertEquals(subobjectsFirst.mappingSource(), subobjectsLast.mappingSource());
+    }
+
+    public void testBulkMergeSubobjectsFalseWithDottedNotation() throws IOException {
+        // Simulates template composition where one component template defines host.os.name via
+        // dotted notation (creating an intermediate host object), and another defines host as
+        // an explicit object with subobjects: false. Uses a fresh mapper service (no existing
+        // mapper) to exercise the applyFieldsBudget path.
+        final MapperService mapperService = createMapperService(IndexVersion.current(), Settings.EMPTY, () -> true);
+        CompressedXContent dottedMapping = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "host.os.name": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }""");
+        CompressedXContent objectMapping = new CompressedXContent("""
+            {
+              "_doc": {
+                "properties": {
+                  "host": {
+                    "type": "object",
+                    "subobjects": false,
+                    "properties": {
+                      "ip": {
+                        "type": "ip"
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+        DocumentMapper merged = mapperService.merge("_doc", List.of(dottedMapping, objectMapping), MergeReason.INDEX_TEMPLATE);
+        assertNotNull(merged.mappers().objectMappers().get("host"));
+        assertEquals(ObjectMapper.Subobjects.DISABLED, merged.mappers().objectMappers().get("host").subobjects());
     }
 
     public void testMergeMultipleRoots() throws IOException {
@@ -1756,7 +1789,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "Failed to parse mapping: Object mapper [parent] was found in a context where subobjects is set to false. "
+                "Object mapper [parent] was found in a context where subobjects is set to false. "
                     + "Auto-flattening [parent] failed because the value of [dynamic] (FALSE) is not compatible "
                     + "with the value from its parent context (TRUE)"
             )
@@ -1797,7 +1830,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "Failed to parse mapping: Object mapper [parent] was found in a context where subobjects is set to false. "
+                "Object mapper [parent] was found in a context where subobjects is set to false. "
                     + "Auto-flattening [parent] failed because the value of [dynamic] (TRUE) is not compatible "
                     + "with the value from its parent context (FALSE)"
             )

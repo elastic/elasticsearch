@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
@@ -25,9 +27,12 @@ import java.util.Set;
 import java.util.function.BiFunction;
 
 // a IS NULL AND a IS NOT NULL -> FALSE
-// a IS NULL AND a > 10 -> a IS NULL and FALSE
-// can be extended to handle null conditions where available
+// a IS NULL AND a > 10 -> a IS NULL AND null > 10 (FoldNull folds to null in the next pass)
+// (a IS NOT NULL OR p) AND a IS NULL -> OR(false, p) AND a IS NULL (BooleanSimplification then yields p AND a IS NULL)
+// (a IS NULL OR p) AND a IS NOT NULL -> OR(false, p) AND a IS NOT NULL (BooleanSimplification then yields p AND a IS NOT NULL)
 public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<And> {
+
+    private static final Logger logger = LogManager.getLogger(PropagateNullable.class);
 
     public PropagateNullable() {
         super(OptimizerRules.TransformDirection.DOWN);
@@ -63,8 +68,31 @@ public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<An
 
         // first against all nullable expressions
         // followed by all not-nullable expressions
-        boolean modified = replace(nullExpressions, others, splits, this::nullify);
-        modified |= replace(notNullExpressions, others, splits, this::nonNullify);
+        // Workaround for https://github.com/elastic/elasticsearch/issues/141579: when both sets are empty
+        // (the common case, e.g. queries without IS [NOT] NULL predicates), JDK 26 EA C2 was observed
+        // miscompiling the two sequential replace() calls and nullifying the local notNullExpressions
+        // reference between them. Skipping the calls when there is nothing to do both side-steps the
+        // miscompilation and is a small perf win. The guards inside rule() and replace() below are kept
+        // as a safety net in case the bug surfaces in a different shape.
+        boolean modified = false;
+        if (nullExpressions.isEmpty() == false) {
+            modified = replace(nullExpressions, others, splits, this::nullify);
+        }
+        if (notNullExpressions == null) {
+            logger.error(
+                "notNullExpressions is null before second replace() call. " + "nullExpressions={}, others={}, splits={}, and={}",
+                nullExpressions,
+                others,
+                splits,
+                and
+            );
+            throw new IllegalStateException(
+                "PropagateNullable: notNullExpressions is null before second replace() call [#141579]. and=" + and
+            );
+        }
+        if (notNullExpressions.isEmpty() == false) {
+            modified |= replace(notNullExpressions, others, splits, this::nonNullify);
+        }
         if (modified) {
             // reconstruct the expression
             return Predicates.combineAnd(splits);
@@ -83,6 +111,14 @@ public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<An
         List<Expression> originalExpressions,
         BiFunction<Expression, Expression, Expression> replacer
     ) {
+        // Diagnostic for https://github.com/elastic/elasticsearch/issues/141579
+        // CI reports NPE at the foreach below with "pattern is null", which should be impossible since callers pass
+        // freshly allocated LinkedHashSets. If both this guard AND the foreach still NPE, C2 is miscompiling.
+        if (pattern == null) {
+            throw new IllegalStateException(
+                "PropagateNullable.replace: pattern is null [#141579]. target=" + target + ", origExprs=" + originalExpressions
+            );
+        }
         boolean modified = false;
         for (Expression s : pattern) {
             for (int i = 0; i < target.size(); i++) {
@@ -102,19 +138,53 @@ public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<An
         return modified;
     }
 
-    // placeholder for non-null
     protected Expression nonNullify(Expression exp, Expression nonNullExp) {
-        return exp;
+        return substituteNullability(exp, nonNullExp, false);
     }
 
     protected Expression nullify(Expression exp, Expression nullExp) {
+        Expression base = exp;
         if (exp instanceof Coalesce) {
+            // Remove direct COALESCE arguments that are exactly the null field; the remaining
+            // arguments may still reference the field and are handled by substituteNullability below.
             List<Expression> newChildren = new ArrayList<>(exp.children());
             newChildren.removeIf(e -> e.semanticEquals(nullExp));
             if (newChildren.size() != exp.children().size() && newChildren.size() > 0) { // coalesce needs at least one input
-                return exp.replaceChildren(newChildren);
+                base = exp.replaceChildren(newChildren);
             }
         }
-        return Literal.of(exp, null);
+        return substituteNullability(base, nullExp, true);
+    }
+
+    /**
+     * Substitutes {@code IS NULL} and {@code IS NOT NULL} predicates — and, when the field is known to be {@code NULL},
+     * direct field references — throughout {@code exp}.
+     * <p>
+     * When {@code isNullResult} is {@code true} (field constrained to {@code IS NULL}):
+     * direct field occurrences become {@code null}, {@code IS NULL(field)} becomes {@code true},
+     * {@code IS NOT NULL(field)} becomes {@code false}.
+     * <p>
+     * When {@code isNullResult} is {@code false} (field constrained to {@code IS NOT NULL}):
+     * only the predicate forms are substituted ({@code IS NULL} → {@code false},
+     * {@code IS NOT NULL} → {@code true}); the field value itself is left intact because its
+     * concrete value is unknown.
+     * <p>
+     * This preserves surviving OR branches instead of discarding them. For example:
+     * {@code (a IS NOT NULL OR p) AND a IS NULL} → {@code OR(false, p) AND a IS NULL},
+     * which {@code BooleanSimplification} then reduces to {@code p AND a IS NULL}.
+     */
+    private static Expression substituteNullability(Expression exp, Expression field, boolean isNullResult) {
+        return exp.transformDown(e -> {
+            if (isNullResult && e.semanticEquals(field)) {
+                return Literal.of(e, null);
+            }
+            if (e instanceof IsNull isNull && isNull.field().semanticEquals(field)) {
+                return Literal.of(e, isNullResult);
+            }
+            if (e instanceof IsNotNull isNotNull && isNotNull.field().semanticEquals(field)) {
+                return Literal.of(e, isNullResult == false);
+            }
+            return e;
+        });
     }
 }

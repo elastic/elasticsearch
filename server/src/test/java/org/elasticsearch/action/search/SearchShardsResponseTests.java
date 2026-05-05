@@ -87,7 +87,7 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
             }
             aliasFilters.put(g.shardId().getIndex().getUUID(), aliasFilter);
         }
-        return new SearchShardsResponse(groups, nodes, aliasFilters);
+        return new SearchShardsResponse(groups, 0, nodes, aliasFilters);
     }
 
     @Override
@@ -99,17 +99,17 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
                 groups.add(
                     new SearchShardsGroup(shardId, List.of(), randomBoolean(), SplitShardCountSummary.fromInt(randomIntBetween(0, 1024)))
                 );
-                return new SearchShardsResponse(groups, r.getNodes(), r.getAliasFilters());
+                return new SearchShardsResponse(groups, 0, r.getNodes(), r.getAliasFilters());
             }
             case 1 -> {
                 List<DiscoveryNode> nodes = new ArrayList<>(r.getNodes());
                 nodes.add(DiscoveryNodeUtils.create(UUIDs.randomBase64UUID()));
-                return new SearchShardsResponse(r.getGroups(), nodes, r.getAliasFilters());
+                return new SearchShardsResponse(r.getGroups(), 0, nodes, r.getAliasFilters());
             }
             case 2 -> {
                 Map<String, AliasFilter> aliasFilters = new HashMap<>(r.getAliasFilters());
                 aliasFilters.put(UUIDs.randomBase64UUID(), AliasFilter.of(RandomQueryBuilder.createQuery(random()), "alias-index"));
-                return new SearchShardsResponse(new ArrayList<>(r.getGroups()), r.getNodes(), aliasFilters);
+                return new SearchShardsResponse(new ArrayList<>(r.getGroups()), 0, r.getNodes(), aliasFilters);
             }
             default -> {
                 throw new AssertionError("invalid option");
@@ -120,11 +120,11 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
     public void testLegacyResponse() {
         DiscoveryNode node1 = DiscoveryNodeUtils.builder("node-1")
             .address(new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)))
-            .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .version(randomCompatibleVersion(Version.CURRENT), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
         DiscoveryNode node2 = DiscoveryNodeUtils.builder("node-2")
             .address(new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)))
-            .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .version(randomCompatibleVersion(Version.CURRENT), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
             .build();
         final ClusterSearchShardsGroup[] groups = new ClusterSearchShardsGroup[2];
         {
@@ -158,7 +158,7 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
         assertThat(group2.reshardSplitShardCountSummary(), equalTo(SplitShardCountSummary.UNSET));
         assertFalse(group2.preFiltered());
 
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(version);
             AssertionError error = expectThrows(AssertionError.class, () -> newResponse.writeTo(out));

@@ -20,12 +20,14 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.HistogramPercentile;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentile;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -35,6 +37,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.Foldables.doubleValueOf;
 
@@ -44,6 +47,12 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         "Percentile",
         Percentile::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Percentile.class).binary(Percentile::new).name("percentile");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .acrossSeriesBinary(PromqlFunctionDefinition.QUANTILE, Percentile::new)
+        .description("Returns the φ-quantile (0 ≤ φ ≤ 1) of the values across the input vector.")
+        .example("quantile(0.9, http_request_duration_seconds)")
+        .name("quantile");
 
     private final Expression percentile;
 
@@ -71,7 +80,19 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
                     + "maximum value per row, and use the result with the `PERCENTILE` function",
                 file = "stats_percentile",
                 tag = "docsStatsPercentileNestedExpression"
-            ), }
+            ),
+            @Example(
+                description = "`PERCENTILE` can also operate on `exponential_histogram` fields, "
+                    + "approximating the percentile of the values which were used to construct the histograms.",
+                file = "exponential_histogram",
+                tag = "percentileExpHistoForDocs"
+            ),
+            @Example(
+                description = "`PERCENTILE` can also operate on `tdigest` and casted `histogram` fields, "
+                    + "approximating the percentile of the values which were used to construct the digests.",
+                file = "tdigest",
+                tag = "percentileTDigestForDocs"
+            ) }
     )
     public Percentile(
         Source source,
@@ -143,7 +164,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
             sourceText(),
             SECOND,
             "numeric except unsigned_long"
-        ).and(isFoldable(percentile, sourceText(), SECOND));
+        ).and(isFoldable(percentile, sourceText(), SECOND)).and(isNotNull(percentile, sourceText(), SECOND));
     }
 
     @Override

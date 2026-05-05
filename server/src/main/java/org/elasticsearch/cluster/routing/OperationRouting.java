@@ -84,7 +84,7 @@ public class OperationRouting {
         @Nullable Map<String, Set<String>> routing,
         @Nullable String preference
     ) {
-        return searchShards(projectState, concreteIndices, routing, preference, null, null);
+        return searchShards(projectState, concreteIndices, routing, preference, null, null, true);
     }
 
     public List<SearchShardRouting> searchShards(
@@ -93,7 +93,8 @@ public class OperationRouting {
         @Nullable Map<String, Set<String>> routing,
         @Nullable String preference,
         @Nullable ResponseCollectorService collectorService,
-        @Nullable Map<String, Long> nodeCounts
+        @Nullable Map<String, Long> nodeCounts,
+        boolean shouldSort
     ) {
         final Set<SearchTargetShard> shards = computeTargetedShards(projectState, concreteIndices, routing);
         DiscoveryNodes nodes = projectState.cluster().nodes();
@@ -116,7 +117,11 @@ public class OperationRouting {
                 );
             }
         }
-        res.sort(SearchShardRouting::compareTo);
+
+        if (shouldSort) {
+            res.sort(SearchShardRouting::compareTo);
+        }
+
         return res;
     }
 

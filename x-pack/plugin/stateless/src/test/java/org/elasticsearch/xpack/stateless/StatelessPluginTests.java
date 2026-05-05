@@ -13,7 +13,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.node.NodeRoleSettings;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -23,7 +22,6 @@ import static org.elasticsearch.xpack.stateless.StatelessPlugin.STATELESS_ENABLE
 import static org.elasticsearch.xpack.stateless.StatelessPlugin.STATELESS_ROLES;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
 
 public class StatelessPluginTests extends ESTestCase {
 
@@ -33,7 +31,7 @@ public class StatelessPluginTests extends ESTestCase {
                 return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(mode, active, null));
             }
         };
-        plugin.createComponents(mock(Plugin.PluginServices.class));
+        plugin.checkLicense();
         return plugin;
     }
 
@@ -42,15 +40,14 @@ public class StatelessPluginTests extends ESTestCase {
     }
 
     public void testValidLicense() throws Exception {
-        final var enabled = randomBoolean();
-        final var settings = enabled ? Settings.builder().put(STATELESS_ENABLED.getKey(), true).build() : Settings.EMPTY;
+        final var settings = Settings.builder().put(STATELESS_ENABLED.getKey(), true).build();
         final var licenseActive = randomBoolean();
         final Runnable runnable = () -> createStatelessPlugin(
             settings,
             randomBoolean() ? License.OperationMode.ENTERPRISE : License.OperationMode.TRIAL,
             licenseActive
         );
-        if (enabled && licenseActive == false) {
+        if (licenseActive == false) {
             expectThrows(IllegalStateException.class, runnable::run);
         } else {
             runnable.run();
@@ -58,21 +55,15 @@ public class StatelessPluginTests extends ESTestCase {
     }
 
     public void testInvalidLicense() throws Exception {
-        final var enabled = randomBoolean();
-        final var settings = enabled ? Settings.builder().put(STATELESS_ENABLED.getKey(), true).build() : Settings.EMPTY;
-        final var licenseActive = randomBoolean();
+        final var settings = Settings.builder().put(STATELESS_ENABLED.getKey(), true).build();
         final License.OperationMode invalidMode = randomFrom(
             License.OperationMode.PLATINUM,
             License.OperationMode.GOLD,
             License.OperationMode.STANDARD,
             License.OperationMode.BASIC
         );
-        final Runnable runnable = () -> createStatelessPlugin(settings, invalidMode, licenseActive);
-        if (enabled) {
-            expectThrows(IllegalStateException.class, runnable::run);
-        } else {
-            runnable.run();
-        }
+        final Runnable runnable = () -> createStatelessPlugin(settings, invalidMode, randomBoolean());
+        expectThrows(IllegalStateException.class, runnable::run);
     }
 
     public void testSettingsWithValidStatelessRole() throws Exception {
@@ -93,15 +84,6 @@ public class StatelessPluginTests extends ESTestCase {
             .build();
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createStatelessPlugin(nodeSettings));
         assertThat(ex.getMessage(), containsString("does not support a node with more than 1 role of"));
-    }
-
-    public void testSettingsWithStatelessRoleAndStatelessDisabledFail() throws Exception {
-        final var nodeSettings = Settings.builder()
-            .put(STATELESS_ENABLED.getKey(), false)
-            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), List.of(randomFrom(STATELESS_ROLES).roleName()))
-            .build();
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createStatelessPlugin(nodeSettings));
-        assertThat(ex.getMessage(), containsString("but stateless-only node roles are configured"));
     }
 
     public void testSettingsWithNonStatelessRoleAndStatelessEnabledFail() throws Exception {
@@ -139,7 +121,7 @@ public class StatelessPluginTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("does not support cluster.routing.allocation.disk.threshold_enabled"));
     }
 
-    public void testDataStreamLSettings() throws Exception {
+    public void testDataStreamLifecycleSettings() throws Exception {
         final var nodeSettings = Settings.builder()
             .put(STATELESS_ENABLED.getKey(), true)
             .putList(

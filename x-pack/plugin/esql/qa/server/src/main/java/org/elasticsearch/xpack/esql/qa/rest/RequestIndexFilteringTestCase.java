@@ -85,15 +85,19 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             allOf(instanceOf(List.class), hasSize(docsTest1))
         );
 
-        // filter excludes both indices (no rows); the first analysis step fails because there are no columns, a second attempt succeeds
-        // after eliminating the index filter. All columns are returned.
+        // all indices are excluded by the filter. Empty result is returned
         builder = timestampFilter("gte", "2025-01-01").query(from("test*"));
         assertQueryResult(
             runEsql(builder),
-            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                .item(matchesMap().entry("name", "id1").entry("type", "integer"))
-                .item(matchesMap().entry("name", "id2").entry("type", "integer"))
-                .item(matchesMap().entry("name", "value").entry("type", "long")),
+            anyOf(
+                // current response allowing no matching indices
+                matchesList().item(matchesMap().entry("name", "<no-fields>").entry("type", "null")),
+                // prior response seeing more fields as it run additional resolution with no filter
+                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                    .item(matchesMap().entry("name", "id1").entry("type", "integer"))
+                    .item(matchesMap().entry("name", "id2").entry("type", "integer"))
+                    .item(matchesMap().entry("name", "value").entry("type", "long"))
+            ),
             allOf(instanceOf(List.class), hasSize(0))
         );
     }
@@ -213,18 +217,6 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             )
         );
 
-        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo*"))));
-        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("verification_exception"));
-        assertThat(
-            e.getMessage(),
-            anyOf(
-                containsString("Unknown index [foo*]"),
-                containsString("Unknown index [*:foo*]"),
-                containsString("Unknown index [remote_cluster:foo*]")
-            )
-        );
-
         e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM foo, test1")));
         assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("index_not_found_exception"));
@@ -239,6 +231,39 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
             assertThat(e.getMessage(), allOf(containsString("verification_exception"), containsString("Unknown index [foo]")));
         }
+    }
+
+    /**
+     * Verify that a numeric TBUCKET bucket count succeeds even when the top-level filter covers an empty time range.
+     * When field-caps returns no matching indices due to the filter, the analysis is retried without the filter.
+     * The original filter must be preserved for timestamp bounds extraction so that TBUCKET can still determine
+     * its bucketing interval from the filter range, rather than failing with a verification exception.
+     */
+    public void testTopLevelFilterAllowsNumericTBucketWithoutExplicitBounds() throws IOException {
+        assumeTrue(
+            "requires fix for TBUCKET numeric on empty range",
+            RestEsqlTestCase.hasCapabilities(
+                adminClient(),
+                List.of(EsqlCapabilities.Cap.FIX_TBUCKET_NUMERIC_ON_EMPTY_RANGE.capabilityName())
+            )
+        );
+        // index data at 2024-11-26; the filter will cover 2020-12-13 to 2020-12-14 where no data exists
+        indexTimestampData(3, "test1", "2024-11-26", "id1");
+
+        RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().filter(b -> {
+            b.startObject("range");
+            {
+                b.startObject("@timestamp").field("gte", "2020-12-13").field("lt", "2020-12-14").endObject();
+            }
+            b.endObject();
+        }).query(from("test*") + " | STATS count = COUNT(*) BY bucket = TBUCKET(10) | SORT bucket");
+
+        assertQueryResult(
+            runEsql(builder),
+            matchesList().item(matchesMap().entry("name", "count").entry("type", "long"))
+                .item(matchesMap().entry("name", "bucket").entry("type", "date")),
+            allOf(instanceOf(List.class), hasSize(0))
+        );
     }
 
     protected static RestEsqlTestCase.RequestObjectBuilder timestampFilter(String op, String date) throws IOException {

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNat
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -39,6 +40,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  */
 public class Present extends AggregateFunction implements ToAggregator, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Present", Present::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Present.class).unary(Present::new).name("present");
 
     @FunctionInfo(
         returnType = "boolean",
@@ -70,6 +72,7 @@ public class Present extends AggregateFunction implements ToAggregator, Aggregat
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "dense_vector",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -139,10 +142,10 @@ public class Present extends AggregateFunction implements ToAggregator, Aggregat
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isCounter() == false && dt != DataType.DENSE_VECTOR,
+            dt -> dt.isCounter() == false && dt != DataType.DATE_RANGE,
             sourceText(),
             DEFAULT,
-            "any type except counter types or dense_vector"
+            "any type except counter types or date_range"
         );
     }
 }

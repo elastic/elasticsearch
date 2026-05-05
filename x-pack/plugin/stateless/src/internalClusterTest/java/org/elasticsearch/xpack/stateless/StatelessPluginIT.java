@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.stateless;
 
-public class StatelessPluginIT extends AbstractStatelessPluginIT {
+public class StatelessPluginIT extends AbstractStatelessPluginIntegTestCase {
 
     public void testCreateStatelessCluster() throws Exception {
         if (randomBoolean()) {

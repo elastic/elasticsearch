@@ -11,9 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -21,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matchers;
 
@@ -31,7 +28,6 @@ import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ReadableMatchers.matchesBytesRef;
@@ -120,7 +116,7 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
 
     public void testRandomLocale() {
         long randomMillis = randomMillisUpToYear9999();
-        Configuration cfg = configWithZoneAndLocale(randomZone(), randomLocale(random()));
+        Configuration cfg = configurationForTimezoneAndLocale(randomZone(), randomLocale(random()));
         String expected = Instant.ofEpochMilli(randomMillis)
             .atZone(cfg.zoneId())
             .getDayOfWeek()
@@ -132,30 +128,10 @@ public class DayNameTests extends AbstractConfigurationFunctionTestCase {
 
     public void testFixedLocaleAndTime() {
         long randomMillis = toMillis("2019-03-16T00:00:00.00Z");
-        Configuration cfg = configWithZoneAndLocale(ZoneId.of("America/Sao_Paulo"), Locale.of("pt", "br"));
+        Configuration cfg = configurationForTimezoneAndLocale(ZoneId.of("America/Sao_Paulo"), Locale.of("pt", "br"));
         String expected = "sexta-feira";
 
         DayName func = new DayName(Source.EMPTY, new Literal(Source.EMPTY, randomMillis, DataType.DATETIME), cfg);
         assertThat(BytesRefs.toBytesRef(expected), equalTo(func.fold(FoldContext.small())));
-    }
-
-    private Configuration configWithZoneAndLocale(ZoneId zone, Locale locale) {
-        return new Configuration(
-            zone,
-            locale,
-            null,
-            null,
-            QueryPragmas.EMPTY,
-            AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            AnalyzerSettings.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            "",
-            false,
-            Map.of(),
-            System.nanoTime(),
-            randomBoolean(),
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            AnalyzerSettings.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            null
-        );
     }
 }

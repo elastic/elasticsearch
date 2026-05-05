@@ -20,12 +20,18 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -40,12 +46,18 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
+import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
+import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
+import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
@@ -99,12 +111,21 @@ public class MapperUtils {
                 rerank.inferenceId(),
                 rerank.queryText(),
                 rerank.rerankFields(),
-                rerank.scoreAttribute()
+                rerank.scoreAttribute(),
+                rerank.timeout()
             );
         }
 
         if (p instanceof Completion completion) {
-            return new CompletionExec(completion.source(), child, completion.inferenceId(), completion.prompt(), completion.targetField());
+            return new CompletionExec(
+                completion.source(),
+                child,
+                completion.inferenceId(),
+                completion.prompt(),
+                completion.targetField(),
+                completion.taskSettings(),
+                completion.timeout()
+            );
         }
 
         if (p instanceof Enrich enrich) {
@@ -119,6 +140,10 @@ public class MapperUtils {
                 enrich.concreteIndices(),
                 enrich.enrichFields()
             );
+        }
+
+        if (p instanceof MMR mmr) {
+            return new MMRExec(mmr.source(), child, mmr.diversifyField(), mmr.limit(), mmr.queryVector(), mmr.options());
         }
 
         if (p instanceof MvExpand mvExpand) {
@@ -144,9 +169,49 @@ public class MapperUtils {
             return new SampleExec(sample.source(), child, sample.probability());
         }
 
+        if (p instanceof SparklineGenerateEmptyBuckets sparklineGenerateEmptyBuckets) {
+            return new SparklineGenerateEmptyBucketsExec(
+                sparklineGenerateEmptyBuckets.source(),
+                child,
+                sparklineGenerateEmptyBuckets.values(),
+                sparklineGenerateEmptyBuckets.groupings(),
+                sparklineGenerateEmptyBuckets.dateBucketRounding(),
+                sparklineGenerateEmptyBuckets.minDate(),
+                sparklineGenerateEmptyBuckets.maxDate(),
+                sparklineGenerateEmptyBuckets.passthroughAttributes(),
+                sparklineGenerateEmptyBuckets.output()
+            );
+        }
+
         if (p instanceof Subquery) {
             // A Subquery node is just a placeholder for the subquery plan, so we just return the child plan
             return child;
+        }
+
+        if (p instanceof UriParts uriParts) {
+            return new UriPartsExec(
+                uriParts.source(),
+                child,
+                uriParts.getInput(),
+                uriParts.outputFieldNames(),
+                uriParts.generatedAttributes()
+            );
+        }
+
+        if (p instanceof RegisteredDomain rd) {
+            return new RegisteredDomainExec(rd.source(), child, rd.getInput(), rd.outputFieldNames(), rd.generatedAttributes());
+        }
+
+        if (p instanceof UserAgent ua) {
+            return new UserAgentExec(
+                ua.source(),
+                child,
+                ua.getInput(),
+                ua.outputFieldNames(),
+                ua.generatedAttributes(),
+                ua.extractDeviceType(),
+                ua.regexFile()
+            );
         }
 
         return unsupported(p);
@@ -161,8 +226,8 @@ public class MapperUtils {
     }
 
     static AggregateExec aggExec(Aggregate aggregate, PhysicalPlan child, AggregatorMode aggMode, List<Attribute> intermediateAttributes) {
-        if (aggregate instanceof TimeSeriesAggregate ts) {
-            return new TimeSeriesAggregateExec(
+        return switch (aggregate) {
+            case TimeSeriesAggregate ts -> new TimeSeriesAggregateExec(
                 aggregate.source(),
                 child,
                 aggregate.groupings(),
@@ -170,10 +235,23 @@ public class MapperUtils {
                 aggMode,
                 intermediateAttributes,
                 null,
-                ts.timeBucket()
+                ts.timeBucket(),
+                ts.outputTimeBucket(),
+                ts.isCollapsed()
             );
-        } else {
-            return new AggregateExec(
+            case SampledAggregate sample -> new SampledAggregateExec(
+                sample.source(),
+                child,
+                sample.groupings(),
+                sample.aggregates(),
+                sample.originalAggregates(),
+                sample.sampleProbability(),
+                aggMode,
+                intermediateAttributes,
+                AbstractPhysicalOperationProviders.intermediateAttributes(sample.originalAggregates(), sample.groupings()),
+                null
+            );
+            default -> new AggregateExec(
                 aggregate.source(),
                 child,
                 aggregate.groupings(),
@@ -182,7 +260,7 @@ public class MapperUtils {
                 intermediateAttributes,
                 null
             );
-        }
+        };
     }
 
     static PhysicalPlan unsupported(LogicalPlan p) {

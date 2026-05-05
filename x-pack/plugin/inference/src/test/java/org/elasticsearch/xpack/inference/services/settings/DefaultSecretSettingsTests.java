@@ -12,6 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -30,44 +31,62 @@ public class DefaultSecretSettingsTests extends AbstractWireSerializingTestCase<
         DefaultSecretSettings initialSettings = createRandom();
         DefaultSecretSettings newSettings = createRandom();
         DefaultSecretSettings finalSettings = (DefaultSecretSettings) initialSettings.newSecretSettings(
-            Map.of(DefaultSecretSettings.API_KEY, newSettings.apiKey().toString())
+            new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, newSettings.apiKey().toString()))
         );
         assertEquals(newSettings, finalSettings);
     }
 
     public void testFromMap() {
         var apiKey = "abc";
-        var serviceSettings = DefaultSecretSettings.fromMap(new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, apiKey)));
+        var serviceSettings = DefaultSecretSettings.fromMap(
+            new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, apiKey)),
+            randomFrom(ConfigurationParseContext.values())
+        );
 
         assertThat(new DefaultSecretSettings(new SecureString(apiKey.toCharArray())), is(serviceSettings));
     }
 
     public void testFromMap_ReturnsNull_WhenMapIsNull() {
-        assertNull(DefaultSecretSettings.fromMap(null));
+        assertNull(DefaultSecretSettings.fromMap(null, randomFrom(ConfigurationParseContext.values())));
     }
 
-    public void testFromMap_MissingApiKey_ThrowsError() {
-        var thrownException = expectThrows(ValidationException.class, () -> DefaultSecretSettings.fromMap(new HashMap<>()));
+    public void testFromMap_MissingApiKey_ThrowsError_Request() {
+        testFromMap_MissingApiKey_ThrowsError(ConfigurationParseContext.REQUEST);
+    }
 
+    public void testFromMap_MissingApiKey_ThrowsError_Persistent() {
+        testFromMap_MissingApiKey_ThrowsError(ConfigurationParseContext.PERSISTENT);
+    }
+
+    private static void testFromMap_MissingApiKey_ThrowsError(ConfigurationParseContext context) {
+        var thrownException = expectThrows(ValidationException.class, () -> DefaultSecretSettings.fromMap(new HashMap<>(), context));
+
+        var scope = context == ConfigurationParseContext.REQUEST ? "service_settings" : "secret_settings";
         assertThat(
             thrownException.getMessage(),
-            containsString(Strings.format("[secret_settings] does not contain the required setting [%s]", DefaultSecretSettings.API_KEY))
+            containsString(Strings.format("[%s] does not contain the required setting [%s]", scope, DefaultSecretSettings.API_KEY))
         );
     }
 
-    public void testFromMap_EmptyApiKey_ThrowsError() {
+    public void testFromMap_EmptyApiKey_ThrowsError_Request() {
+        testFromMap_EmptyApiKey_ThrowsError(ConfigurationParseContext.REQUEST);
+    }
+
+    public void testFromMap_EmptyApiKey_ThrowsError_Persistent() {
+        testFromMap_EmptyApiKey_ThrowsError(ConfigurationParseContext.PERSISTENT);
+    }
+
+    private static void testFromMap_EmptyApiKey_ThrowsError(ConfigurationParseContext context) {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> DefaultSecretSettings.fromMap(new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "")))
+            () -> DefaultSecretSettings.fromMap(new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, "")), context)
         );
 
+        var scope = context == ConfigurationParseContext.REQUEST ? "service_settings" : "secret_settings";
         assertThat(
             thrownException.getMessage(),
             containsString(
-                Strings.format(
-                    "[secret_settings] Invalid value empty string. [%s] must be a non-empty string",
-                    DefaultSecretSettings.API_KEY
-                )
+                Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, DefaultSecretSettings.API_KEY)
             )
         );
     }

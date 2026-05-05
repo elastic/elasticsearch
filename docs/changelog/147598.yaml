@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 147598
+summary: Add per-query concurrency budget for S3 connections
+type: enhancement

@@ -25,6 +25,7 @@ $$$grok-options$$$
 | `ecs_compatibility` | no | `disabled` | Must be `disabled` or `v1`. If `v1`, the processor uses patterns with [Elastic Common Schema (ECS)](ecs://reference/ecs-field-reference.md) field names. |
 | `trace_match` | no | false | when true, `_ingest._grok_match_index` will be inserted into your matched document’s metadata with the index into the pattern found in `patterns` that matched. |
 | `ignore_missing` | no | false | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document |
+| `validate_only` {applies_to}`stack: ga 9.4` {applies_to}`serverless: ga` | no | false | If `true`, the processor does matching but does not extract structured fields |
 | `description` | no | - | Description of the processor. Useful for describing the purpose of the processor or its configuration. |
 | `if` | no | - | Conditionally execute the processor. See [Conditionally run a processor](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#conditionally-run-processor). |
 | `ignore_failure` | no | `false` | Ignore failures for the processor. See [Handling pipeline failures](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#handling-pipeline-failures). |
@@ -231,6 +232,74 @@ In the above response, you can see that the index of the pattern that matched wa
 This trace metadata enables debugging which of the patterns matched. This information is stored in the ingest metadata and will not be indexed.
 
 
+## Validating input without extracting fields [validate-only]
+```{applies_to}
+stack: ga 9.4
+serverless: ga
+```
+
+When `validate_only` is set to `true`, the processor checks whether the input field matches the specified grok pattern but does **not** extract or write named captures to the document. The document passes through unchanged if the pattern matches, or the processor fails if it does not.
+
+Because no fields are captured, pattern names are optional. You can omit the `:name` part of a `%{SYNTAX:name}` expression and write bare patterns like `%{IP}` instead of `%{IP:client}`.
+
+The following example validates that a `message` field contains a favorite pet breed. No new fields are added to the document:
+
+```console
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+    "description": "Validate pet breed without extracting fields",
+    "processors": [
+      {
+        "grok": {
+          "field": "message",
+          "patterns": ["%{FAVORITE_DOG}", "%{FAVORITE_CAT}"],
+          "pattern_definitions": {
+            "FAVORITE_DOG": "beagle",
+            "FAVORITE_CAT": "burmese"
+          },
+          "validate_only": true
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_source": {
+        "message": "I love burmese cats!"
+      }
+    }
+  ]
+}
+```
+
+The document is returned unmodified because the pattern matched:
+
+```console-result
+{
+  "docs": [
+    {
+      "doc": {
+        "_index": "_index",
+        "_id": "_id",
+        "_version": "-3",
+        "_source": {
+          "message": "I love burmese cats!"
+        },
+        "_ingest": {
+          "timestamp": "2016-11-08T19:43:03.850+0000"
+        }
+      }
+    }
+  ]
+}
+```
+% TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
+
+If the pattern does not match, the processor fails. Use `ignore_failure` or `on_failure` to handle validation failures gracefully.
+
+
+
 ## Retrieving patterns from REST endpoint [grok-processor-rest-get]
 
 The Grok processor comes packaged with its own REST endpoint for retrieving the patterns included with the processor.
@@ -289,8 +358,8 @@ $$$grok-watchdog-options$$$
 
 | Name | Default | Description |
 | --- | --- | --- |
-| `ingest.grok.watchdog.interval` | 1s | How often to check whether there are grok evaluations that take longer than the maximum allowed execution time. |
 | `ingest.grok.watchdog.max_execution_time` | 1s | The maximum allowed execution of a grok expression evaluation. |
+| `ingest.grok.watchdog.interval` {applies_to}`stack: deprecated 9.4`| 1s | How often to check whether there are grok evaluations that take longer than the maximum allowed execution time. As of Elasticsearch 9.4, this setting is no longer necessary and is deprecated. |
 
 
 ## Grok debugging [grok-debugging]

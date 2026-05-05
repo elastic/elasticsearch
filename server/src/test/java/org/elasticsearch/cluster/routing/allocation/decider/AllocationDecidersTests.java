@@ -15,7 +15,10 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -25,6 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -71,7 +75,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         var allDecisions = generateDecisions(Decision.NOT_PREFERRED, () -> randomFrom(Decision.YES, Decision.THROTTLE));
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
-            case OFF -> Decision.NOT_PREFERRED;
+            case OFF -> allDecisions.contains(Decision.THROTTLE) ? Decision.THROTTLE : Decision.NOT_PREFERRED;
             case EXCLUDE_YES_DECISIONS -> filterAndCollectToMultiDecision(allDecisions, d -> d.type() != Decision.Type.YES);
             case ON -> collectToMultiDecision(allDecisions);
         };
@@ -157,9 +161,10 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         final RoutingTable projectRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(index)
             .build();
+        final ProjectId projectId = randomProjectIdOrDefault();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().put(index, false).build())
-            .routingTable(projectRoutingTable)
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(index, false)).build())
+            .routingTable(GlobalRoutingTable.builder().put(projectId, projectRoutingTable).build())
             .build();
 
         ShardRouting startedShard = TestShardRouting.newShardRouting(shardId, "node", true, ShardRoutingState.STARTED);
@@ -186,7 +191,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
                 return decision;
             })).toList());
 
-            RoutingAllocation allocation = new RoutingAllocation(deciders, clusterState, null, null, 0L);
+            RoutingAllocation allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(deciders).build();
             allocation.setDebugMode(debugMode);
 
             var decision = operation.apply(allocation, deciders);
@@ -263,7 +268,9 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
     }
 
     private static RoutingAllocation createRoutingAllocation(AllocationDeciders deciders) {
-        return new RoutingAllocation(deciders, ClusterState.builder(new ClusterName("test")).build(), null, null, 0L);
+        return TestRoutingAllocationFactory.forClusterState(ClusterState.builder(new ClusterName("test")).build())
+            .allocationDeciders(deciders)
+            .build();
     }
 
     private static final class AnyNodeInitialShardAllocationDecider extends AllocationDecider {
@@ -283,66 +290,4 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         }
     }
 
-    private static final class TestAllocationDecider extends AllocationDecider {
-
-        private final Supplier<Decision> decision;
-
-        private TestAllocationDecider(Supplier<Decision> decision) {
-            this.decision = decision;
-        }
-
-        @Override
-        public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canRebalance(RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return decision.get();
-        }
-
-        @Override
-        public Decision canAllocateReplicaWhenThereIsRetentionLease(
-            ShardRouting shardRouting,
-            RoutingNode node,
-            RoutingAllocation allocation
-        ) {
-            return decision.get();
-        }
-    }
 }

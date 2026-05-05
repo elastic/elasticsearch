@@ -125,7 +125,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     public void testRandomVersionSerialization() throws IOException {
         SearchRequest searchRequest = createSearchRequest();
-        TransportVersion version = TransportVersionUtils.randomVersion(random());
+        TransportVersion version = TransportVersionUtils.randomVersion();
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
         assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
@@ -608,5 +608,16 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     private String toDescription(SearchRequest request) {
         return request.createTask(0, "test", TransportSearchAction.TYPE.name(), TaskId.EMPTY_TASK_ID, emptyMap()).getDescription();
+    }
+
+    public void testClearProjectRoutingAllowsValidationWithPointInTime() {
+        SearchRequest request = new SearchRequest();
+        request.source(new SearchSourceBuilder());
+        request.source().pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("pit-id")));
+        request.setProjectRouting("_origin");
+        assertNotNull(request.validate());
+
+        request.clearProjectRouting();
+        assertNull(request.validate());
     }
 }

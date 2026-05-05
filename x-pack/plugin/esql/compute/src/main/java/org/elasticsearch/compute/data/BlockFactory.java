@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.RootAllocator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -14,9 +16,13 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
+import org.elasticsearch.compute.data.arrow.CircuitBreakerAllocationListener;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
+import java.lang.ref.Cleaner;
 import java.util.BitSet;
 
 public class BlockFactory {
@@ -29,37 +35,85 @@ public class BlockFactory {
     public static final String MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING = "esql.block_factory.max_block_primitive_array_size";
     public static final ByteSizeValue DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE = ByteSizeValue.ofKb(512);
 
+    // The same as PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_THRESHOLD
+    public static final ByteSizeValue DEFAULT_BYTES_REF_RAM_OVERESTIMATE_THRESHOLD = ByteSizeValue.ofMb(1);
+    // The same as PlannerSettings.BYTES_REF_RAM_OVERESTIMATE_FACTOR
+    public static final double DEFAULT_BYTES_REF_RAM_OVERESTIMATE_FACTOR = 2.5;
+
+    private static final Logger log = LogManager.getLogger(BlockFactory.class);
+
     private final CircuitBreaker breaker;
 
     private final BigArrays bigArrays;
     private final long maxPrimitiveArrayBytes;
     private final BlockFactory parent;
+    private final long bytesRefRamOverestimateThreshold;
+    private final double bytesRefRamOverestimateFactor;
+    protected volatile BufferAllocator arrowAllocator;
+    private static final Cleaner cleaner = Cleaner.create();
+
+    /**
+     * {@return a builder for constructing a {@link BlockFactory}}
+     */
+    public static BlockFactoryBuilder builder(BigArrays bigArrays) {
+        return new BlockFactoryBuilder(bigArrays);
+    }
+
+    protected BlockFactory(BlockFactoryBuilder builder, BlockFactory parent) {
+        this.bigArrays = builder.bigArrays;
+        this.breaker = builder.breaker == null ? bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST) : builder.breaker;
+        this.maxPrimitiveArrayBytes = builder.maxPrimitiveArraySize;
+        this.bytesRefRamOverestimateThreshold = builder.bytesRefRamOverestimateThreshold;
+        this.bytesRefRamOverestimateFactor = builder.bytesRefRamOverestimateFactor;
+        this.parent = parent;
+        assert breaker instanceof LocalCircuitBreaker == false
+            || (parent != null && ((LocalCircuitBreaker) builder.breaker).parentBreaker() == parent.breaker)
+            : "use local breaker without parent block factory";
+    }
 
     public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
-        this(breaker, bigArrays, DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE);
-    }
-
-    public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {
-        this(breaker, bigArrays, maxPrimitiveArraySize, null);
-    }
-
-    protected BlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize, BlockFactory parent) {
-        assert breaker instanceof LocalCircuitBreaker == false
-            || (parent != null && ((LocalCircuitBreaker) breaker).parentBreaker() == parent.breaker)
-            : "use local breaker without parent block factory";
-        this.breaker = breaker;
-        this.bigArrays = bigArrays;
-        this.parent = parent;
-        this.maxPrimitiveArrayBytes = maxPrimitiveArraySize.getBytes();
-    }
-
-    public static BlockFactory getInstance(CircuitBreaker breaker, BigArrays bigArrays) {
-        return new BlockFactory(breaker, bigArrays, DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE, null);
+        this(BlockFactory.builder(bigArrays).breaker(breaker), null);
     }
 
     // For testing
     public CircuitBreaker breaker() {
         return breaker;
+    }
+
+    public BufferAllocator arrowAllocator() {
+        // There's one root Arrow allocator per top-level block factory.
+        // Ideally, we should have one child allocator per ESQL query to check buffer leaks at the end of each query, but there's no
+        // obvious lifecycle hook for that: BlockFactories are not Releasable, and child blockfactories are created only to use a
+        // LocalBreaker that reduces the number of atomic counting operations.
+        if (arrowAllocator == null) {
+            synchronized (this) {
+                if (arrowAllocator == null) {
+                    if (this.parent == null) {
+                        // Root block factory
+                        var listener = new CircuitBreakerAllocationListener(breaker);
+                        // TODO: see if the default rounding policy (power of 2) is appropriate
+                        var allocator = new RootAllocator(listener, Long.MAX_VALUE);
+                        cleaner.register(this, () -> {
+                            try {
+                                allocator.close();
+                            } catch (Exception e) {
+                                log.error("Error closing the Arrow root allocator", e);
+                            }
+                        });
+                        arrowAllocator = allocator;
+                    } else {
+                        arrowAllocator = childFactoryAllocator();
+                    }
+                }
+            }
+        }
+        return arrowAllocator;
+    }
+
+    protected BufferAllocator childFactoryAllocator() {
+        // Store it locally to avoid crawling the parent chain every time we need it.
+        // Overridden in tests
+        return parent.arrowAllocator();
     }
 
     // For testing
@@ -71,11 +125,26 @@ public class BlockFactory {
         return parent != null ? parent : this;
     }
 
+    public long bytesRefRamOverestimateThreshold() {
+        return bytesRefRamOverestimateThreshold;
+    }
+
+    public double bytesRefRamOverestimateFactor() {
+        return bytesRefRamOverestimateFactor;
+    }
+
     public BlockFactory newChildFactory(LocalCircuitBreaker childBreaker) {
         if (childBreaker.parentBreaker() != breaker) {
             throw new IllegalStateException("Different parent breaker");
         }
-        return new BlockFactory(childBreaker, bigArrays, ByteSizeValue.ofBytes(maxPrimitiveArrayBytes), this);
+        return new BlockFactory(
+            BlockFactory.builder(bigArrays)
+                .breaker(childBreaker)
+                .maxPrimitiveArraySize(maxPrimitiveArrayBytes)
+                .bytesRefRamOverestimateThreshold(bytesRefRamOverestimateThreshold)
+                .bytesRefRamOverestimateFactor(bytesRefRamOverestimateFactor),
+            this
+        );
     }
 
     /**
@@ -398,6 +467,15 @@ public class BlockFactory {
         return new BytesRefBlockBuilder(estimatedSize, bigArrays, this);
     }
 
+    /**
+     * Creates a {@link BytesRefBlock.Builder} with a byte-level storage hint. The hint
+     * pre-sizes the internal byte buffer so that columns with known payload size (e.g.
+     * from Parquet column-chunk metadata) avoid repeated grow-on-demand resizes.
+     */
+    public BytesRefBlock.Builder newBytesRefBlockBuilder(int estimatedSize, long byteHint) {
+        return new BytesRefBlockBuilder(estimatedSize, bigArrays, this, byteHint);
+    }
+
     public BytesRefBlock newBytesRefArrayBlock(BytesRefArray values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
         var b = new BytesRefArrayBlock(values, pc, firstValueIndexes, nulls, mvOrdering, this);
         adjustBreaker(b.ramBytesUsed() - values.bigArraysRamBytesUsed());
@@ -415,15 +493,13 @@ public class BlockFactory {
     }
 
     public BytesRefBlock newConstantBytesRefBlockWith(BytesRef value, int positions) {
-        var b = new ConstantBytesRefVector(value, positions, this).asBlock();
-        adjustBreaker(b.ramBytesUsed());
-        return b;
+        return newConstantBytesRefVector(value, positions).asBlock();
     }
 
     public BytesRefVector newConstantBytesRefVector(BytesRef value, int positions) {
-        long preadjusted = ConstantBytesRefVector.ramBytesUsed(value);
+        long preadjusted = ConstantBytesRefVector.ramBytesEstimated(value, bytesRefRamOverestimateThreshold, bytesRefRamOverestimateFactor);
         adjustBreaker(preadjusted);
-        var v = new ConstantBytesRefVector(value, positions, this);
+        var v = new ConstantBytesRefVector(BytesRef.deepCopyOf(value), positions, this);
         assert v.ramBytesUsed() == preadjusted;
         return v;
     }
@@ -432,6 +508,15 @@ public class BlockFactory {
         var b = new ConstantNullBlock(positions, this);
         adjustBreaker(b.ramBytesUsed());
         return b;
+    }
+
+    /**
+     * Create a {@link IntVector} that includes a range of integers from startInclusive (inclusive) to endExclusive (exclusive).
+     */
+    public IntVector newIntRangeVector(int startInclusive, int endExclusive) {
+        IntRangeVector v = new IntRangeVector(this, startInclusive, endExclusive);
+        adjustBreaker(v.ramBytesUsed());
+        return v;
     }
 
     public AggregateMetricDoubleBlockBuilder newAggregateMetricDoubleBlockBuilder(int estimatedSize) {
@@ -546,6 +631,19 @@ public class BlockFactory {
         DoubleBlock sum = newDoubleArrayVector(sumValues, positions).asBlock();
         IntBlock count = newIntArrayVector(countValues, positions).asBlock();
         return new AggregateMetricDoubleArrayBlock(min, max, sum, count);
+    }
+
+    public LongRangeBlockBuilder newLongRangeBlockBuilder(int estimatedSize) {
+        return new LongRangeBlockBuilder(estimatedSize, this);
+    }
+
+    public LongRangeBlock newConstantLongRangeBlock(LongRangeBlockBuilder.LongRange value, int positions) {
+        try (var builder = newLongRangeBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                builder.appendLongRange(value);
+            }
+            return builder.build();
+        }
     }
 
     /**

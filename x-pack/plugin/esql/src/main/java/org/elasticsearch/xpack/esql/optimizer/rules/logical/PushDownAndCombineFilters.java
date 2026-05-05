@@ -19,10 +19,12 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -91,6 +93,10 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             // Push down filters that do not rely on attributes created by RegexExtract
             var attributes = AttributeSet.of(Expressions.asAttributes(re.extractedFields()));
             plan = maybePushDownPastUnary(filter, re, attributes::contains, NO_OP);
+        } else if (child instanceof CompoundOutputEval<?> coe) {
+            // Push down filters that do not rely on attributes created by CompoundOutputEval
+            var attributes = AttributeSet.of(Expressions.asAttributes(coe.generatedAttributes()));
+            plan = maybePushDownPastUnary(filter, coe, attributes::contains, NO_OP);
         } else if (child instanceof InferencePlan<?> inferencePlan) {
             // Push down filters that do not rely on attributes created by Completion
             var attributes = AttributeSet.of(inferencePlan.generatedAttributes());
@@ -106,6 +112,9 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             plan = orderBy.replaceChild(filter.with(orderBy.child(), condition));
         } else if (child instanceof Join join) {
             return pushDownPastJoin(filter, join, ctx.foldCtx());
+        } else if (child instanceof MvExpand mvExpand) {
+            Attribute attribute = mvExpand.expanded();
+            return maybePushDownPastUnary(filter, mvExpand, attribute::semanticEquals, NO_OP);
         }
         // cannot push past a Limit, this could change the tailing result set returned
         return plan;

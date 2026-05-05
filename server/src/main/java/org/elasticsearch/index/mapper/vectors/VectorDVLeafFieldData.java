@@ -32,7 +32,10 @@ import org.elasticsearch.script.field.vectors.KnnDenseVectorDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.Base64;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
@@ -90,13 +93,15 @@ final class VectorDVLeafFieldData implements LeafFieldData {
 
     private class ByteDocValues implements FormattedDocValues {
         private final int dims;
+        private final boolean base64;
         private byte[] vector;
         private ByteVectorValues byteVectorValues; // use when indexed
         private KnnVectorValues.DocIndexIterator iterator; // use when indexed
         private BinaryDocValues binary; // use when not indexed
 
-        ByteDocValues(int dims) {
+        ByteDocValues(int dims, boolean base64) {
             this.dims = dims;
+            this.base64 = base64;
             this.vector = new byte[dims];
             try {
                 if (indexed) {
@@ -134,6 +139,9 @@ final class VectorDVLeafFieldData implements LeafFieldData {
         }
 
         public Object nextValue() {
+            if (base64) {
+                return Base64.getEncoder().encodeToString(vector);
+            }
             Byte[] vectorValue = new Byte[dims];
             for (int i = 0; i < dims; i++) {
                 vectorValue[i] = vector[i];
@@ -143,12 +151,18 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     }
 
     private class FloatDocValues implements FormattedDocValues {
+        private final boolean base64;
         private float[] vector = new float[dims];
         private FloatVectorValues floatVectorValues; // use when indexed
         private KnnVectorValues.DocIndexIterator iterator; // use when indexed
         private BinaryDocValues binary; // use when not indexed
+        private ByteBuffer scratchBuffer;
 
-        FloatDocValues() {
+        FloatDocValues(boolean base64) {
+            this.base64 = base64;
+            if (base64) {
+                this.scratchBuffer = ByteBuffer.allocate(dims * Float.BYTES).order(ByteOrder.BIG_ENDIAN);
+            }
             try {
                 if (indexed) {
                     floatVectorValues = reader.getFloatVectorValues(field);
@@ -189,11 +203,19 @@ final class VectorDVLeafFieldData implements LeafFieldData {
 
         @Override
         public Object nextValue() {
+            if (base64) {
+                scratchBuffer.asFloatBuffer().put(vector);
+                return Base64.getEncoder().encodeToString(scratchBuffer.array());
+            }
             return Arrays.copyOf(vector, vector.length);
         }
     }
 
     private class BFloat16DocValues extends FloatDocValues {
+        BFloat16DocValues(boolean base64) {
+            super(base64);
+        }
+
         @Override
         void decodeDenseVector(IndexVersion indexVersion, BytesRef vectorBR, float[] vector) {
             VectorEncoderDecoder.decodeBFloat16DenseVector(vectorBR, vector);
@@ -203,10 +225,10 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     @Override
     public FormattedDocValues getFormattedValues(DocValueFormat format) {
         return switch (elementType) {
-            case BYTE -> new ByteDocValues(dims);
-            case BIT -> new ByteDocValues(dims / Byte.SIZE);
-            case FLOAT -> new FloatDocValues();
-            case BFLOAT16 -> new BFloat16DocValues();
+            case BYTE -> new ByteDocValues(dims, format == DocValueFormat.BINARY);
+            case BIT -> new ByteDocValues(dims / Byte.SIZE, format == DocValueFormat.BINARY);
+            case FLOAT -> new FloatDocValues(format == DocValueFormat.BINARY);
+            case BFLOAT16 -> new BFloat16DocValues(format == DocValueFormat.BINARY);
         };
     }
 

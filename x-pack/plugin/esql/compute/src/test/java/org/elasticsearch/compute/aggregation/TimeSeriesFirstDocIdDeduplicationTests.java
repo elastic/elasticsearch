@@ -22,13 +22,14 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
-import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOperator;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -37,9 +38,11 @@ import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -81,7 +84,7 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
                 new TestResultPageSinkOperator(results::add)
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
 
         assertSimpleOutput(origInput, results);
@@ -134,7 +137,7 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
                 new TestResultPageSinkOperator(results::add)
             )
         ) {
-            runDriver(d);
+            new TestDriverRunner().run(d);
         }
 
         assertThat("Should have at least one result page", results.size(), equalTo(1));
@@ -172,13 +175,15 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
         List<RowData> rows = new ArrayList<>();
         Map<Integer, RefCounted> shardRefs = new HashMap<>();
 
+        Set<Doc> seenIds = new HashSet<>();
         for (int i = 0; i < size; i++) {
             BytesRef tsid = randomFrom(tsids);
 
             long tsOffset = randomLongBetween(0, 10 * 60 * 1000); // 0-10 minutes
             long ts = timeBucket.round(START_TIME + tsOffset);
 
-            Doc doc = new Doc(between(0, 2), between(0, 5), randomNonNegativeInt());
+            Doc doc = randomValueOtherThanMany(seenIds::contains, () -> new Doc(between(0, 2), between(0, 5), randomNonNegativeInt()));
+            seenIds.add(doc);
             shardRefs.putIfAbsent(doc.shard, AbstractRefCounted.of(() -> {}));
 
             rows.add(new RowData(tsid, ts, doc));
@@ -261,7 +266,9 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
             ),
             mode,
             List.of(aggregatorFunction().groupingAggregatorFactory(mode, channels())),
-            randomPageSize()
+            randomPageSize(),
+            null,
+            false
         );
 
     }
@@ -273,7 +280,10 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
 
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
-        String hash = "blockHash=BytesRefLongBlockHash{keys=[BytesRefKey[channel=0], LongKey[channel=1]], entries=0, size=392b}";
+        String hash = "blockHash=BytesRefLongBlockHash{keys=[tsid[channel=0], timestamp[channel=1]], entries=0, size=%size%}".replace(
+            "%size%",
+            byteRefBlockHashSize()
+        );
         return equalTo(
             "TimeSeriesAggregationOperator["
                 + hash
@@ -318,7 +328,13 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
                 }
 
                 var refs = new FirstDocIdGroupingAggregatorFunction.MappedShardRefs<>(shardRefs);
-                DocVector docVector = new DocVector(refs, shardBuilder.build(), segmentBuilder.build(), docBuilder.build(), null);
+                DocVector docVector = new DocVector(
+                    refs,
+                    shardBuilder.build(),
+                    segmentBuilder.build(),
+                    docBuilder.build(),
+                    DocVector.config().mayContainDuplicates()
+                );
 
                 currentPosition += length;
                 return new Page(tsidBuilder.build(), timestampBuilder.build(), docVector.asBlock());

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -39,6 +40,9 @@ public class ToDenseVector extends AbstractConvertFunction {
         "ToDenseVector",
         ToDenseVector::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToDenseVector.class)
+        .unary(ToDenseVector::new)
+        .name("to_dense_vector");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(DENSE_VECTOR, (source, fieldEval) -> fieldEval),

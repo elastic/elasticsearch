@@ -16,11 +16,74 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
-## 9.2.3 [elasticsearch-9.2.3-deprecations]
+## 9.4.0 [elasticsearch-9.4.0-deprecations]
+```{applies_to}
+stack: ga 9.4.0
+```
+
+Data streams:
+* Deprecate the 'logs' stream type [#142148](https://github.com/elastic/elasticsearch/pull/142148)
+
+Mapping:
+* Deprecate the `default_metric` parameter in the `aggregate_metric_double` mapping configuration. [#141877](https://github.com/elastic/elasticsearch/pull/141877) (issue: [#128356](https://github.com/elastic/elasticsearch/issues/128356))
+
+
+
+## 9.3.4 [elasticsearch-9.3.4-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.2.8 [elasticsearch-9.2.8-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.3.3 [elasticsearch-9.3.3-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.2.7 [elasticsearch-9.2.7-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.3.2 [elasticsearch-9.3.2-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.2.6 [elasticsearch-9.2.6-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.3.1 [elasticsearch-9.3.1-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.3.0 [elasticsearch-9.3.0-deprecations]
+
+ILM:
+* Add deprecation notice for `max_size` rollover condition [#135765](https://github.com/elastic/elasticsearch/pull/135765) (issue: [#130737](https://github.com/elastic/elasticsearch/issues/130737))
+
+Infra/Logging:
+* Add deprecation lenient booleans usage for analysis boolean setting (3rd party plugins) and boolean system properties. [#137885](https://github.com/elastic/elasticsearch/pull/137885) (issue: [#128993](https://github.com/elastic/elasticsearch/issues/128993))
+
+
+
+## 9.2.5 [elasticsearch-9.2.5-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.1.10 [elasticsearch-9.1.10-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.2.4 [elasticsearch-9.2.4-deprecations]
 
 There are no deprecations associated with this release.
 
 ## 9.1.9 [elasticsearch-9.1.9-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.2.3 [elasticsearch-9.2.3-deprecations]
 
 There are no deprecations associated with this release.
 

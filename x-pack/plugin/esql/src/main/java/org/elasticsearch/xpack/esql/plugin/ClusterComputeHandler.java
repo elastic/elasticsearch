@@ -169,12 +169,12 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             } else {
                 if (resp.getTook() != null) {
                     builder.setTook(
-                        TimeValue.timeValueNanos(executionInfo.planningProfile().planning().timeTook().nanos() + resp.getTook().nanos())
+                        TimeValue.timeValueNanos(executionInfo.queryProfile().planning().timeTook().nanos() + resp.getTook().nanos())
                     );
                 } else {
                     // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
                     // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
-                    builder.setTook(executionInfo.tookSoFar());
+                    builder.setTook(executionInfo.queryProfile().total().timeSinceStarted());
                 }
             }
             if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
@@ -262,9 +262,10 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         parentTask.addListener(
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );
+        exchangeSink.addCompletionListener(ActionListener.running(() -> exchangeService.finishSinkHandler(globalSessionId, null)));
         final String localSessionId = clusterAlias + ":" + globalSessionId;
         ReductionPlan reductionPlan = ComputeService.reductionPlan(
-            computeService.plannerSettings(),
+            computeService.plannerSettings().get(),
             computeService.createFlags(),
             configuration,
             configuration.newFoldContext(),
@@ -303,6 +304,10 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         () -> exchangeSink.createExchangeSink(() -> {})
                     ),
                     coordinatorPlan,
+                    computeService.plannerSettings().get(),
+                    // Local physical optimization is aimed at data nodes, e.g., inserting field extractions, which don't apply here.
+                    // Cluster-level reduction uses simple query plans that just perform a single reduction step between exchanges.
+                    LocalPhysicalOptimization.DISABLED,
                     configuration.profile() ? new PlanTimeProfile() : null,
                     computeListener.acquireCompute()
                 );

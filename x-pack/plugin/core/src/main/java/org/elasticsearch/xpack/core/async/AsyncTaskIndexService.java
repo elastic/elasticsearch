@@ -316,8 +316,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
 
     private ReleasableBytesStreamOutput allocateBuffer(boolean limitToMaxResponseSize) {
         return limitToMaxResponseSize
-            ? new ReleasableBytesStreamOutputWithLimit(0, bigArrays.withCircuitBreaking(), maxResponseSize)
-            : new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
+            ? new ReleasableBytesStreamOutputWithLimit(bigArrays.withCircuitBreaking(), maxResponseSize)
+            : new ReleasableBytesStreamOutput(bigArrays.withCircuitBreaking());
     }
 
     private void addResultFieldAndFinish(Writeable response, XContentBuilder source) throws IOException {
@@ -326,8 +326,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             os = Streams.noCloseStream(os);
             TransportVersion minNodeVersion = clusterService.state().getMinTransportVersion();
             TransportVersion.writeVersion(minNodeVersion, new OutputStreamStreamOutput(os));
-            os = CompressorFactory.COMPRESSOR.threadLocalOutputStream(os);
-            try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(os)) {
+            try (var out = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(os)) {
                 out.setTransportVersion(minNodeVersion);
                 response.writeTo(out);
             }
@@ -535,7 +534,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             AsyncExecutionId asyncExecutionId = AsyncExecutionId.decode(request.getId());
             try {
                 T asyncTask = getTask(taskManager, asyncExecutionId, tClass);
-                if (asyncTask != null) { // get status response from task
+                if (asyncTask != null && asyncTask.isCancelled() == false) { // get status response from task
                     if (canSeeAll || security.currentUserHasAccessToTask(asyncTask)) {
                         var response = statusProducerFromTask.apply(asyncTask);
                         outerListener.onResponse(response);
@@ -603,8 +602,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private static class ReleasableBytesStreamOutputWithLimit extends ReleasableBytesStreamOutput {
         private final long limit;
 
-        ReleasableBytesStreamOutputWithLimit(int expectedSize, BigArrays bigArrays, long limit) {
-            super(expectedSize, bigArrays);
+        ReleasableBytesStreamOutputWithLimit(BigArrays bigArrays, long limit) {
+            super(bigArrays);
             this.limit = limit;
         }
 

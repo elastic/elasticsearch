@@ -119,7 +119,11 @@ public class MockWebServer implements Closeable {
      * @throws IOException in case of a binding or other I/O errors
      */
     public void start() throws IOException {
-        InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0);
+        start(InetAddress.getLoopbackAddress());
+    }
+
+    public void start(InetAddress bindAddress) throws IOException {
+        InetSocketAddress address = new InetSocketAddress(bindAddress.getHostAddress(), 0);
         if (sslContext != null) {
             HttpsServer httpsServer = MockHttpServer.createHttps(address, 0);
             httpsServer.setHttpsConfigurator(new CustomHttpsConfigurator(sslContext, tlsConfig));
@@ -137,6 +141,10 @@ public class MockWebServer implements Closeable {
             try {
                 MockResponse response = responses.poll();
                 MockRequest request = createRequest(s);
+
+                // Update the response body based on the request if a body generator function was specified in the response
+                response.setBodyFromRequest(request);
+
                 requests.add(request);
 
                 if (logger.isDebugEnabled()) {
@@ -251,6 +259,16 @@ public class MockWebServer implements Closeable {
         return request;
     }
 
+    public String getHttpAddress() {
+        String host = getHostName();
+        if (host.contains(":")) {
+            // ipv6 format
+            host = "[" + host + "]";
+        }
+
+        return host + ":" + getPort();
+    }
+
     /**
      * @return The hostname the server is bound to.
      */
@@ -307,6 +325,13 @@ public class MockWebServer implements Closeable {
     }
 
     /**
+     * Removes all responses from the queue.
+     */
+    public void clearResponses() {
+        responses.clear();
+    }
+
+    /**
      * A utility method to peek into the requests and find out if #MockWebServer.takeRequests will not throw an out of bound exception
      * @return true if more requests are available, false otherwise
      */
@@ -338,6 +363,9 @@ public class MockWebServer implements Closeable {
      */
     private String getStartOfBody(MockResponse response) {
         if (Strings.isEmpty(response.getBody())) {
+            if (response.getBodyGenerator() != null) {
+                return "response body not set until request made";
+            }
             return "";
         }
         int length = Math.min(20, response.getBody().length());

@@ -10,7 +10,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -31,14 +31,14 @@ final class LongLongBlockHash extends BlockHash {
     private final int channel1;
     private final int channel2;
     private final int emitBatchSize;
-    private final LongLongHash hash;
+    private final LongLongHashTable hash;
 
     LongLongBlockHash(BlockFactory blockFactory, int channel1, int channel2, int emitBatchSize) {
         super(blockFactory);
         this.channel1 = channel1;
         this.channel2 = channel2;
         this.emitBatchSize = emitBatchSize;
-        this.hash = new LongLongHash(1, blockFactory.bigArrays());
+        this.hash = HashImplFactory.newLongLongHash(blockFactory);
     }
 
     @Override
@@ -79,17 +79,18 @@ final class LongLongBlockHash extends BlockHash {
     }
 
     @Override
-    public Block[] getKeys() {
-        int positions = (int) hash.size();
+    public Block[] getKeys(IntVector selected) {
+        int positions = selected.getPositionCount();
         LongVector k1 = null;
         LongVector k2 = null;
         try (
             LongVector.Builder keys1 = blockFactory.newLongVectorBuilder(positions);
             LongVector.Builder keys2 = blockFactory.newLongVectorBuilder(positions)
         ) {
-            for (long i = 0; i < positions; i++) {
-                keys1.appendLong(hash.getKey1(i));
-                keys2.appendLong(hash.getKey2(i));
+            for (int i = 0; i < positions; i++) {
+                int groupId = selected.getInt(i);
+                keys1.appendLong(hash.getKey1(groupId));
+                keys2.appendLong(hash.getKey2(groupId));
             }
             k1 = keys1.build();
             k2 = keys2.build();
@@ -103,7 +104,12 @@ final class LongLongBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(hash.size()), blockFactory);
+        return blockFactory.newIntRangeVector(0, Math.toIntExact(hash.size()));
+    }
+
+    @Override
+    public int numKeys() {
+        return Math.toIntExact(hash.size());
     }
 
     @Override

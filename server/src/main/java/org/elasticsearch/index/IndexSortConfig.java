@@ -357,6 +357,15 @@ public final class IndexSortConfig {
         return sortSpecs.length > 0 && sortSpecs[0].field.equals(field);
     }
 
+    public boolean containsDescendingTimestampSort() {
+        for (FieldSortSpec sort : sortSpecs) {
+            if (sort.order == SortOrder.DESC && sort.field.equals("@timestamp")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Builds the {@link Sort} order from the settings for this index
      * or returns null if this index has no sort.

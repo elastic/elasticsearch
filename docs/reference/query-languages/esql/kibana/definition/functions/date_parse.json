@@ -51,7 +51,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='time_zone', values=[standard], description='Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values in the query string to UTC.'}, {name='locale', values=[standard], description='The locale to use when parsing the date, relevant when parsing month names or week days.'}",
+          "mapParams" : "{name='time_zone', values=[standard], description='Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values in the query string to UTC.', type=[keyword]}, {name='locale', values=[standard], description='The locale to use when parsing the date, relevant when parsing month names or week days.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options for date parsing, specifying time zone and locale as <<esql-function-named-params,function named parameters>>."
         }
@@ -70,7 +70,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='time_zone', values=[standard], description='Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values in the query string to UTC.'}, {name='locale', values=[standard], description='The locale to use when parsing the date, relevant when parsing month names or week days.'}",
+          "mapParams" : "{name='time_zone', values=[standard], description='Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values in the query string to UTC.', type=[keyword]}, {name='locale', values=[standard], description='The locale to use when parsing the date, relevant when parsing month names or week days.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options for date parsing, specifying time zone and locale as <<esql-function-named-params,function named parameters>>."
         }
@@ -113,7 +113,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='time_zone', values=[standard], description='Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values in the query string to UTC.'}, {name='locale', values=[standard], description='The locale to use when parsing the date, relevant when parsing month names or week days.'}",
+          "mapParams" : "{name='time_zone', values=[standard], description='Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values in the query string to UTC.', type=[keyword]}, {name='locale', values=[standard], description='The locale to use when parsing the date, relevant when parsing month names or week days.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options for date parsing, specifying time zone and locale as <<esql-function-named-params,function named parameters>>."
         }
@@ -126,24 +126,6 @@
         {
           "name" : "dateString",
           "type" : "text",
-          "optional" : false,
-          "description" : "Date expression as a string. If `null` or an empty string, the function returns `null`."
-        }
-      ],
-      "variadic" : false,
-      "returnType" : "date"
-    },
-    {
-      "params" : [
-        {
-          "name" : "datePattern",
-          "type" : "text",
-          "optional" : true,
-          "description" : "The date format. Refer to the {javadoc14}/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter` documentation] for the syntax. If `null`, the function returns `null`."
-        },
-        {
-          "name" : "dateString",
-          "type" : "keyword",
           "optional" : false,
           "description" : "Date expression as a string. If `null` or an empty string, the function returns `null`."
         }
@@ -164,11 +146,29 @@
           "type" : "keyword",
           "optional" : false,
           "description" : "Date expression as a string. If `null` or an empty string, the function returns `null`."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "datePattern",
+          "type" : "text",
+          "optional" : true,
+          "description" : "The date format. Refer to the {javadoc14}/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter` documentation] for the syntax. If `null`, the function returns `null`."
+        },
+        {
+          "name" : "dateString",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Date expression as a string. If `null` or an empty string, the function returns `null`."
         },
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='time_zone', values=[standard], description='Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values in the query string to UTC.'}, {name='locale', values=[standard], description='The locale to use when parsing the date, relevant when parsing month names or week days.'}",
+          "mapParams" : "{name='time_zone', values=[standard], description='Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values in the query string to UTC.', type=[keyword]}, {name='locale', values=[standard], description='The locale to use when parsing the date, relevant when parsing month names or week days.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options for date parsing, specifying time zone and locale as <<esql-function-named-params,function named parameters>>."
         }
@@ -187,7 +187,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='time_zone', values=[standard], description='Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values in the query string to UTC.'}, {name='locale', values=[standard], description='The locale to use when parsing the date, relevant when parsing month names or week days.'}",
+          "mapParams" : "{name='time_zone', values=[standard], description='Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values in the query string to UTC.', type=[keyword]}, {name='locale', values=[standard], description='The locale to use when parsing the date, relevant when parsing month names or week days.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options for date parsing, specifying time zone and locale as <<esql-function-named-params,function named parameters>>."
         }
@@ -230,7 +230,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='time_zone', values=[standard], description='Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values in the query string to UTC.'}, {name='locale', values=[standard], description='The locale to use when parsing the date, relevant when parsing month names or week days.'}",
+          "mapParams" : "{name='time_zone', values=[standard], description='Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values in the query string to UTC.', type=[keyword]}, {name='locale', values=[standard], description='The locale to use when parsing the date, relevant when parsing month names or week days.', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) Additional options for date parsing, specifying time zone and locale as <<esql-function-named-params,function named parameters>>."
         }

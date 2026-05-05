@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -19,12 +20,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
  * Represents a single view definition, which is simply a name and a query string.
  */
-public final class View implements Writeable, ToXContentObject {
+public final class View implements Writeable, ToXContentObject, IndexAbstraction {
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField QUERY = new ParseField("query");
 
@@ -106,5 +108,40 @@ public final class View implements Writeable, ToXContentObject {
 
     public String toString() {
         return Strings.toString(this);
+    }
+
+    @Override
+    public Type getType() {
+        return Type.VIEW;
+    }
+
+    @Override
+    public String getName() {
+        return name;
+    }
+
+    @Override
+    public List<Index> getIndices() {
+        return List.of();
+    }
+
+    @Override
+    public Index getWriteIndex() {
+        return null;
+    }
+
+    @Override
+    public DataStream getParentDataStream() {
+        return null;
+    }
+
+    @Override
+    public boolean isHidden() {
+        return false;
+    }
+
+    @Override
+    public boolean isSystem() {
+        return false;
     }
 }

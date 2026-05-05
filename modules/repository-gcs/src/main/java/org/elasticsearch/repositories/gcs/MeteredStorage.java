@@ -18,12 +18,12 @@ import com.google.cloud.WriteChannel;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.CopyWriter;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.spi.v1.HttpStorageRpc;
 
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -33,6 +33,8 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.repositories.gcs.StorageOperation.COPY;
+import static org.elasticsearch.repositories.gcs.StorageOperation.DELETE;
 import static org.elasticsearch.repositories.gcs.StorageOperation.GET;
 import static org.elasticsearch.repositories.gcs.StorageOperation.INSERT;
 import static org.elasticsearch.repositories.gcs.StorageOperation.LIST;
@@ -49,7 +51,6 @@ public class MeteredStorage {
 
     public MeteredStorage(Storage storage, GcsRepositoryStatsCollector statsCollector) {
         this.storage = storage;
-        SpecialPermission.check();
         this.storageRpc = getStorageRpc(storage);
         this.statsCollector = statsCollector;
     }
@@ -82,6 +83,10 @@ public class MeteredStorage {
         return statsCollector.collectIOSupplier(purpose, GET, () -> storage.get(blobId));
     }
 
+    public void delete(OperationPurpose purpose, BlobId blobId) {
+        statsCollector.skipCollectRunnable(purpose, DELETE, () -> storage.delete(blobId));
+    }
+
     public void meteredCreate(
         OperationPurpose purpose,
         BlobInfo blobInfo,
@@ -108,7 +113,7 @@ public class MeteredStorage {
     public MeteredWriteChannel meteredWriter(OperationPurpose purpose, BlobInfo blobInfo, Storage.BlobWriteOption... writeOptions)
         throws IOException {
         var initStats = new OperationStats(purpose, INSERT);
-        return statsCollector.continueWithStats(
+        return statsCollector.continueWithIOSupplier(
             initStats,
             () -> new MeteredWriteChannel(statsCollector, initStats, storage.writer(blobInfo, writeOptions))
         );
@@ -183,7 +188,7 @@ public class MeteredStorage {
 
         @Override
         public int write(ByteBuffer src) throws IOException {
-            return statsCollector.continueWithStats(stats, () -> writeChannel.write(src));
+            return statsCollector.continueWithIOSupplier(stats, () -> writeChannel.write(src));
         }
 
         @Override
@@ -329,5 +334,19 @@ public class MeteredStorage {
                 return new MeteredIterator(iterable.iterator());
             }
         }
+    }
+
+    public void copy(OperationPurpose purpose, BlobId sourceBlobId, BlobId blobId, long megabytesCopiedPerChunk) {
+        var stats = new OperationStats(purpose, COPY);
+        var copyRequest = Storage.CopyRequest.newBuilder()
+            .setSource(sourceBlobId)
+            .setTarget(blobId)
+            .setMegabytesCopiedPerChunk(megabytesCopiedPerChunk)
+            .build();
+        CopyWriter copyWriter = statsCollector.continueWithSupplier(stats, () -> storage.copy(copyRequest));
+        while (!copyWriter.isDone()) {
+            statsCollector.continueWithRunnable(stats, copyWriter::copyChunk);
+        }
+        statsCollector.collect(stats);
     }
 }

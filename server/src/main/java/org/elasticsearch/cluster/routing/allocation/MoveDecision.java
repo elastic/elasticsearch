@@ -23,6 +23,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.Decision.NO;
+
 /**
  * Represents a decision to move a started shard, either because it is no longer allowed to remain on its current node
  * or because moving it to another node will form a better cluster balance.
@@ -39,14 +41,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
         null,
         0
     );
-    private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(
-        null,
-        null,
-        AllocationDecision.NO,
-        Decision.NO,
-        null,
-        0
-    );
+    private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(null, null, AllocationDecision.NO, NO, null, 0);
 
     @Nullable
     private final AllocationDecision canMoveDecision;
@@ -172,12 +167,11 @@ public final class MoveDecision extends AbstractAllocationDecision {
      */
     public boolean cannotRemainAndCanMove() {
         checkDecisionState();
-        return cannotRemain() && (canMoveDecision == AllocationDecision.YES);
-    }
-
-    public boolean cannotRemainAndNotPreferredMove() {
-        checkDecisionState();
-        return cannotRemain() && canMoveDecision == AllocationDecision.NOT_PREFERRED;
+        return switch (canRemainDecision.type()) {
+            case NO -> canMoveDecision == AllocationDecision.YES || canMoveDecision == AllocationDecision.NOT_PREFERRED;
+            case NOT_PREFERRED -> canMoveDecision == AllocationDecision.YES;
+            default -> false;
+        };
     }
 
     /**
@@ -342,9 +336,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
                 builder.field("rebalance_explanation", getExplanation());
             } else {
                 if (cannotRemainAndCanMove()) {
-                    builder.field("can_move_to_other_node", "yes");
-                } else if (cannotRemainAndNotPreferredMove()) {
-                    builder.field("can_move_to_other_node", "not-preferred");
+                    builder.field("can_move_to_other_node", canMoveDecision);
                 } else {
                     builder.field("can_move_to_other_node", "no");
                 }
@@ -374,4 +366,17 @@ public final class MoveDecision extends AbstractAllocationDecision {
         return 31 * super.hashCode() + Objects.hash(canMoveDecision, canRemainDecision, clusterRebalanceDecision, currentNodeRanking);
     }
 
+    @Override
+    public String toString() {
+        return "MoveDecision{"
+            + "canMoveDecision="
+            + canMoveDecision
+            + ", canRemainDecision="
+            + canRemainDecision
+            + ", clusterRebalanceDecision="
+            + clusterRebalanceDecision
+            + ", currentNodeRanking="
+            + currentNodeRanking
+            + '}';
+    }
 }

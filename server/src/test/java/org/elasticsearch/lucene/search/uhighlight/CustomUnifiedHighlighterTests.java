@@ -401,6 +401,27 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         assertHighlightOneDoc("text", inputs, analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
     }
 
+    public void testPhraseSpanningMultipleValues() throws Exception {
+        final String[] inputs = { "If you say things to a person that turn out not to be true", "the person is not going to believe" };
+        final String[] outputs = { "If you say things to a person that turn out not <b>to be true the person</b>" };
+        Query query = new PhraseQuery.Builder().add(new Term("text", "to"))
+            .add(new Term("text", "be"))
+            .add(new Term("text", "true"))
+            .add(new Term("text", "the"))
+            .add(new Term("text", "person"))
+            .build();
+        assertHighlightOneDoc(
+            "text",
+            inputs,
+            new StandardAnalyzer(),
+            query,
+            Locale.ROOT,
+            BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 256),
+            0,
+            outputs
+        );
+    }
+
     public void testExceedMaxAnalyzedOffset() throws Exception {
         TermQuery query = new TermQuery(new Term("text", "max"));
         Analyzer analyzer = CustomAnalyzer.builder()

@@ -67,6 +67,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
@@ -1478,7 +1479,7 @@ public class DataStreamIT extends ESIntegTestCase {
         bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-barfoo").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        assertThat("bulk failures: " + Strings.toTruncatedString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
         bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
@@ -1486,7 +1487,7 @@ public class DataStreamIT extends ESIntegTestCase {
         bulkRequest.add(new IndexRequest("logs-barbaz").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-barfoo2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        assertThat("bulk failures: " + Strings.toTruncatedString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
         bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
@@ -1496,7 +1497,7 @@ public class DataStreamIT extends ESIntegTestCase {
         bulkRequest.add(new IndexRequest("logs-barfoo2").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         bulkRequest.add(new IndexRequest("logs-barfoo3").opType(CREATE).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON));
         bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        assertThat("bulk failures: " + Strings.toTruncatedString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
         GetDataStreamAction.Response getDataStreamsResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -1535,7 +1536,7 @@ public class DataStreamIT extends ESIntegTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest("logs-foobar").opType(CREATE).source("{}", XContentType.JSON));
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
-        assertThat("bulk failures: " + Strings.toString(bulkResponse), bulkResponse.hasFailures(), is(false));
+        assertThat("bulk failures: " + Strings.toTruncatedString(bulkResponse), bulkResponse.hasFailures(), is(false));
 
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
         GetDataStreamAction.Response getDataStreamsResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -1855,10 +1856,10 @@ public class DataStreamIT extends ESIntegTestCase {
             IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("logs-es").aliases("logs"));
             var e = expectThrows(InvalidAliasNameException.class, indicesAdmin().aliases(aliasesAddRequest));
-            assertThat(
-                e.getMessage(),
-                equalTo("Invalid alias name [logs]: an index or data stream exists with the same name as the alias")
-            );
+            String expectedLogs = DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+                ? "Invalid alias name [logs]: an index, data stream, ESQL view, or ESQL dataset exists with the same name as the alias"
+                : "Invalid alias name [logs]: an index, data stream, or ESQL view exists with the same name as the alias";
+            assertThat(e.getMessage(), equalTo(expectedLogs));
         }
         {
             assertAcked(
@@ -1877,10 +1878,10 @@ public class DataStreamIT extends ESIntegTestCase {
                     false
                 )
             );
-            assertThat(
-                e.getCause().getMessage(),
-                equalTo("Invalid alias name [logs]: an index or data stream exists with the same name as the alias")
-            );
+            String expectedLogs = DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+                ? "Invalid alias name [logs]: an index, data stream, ESQL view, or ESQL dataset exists with the same name as the alias"
+                : "Invalid alias name [logs]: an index, data stream, or ESQL view exists with the same name as the alias";
+            assertThat(e.getCause().getMessage(), equalTo(expectedLogs));
         }
     }
 

@@ -48,7 +48,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
          * NB prior to 9.0 this was a TransportMasterNodeAction so for BwC we must remain able to read these requests until
          * we no longer need to support calling this action remotely.
          */
-        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
         public Request(StreamInput in) throws IOException {
             // This request extended MasterNodeRequest instead of MasterNodeReadRequest, meaning that it didn't serialize the `local` field.
             super(in, false);
@@ -93,7 +93,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
          * NB prior to 9.0 this was a TransportMasterNodeAction so for BwC we must remain able to write these responses until
          * we no longer need to support calling this action remotely.
          */
-        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(executingPolicies);
@@ -184,7 +184,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
              * NB prior to 9.0 this was a TransportMasterNodeAction so for BwC we must remain able to write these responses until
              * we no longer need to support calling this action remotely.
              */
-            @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+            @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(name);

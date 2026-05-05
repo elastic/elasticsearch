@@ -52,7 +52,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.stream.Collectors.toMap;
@@ -128,7 +127,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     private final QueryableBuiltInRoles.Provider rolesProvider;
     private final NativeRolesStore nativeRolesStore;
     private final Executor executor;
-    private final AtomicBoolean synchronizationInProgress = new AtomicBoolean(false);
+    private final RolesSync sync = new RolesSync();
 
     private volatile boolean securityIndexDeleted = false;
 
@@ -215,32 +214,90 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
      * @return {@code true} if the synchronization of built-in roles is in progress, {@code false} otherwise
      */
     public boolean isSynchronizationInProgress() {
-        return synchronizationInProgress.get();
+        return sync.inProgress();
     }
 
     private void syncBuiltInRoles(final QueryableBuiltInRoles roles) {
-        if (synchronizationInProgress.compareAndSet(false, true)) {
-            try {
-                final Map<String, String> indexedRolesDigests = readIndexedBuiltInRolesDigests(clusterService.state());
-                if (roles.rolesDigest().equals(indexedRolesDigests)) {
-                    logger.debug("Security index already contains the latest built-in roles indexed, skipping roles synchronization");
+        if (sync.startSync()) {
+            doSyncBuiltInRoles(roles);
+        }
+    }
+
+    private void doSyncBuiltInRoles(final QueryableBuiltInRoles roles) {
+        try {
+            final Map<String, String> indexedRolesDigests = readIndexedBuiltInRolesDigests(clusterService.state());
+            if (roles.rolesDigest().equals(indexedRolesDigests)) {
+                logger.debug("Security index already contains the latest built-in roles indexed, skipping roles synchronization");
+                resetFailedSyncAttempts();
+                endSyncAndRetryIfNeeded();
+            } else {
+                executor.execute(() -> applyRoleChanges(indexedRolesDigests, roles, ActionListener.wrap(v -> {
+                    logger.info("Successfully synced [{}] built-in roles to .security index", roles.roleDescriptors().size());
                     resetFailedSyncAttempts();
-                    synchronizationInProgress.set(false);
-                } else {
-                    executor.execute(() -> doSyncBuiltinRoles(indexedRolesDigests, roles, ActionListener.wrap(v -> {
-                        logger.info("Successfully synced [{}] built-in roles to .security index", roles.roleDescriptors().size());
-                        resetFailedSyncAttempts();
-                        synchronizationInProgress.set(false);
-                    }, e -> {
-                        handleException(e);
-                        synchronizationInProgress.set(false);
-                    })));
-                }
-            } catch (Exception e) {
-                logger.error("Failed to sync built-in roles", e);
-                failedSyncAttempts.incrementAndGet();
-                synchronizationInProgress.set(false);
+                    endSyncAndRetryIfNeeded();
+                }, e -> {
+                    handleException(e);
+                    endSyncAndRetryIfNeeded();
+                })));
             }
+        } catch (Exception e) {
+            logger.error("Failed to sync built-in roles", e);
+            failedSyncAttempts.incrementAndGet();
+            endSyncAndRetryIfNeeded();
+        }
+    }
+
+    private void endSyncAndRetryIfNeeded() {
+        if (sync.endSync()) {
+            boolean shouldRetry = false;
+            try {
+                shouldRetry = shouldSyncBuiltInRoles(clusterService.state());
+            } catch (Exception e) {
+                logger.warn("Failed to evaluate retry conditions for built-in roles synchronization", e);
+            }
+            if (shouldRetry) {
+                logger.debug("Retrying synchronization of built-in roles due to pending changes");
+                doSyncBuiltInRoles(rolesProvider.getRoles());
+            } else {
+                endSyncAndRetryIfNeeded();
+            }
+        }
+    }
+
+    static class RolesSync {
+        private static final int IDLE = 0;
+        private static final int RUNNING = 1;
+        private static final int RUNNING_PENDING = 2;
+
+        private final AtomicInteger state = new AtomicInteger(IDLE);
+
+        boolean startSync() {
+            while (true) {
+                int s = state.get();
+                if (s == IDLE) {
+                    if (state.compareAndSet(IDLE, RUNNING)) return true;
+                } else if (s == RUNNING) {
+                    if (state.compareAndSet(RUNNING, RUNNING_PENDING)) return false;
+                } else {
+                    return false; // already RUNNING_PENDING
+                }
+            }
+        }
+
+        boolean endSync() {
+            while (true) {
+                int s = state.get();
+                assert s != IDLE : "endSync should only be called when a sync is in progress";
+                if (s == RUNNING_PENDING) {
+                    if (state.compareAndSet(RUNNING_PENDING, RUNNING)) return true;
+                } else {
+                    if (state.compareAndSet(RUNNING, IDLE)) return false;
+                }
+            }
+        }
+
+        boolean inProgress() {
+            return state.get() != IDLE;
         }
     }
 
@@ -356,7 +413,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         return true;
     }
 
-    private void doSyncBuiltinRoles(
+    private void applyRoleChanges(
         final Map<String, String> indexedRolesDigests,
         final QueryableBuiltInRoles roles,
         final ActionListener<Void> listener
@@ -452,6 +509,10 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             listener.onFailure(new IndexNotFoundException(SECURITY_MAIN_ALIAS));
             return;
         }
+        if (securityIndexMetadata.getState() == IndexMetadata.State.CLOSE) {
+            listener.onFailure(new IndexClosedException(securityIndexMetadata.getIndex()));
+            return;
+        }
         final Index concreteSecurityIndex = securityIndexMetadata.getIndex();
         markRolesAsSyncedTaskQueue.submitTask(
             "mark built-in roles as synced task",
@@ -518,6 +579,13 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             IndexMetadata indexMetadata = project.index(concreteSecurityIndexName);
             if (indexMetadata == null) {
                 throw new IndexNotFoundException(concreteSecurityIndexName);
+            }
+            if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+                // Index was closed between when the sync started and when this task runs. Do not update the
+                // synced-roles digest in metadata, since the actual role documents could not have been
+                // updated/deleted in a closed index. IndexClosedException is treated as an expected failure
+                // and does not count toward failedSyncAttempts.
+                throw new IndexClosedException(indexMetadata.getIndex());
             }
             Map<String, String> existingRoleDigests = indexMetadata.getCustomData(METADATA_QUERYABLE_BUILT_IN_ROLES_DIGEST_KEY);
             if (Objects.equals(expectedRoleDigests, existingRoleDigests)) {

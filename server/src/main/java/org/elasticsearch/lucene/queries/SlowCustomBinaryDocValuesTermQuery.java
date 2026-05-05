@@ -9,13 +9,15 @@
 
 package org.elasticsearch.lucene.queries;
 
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 
 import java.util.Objects;
 
 /**
  * A query for matching an exact BytesRef value for a specific field.
- * The equavalent of {@link org.apache.lucene.document.SortedDocValuesField#newSlowExactQuery(String, BytesRef)},
+ * The equivalent of {@link org.apache.lucene.document.SortedDocValuesField#newSlowExactQuery(String, BytesRef)},
  * but then for binary doc values.
  * <p>
  * This implementation is slow, because it potentially scans binary doc values for each document.
@@ -30,13 +32,22 @@ public final class SlowCustomBinaryDocValuesTermQuery extends AbstractBinaryDocV
     }
 
     @Override
+    public Query rewrite(IndexSearcher searcher) {
+        if (term.length == 0) {
+            return new BinaryDocValuesLengthQuery(fieldName, 0);
+        } else {
+            return this;
+        }
+    }
+
+    @Override
     protected float matchCost() {
         return 10; // because one comparison
     }
 
     @Override
     public String toString(String field) {
-        return "SlowCustomBinaryDocValuesTermQuery(fieldName=" + field + ",term=" + term.utf8ToString() + ")";
+        return "SlowCustomBinaryDocValuesTermQuery(fieldName=" + field + ",term=" + term.toString() + ")";
     }
 
     @Override

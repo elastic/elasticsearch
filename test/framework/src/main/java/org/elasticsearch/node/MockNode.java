@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -43,6 +44,7 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -195,6 +197,7 @@ public class MockNode extends Node {
             TelemetryProvider telemetryProvider,
             String nodeId,
             LinkedProjectConfigService linkedProjectConfigService,
+            CrossProjectModeDecider crossProjectModeDecider,
             ProjectResolver projectResolver
         ) {
 
@@ -215,6 +218,7 @@ public class MockNode extends Node {
                     telemetryProvider,
                     nodeId,
                     linkedProjectConfigService,
+                    crossProjectModeDecider,
                     projectResolver
                 );
             } else {
@@ -228,6 +232,7 @@ public class MockNode extends Node {
                     taskManager,
                     linkedProjectConfigService,
                     telemetryProvider,
+                    crossProjectModeDecider,
                     projectResolver
                 );
             }
@@ -237,15 +242,24 @@ public class MockNode extends Node {
         protected ClusterInfoService newClusterInfoService(
             PluginsService pluginsService,
             Settings settings,
+            WriteLoadConstraintSettings writeLoadConstraintSettings,
             ClusterService clusterService,
             ThreadPool threadPool,
             NodeClient client
         ) {
             if (pluginsService.filterPlugins(MockInternalClusterInfoService.TestPlugin.class).findAny().isEmpty()) {
-                return super.newClusterInfoService(pluginsService, settings, clusterService, threadPool, client);
+                return super.newClusterInfoService(
+                    pluginsService,
+                    settings,
+                    writeLoadConstraintSettings,
+                    clusterService,
+                    threadPool,
+                    client
+                );
             } else {
                 final MockInternalClusterInfoService service = new MockInternalClusterInfoService(
                     settings,
+                    writeLoadConstraintSettings,
                     clusterService,
                     threadPool,
                     client

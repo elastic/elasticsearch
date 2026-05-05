@@ -10,18 +10,21 @@ package org.elasticsearch.xpack.inference.services.ibmwatsonx.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class IbmWatsonxEmbeddingsRequest implements IbmWatsonxRequest {
+public class IbmWatsonxEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
 
     private final Truncator truncator;
     private final Truncator.TruncationResult truncationResult;
@@ -34,7 +37,7 @@ public class IbmWatsonxEmbeddingsRequest implements IbmWatsonxRequest {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(model.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -52,11 +55,11 @@ public class IbmWatsonxEmbeddingsRequest implements IbmWatsonxRequest {
 
         decorateWithAuth(httpPost);
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     public void decorateWithAuth(HttpPost httpPost) {
-        IbmWatsonxRequest.decorateWithBearerToken(httpPost, model.getSecretSettings(), model.getInferenceEntityId());
+        IbmWatsonxRequestUtils.decorateWithBearerToken(httpPost, model.getSecretSettings(), model.getInferenceEntityId());
     }
 
     public Truncator truncator() {
@@ -82,7 +85,7 @@ public class IbmWatsonxEmbeddingsRequest implements IbmWatsonxRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
 
         return new IbmWatsonxEmbeddingsRequest(truncator, truncatedInput, model);
@@ -91,5 +94,10 @@ public class IbmWatsonxEmbeddingsRequest implements IbmWatsonxRequest {
     @Override
     public boolean[] getTruncationInfo() {
         return truncationResult.truncated().clone();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 }

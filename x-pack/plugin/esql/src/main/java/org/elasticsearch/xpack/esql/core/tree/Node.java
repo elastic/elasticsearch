@@ -6,16 +6,17 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.ArrayList;
-import java.util.BitSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -36,8 +37,18 @@ import static java.util.Collections.emptyList;
  * @param <T> node type
  */
 public abstract class Node<T extends Node<T>> implements NamedWriteable {
+    /**
+     * Maximum number of properties rendered by {@link #toString}.
+     */
     private static final int TO_STRING_MAX_PROP = 10;
+    /**
+     * Maximum number of characters per line rendered by {@link #toString}.
+     */
     public static final int TO_STRING_MAX_WIDTH = 110;
+    /**
+     * Maximum number of lines rendered by {@link #toString}.
+     */
+    public static final int TO_STRING_MAX_LINES = 25;
 
     private final Source source;
     private final List<T> children;
@@ -62,7 +73,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return source.text();
     }
 
-    public List<T> children() {
+    public final List<T> children() {
         return children;
     }
 
@@ -166,6 +177,17 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return result;
     }
 
+    /**
+     * Traverse the plan tree from the current node to the leaves, checking the given
+     * predicate.  This function will short circuit and return early if it is able to.
+     *
+     * @param predicate condition to check against all nodes
+     * @return true iff the given predicate is true for all nodes
+     */
+    public boolean allMatch(Predicate<? super T> predicate) {
+        return anyMatch(Predicate.not(predicate)) == false;
+    }
+
     public List<T> collect(Predicate<? super T> predicate) {
         List<T> l = new ArrayList<>();
         forEachDown(n -> {
@@ -234,6 +256,23 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     @SuppressWarnings("unchecked")
+    public T transformDownSkipBranch(BiFunction<? super T, Holder<Boolean>, ? extends T> rule) {
+        Holder<Boolean> skipBranch = new Holder<>(Boolean.FALSE);
+        return transformDownSkipBranch(skipBranch, rule);
+    }
+
+    @SuppressWarnings("unchecked")
+    T transformDownSkipBranch(Holder<Boolean> skipBranch, BiFunction<? super T, Holder<Boolean>, ? extends T> rule) {
+        T root = rule.apply((T) this, skipBranch);
+        Node<T> node = this.equals(root) ? this : root;
+        if (skipBranch.get()) {
+            skipBranch.set(false);
+            return (T) node;
+        }
+        return node.transformChildren(child -> child.transformDownSkipBranch(skipBranch, rule));
+    }
+
+    @SuppressWarnings("unchecked")
     public <E extends T> T transformDown(Class<E> typeToken, Function<E, ? extends T> rule) {
         return transformDown((t) -> (typeToken.isInstance(t) ? rule.apply((E) t) : t));
     }
@@ -241,6 +280,50 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     @SuppressWarnings("unchecked")
     public <E extends T> T transformDown(Predicate<Node<?>> nodePredicate, Function<E, ? extends T> rule) {
         return transformDown((t) -> (nodePredicate.test(t) ? rule.apply((E) t) : t));
+    }
+
+    /**
+     * Asynchronous variant of {@link #transformDown(Function)} that allows the transformation rule to perform
+     * async I/O operations (e.g., transport actions) without blocking the caller thread.
+     * <p>
+     * Children are transformed sequentially, not concurrently, one after another in order.
+     * This method is intended for cases where async I/O is needed during transformation, not for parallel
+     * processing.
+     */
+    @SuppressWarnings("unchecked")
+    public void transformDown(BiConsumer<? super T, ActionListener<T>> rule, ActionListener<T> listener) {
+        rule.accept((T) this, listener.delegateFailureAndWrap((originalListener, root) -> {
+            Node<T> node = this.equals(root) ? this : root;
+            node.transformChildren((child, childListener) -> child.transformDown(rule, childListener), originalListener);
+        }));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void transformChildren(BiConsumer<T, ActionListener<T>> traversalOperation, ActionListener<T> listener) {
+        if (children.isEmpty()) {
+            listener.onResponse((T) this);
+            return;
+        }
+
+        final Holder<List<T>> updatedChildren = new Holder<>();
+        SubscribableListener<Void> chain = SubscribableListener.newForked(l -> l.onResponse(null));
+        for (int i = 0; i < children.size(); i++) {
+            var index = i;
+            var child = children.get(index);
+            chain = chain.andThen(originalListener -> {
+                traversalOperation.accept(child, originalListener.delegateFailureAndWrap((o, maybeTransformed) -> {
+                    if (maybeTransformed.equals(child) == false) {
+                        if (updatedChildren.get() == null) {
+                            updatedChildren.set(new ArrayList<>(children));
+                        }
+                        updatedChildren.get().set(index, maybeTransformed);
+                    }
+                    o.onResponse(null);
+                }));
+            });
+        }
+        chain.andThenApply(ignored -> updatedChildren.get() == null ? (T) this : replaceChildrenSameSize(updatedChildren.get()))
+            .addListener(listener);
     }
 
     @SuppressWarnings("unchecked")
@@ -366,143 +449,66 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
         return info().properties();
     }
 
-    public String nodeString() {
+    /**
+     * Configuration for rendering the string representation.
+     */
+    public enum NodeStringFormat {
+        /** No list truncation, no line breaks due to string width. */
+        FULL(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE),
+        /** List truncation, line breaks, and limited number of lines. */
+        LIMITED(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH, TO_STRING_MAX_LINES);
+
+        final int maxProperties;
+        final int maxWidth;
+        final int maxLines;
+
+        NodeStringFormat(int maxProperties, int maxWidth, int maxLines) {
+            this.maxProperties = maxProperties;
+            this.maxWidth = maxWidth;
+            this.maxLines = maxLines;
+        }
+    }
+
+    /**
+     * Render this {@link Node} to a {@link String} with the
+     * {@link NodeStringFormat#LIMITED limited} format. This does not include
+     * this node's {@link #children()}.
+     */
+    public final String nodeString() {
         StringBuilder sb = new StringBuilder();
+        nodeString(sb, NodeStringFormat.LIMITED);
+        return sb.toString();
+    }
+
+    /**
+     * Append this {@link Node}'s string representation to {@code sb}. This
+     * does not include this node's {@link #children()}.
+     * @param sb target for the string
+     * @param format configuration for rendering the string representation
+     */
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
         sb.append(nodeName());
         sb.append("[");
-        sb.append(propertiesToString(true));
+        propertiesToString(sb, true, format);
         sb.append("]");
-        return sb.toString();
     }
 
     @Override
     public String toString() {
-        return treeString(new StringBuilder(), 0, new BitSet()).toString();
+        return toString(NodeStringFormat.LIMITED);
     }
 
-    /**
-     * Render this {@link Node} as a tree like
-     * <pre>
-     * {@code
-     * Project[[i{f}#0]]
-     * \_Filter[i{f}#1]
-     *   \_SubQueryAlias[test]
-     *     \_EsRelation[test][i{f}#2]
-     * }
-     * </pre>
-     */
-    final StringBuilder treeString(StringBuilder sb, int depth, BitSet hasParentPerDepth) {
-        if (depth > 0) {
-            // draw children
-            for (int column = 0; column < depth; column++) {
-                if (hasParentPerDepth.get(column)) {
-                    sb.append("|");
-                    // if not the last elder, adding padding (since each column has two chars ("|_" or "\_")
-                    if (column < depth - 1) {
-                        sb.append(" ");
-                    }
-                } else {
-                    // if the child has no parent (elder on the previous level), it means its the last sibling
-                    sb.append((column == depth - 1) ? "\\" : "  ");
-                }
-            }
-
-            sb.append("_");
-        }
-
-        sb.append(nodeString());
-
-        @SuppressWarnings("HiddenField")
-        List<T> children = children();
-        if (children.isEmpty() == false) {
-            sb.append("\n");
-        }
-        for (int i = 0; i < children.size(); i++) {
-            T t = children.get(i);
-            hasParentPerDepth.set(depth, i < children.size() - 1);
-            t.treeString(sb, depth + 1, hasParentPerDepth);
-            if (i < children.size() - 1) {
-                sb.append("\n");
-            }
-        }
-        return sb;
+    public String toString(NodeStringFormat format) {
+        return new NodeToString(format).treeString(this, 0).toString();
     }
 
-    /**
-     * Render the properties of this {@link Node} one by
-     * one like {@code foo bar baz}. These go inside the
-     * {@code [} and {@code ]} of the output of {@link #treeString}.
-     */
-    public String propertiesToString(boolean skipIfChild) {
-        StringBuilder sb = new StringBuilder();
-
-        @SuppressWarnings("HiddenField")
-        List<?> children = children();
-        // eliminate children (they are rendered as part of the tree)
-        int remainingProperties = TO_STRING_MAX_PROP;
-        int maxWidth = 0;
-        boolean needsComma = false;
-
-        List<Object> props = nodeProperties();
-        for (Object prop : props) {
-            // consider a property if it is not ignored AND
-            // it's not a child (optional)
-            if ((skipIfChild && (children.contains(prop) || children.equals(prop))) == false) {
-                if (remainingProperties-- < 0) {
-                    sb.append("...").append(props.size() - TO_STRING_MAX_PROP).append("fields not shown");
-                    break;
-                }
-
-                if (needsComma) {
-                    sb.append(",");
-                }
-
-                String stringValue = toString(prop);
-
-                // : Objects.toString(prop);
-                if (maxWidth + stringValue.length() > TO_STRING_MAX_WIDTH) {
-                    int cutoff = Math.max(0, TO_STRING_MAX_WIDTH - maxWidth);
-                    sb.append(stringValue.substring(0, cutoff));
-                    sb.append("\n");
-                    stringValue = stringValue.substring(cutoff);
-                    maxWidth = 0;
-                }
-                maxWidth += stringValue.length();
-                sb.append(stringValue);
-
-                needsComma = true;
-            }
-        }
-
-        return sb.toString();
-    }
-
-    private static String toString(Object obj) {
-        StringBuilder sb = new StringBuilder();
-        toString(sb, obj);
-        return sb.toString();
-    }
-
-    private static void toString(StringBuilder sb, Object obj) {
-        if (obj instanceof Iterable) {
-            sb.append("[");
-            for (Iterator<?> it = ((Iterable<?>) obj).iterator(); it.hasNext();) {
-                Object o = it.next();
-                toString(sb, o);
-                if (it.hasNext()) {
-                    sb.append(", ");
-                }
-            }
-            sb.append("]");
-        } else if (obj instanceof Node<?>) {
-            sb.append(((Node<?>) obj).nodeString());
-        } else {
-            sb.append(Objects.toString(obj));
-        }
+    protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format) {
+        new NodePropertiesToString(sb, format, this, skipIfChild).propertiesToString();
     }
 
     private <U> boolean containsNull(List<U> us) {
-        // Use custom implementation because some implementations of `List.contains` (e.g. ImmutableCollections$AbstractImmutableList) throw
+        // Use custom implementation because some implementations of `List.contains` (e.g. ImmutableCollections$AbstractImmutableList)
+        // throw
         // a NPE if any of the elements is null.
         for (U u : us) {
             if (u == null) {

@@ -39,7 +39,11 @@ public class DocumentMapper {
         RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, ObjectMapper.Defaults.SUBOBJECTS).build(
             MapperBuilderContext.root(false, false)
         );
-        MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
+        MetadataFieldMapper[] metadata = mapperService.getMetadataBuilders()
+            .values()
+            .stream()
+            .map(MetadataFieldMapper.Builder::build)
+            .toArray(MetadataFieldMapper[]::new);
         Mapping mapping = new Mapping(root, metadata, null);
         return new DocumentMapper(
             mapperService.documentParser(),
@@ -47,7 +51,8 @@ public class DocumentMapper {
             mapping.toCompressedXContent(),
             IndexVersion.current(),
             mapperService.getMapperMetrics(),
-            mapperService.index().getName()
+            mapperService.index().getName(),
+            mapperService.getIndexMode()
         );
     }
 
@@ -57,38 +62,23 @@ public class DocumentMapper {
         CompressedXContent source,
         IndexVersion version,
         MapperMetrics mapperMetrics,
-        String indexName
+        String indexName,
+        IndexMode indexMode
     ) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().fullPath();
-        this.mappingLookup = MappingLookup.fromMapping(mapping);
+        this.mappingLookup = MappingLookup.fromMapping(mapping, indexMode);
         this.mappingSource = source;
         this.mapperMetrics = mapperMetrics;
         this.indexVersion = version;
         this.logger = Loggers.getLogger(getClass(), indexName);
         this.indexName = indexName;
-
-        assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version)
-            : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
     }
 
     private void maybeLog(Exception ex) {
         if (logger.isDebugEnabled()) {
             logger.debug("Error while parsing document for index [" + indexName + "]: " + ex.getMessage(), ex);
-        } else if (IntervalThrottler.DOCUMENT_PARSING_FAILURE.accept()) {
-            logger.info("Error while parsing document for index [" + indexName + "]: " + ex.getMessage(), ex);
         }
-    }
-
-    /**
-     * Indexes built at v.8.7 were missing an explicit entry for synthetic_source.
-     * This got restored in v.8.10 to avoid confusion. The change is only restricted to mapping printout, it has no
-     * functional effect as the synthetic source already applies.
-     */
-    boolean isSyntheticSourceMalformed(CompressedXContent source, IndexVersion version) {
-        return sourceMapper().isSynthetic()
-            && source.string().contains("\"_source\":{\"mode\":\"synthetic\"}") == false
-            && version.onOrBefore(IndexVersions.V_8_10_0);
     }
 
     public Mapping mapping() {
@@ -145,6 +135,17 @@ public class DocumentMapper {
                         + "]"
                 );
             }
+        }
+        if (settings.isSliceEnabled() && routingFieldMapper().required() == false) {
+            throw new IllegalArgumentException(
+                "mapping type ["
+                    + type()
+                    + "] must not configure [_routing] settings when ["
+                    + IndexSettings.SLICE_ENABLED.getKey()
+                    + "] is true for index ["
+                    + settings.getIndex().getName()
+                    + "]"
+            );
         }
 
         settings.getMode().validateMapping(mappingLookup);

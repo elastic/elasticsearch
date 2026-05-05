@@ -11,19 +11,25 @@ package org.elasticsearch.index.codec.bloomfilter;
 
 import org.apache.lucene.util.BytesRef;
 
-import java.io.Closeable;
 import java.io.IOException;
 
-public interface BloomFilter extends Closeable {
+public interface BloomFilter {
     BloomFilter NO_FILTER = new BloomFilter() {
-        @Override
-        public void close() throws IOException {
 
+        @Override
+        public boolean mayContainValue(String field, BytesRef term) {
+            return true;
         }
 
         @Override
-        public boolean mayContainTerm(String field, BytesRef term) throws IOException {
-            return true;
+        public long sizeInBytes() {
+            return 0;
+        }
+
+        @Override
+        public double saturation() {
+            // This always returns true in #mayContainValue, so we can safely return 1.
+            return 1;
         }
     };
 
@@ -34,5 +40,17 @@ public interface BloomFilter extends Closeable {
      * @param term the term to test for membership
      * @return true if term may be present, false if definitely absent
      */
-    boolean mayContainTerm(String field, BytesRef term) throws IOException;
+    boolean mayContainValue(String field, BytesRef term) throws IOException;
+
+    /**
+     * Returns the size in bytes of the bloom filter data on disk.
+     */
+    long sizeInBytes();
+
+    /**
+     * Returns the saturation of the bloom filter as a value in [0, 1], i.e. the fraction of bits
+     * that are set. Higher saturation means a higher false positive rate.
+     */
+    double saturation() throws IOException;
+
 }

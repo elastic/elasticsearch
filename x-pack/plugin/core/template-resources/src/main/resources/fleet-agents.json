@@ -27,6 +27,9 @@
             },
             "version": {
               "type": "keyword"
+            },
+            "type": {
+              "type": "keyword"
             }
           }
         },
@@ -39,6 +42,9 @@
         "default_api_key_history": {
           "type": "object",
           "enabled": false
+        },
+        "effective_config_hash": {
+          "type": "keyword"
         },
         "enrolled_at": {
           "type": "date"
@@ -349,6 +355,114 @@
         },
         "audit_unenrolled_reason": {
           "type": "keyword"
+        },
+        "upgrade": {
+          "properties":{
+            "rollbacks":{
+              "properties": {
+                "valid_until": {
+                  "type": "date"
+                },
+                "version": {
+                  "type": "version"
+                }
+              }
+            }
+          }
+        },
+        "sequence_num": {
+          "type": "integer"
+        },
+        "capabilities": {
+          "type": "keyword"
+        },
+        "identifying_attributes": {
+          "type": "passthrough",
+          "priority": 10,
+          "properties": {
+            "service": {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                 "version": {
+                  "type": "keyword"
+                },
+                "instance": {
+                  "properties": {
+                    "id": {
+                       "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "non_identifying_attributes": {
+           "type": "passthrough",
+           "priority": 20,
+           "properties": {
+              "host": {
+                "properties": {
+                  "arch": {
+                     "type": "keyword"
+                  },
+                   "name": {
+                     "type": "keyword"
+                  }
+                }
+              },
+               "os": {
+                "properties": {
+                  "type": {
+                     "type": "keyword"
+                  },
+                   "description": {
+                     "type": "keyword"
+                  }
+                }
+              },
+              "elastic": {
+                "properties": {
+                  "display": {
+                    "properties": {
+                      "name": {
+                        "type": "keyword"
+                      }
+                    }
+                  },
+                  "collector": {
+                    "properties": {
+                      "group": {
+                        "type": "keyword"
+                      },
+                      "group_name": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              },
+              "config": {
+                "properties": {
+                  "description": {
+                    "type": "keyword"
+                  }
+                }
+              },
+              "deployment": {
+                "properties": {
+                  "environment": {
+                    "properties": {
+                      "name": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+           }
         }
       }
     }

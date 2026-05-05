@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -398,6 +399,24 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
         verifyNoMoreInteractions(nativeRolesStore, featureService, taskQueue, reservedRolesProvider, threadPool, clusterService);
     }
 
+    public void testMarkRolesAsSyncedTaskRejectsClosedIndex() {
+        // Guard against a race where the security index becomes closed between when a sync started against an
+        // open index and when the resulting MarkRolesAsSyncedTask runs on the master service queue. The task
+        // must not write a new digest to the metadata of a closed index, since the role documents themselves
+        // could not have been updated.
+        final ClusterState clusterState = markShardsAvailable(createClusterStateWithClosedSecurityIndex()).nodes(localNodeMaster())
+            .blocks(emptyClusterBlocks())
+            .build();
+        final Map<String, String> newRoleDigests = Map.of("superuser", "digest-1", "viewer", "digest-2");
+        final MarkRolesAsSyncedTask task = new MarkRolesAsSyncedTask(
+            ActionListener.noop(),
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            null,
+            newRoleDigests
+        );
+        expectThrows(IndexClosedException.class, () -> task.execute(clusterState));
+    }
+
     public void testUnexpectedSyncFailures() {
         assertInitialState();
 
@@ -544,13 +563,20 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
     }
 
     private static ClusterState.Builder markShardsAvailable(ClusterState.Builder clusterStateBuilder) {
-        final ClusterState cs = clusterStateBuilder.build();
-        return ClusterState.builder(cs)
-            .routingTable(
+        return markShardsAvailable(clusterStateBuilder.build());
+    }
+
+    private static ClusterState.Builder markShardsAvailable(ClusterState cs) {
+        final var csBuilder = ClusterState.builder(cs);
+        cs.forEachProject(
+            project -> csBuilder.putRoutingTable(
+                project.projectId(),
                 SecurityTestUtils.buildIndexRoutingTable(
-                    cs.metadata().getProject().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex()
+                    project.metadata().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex()
                 )
-            );
+            )
+        );
+        return csBuilder;
     }
 
     @SuppressWarnings("unchecked")
@@ -590,9 +616,9 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
 
     private DiscoveryNodes mixedVersionNodes() {
         VersionInformation oldVersion = new VersionInformation(
-            VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion()),
+            VersionUtils.randomVersionBetween(null, VersionUtils.getPreviousVersion()),
             IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersionUtils.randomCompatibleVersion(random())
+            IndexVersionUtils.randomCompatibleVersion()
         );
         return nodes(randomIntBetween(1, 3), true).add(
             DiscoveryNodeUtils.builder("old-data-node")
@@ -692,6 +718,76 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
             .deleteRoles(eq(rolesToDelete), eq(WriteRequest.RefreshPolicy.IMMEDIATE), eq(false), any(ActionListener.class));
     }
 
+    public void testRolesSyncBasicAcquireRelease() {
+        var sync = new QueryableBuiltInRolesSynchronizer.RolesSync();
+        assertFalse(sync.inProgress());
+
+        assertTrue(sync.startSync());
+        assertTrue(sync.inProgress());
+
+        assertFalse(sync.endSync());
+        assertFalse(sync.inProgress());
+    }
+
+    public void testRolesSyncContentionSetsPending() {
+        var sync = new QueryableBuiltInRolesSynchronizer.RolesSync();
+        assertTrue(sync.startSync());
+
+        // Second caller is rejected but marks pending
+        assertFalse(sync.startSync());
+        assertTrue(sync.inProgress());
+
+        // endSync sees pending, clears it, keeps lock held
+        assertTrue(sync.endSync());
+        assertTrue(sync.inProgress());
+
+        // No more pending — release
+        assertFalse(sync.endSync());
+        assertFalse(sync.inProgress());
+    }
+
+    public void testRolesSyncMultiplePendingCoalesce() {
+        var sync = new QueryableBuiltInRolesSynchronizer.RolesSync();
+        assertTrue(sync.startSync());
+
+        // Multiple concurrent arrivals all set pending, but only one retry results
+        assertFalse(sync.startSync());
+        assertFalse(sync.startSync());
+        assertFalse(sync.startSync());
+
+        assertTrue(sync.endSync());   // one retry
+        assertFalse(sync.endSync());  // done
+        assertFalse(sync.inProgress());
+    }
+
+    public void testRolesSyncPendingDuringRetry() {
+        var sync = new QueryableBuiltInRolesSynchronizer.RolesSync();
+        assertTrue(sync.startSync());
+        assertFalse(sync.startSync()); // pending
+
+        assertTrue(sync.endSync());    // retry (lock still held)
+
+        // New arrival during retry
+        assertFalse(sync.startSync());
+
+        assertTrue(sync.endSync());    // second retry
+        assertFalse(sync.endSync());   // done
+        assertFalse(sync.inProgress());
+    }
+
+    public void testRolesSyncReacquireAfterFullRelease() {
+        var sync = new QueryableBuiltInRolesSynchronizer.RolesSync();
+        assertTrue(sync.startSync());
+        assertFalse(sync.endSync());
+        assertFalse(sync.inProgress());
+
+        // Can acquire again after full release
+        assertTrue(sync.startSync());
+        assertTrue(sync.inProgress());
+        assertFalse(sync.endSync());
+        assertFalse(sync.inProgress());
+    }
+
     private static ClusterState.Builder createClusterStateWithOpenSecurityIndex() {
         return createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
@@ -710,7 +806,7 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
 
     private static ClusterState.Builder createClusterState(String indexName, String aliasName, IndexMetadata.State state) {
         @FixForMultiProject(description = "randomize project-id")
-        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        final ProjectId projectId = ProjectId.DEFAULT;
         final Metadata metadata = Metadata.builder()
             .put(
                 SecurityIndexManagerTests.createProjectMetadata(

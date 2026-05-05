@@ -18,11 +18,17 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Source representing an Elasticsearch index.
+ * <p>
+ * In {@code FROM idx | ...} this corresponds to the {@code FROM}.
+ */
 public class EsRelation extends LeafPlan {
 
     private static final TransportVersion SPLIT_INDICES = TransportVersion.fromName("esql_es_relation_add_split_indices");
@@ -160,17 +166,23 @@ public class EsRelation extends LeafPlan {
     }
 
     @Override
-    public String nodeString() {
-        return nodeName()
-            + "["
-            + indexPattern
-            + "]"
-            + (indexMode != IndexMode.STANDARD ? "[" + indexMode.name() + "]" : "")
-            + NodeUtils.limitedToString(attrs);
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[").append(indexPattern).append("]");
+        if (indexMode != IndexMode.STANDARD) {
+            sb.append("[").append(indexMode.name()).append("]");
+        }
+        NodeUtils.toString(sb, attrs, format);
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {
         return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, newAttributes);
+    }
+
+    public EsRelation withAdditionalAttribute(Attribute additionalAttribute) {
+        List<Attribute> newAttrs = new ArrayList<>(attrs.size() + 1);
+        newAttrs.addAll(attrs);
+        newAttrs.add(additionalAttribute);
+        return withAttributes(newAttrs);
     }
 
     public EsRelation withIndexMode(IndexMode indexMode) {

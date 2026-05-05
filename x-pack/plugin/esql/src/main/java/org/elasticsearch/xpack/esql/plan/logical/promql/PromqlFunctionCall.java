@@ -12,6 +12,10 @@ import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
@@ -25,16 +29,17 @@ import java.util.Objects;
  * This is a surrogate logical plan that encapsulates a PromQL function invocation
  * and delegates to the PromqlFunctionRegistry for validation and ESQL function construction.
  */
-public abstract sealed class PromqlFunctionCall extends UnaryPlan permits AcrossSeriesAggregate, WithinSeriesAggregate {
+public abstract sealed class PromqlFunctionCall extends UnaryPlan implements PromqlPlan permits AcrossSeriesAggregate,
+    ScalarConversionFunction, WithinSeriesAggregate, ValueTransformationFunction, VectorConversionFunction {
     // implements TelemetryAware {
 
-    private final String functionName;
     private final List<Expression> parameters;
+    private final PromqlFunctionDefinition definition;
 
-    public PromqlFunctionCall(Source source, LogicalPlan child, String functionName, List<Expression> parameters) {
+    public PromqlFunctionCall(Source source, LogicalPlan child, PromqlFunctionDefinition definition, List<Expression> parameters) {
         super(source, child);
-        this.functionName = functionName;
         this.parameters = parameters != null ? parameters : List.of();
+        this.definition = definition;
     }
 
     @Override
@@ -48,11 +53,15 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan permits Across
     }
 
     public String functionName() {
-        return functionName;
+        return definition.name();
     }
 
     public List<Expression> parameters() {
         return parameters;
+    }
+
+    public PromqlFunctionDefinition definition() {
+        return definition;
     }
 
     @Override
@@ -67,7 +76,7 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan permits Across
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), functionName, parameters);
+        return Objects.hash(child(), parameters, definition);
     }
 
     @Override
@@ -81,12 +90,33 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan permits Across
 
         PromqlFunctionCall other = (PromqlFunctionCall) obj;
         return Objects.equals(child(), other.child())
-            && Objects.equals(functionName, other.functionName)
-            && Objects.equals(parameters, other.parameters);
+            && Objects.equals(parameters, other.parameters)
+            && Objects.equals(definition, other.definition);
     }
 
     @Override
     public List<Attribute> output() {
         return List.of();
+    }
+
+    /**
+     * Builds the ES|QL expression that implements this PromQL function call.
+     *
+     * @param target the primary input expression (child vector or scalar), or {@code null} for zero-argument functions
+     * @param ctx    the PromQL evaluation context (timestamp, window, step, configuration)
+     */
+    public Expression buildEsqlFunction(Expression target, PromqlFunctionRegistry.PromqlContext ctx) {
+        try {
+            return definition.esqlBuilder().build(source(), target, ctx, parameters());
+        } catch (Exception e) {
+            throw new ParsingException(source(), "Error building ESQL function for [{}]: {}", functionName(), e.getMessage());
+        }
+    }
+
+    public abstract FunctionType functionType();
+
+    @Override
+    public final PromqlDataType returnType() {
+        return functionType().outputType();
     }
 }

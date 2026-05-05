@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 
 import org.apache.http.client.utils.URIBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,6 +18,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.nvidia.NvidiaService;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -73,9 +75,7 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new NvidiaEmbeddingsServiceSettings(
             commonServiceSettings.model(),
@@ -151,6 +151,36 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
     }
 
     @Override
+    public NvidiaEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            NvidiaService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new NvidiaEmbeddingsServiceSettings(
+            this.modelId,
+            this.uri,
+            this.dimensions,
+            this.similarity,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            extractedRateLimitSettings
+        );
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
@@ -192,7 +222,7 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalVInt(dimensions);
-        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
+        out.writeOptionalEnum(similarity);
         out.writeOptionalVInt(maxInputTokens);
     }
 
@@ -229,4 +259,8 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
         return Objects.hash(modelId, uri, dimensions, maxInputTokens, similarity, rateLimitSettings);
     }
 
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
 }

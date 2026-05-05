@@ -7,104 +7,74 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SequentialAckingBatchedTaskExecutor;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
-import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 
 public class ViewService {
-    private static final Logger logger = LogManager.getLogger(ViewService.class);
-    private static final InferenceSettings EMPTY_INFERENCE_SETTINGS = new InferenceSettings(Settings.EMPTY);
 
-    private final PlanTelemetry telemetry;
-    private final ClusterService clusterService;
-    private final ProjectResolver projectResolver;
+    private final EsqlParser parser;
+    protected final ClusterService clusterService;
     private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
 
-    // TODO: these are not currently publicly allowed on Serverless, should they be?
+    // These settings are registered as OperatorDynamic so they are not exposed to end users yet.
+    // To fully expose them later:
+    // 1. Change OperatorDynamic to Dynamic (makes them user-settable on self-managed)
+    // 2. Add ServerlessPublic (makes them visible to non-operator users on Serverless)
     public static final Setting<Integer> MAX_VIEWS_COUNT_SETTING = Setting.intSetting(
         "esql.views.max_count",
-        100,
+        500,
         0,
-        1_000_000,
+        10_000,
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.OperatorDynamic
     );
     public static final Setting<Integer> MAX_VIEW_LENGTH_SETTING = Setting.intSetting(
         "esql.views.max_view_length",
         10_000,
         1,
-        1_000_000,
+        100_000,
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-    public static final Setting<Integer> MAX_VIEW_DEPTH_SETTING = Setting.intSetting(
-        "esql.views.max_view_depth",
-        10,
-        0,
-        100,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.OperatorDynamic
     );
 
     private volatile int maxViewsCount;
     private volatile int maxViewLength;
-    // TODO: not yet used, but will be
-    private volatile int maxViewDepth;
 
-    public ViewService(ClusterService clusterService, ProjectResolver projectResolver, Settings settings) {
+    public ViewService(ClusterService clusterService, EsqlParser parser) {
         this.clusterService = clusterService;
-        this.projectResolver = projectResolver;
+        this.parser = parser;
         this.taskQueue = clusterService.createTaskQueue(
             "update-esql-view-metadata",
             Priority.NORMAL,
             new SequentialAckingBatchedTaskExecutor<>()
         );
-        this.telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
-        this.maxViewsCount = MAX_VIEWS_COUNT_SETTING.get(settings);
-        this.maxViewLength = MAX_VIEW_LENGTH_SETTING.get(settings);
-        this.maxViewDepth = MAX_VIEW_DEPTH_SETTING.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_VIEWS_COUNT_SETTING, (i) -> this.maxViewsCount = i);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_VIEW_LENGTH_SETTING, (i) -> this.maxViewLength = i);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_VIEW_DEPTH_SETTING, (i) -> this.maxViewDepth = i);
-    }
-
-    ViewMetadata getMetadata() {
-        return getMetadata(projectResolver.getProjectId());
+        clusterService.getClusterSettings().initializeAndWatch(MAX_VIEWS_COUNT_SETTING, v -> this.maxViewsCount = v);
+        clusterService.getClusterSettings().initializeAndWatch(MAX_VIEW_LENGTH_SETTING, v -> this.maxViewLength = v);
     }
 
     protected ViewMetadata getMetadata(ProjectMetadata projectMetadata) {
@@ -115,15 +85,14 @@ public class ViewService {
         return getMetadata(clusterService.state().metadata().getProject(projectId));
     }
 
+    protected Map<String, IndexAbstraction> getIndicesLookup(ProjectMetadata projectMetadata) {
+        return projectMetadata.getIndicesLookup();
+    }
+
     /**
      * Adds or modifies a view by name.
      */
     public void putView(ProjectId projectId, PutViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        if (viewsFeatureEnabled() == false) {
-            listener.onFailure(new IllegalArgumentException("ESQL views are not enabled"));
-            return;
-        }
-
         final View view = request.view();
         final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
         try {
@@ -152,7 +121,7 @@ public class ViewService {
                 validatePutView(metadata, view);
                 final Map<String, View> updatedViews = new HashMap<>(viewMetadata.views());
                 updatedViews.put(view.name(), view);
-                var metadata = ProjectMetadata.builder(project).putCustom(ViewMetadata.TYPE, new ViewMetadata(updatedViews));
+                var metadata = ProjectMetadata.builder(project).views(updatedViews);
                 return ClusterState.builder(currentState).putProjectMetadata(metadata).build();
             }
         };
@@ -160,39 +129,41 @@ public class ViewService {
     }
 
     /**
-     * Removes a view from the cluster state.
+     * Removes views from the cluster state.
      */
-    public void deleteView(ProjectId projectId, DeleteViewAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        if (viewsFeatureEnabled() == false) {
-            listener.onFailure(new IllegalArgumentException("ESQL views are not enabled"));
-            return;
-        }
-        final String name = request.name();
+    public void deleteViews(
+        ProjectId projectId,
+        TimeValue masterNodeTimeout,
+        TimeValue ackTimeout,
+        Collection<String> viewNames,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
         final ViewMetadata viewMetadata = metadata.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
-        if (viewMetadata.getView(name) == null) {
-            listener.onFailure(new ResourceNotFoundException("view [{}] not found", name));
+        Optional<String> notFoundView = viewNames.stream().filter(v -> viewMetadata.getView(v) == null).findAny();
+        // at least one of the explicitly requested views was not found, so we can fail fast without submitting a cluster state update task
+        if (notFoundView.isPresent()) {
+            listener.onFailure(new ResourceNotFoundException("view [{}] not found", notFoundView.get()));
             return;
         }
 
-        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
+        final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(masterNodeTimeout, ackTimeout, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
                 final ViewMetadata viewMetadata = getMetadata(project);
-                final View currentView = viewMetadata.getView(name);
-                if (currentView == null) {
-                    // The update is a no-op, because we're trying to remove the view, but it doesn't exist, so no change is necessary
+                if (viewNames.stream().allMatch(v -> viewMetadata.getView(v) == null)) {
+                    // The update is a no-op, because none of the views that we're trying to remove exist.
+                    // Perhaps the views were deleted in the meantime by another job, so no change is necessary
                     return currentState;
                 }
                 final Map<String, View> updatedViews = new HashMap<>(viewMetadata.views());
-                final View existingView = updatedViews.remove(name);
-                assert existingView != null : "we should have short-circuited if removing a view that already didn't exist";
-                var metadata = ProjectMetadata.builder(project).putCustom(ViewMetadata.TYPE, new ViewMetadata(updatedViews));
+                viewNames.forEach(updatedViews::remove);
+                var metadata = ProjectMetadata.builder(project).views(updatedViews);
                 return ClusterState.builder(currentState).putProjectMetadata(metadata).build();
             }
         };
-        taskQueue.submitTask("delete-esql-view-metadata-[" + name + "]", task, task.timeout());
+        taskQueue.submitTask("delete-esql-view-metadata-" + viewNames, task, task.timeout());
     }
 
     /**
@@ -209,8 +180,22 @@ public class ViewService {
         if (existing == null && views.views().size() >= this.maxViewsCount) {
             throw new IllegalArgumentException("cannot add view, the maximum number of views is reached: " + this.maxViewsCount);
         }
+
+        final Map<String, IndexAbstraction> indicesLookup = getIndicesLookup(metadata);
+        indicesLookup.entrySet()
+            .stream()
+            .filter(entry -> entry.getKey().equals(view.name()))
+            .filter(entry -> entry.getValue().getType() != IndexAbstraction.Type.VIEW)
+            .findFirst()
+            .ifPresent(entry -> {
+                throw new ResourceAlreadyExistsException(
+                    "view [{}] cannot be created, an existing {} with that name is present",
+                    view.name(),
+                    entry.getValue().getType().getDisplayName()
+                );
+            });
         // Parse the query to ensure it's valid, this will throw appropriate exceptions if not
-        EsqlParser.INSTANCE.parseQuery(view.query(), new QueryParams(), telemetry, EMPTY_INFERENCE_SETTINGS);
+        parser.parseQuery(view.query(), new QueryParams());
     }
 
     /**
@@ -221,95 +206,13 @@ public class ViewService {
         if (Strings.hasText(name) == false) {
             throw new IllegalArgumentException("name is missing or empty");
         }
-        return viewsFeatureEnabled() ? getMetadata(projectId).getView(name) : null;
+        return getMetadata(projectId).getView(name);
     }
 
     /**
      * List all current view names.
      */
     public Set<String> list(ProjectId projectId) {
-        return viewsFeatureEnabled() ? getMetadata(projectId).views().keySet() : Set.of();
-    }
-
-    protected boolean viewsFeatureEnabled() {
-        return EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
-    }
-
-    public LogicalPlan replaceViews(LogicalPlan plan, Function<String, LogicalPlan> parser) {
-        if (viewsFeatureEnabled() == false) {
-            return plan;
-        }
-        ViewMetadata views = getMetadata();
-
-        List<String> seen = new ArrayList<>();
-        while (true) {
-            LogicalPlan prev = plan;
-            plan = plan.transformUp(UnresolvedRelation.class, ur -> {
-                List<String> indexes = new ArrayList<>();
-                List<LogicalPlan> subqueries = new ArrayList<>();
-                for (String name : ur.indexPattern().indexPattern().split(",")) {
-                    name = name.trim();
-                    View view = views.getView(name);
-                    if (view != null) {
-                        boolean alreadySeen = seen.contains(name);
-                        seen.add(name);
-                        if (alreadySeen) {
-                            throw viewError("circular view reference ", seen);
-                        }
-                        if (seen.size() > this.maxViewDepth) {
-                            throw viewError("The maximum allowed view depth of " + this.maxViewDepth + " has been exceeded: ", seen);
-                        }
-                        subqueries.add(resolve(view, parser));
-                    } else {
-                        indexes.add(name);
-                    }
-                }
-                if (subqueries.isEmpty()) {
-                    // No views defined, just return the original plan
-                    return ur;
-                }
-                if (indexes.isEmpty()) {
-                    if (subqueries.size() == 1) {
-                        // only one view, no need for union
-                        return subqueries.getFirst();
-                    }
-                } else {
-                    subqueries.addFirst(
-                        new UnresolvedRelation(
-                            ur.source(),
-                            new IndexPattern(ur.indexPattern().source(), String.join(",", indexes)),
-                            ur.frozen(),
-                            ur.metadataFields(),
-                            ur.indexMode(),
-                            ur.unresolvedMessage()
-                        )
-                    );
-                }
-                return new UnionAll(ur.source(), subqueries, List.of());
-            });
-            if (plan.equals(prev)) {
-                return prev;
-            }
-        }
-    }
-
-    private static LogicalPlan resolve(View view, Function<String, LogicalPlan> parser) {
-        // TODO don't reparse every time. Store parsed? Or cache parsing? dunno
-        // this will make super-wrong Source. the _source should be the view.
-        // if there's a `filter` it applies "under" the view. that's weird. right?
-        return parser.apply(view.query());
-    }
-
-    private VerificationException viewError(String type, List<String> seen) {
-        StringBuilder b = new StringBuilder();
-        for (String s : seen) {
-            if (b.isEmpty()) {
-                b.append(type);
-            } else {
-                b.append(" -> ");
-            }
-            b.append(s);
-        }
-        throw new VerificationException(b.toString());
+        return getMetadata(projectId).views().keySet();
     }
 }

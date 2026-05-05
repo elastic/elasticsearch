@@ -12,14 +12,13 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
 
 public abstract class AbstractAsyncBulkByScrollActionMetadataTestCase<
     Request extends AbstractBulkByScrollRequest<Request>,
     Response extends BulkByScrollResponse> extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
 
-    protected ScrollableHitSource.BasicHit doc() {
-        return new ScrollableHitSource.BasicHit("index", "id", 0);
+    protected PaginatedHitSource.BasicHit doc() {
+        return new PaginatedHitSource.BasicHit("index", "id", 0);
     }
 
     protected abstract AbstractAsyncBulkByScrollAction<Request, ?> action();

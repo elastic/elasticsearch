@@ -10,6 +10,10 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request.comple
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Tool;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -124,8 +128,8 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
         boolean stream,
         GoogleVertexAiChatCompletionTaskSettings taskSettings
     ) throws IOException {
-        var message = new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("Hello, world!"), "user", null, null);
-        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
+        var message = new Message(new ContentString("Hello, world!"), "user", null, null);
+        var messageList = new ArrayList<Message>();
         messageList.add(message);
         var unifiedRequest = new UnifiedCompletionRequest(
             messageList,
@@ -133,13 +137,8 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
             maxCompletionTokens,
             null,
             temperature,
-            new UnifiedCompletionRequest.ToolChoiceObject("auto", new UnifiedCompletionRequest.ToolChoiceObject.FunctionField("name")),
-            List.of(
-                new UnifiedCompletionRequest.Tool(
-                    "function",
-                    new UnifiedCompletionRequest.Tool.FunctionField("description", "name", Map.of("parameterName", "parameterValue"), null)
-                )
-            ),
+            new ToolChoiceObject("auto", new ToolChoiceObject.FunctionField("name")),
+            List.of(new Tool("function", new Tool.FunctionField("description", "name", Map.of("parameterName", "parameterValue"), null))),
             topP
         );
         var unifiedChatInput = new UnifiedChatInput(unifiedRequest, stream);

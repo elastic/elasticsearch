@@ -9,13 +9,12 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InferenceString.DataFormat;
-import org.elasticsearch.inference.InferenceString.DataType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -26,9 +25,11 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.inference.ModelConfigurations.TASK_SETTINGS;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -39,12 +40,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * <pre>
  * "input": [
  *   {
- *     "content": {"type": "image", "format": "base64", "value": "image data"},
+ *     "content": {"type": "image", "format": "base64", "value": "data:image/png;base64,..."},
  *   },
  *   {
  *     "content": [
  *       {"type": "text", "value": "text input"},
- *       {"type": "image", "value": "image data"}
+ *       {"type": "image", "value": "data:image/png;base64,..."}
  *     ]
  *   }
  * ]</pre>
@@ -62,18 +63,25 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * OR
  * <pre>
  * "input": ["first text input", "second text input"]</pre>
- * @param inputs The list of {@link InferenceStringGroup} inputs to generate embeddings for
- * @param inputType The {@link InputType} of the request
+ *
+ * @param inputs       The list of {@link InferenceStringGroup} inputs to generate embeddings for
+ * @param inputType    The {@link InputType} of the request
+ * @param taskSettings The map of task settings specific to this request
  */
-public record EmbeddingRequest(List<InferenceStringGroup> inputs, InputType inputType) implements Writeable, ToXContentFragment {
+public record EmbeddingRequest(List<InferenceStringGroup> inputs, InputType inputType, Map<String, Object> taskSettings)
+    implements
+        Writeable,
+        ToXContentFragment {
 
-    private static final String INPUT_FIELD = "input";
+    public static final TransportVersion JINA_AI_EMBEDDING_TASK_ADDED = TransportVersion.fromName("jina_ai_embedding_task_added");
+
+    public static final String INPUT_FIELD = "input";
     private static final String INPUT_TYPE_FIELD = "input_type";
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<EmbeddingRequest, Void> PARSER = new ConstructingObjectParser<>(
         EmbeddingRequest.class.getSimpleName(),
-        args -> new EmbeddingRequest((List<InferenceStringGroup>) args[0], (InputType) args[1])
+        args -> new EmbeddingRequest((List<InferenceStringGroup>) args[0], (InputType) args[1], (Map<String, Object>) args[2])
     );
 
     static {
@@ -89,31 +97,48 @@ public record EmbeddingRequest(List<InferenceStringGroup> inputs, InputType inpu
             new ParseField(INPUT_TYPE_FIELD),
             ObjectParser.ValueType.STRING
         );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (parser, context) -> parser.mapOrdered(),
+            new ParseField(TASK_SETTINGS),
+            ObjectParser.ValueType.OBJECT
+        );
     }
 
     public static EmbeddingRequest of(List<InferenceStringGroup> contents) {
-        return new EmbeddingRequest(contents, null);
+        return new EmbeddingRequest(contents, null, null);
     }
 
-    public EmbeddingRequest(List<InferenceStringGroup> inputs, @Nullable InputType inputType) {
+    public EmbeddingRequest(List<InferenceStringGroup> inputs, @Nullable InputType inputType, @Nullable Map<String, Object> taskSettings) {
         this.inputs = inputs;
         this.inputType = Objects.requireNonNullElse(inputType, InputType.UNSPECIFIED);
+        this.taskSettings = Objects.requireNonNullElse(taskSettings, Map.of());
     }
 
     public EmbeddingRequest(StreamInput in) throws IOException {
-        this(in.readCollectionAsImmutableList(InferenceStringGroup::new), in.readEnum(InputType.class));
+        this(
+            in.readCollectionAsImmutableList(InferenceStringGroup::new),
+            in.readEnum(InputType.class),
+            in.getTransportVersion().supports(JINA_AI_EMBEDDING_TASK_ADDED) ? in.readGenericMap() : Map.of()
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(inputs);
         out.writeEnum(inputType);
+        if (out.getTransportVersion().supports(JINA_AI_EMBEDDING_TASK_ADDED)) {
+            out.writeGenericMap(taskSettings);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(INPUT_FIELD, inputs);
         builder.field(INPUT_TYPE_FIELD, inputType);
+        if (taskSettings.isEmpty() == false) {
+            builder.field(TASK_SETTINGS, taskSettings);
+        }
         return builder;
     }
 
@@ -121,12 +146,22 @@ public record EmbeddingRequest(List<InferenceStringGroup> inputs, InputType inpu
         var token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING || token == XContentParser.Token.START_OBJECT) {
             // Single input of String or content object
-            return singletonList(InferenceStringGroup.parse(parser));
+            return singletonList(parseStringOrContentObject(parser));
         } else if (token == XContentParser.Token.START_ARRAY) {
             // Array of String or content objects
-            return XContentParserUtils.parseList(parser, InferenceStringGroup::parse);
+            return XContentParserUtils.parseList(parser, EmbeddingRequest::parseStringOrContentObject);
         }
-
         throw new XContentParseException("Unsupported token [" + token + "]");
+    }
+
+    private static InferenceStringGroup parseStringOrContentObject(XContentParser parser) throws IOException {
+        var currentToken = parser.currentToken();
+        if (currentToken == XContentParser.Token.VALUE_STRING) {
+            return new InferenceStringGroup(parser.text());
+        } else if (currentToken == XContentParser.Token.START_OBJECT) {
+            return InferenceStringGroup.parse(parser);
+        } else {
+            throw new XContentParseException("Unsupported token [" + currentToken + "]");
+        }
     }
 }

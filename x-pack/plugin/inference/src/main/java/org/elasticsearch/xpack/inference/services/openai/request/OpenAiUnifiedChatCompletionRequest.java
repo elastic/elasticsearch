@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.inference.services.openai.request;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 
 import java.net.URI;
@@ -24,7 +27,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.createOrgHeader;
 
-public class OpenAiUnifiedChatCompletionRequest implements Request {
+public class OpenAiUnifiedChatCompletionRequest implements OutboundUnifiedCompletionRequest {
 
     private final OpenAiChatCompletionModel model;
     private final UnifiedChatInput unifiedChatInput;
@@ -35,7 +38,7 @@ public class OpenAiUnifiedChatCompletionRequest implements Request {
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
         HttpPost httpPost = new HttpPost(model.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -57,7 +60,7 @@ public class OpenAiUnifiedChatCompletionRequest implements Request {
             }
         }
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
     }
 
     @Override
@@ -66,7 +69,7 @@ public class OpenAiUnifiedChatCompletionRequest implements Request {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // No truncation for OpenAI chat completions
         return this;
     }
@@ -80,6 +83,11 @@ public class OpenAiUnifiedChatCompletionRequest implements Request {
     @Override
     public String getInferenceEntityId() {
         return model.getInferenceEntityId();
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return model.getTaskType();
     }
 
     @Override

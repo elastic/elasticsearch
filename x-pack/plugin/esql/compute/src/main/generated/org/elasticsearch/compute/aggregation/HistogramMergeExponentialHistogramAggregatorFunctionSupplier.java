@@ -31,17 +31,17 @@ public final class HistogramMergeExponentialHistogramAggregatorFunctionSupplier 
   @Override
   public HistogramMergeExponentialHistogramAggregatorFunction aggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return HistogramMergeExponentialHistogramAggregatorFunction.create(driverContext, channels);
+    return new HistogramMergeExponentialHistogramAggregatorFunction(driverContext, channels);
   }
 
   @Override
   public HistogramMergeExponentialHistogramGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return HistogramMergeExponentialHistogramGroupingAggregatorFunction.create(channels, driverContext);
+    return new HistogramMergeExponentialHistogramGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return "histogram_merge_exponential of histograms";
+    return "histogram_merge of exponential_histograms";
   }
 }

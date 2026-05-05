@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.lucene;
 
-import java.util.Collection;
 import java.util.function.Function;
 
 public class EmptyIndexedByShardId {
@@ -23,8 +22,13 @@ public class EmptyIndexedByShardId {
         }
 
         @Override
-        public Collection<?> collection() {
+        public Iterable<?> iterable() {
             return java.util.List.of();
+        }
+
+        @Override
+        public int size() {
+            return 0;
         }
 
         @SuppressWarnings("unchecked")

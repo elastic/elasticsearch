@@ -3,7 +3,7 @@ navigation_title: "Change point"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-change-point-aggregation.html
 applies_to:
-  stack: preview 9.0, ga 9.2
+  stack: preview 9.0-9.1, ga 9.2+
   serverless: ga 
 ---
 

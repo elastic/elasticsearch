@@ -125,6 +125,10 @@ public class LabelMatcher {
         return Operations.run(automaton(), EMPTY);
     }
 
+    public boolean isNegation() {
+        return matcher == NEQ || matcher == NREG;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {

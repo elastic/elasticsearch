@@ -8,7 +8,11 @@
         "admin",
         "write"
       ],
-      "allowed_list": ["elastic-renovate-prod[bot]"],
+      "allowed_list": [
+        "elastic-renovate-prod[bot]",
+        "github-actions[bot]",
+        "elastic-vault-github-plugin-prod[bot]"
+      ],
       "set_commit_status": false,
       "build_on_commit": true,
       "build_on_comment": true,
@@ -47,7 +51,6 @@
       "set_commit_status": false,
       "build_on_commit": false,
       "build_on_comment": true,
-      "target_branch": "main",
       "trigger_comment_regex": "^(buildkite|@elastic(search)?machine) benchmark this with (?<benchmark>\\S+)( please)?$"
     }
   ]

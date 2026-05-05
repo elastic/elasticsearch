@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 142187
+summary: Terminate Azure retries when node is shutting down
+type: bug

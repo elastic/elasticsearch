@@ -588,7 +588,6 @@ public class WatcherServiceTests extends ESTestCase {
         assertThat(engine.getWatches(), is(anEmptyMap()));
     }
 
-
     private WatcherService createWatcherService(TriggerService triggerService) {
         return new WatcherService(
             Settings.EMPTY,

@@ -407,7 +407,11 @@ public class WatcherService implements WatcherEventConsumer {
         final int numShards = indexMetadata.getNumberOfShards();
         synchronized (pendingWatches) {
             for (Watch pendingWatch : pendingWatches.values()) {
-                final ShardAllocationConfiguration shardConfig = ShardAllocationConfiguration.findShardConfig(shardConfigs, pendingWatch.id(), numShards);
+                final ShardAllocationConfiguration shardConfig = ShardAllocationConfiguration.findShardConfig(
+                    shardConfigs,
+                    pendingWatch.id(),
+                    numShards
+                );
                 if (shardConfig == null || shardConfig.hostsWatch(pendingWatch.id()) == false) {
                     continue;
                 }

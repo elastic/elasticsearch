@@ -1,21 +1,13 @@
-import org.elasticsearch.gradle.OS
-
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
-
-if (OS.current() == OS.WINDOWS) {
-    tasks.withType(Test).configureEach {
-        enabled = false
-    }
-}
+apply plugin: 'elasticsearch.stateless'
 
 esplugin {
     name = 'stateless-sigterm'
     description = 'Sigterm shutdown module for stateless Elasticsearch'
     classname = 'org.elasticsearch.xpack.stateless.shutdown.StatelessSigtermPlugin'
     extendedPlugins = ['x-pack-core']
-    deploymentTarget = "STATELESS_ONLY"
 }
 
 dependencies {

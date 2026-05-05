@@ -387,13 +387,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                             }
                         } else if (isDense(firstDocId, lastDocId, count)) {
                             try (var builder = factory.singletonBytesRefs(count)) {
-                                long[] offsets = new long[count + 1];
+                                int[] offsets = new int[count + 1];
 
                                 long startOffset = addresses.get(firstDocId);
                                 for (int i = offset, j = 1; i < docs.count(); i++, j++) {
                                     int docId = docs.get(i);
-                                    long nextOffset = addresses.get(docId + 1) - startOffset;
-                                    offsets[j] = nextOffset;
+                                    offsets[j] = Math.toIntExact(addresses.get(docId + 1) - startOffset);
                                 }
 
                                 int length = Math.toIntExact(addresses.get(lastDocId + 1L) - startOffset);
@@ -887,7 +886,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             final int bufferSize = computeMultipleBlockBufferSize(firstBlockId, endBlockId);
 
             int offsetBufferIndex = 0;
-            final long[] offsetBuffer = new long[count + 1];
+            final int[] offsetBuffer = new int[count + 1];
             int valuesBufferIndex = 0;
             final byte[] valuesBuffer = new byte[bufferSize];
 

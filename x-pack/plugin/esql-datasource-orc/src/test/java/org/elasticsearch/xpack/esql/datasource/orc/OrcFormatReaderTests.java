@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -1184,12 +1185,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> iter = reader.readRange(
                 object,
-                projection,
-                1024,
-                range.offset(),
-                range.offset() + range.length(),
-                List.of(),
-                null
+                new RangeReadContext(projection, 1024, range.offset(), range.offset() + range.length(), List.of(), null)
             )
         ) {
             assertTrue(iter.hasNext());
@@ -1204,12 +1200,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> iter = reader.readRange(
                 object,
-                null,
-                1024,
-                range.offset(),
-                range.offset() + range.length(),
-                List.of(),
-                null
+                new RangeReadContext(null, 1024, range.offset(), range.offset() + range.length(), List.of(), null)
             )
         ) {
             while (iter.hasNext()) {
@@ -1230,12 +1221,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> iter = reader.readRange(
                 object,
-                null,
-                1024,
-                range.offset(),
-                range.offset() + range.length(),
-                List.of(),
-                null
+                new RangeReadContext(null, 1024, range.offset(), range.offset() + range.length(), List.of(), null)
             )
         ) {
             while (iter.hasNext()) {

@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionExcep
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceErrorResponseEntity;
@@ -31,10 +31,10 @@ public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends
     }
 
     @Override
-    public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
+    public InferenceServiceResults parseResult(OutboundRequest outboundRequest, Flow.Publisher<HttpResult> flow) {
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
         // EIS uses the unified API spec
-        var openAiProcessor = new OpenAiUnifiedStreamingProcessor((m, e) -> buildMidStreamError(request, m, e));
+        var openAiProcessor = new OpenAiUnifiedStreamingProcessor((m, e) -> buildMidStreamError(outboundRequest, m, e));
 
         flow.subscribe(serverSentEventProcessor);
         serverSentEventProcessor.subscribe(openAiProcessor);
@@ -42,23 +42,23 @@ public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends
     }
 
     @Override
-    protected Exception buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
-        assert request.isStreaming() : "Only streaming requests support this format";
+    protected Exception buildError(String message, OutboundRequest outboundRequest, HttpResult result, ErrorResponse errorResponse) {
+        assert outboundRequest.isStreaming() : "Only streaming requests support this format";
         var responseStatusCode = result.response().getStatusLine().getStatusCode();
-        if (request.isStreaming()) {
+        if (outboundRequest.isStreaming()) {
             var restStatus = toRestStatus(responseStatusCode);
             return new UnifiedChatCompletionException(
                 restStatus,
-                constructErrorMessage(message, request, errorResponse, responseStatusCode),
+                constructErrorMessage(message, outboundRequest, errorResponse, responseStatusCode),
                 "error",
                 restStatus.name().toLowerCase(Locale.ROOT)
             );
         } else {
-            return super.buildError(message, request, result, errorResponse);
+            return super.buildError(message, outboundRequest, result, errorResponse);
         }
     }
 
-    private static Exception buildMidStreamError(Request request, String message, Exception e) {
+    private static Exception buildMidStreamError(OutboundRequest outboundRequest, String message, Exception e) {
         var errorResponse = ElasticInferenceServiceErrorResponseEntity.fromString(message);
         if (errorResponse.errorStructureFound()) {
             return new UnifiedChatCompletionException(
@@ -66,7 +66,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends
                 format(
                     "%s for request from inference entity id [%s]. Error message: [%s]",
                     SERVER_ERROR_OBJECT,
-                    request.getInferenceEntityId(),
+                    outboundRequest.getInferenceEntityId(),
                     errorResponse.getErrorMessage()
                 ),
                 "error",
@@ -77,7 +77,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionResponseHandler extends
         } else {
             return new UnifiedChatCompletionException(
                 RestStatus.INTERNAL_SERVER_ERROR,
-                format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, request.getInferenceEntityId()),
+                format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, outboundRequest.getInferenceEntityId()),
                 "error",
                 "stream_error"
             );

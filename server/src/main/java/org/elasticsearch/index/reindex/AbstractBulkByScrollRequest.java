@@ -486,14 +486,21 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     /**
      * Build a new request for a slice of the parent request.
      */
-    public abstract Self forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices);
+    public abstract Self forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices);
 
     /**
      * Setup a clone of this request with the information needed to process a slice of it.
+     *
+     * @param totalSlices the total number of slices (used for maxDocs splitting)
+     * @param activeSlices the number of slices that will actually run (used for RPS splitting)
      */
-    protected Self doForSlice(Self request, TaskId slicingTask, int totalSlices) {
+    protected Self doForSlice(Self request, TaskId slicingTask, int totalSlices, int activeSlices) {
         if (totalSlices < 1) {
             throw new IllegalArgumentException("Number of total slices must be at least 1 but was [" + totalSlices + "]");
+        } else if (activeSlices < 1 || activeSlices > totalSlices) {
+            throw new IllegalArgumentException(
+                "Number of active slices must be between 1 and totalSlices [" + totalSlices + "] but was [" + activeSlices + "]"
+            );
         }
 
         request.setAbortOnVersionConflict(abortOnVersionConflict)
@@ -504,8 +511,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             .setMaxRetries(maxRetries)
             // Parent task will store result
             .setShouldStoreResult(false)
-            // Split requests per second between all slices
-            .setRequestsPerSecond(requestsPerSecond / totalSlices)
+            // Split requests per second between active slices only
+            .setRequestsPerSecond(requestsPerSecond / activeSlices)
             // Sub requests don't have workers
             .setSlices(1);
         // Copy resume info for the slice from leader to the slice request

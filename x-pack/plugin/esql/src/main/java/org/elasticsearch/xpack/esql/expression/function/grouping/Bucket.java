@@ -73,7 +73,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         .name("bucket", "bin");
     public static final TransportVersion ESQL_BUCKET_OFFSET = TransportVersion.fromName("esql_bucket_offset");
 
-    private record DateRoundingPicker(int buckets, long from, long to, ZoneId zoneId, long offset) {
+    private record DateRoundingPicker(int buckets, long from, long to, ZoneId zoneId) {
 
         // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
         // That way you never end up with more than the target number of buckets.
@@ -102,43 +102,31 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
         /**
          * A factory for a particular bucket granularity (e.g. 5 minutes, 1 hour). Knows how to build
-         * a {@link Rounding} for a given timezone, optionally with a millisecond offset that shifts all
-         * bucket boundaries by a fixed amount.
+         * a {@link Rounding} for a given timezone.
          */
         interface Unit {
-            /** Build a rounding with an explicit millisecond offset applied to every bucket boundary. */
-            Rounding rounding(ZoneId zoneId, long offset);
-
-            default Rounding rounding(ZoneId zoneId) {
-                return rounding(zoneId, 0L);
-            }
+            Rounding rounding(ZoneId zoneId);
 
             static Unit of(Rounding.DateTimeUnit value) {
-                return (zoneId, offset) -> Rounding.builder(value).timeZone(zoneId).offset(offset).build();
+                return zoneId -> Rounding.builder(value).timeZone(zoneId).build();
             }
 
             static Unit of(TimeValue value) {
-                return (zoneId, offset) -> Rounding.builder(value).timeZone(zoneId).offset(offset).build();
+                return zoneId -> Rounding.builder(value).timeZone(zoneId).build();
             }
         }
 
-        // The offset only shifts bucket boundaries, not bucket width;
-        // we do not use offset for candidate probes to avoid false negative.
-        // E.g., for a query range [10:00;11:00] and target=60,
-        // the one-minute candidate would be falsely rejected otherwise:
-        // offset=0: [0th <10:00:00>][1st <10:01:00>] ... [60th <10:59:00>] <= target 1m is finest.
-        // offset=+30s: [0th <09:59:30>][1st <10:00:30>] ... [61st <10:59:30>] > target 1m is NOT finest.
         Rounding pickRounding() {
             Unit best = findLastOk(PRIMARY_UNITS);
             if (best != null) {
-                return best.rounding(zoneId, offset);
+                return best.rounding(zoneId);
             }
             for (Unit unit : SECONDARY_UNITS) {
                 if (roundingIsOk(unit.rounding(zoneId))) {
-                    return unit.rounding(zoneId, offset);
+                    return unit.rounding(zoneId);
                 }
             }
-            return SECONDARY_UNITS[SECONDARY_UNITS.length - 1].rounding(zoneId, offset);
+            return SECONDARY_UNITS[SECONDARY_UNITS.length - 1].rounding(zoneId);
         }
 
         private Unit findLastOk(Unit[] candidates) {
@@ -427,9 +415,9 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             long f = foldToLong(foldContext, from);
             long t = foldToLong(foldContext, to);
             if (min != null && max != null) {
-                return new DateRoundingPicker(b, f, t, configuration.zoneId(), 0L).pickRounding().prepare(min, max);
+                return new DateRoundingPicker(b, f, t, configuration.zoneId()).pickRounding().prepare(min, max);
             }
-            return new DateRoundingPicker(b, f, t, configuration.zoneId(), 0L).pickRounding().prepareForUnknown();
+            return new DateRoundingPicker(b, f, t, configuration.zoneId()).pickRounding().prepareForUnknown();
         } else {
             assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
             return DateTrunc.createRounding(buckets.fold(foldContext), configuration.zoneId(), min, max, offset);
@@ -515,7 +503,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             );
     }
 
-    private static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+    public static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
         return isType(e, exp -> DataType.isString(exp) || DataType.isDateTime(exp), operationName, paramOrd, "datetime", "string");
     }
 

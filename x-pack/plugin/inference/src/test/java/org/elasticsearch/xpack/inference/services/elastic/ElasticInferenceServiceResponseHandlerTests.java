@@ -13,7 +13,9 @@ import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicHttpResponse;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
@@ -25,8 +27,10 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler.RETRY_AFTER_HEADER;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
@@ -98,7 +102,7 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
                         RestStatus.TOO_MANY_REQUESTS,
                         "Received a rate limit status code for request from inference entity id [id] status [429]",
                         true,
-                        Map.of("Retry-After", "123")
+                        Map.of(RETRY_AFTER_HEADER, "123")
                     ) },
                 {
                     new FailureTestCase(
@@ -114,7 +118,7 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
                         RestStatus.BAD_REQUEST,
                         "Received a server error status code for request from inference entity id [id] status [500]",
                         true,
-                        Map.of("Retry-After", "42")
+                        Map.of(RETRY_AFTER_HEADER, "42")
                     ) },
                 {
                     new FailureTestCase(
@@ -142,9 +146,8 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
         assertThat(exception.shouldRetry(), is(failureTestCase.shouldRetry));
         assertThat(exception.getCause().getMessage(), containsString(failureTestCase.errorMessage));
         assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(failureTestCase.expectedStatus));
-        if (failureTestCase.headers.containsKey("Retry-After")) {
-            assertThat(exception.getHttpHeader("Retry-After"), is(notNullValue()));
-            assertThat(exception.getHttpHeader("Retry-After"), contains(failureTestCase.headers.get("Retry-After")));
+        if (failureTestCase.headers.containsKey(RETRY_AFTER_HEADER)) {
+            assertCauseHasRetryHeader(exception, failureTestCase.headers.get(RETRY_AFTER_HEADER));
         }
     }
 
@@ -160,11 +163,10 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
                 randomIntBetween(300, 599),
                 randomAlphaOfLength(10),
                 "id",
-                Map.of("Retry-After", retryAfter)
+                Map.of(RETRY_AFTER_HEADER, retryAfter)
             )
         );
-        assertThat(exception.getHttpHeader("Retry-After"), is(notNullValue()));
-        assertThat(exception.getHttpHeader("Retry-After"), contains(retryAfter));
+        assertCauseHasRetryHeader(exception, retryAfter);
     }
 
     private static void callCheckForFailureStatusCode(
@@ -195,5 +197,14 @@ public class ElasticInferenceServiceResponseHandlerTests extends ESTestCase {
 
     private static void givenResponseHasHeaders(HttpResponse httpResponse, Map<String, String> headersMap) {
         headersMap.entrySet().stream().forEach(e -> httpResponse.addHeader(new BasicHeader(e.getKey(), e.getValue())));
+    }
+
+    private void assertCauseHasRetryHeader(RetryException e, String retryAfterValue) {
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        assertThat(cause, instanceOf(ElasticsearchException.class));
+        if (cause instanceof ElasticsearchException causeAsEsException) {
+            assertThat(causeAsEsException.getHttpHeader(RETRY_AFTER_HEADER), is(notNullValue()));
+            assertThat(causeAsEsException.getHttpHeader(RETRY_AFTER_HEADER), contains(retryAfterValue));
+        }
     }
 }

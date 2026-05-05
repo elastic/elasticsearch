@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.apache.http.Header;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
@@ -18,7 +19,7 @@ import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInfere
 
 public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler {
 
-    private static final String RETRY_AFTER_HEADER = "Retry-After";
+    public static final String RETRY_AFTER_HEADER = "Retry-After";
 
     public ElasticInferenceServiceResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, ElasticInferenceServiceErrorResponseEntity::fromResponse);
@@ -34,9 +35,7 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
             return;
         }
 
-        RetryException retryException = buildRetryException(request, result);
-        addRetryAfterHeaderIfPresent(result, retryException);
-        throw retryException;
+        throw buildRetryException(request, result);
     }
 
     private RetryException buildRetryException(Request request, HttpResult result) {
@@ -56,7 +55,14 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
         return new RetryException(false, buildError(UNSUCCESSFUL, request, result));
     }
 
-    private void addRetryAfterHeaderIfPresent(HttpResult result, RetryException e) {
+    @Override
+    protected ElasticsearchException buildError(String message, Request request, HttpResult result) {
+        ElasticsearchException error = super.buildError(message, request, result);
+        addRetryAfterHeaderIfPresent(result, error);
+        return error;
+    }
+
+    private void addRetryAfterHeaderIfPresent(HttpResult result, ElasticsearchException e) {
         Header retryAfterHeader = result.response().getFirstHeader(RETRY_AFTER_HEADER);
         if (retryAfterHeader != null) {
             e.addHttpHeader(RETRY_AFTER_HEADER, retryAfterHeader.getValue());

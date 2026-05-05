@@ -23,16 +23,16 @@ import java.util.Objects;
 import static java.util.Collections.singletonList;
 
 /**
- * Represents an unresolved external data source reference (Iceberg table or Parquet file).
- * This plan node is created by the parser and later resolved by the analyzer
- * using metadata from {@code ExternalSourceResolver}.
+ * Unresolved external data source reference (Iceberg table or Parquet file). Produced by the parser
+ * for inline {@code EXTERNAL} commands and by the dataset rewriter for {@code FROM <dataset>}; both
+ * paths converge here so the downstream resolver/analyzer treat them uniformly.
  *
- * <p>The {@code config} map holds plain configuration values (no {@code Literal} wrappers).
- * Both convergence paths populate it directly: the {@code DatasetRewriter} merges parent
- * data-source settings with the dataset's own settings, and the inline {@code EXTERNAL}
- * parser folds {@code MapExpression} entries to plain values. Keeping the carrier as
- * {@code Map<String, Object>} rather than {@code Map<String, Expression>} avoids a wrap/unwrap
- * round-trip and keeps configuration values out of the Literal serialization path.
+ * <p>The {@code config} map holds plain configuration values (no {@link
+ * org.elasticsearch.xpack.esql.core.expression.Literal} wrappers); secret values arrive as
+ * {@link org.elasticsearch.common.settings.SecureString} on the dataset path.
+ *
+ * @see UnresolvedRelation index-side counterpart for {@code FROM <index>}; if you traverse one and
+ * care about FROM-style leaves, consider whether you need the other too.
  */
 public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable {
 
@@ -131,6 +131,9 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
 
     @Override
     public List<Object> nodeProperties() {
+        // config intentionally omitted: it can carry SecureString values whose toString() would leak
+        // plaintext into EXPLAIN output and debug logs. Broader redaction across external-source plan
+        // nodes is tracked separately.
         return singletonList(tablePath);
     }
 

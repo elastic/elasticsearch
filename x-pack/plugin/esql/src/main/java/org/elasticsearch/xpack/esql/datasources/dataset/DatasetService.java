@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.SequentialAckingBatchedTaskExecutor;
 import org.elasticsearch.cluster.metadata.DataSource;
 import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
+import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -23,6 +24,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -89,6 +91,19 @@ public class DatasetService {
             request.resource(),
             request.rawSettings()
         );
+        // Defense in depth: the SPI contract on DataSourceValidator.validateDataset says dataset
+        // settings carry no secrets, but only convention enforces that. If a dataset key ever shadowed
+        // a parent secret-keyed setting, DatasetRewriter.mergeSettings would silently overwrite the
+        // SecureString with whatever the dataset put there — losing the secret-classification along
+        // the carrier path. Reject at put-time so the invariant is enforced where it's defined.
+        for (String key : validatedSettings.keySet()) {
+            DataSourceSetting parentSetting = parent.settings().get(key);
+            if (parentSetting != null && parentSetting.secret()) {
+                ValidationException ex = new ValidationException();
+                ex.addValidationError("dataset setting [" + key + "] shadows a secret data-source setting; remove from dataset settings");
+                throw ex;
+            }
+        }
         return new Dataset(
             request.name(),
             new DataSourceReference(request.dataSource()),

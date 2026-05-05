@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Factory for Arrow Flight connectors.
@@ -68,7 +69,9 @@ class FlightConnectorFactory implements ConnectorFactory {
 
     @Override
     public Connector open(Map<String, Object> config) {
-        String endpoint = (String) config.get("endpoint");
+        // config values are Object — use Objects.toString rather than (String) which would CCE if a
+        // SecureString or non-String literal ever reaches this map.
+        String endpoint = Objects.toString(config.get("endpoint"), null);
         if (endpoint == null) {
             throw new IllegalArgumentException("Flight connector requires 'endpoint' in config");
         }

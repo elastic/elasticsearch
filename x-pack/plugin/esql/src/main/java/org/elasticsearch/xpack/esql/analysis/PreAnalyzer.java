@@ -69,15 +69,21 @@ public class PreAnalyzer {
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 
-        // Collect external source paths from UnresolvedExternalRelation nodes
+        // Collect external source paths from UnresolvedExternalRelation nodes. Every tablePath must be
+        // a non-null Literal at this point — the parser substitutes parameters during parsing and
+        // throws ParsingException on unbound references upstream, so any non-Literal here is a
+        // precondition violation.
         List<String> icebergPaths = new ArrayList<>();
         plan.forEachUp(UnresolvedExternalRelation.class, p -> {
-            // Extract string path from the tablePath expression
-            // For now, we only support literal string paths (parameters will be resolved later)
             if (p.tablePath() instanceof Literal literal && literal.value() != null) {
-                // Use BytesRefs.toString() which handles both BytesRef and String
                 String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
                 icebergPaths.add(path);
+            } else {
+                throw new IllegalStateException(
+                    "UnresolvedExternalRelation tablePath is not a non-null Literal: ["
+                        + (p.tablePath() == null ? "null" : p.tablePath().sourceText())
+                        + "]"
+                );
             }
         });
 

@@ -214,6 +214,42 @@ public class DatasetRewriterTests extends ESTestCase {
         assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
     }
 
+    public void testClosedIndexCountsAsNonDatasetInMixedRejection() {
+        // The rewriter's IndicesOptions are based on IndexResolver.DEFAULT_OPTIONS so the gatekeeper
+        // matches user-side semantics. allowClosedIndices=true means a closed index in the pattern
+        // appears in the resolver's result and contributes to nonDatasetCount — preventing the
+        // silent-drop where a closed index would disappear from the query and the rewriter would
+        // produce a dataset-only relation. The mixed-FROM rejection fires as expected.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(Map.of("s3_parent", parent)))
+            .datasets(Map.of("logs", dataset));
+        builder.put(
+            IndexMetadata.builder("my_closed_index")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .build()
+                )
+                .state(IndexMetadata.State.CLOSE)
+                .build(),
+            false
+        );
+        ProjectMetadata project = builder.build();
+
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> DatasetRewriter.rewrite(relationOf("my_closed_index,logs"), project, RESOLVER)
+        );
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("mixing datasets and non-datasets"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("1 non-dataset(s)"));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("1 dataset(s)"));
+    }
+
     public void testWildcardSpanningIndicesAndDatasetsRejected() {
         // `FROM logs_*` matching both real indices and datasets is mixed-FROM territory — same as a
         // literal mix. The error surfaces counts only — listing matched names would exfiltrate
@@ -330,8 +366,7 @@ public class DatasetRewriterTests extends ESTestCase {
         // A wildcard matching more than 8 datasets crosses Fork's 8-branch cap. The rewriter
         // intercepts before constructing the UnionAll and throws a VerificationException with
         // user-facing framing — the user typed FROM <pattern>, not FORK, so the error references
-        // the pattern + the cap, not Fork's internal name. Tracked as esql-planning#614 (raise the
-        // cap or coalesce siblings) for the long-term fix.
+        // the pattern + the cap, not Fork's internal name.
         DataSource parent = dataSource("s3_parent", Map.of());
         Map<String, Dataset> datasets = new HashMap<>();
         for (int i = 0; i < 9; i++) {
@@ -350,6 +385,58 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("matched 9 datasets"));
         assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("current limit is 8"));
         assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("Narrow the pattern"));
+    }
+
+    public void testDateMathPatternReachesSlowPath() {
+        // The fast-path predicate uses Regex.simpleMatch which doesn't expand <...> date-math
+        // expressions, so a date-math pattern can't be answered locally — the predicate returns
+        // true and lets the resolver handle it. Without that bail, a date-math pattern that
+        // resolved to a registered dataset name would silently fail to rewrite (false-negative
+        // in the predicate). This test pins the conservative behavior: the rewriter doesn't
+        // throw on a date-math pattern even when no matching dataset exists.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        UnresolvedRelation relation = relationOf("<metrics-{now/d}>");
+        // Slow path runs, resolver returns nothing for an unmatched date-math pattern → relation
+        // returned unchanged. The point of the test is that this doesn't throw.
+        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
+    }
+
+    public void testRemoteClusterPatternBailsOutOfDatasetRewriting() {
+        // Datasets are local-only for the MVP. A cluster-prefixed pattern means CCS — let the
+        // original FROM (with all its parts) flow through to regular CCS resolution.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        UnresolvedRelation relation = relationOf("cluster-1:some_index");
+        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
+    }
+
+    public void testRemoteClusterPatternMatchingLocalDatasetNameBailsOut() {
+        // A coincidental local-dataset name match on the local part of a remote-prefixed pattern
+        // must not turn the query into a dataset query. The cluster prefix wins; downstream CCS
+        // resolution handles `cluster-1:logs` as a remote name (and may fail naturally if absent).
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        UnresolvedRelation relation = relationOf("cluster-1:logs");
+        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
+    }
+
+    public void testRemoteClusterPatternMixedWithLocalDatasetBailsOut() {
+        // Mixing a cluster-prefixed pattern with a local dataset reference also bails — without the
+        // bail, the slow path would silently drop the cluster-prefixed part and produce a
+        // dataset-only rewrite. Bail out so downstream CCS resolution sees the full original FROM.
+        DataSource parent = dataSource("s3_parent", Map.of());
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        UnresolvedRelation relation = relationOf("cluster-1:remote_idx,logs");
+        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
     }
 
     public void testCommaSeparatedDatasetsAndWildcardCombine() {

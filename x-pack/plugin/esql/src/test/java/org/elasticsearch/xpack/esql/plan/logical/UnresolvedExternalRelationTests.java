@@ -7,8 +7,10 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.HashMap;
@@ -92,4 +94,38 @@ public class UnresolvedExternalRelationTests extends ESTestCase {
         assertThat("Node properties should contain tablePath", relation.nodeProperties(), hasSize(1));
         assertThat("Node properties should contain tablePath", relation.nodeProperties().get(0), equalTo(tablePath));
     }
+
+    public void testNodePropertiesOmitsConfig() {
+        // config is intentionally omitted from nodeProperties so EXPLAIN output and debug logs don't
+        // print SecureString values via Map.toString -> SecureString.toString. Only tablePath should
+        // appear in the printed properties.
+        Source source = Source.EMPTY;
+        Expression tablePath = Literal.keyword(source, "s3://bucket/table");
+        Map<String, Object> config = new HashMap<>();
+        config.put("region", "us-east-1");
+        config.put("secret_key", "MOCK_SECRET");
+
+        UnresolvedExternalRelation relation = new UnresolvedExternalRelation(source, tablePath, config);
+
+        assertThat(relation.nodeProperties(), hasSize(1));
+        assertThat(relation.nodeProperties().get(0), equalTo(tablePath));
+        // Plan-tree string representation must not surface either config key.
+        String rendered = relation.toString();
+        // Belt-and-suspenders: even the toString of the relation should not include config values.
+        assertThat(rendered, org.hamcrest.Matchers.not(containsString("us-east-1")));
+        assertThat(rendered, org.hamcrest.Matchers.not(containsString("MOCK_SECRET")));
+    }
+
+    public void testPreAnalyzerThrowsOnNonLiteralTablePath() {
+        // After parameter substitution at parse time, every UnresolvedExternalRelation tablePath is
+        // expected to be a non-null Literal. Non-Literal here indicates a precondition violation —
+        // PreAnalyzer fails closed with IllegalStateException rather than silently skipping the entry.
+        Source source = Source.EMPTY;
+        Expression nonLiteral = new UnresolvedAttribute(source, "?param");
+        UnresolvedExternalRelation relation = new UnresolvedExternalRelation(source, nonLiteral, new HashMap<>());
+
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> new PreAnalyzer().preAnalyze(relation));
+        assertThat(ex.getMessage(), containsString("UnresolvedExternalRelation tablePath is not a non-null Literal"));
+    }
+
 }

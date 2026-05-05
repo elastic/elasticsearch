@@ -1095,15 +1095,26 @@ public class EsqlSession {
 
     /**
      * Extract external source configuration from UnresolvedExternalRelation nodes in the plan.
-     * Returns a map from table path to plain configuration values.
+     * Returns a map from table path to plain configuration values. Every {@code tablePath} must be a
+     * non-null {@link org.elasticsearch.xpack.esql.core.expression.Literal} at this point — the parser
+     * substitutes parameters during parsing and throws a {@link
+     * org.elasticsearch.xpack.esql.parser.ParsingException} on unbound references upstream, so any
+     * non-Literal here is a precondition violation.
      */
-    private Map<String, Map<String, Object>> extractExternalConfigs(LogicalPlan plan) {
+    // package-private for testing
+    static Map<String, Map<String, Object>> extractExternalConfigs(LogicalPlan plan) {
         Map<String, Map<String, Object>> pathConfigs = new HashMap<>();
         plan.forEachUp(org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation.class, p -> {
-            if (p.tablePath() instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal && literal.value() != null) {
-                // Use BytesRefs.toString() which handles both BytesRef and String
+            org.elasticsearch.xpack.esql.core.expression.Expression tablePath = p.tablePath();
+            if (tablePath instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal && literal.value() != null) {
                 String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
                 pathConfigs.put(path, p.config());
+            } else {
+                throw new IllegalStateException(
+                    "UnresolvedExternalRelation tablePath is not a non-null Literal: ["
+                        + (tablePath == null ? "null" : tablePath.sourceText())
+                        + "]"
+                );
             }
         });
         return pathConfigs;

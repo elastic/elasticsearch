@@ -125,4 +125,27 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
 
         assertNotNull(iceberg.tablePath());
     }
+
+    public void testWithOptionUnboundParameterThrows() {
+        // The post-substitution invariant — every WITH-option value is a Literal — is enforced
+        // because unbound parameters never get past the parser's own parameter-count check, which
+        // fires upstream of foldOptionLiterals. The end-user observes a ParsingException either way.
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        ParsingException pe = expectThrows(
+            ParsingException.class,
+            () -> query("EXTERNAL \"s3://bucket/table\" WITH { \"k\": ? }", new QueryParams(List.of()))
+        );
+        assertThat(pe.getMessage(), containsString("Not enough actual parameters"));
+    }
+
+    public void testWithOptionNullLiteralThrows() {
+        // A Literal whose value is null is also a strict-rule violation: option values must be
+        // meaningful, not null. Without this check the entry would silently drop and downstream
+        // would behave as if the option weren't set.
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        ParsingException pe = expectThrows(ParsingException.class, () -> query("EXTERNAL \"s3://bucket/table\" WITH { \"k\": null }"));
+        assertThat(pe.getMessage(), containsString("EXTERNAL option [k] has null value"));
+    }
 }

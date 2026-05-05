@@ -875,18 +875,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     /**
      * Folds {@link MapExpression} entries to plain values for the {@code EXTERNAL} options carrier.
-     * Mirrors the unwrap that the downstream resolver previously performed at use site, but moves it
-     * to parse time so the relation node carries plain {@code Object} values instead of
-     * {@link Literal}-wrapped configuration.
-     *
-     * <p>After parameter substitution at parse time, every option value is expected to be a
-     * {@link Literal}. A non-literal entry would mean an unfolded parameter reference or a parser
-     * state bug; either way, silently dropping it would let the query proceed with the wrong settings.
-     * Throw a {@link ParsingException} at the offending entry's source so the user sees the failure
-     * at the right spot in their query rather than discovering it as a wrong-result later.
-     *
-     * <p>{@link BytesRef} values are normalized to {@link String} so the carrier shape matches what
-     * data-source plugins receive on the dataset path.
+     * Every option value must be a {@link Literal} after parameter substitution; non-literal entries
+     * (or {@code Literal(null)}) throw {@link ParsingException} at the offending entry's source.
+     * {@link BytesRef} normalizes to {@link String} so the carrier matches the dataset path's shape.
      */
     private static Map<String, Object> foldOptionLiterals(Map<String, Expression> entries) {
         if (entries.isEmpty()) {
@@ -897,9 +888,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Expression value = entry.getValue();
             if (value instanceof Literal literal) {
                 Object literalValue = literal.value();
+                if (literalValue == null) {
+                    throw new ParsingException(
+                        value.source(),
+                        "EXTERNAL option [{}] has null value; null is not a valid option value",
+                        entry.getKey()
+                    );
+                }
                 if (literalValue instanceof BytesRef bytesRef) {
                     folded.put(entry.getKey(), BytesRefs.toString(bytesRef));
-                } else if (literalValue != null) {
+                } else {
                     folded.put(entry.getKey(), literalValue);
                 }
             } else {

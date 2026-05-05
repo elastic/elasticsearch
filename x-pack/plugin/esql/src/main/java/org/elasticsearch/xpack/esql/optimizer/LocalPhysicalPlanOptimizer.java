@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSo
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNIntoExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundToWithQueryAndTags;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsByExactStats;
@@ -87,6 +88,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             esSourceRules.add(new PushStatsToSource());
             esSourceRules.add(new PushStatsToExternalSource());
             esSourceRules.add(new PushAggregatesToExternalSource());
+            esSourceRules.add(new PushTopNIntoExternalSource());
             esSourceRules.add(new EnableSpatialDistancePushdown());
         }
         esSourceRules.add(new ReplaceSampledStatsBySampleAndStats());

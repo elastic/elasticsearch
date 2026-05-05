@@ -492,6 +492,12 @@ public class BlockFactory {
         return b;
     }
 
+    public BytesRefVector newDirectBytesRefVector(byte[] bytes, int[] startOffsets, int positionCount) {
+        var v = new DirectBytesRefVector(bytes, startOffsets, positionCount, this);
+        adjustBreaker(v.ramBytesUsed());
+        return v;
+    }
+
     public BytesRefBlock newConstantBytesRefBlockWith(BytesRef value, int positions) {
         return newConstantBytesRefVector(value, positions).asBlock();
     }

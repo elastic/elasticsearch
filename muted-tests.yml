@@ -401,9 +401,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.RefreshNodeCreditManagerTests
   method: testPeriodicWarning
   issue: https://github.com/elastic/elasticsearch-serverless/issues/6518
-- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
-  method: testSearchWithRandomDisconnects
-  issue: https://github.com/elastic/elasticsearch/issues/147849
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/147850
@@ -548,3 +545,15 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testCommitsTrackingTakesIntoAccountSearchNodeUsage
   issue: https://github.com/elastic/elasticsearch/issues/148300
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testStressWithoutFailures
+  issue: https://github.com/elastic/elasticsearch/issues/148310
+- class: org.elasticsearch.xpack.watcher.test.integration.SingleNodeTests
+  method: testThatLoadingWithNonExistingIndexWorks
+  issue: https://github.com/elastic/elasticsearch/issues/148323
+- class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
+  method: testWithByteBufferSlicesReturnsFalseAfterEviction
+  issue: https://github.com/elastic/elasticsearch/issues/148330
+- class: org.elasticsearch.xpack.security.authc.esnative.ReservedRealmElasticAutoconfigIntegTests
+  method: testAutoconfigFailedPasswordPromotion
+  issue: https://github.com/elastic/elasticsearch/issues/122668

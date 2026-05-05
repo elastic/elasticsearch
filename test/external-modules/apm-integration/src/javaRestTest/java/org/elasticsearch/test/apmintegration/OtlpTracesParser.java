@@ -44,8 +44,9 @@ public final class OtlpTracesParser {
         ExportTraceServiceRequest request = ExportTraceServiceRequest.parseFrom(input);
         List<ReceivedTelemetry> result = new ArrayList<>();
         for (ResourceSpans resourceSpans : request.getResourceSpansList()) {
-            // Resource attributes use raw OTel Semantic Convention names; the cross-path contract
-            // (REQUIRED_RESOURCE_KEYS) is in those names natively.
+            // Resource attributes pass through unchanged: no "otel.attributes." prefix
+            // (unlike extractSpanAttributes below, which adds it to mimic the APM intake shape).
+            // AbstractTracesIT.REQUIRED_RESOURCE_KEYS asserts on the OTel SemConv names directly.
             result.add(new ReceivedTelemetry.ReceivedResource(extractRawAttributes(resourceSpans.getResource().getAttributesList())));
             for (ScopeSpans scopeSpans : resourceSpans.getScopeSpansList()) {
                 for (Span span : scopeSpans.getSpansList()) {

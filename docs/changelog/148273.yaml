@@ -2,5 +2,5 @@ area: Allocation
 issues:
  - 148219
 pr: 148273
-summary: Proposed fix max write load proportion cache staleness
+summary: Invalidate cache of max shard write load proportion on shard movements
 type: bug

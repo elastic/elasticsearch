@@ -27,6 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
 import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV;
+import static org.elasticsearch.xpack.inference.Utils.randomInferenceStringGroup;
 import static org.hamcrest.Matchers.containsString;
 
 public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWireSerializationTestCase<
@@ -96,7 +97,7 @@ public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWir
                 instance.fields(),
                 instance.resolveWildcards(),
                 instance.useDefaultFields(),
-                randomValueOtherThan(instance.input(), GetInferenceFieldsInternalActionRequestTests::randomInput),
+                randomValueOtherThan(instance.input(), () -> randomBoolean() ? null : randomInferenceStringGroup()),
                 instance.indicesOptions()
             );
             case 5 -> new GetInferenceFieldsInternalAction.Request(
@@ -186,24 +187,6 @@ public class GetInferenceFieldsInternalActionRequestTests extends AbstractBWCWir
 
     private static InferenceStringGroup randomTextInput() {
         return randomBoolean() ? null : new InferenceStringGroup(randomAlphaOfLengthBetween(5, 10));
-    }
-
-    private static InferenceStringGroup randomInput() {
-        return switch (between(0, 3)) {
-            case 0 -> null;
-            case 1 -> new InferenceStringGroup(randomAlphaOfLengthBetween(5, 10));
-            case 2 -> new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,aGVsbG8="));
-            case 3 -> new InferenceStringGroup(
-                randomList(
-                    2,
-                    4,
-                    () -> randomBoolean()
-                        ? new InferenceString(DataType.TEXT, randomAlphaOfLengthBetween(5, 10))
-                        : new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,aGVsbG8=")
-                )
-            );
-            default -> throw new AssertionError("Invalid value");
-        };
     }
 
     private static IndicesOptions randomIndicesOptions() {

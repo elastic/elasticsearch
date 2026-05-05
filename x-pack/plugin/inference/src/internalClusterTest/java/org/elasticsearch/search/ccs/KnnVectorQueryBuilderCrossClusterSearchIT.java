@@ -10,10 +10,6 @@ package org.elasticsearch.search.ccs;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.DataFormat;
-import org.elasticsearch.inference.DataType;
-import org.elasticsearch.inference.InferenceString;
-import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.LookupQueryVectorBuilder;
@@ -29,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.xpack.inference.Utils.randomInferenceStringGroup;
 
 public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticCrossClusterSearchTestCase {
     private static final String COMMON_INFERENCE_ID_FIELD = "common-inference-id-field";
@@ -407,7 +405,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         }
     }
 
-    public void testKnnQueryWithSemanticFieldTypeOmittingInferenceIdWithText() throws Exception {
+    public void testKnnQueryWithSemanticFieldTypeOmittingInference() throws Exception {
         assumeTrue("Test requires semantic field support", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
         List<Boolean> ccsMinimizeRoundTripsValues = List.of(true, false);
         for (Boolean ccsMinimizeRoundTrips : ccsMinimizeRoundTripsValues) {
@@ -416,37 +414,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             assertSearchResponse(
                 new KnnVectorQueryBuilder(
                     SEMANTIC_FIELD,
-                    new EmbeddingQueryVectorBuilder(null, new InferenceStringGroup("hello"), null),
-                    10,
-                    100,
-                    10f,
-                    null
-                ),
-                QUERY_INDICES,
-                List.of(
-                    new SearchResult(expectedLocalClusterAlias, LOCAL_INDEX_NAME, getDocId(SEMANTIC_FIELD)),
-                    new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(SEMANTIC_FIELD))
-                ),
-                null,
-                searchRequestModifier
-            );
-        }
-    }
-
-    public void testKnnQueryWithSemanticFieldTypeOmittingInferenceIdWithImage() throws Exception {
-        assumeTrue("Test requires semantic field support", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
-        List<Boolean> ccsMinimizeRoundTripsValues = List.of(true, false);
-        for (Boolean ccsMinimizeRoundTrips : ccsMinimizeRoundTripsValues) {
-            final Consumer<SearchRequest> searchRequestModifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundTrips);
-            final String expectedLocalClusterAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundTrips);
-            assertSearchResponse(
-                new KnnVectorQueryBuilder(
-                    SEMANTIC_FIELD,
-                    new EmbeddingQueryVectorBuilder(
-                        null,
-                        new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,aGVsbG8=")),
-                        null
-                    ),
+                    new EmbeddingQueryVectorBuilder(null, randomInferenceStringGroup(), null),
                     10,
                     100,
                     10f,

@@ -67,11 +67,13 @@ public class MultiFileVectorReaderTests extends ESTestCase {
         float[][] vectors = { { 1.0f, 2.0f, 3.0f }, { 4.0f, 5.0f, 6.0f } };
         Path file = writeFvecFile("test.fvec", vectors);
 
-        try (var reader = IndexVectorReader.MultiFileVectorReader.create(List.of(file), -1, VectorEncoding.FLOAT32, Integer.MAX_VALUE)) {
+        try (
+            var reader = IndexVectorReader.MultiFileVectorReader.create(List.of(file), -1, VectorEncoding.FLOAT32, Integer.MAX_VALUE, false)
+        ) {
             assertEquals(3, reader.dim());
             assertEquals(2, reader.totalDocs());
-            assertArrayEquals(vectors[0], reader.nextFloatVector(0), 0f);
-            assertArrayEquals(vectors[1], reader.nextFloatVector(1), 0f);
+            assertArrayEquals(vectors[0], reader.nextFloatVector(), 0f);
+            assertArrayEquals(vectors[1], reader.nextFloatVector(), 0f);
         }
     }
 
@@ -86,17 +88,18 @@ public class MultiFileVectorReaderTests extends ESTestCase {
                 List.of(file1, file2),
                 -1,
                 VectorEncoding.FLOAT32,
-                Integer.MAX_VALUE
+                Integer.MAX_VALUE,
+                false
             )
         ) {
             assertEquals(2, reader.dim());
             assertEquals(5, reader.totalDocs());
             // Read all vectors sequentially across both files
-            assertArrayEquals(vectors1[0], reader.nextFloatVector(0), 0f);
-            assertArrayEquals(vectors1[1], reader.nextFloatVector(1), 0f);
-            assertArrayEquals(vectors2[0], reader.nextFloatVector(2), 0f);
-            assertArrayEquals(vectors2[1], reader.nextFloatVector(3), 0f);
-            assertArrayEquals(vectors2[2], reader.nextFloatVector(4), 0f);
+            assertArrayEquals(vectors1[0], reader.nextFloatVector(), 0f);
+            assertArrayEquals(vectors1[1], reader.nextFloatVector(), 0f);
+            assertArrayEquals(vectors2[0], reader.nextFloatVector(), 0f);
+            assertArrayEquals(vectors2[1], reader.nextFloatVector(), 0f);
+            assertArrayEquals(vectors2[2], reader.nextFloatVector(), 0f);
         }
     }
 
@@ -106,12 +109,12 @@ public class MultiFileVectorReaderTests extends ESTestCase {
         Path file1 = writeFvecFile("part1.fvec", vectors1);
         Path file2 = writeFvecFile("part2.fvec", vectors2);
 
-        try (var reader = IndexVectorReader.MultiFileVectorReader.create(List.of(file1, file2), -1, VectorEncoding.FLOAT32, 3)) {
+        try (var reader = IndexVectorReader.MultiFileVectorReader.create(List.of(file1, file2), -1, VectorEncoding.FLOAT32, 3, false)) {
             assertEquals(2, reader.dim());
             assertEquals(3, reader.totalDocs());
-            assertArrayEquals(vectors1[0], reader.nextFloatVector(0), 0f);
-            assertArrayEquals(vectors1[1], reader.nextFloatVector(1), 0f);
-            assertArrayEquals(vectors2[0], reader.nextFloatVector(2), 0f);
+            assertArrayEquals(vectors1[0], reader.nextFloatVector(), 0f);
+            assertArrayEquals(vectors1[1], reader.nextFloatVector(), 0f);
+            assertArrayEquals(vectors2[0], reader.nextFloatVector(), 0f);
         }
     }
 
@@ -122,12 +125,18 @@ public class MultiFileVectorReaderTests extends ESTestCase {
         Path file2 = writeRawFloatFile("part2.bin", vectors2);
 
         try (
-            var reader = IndexVectorReader.MultiFileVectorReader.create(List.of(file1, file2), 3, VectorEncoding.FLOAT32, Integer.MAX_VALUE)
+            var reader = IndexVectorReader.MultiFileVectorReader.create(
+                List.of(file1, file2),
+                3,
+                VectorEncoding.FLOAT32,
+                Integer.MAX_VALUE,
+                false
+            )
         ) {
             assertEquals(3, reader.dim());
             assertEquals(2, reader.totalDocs());
-            assertArrayEquals(vectors1[0], reader.nextFloatVector(0), 0f);
-            assertArrayEquals(vectors2[0], reader.nextFloatVector(1), 0f);
+            assertArrayEquals(vectors1[0], reader.nextFloatVector(), 0f);
+            assertArrayEquals(vectors2[0], reader.nextFloatVector(), 0f);
         }
     }
 

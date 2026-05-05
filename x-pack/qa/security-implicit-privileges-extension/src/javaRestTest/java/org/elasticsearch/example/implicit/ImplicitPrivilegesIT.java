@@ -196,13 +196,17 @@ public class ImplicitPrivilegesIT extends ESRestTestCase {
             """);
         assertOK(client().performRequest(put));
 
+        // A wildcard application privilege ("*"/"*") grants every application action, so it
+        // qualifies for every implicit-privilege provider present in the default distribution:
+        // this module's Helicarrier example provider plus the built-in Kibana alerting provider.
+        // The response therefore carries the explicit logs-* entry alongside both implicit grants.
         final RoleResponse response = getRole(roleName, true);
-        assertThat(response.indices(), hasSize(2));
+        assertThat(response.indices(), hasSize(3));
 
         final IndicesEntry explicit = response.findExplicit();
         assertThat(explicit.names(), equalTo(List.of("logs-*")));
 
-        final IndicesEntry implicit = response.findImplicit();
+        final IndicesEntry implicit = response.findImplicit(HELICARRIER_INDEX_PATTERN);
         assertThat(implicit.names(), equalTo(List.of(HELICARRIER_INDEX_PATTERN)));
         assertThat(implicit.privileges(), equalTo(List.of("read")));
         assertThat(implicit.query(), notNullValue());
@@ -298,6 +302,19 @@ public class ImplicitPrivilegesIT extends ESRestTestCase {
                 .filter(IndicesEntry::implicitlyGranted)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("expected an entry with implicitly_granted=true, got " + indices));
+        }
+
+        /**
+         * Find the implicit entry whose names contain {@code namePattern}. Used when more than one
+         * provider contributes an implicit grant (e.g. a wildcard application privilege qualifies
+         * for several providers) so the single-entry {@link #findImplicit()} would be ambiguous.
+         */
+        IndicesEntry findImplicit(String namePattern) {
+            return indices.stream()
+                .filter(IndicesEntry::implicitlyGranted)
+                .filter(e -> e.names().contains(namePattern))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("expected an implicit entry for [" + namePattern + "], got " + indices));
         }
 
         void assertNoImplicitlyGrantedEntries() {

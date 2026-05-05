@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.search.lookup;
 
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -420,9 +419,7 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(docAndSourceDocFactory, leafDocLookup.docFactoryCache.get(nameDocAndSource).factory);
     }
 
-    public void testLookupPrivilegesAdvanceDoc() {
-        nextDocCallback = i -> SpecialPermission.check();
-
+    public void testLookupAdvanceDoc() {
         ScriptDocValues<?> fetchedDocValues = docLookup.get("field");
         assertEquals(docValues, fetchedDocValues);
     }

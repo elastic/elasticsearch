@@ -12,10 +12,16 @@ package org.elasticsearch.index.mapper.vectors;
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.inference.SimilarityMeasure;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
+
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT;
 
 public class DenseVectorFieldMapperTestUtils {
     private DenseVectorFieldMapperTestUtils() {}
@@ -54,6 +60,16 @@ public class DenseVectorFieldMapperTestUtils {
                 yield RandomNumbers.randomIntBetween(random(), 1, maxEmbeddingLength) * 8;
             }
         };
+    }
+
+    public static Set<DenseVectorFieldMapper.ElementType> elementTypesWithDefaultIndexOptions(IndexVersion indexVersion) {
+        Set<DenseVectorFieldMapper.ElementType> elementTypes = new HashSet<>();
+        elementTypes.add(DenseVectorFieldMapper.ElementType.FLOAT);
+        if (indexVersion.onOrAfter(BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT)) {
+            elementTypes.add(DenseVectorFieldMapper.ElementType.BFLOAT16);
+        }
+
+        return Collections.unmodifiableSet(elementTypes);
     }
 
     private static Random random() {

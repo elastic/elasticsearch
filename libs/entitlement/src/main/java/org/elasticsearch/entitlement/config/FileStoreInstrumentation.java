@@ -14,31 +14,25 @@ import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.TypeToken;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
+import java.io.IOException;
 import java.nio.file.FileStore;
-import java.nio.file.FileSystems;
 import java.nio.file.attribute.FileStoreAttributeView;
-import java.util.stream.StreamSupport;
 
 public class FileStoreInstrumentation implements InstrumentationConfig {
     @Override
     public void init(InternalInstrumentationRegistry registry) {
         EntitlementRulesBuilder builder = new EntitlementRulesBuilder(registry);
 
-        var fileStoreClasses = StreamSupport.stream(FileSystems.getDefault().getFileStores().spliterator(), false)
-            .map(FileStore::getClass)
-            .distinct()
-            .toList();
-
-        builder.on(fileStoreClasses, rule -> {
+        builder.on(FileStore.class, rule -> {
             rule.calling(FileStore::getFileStoreAttributeView, new TypeToken<Class<? extends FileStoreAttributeView>>() {})
                 .enforce(Policies::getFileAttributeView)
-                .elseThrowNotEntitled();
-            rule.calling(FileStore::getAttribute, String.class).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
-            rule.calling(FileStore::getBlockSize).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
-            rule.calling(FileStore::getTotalSpace).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
-            rule.calling(FileStore::getUnallocatedSpace).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
-            rule.calling(FileStore::getUsableSpace).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
-            rule.calling(FileStore::isReadOnly).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
+                .elseReturn(null);
+            rule.calling(FileStore::getAttribute, String.class).enforce(Policies::readStoreAttributes).elseThrow(IOException::new);
+            rule.calling(FileStore::getBlockSize).enforce(Policies::readStoreAttributes).elseThrow(IOException::new);
+            rule.calling(FileStore::getTotalSpace).enforce(Policies::readStoreAttributes).elseThrow(IOException::new);
+            rule.calling(FileStore::getUnallocatedSpace).enforce(Policies::readStoreAttributes).elseThrow(IOException::new);
+            rule.calling(FileStore::getUsableSpace).enforce(Policies::readStoreAttributes).elseThrow(IOException::new);
+            rule.calling(FileStore::isReadOnly).enforce(Policies::readStoreAttributes).elseReturn(true);
             rule.calling(FileStore::name).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
             rule.calling(FileStore::type).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
         });

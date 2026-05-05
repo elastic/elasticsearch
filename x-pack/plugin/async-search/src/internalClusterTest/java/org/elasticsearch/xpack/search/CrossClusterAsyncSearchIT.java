@@ -1432,6 +1432,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         request.setKeepOnCompletion(true);
 
         final AsyncSearchResponse response = submitAsyncSearch(request);
+        final long asyncSearchExpirationTimeMillis = response.getExpirationTime();
         try {
             assertNotNull(response.getSearchResponse());
         } finally {
@@ -1468,13 +1469,10 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
             remoteClusterSearchTask.get().cancelled()
         );
 
-        AsyncSearchResponse asyncSearchResponse = getAsyncSearch(response.getId());
-        asyncSearchResponse.decRef();
-
         // wait until the async search has expired (takes one second - keep alive can't be set lower than 1s)
         // don't call get async search as that triggers cancellation of the task - we want to verify that we can cancel it
         // as we get results from a remote cluster
-        assertBusy(() -> assertThat(System.currentTimeMillis(), greaterThanOrEqualTo(asyncSearchResponse.getExpirationTime())));
+        assertBusy(() -> assertThat(System.currentTimeMillis(), greaterThanOrEqualTo(asyncSearchExpirationTimeMillis)));
 
         {
             // check that the tasks are cancelled

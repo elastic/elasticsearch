@@ -65,4 +65,53 @@ describe("generatePipelines", () => {
       "@elasticsearchmachine test this please"
     );
   });
+
+  test("should not inject auto-retry when auto-retry config is false", () => {
+    const pipelines = generatePipelines(`${import.meta.dir}/mocks/pipelines`, ["build.gradle"]);
+    const noAutoRetry = pipelines.find((p) => p.name === "no-auto-retry");
+
+    expect(noAutoRetry).toBeDefined();
+    expect((noAutoRetry!.pipeline.steps![0] as any).retry).toBeUndefined();
+  });
+
+  test("should inject auto-retry by default", () => {
+    const pipelines = generatePipelines(`${import.meta.dir}/mocks/pipelines`, ["build.gradle"]);
+    const usingDefaults = pipelines.find((p) => p.name === "using-defaults");
+
+    expect(usingDefaults).toBeDefined();
+    expect((usingDefaults!.pipeline.steps![0] as any).retry).toBeDefined();
+    expect((usingDefaults!.pipeline.steps![0] as any).retry.automatic).toHaveLength(3);
+  });
+
+  test("should inject retry into nested steps within groups", () => {
+    const pipelines = generatePipelines(`${import.meta.dir}/mocks/pipelines`, ["build.gradle"]);
+    const bwcSnapshots = pipelines.find((p) => p.name === "bwc-snapshots");
+
+    expect(bwcSnapshots).toBeDefined();
+    // The group's nested step should have retry injected
+    const group = bwcSnapshots!.pipeline.steps![0] as any;
+    expect(group.group).toBe("bwc-snapshots");
+    expect(group.steps[0].retry).toBeDefined();
+    expect(group.steps[0].retry.automatic).toHaveLength(3);
+  });
+
+  test("should not overwrite pre-existing retry config on steps", () => {
+    const pipelines = generatePipelines(`${import.meta.dir}/mocks/pipelines`, ["build.gradle"]);
+    const existingRetry = pipelines.find((p) => p.name === "existing-retry");
+
+    expect(existingRetry).toBeDefined();
+    // The step already has a retry config — it should be preserved, not overwritten
+    const step = existingRetry!.pipeline.steps![0] as any;
+    expect(step.retry.automatic).toHaveLength(1);
+    expect(step.retry.automatic[0].exit_status).toBe("2");
+    expect(step.retry.automatic[0].limit).toBe(5);
+  });
+
+  test("should preserve existing env vars when injecting auto-retry", () => {
+    const pipelines = generatePipelines(`${import.meta.dir}/mocks/pipelines`, ["build.gradle"]);
+    const usingDefaults = pipelines.find((p) => p.name === "using-defaults");
+
+    expect(usingDefaults).toBeDefined();
+    expect(usingDefaults!.pipeline.env?.["CUSTOM_ENV_VAR"]).toBe("value");
+  });
 });

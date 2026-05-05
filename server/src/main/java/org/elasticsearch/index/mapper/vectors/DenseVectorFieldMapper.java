@@ -218,6 +218,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final IndexVersion DEFAULT_TO_INT8 = IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW;
     public static final IndexVersion DEFAULT_TO_BBQ = IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW;
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersions.V_8_9_0;
+    public static final IndexVersion BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT =
+        IndexVersions.DENSE_VECTOR_BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT;
 
     public static final NodeFeature RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature("mapper.dense_vector.rescore_vector");
     public static final NodeFeature RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING = new NodeFeature(
@@ -384,7 +386,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         private DenseVectorIndexOptions defaultIndexOptions(boolean defaultInt8Hnsw, boolean defaultBBQHnsw) {
-            if (elementType.getValue() != ElementType.FLOAT || indexed.getValue() == false) {
+            if (elementTypesWithDefaultIndexOptions().contains(elementType.getValue()) == false || indexed.getValue() == false) {
                 return null;
             }
 
@@ -413,6 +415,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             return null;
+        }
+
+        private Set<ElementType> elementTypesWithDefaultIndexOptions() {
+            if (indexVersionCreated.onOrAfter(BFLOAT16_DEFAULT_INDEX_OPTIONS_BACKPORT)) {
+                return Set.of(ElementType.FLOAT, ElementType.BFLOAT16);
+            } else {
+                return Set.of(ElementType.FLOAT);
+            }
         }
 
         @Override

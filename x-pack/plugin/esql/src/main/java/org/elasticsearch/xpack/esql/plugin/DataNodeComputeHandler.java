@@ -349,6 +349,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     parentTask,
                                     computeContext,
                                     request.plan(),
+                                    LocalPhysicalOptimization.ENABLED,
                                     planTimeProfile,
                                     sub.acquireCompute()
                                 );
@@ -366,7 +367,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             null,
                             () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
                         );
-                        computeService.runCompute(parentTask, computeContext, request.plan(), planTimeProfile, batchListener);
+                        computeService.runCompute(
+                            parentTask,
+                            computeContext,
+                            request.plan(),
+                            LocalPhysicalOptimization.ENABLED,
+                            planTimeProfile,
+                            batchListener
+                        );
                     }
                 }, batchListener::onFailure)
             );
@@ -539,6 +547,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         () -> externalSink.createExchangeSink(() -> {})
                     ),
                     reducePlan,
+                    // Local physical optimization is aimed at data nodes. For node-reduce-level reduction we precompute the final physical
+                    // plan and pass it in reducePlan. We don't need any additional optimizations.
+                    LocalPhysicalOptimization.DISABLED,
                     planTimeProfile,
                     ActionListener.wrap(resp -> {
                         // don't return until all pages are fetched

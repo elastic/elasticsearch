@@ -72,6 +72,14 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_dotted_field_fix"
     );
+    static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
+        "mapper.dense_vector.dynamic_template_nested_object_fix"
+    );
+    static final NodeFeature KEYWORD_NORMALIZER_SKIP_STORE_SETTING = new NodeFeature("mapper.keyword.normalizer_skip_store_setting");
+
+    public static final NodeFeature KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED = new NodeFeature(
+        "mapper.keyword.multi_fields_not_stored_when_ignored"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -123,7 +131,10 @@ public class MapperFeatures implements FeatureSpecification {
             EXPONENTIAL_HISTOGRAM_TYPE,
             STORE_HIGH_CARDINALITY_KEYWORDS_IN_BINARY_DOC_VALUES,
             TDIGEST_TYPE,
-            DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX
+            DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX,
+            DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
+            KEYWORD_NORMALIZER_SKIP_STORE_SETTING,
+            KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED
         );
     }
 }

@@ -164,8 +164,8 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     }
 
     @Override
-    public String nodeString() {
-        return toString();
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(toString());
     }
 
     @Override

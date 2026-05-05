@@ -190,8 +190,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
@@ -221,8 +219,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
@@ -252,8 +248,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
@@ -286,8 +280,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
@@ -321,8 +313,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
@@ -356,8 +346,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
@@ -413,8 +401,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "object": "list",
@@ -481,8 +467,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = Strings.format(CHAT_COMPLETION_RESPONSE_JSON, MODEL_VALUE, COMPLETION_RESULT_VALUE);
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
@@ -516,8 +500,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(413).setBody(INPUT_IS_TOO_LONG_ERROR_MESSAGE));
 
             var model = NvidiaChatCompletionModelTests.createCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
@@ -539,8 +521,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJsonContentTooLarge = """
                     {
                         "error": "Please reduce your prompt; or completion length."
@@ -568,8 +548,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = Strings.format("""
                 {
                     "id": "cmpl-ef780b96e82d46ceb1e45ee4188913bc",
@@ -625,8 +603,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(413).setBody(INPUT_IS_TOO_LONG_ERROR_MESSAGE));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
@@ -677,8 +653,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJsonContentTooLarge = """
                     {
                         "error": "Input length 18432 exceeds maximum allowed token size 8192"
@@ -733,8 +707,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             // truncated to 1 token = 3 characters
@@ -774,8 +746,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "rankings": [
@@ -824,8 +794,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "not_rankings": [

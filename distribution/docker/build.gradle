@@ -579,7 +579,6 @@ TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = tasks.re
 fipsResourcesTask.configure {
   outputDir = project.layout.buildDirectory.dir('fips-docker-resources').get().asFile
   copy 'fips_java.security'
-  copy 'fips_java.policy'
 }
 
 for (final Architecture architecture : Architecture.values()) {

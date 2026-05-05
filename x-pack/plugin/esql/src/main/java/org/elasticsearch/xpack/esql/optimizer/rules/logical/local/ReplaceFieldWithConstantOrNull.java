@@ -14,7 +14,10 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.type.MissingEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -70,10 +73,19 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
 
         // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
         // Also retain fields from lookup indices because we do not have stats for these.
-        Predicate<FieldAttribute> shouldBeRetained = f -> f.field() instanceof PotentiallyUnmappedKeywordEsField
+        // The _timeseries metadata attribute is also retained explicitly: it is a synthetic field injected by
+        // TimeSeriesGroupByAll and loaded from _source on the data node by ExtractDimensionFieldsAfterAggregation,
+        // so it is never present in field caps. Without this guard, RuleUtils.aliasedNulls can collapse it onto
+        // another missing keyword dimension under wildcard index patterns, which then prevents the post-aggregation
+        // extraction (the attribute name no longer matches MetadataAttribute.TIMESERIES).
+        Predicate<FieldAttribute> shouldBeRetained = f -> MetadataAttribute.isTimeSeriesAttribute(f)
+            || f.field() instanceof PotentiallyUnmappedKeywordEsField
             // The source (or doc) field is added to the relation output as a hack to enable late materialization in the reduce driver.
             || EsQueryExec.isDocAttribute(f)
-            || localLogicalOptimizerContext.searchStats().exists(f.fieldName())
+            // MissingEsField means the coordinator explicitly nullified this field (unmapped_fields="nullify").
+            // Don't retain it even if the field physically exists (e.g. flattened subfields are mapped in Lucene
+            // but absent from field caps).
+            || (f.field() instanceof MissingEsField == false && localLogicalOptimizerContext.searchStats().exists(f.fieldName()))
             || lookupFields.contains(f);
 
         return plan.transformUp(p -> replaceWithNullOrConstant(p, shouldBeRetained, attrToConstant));
@@ -113,9 +125,18 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             || plan instanceof OrderBy
             || plan instanceof RegexExtract
             || plan instanceof TopN) {
+
+            // full-text functions need actual index fields to construct Lucene queries
+            // Note: AttributeSet uses semanticEquals for lookups, so any FieldAttribute that refers to the same underlying field as
+            // one used inside a FullTextFunction is protected here, even if it also appears outside the function (e.g. in a plain equality
+            // check). This slight loss of constant-folding opportunity is intentional to keep the logic simple.
+            var fullTextFieldArgsBuilder = AttributeSet.builder();
+            plan.forEachExpression(FullTextFunction.class, ftf -> ftf.forEachDown(FieldAttribute.class, fullTextFieldArgsBuilder::add));
+            AttributeSet fullTextFieldArgs = fullTextFieldArgsBuilder.build();
+
             return plan.transformExpressionsOnlyUp(FieldAttribute.class, f -> {
                 if (attrToConstant.containsKey(f)) {// handle constant values field and use the value itself instead
-                    return attrToConstant.get(f);
+                    return fullTextFieldArgs.contains(f) ? f : attrToConstant.get(f);
                 } else {// handle missing fields and replace them with null
                     return shouldBeRetained.test(f) ? f : Literal.of(f, null);
                 }

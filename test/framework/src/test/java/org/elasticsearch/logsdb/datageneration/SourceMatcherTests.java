@@ -208,4 +208,25 @@ public class SourceMatcherTests extends ESTestCase {
         var sut = new SourceMatcher(Map.of(), mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
         assertTrue(sut.match().isMatch());
     }
+
+    public void testCoercedStringScaledFloatMatchesNumericValue() throws IOException {
+        List<Map<String, Object>> expected = List.of(Map.of("field", "28"));
+        List<Map<String, Object>> actual = List.of(Map.of("field", 28.0));
+
+        var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
+        mapping.startObject();
+        mapping.startObject("_doc");
+        {
+            mapping.startObject("field")
+                .field("type", "scaled_float")
+                .field("scaling_factor", 10)
+                .field("ignore_malformed", true)
+                .endObject();
+        }
+        mapping.endObject();
+        mapping.endObject();
+
+        var sut = new SourceMatcher(Map.of(), mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
+        assertTrue(sut.match().isMatch());
+    }
 }

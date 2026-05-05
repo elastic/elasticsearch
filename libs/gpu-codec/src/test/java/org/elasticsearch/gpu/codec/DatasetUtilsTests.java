@@ -15,7 +15,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MemorySegmentAccessInput;
-import org.elasticsearch.gpu.GPUSupport;
+import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -32,7 +32,7 @@ public class DatasetUtilsTests extends ESTestCase {
     @Before
     public void setup() {  // TODO: abstract out setup in to common GPUTestcase
         assumeTrue("cuvs runtime only supported on 22 or greater, your JDK is " + Runtime.version(), Runtime.version().feature() >= 22);
-        assumeTrue("cuvs not supported", GPUSupport.isSupported());
+        assumeTrue("cuvs not supported", CuVSGPUSupport.instance().isSupported());
         datasetUtils = DatasetUtils.getInstance();
     }
 

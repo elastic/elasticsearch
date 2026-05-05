@@ -89,6 +89,14 @@ public class QuerySettingsTests extends ESTestCase {
             of("Europe/New York"),
             "Error validating setting [" + setting.name() + "]: Invalid time zone [Europe/New York]"
         );
+
+        Source settingSource = new Source(2, 4, "SET time_zone = \"Europe/New York\"");
+        assertInvalidWithSource(
+            setting.name(),
+            settingSource,
+            of("Europe/New York"),
+            "line 2:5: Error validating setting [" + setting.name() + "]: Invalid time zone [Europe/New York]"
+        );
     }
 
     public void testValidate_UnmappedFields_techPreview() {
@@ -119,10 +127,13 @@ public class QuerySettingsTests extends ESTestCase {
         }
 
         assertInvalid(setting.name(), of(12), "Setting [" + setting.name() + "] must be of type KEYWORD");
-        assertInvalid(
+
+        Source settingSource = new Source(3, 10, "SET unmapped_fields = \"UNKNOWN\"");
+        assertInvalidWithSource(
             setting.name(),
+            settingSource,
             of("UNKNOWN"),
-            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
+            "line 3:11: Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
                 + Arrays.toString(values)
         );
     }
@@ -166,7 +177,26 @@ public class QuerySettingsTests extends ESTestCase {
         Expression valueExpression,
         String expectedMessage
     ) {
-        QuerySetting setting = new QuerySetting(Source.EMPTY, new Alias(Source.EMPTY, settingName, valueExpression));
+        assertInvalidWithSource(settingName, Source.EMPTY, ctx, valueExpression, expectedMessage);
+    }
+
+    private static void assertInvalidWithSource(
+        String settingName,
+        Source settingSource,
+        Expression valueExpression,
+        String expectedMessage
+    ) {
+        assertInvalidWithSource(settingName, settingSource, SNAPSHOT_CTX_WITH_CPS_ENABLED, valueExpression, expectedMessage);
+    }
+
+    private static void assertInvalidWithSource(
+        String settingName,
+        Source settingSource,
+        SettingsValidationContext ctx,
+        Expression valueExpression,
+        String expectedMessage
+    ) {
+        QuerySetting setting = new QuerySetting(settingSource, new Alias(Source.EMPTY, settingName, valueExpression));
         EsqlStatement statement = new EsqlStatement(null, List.of(setting));
         assertThat(
             expectThrows(ParsingException.class, () -> QuerySettings.validate(statement, ctx)).getMessage(),

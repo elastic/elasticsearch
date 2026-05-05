@@ -11,11 +11,13 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -127,6 +129,9 @@ abstract class BinaryDvConfirmedQuery extends Query {
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
         Query approxRewrite = approxQuery.rewrite(searcher);
+        if (approxRewrite instanceof MatchNoDocsQuery) {
+            return approxRewrite;
+        }
         if (approxQuery != approxRewrite) {
             return rewrite(approxRewrite);
         }
@@ -210,6 +215,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
     @Override
     public void visit(QueryVisitor visitor) {
         if (visitor.acceptField(field)) {
+            approxQuery.visit(visitor.getSubVisitor(BooleanClause.Occur.MUST, this));
             visitor.visitLeaf(this);
         }
     }

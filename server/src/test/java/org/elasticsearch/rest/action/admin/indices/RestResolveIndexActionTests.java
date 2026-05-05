@@ -55,7 +55,7 @@ public class RestResolveIndexActionTests extends ESTestCase {
             }
         };
 
-        final var restChannel = new FakeRestChannel(request, true, 1);
+        final var restChannel = new FakeRestChannel(request, true);
         action.handleRequest(request, restChannel, nodeClient);
         assertThat(restChannel.responses().get(), equalTo(1));
     }

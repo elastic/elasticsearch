@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -117,8 +116,6 @@ import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -147,32 +144,15 @@ public class XPackPlugin extends XPackClientPlugin
 
     // TODO: clean up this library to not ask for write access to all system properties!
     static {
-        // invoke this clinit in unbound with permissions to access all system properties
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
+        // TODO: fix gradle to add all security resources (plugin metadata) to test classpath
+        // of watcher plugin, which depends on it directly. This prevents these plugins
+        // from being initialized correctly by the test framework, and means we have to
+        // have this leniency.
         try {
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @Override
-                public Void run() {
-                    try {
-                        Class.forName("com.unboundid.util.Debug");
-                        Class.forName("com.unboundid.ldap.sdk.LDAPConnectionOptions");
-                    } catch (ClassNotFoundException e) {
-                        throw new RuntimeException(e);
-                    }
-                    return null;
-                }
-            });
-            // TODO: fix gradle to add all security resources (plugin metadata) to test classpath
-            // of watcher plugin, which depends on it directly. This prevents these plugins
-            // from being initialized correctly by the test framework, and means we have to
-            // have this leniency.
-        } catch (ExceptionInInitializerError bogus) {
-            if (bogus.getCause() instanceof SecurityException == false) {
-                throw bogus; // some other bug
-            }
+            Class.forName("com.unboundid.util.Debug");
+            Class.forName("com.unboundid.ldap.sdk.LDAPConnectionOptions");
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
         }
     }
 

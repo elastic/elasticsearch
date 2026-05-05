@@ -113,9 +113,14 @@ public class QuerySettings {
                 throw new ParsingException(setting.source(), "Setting [" + setting.name() + "] must have a literal value");
             }
 
-            String error = def.validator().validate(literal, ctx);
+            String error;
+            try {
+                error = def.validator().validate(literal, ctx);
+            } catch (Exception e) {
+                throw new ParsingException(setting.source(), "Error validating setting [" + setting.name() + "]: " + e.getMessage());
+            }
             if (error != null) {
-                throw new ParsingException("Error validating setting [" + setting.name() + "]: " + error);
+                throw new ParsingException(setting.source(), "Error validating setting [" + setting.name() + "]: " + error);
             }
         }
     }

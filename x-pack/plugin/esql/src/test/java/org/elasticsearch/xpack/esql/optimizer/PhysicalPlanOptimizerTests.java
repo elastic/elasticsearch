@@ -485,9 +485,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             new ResolvedEnrichPolicy(
                 "employee_id",
                 EnrichPolicy.MATCH_TYPE,
-                List.of("department"),
+                List.of("department", "description"),
                 Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2"),
-                Map.of("department", new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+                Map.of(
+                    "department",
+                    new EsField("department", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
+                    "description",
+                    new EsField("description", DataType.TEXT, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+                )
             )
         );
         enrichResolution.addResolvedPolicy(
@@ -2805,6 +2810,17 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var source = source(extract.child());
         // an int for doc id, and int for the "a" enriched field, and a long for the "b" enriched field
         assertThat(source.estimatedRowSize(), equalTo(allFieldRowSize + Integer.BYTES * 2 + Long.BYTES));
+    }
+
+    public void testEnrichEstimateRowSize() {
+        var plan = physicalPlan("""
+                FROM test
+                | ENRICH departments ON emp_no
+                | KEEP emp_no, department, description
+            """);
+        var optimized = optimizedPlan(plan);
+        var source = (EsQueryExec) optimized.collectFirstChildren(e -> e instanceof EsQueryExec).getFirst();
+        assertThat(source.estimatedRowSize(), equalTo(108));
     }
 
     /**

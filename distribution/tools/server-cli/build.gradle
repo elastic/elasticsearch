@@ -17,10 +17,6 @@ dependencies {
   testImplementation project(":test:framework")
 }
 
-tasks.named("test").configure {
-  systemProperty "tests.security.manager", "false"
-}
-
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -53,8 +56,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Wild
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -506,6 +511,98 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         );
     }
 
+    /**
+     * Test that fields with DataType.NULL from NULLIFY mode are replaced with constant null literals.
+     * When unmapped_fields="nullify", the analyzer adds fields with DataType.NULL to EsRelation.
+     * The local optimizer's ReplaceFieldWithConstantOrNull rule should replace these with Literal.NULL.
+     *
+     * Expects:
+     * Project[[does_not_exist_field{r}#X]]
+     * \_Eval[[null[NULL] AS does_not_exist_field]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][...]
+     */
+    public void testNullifyModeFieldReplacedWithNull() {
+        assumeTrue("Requires FIX_UNMAPPED_FIELDS_IN_ESRELATION", EsqlCapabilities.Cap.FIX_UNMAPPED_FIELDS_IN_ESRELATION.isEnabled());
+
+        var plan = planWithNullify("from test | keep does_not_exist_field");
+        var testStats = statsForMissingField("does_not_exist_field");
+        var localPlan = localPlan(plan, testStats);
+
+        var project = as(localPlan, Project.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("does_not_exist_field"));
+        as(projections.get(0), ReferenceAttribute.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("does_not_exist_field"));
+        var alias = as(eval.fields().get(0), Alias.class);
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), is(nullValue()));
+        assertThat(literal.dataType(), is(DataType.NULL));
+
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Test that fields with DataType.NULL from NULLIFY mode used in EVAL are correctly replaced.
+     *
+     * Expects:
+     * Project[[x{r}#X]]
+     * \_Eval[[null[INTEGER] AS x]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][...]
+     */
+    public void testNullifyModeFieldInEvalReplacedWithNull() {
+        assumeTrue("Requires FIX_UNMAPPED_FIELDS_IN_ESRELATION", EsqlCapabilities.Cap.FIX_UNMAPPED_FIELDS_IN_ESRELATION.isEnabled());
+
+        var plan = planWithNullify("""
+              from test
+            | eval x = does_not_exist_field + 1
+            | keep x
+            """);
+
+        var testStats = statsForMissingField("does_not_exist_field");
+        var localPlan = localPlan(plan, testStats);
+
+        var project = as(localPlan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("x"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("x"));
+
+        var alias = as(eval.fields().get(0), Alias.class);
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), is(nullValue()));
+        assertThat(literal.dataType(), is(INTEGER));
+
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Test that multiple fields with DataType.NULL are all replaced.
+     */
+    public void testNullifyModeMultipleFieldsReplacedWithNull() {
+        assumeTrue("Requires FIX_UNMAPPED_FIELDS_IN_ESRELATION", EsqlCapabilities.Cap.FIX_UNMAPPED_FIELDS_IN_ESRELATION.isEnabled());
+
+        var plan = planWithNullify("""
+              from test
+            | eval x = field_a + field_b
+            | keep x
+            """);
+
+        var testStats = statsForMissingField("field_a", "field_b");
+        var localPlan = localPlan(plan, testStats);
+
+        var project = as(localPlan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("x"));
+        var eval = as(project.child(), Eval.class);
+
+        var alias = as(eval.fields().get(0), Alias.class);
+        var literal = as(alias.child(), Literal.class);
+        assertThat(literal.value(), is(nullValue()));
+    }
+
     public void testSparseDocument() throws Exception {
         var query = """
             from large
@@ -667,6 +764,95 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var caseF = as(inn.children().get(0), Case.class);
         assertThat(Expressions.names(caseF.children()), contains("emp_no IS NULL", "\"1\"", "salary IS NOT NULL", "\"2\"", "first_name"));
         var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testIsNullFilterDoesNotPruneDisjunctionBranch() {
+        // (nullable IS NOT NULL OR emp_no > 10000) AND nullable IS NULL simplifies to
+        // (emp_no > 10000) AND nullable IS NULL — the surviving OR branch must not be pruned.
+        var plan = localPlan("""
+            FROM test
+            | EVAL nullable = languages
+            | KEEP emp_no, nullable
+            | WHERE nullable IS NOT NULL OR emp_no > 10000
+            | WHERE nullable IS NULL
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat(conjuncts, hasSize(2));
+
+        var residualBranch = conjuncts.stream()
+            .filter(GreaterThan.class::isInstance)
+            .map(GreaterThan.class::cast)
+            .findFirst()
+            .orElseThrow();
+        var residualField = as(residualBranch.left(), FieldAttribute.class);
+        assertEquals("emp_no", residualField.name());
+
+        var isNull = conjuncts.stream().filter(IsNull.class::isInstance).map(IsNull.class::cast).findFirst().orElseThrow();
+        String nullableName = Expressions.name(isNull.field());
+        assertTrue(
+            "expected nullable field null-check to be preserved",
+            "nullable".equals(nullableName) || "languages".equals(nullableName)
+        );
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
+    }
+
+    public void testIsNullOrDisjunctionWithSeparateWhereClauses() {
+        // Two separate WHERE clauses are merged by PushDownAndCombineFilters into the same pattern,
+        // so the surviving OR branch must also be preserved when the clauses come from different pipes.
+        var plan = localPlan("""
+            FROM test
+            | WHERE gender IS NOT NULL OR emp_no > 10015
+            | WHERE gender IS NULL
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat("surviving branch and IS NULL must both be present", conjuncts, hasSize(2));
+
+        assertTrue("expected emp_no GreaterThan conjunct", conjuncts.stream().anyMatch(GreaterThan.class::isInstance));
+        assertTrue("expected gender IS NULL conjunct", conjuncts.stream().anyMatch(IsNull.class::isInstance));
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
+    }
+
+    public void testIsNullOrDisjunctionWithEvalAlias() {
+        // EVAL introduces an alias; PropagateNullable must preserve the surviving OR branch
+        // even when the IS NULL targets an alias rather than a direct field.
+        var plan = localPlan("""
+            FROM test
+            | EVAL g = gender
+            | KEEP emp_no, g
+            | WHERE g IS NOT NULL OR emp_no > 10015
+            | WHERE g IS NULL
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat("surviving branch and IS NULL must both be present", conjuncts, hasSize(2));
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
+    }
+
+    public void testIsNullOrDisjunctionDoesNotPruneToEmptyRelation() {
+        // A salary-based surviving branch: (gender IS NOT NULL OR salary > 50000) AND gender IS NULL
+        // must keep the salary filter rather than pruning to empty.
+        var plan = localPlan("""
+            FROM test
+            | WHERE (gender IS NOT NULL OR salary > 50000) AND gender IS NULL
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat("surviving branch and IS NULL must both be present", conjuncts, hasSize(2));
+
+        assertTrue("expected salary GreaterThan conjunct", conjuncts.stream().anyMatch(GreaterThan.class::isInstance));
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
     }
 
     /*
@@ -2033,6 +2219,136 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertThat(Expressions.name(fullTextFunction.field()), equalTo("text"));
     }
 
+    public void testFullTextFunctionOnConstantField() {
+        String functionName = randomFrom("match", "match_phrase");
+        var plan = plan(String.format(Locale.ROOT, """
+            from test
+            | where %s(first_name, "John")
+            """, functionName));
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("first_name")) {
+                    return "John";
+                }
+                return null;
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var fullTextFunction = as(filter.condition(), SingleFieldFullTextFunction.class);
+        // The field must remain a FieldAttribute — not replaced with a constant Literal
+        assertThat(fullTextFunction.field(), instanceOf(FieldAttribute.class));
+        assertThat(Expressions.name(fullTextFunction.field()), equalTo("first_name"));
+    }
+
+    public void testConstantFieldReplacedOutsideFullTextFunction() {
+        var plan = plan("""
+            from test
+            | where match_phrase(first_name, "John") and last_name == "Doe"
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("last_name")) {
+                    return "Doe";
+                }
+                return null;
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        // last_name is a constant field with value "Doe", so last_name == "Doe" folds to true
+        // and is eliminated from the AND, leaving only the full-text function in the condition.
+        // If constant substitution had NOT happened, the condition would still be an And.
+        var matchPhrase = as(filter.condition(), SingleFieldFullTextFunction.class);
+        assertThat(matchPhrase.field(), instanceOf(FieldAttribute.class));
+        assertThat(Expressions.name(matchPhrase.field()), equalTo("first_name"));
+    }
+
+    public void testMatchOperatorOnConstantField() {
+        var plan = plan("""
+            from test
+            | where first_name : "John"
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("first_name")) {
+                    return "John";
+                }
+                return null;
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var matchOp = as(filter.condition(), SingleFieldFullTextFunction.class);
+        assertThat(matchOp.field(), instanceOf(FieldAttribute.class));
+        assertThat(Expressions.name(matchOp.field()), equalTo("first_name"));
+    }
+
+    public void testSameConstantFieldProtectedInFullTextAndOutside() {
+        var plan = plan("""
+            from test
+            | where match(first_name, "John") and first_name == "John"
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("first_name")) {
+                    return "John";
+                }
+                return null;
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        // first_name is protected everywhere because it appears in a full-text function;
+        // semantic equality in AttributeSet means all references to the same field are kept.
+        filter.condition().forEachDown(FieldAttribute.class, fa -> assertThat(Expressions.name(fa), equalTo("first_name")));
+        filter.condition().forEachDown(SingleFieldFullTextFunction.class, ftf -> assertThat(ftf.field(), instanceOf(FieldAttribute.class)));
+    }
+
+    public void testMultipleFullTextFunctionsOnConstantFields() {
+        var plan = plan("""
+            from test
+            | where match(first_name, "John") and match_phrase(last_name, "Doe")
+            """);
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public String constantValue(FieldAttribute.FieldName name) {
+                if (name.string().equals("first_name") || name.string().equals("last_name")) {
+                    return "constant";
+                }
+                return null;
+            }
+        };
+        var localPlan = localPlan(plan, searchStats);
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var and = as(filter.condition(), And.class);
+        var match = as(and.left(), SingleFieldFullTextFunction.class);
+        assertThat(match.field(), instanceOf(FieldAttribute.class));
+        assertThat(Expressions.name(match.field()), equalTo("first_name"));
+        var matchPhrase = as(and.right(), SingleFieldFullTextFunction.class);
+        assertThat(matchPhrase.field(), instanceOf(FieldAttribute.class));
+        assertThat(Expressions.name(matchPhrase.field()), equalTo("last_name"));
+    }
+
     private static PhysicalPlan physicalPlan(LogicalPlan logicalPlan, Analyzer analyzer) {
         var mapper = new Mapper();
         return mapper.map(new Versioned<>(logicalPlan, analyzer.context().minimumVersion()));
@@ -2351,6 +2667,64 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertThat(rightRelation.output().stream().map(Attribute::name).toList(), contains("language_code", "language_name"));
     }
 
+    /**
+     * Pins the contract that {@link
+     * org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceFieldWithConstantOrNull}
+     * must retain the synthetic {@code _timeseries} metadata attribute on the data node, even when another
+     * keyword {@code time_series_dimension} field visible in the merged field caps (e.g. coming from a
+     * sibling backing index under a wildcard pattern) is missing on the local shard.
+     * <p>
+     * Without this guarantee, the brittle aliasing in
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils#aliasedNulls} collapses
+     * {@code _timeseries} onto the first missing keyword dimension (both share {@code KEYWORD}), which causes
+     * downstream propagation to rewrite {@code DimensionValues(_timeseries)} into
+     * {@code DimensionValues(<foreign-dimension>)}.
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation}
+     * then skips the {@code _source} materialization because the attribute name no longer matches
+     * {@link MetadataAttribute#TIMESERIES}, and the {@code _timeseries} column comes back as null at execution
+     * time.
+     */
+    public void testTimeSeriesAttributeRetainedWhenForeignKeywordDimensionMissing() {
+        String query = """
+            TS k8s
+            | STATS r = RATE(network.total_bytes_in) BY tbucket = TBUCKET(5minute)
+            """;
+        // Force both _timeseries and the keyword dimension `cluster` to look "missing" on this data node.
+        // This simulates the wildcard scenario where IndexResolver merged in `cluster` from a sibling backing
+        // index that the local shard does not map, while _timeseries is virtual and never present in field caps.
+        var stats = statsForMissingField(MetadataAttribute.TIMESERIES, "cluster");
+        LogicalPlan plan = localPlan(plan(query, tsAnalyzer), stats);
+        List<Alias> timeseriesAggregateAliases = new ArrayList<>();
+        plan.forEachDown(LogicalPlan.class, p -> p.forEachExpressionDown(Alias.class, alias -> {
+            if (alias.name().equals(MetadataAttribute.TIMESERIES) && alias.child() instanceof AggregateFunction) {
+                timeseriesAggregateAliases.add(alias);
+            }
+        }));
+        assertFalse(
+            "expected at least one <aggregate>(_timeseries) AS _timeseries alias in the local plan, but found none in plan:\n" + plan,
+            timeseriesAggregateAliases.isEmpty()
+        );
+        for (Alias alias : timeseriesAggregateAliases) {
+            AggregateFunction agg = (AggregateFunction) alias.child();
+            Expression field = agg.field();
+            assertThat(
+                "aggregator output named _timeseries must have an Attribute as its field; got " + field + " in plan:\n" + plan,
+                field,
+                instanceOf(Attribute.class)
+            );
+            Attribute fieldAttr = (Attribute) field;
+            assertThat(
+                "aggregator output named _timeseries must read from _timeseries, not " + fieldAttr.name() + " in plan:\n" + plan,
+                fieldAttr.name(),
+                equalTo(MetadataAttribute.TIMESERIES)
+            );
+            assertTrue(
+                "aggregator's _timeseries input must satisfy MetadataAttribute.isTimeSeriesAttribute()",
+                MetadataAttribute.isTimeSeriesAttribute(fieldAttr)
+            );
+        }
+    }
+
     private IsNotNull isNotNull(Expression field) {
         return new IsNotNull(EMPTY, field);
     }
@@ -2388,4 +2762,25 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     public static EsRelation relation() {
         return EsqlTestUtils.relation(randomFrom(IndexMode.values()));
     }
+
+    private static Analyzer analyzerWithNullifyMode() {
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
+        return new Analyzer(
+            testAnalyzerContext(
+                EsqlTestUtils.TEST_CFG,
+                new EsqlFunctionRegistry(),
+                indexResolutions(test),
+                Map.of(),
+                emptyPolicyResolution(),
+                emptyInferenceResolution(),
+                UnmappedResolution.NULLIFY
+            ),
+            TEST_VERIFIER
+        );
+    }
+
+    private LogicalPlan planWithNullify(String query) {
+        return plan(query, analyzerWithNullifyMode());
+    }
+
 }

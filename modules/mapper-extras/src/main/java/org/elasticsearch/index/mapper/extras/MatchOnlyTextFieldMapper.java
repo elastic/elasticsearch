@@ -34,7 +34,6 @@ import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.text.UTF8DecodingReader;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -722,10 +721,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return;
         }
 
-        final var utfBytes = value.bytes();
-        Field field = new Field(fieldType().name(), new UTF8DecodingReader(utfBytes), fieldType);
+        Field field = new Field(fieldType().name(), value.string(), fieldType);
         context.doc().add(field);
         context.addToFieldNames(fieldType().name());
+
+        final var utfBytes = value.bytes();
 
         // match_only_text isn't stored, so if synthetic source needs to be supported, we must do something about it
         if (fieldType().textFieldType.storeFieldForSyntheticSource(indexCreatedVersion)) {

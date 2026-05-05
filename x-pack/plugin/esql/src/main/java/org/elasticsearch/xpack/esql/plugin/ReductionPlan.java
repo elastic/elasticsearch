@@ -16,4 +16,4 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
  * @param dataNodePlan The plan to be executed on the data driver. This may contain a
  * {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec}.
  */
-record ReductionPlan(ExchangeSinkExec nodeReducePlan, ExchangeSinkExec dataNodePlan) {}
+public record ReductionPlan(ExchangeSinkExec nodeReducePlan, ExchangeSinkExec dataNodePlan) {}

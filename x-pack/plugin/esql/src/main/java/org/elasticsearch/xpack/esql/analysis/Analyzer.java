@@ -179,7 +179,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributes;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -593,17 +593,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<? extends NamedExpression> aggregates = aggregate.aggregates();
 
             ArrayList<Attribute> resolvedGroupings = new ArrayList<>(newGroupings.size());
+            Set<String> unresolvedGroupingNames = new HashSet<>(newGroupings.size());
             for (Expression e : newGroupings) {
                 Attribute attr = Expressions.attribute(e);
-                if (attr != null && attr.resolved()) {
-                    resolvedGroupings.add(attr);
+                if (attr != null) {
+                    if (attr.resolved()) {
+                        resolvedGroupings.add(attr);
+                    } else {
+                        unresolvedGroupingNames.add(attr.name());
+                    }
                 }
             }
 
             boolean allGroupingsResolved = groupings.size() == resolvedGroupings.size();
             if (allGroupingsResolved == false || Resolvables.resolved(aggregates) == false) {
                 Holder<Boolean> changed = new Holder<>(false);
-                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolvedGroupings, childrenOutput);
+                var inputAttributes = new ArrayList<>(childrenOutput);
+                // Remove input attributes with the same name as unresolved groupings: could be shadowed by not yet resolved renamed groups.
+                // E.g. for
+                // SET unmapped_fields="nullify"; ROW x = 1, language_code = 2
+                // | STATS c = max(language_code) BY language_code = does_not_exist
+                // max(language_code) should not be resolved to the input attribute language_code.
+                inputAttributes.removeIf(a -> unresolvedGroupingNames.contains(a.name()));
+                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(resolvedGroupings, inputAttributes);
 
                 List<NamedExpression> newAggregates = new ArrayList<>(aggregates.size());
                 // If no groupings are resolved, skip the resolution of the references to groupings in the aggregates, resolve the
@@ -959,7 +971,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return fork;
             }
 
-            return fork.replaceSubPlansAndOutput(newSubPlans, toReferenceAttributes(outputUnion));
+            return fork.replaceSubPlansAndOutput(newSubPlans, toReferenceAttributesPreservingIds(outputUnion, fork.output()));
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput) {
@@ -1451,29 +1463,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveEnrich(Enrich enrich, List<Attribute> childrenOutput) {
-
             if (enrich.matchField().toAttribute() instanceof UnresolvedAttribute ua) {
                 Attribute resolved = maybeResolveAttribute(ua, childrenOutput);
                 if (resolved.equals(ua)) {
                     return enrich;
                 }
-                if (resolved.resolved() && enrich.policy() != null) {
-                    final DataType dataType = resolved.dataType();
+                // For type-conflicted fields, defer to ResolveUnionTypes and ultimately UnionTypesCleanup (which produces the "Cannot use
+                // field ... due to ambiguities" error for incompatible ones). Reading dataType() off an InvalidMappedField returns
+                // UNSUPPORTED, which would otherwise produce a misleading error here.
+                boolean deferToUnionTypes = resolved instanceof FieldAttribute fa && fa.hasTypeConflicts();
+                if (deferToUnionTypes == false && resolved.resolved() && resolved.dataType() != NULL && enrich.policy() != null) {
                     String matchType = enrich.policy().getType();
                     DataType[] allowed = allowedEnrichTypes(matchType);
-                    if (Arrays.asList(allowed).contains(dataType) == false) {
-                        String suffix = "only ["
-                            + Arrays.stream(allowed).map(DataType::typeName).collect(Collectors.joining(", "))
-                            + "] allowed for type ["
-                            + matchType
-                            + "]";
+                    if (Arrays.asList(allowed).contains(resolved.dataType()) == false) {
                         resolved = ua.withUnresolvedMessage(
-                            "Unsupported type ["
-                                + resolved.dataType().typeName()
-                                + "] for enrich matching field ["
-                                + ua.name()
-                                + "]; "
-                                + suffix
+                            Strings.format(
+                                "Unsupported type [%s] for enrich matching field [%s]; only [%s] allowed for type [%s]",
+                                resolved.dataType().typeName(),
+                                ua.name(),
+                                Arrays.stream(allowed).map(DataType::typeName).collect(Collectors.joining(", ")),
+                                matchType
+                            )
                         );
                     }
                 }

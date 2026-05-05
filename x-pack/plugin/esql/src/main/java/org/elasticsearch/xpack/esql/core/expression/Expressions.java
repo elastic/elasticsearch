@@ -11,7 +11,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
@@ -32,19 +34,27 @@ public final class Expressions {
     }
 
     /**
-     * @return a list of {@link ReferenceAttribute}s corresponding to the given named expressions.
-     * <p>
-     * The returned ReferenceAttributes will have new {@link NameId}s, also in the case the input contains ReferenceAttributes.
+     * Converts named expressions to {@link ReferenceAttribute}s, preserving {@link NameId}s for attributes whose name
+     * matches one in {@code existingOutput}. Genuinely new attributes get fresh NameIds.
      */
-    public static List<Attribute> toReferenceAttributes(List<? extends NamedExpression> named) {
+    public static List<Attribute> toReferenceAttributesPreservingIds(
+        List<? extends NamedExpression> named,
+        List<Attribute> existingOutput
+    ) {
         if (named.isEmpty()) {
             return emptyList();
         }
+        Map<String, Attribute> existingByName = HashMap.newHashMap(existingOutput.size());
+        for (Attribute attr : existingOutput) {
+            existingByName.put(attr.name(), attr);
+        }
         List<Attribute> list = new ArrayList<>(named.size());
         for (NamedExpression exp : named) {
+            Attribute existing = existingByName.get(exp.name());
+            NameId id = existing != null ? existing.id() : new NameId();
             ReferenceAttribute refAttr = exp instanceof ReferenceAttribute ra
-                ? (ReferenceAttribute) ra.withId(new NameId())
-                : new ReferenceAttribute(exp.source(), null, exp.name(), exp.dataType(), exp.nullable(), null, exp.synthetic());
+                ? (ReferenceAttribute) ra.withId(id)
+                : new ReferenceAttribute(exp.source(), null, exp.name(), exp.dataType(), exp.nullable(), id, exp.synthetic());
             list.add(refAttr);
         }
         return list;

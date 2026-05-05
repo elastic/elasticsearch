@@ -71,8 +71,10 @@ abstract class RegexMatch<P extends AbstractStringPattern> extends org.elasticse
     }
 
     @Override
-    public String nodeString() {
-        return name() + "(" + field().nodeString() + ", \"" + pattern().pattern() + "\", " + caseInsensitive() + ")";
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(name()).append("(");
+        field().nodeString(sb, format);
+        sb.append(", \"").append(pattern().pattern()).append("\", ").append(caseInsensitive()).append(")");
     }
 
     void serializeCaseInsensitivity(StreamOutput out) throws IOException {

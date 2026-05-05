@@ -1,5 +1,0 @@
-pr: 138678
-summary: Ensure that synthetic `_id` is usable after restarts/relocations
-area: Distributed
-type: enhancement
-issues: []

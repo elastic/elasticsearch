@@ -1,5 +1,0 @@
-area: Searchable Snapshots
-issues: []
-pr: 147556
-summary: Blob cache defer gap list evaluation
-type: enhancement

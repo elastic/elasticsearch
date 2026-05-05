@@ -43,9 +43,25 @@ public final class CompilerSettings {
     );
 
     /**
+     * Maximum length, in characters, of a string produced by an augmented String mutation method (e.g. String.replace). Guards against
+     * scripts that allocate huge strings inside uninterruptible JDK calls.
+     */
+    public static final Setting<Integer> MAX_STRING_CHARS = Setting.intSetting(
+        "script.painless.max_string_chars",
+        1_048_576,
+        1024,
+        Property.NodeScope
+    );
+
+    /**
      * Constant to be used when specifying the maximum loop counter when compiling a script.
      */
     public static final String MAX_LOOP_COUNTER = "max_loop_counter";
+
+    /**
+     * Constant to be used when specifying the max string chars limit per script execution.
+     */
+    public static final String MAX_STRING_CHARS_KEY = "max_string_chars";
 
     /**
      * Constant to be used for enabling additional internal compilation checks (slower).
@@ -90,6 +106,11 @@ public final class CompilerSettings {
     private int regexLimitFactor = 0;
 
     /**
+     * Maximum length, in characters, of a string produced by an augmented String mutation method.
+     */
+    private int maxStringChars = 1_048_576;
+
+    /**
      * Returns the value for the cumulative total number of statements that can be made in all loops
      * in a script before an exception is thrown.  This attempts to prevent infinite loops.  Note if
      * the counter is set to 0, no loop counter will be written.
@@ -104,6 +125,23 @@ public final class CompilerSettings {
      */
     public void setMaxLoopCounter(int max) {
         this.maxLoopCounter = max;
+    }
+
+    /**
+     * Returns the maximum length (in characters) of a string produced by an augmented String mutation method
+     * such as {@code String.replace}. Used by augmented methods to reject calls that would allocate beyond this
+     * size in uninterruptible JDK code.
+     */
+    public int getMaxStringChars() {
+        return maxStringChars;
+    }
+
+    /**
+     * Set the maximum length (in characters) of a string produced by an augmented String mutation method.
+     * @see #getMaxStringChars
+     */
+    public void setMaxStringChars(int max) {
+        this.maxStringChars = max;
     }
 
     /**
@@ -178,6 +216,7 @@ public final class CompilerSettings {
     public Map<String, Object> asMap() {
         Map<String, Object> map = new HashMap<>();
         map.put("regex_limit_factor", getAppliedRegexLimitFactor());
+        map.put(MAX_STRING_CHARS_KEY, maxStringChars);
 
         // for testing only
         map.put("testInject0", testInject0);

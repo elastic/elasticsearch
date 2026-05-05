@@ -10,6 +10,8 @@
 package org.elasticsearch.painless.api;
 
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.painless.CompilerSettings;
+import org.elasticsearch.painless.PainlessError;
 
 import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
@@ -490,6 +492,38 @@ public class Augmentation {
      */
     private static int initialBufferForReplaceWith(CharSequence seq) {
         return seq.length() + 16;
+    }
+
+    /**
+     * Bounded variant of {@link String#replace(CharSequence, CharSequence)}. Pre-computes the worst-case output length and aborts the
+     * script with a {@link PainlessError} when it exceeds {@code maxStringChars}. Without this guard, repeated calls in a loop with a
+     * replacement longer than the target can grow the result string exponentially inside uninterruptible JDK code, blocking task
+     * cancellation and stalling search threads.
+     */
+    public static String replace(String receiver, int maxStringChars, CharSequence target, CharSequence replacement) {
+        int rLen = receiver.length();
+        int tLen = target.length();
+        int pLen = replacement.length();
+        long worstCase;
+        if (tLen == 0) {
+            // Empty target matches before/after every char, so output = (rLen+1) replacements + the original chars.
+            worstCase = (long) (rLen + 1) * pLen + rLen;
+        } else {
+            long maxMatches = rLen / tLen;
+            worstCase = maxMatches * pLen + (rLen - maxMatches * tLen);
+        }
+        if (worstCase > maxStringChars) {
+            throw new PainlessError(
+                "[scripting] String.replace would produce up to ["
+                    + worstCase
+                    + "] chars, exceeding the ["
+                    + CompilerSettings.MAX_STRING_CHARS.getKey()
+                    + "] limit of ["
+                    + maxStringChars
+                    + "]"
+            );
+        }
+        return receiver.replace(target, replacement);
     }
 
     /**

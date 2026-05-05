@@ -764,7 +764,7 @@ class java.lang.String {
   int offsetByCodePoints(int,int)
   boolean regionMatches(boolean,int,String,int,int)
   boolean regionMatches(int,String,int,int)
-  String replace(CharSequence,CharSequence)
+  String org.elasticsearch.painless.api.Augmentation replace(int,CharSequence,CharSequence) @inject_constant[1="max_string_chars"]
   boolean startsWith(String)
   boolean startsWith(String,int)
   String substring(int)

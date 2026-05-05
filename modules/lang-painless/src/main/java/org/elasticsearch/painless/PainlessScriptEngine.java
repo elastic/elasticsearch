@@ -63,6 +63,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
     public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Whitelist>> contexts) {
         defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
         defaultCompilerSettings.setRegexLimitFactor(CompilerSettings.REGEX_LIMIT_FACTOR.get(settings));
+        defaultCompilerSettings.setMaxStringChars(CompilerSettings.MAX_STRING_CHARS.get(settings));
 
         Map<ScriptContext<?>, Compiler> mutableContextsToCompilers = new HashMap<>();
         Map<ScriptContext<?>, PainlessLookup> mutableContextsToLookups = new HashMap<>();
@@ -392,11 +393,19 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
             compilerSettings.setRegexLimitFactor(defaultCompilerSettings.getAppliedRegexLimitFactor());
 
+            // Default to the node-level limit; can be overridden per-execution below.
+            compilerSettings.setMaxStringChars(defaultCompilerSettings.getMaxStringChars());
+
             Map<String, String> copy = new HashMap<>(params);
 
             String value = copy.remove(CompilerSettings.MAX_LOOP_COUNTER);
             if (value != null) {
                 compilerSettings.setMaxLoopCounter(Integer.parseInt(value));
+            }
+
+            value = copy.remove(CompilerSettings.MAX_STRING_CHARS_KEY);
+            if (value != null) {
+                compilerSettings.setMaxStringChars(Integer.parseInt(value));
             }
 
             value = copy.remove(CompilerSettings.PICKY);

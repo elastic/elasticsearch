@@ -50,6 +50,13 @@ if defined ES_JAVA_HOME (
   )
 
   rem check the user supplied jdk version
+  rem === REPRO diagnostic for Windows-2025 keystore CNF (#147204, #145264) - DO NOT MERGE ===
+  echo REPRO ES_HOME=!ES_HOME! 1>&2
+  echo REPRO JAVA=!JAVA! 1>&2
+  echo REPRO CP=!ES_HOME!\lib\java-version-checker\* 1>&2
+  for /f "delims=" %%A in ('!JAVA! -version 2^>^&1') do echo REPRO JVER=%%A 1>&2
+  dir "!ES_HOME!\lib\java-version-checker" 1>&2
+  rem === end REPRO ===
   !JAVA! -cp "%ES_HOME%\lib\java-version-checker\*" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
 ) else (
   rem use the bundled JDK (default)

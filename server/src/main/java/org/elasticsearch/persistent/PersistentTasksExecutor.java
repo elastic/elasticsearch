@@ -13,13 +13,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.Collection;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Predicate;
@@ -108,14 +107,14 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     ) {
         long minLoad = Long.MAX_VALUE;
         DiscoveryNode minLoadedNode = null;
-        final List<PersistentTasks> allPersistentTasks = PersistentTasks.getAllTasks(clusterState).map(Tuple::v2).toList();
+        Map<String, Integer> numberOfTasksPerNode = getNumberOfTasksPerNode(clusterState);
         for (DiscoveryNode node : candidateNodes) {
             if (selector.test(node)) {
-                if (allPersistentTasks.isEmpty()) {
+                if (numberOfTasksPerNode.isEmpty()) {
                     // We don't have any task running yet, pick the first available node
                     return node;
                 }
-                long numberOfTasks = allPersistentTasks.stream().mapToLong(p -> p.getNumberOfTasksOnNode(node.getId(), taskName)).sum();
+                int numberOfTasks = numberOfTasksPerNode.getOrDefault(node.getId(), 0);
                 // If we find a node with no running tasks, we choose this one directly.
                 if (numberOfTasks == 0) {
                     return node;
@@ -127,6 +126,19 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
             }
         }
         return minLoadedNode;
+    }
+
+    private Map<String, Integer> getNumberOfTasksPerNode(ClusterState clusterState) {
+        Map<String, Integer> numberOfTasksPerNode = new HashMap<>();
+        PersistentTasks.getAllTasks(clusterState)
+            .map(t -> t.v2().findTasks(taskName, PersistentTask::isAssigned))
+            .filter(tasks -> tasks.isEmpty() == false)
+            .forEach(tasks -> {
+                for (var task : tasks) {
+                    numberOfTasksPerNode.merge(task.getExecutorNode(), 1, Integer::sum);
+                }
+            });
+        return numberOfTasksPerNode;
     }
 
     /**

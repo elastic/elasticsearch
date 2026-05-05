@@ -331,7 +331,7 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
      * In this case the negative buckets will be clamped to a count of {@code 0} and the remaining populate buckets will
      * have their count scaled down to compensate for this.
      * <p>
-     * The algorithm provides the following guarantees:
+     * The algorithm provides the following guarantees if the histograms are actually cumulative:
      * Given two exponential histograms {@code b} and {@code c}.
      * The histogram {@code a} is the result of merging the histograms {@code b} and {@code c}.
      * Then {@code a - b} will yield the histogram {@code c}, with the limitation that
@@ -339,6 +339,14 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
      *     <li>{@code a - b} might have a smaller scale (=less precision) than {@code c} (but no lower than the scale of {@code a})</li>
      *     <li>{@code a - b} might have a greater zero threshold than {@code c} (but not greater than the zero threshold of {@code a})</li>
      *     <li>{@code a - b} might not preserve the exact minimum / maximum of {@code c}, but will provide an estimate in that case</li>
+     * </ul>
+     * <p>
+     * If the histograms are not cumulative, the following guarantees are provided instead:
+     * <ul>
+     *     <li>{@code result.valueCount()} will be exactly {@code a.valueCount() - b.valueCount()}</li>
+     *     <li>{@code result.sum()} will be exactly {@code a.sum() - b.count()}</li>
+     *     <li>{@code result.min()} and {@code result.max()} will be sane values (e.g. not outside the min/max values of the inputs)</li>
+     *     <li>Each bucket in the result will correspond to input buckets where the count for a was greater than the count of b</li>
      * </ul>
      *
      * @param a the base histogram to subtract from

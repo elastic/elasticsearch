@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 148287
+summary: "[Native] AVX-512 int4 dot product: vpdpbusd, tune batches, add bulk_sparse_2"
+type: enhancement

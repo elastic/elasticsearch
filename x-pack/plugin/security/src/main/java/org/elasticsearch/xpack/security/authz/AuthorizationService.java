@@ -524,15 +524,16 @@ public class AuthorizationService {
             targetProjectListener.addListener(ActionListener.wrap(authorizedProjects -> {
                 final TargetProjects targetProjects;
                 if (resolvesCrossProject) {
-                    // resolvesCrossProject == true implies request is a CrossProjectCandidate (see
-                    // IndicesAndAliasesResolver#resolvesCrossProject); apply project routing once here so the
-                    // post-routing TargetProjects is observable on the request and the resolver receives a value
-                    // that has already had routing applied.
-                    final IndicesRequest.CrossProjectCandidate cpc = (IndicesRequest.CrossProjectCandidate) request;
-                    targetProjects = projectRoutingResolver.resolve(cpc.getProjectRouting(), projectMetadata, authorizedProjects);
-                    cpc.setResolvedTargetProjects(targetProjects);
+                    assert request instanceof IndicesRequest.CrossProjectCandidate
+                        : "only CrossProjectCandidate resolves cross-project but found [" + request.getClass() + "]";
+                    final IndicesRequest.CrossProjectCandidate crossProjectCandidate = (IndicesRequest.CrossProjectCandidate) request;
+                    targetProjects = projectRoutingResolver.resolve(
+                        crossProjectCandidate.getProjectRouting(),
+                        projectMetadata,
+                        authorizedProjects
+                    );
+                    crossProjectCandidate.setResolvedTargetProjects(targetProjects);
                 } else {
-                    assert authorizedProjects == TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED;
                     targetProjects = authorizedProjects;
                 }
 

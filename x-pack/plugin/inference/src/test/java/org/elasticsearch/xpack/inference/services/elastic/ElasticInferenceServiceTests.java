@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInfe
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -550,32 +551,6 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         assertThat(sparseEmbeddingsModel.getServiceSettings().modelId(), is(expectedModelId));
         assertThat(sparseEmbeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
         assertThat(sparseEmbeddingsModel.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
-    }
-
-    public void testInfer_ThrowsErrorWhenModelIsNotAValidModel() throws IOException {
-        var sender = createMockSender();
-
-        var factory = mock(HttpRequestSender.Factory.class);
-        when(factory.createSender()).thenReturn(sender);
-
-        var mockModel = getInvalidModel("model_id", "service_name", TaskType.SPARSE_EMBEDDING);
-
-        try (var service = createService(factory)) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
-
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
-            );
-
-            verify(factory, times(1)).createSender();
-        }
-
-        verify(sender, times(1)).close();
-        verifyNoMoreInteractions(factory);
-        verifyNoMoreInteractions(sender);
     }
 
     public void testInfer_ThrowsValidationErrorForInvalidRerankParams() throws IOException {
@@ -1736,19 +1711,6 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testSupportedStreamingTasks_ReturnsChatCompletion() throws Exception {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = createService(senderFactory)) {
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
-            assertFalse(service.canStream(TaskType.ANY));
-            assertTrue(service.defaultConfigIds().isEmpty());
-
-            PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
-            service.defaultConfigs(listener);
-            assertTrue(listener.actionGet(TEST_REQUEST_TIMEOUT).isEmpty());
-        }
-    }
-
     public void testDefaultConfigs_ReturnsEmptyLists() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createService(senderFactory)) {
@@ -1760,7 +1722,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testSupportedTaskTypes_Returns_Unsupported() throws Exception {
+    public void testSupportedTaskTypes_ThrowsUnsupported() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createService(senderFactory)) {
             expectThrows(UnsupportedOperationException.class, service::supportedTaskTypes);
@@ -1954,12 +1916,28 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
     }
 
     @Override
-    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(7000));
+    public InferenceService createInferenceService() {
+        return createService(HttpRequestSenderTests.createSenderFactory(threadPool, clientManager));
     }
 
     @Override
-    public InferenceService createInferenceService() {
-        return createService(HttpRequestSenderTests.createSenderFactory(threadPool, clientManager));
+    public Model createEmbeddingModel(SimilarityMeasure similarity) {
+        var settings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings(randomAlphaOfLength(8), similarity, null, null);
+        return ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(randomAlphaOfLength(8), settings, null);
+    }
+
+    @Override
+    public SimilarityMeasure getDefaultSimilarity() {
+        return SimilarityMeasure.COSINE;
+    }
+
+    @Override
+    public EnumSet<TaskType> expectedStreamingTasks() {
+        return EnumSet.of(TaskType.CHAT_COMPLETION);
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(7000));
     }
 }

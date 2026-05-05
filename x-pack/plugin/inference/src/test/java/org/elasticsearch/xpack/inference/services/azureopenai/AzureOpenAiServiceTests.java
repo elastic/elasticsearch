@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
@@ -68,7 +69,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -140,7 +140,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModel() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
@@ -174,7 +174,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
@@ -208,7 +208,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AzureOpenAiEmbeddingsModel.class));
 
@@ -241,7 +241,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsUnsupportedModelType() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
                 model -> fail("Expected exception, but got model: " + model),
                 exception -> {
@@ -268,7 +268,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var config = getRequestConfigMap(
                 AzureOpenAiServiceSettingsTests.buildRequiredFieldsServiceSettingsMap(
                     TEST_RESOURCE_NAME,
@@ -296,7 +296,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var serviceSettings = AzureOpenAiServiceSettingsTests.buildRequiredFieldsServiceSettingsMap(
                 TEST_RESOURCE_NAME,
                 TEST_DEPLOYMENT_ID,
@@ -326,7 +326,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var taskSettingsMap = createRequestTaskSettingsMap(ROLE_VALUE);
             taskSettingsMap.put("extra_key", "value");
 
@@ -353,7 +353,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var secretSettingsMap = getAzureOpenAiSecretSettingsMap(API_KEY_VALUE, null);
             secretSettingsMap.put("extra_key", "value");
 
@@ -383,7 +383,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_CreatesAnAzureOpenAiEmbeddingsModel() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 AzureOpenAiEmbeddingsServiceSettingsTests.buildEmbeddingServiceSettingsMap(
                     TEST_DIMENSIONS,
@@ -422,7 +422,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 AzureOpenAiEmbeddingsServiceSettingsTests.buildEmbeddingServiceSettingsMap(
                     TEST_DIMENSIONS,
@@ -463,7 +463,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 AzureOpenAiEmbeddingsServiceSettingsTests.buildEmbeddingServiceSettingsMap(
                     TEST_DIMENSIONS,
@@ -503,7 +503,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 AzureOpenAiServiceSettingsTests.buildRequiredFieldsServiceSettingsMap(
                     TEST_RESOURCE_NAME,
@@ -539,7 +539,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 AzureOpenAiEmbeddingsServiceSettingsTests.buildEmbeddingServiceSettingsMap(
                     TEST_DIMENSIONS,
@@ -579,7 +579,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var secretSettingsMap = getAzureOpenAiSecretSettingsMap(API_KEY_VALUE, null);
             secretSettingsMap.put("extra_key", "value");
 
@@ -621,7 +621,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_NotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 AzureOpenAiEmbeddingsServiceSettingsTests.buildEmbeddingServiceSettingsMap(
                     TEST_DIMENSIONS,
@@ -661,7 +661,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var serviceSettingsMap = AzureOpenAiEmbeddingsServiceSettingsTests.buildEmbeddingServiceSettingsMap(
                 TEST_DIMENSIONS,
                 false,
@@ -703,7 +703,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var taskSettingsMap = createRequestTaskSettingsMap(ROLE_VALUE);
             taskSettingsMap.put("extra_key", "value");
 
@@ -745,7 +745,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_CreatesAnAzureOpenAiEmbeddingsModel() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 AzureOpenAiEmbeddingsServiceSettingsTests.buildEmbeddingServiceSettingsMap(null, false, null, null),
                 createRequestTaskSettingsMap(ROLE_VALUE)
@@ -773,7 +773,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_CreatesAnAzureOpenAiEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 AzureOpenAiEmbeddingsServiceSettingsTests.buildEmbeddingServiceSettingsMap(null, false, null, null),
                 createRequestTaskSettingsMap(ROLE_VALUE),
@@ -803,7 +803,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 AzureOpenAiEmbeddingsServiceSettingsTests.buildEmbeddingServiceSettingsMap(null, false, null, null),
                 createRequestTaskSettingsMap(ROLE_VALUE)
@@ -832,7 +832,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_ThrowsErrorTryingToParseInvalidModel() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 AzureOpenAiServiceSettingsTests.buildRequiredFieldsServiceSettingsMap(
                     TEST_RESOURCE_NAME,
@@ -867,7 +867,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 AzureOpenAiEmbeddingsServiceSettingsTests.buildEmbeddingServiceSettingsMap(null, false, null, null),
                 createRequestTaskSettingsMap(ROLE_VALUE)
@@ -896,7 +896,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var serviceSettingsMap = AzureOpenAiEmbeddingsServiceSettingsTests.buildEmbeddingServiceSettingsMap(null, false, null, null);
             serviceSettingsMap.put("extra_key", "value");
 
@@ -924,7 +924,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             var taskSettingsMap = createRequestTaskSettingsMap(ROLE_VALUE);
             taskSettingsMap.put("extra_key", "value");
 
@@ -1034,51 +1034,6 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
             assertThat(requestMap.get(ROLE_VALUE), Matchers.is(ROLE_VALUE));
             assertThat(requestMap.get("input_type"), Matchers.is("internal_ingest"));
-        }
-    }
-
-    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            var model = AzureOpenAiCompletionModelTests.createModelWithRandomValues(threadPool);
-            assertThrows(ElasticsearchStatusException.class, () -> service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()));
-        }
-    }
-
-    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {
-        testUpdateModelWithEmbeddingDetails_Successful(null);
-    }
-
-    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel() throws IOException {
-        testUpdateModelWithEmbeddingDetails_Successful(randomFrom(SimilarityMeasure.values()));
-    }
-
-    private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            var embeddingSize = randomNonNegativeInt();
-            var model = AzureOpenAiEmbeddingsModelTests.createModel(
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomNonNegativeInt(),
-                randomBoolean(),
-                randomNonNegativeInt(),
-                similarityMeasure,
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                threadPool
-            );
-
-            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
-
-            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null ? SimilarityMeasure.DOT_PRODUCT : similarityMeasure;
-            assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
-            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
         }
     }
 
@@ -1525,7 +1480,7 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
 
     @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
-        try (var service = createAzureOpenAiService()) {
+        try (var service = createInferenceService()) {
             String content = XContentHelper.stripWhitespace(
                 """
                         {
@@ -1697,24 +1652,31 @@ public class AzureOpenAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testSupportsStreaming() throws IOException {
-        try (var service = new AzureOpenAiService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
-            assertFalse(service.canStream(TaskType.ANY));
-        }
-    }
-
-    private AzureOpenAiService createAzureOpenAiService() {
+    @Override
+    public InferenceService createInferenceService() {
         return new AzureOpenAiService(
-            mock(HttpRequestSender.Factory.class),
+            HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
             createWithEmptySettings(threadPool),
             mockClusterServiceEmpty()
         );
     }
 
     @Override
-    public InferenceService createInferenceService() {
-        return createAzureOpenAiService();
+    public Model createEmbeddingModel(@Nullable SimilarityMeasure similarity) {
+        return AzureOpenAiEmbeddingsModelTests.createModel(
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            null,
+            false,
+            null,
+            similarity,
+            null,
+            randomAlphaOfLength(8),
+            null,
+            randomAlphaOfLength(8),
+            threadPool
+        );
     }
 
     private Map<String, Object> getRequestConfigMap(

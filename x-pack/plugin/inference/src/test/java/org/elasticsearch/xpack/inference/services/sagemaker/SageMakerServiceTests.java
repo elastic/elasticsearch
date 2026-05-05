@@ -140,21 +140,6 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         verify(modelBuilder, only()).fromStorage(eq("modelId"), eq(TaskType.ANY), eq(SageMakerService.NAME), eq(Map.of()), eq(null));
     }
 
-    public void testInferWithWrongModel() {
-        sageMakerService.infer(
-            mockUnsupportedModel(),
-            QUERY,
-            false,
-            null,
-            INPUT,
-            false,
-            null,
-            INPUT_TYPE,
-            THIRTY_SECONDS,
-            assertUnsupportedModel()
-        );
-    }
-
     private static Model mockUnsupportedModel() {
         Model model = mock();
         ModelConfigurations modelConfigurations = mock();
@@ -574,6 +559,16 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
     public InferenceService createInferenceService() {
         when(schemas.supportedTaskTypes()).thenReturn(EnumSet.of(TaskType.RERANK, TaskType.TEXT_EMBEDDING, TaskType.COMPLETION));
         return sageMakerService;
+    }
+
+    @Override
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel_UsesDefaultSimilarity() {
+        // Coverage for the happy path of this method is handled in SageMakerModelBuilderTests
+    }
+
+    @Override
+    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel_KeepsSimilarity() {
+        // Coverage for the happy path of this method is handled in SageMakerModelBuilderTests
     }
 
     @Override

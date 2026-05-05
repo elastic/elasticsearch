@@ -106,7 +106,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_CreatesACompletionModel() throws IOException {
-        try (var service = createServiceWithMockSender()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelListener = ActionListener.wrap(model -> {
                 assertThat(model, instanceOf(AnthropicChatCompletionModel.class));
 
@@ -129,7 +129,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsUnsupportedModelType() throws IOException {
-        try (var service = createServiceWithMockSender()) {
+        try (var service = createInferenceService()) {
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
                 "The [anthropic] service does not support task type [sparse_embedding]"
@@ -149,7 +149,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (var service = createServiceWithMockSender()) {
+        try (var service = createInferenceService()) {
             var config = getRequestConfigMap(
                 new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, null, null, null),
@@ -166,7 +166,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
-        try (var service = createServiceWithMockSender()) {
+        try (var service = createInferenceService()) {
             Map<String, Object> serviceSettings = new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE));
             serviceSettings.put("extra_key", "value");
 
@@ -185,7 +185,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap() throws IOException {
-        try (var service = createServiceWithMockSender()) {
+        try (var service = createInferenceService()) {
             var taskSettingsMap = AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, null, null, null);
             taskSettingsMap.put("extra_key", "value");
 
@@ -204,7 +204,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap() throws IOException {
-        try (var service = createServiceWithMockSender()) {
+        try (var service = createInferenceService()) {
             Map<String, Object> secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             secretSettings.put("extra_key", "value");
 
@@ -223,7 +223,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_CreatesACompletionModel() throws IOException {
-        try (var service = createServiceWithMockSender()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3),
@@ -250,7 +250,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (var service = createServiceWithMockSender()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3),
@@ -278,7 +278,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
-        try (var service = createServiceWithMockSender()) {
+        try (var service = createInferenceService()) {
             var secretSettingsMap = getSecretSettingsMap(API_KEY_VALUE);
             secretSettingsMap.put("extra_key", "value");
 
@@ -308,7 +308,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
-        try (var service = createServiceWithMockSender()) {
+        try (var service = createInferenceService()) {
             Map<String, Object> serviceSettingsMap = new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE));
             serviceSettingsMap.put("extra_key", "value");
 
@@ -338,7 +338,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_WithSecrets_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
-        try (var service = createServiceWithMockSender()) {
+        try (var service = createInferenceService()) {
             Map<String, Object> taskSettings = AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3);
             taskSettings.put("extra_key", "value");
 
@@ -368,7 +368,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_CreatesACompletionModel() throws IOException {
-        try (var service = createServiceWithMockSender()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3)
@@ -388,7 +388,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
-        try (var service = createServiceWithMockSender()) {
+        try (var service = createInferenceService()) {
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE)),
                 AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3)
@@ -409,7 +409,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
-        try (var service = createServiceWithMockSender()) {
+        try (var service = createInferenceService()) {
             Map<String, Object> serviceSettingsMap = new HashMap<>(Map.of(ServiceFields.MODEL_ID, MODEL_NAME_VALUE));
             serviceSettingsMap.put("extra_key", "value");
 
@@ -432,7 +432,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
-        try (var service = createServiceWithMockSender()) {
+        try (var service = createInferenceService()) {
             Map<String, Object> taskSettings = AnthropicChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap(1, 1.0, 2.1, 3);
             taskSettings.put("extra_key", "value");
 
@@ -594,7 +594,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     }
 
     public void testGetConfiguration() throws Exception {
-        try (var service = createServiceWithMockSender()) {
+        try (var service = createInferenceService()) {
             String content = XContentHelper.stripWhitespace("""
                 {
                       "service": "anthropic",
@@ -655,20 +655,18 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testSupportsStreaming() throws IOException {
-        try (var service = new AnthropicService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
-            assertFalse(service.canStream(TaskType.ANY));
-        }
-    }
-
-    private AnthropicService createServiceWithMockSender() {
-        return new AnthropicService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), mockClusterServiceEmpty());
+    @Override
+    public InferenceService createInferenceService() {
+        return new AnthropicService(
+            HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
+            createWithEmptySettings(threadPool),
+            mockClusterServiceEmpty()
+        );
     }
 
     @Override
-    public InferenceService createInferenceService() {
-        return createServiceWithMockSender();
+    public EnumSet<TaskType> expectedStreamingTasks() {
+        return EnumSet.of(TaskType.COMPLETION);
     }
 
     public void testBuildModelFromConfigAndSecrets_Completion() throws IOException {

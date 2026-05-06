@@ -8932,14 +8932,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      * {@snippet lang="text":
-     * TopN[[Order[emp_no{f}#253,ASC,LAST]],1000[INTEGER],false]
-     * \_MvExpand[languages{f}#256,languages{r}#266]
-     *   \_Project[[language_name{f}#265, foo{r}#235 AS bar#248, languages{f}#256, emp_no{f}#253]]
-     *     \_Join[LEFT,[languages{f}#256],[language_code{f}#264],null]
-     *       |_Eval[[TOSTRING(languages{f}#256) AS foo#235]]
-     *       | \_Filter[emp_no{f}#253 > 1[INTEGER]]
-     *       |   \_EsRelation[test][_meta_field{f}#259, emp_no{f}#253, first_name{f}#25..]
-     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#264, language_name{f}#265]
+     * Project[[language_name{f}#36, foo{r}#6 AS bar#19, languages{r}#37, emp_no{f}#24]]
+     * \_TopN[[Order[emp_no{f}#24,ASC,LAST]],1000[INTEGER],false]
+     *   \_MvExpand[languages{f}#27,languages{r}#37]
+     *     \_Join[LEFT,[languages{f}#27],[language_code{f}#35],null]
+     *       |_Eval[[TOSTRING(languages{f}#27) AS foo#6]]
+     *       | \_Filter[emp_no{f}#24 > 1[INTEGER]]
+     *       |   \_EsRelation[test][_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, ..]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#35, language_name{f}#36]
      * }
      */
     public void testRedundantSortOnMvExpandJoinKeepDropRename() {
@@ -8956,10 +8956,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | SORT emp_no
             """);
 
-        var topN = as(plan, TopN.class);
+        var project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
         var mvExpand = as(topN.child(), MvExpand.class);
-        var project = as(mvExpand.child(), Project.class);
-        var join = as(project.child(), Join.class);
+        var join = as(mvExpand.child(), Join.class);
         var eval = as(join.left(), Eval.class);
         var filter = as(eval.child(), Filter.class);
         as(filter.child(), EsRelation.class);

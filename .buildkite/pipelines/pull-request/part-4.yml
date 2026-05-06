@@ -1,5 +1,5 @@
 config:
-  allow-labels: []
+  allow-labels: ">non-issue"
 
 steps:
   - label: part-4

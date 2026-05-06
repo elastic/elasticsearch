@@ -2,7 +2,7 @@ config:
   skip-labels:
     - ">test-mute"
     - ":Delivery/Packaging"
-  allow-labels: []
+  allow-labels: ">non-issue"
 steps:
   - group: packaging-tests-windows-sample
     steps:

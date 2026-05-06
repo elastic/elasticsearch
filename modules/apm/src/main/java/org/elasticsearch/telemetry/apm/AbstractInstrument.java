@@ -47,7 +47,15 @@ public abstract class AbstractInstrument<T> implements Instrument {
     }
 
     void setProvider(@Nullable Meter meter) {
-        delegate.set(instrumentBuilder.apply(Objects.requireNonNull(meter)));
+        var oldInstrument = delegate.getAndSet(instrumentBuilder.apply(Objects.requireNonNull(meter)));
+        if (oldInstrument instanceof AutoCloseable closeableOldInstrument) {
+            try {
+                closeableOldInstrument.close();
+            } catch (Exception e) {
+                assert true : "OTel metrics must not throw on close()";
+                throw new IllegalStateException("OTel metrics must not throw on close()", e);
+            }
+        }
     }
 
     protected abstract static class Builder<T> {

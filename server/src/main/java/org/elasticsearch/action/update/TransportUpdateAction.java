@@ -150,7 +150,14 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 "[_slice] is not allowed when [index.slice.enabled] is false for request targeting [" + request.index() + "]"
             );
         }
-        if (sliceEnabled && request.routing() == null) {
+        if (sliceEnabled && request.isRoutingFromSlice() == false) {
+            if (request.routing() != null) {
+                throw new IllegalArgumentException(
+                    "[routing] is not allowed when [index.slice.enabled] is true for request targeting ["
+                        + request.index()
+                        + "], use [_slice] instead"
+                );
+            }
             throw new IllegalArgumentException(
                 "[_slice] is required when [index.slice.enabled] is true for request targeting [" + request.index() + "]"
             );

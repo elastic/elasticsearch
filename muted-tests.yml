@@ -214,12 +214,6 @@ tests:
 - class: org.elasticsearch.lucene.FullClusterRestartSystemIndexCompatibilityIT
   method: testAsyncSearchIndexMigration {p0=8.19.0}
   issue: https://github.com/elastic/elasticsearch/issues/146849
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testWatcherWithApiKey {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/146861
-- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
-  method: testWatcherWithApiKey {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/146874
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_forceTrue_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/146955
@@ -404,9 +398,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.RefreshNodeCreditManagerTests
   method: testPeriodicWarning
   issue: https://github.com/elastic/elasticsearch-serverless/issues/6518
-- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
-  method: testSearchWithRandomDisconnects
-  issue: https://github.com/elastic/elasticsearch/issues/147849
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/147850
@@ -461,9 +452,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056
-- class: org.elasticsearch.xpack.stateless.StatelessRealTimeTermVectorsIT
-  method: testUpdatedDocsNotInLiveVersionMapDoNotRefresh
-  issue: https://github.com/elastic/elasticsearch/issues/148067
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/148096
@@ -473,9 +461,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/50_index_patterns/_index LIKE with overly complex pattern}
   issue: https://github.com/elastic/elasticsearch/issues/148134
-- class: org.elasticsearch.xpack.stateless.StatelessRealTimeTermVectorsIT
-  method: testDocsNotInLiveVersionMapDoNotRefresh
-  issue: https://github.com/elastic/elasticsearch/issues/148138
 - class: org.elasticsearch.index.engine.LuceneChangesSnapshotTests
   method: testUpdateAndReadChangesConcurrently
   issue: https://github.com/elastic/elasticsearch/issues/148145
@@ -491,9 +476,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.store.input.CachedBlobContainerIndexInputTests
   method: testRandomReads
   issue: https://github.com/elastic/elasticsearch/issues/148163
-- class: org.elasticsearch.xpack.stateless.cluster.metadata.CreateIndexLimitIT
-  method: testCreateIndexLimit
-  issue: https://github.com/elastic/elasticsearch/issues/147956
 - class: org.elasticsearch.xpack.stateless.recovery.SearchShardRelocationIT
   method: testUnpromotableRelocationHandoffFailsIfTargetAllocationIdChanges
   issue: https://github.com/elastic/elasticsearch/issues/147957
@@ -524,9 +506,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsIntegTests
   method: testCreateAndRestoreSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/148217
-- class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
-  method: testSyntheticId
-  issue: https://github.com/elastic/elasticsearch/issues/148235
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testSnapshotShardsWhileHollowing
   issue: https://github.com/elastic/elasticsearch/issues/148236
@@ -551,3 +530,30 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.ExternalParquetCountPushdownIT
   method: testCountStarPushdownManyRowGroups
   issue: https://github.com/elastic/elasticsearch/issues/148117
+- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
+  method: testCommitsTrackingTakesIntoAccountSearchNodeUsage
+  issue: https://github.com/elastic/elasticsearch/issues/148300
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testStressWithoutFailures
+  issue: https://github.com/elastic/elasticsearch/issues/148310
+- class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
+  method: testWithByteBufferSlicesReturnsFalseAfterEviction
+  issue: https://github.com/elastic/elasticsearch/issues/148330
+- class: org.elasticsearch.xpack.security.authc.esnative.ReservedRealmElasticAutoconfigIntegTests
+  method: testAutoconfigFailedPasswordPromotion
+  issue: https://github.com/elastic/elasticsearch/issues/122668
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148339
+- class: org.elasticsearch.xpack.stateless.snapshots.MetadataSnapshotBlobStoreDirectoryTests
+  method: testMetadataSnapshotWithBlobOffset
+  issue: https://github.com/elastic/elasticsearch/issues/148342
+- class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
+  method: testReindexRelocatesWhenCoordinatorShutsDown
+  issue: https://github.com/elastic/elasticsearch/issues/148373
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testFlattenedSorting
+  issue: https://github.com/elastic/elasticsearch/issues/148374
+- class: org.elasticsearch.index.mapper.DateRangeDocValuesLoaderTests
+  method: testEmptyRangesAppendsNull
+  issue: https://github.com/elastic/elasticsearch/issues/148378

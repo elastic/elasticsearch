@@ -245,6 +245,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher;
     exports org.elasticsearch.xpack.core.common.chunks;
     exports org.elasticsearch.xpack.core.inference.chunking;
+    exports org.elasticsearch.xpack.core.security.cloud;
 
     provides org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber
         with

@@ -488,8 +488,6 @@ public class WatcherServiceTests extends ESTestCase {
         assertThat(service.pendingWatches(), is(anEmptyMap()));
     }
 
-    // --- addPendingWatches integration ---
-
     public void testAddPendingWatchesSchedulesLocalActiveWatch() {
         final ScheduleTriggerEngineMock engine = newEngineMock();
         final TriggerService triggerService = new TriggerService(Set.of(engine));

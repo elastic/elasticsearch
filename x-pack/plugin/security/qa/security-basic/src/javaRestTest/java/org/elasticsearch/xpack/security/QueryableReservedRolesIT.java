@@ -295,6 +295,15 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         );
         Response response = adminClient().performRequest(request);
         assertOK(response);
+        // The close API can return acknowledged with the close-block applied but before IndexMetadata.state has
+        // been flipped to CLOSE.
+        assertBusy(() -> {
+            final Request stateRequest = new Request("GET", "_cluster/state/metadata/" + INTERNAL_SECURITY_MAIN_INDEX_7);
+            final Response stateResponse = adminClient().performRequest(stateRequest);
+            assertOK(stateResponse);
+            final String indexState = ObjectPath.createFromResponse(stateResponse).evaluate("metadata.indices.\\.security-7.state");
+            assertThat(indexState, equalTo("close"));
+        }, 30, TimeUnit.SECONDS);
     }
 
     private void openSecurityIndex() throws Exception {

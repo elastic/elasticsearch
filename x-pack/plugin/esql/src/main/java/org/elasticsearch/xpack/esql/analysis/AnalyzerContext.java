@@ -31,6 +31,7 @@ public class AnalyzerContext {
     private final EsqlFunctionRegistry functionRegistry;
     private final Map<IndexPattern, IndexResolution> indexResolution;
     private final Map<String, IndexResolution> lookupResolution;
+    private final Map<IndexPattern, IndexResolution> lenientResolution;  // CPS-specific resolution for remote indexes matching local views
     private final EnrichResolution enrichResolution;
     private final InferenceResolution inferenceResolution;
     private final ExternalSourceResolution externalSourceResolution;
@@ -46,33 +47,7 @@ public class AnalyzerContext {
         ProjectMetadata projectMetadata,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
-        EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution,
-        ExternalSourceResolution externalSourceResolution,
-        TransportVersion minimumVersion,
-        UnmappedResolution unmappedResolution
-    ) {
-        this(
-            configuration,
-            functionRegistry,
-            projectMetadata,
-            indexResolution,
-            lookupResolution,
-            enrichResolution,
-            inferenceResolution,
-            externalSourceResolution,
-            minimumVersion,
-            unmappedResolution,
-            null
-        );
-    }
-
-    public AnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        ProjectMetadata projectMetadata,
-        Map<IndexPattern, IndexResolution> indexResolution,
-        Map<String, IndexResolution> lookupResolution,
+        Map<IndexPattern, IndexResolution> lenientResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         ExternalSourceResolution externalSourceResolution,
@@ -85,6 +60,7 @@ public class AnalyzerContext {
         this.projectMetadata = projectMetadata;
         this.indexResolution = indexResolution;
         this.lookupResolution = lookupResolution;
+        this.lenientResolution = lenientResolution;
         this.enrichResolution = enrichResolution;
         this.inferenceResolution = inferenceResolution;
         this.externalSourceResolution = externalSourceResolution;
@@ -114,11 +90,13 @@ public class AnalyzerContext {
             null,
             indexResolution,
             lookupResolution,
+            Map.of(),
             enrichResolution,
             inferenceResolution,
             ExternalSourceResolution.EMPTY,
             minimumVersion,
-            unmappedResolution
+            unmappedResolution,
+            null
         );
     }
 
@@ -136,6 +114,18 @@ public class AnalyzerContext {
 
     public Map<String, IndexResolution> lookupResolution() {
         return lookupResolution;
+    }
+
+    /**
+     * Lenient field-caps results keyed by the shadow's full
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation#indexPattern()}
+     * (view name + applicable exclusions). Used by the {@code ResolveViewShadow} analyzer rule
+     * to replace {@link org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation} nodes
+     * with {@code EsRelation}s when a remote index matching the pattern was found. Empty for
+     * non-CPS paths.
+     */
+    public Map<IndexPattern, IndexResolution> lenientResolution() {
+        return lenientResolution;
     }
 
     public EnrichResolution enrichResolution() {
@@ -203,16 +193,6 @@ public class AnalyzerContext {
         EsqlFunctionRegistry functionRegistry,
         UnmappedResolution unmappedResolution,
         ProjectMetadata projectMetadata,
-        EsqlSession.PreAnalysisResult result
-    ) {
-        this(configuration, functionRegistry, unmappedResolution, projectMetadata, result, null);
-    }
-
-    public AnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        UnmappedResolution unmappedResolution,
-        ProjectMetadata projectMetadata,
         EsqlSession.PreAnalysisResult result,
         @Nullable TimestampBounds timestampBounds
     ) {
@@ -222,6 +202,7 @@ public class AnalyzerContext {
             projectMetadata,
             result.indexResolution(),
             result.lookupIndices(),
+            Map.of(),
             result.enrichResolution(),
             result.inferenceResolution(),
             result.externalSourceResolution(),

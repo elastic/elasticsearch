@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
 import java.util.Collections;
 import java.util.List;
@@ -36,12 +37,13 @@ import java.util.Objects;
  *       and {@code EsqlSession} issues a lenient field-caps request per batch
  *       ({@code ALLOW_UNAVAILABLE_TARGETS} + project routing scoped to linked projects only —
  *       {@code IndexResolver.FLAT_WORLD_OPTIONS}). Results land in
- *       {@code AnalyzerContext.lenientResolution}, keyed by view name.
+ *       {@code AnalyzerContext.lenientResolution}, keyed by the shadow's full
+ *       {@link #indexPattern()} (view name + applicable exclusions).
  *       <em>(deferred to the lenient field-caps PR)</em></li>
  *   <li>The {@code ResolveViewShadow} analyzer rule (sibling of {@code ResolveTable}, in the
  *       Initialize batch) consults {@code AnalyzerContext.lenientResolution} for this shadow's
- *       {@link #viewName()}. If a remote <em>index</em> is found the shadow is replaced with a
- *       corresponding {@code EsRelation}; otherwise the shadow is left unresolved.
+ *       {@link #indexPattern()}. If a remote <em>index</em> is found the shadow is replaced
+ *       with a corresponding {@code EsRelation}; otherwise the shadow is left unresolved.
  *       <em>(this PR — backed by a mocked {@code lenientResolution} map until the lenient
  *       field-caps PR provides real data)</em></li>
  *   <li>{@code ViewCompactionPostIndexResolution} runs after {@code ResolveViewShadow}: any
@@ -57,9 +59,11 @@ import java.util.Objects;
  * the view's referencing position in the parent {@code UnresolvedRelation} pattern list. These
  * travel with the lenient lookup as part of {@link #indexPattern()} so the per-shadow field-caps
  * target is {@code viewName,exclusion1,...} — mirroring the local exclusion scope exactly. See
- * {@code refactor_view_resolver_for_cps.md} for the position-aware semantics. Note: the
- * {@code lenientResolution} map is keyed by {@link #viewName()} alone, not {@link #indexPattern()};
- * the exclusions are only relevant to the field-caps target.
+ * {@code refactor_view_resolver_for_cps.md} for the position-aware semantics. The exclusions
+ * are part of the {@code lenientResolution} map's key (via {@link #indexPattern()}), so the
+ * same view referenced from positions with different exclusion lists yields distinct lookups
+ * and may resolve differently — e.g. one position's exclusions empty out the lenient
+ * field-caps target while another resolves to a remote index.
  * <p>
  * The strict, default-options field-caps path on the local cluster keeps {@code resolveViews(true)}
  * unchanged, so a remote project that has a <em>view</em> with the same name still fails the query
@@ -88,11 +92,11 @@ public class ViewShadowRelation extends LeafPlan implements Unresolvable {
     /**
      * The pattern to send to field-caps for the lenient lookup: view name + applicable exclusions.
      */
-    public String indexPattern() {
+    public IndexPattern indexPattern() {
         if (exclusions.isEmpty()) {
-            return viewName;
+            return new IndexPattern(source(), viewName);
         }
-        return viewName + "," + String.join(",", exclusions);
+        return new IndexPattern(source(), viewName + "," + String.join(",", exclusions));
     }
 
     @Override

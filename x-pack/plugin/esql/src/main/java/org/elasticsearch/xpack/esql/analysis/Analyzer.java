@@ -146,6 +146,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -234,6 +235,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Limiter.ONCE,
             new ResolveConfigurationAware(),
             new ResolveTable(),
+            new ResolveViewShadow(),
             new ViewCompactionPostIndexResolution(),
             new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
@@ -485,6 +487,50 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     mappingAsAttributes(list, source, attribute.name(), fieldProperties);
                 }
             }
+        }
+    }
+
+    /**
+     * Resolves {@link ViewShadowRelation} nodes against {@link AnalyzerContext#lenientResolution()}.
+     * <p>
+     * Each {@code ViewShadowRelation} represents a "if a remote project has an index with this
+     * view's name, treat it as if the user wrote a remote index reference at this position"
+     * lookup. The lenient field-caps integration (deferred to a follow-up PR) populates
+     * {@code lenientResolution}, keyed by the shadow's {@link ViewShadowRelation#indexPattern()}
+     * (view name + applicable exclusions). The full pattern is the lookup key — different
+     * exclusion lists at the same view name produce distinct {@code ViewShadowRelation}
+     * instances and may resolve differently (e.g. one comes back empty because of the
+     * exclusions, the other resolves to a remote index). This rule:
+     * <ul>
+     *   <li>If a valid {@link IndexResolution} is present for the shadow's
+     *       {@link ViewShadowRelation#indexPattern()}, replaces the shadow with an
+     *       {@link EsRelation} built from the resolved {@link EsIndex} (same shape as
+     *       {@link ResolveTable}'s {@code resolveIndex} for a strict UR).</li>
+     *   <li>Otherwise leaves the shadow unresolved. {@link ViewCompactionPostIndexResolution}
+     *       (which runs immediately after this rule) strips any unresolved shadow.</li>
+     * </ul>
+     */
+    private static class ResolveViewShadow extends ParameterizedAnalyzerRule<ViewShadowRelation, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(ViewShadowRelation shadow, AnalyzerContext context) {
+            IndexResolution resolution = context.lenientResolution().get(shadow.indexPattern());
+            if (resolution == null || resolution.isValid() == false) {
+                // No remote index found (or lookup didn't run yet) — leave the shadow alone for
+                // ViewCompactionPostIndexResolution to strip.
+                return shadow;
+            }
+            EsIndex esIndex = resolution.get();
+            var attributes = mappingAsAttributes(shadow.source(), esIndex.mapping());
+            return new EsRelation(
+                shadow.source(),
+                esIndex.name(),
+                IndexMode.STANDARD,
+                esIndex.originalIndices(),
+                esIndex.concreteIndices(),
+                esIndex.indexNameWithModes(),
+                attributes.isEmpty() ? NO_FIELDS : attributes
+            );
         }
     }
 

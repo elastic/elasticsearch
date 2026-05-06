@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 147886
+summary: "ES|QL query approximation: enforce minimum number of sampled source rows"
+type: bug

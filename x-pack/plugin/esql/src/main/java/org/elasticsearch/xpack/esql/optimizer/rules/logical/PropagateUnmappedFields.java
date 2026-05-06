@@ -53,13 +53,12 @@ public class PropagateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
         // Partially-mapped keyword fields are already in the EsRelation output as
         // PUKs (via IndexResolver.wrapPartiallyUnmappedField); this rule only adds
         // PUKs introduced by INSIST on a field that is not in the index.
-        List<Attribute> missing = unmappedFields.stream()
-            .flatMap(
-                attr -> attr instanceof FieldAttribute fa && existingPuks.contains(fa.fieldName().string()) == false
-                    ? Stream.of(attr)
-                    : Stream.empty()
-            )
-            .toList();
+      List<Attribute> missing = new ArrayList<>();
+      for (Attribute attr : unmappedFields) {
+          if (attr instanceof FieldAttribute fa && existingPuks.contains(fa.fieldName().string()) == false) {
+              missing.add(attr);
+          }
+      }
         return missing.isEmpty() ? er : er.withAttributes(NamedExpressions.mergeOutputAttributes(missing, er.output()));
     }
 }

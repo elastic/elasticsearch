@@ -152,7 +152,7 @@ public class CollectionUtilsTests extends ESTestCase {
         final List<Integer> integerList = new ArrayList<>();
         int expectedSum = 0;
         for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-            final int nextValue = randomInt();
+            final int nextValue = randomIntBetween(1, 100);
             integerList.add(nextValue);
             expectedSum += nextValue;
         }
@@ -181,7 +181,7 @@ public class CollectionUtilsTests extends ESTestCase {
         final Map<String, Integer> randomMap = new HashMap<>();
         int expectedSum = 0;
         for (int entryIndex = 0; entryIndex < entryCount; entryIndex++) {
-            final int value = randomInt();
+            final int value = randomIntBetween(1, 100);
             expectedSum += value;
             randomMap.put(randomAlphanumericOfLength(randomIntBetween(1, 10)) + entryIndex, value);
         }

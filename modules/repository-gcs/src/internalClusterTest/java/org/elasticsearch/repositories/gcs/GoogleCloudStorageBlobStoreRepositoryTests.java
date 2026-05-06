@@ -97,13 +97,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     private static final AtomicBoolean testTenaciousRetries = new AtomicBoolean(false);
     private static final AtomicLong tenaciousAttempts = new AtomicLong(0);
     private static final AtomicLong tenaciousRetriesRequired = new AtomicLong(0);
-    /**
-     * {@link ESMockAPIBasedRepositoryIntegTestCase.ErroneousHttpHandler} stops injecting errors for a logical HTTP request once its
-     * per-{@code requestUniqueId} counter reaches this cap. {@link #testTenaciousRetries} needs a much larger cap than other tests;
-     * {@link #createErroneousHttpHandler} runs from {@code @Before} (before the test body), so we key off {@link #getTestName()} there,
-     * not {@link #testTenaciousRetries}.
-     */
-    private static final int TENACIOUS_RETRIES_TEST_MAX_HTTP_ERRORS_PER_REQUEST_ID = 256;
+
     private static final RecordingMeterRegistry tenaciousRecordingMeterRegistry = new RecordingMeterRegistry();
     private static final RepositoriesMetrics tenaciousRepositoriesMetrics = new RepositoriesMetrics(tenaciousRecordingMeterRegistry);
 
@@ -147,10 +141,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         if (delegate instanceof FakeOAuth2HttpHandler) {
             return new GoogleErroneousHttpHandler(delegate, 1);
         } else {
-            final int maxErrorsPerRequest = getTestName().contains("testTenaciousRetries")
-                ? TENACIOUS_RETRIES_TEST_MAX_HTTP_ERRORS_PER_REQUEST_ID
-                : randomIntBetween(2, 3);
-            return new GoogleCloudStorageStatsCollectorHttpHandler(new GoogleErroneousHttpHandler(delegate, maxErrorsPerRequest));
+            return new GoogleCloudStorageStatsCollectorHttpHandler(new GoogleErroneousHttpHandler(delegate, randomIntBetween(2, 3)));
         }
     }
 

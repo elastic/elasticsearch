@@ -266,15 +266,23 @@ public class ApproximationVerifier {
             boolean statsInBranches = fork.anyMatch(plan -> plan instanceof Aggregate);
 
             if (statsInBranches == false) {
-                // When the FORK is after the STATS, assert there's just one STATS,
-                // and verify as if there were no FORK.
+                // When the FORK is after the STATS, like
+                // - FROM index | FORK (...) (...) | STATS ...
+                // verify there's just one STATS, and verify as if there were no FORK.
                 List<Aggregate> aggregates = logicalPlan.collect(Aggregate.class);
-                assert aggregates.size() == 1;
-                Aggregate aggregate = aggregates.getFirst();
-                return new QueryProperties(aggregate.groupings().isEmpty() == false, false, null);
+                if (aggregates.size() > 1) {
+                    throw new VerificationException(
+                        "line {}:{}: approximation not supported: query with chained [STATS] cannot be approximated",
+                        logicalPlan.source().source().getLineNumber(),
+                        logicalPlan.source().source().getColumnNumber()
+                    );
+                }
+                return new QueryProperties(aggregates.getFirst().groupings().isEmpty() == false, false, null);
             } else {
-                // When the FORK comes before the STATS (meaning the STATS in either inside
-                // or after the FORK command), verify all branches.
+                // When the STATS is in a branch, like
+                // - FROM index | STATS ... | FORK (...) (...)
+                // - FROM index | FORK (STATS ...) (STATS ...) (...)
+                // verify all branches.
                 List<QueryProperties> branchProperties = new ArrayList<>();
 
                 VerificationException firstVerificationException = null;

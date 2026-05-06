@@ -269,6 +269,10 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
             "FROM test | STATS COUNT() BY emp_no | FORK (EVAL x=1) (WHERE true) | STATS COUNT()",
             equalTo("line 1:70: approximation not supported: query with chained [STATS] cannot be approximated")
         );
+        assertError(
+            "FROM test | FORK (EVAL x=1) (WHERE true) | STATS COUNT() BY emp_no | STATS COUNT()",
+            equalTo("line 1:70: approximation not supported: query with chained [STATS] cannot be approximated")
+        );
     }
 
     public void testVerify_incompatibleSourceCommand() {

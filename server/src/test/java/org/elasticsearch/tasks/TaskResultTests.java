@@ -112,7 +112,8 @@ public class TaskResultTests extends ESTestCase {
         }
     }
 
-    private static TaskResult randomTaskResult() throws IOException {
+    /** Build a {@link TaskResult} covering completed, error, and response variants */
+    public static TaskResult randomTaskResult() throws IOException {
         return switch (between(0, 2)) {
             case 0 -> new TaskResult(randomBoolean(), randomTaskInfo());
             case 1 -> new TaskResult(randomTaskInfo(), new RuntimeException("error"));

@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 143081
-summary: "[Inference API] Parse endpoint metadata from persisted endpoints"
-type: enhancement

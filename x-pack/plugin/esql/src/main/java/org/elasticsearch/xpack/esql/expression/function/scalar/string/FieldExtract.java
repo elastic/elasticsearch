@@ -73,7 +73,7 @@ public class FieldExtract extends EsqlScalarFunction {
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.5.0") },
         description = """
-            Extracts the value of a single sub-field from a [`flattened` field](/reference/elasticsearch/mapping-reference/flattened.md)
+            Extracts the value of a single sub-field from a [`flattened` field](/reference/elasticsearch/mapping-reference/flattened.md) \
             root as `keyword`.""",
         detailedDescription = """
             The first argument must be a field whose ES mapping type is `flattened` (the root of the flattened object).

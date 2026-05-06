@@ -1335,6 +1335,10 @@ public class EsqlSession {
                 listener
             );
         } else {
+            // Strict pass first: resolves the user-typed UnresolvedRelation patterns and initialises
+            // cross-cluster state. After it completes we run the lenient pass over any
+            // ViewShadowRelation patterns (CPS-only) so their results land in
+            // result.lenientResolution() — empty iterator → no-op when there are no shadows.
             forAll(
                 preAnalysis.indexes().entrySet().iterator(),
                 result,
@@ -1349,7 +1353,23 @@ public class EsqlSession {
                     requestFilter,
                     l
                 ),
-                listener
+                listener.delegateFailureAndWrap(
+                    (l, strictResult) -> forAll(
+                        preAnalysis.viewShadows().iterator(),
+                        strictResult,
+                        (sp, r, ll) -> preAnalyzeFlatViewIndices(
+                            sp,
+                            configuration.projectRouting(),
+                            preAnalysis,
+                            executionInfo,
+                            trackUnmappedFieldIndices,
+                            r,
+                            requestFilter,
+                            ll
+                        ),
+                        l
+                    )
+                )
             );
         }
     }
@@ -1413,6 +1433,47 @@ public class EsqlSession {
         }
     }
 
+    /**
+     * Lenient (CPS) field-caps resolution for {@code ViewShadowRelation} index patterns. Mirrors
+     * {@link #preAnalyzeFlatMainIndices} but uses the lenient {@code IndicesOptions}
+     * ({@code ALLOW_UNAVAILABLE_TARGETS}) — the "view name has no matching remote index" case is
+     * the expected outcome and must not error. Stores the result into
+     * {@link PreAnalysisResult#lenientResolution()}; the {@code ResolveViewShadow} analyzer
+     * rule reads it from there. Cross-cluster state has already been initialised by the strict
+     * pass, so this method only updates failures and re-runs the view-error check (which is what
+     * enforces "remote project hosts a *view* with the same name → fail the query").
+     */
+    private void preAnalyzeFlatViewIndices(
+        IndexPattern indexPattern,
+        String projectRouting,
+        PreAnalyzer.PreAnalysis preAnalysis,
+        EsqlExecutionInfo executionInfo,
+        boolean trackUnmappedFieldIndices,
+        PreAnalysisResult result,
+        QueryBuilder requestFilter,
+        ActionListener<PreAnalysisResult> listener
+    ) {
+        executionInfo.queryProfile().incFieldCapsCalls();
+        indexResolver.resolveFlatIndicesVersioned(
+            true /* lenient */,
+            indexPattern.indexPattern(),
+            projectRouting,
+            result.fieldNames,
+            createQueryFilter(IndexMode.STANDARD, requestFilter),
+            false /* not time-series — shadows are always STANDARD */,
+            result.minimumTransportVersion(),
+            preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
+            preAnalysis.useDenseVectorWhenNotSupported(),
+            preAnalysis.hasTimeSeriesAggregation(),
+            trackUnmappedFieldIndices,
+            listener.delegateFailureAndWrap((l, indexResolution) -> {
+                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
+                l.onResponse(result.withLenientIndices(indexPattern, indexResolution.inner()));
+            })
+        );
+    }
+
     private void preAnalyzeFlatMainIndices(
         IndexPattern indexPattern,
         IndexMode indexMode,
@@ -1425,7 +1486,8 @@ public class EsqlSession {
         ActionListener<PreAnalysisResult> listener
     ) {
         executionInfo.queryProfile().incFieldCapsCalls();
-        indexResolver.resolveStrictFlatIndicesVersioned(
+        indexResolver.resolveFlatIndicesVersioned(
+            false /* lenient */,
             indexPattern.indexPattern(),
             projectRouting,
             result.fieldNames,
@@ -1445,7 +1507,8 @@ public class EsqlSession {
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
                     executionInfo.queryProfile().incFieldCapsCalls();
-                    indexResolver.resolveStrictFlatIndicesVersioned(
+                    indexResolver.resolveFlatIndicesVersioned(
+                        false /* lenient */,
                         indexPattern.indexPattern(),
                         projectRouting,
                         result.fieldNames,
@@ -1688,6 +1751,7 @@ public class EsqlSession {
         Set<String> wildcardJoinIndices,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupIndices,
+        Map<IndexPattern, IndexResolution> lenientResolution,  // CPS-only, lenient results for remote indices matching local views
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         ExternalSourceResolution externalSourceResolution,
@@ -1698,6 +1762,7 @@ public class EsqlSession {
             this(
                 fieldNames,
                 wildcardJoinIndices,
+                new HashMap<>(),
                 new HashMap<>(),
                 new HashMap<>(),
                 null,
@@ -1717,12 +1782,22 @@ public class EsqlSession {
             return this;
         }
 
+        /**
+         * Records a lenient (CPS view-shadow) field-caps result. Mirrors {@link #withIndices}
+         * but stores into {@link #lenientResolution} keyed by the shadow's {@code indexPattern()}.
+         */
+        PreAnalysisResult withLenientIndices(IndexPattern indexPattern, IndexResolution indices) {
+            lenientResolution.put(indexPattern, indices);
+            return this;
+        }
+
         PreAnalysisResult withEnrichResolution(EnrichResolution enrichResolution) {
             return new PreAnalysisResult(
                 fieldNames,
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
+                lenientResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
@@ -1736,6 +1811,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
+                lenientResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
@@ -1749,6 +1825,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
+                lenientResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
@@ -1768,6 +1845,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
+                lenientResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,

@@ -202,7 +202,7 @@ public class AnalyzerContext {
             projectMetadata,
             result.indexResolution(),
             result.lookupIndices(),
-            Map.of(),
+            result.lenientResolution(),
             result.enrichResolution(),
             result.inferenceResolution(),
             result.externalSourceResolution(),

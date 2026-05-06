@@ -179,9 +179,14 @@ public class IndexResolver {
     }
 
     /**
-     * Like {@code IndexResolver#resolveIndicesVersioned} but for flat queries.
+     * Like {@code IndexResolver#resolveIndicesVersioned} but for flat (CPS) queries. Set
+     * {@code lenient} to allow targets to be missing — used for {@code ViewShadowRelation}
+     * lookups, where finding nothing is the expected outcome when no remote project has an
+     * index matching the local view name. {@code lenient=false} is the default for the
+     * strict main index resolution path.
      */
-    public void resolveStrictFlatIndicesVersioned(
+    public void resolveFlatIndicesVersioned(
+        boolean lenient,
         String indexPattern,
         String projectRouting,
         Set<String> fieldNames,
@@ -198,61 +203,9 @@ public class IndexResolver {
         boolean trackUnmappedFieldIndices,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
+        IndicesOptions options = lenient ? FLAT_LENIENT_OPTIONS : FLAT_STRICT_OPTIONS;
         doResolveIndices(
-            createFieldCapsRequest(
-                FLAT_STRICT_OPTIONS,
-                indexPattern,
-                projectRouting,
-                fieldNames,
-                requestFilter,
-                includeAllDimensions,
-                true
-            ),
-            indexPattern,
-            true, /* flat index expression could resolve to empty */
-            minimumVersion,
-            useAggregateMetricDoubleWhenNotSupported,
-            useDenseVectorWhenNotSupported,
-            hasTimeSeriesAggregation,
-            trackUnmappedFieldIndices,
-            (innerIndexPattern, fieldCapabilitiesResponse) -> Maps.transformValues(
-                EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
-                v -> List.copyOf(v.expression())
-            ),
-            listener.delegateResponse((l, e) -> {
-                var infe = (IndexNotFoundException) ExceptionsHelper.unwrap(e, IndexNotFoundException.class);
-                l.onFailure(infe != null ? new VerificationException("Unknown index [" + infe.getIndex().getName() + "]") : e);
-            })
-        );
-    }
-
-    public void resolveLenientFlatIndicesVersioned(
-        String indexPattern,
-        String projectRouting,
-        Set<String> fieldNames,
-        QueryBuilder requestFilter,
-        boolean includeAllDimensions,
-        TransportVersion minimumVersion,
-        // Used for bwc with 9.2.0, which supports aggregate_metric_double but doesn't provide its version in the field
-        // caps response. We'll just assume the type is supported based on usage in the query to not break compatibility
-        // with 9.2.0.
-        boolean useAggregateMetricDoubleWhenNotSupported,
-        // Same as above
-        boolean useDenseVectorWhenNotSupported,
-        boolean hasTimeSeriesAggregation,
-        boolean trackUnmappedFieldIndices,
-        ActionListener<Versioned<IndexResolution>> listener
-    ) {
-        doResolveIndices(
-            createFieldCapsRequest(
-                FLAT_LENIENT_OPTIONS,
-                indexPattern,
-                projectRouting,
-                fieldNames,
-                requestFilter,
-                includeAllDimensions,
-                true
-            ),
+            createFieldCapsRequest(options, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
             indexPattern,
             true, /* flat index expression could resolve to empty */
             minimumVersion,

@@ -65,6 +65,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
+        .user("fls_no_source_user", "x-pack-test-password", "fls_no_source_user", false)
         .user("fls_user2", "x-pack-test-password", "fls_user2", false)
         .user("fls_user2_alias", "x-pack-test-password", "fls_user2_alias", false)
         .user("fls_user3", "x-pack-test-password", "fls_user3", false)
@@ -137,6 +138,28 @@ public class EsqlSecurityIT extends ESRestTestCase {
         indexDocument("indexpartial", 1, 32.0, "marketing");
         indexDocument("indexpartial", 2, 40.0, "sales");
         refresh("indexpartial");
+
+        /*
+         * dynamic: false — `org` exists only in stored _source (unmapped). Used with fls_no_source_user,
+         * whose role grants * but excepts _source, so ES|QL cannot load unmapped columns from _source.
+         */
+        String mappingNoDynamicFields = """
+            "dynamic":"false","properties":{"value": {"type": "double"}}
+            """;
+        createIndex("index-no-source-fls", Settings.EMPTY, mappingNoDynamicFields);
+        Request indexNoSourceDoc = new Request("PUT", "index-no-source-fls/_doc/1");
+        XContentBuilder builderNoSource = JsonXContent.contentBuilder().startObject();
+        builderNoSource.field("value", 10.0);
+        builderNoSource.field("org", "sales");
+        indexNoSourceDoc.setJsonEntity(Strings.toString(builderNoSource.endObject()));
+        client().performRequest(indexNoSourceDoc);
+        indexNoSourceDoc = new Request("PUT", "index-no-source-fls/_doc/2");
+        builderNoSource = JsonXContent.contentBuilder().startObject();
+        builderNoSource.field("value", 20.0);
+        builderNoSource.field("org", "engineering");
+        indexNoSourceDoc.setJsonEntity(Strings.toString(builderNoSource.endObject()));
+        client().performRequest(indexNoSourceDoc);
+        refresh("index-no-source-fls");
 
         createIndex("lookup-user1", lookupSettings, mapping);
         indexDocument("lookup-user1", 1, 12.0, "engineering");
@@ -851,6 +874,63 @@ public class EsqlSecurityIT extends ESRestTestCase {
                     Arrays.asList("indexpartial", 40.0, null)
                 )
             )
+        );
+    }
+
+    /**
+     * See <a href="https://github.com/elastic/elasticsearch/issues/148297">#148297</a>:
+     * {@code SET unmapped_fields="load"} must not expose values read from {@code _source} when FLS disables {@code _source}
+     * ({@code grant: ["*"], except: ["_source"]}).
+     */
+    public void testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoad() throws Exception {
+        assumeTrue(
+            "Requires unmapped_fields=LOAD support",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
+        );
+        String query = "SET unmapped_fields=\"load\"; FROM index-no-source-fls | KEEP value, org | SORT value | LIMIT 10";
+        Response adminResp = runESQLCommand("test-admin", query);
+        assertOK(adminResp);
+        assertMap(
+            entityAsMap(adminResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "org").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(List.of(10.0, "sales"), List.of(20.0, "engineering")))
+        );
+
+        Response restrictedResp = runESQLCommand("fls_no_source_user", query);
+        assertOK(restrictedResp);
+        assertMap(
+            entityAsMap(restrictedResp),
+            matchesMap().extraOk()
+                .entry(
+                    "columns",
+                    List.of(
+                        matchesMap().entry("name", "value").entry("type", "double"),
+                        matchesMap().entry("name", "org").entry("type", "keyword")
+                    )
+                )
+                .entry("values", List.of(Arrays.asList(10.0, null), Arrays.asList(20.0, null)))
+        );
+    }
+
+    /**
+     * Same scenario as {@link #testFieldLevelSecuritySourceDisabledWithUnmappedFieldsLoad}: without touching {@code _source},
+     * mapped fields still load from doc values.
+     */
+    public void testFieldLevelSecuritySourceDisabledMappedFieldsStillReadable() throws Exception {
+        Response resp = runESQLCommand("fls_no_source_user", "FROM index-no-source-fls | KEEP value | SORT value | LIMIT 10");
+        assertOK(resp);
+        assertMap(
+            entityAsMap(resp),
+            matchesMap().extraOk()
+                .entry("columns", List.of(matchesMap().entry("name", "value").entry("type", "double")))
+                .entry("values", List.of(List.of(10.0), List.of(20.0)))
         );
     }
 

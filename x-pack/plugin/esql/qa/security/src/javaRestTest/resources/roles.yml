@@ -108,6 +108,17 @@ fls_user:
       field_security:
         grant: [ value ]
 
+# Reads all mapped fields from doc values, but field-level security disables access to stored _source.
+# Used to verify unmapped_fields="load" cannot leak values from _source when the user cannot use _source.
+fls_no_source_user:
+  cluster: []
+  indices:
+    - names: [ 'index-no-source-fls' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ '_source' ]
+
 fls_user2:
   cluster: []
   indices:

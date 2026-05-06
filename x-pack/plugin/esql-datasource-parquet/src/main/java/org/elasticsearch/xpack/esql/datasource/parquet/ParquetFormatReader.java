@@ -777,12 +777,37 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 "optimized_reader requires ParquetStorageObjectAdapter but got [" + inputFile.getClass().getName() + "]"
             );
         }
+        ParquetStorageObjectAdapter adapter = (ParquetStorageObjectAdapter) inputFile;
         ColumnInfo[] columnInfos = buildColumnInfos(projectedSchema, projectedAttributes);
         validatePlannerTypesAgainstFile(logger, storageObject.path().toString(), reader, projectedAttributes, columnInfos);
-        PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(reader, storageObject);
 
-        List<BlockMetaData> blocks = reader.getRowGroups();
-        boolean[] survivingRowGroups = computeSurvivingRowGroups(reader, blocks, recordFilter, projectedSchema);
+        // Pass the predicate column names so the metadata preload also batch-fetches dictionary
+        // pages (and bloom filters when their length is known) for those columns. Without this,
+        // RowGroupFilter would issue one synchronous range GET per row group per predicate column,
+        // dominating wall time on remote storage. The pre-fetched bytes are then installed on the
+        // adapter so the subsequent reads are served from memory.
+        // Note: when the filter is supplied via the legacy FilterPredicateCompat path (no
+        // pushedExpressions), we cannot resolve predicate column names here and fall back to the
+        // existing per-row-group sync read path inside parquet-mr's RowGroupFilter.
+        Set<String> predicateColumnPaths = recordFilter != null && pushedExpressions != null
+            ? pushedExpressions.predicateColumnNames()
+            : null;
+        PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(reader, storageObject, predicateColumnPaths);
+        adapter.installPreWarmedChunks(preloadedMetadata.preWarmedChunks());
+
+        List<BlockMetaData> blocks;
+        boolean[] survivingRowGroups;
+        try {
+            blocks = reader.getRowGroups();
+            survivingRowGroups = computeSurvivingRowGroups(reader, blocks, recordFilter, projectedSchema);
+        } finally {
+            // Detach the pre-warmed chunks from the adapter so subsequent reads on any
+            // WindowedSeekableInputStream skip the cache lookup. The ByteBuffers themselves remain
+            // reachable via preloadedMetadata for the iterator's lifetime, but the data path uses
+            // the async ColumnChunkPrefetcher rather than the sliding-window stream, so they have
+            // no further reader.
+            adapter.installPreWarmedChunks(null);
+        }
 
         RowRanges[] allRowRanges = null;
         if (filterPredicate != null) {
@@ -813,6 +838,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             }
         }
 
+        // Reuse the FilterPredicate already resolved at the file level so the trivially-passes
+        // guard sees the same predicate that drove row-group pruning and column-index RowRanges.
+        // Only pass it through when late materialization is actually active; otherwise the
+        // iterator has no use for it.
+        FilterPredicate triviallyPassesPredicate = effectivePushed != null ? filterPredicate : null;
+
         return new OptimizedParquetColumnIterator(
             reader,
             projectedSchema,
@@ -828,7 +859,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             allRowRanges,
             survivingRowGroups,
             codecFactory,
-            effectivePushed
+            effectivePushed,
+            triviallyPassesPredicate
         );
     }
 

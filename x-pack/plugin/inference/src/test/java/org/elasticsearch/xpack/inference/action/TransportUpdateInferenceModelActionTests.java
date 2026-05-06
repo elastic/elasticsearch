@@ -512,11 +512,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var taskSettings = mock(TaskSettings.class);
 
         var model = createMockedModel(serviceSettings, taskSettings, mock(SecretSettings.class));
-        var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
-            model,
-            new UpdateInferenceModelAction.Settings(null, null, TaskType.TEXT_EMBEDDING),
-            SERVICE_NAME_VALUE
-        );
+        var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(model, null, null, SERVICE_NAME_VALUE);
         verifyNoInteractions(serviceSettings);
         verifyNoInteractions(taskSettings);
 
@@ -542,7 +538,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var model = createMockedModel(originalServiceSettings, originalTaskSettings, mock(SecretSettings.class));
         var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
             model,
-            new UpdateInferenceModelAction.Settings(newServiceSettingsMap, newTaskSettingsMap, TaskType.TEXT_EMBEDDING),
+            newServiceSettingsMap,
+            newTaskSettingsMap,
             SERVICE_NAME_VALUE
         );
 
@@ -558,7 +555,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testCombineExistingModelConfigurationsWithNewSettings_PassesNewSettingsMapsThroughDirectlyToParsers() {
-        // The Settings produced by Request#getContentAsSettings already contain freshly deep-copied maps,
+        // Request#getServiceSettings / #getTaskSettings already return freshly deep-copied maps,
         // so this consumer must pass them straight through without re-copying.
         Map<String, Object> newServiceSettingsMap = Map.of(SERVICE_SETTINGS_KEY, SERVICE_SETTINGS_VALUE);
         var originalServiceSettings = mock(ServiceSettings.class);
@@ -573,7 +570,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var model = createMockedModel(originalServiceSettings, originalTaskSettings, mock(SecretSettings.class));
         var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
             model,
-            new UpdateInferenceModelAction.Settings(newServiceSettingsMap, newTaskSettingsMap, TaskType.TEXT_EMBEDDING),
+            newServiceSettingsMap,
+            newTaskSettingsMap,
             SERVICE_NAME_VALUE
         );
 
@@ -625,8 +623,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testCombineExistingSecretsWithNewSecrets_PassesNewSecretsMapThroughDirectlyToParser() {
-        // The Settings produced by Request#getContentAsSettings already contain freshly deep-copied maps,
-        // so this consumer must pass them straight through without re-copying.
+        // Request#getServiceSettings already returns a freshly deep-copied map, so this
+        // consumer must pass it straight through without re-copying.
         Map<String, Object> newSecretsMap = Map.of(SECRET_SETTINGS_KEY, SECRET_SETTINGS_VALUE);
         var originalSecretSettings = mock(SecretSettings.class);
         var updatedSecretSettings = mock(SecretSettings.class);

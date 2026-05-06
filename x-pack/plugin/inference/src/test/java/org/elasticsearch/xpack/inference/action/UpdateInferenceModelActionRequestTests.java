@@ -73,7 +73,7 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
         return new NamedWriteableRegistry(InferenceNamedWriteablesProvider.getNamedWriteables());
     }
 
-    public void testGetContentAsSettings_ReturnsFreshSettingsInstanceOnEachCall() {
+    public void testParseContent_ReturnsFreshMapInstancesOnEachCall() {
         var request = requestWithBody(Strings.format("""
             {
                 "service_settings": {
@@ -87,19 +87,20 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
                 }
             }""", TEST_URL, TEST_REQUESTS_PER_MINUTE, TEST_MAX_INPUT_TOKENS));
 
-        var first = request.getContentAsSettings();
-        var second = request.getContentAsSettings();
+        var firstServiceSettings = request.getServiceSettings();
+        var secondServiceSettings = request.getServiceSettings();
+        var firstTaskSettings = request.getTaskSettings();
+        var secondTaskSettings = request.getTaskSettings();
 
-        assertThat(first, not(sameInstance(second)));
-        assertThat(first.serviceSettings(), not(sameInstance(second.serviceSettings())));
-        assertThat(first.taskSettings(), not(sameInstance(second.taskSettings())));
+        assertThat(firstServiceSettings, not(sameInstance(secondServiceSettings)));
+        assertThat(firstTaskSettings, not(sameInstance(secondTaskSettings)));
 
-        assertThat(first.serviceSettings(), equalTo(second.serviceSettings()));
-        assertThat(first.taskSettings(), equalTo(second.taskSettings()));
-        assertThat(first.taskType(), sameInstance(second.taskType()));
+        assertThat(firstServiceSettings, equalTo(secondServiceSettings));
+        assertThat(firstTaskSettings, equalTo(secondTaskSettings));
+        assertThat(request.getBodyTaskType(), sameInstance(request.getBodyTaskType()));
     }
 
-    public void testGetContentAsSettings_DeepCopiesNestedMaps() {
+    public void testParseContent_DeepCopiesNestedMaps() {
         var request = requestWithBody(Strings.format("""
             {
                 "service_settings": {
@@ -110,15 +111,15 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
             }""", TEST_REQUESTS_PER_MINUTE));
 
         @SuppressWarnings("unchecked")
-        var firstRateLimit = (Map<String, Object>) request.getContentAsSettings().serviceSettings().get(RateLimitSettings.FIELD_NAME);
+        var firstRateLimit = (Map<String, Object>) request.getServiceSettings().get(RateLimitSettings.FIELD_NAME);
         @SuppressWarnings("unchecked")
-        var secondRateLimit = (Map<String, Object>) request.getContentAsSettings().serviceSettings().get(RateLimitSettings.FIELD_NAME);
+        var secondRateLimit = (Map<String, Object>) request.getServiceSettings().get(RateLimitSettings.FIELD_NAME);
 
         assertThat(firstRateLimit, not(sameInstance(secondRateLimit)));
         assertThat(firstRateLimit, equalTo(secondRateLimit));
     }
 
-    public void testGetContentAsSettings_MutatingReturnedMapsDoesNotCorruptCache() {
+    public void testParseContent_MutatingReturnedMapsDoesNotCorruptCache() {
         var request = requestWithBody(Strings.format("""
             {
                 "service_settings": {
@@ -132,22 +133,22 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
                 }
             }""", TEST_URL, TEST_REQUESTS_PER_MINUTE, TEST_MAX_INPUT_TOKENS));
 
-        var first = request.getContentAsSettings();
-        first.serviceSettings().remove(ServiceFields.URL);
+        var firstServiceSettings = request.getServiceSettings();
+        firstServiceSettings.remove(ServiceFields.URL);
         @SuppressWarnings("unchecked")
-        var firstRateLimit = (Map<String, Object>) first.serviceSettings().get(RateLimitSettings.FIELD_NAME);
+        var firstRateLimit = (Map<String, Object>) firstServiceSettings.get(RateLimitSettings.FIELD_NAME);
         firstRateLimit.remove(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD);
-        first.taskSettings().remove(ServiceFields.MAX_INPUT_TOKENS);
+        request.getTaskSettings().remove(ServiceFields.MAX_INPUT_TOKENS);
 
-        var second = request.getContentAsSettings();
-        assertThat(second.serviceSettings().get(ServiceFields.URL), is(TEST_URL));
+        var secondServiceSettings = request.getServiceSettings();
+        assertThat(secondServiceSettings.get(ServiceFields.URL), is(TEST_URL));
         @SuppressWarnings("unchecked")
-        var secondRateLimit = (Map<String, Object>) second.serviceSettings().get(RateLimitSettings.FIELD_NAME);
+        var secondRateLimit = (Map<String, Object>) secondServiceSettings.get(RateLimitSettings.FIELD_NAME);
         assertThat(secondRateLimit.get(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD), is(TEST_REQUESTS_PER_MINUTE));
-        assertThat(second.taskSettings().get(ServiceFields.MAX_INPUT_TOKENS), is(TEST_MAX_INPUT_TOKENS));
+        assertThat(request.getTaskSettings().get(ServiceFields.MAX_INPUT_TOKENS), is(TEST_MAX_INPUT_TOKENS));
     }
 
-    public void testGetContentAsSettings_ReturnedMapsAreModifiableAtAllDepths() {
+    public void testParseContent_ReturnedMapsAreModifiableAtAllDepths() {
         var request = requestWithBody(Strings.format("""
             {
                 "service_settings": {
@@ -161,29 +162,26 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
                 }
             }""", TEST_URL, TEST_REQUESTS_PER_MINUTE, TEST_MAX_INPUT_TOKENS));
 
-        var settings = request.getContentAsSettings();
-        assertThat(settings.serviceSettings().remove(ServiceFields.URL), is(TEST_URL));
-        assertThat(settings.taskSettings().remove(ServiceFields.MAX_INPUT_TOKENS), is(TEST_MAX_INPUT_TOKENS));
+        var serviceSettings = request.getServiceSettings();
+        assertThat(serviceSettings.remove(ServiceFields.URL), is(TEST_URL));
+        assertThat(request.getTaskSettings().remove(ServiceFields.MAX_INPUT_TOKENS), is(TEST_MAX_INPUT_TOKENS));
         @SuppressWarnings("unchecked")
-        var rateLimit = (Map<String, Object>) settings.serviceSettings().get(RateLimitSettings.FIELD_NAME);
+        var rateLimit = (Map<String, Object>) serviceSettings.get(RateLimitSettings.FIELD_NAME);
         assertThat(rateLimit.remove(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD), is(TEST_REQUESTS_PER_MINUTE));
     }
 
-    public void testGetContentAsSettings_OmittedSectionsRemainNullAcrossCalls() {
+    public void testParseContent_OmittedSectionsRemainNullAcrossCalls() {
         var request = requestWithBody("""
             {
                 "task_type": "text_embedding"
             }""");
 
-        var first = request.getContentAsSettings();
-        var second = request.getContentAsSettings();
-
-        assertThat(first.serviceSettings(), is(nullValue()));
-        assertThat(first.taskSettings(), is(nullValue()));
-        assertThat(first.taskType(), is(TaskType.TEXT_EMBEDDING));
-        assertThat(second.serviceSettings(), is(nullValue()));
-        assertThat(second.taskSettings(), is(nullValue()));
-        assertThat(second.taskType(), is(TaskType.TEXT_EMBEDDING));
+        assertThat(request.getServiceSettings(), is(nullValue()));
+        assertThat(request.getTaskSettings(), is(nullValue()));
+        assertThat(request.getBodyTaskType(), is(TaskType.TEXT_EMBEDDING));
+        assertThat(request.getServiceSettings(), is(nullValue()));
+        assertThat(request.getTaskSettings(), is(nullValue()));
+        assertThat(request.getBodyTaskType(), is(TaskType.TEXT_EMBEDDING));
     }
 
     private static UpdateInferenceModelAction.Request requestWithBody(String body) {

@@ -34,7 +34,6 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
     private static final String MIXED_TYPE_FIELD_1 = "mixed-type-field-1";
     private static final String MIXED_TYPE_FIELD_2 = "mixed-type-field-2";
     private static final String DENSE_VECTOR_FIELD = "dense-vector-field";
-    private static final String EMBEDDING_FIELD = "embedding-field";
     private static final String SEMANTIC_FIELD = "semantic-field";
 
     private static final String COMMON_INFERENCE_ID = "common-inference-id";
@@ -43,7 +42,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
     private static final String EMBEDDING_INFERENCE_ID = "embedding-inference-id";
 
     private static final int DENSE_VECTOR_FIELD_DIMENSIONS = 256;
-    private static final int EMBEDDING_FIELD_DIMENSIONS = 256;
+    private static final int EMBEDDING_INFERENCE_DIMENSIONS = 256;
 
     private static final Exception GENERIC_QUERY_VECTOR_BUILDER_ERROR = new IllegalArgumentException(
         "Generic query vector builder failure"
@@ -566,9 +565,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                 MIXED_TYPE_FIELD_2,
                 semanticTextMapping(LOCAL_INFERENCE_ID),
                 DENSE_VECTOR_FIELD,
-                denseVectorMapping(DENSE_VECTOR_FIELD_DIMENSIONS),
-                EMBEDDING_FIELD,
-                semanticTextMapping(EMBEDDING_INFERENCE_ID)
+                denseVectorMapping(DENSE_VECTOR_FIELD_DIMENSIONS)
             )
         );
         Map<String, Map<String, Object>> localDocs = new HashMap<>(
@@ -585,9 +582,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                 Map.of(
                     DENSE_VECTOR_FIELD,
                     generateDenseVectorFieldValue(DENSE_VECTOR_FIELD_DIMENSIONS, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f)
-                ),
-                getDocId(EMBEDDING_FIELD),
-                Map.of(EMBEDDING_FIELD, "hello")
+                )
             )
         );
         Map<String, Object> remoteFieldMappings = new HashMap<>(
@@ -601,9 +596,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                 MIXED_TYPE_FIELD_2,
                 denseVectorMapping(384),
                 DENSE_VECTOR_FIELD,
-                denseVectorMapping(DENSE_VECTOR_FIELD_DIMENSIONS),
-                EMBEDDING_FIELD,
-                semanticTextMapping(EMBEDDING_INFERENCE_ID)
+                denseVectorMapping(DENSE_VECTOR_FIELD_DIMENSIONS)
             )
         );
         Map<String, Map<String, Object>> remoteDocs = new HashMap<>(
@@ -620,9 +613,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                 Map.of(
                     DENSE_VECTOR_FIELD,
                     generateDenseVectorFieldValue(DENSE_VECTOR_FIELD_DIMENSIONS, DenseVectorFieldMapper.ElementType.FLOAT, -128.0f)
-                ),
-                getDocId(EMBEDDING_FIELD),
-                Map.of(EMBEDDING_FIELD, "hello")
+                )
             )
         );
         if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
@@ -639,7 +630,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                 LOCAL_INFERENCE_ID,
                 textEmbeddingServiceSettings(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
                 EMBEDDING_INFERENCE_ID,
-                embeddingServiceSettings(EMBEDDING_FIELD_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
+                embeddingServiceSettings(EMBEDDING_INFERENCE_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
             ),
             localFieldMappings,
             localDocs
@@ -652,7 +643,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
                 REMOTE_INFERENCE_ID,
                 textEmbeddingServiceSettings(256, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
                 EMBEDDING_INFERENCE_ID,
-                embeddingServiceSettings(EMBEDDING_FIELD_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
+                embeddingServiceSettings(EMBEDDING_INFERENCE_DIMENSIONS, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
             ),
             remoteFieldMappings,
             remoteDocs

@@ -703,7 +703,9 @@ public final class InferenceQueryUtils {
                         && (input != null && (input.containsNonTextEntry() || input.containsMultipleInferenceStrings()))) {
                         l1.onFailure(
                             new IllegalArgumentException(
-                                "Cannot send non-text or multiple inputs to a remote cluster that does not support it. "
+                                "Cannot send non-text or multiple inputs to remote cluster ["
+                                    + clusterAlias
+                                    + "] that does not support it. "
                                     + "Please update the remote cluster to at least "
                                     + GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV.toReleaseVersion()
                             )

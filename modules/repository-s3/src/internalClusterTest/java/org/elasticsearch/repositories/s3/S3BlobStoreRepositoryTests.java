@@ -117,6 +117,9 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);
     private static final long MAX_COPY_SIZE_BEFORE_MULTIPART_MB = 5;
 
+    private static final AtomicLong tenaciousAttempts = new AtomicLong(0);
+    private static final AtomicLong tenaciousRetriesRequired = new AtomicLong(0);
+
     private String region;
     private final AtomicBoolean shouldFailCompleteMultipartUploadRequest = new AtomicBoolean();
 
@@ -195,6 +198,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 S3ClientSettings.Defaults.CONNECTION_MAX_IDLE_TIME
             );
         }
+
+        // This setting alone will not enable tenacious retries. Thus, safe for other tests.
+        builder.put(S3ClientSettings.S3_TENACIOUS_RETRIES_ENABLED_SETTING.getConcreteSettingForNamespace("test").getKey(), true);
+
         return builder.build();
     }
 

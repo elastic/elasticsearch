@@ -318,7 +318,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
 
                 final boolean canFailRequest = canFailRequest(exchange);
                 final int count = requests.computeIfAbsent(requestId, req -> new AtomicInteger(0)).incrementAndGet();
-                if (count >= maxErrorsPerRequest || canFailRequest == false) {
+                if (applyMaxErrorsPerRequest() && count >= maxErrorsPerRequest || canFailRequest == false) {
                     requests.remove(requestId);
                     delegate.handle(exchange);
                 } else {
@@ -347,6 +347,10 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         protected abstract String requestUniqueId(HttpExchange exchange);
 
         protected boolean canFailRequest(final HttpExchange exchange) {
+            return true;
+        }
+
+        protected boolean applyMaxErrorsPerRequest() {
             return true;
         }
 

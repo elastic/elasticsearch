@@ -15,6 +15,7 @@ import fixture.gcs.TestUtils;
 
 import com.google.api.gax.rpc.HeaderProvider;
 import com.google.cloud.http.HttpTransportOptions;
+import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRetryStrategy;
 import com.sun.net.httpserver.HttpExchange;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
@@ -54,7 +56,9 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
+import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.threeten.bp.Duration;
@@ -82,6 +86,8 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BASE_PATH;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BUCKET;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a Google Cloud Storage endpoint")
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
@@ -91,6 +97,13 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
     private static final AtomicBoolean testTenaciousRetries = new AtomicBoolean(false);
     private static final AtomicLong tenaciousAttempts = new AtomicLong(0);
     private static final AtomicLong tenaciousRetriesRequired = new AtomicLong(0);
+    /**
+     * {@link ESMockAPIBasedRepositoryIntegTestCase.ErroneousHttpHandler} stops injecting errors for a logical HTTP request once its
+     * per-{@code requestUniqueId} counter reaches this cap. {@link #testTenaciousRetries} needs a much larger cap than other tests;
+     * {@link #createErroneousHttpHandler} runs from {@code @Before} (before the test body), so we key off {@link #getTestName()} there,
+     * not {@link #testTenaciousRetries}.
+     */
+    private static final int TENACIOUS_RETRIES_TEST_MAX_HTTP_ERRORS_PER_REQUEST_ID = 256;
     private static final RecordingMeterRegistry tenaciousRecordingMeterRegistry = new RecordingMeterRegistry();
     private static final RepositoriesMetrics tenaciousRepositoriesMetrics = new RepositoriesMetrics(tenaciousRecordingMeterRegistry);
 
@@ -134,7 +147,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         if (delegate instanceof FakeOAuth2HttpHandler) {
             return new GoogleErroneousHttpHandler(delegate, 1);
         } else {
-            return new GoogleCloudStorageStatsCollectorHttpHandler(new GoogleErroneousHttpHandler(delegate, randomIntBetween(2, 3)));
+            final int maxErrorsPerRequest = getTestName().contains("testTenaciousRetries")
+                ? TENACIOUS_RETRIES_TEST_MAX_HTTP_ERRORS_PER_REQUEST_ID
+                : randomIntBetween(2, 3);
+            return new GoogleCloudStorageStatsCollectorHttpHandler(new GoogleErroneousHttpHandler(delegate, maxErrorsPerRequest));
         }
     }
 
@@ -292,11 +308,51 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         destinationBlobContainer.delete(randomPurpose());
     }
 
-    public void testTenaciousRetries() {
+    public void testTenaciousRetries() throws IOException {
         testTenaciousRetries.set(true);
         tenaciousAttempts.set(0);
-        // TO DO - Add testing.
+        final var requiredAttempts = randomIntBetween(10, 15);
+        tenaciousRetriesRequired.set(requiredAttempts);
+
+        final var repoName = createRepository(randomRepositoryName(), false);
+        final var repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
+        final var repository = (BlobStoreRepository) repositoriesService.repository(ProjectId.DEFAULT, repoName);
+        final BlobContainer container = repository.blobStore().blobContainer(repository.basePath());
+
+        // No retry logics for non list operations.
+        expectThrows(StorageException.class, () -> container.listBlobs(BlobStoreTestUtil.randomFiniteRetryingPurpose()));
+
+        expectThrows(
+            StorageException.class,
+            () -> container.listBlobsByPrefix(BlobStoreTestUtil.randomFiniteRetryingPurpose(), randomIdentifier())
+        );
+
+        expectThrows(StorageException.class, () -> container.listBlobs(BlobStoreTestUtil.randomFiniteRetryingPurpose()));
+        tenaciousRecordingMeterRegistry.getRecorder().resetCalls();
+        container.children(OperationPurpose.INDICES);
+
+        tenaciousRecordingMeterRegistry.getRecorder().collect();
+        assertThat(getMeasurements(tenaciousRecordingMeterRegistry), greaterThanOrEqualTo(requiredAttempts - 4));
+        assertThat(getAttributes(tenaciousRecordingMeterRegistry).size(), equalTo(3));
+        assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("repo_type"), equalTo("gcs"));
+        assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("operation"), equalTo("ListObjects"));
+        assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("purpose"), equalTo(OperationPurpose.INDICES.getKey()));
+
         testTenaciousRetries.set(false);
+        container.delete(randomPurpose());
+    }
+
+    private int getMeasurements(RecordingMeterRegistry meterRegistry) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL)
+            .size();
+    }
+
+    private Map<String, Object> getAttributes(RecordingMeterRegistry meterRegistry) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL)
+            .getFirst()
+            .attributes();
     }
 
     @Override
@@ -496,7 +552,11 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         protected boolean canFailRequest(final HttpExchange exchange) {
             if (testTenaciousRetries.get()) {
                 tenaciousAttempts.incrementAndGet();
-                return tenaciousAttempts.get() >= tenaciousRetriesRequired.get();
+                logger.info("attempted " + tenaciousAttempts.get());
+                boolean result = tenaciousAttempts.get() < tenaciousRetriesRequired.get();
+                logger.info("should fail " + result);
+
+                return tenaciousAttempts.get() < tenaciousRetriesRequired.get();
             }
 
             // Batch requests are not retried so we don't want to fail them
@@ -504,6 +564,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             return exchange.getRequestURI().toString().startsWith("/batch/") == false;
         }
 
+        @Override
         protected void handleAsError(final HttpExchange exchange) throws IOException {
             if (testTenaciousRetries.get()) {
                 try (exchange) {
@@ -515,6 +576,10 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             super.handleAsError(exchange);
         }
 
+        @Override
+        protected boolean applyMaxErrorsPerRequest() {
+            return testTenaciousRetries.get() == false;
+        }
     }
 
     /**

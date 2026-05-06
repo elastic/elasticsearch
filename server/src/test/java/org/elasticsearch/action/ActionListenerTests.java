@@ -22,6 +22,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ReachabilityChecker;
+import org.elasticsearch.transport.LeakTracker;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -375,6 +376,10 @@ public class ActionListenerTests extends ESTestCase {
             System.gc();
             assertLeakDetected();
         });
+        // The GC-based mechanism fired above. Drain the intentional leak from the synchronous collector
+        // so @After's verifyNoOutstandingLeakTrackerLeaks doesn't double-report it.
+        LeakTracker.clearTestLeakCollector();
+        LeakTracker.installTestLeakCollector();
     }
 
     public void testAssertAtLeastOnceWillNotLogWhenResolvedOrFailed() {

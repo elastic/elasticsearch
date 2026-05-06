@@ -84,57 +84,22 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     final NumericCodecFactory numericCodecFactory;
     final FallbackDecoderFactory fallbackDecoderFactory;
 
-    /** Creates a new ES95 format with default configuration. */
-    public ES95TSDBDocValuesFormat() {
-        this(NUMERIC_BLOCK_SHIFT);
-    }
-
     /**
-     * Creates a new ES95 format with the specified numeric block shift.
-     *
-     * @param numericBlockShift block shift for numeric encoding ({@link #NUMERIC_BLOCK_SHIFT}
-     *                          or {@link #NUMERIC_LARGE_BLOCK_SHIFT})
+     * Creates a new ES95 format with default configuration.
+     * NOTE: required by SPI but not used at runtime; codec selection goes through
+     * {@link ES95TSDBDocValuesFormatFactory}.
      */
-    public ES95TSDBDocValuesFormat(int numericBlockShift) {
+    public ES95TSDBDocValuesFormat() {
         this(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             true,
             BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
             true,
-            numericBlockShift,
-            false
-        );
-    }
-
-    /**
-     * Creates a new ES95 format with full configuration control.
-     *
-     * @param skipIndexIntervalSize             number of documents per skip index interval
-     * @param minDocsPerOrdinalForRangeEncoding minimum docs per ordinal for range encoding
-     * @param enableOptimizedMerge              whether to use the optimized single-pass merge
-     * @param binaryDVCompressionMode           compression mode for binary doc values
-     * @param enablePerBlockCompression         whether to compress individual binary blocks
-     * @param numericBlockShift                 block shift for numeric encoding
-     * @param writePrefixPartitions             whether to write prefix-partitioned sorted fields
-     */
-    public ES95TSDBDocValuesFormat(
-        int skipIndexIntervalSize,
-        int minDocsPerOrdinalForRangeEncoding,
-        boolean enableOptimizedMerge,
-        final BinaryDVCompressionMode binaryDVCompressionMode,
-        boolean enablePerBlockCompression,
-        int numericBlockShift,
-        boolean writePrefixPartitions
-    ) {
-        this(
-            skipIndexIntervalSize,
-            minDocsPerOrdinalForRangeEncoding,
-            enableOptimizedMerge,
-            binaryDVCompressionMode,
-            enablePerBlockCompression,
-            numericBlockShift,
-            writePrefixPartitions,
+            NUMERIC_BLOCK_SHIFT,
+            false,
+            BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+            BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder
         );
@@ -148,6 +113,8 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
         boolean enablePerBlockCompression,
         int numericBlockShift,
         boolean writePrefixPartitions,
+        int blockBytesThreshold,
+        int blockCountThreshold,
         final NumericCodecFactory numericCodecFactory,
         final FallbackDecoderFactory fallbackDecoderFactory
     ) {
@@ -169,8 +136,8 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
                 minDocsPerOrdinalForRangeEncoding
             ),
             new TSDBDocValuesFormatConfig.BinaryConfig(
-                BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
-                BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
+                blockBytesThreshold,
+                blockCountThreshold,
                 enablePerBlockCompression,
                 binaryDVCompressionMode
             ),

@@ -543,10 +543,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         protected boolean canFailRequest(final HttpExchange exchange) {
             if (testTenaciousRetries.get()) {
                 tenaciousAttempts.incrementAndGet();
-                logger.info("attempted " + tenaciousAttempts.get());
-                boolean result = tenaciousAttempts.get() < tenaciousRetriesRequired.get();
-                logger.info("should fail " + result);
-
                 return tenaciousAttempts.get() < tenaciousRetriesRequired.get();
             }
 

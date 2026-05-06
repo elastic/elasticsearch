@@ -9,15 +9,15 @@ The `LIMIT` processing command limits the number of rows returned.
 
 ::::{applies-switch}
 
-:::{applies-item} { stack: ga, "serverless": "ga"}
-```esql
-LIMIT max_number_of_rows
-```
-:::
-
 :::{applies-item} { "stack": "preview 9.4+", "serverless": "preview" }
 ```esql
 LIMIT max_number_of_rows [BY grouping_expr1[, ..., grouping_exprN]]
+```
+:::
+
+:::{applies-item} { stack: ga 9.0+}
+```esql
+LIMIT max_number_of_rows
 ```
 :::
 ::::

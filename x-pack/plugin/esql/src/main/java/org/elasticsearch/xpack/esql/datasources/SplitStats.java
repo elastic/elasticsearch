@@ -38,7 +38,7 @@ import java.util.Objects;
  * Instances are effectively immutable after construction and safe for use within a single
  * request processing thread.
  */
-public final class SplitStats implements Writeable {
+public final class SplitStats implements org.elasticsearch.xpack.esql.datasources.spi.SplitStats, Writeable {
 
     private static final Logger logger = LogManager.getLogger(SplitStats.class);
 
@@ -150,11 +150,13 @@ public final class SplitStats implements Writeable {
         return columnSegmentOrdinals.length;
     }
 
+    @Override
     public long rowCount() {
         return rowCount;
     }
 
     /** Returns size in bytes, or {@code -1} if unknown. */
+    @Override
     public long sizeInBytes() {
         return sizeInBytes;
     }
@@ -254,12 +256,14 @@ public final class SplitStats implements Writeable {
      * Returns the null count for the column with the given name, or {@code -1} if the column
      * is not found or its null count is unknown.
      */
+    @Override
     public long columnNullCount(String name) {
         int col = findColumn(name);
         return col >= 0 ? nullCounts[col] : -1;
     }
 
     /** Returns the min value for the column with the given name, or {@code null} if not found. */
+    @Override
     @Nullable
     public Object columnMin(String name) {
         int col = findColumn(name);
@@ -267,6 +271,7 @@ public final class SplitStats implements Writeable {
     }
 
     /** Returns the max value for the column with the given name, or {@code null} if not found. */
+    @Override
     @Nullable
     public Object columnMax(String name) {
         int col = findColumn(name);
@@ -274,6 +279,7 @@ public final class SplitStats implements Writeable {
     }
 
     /** Returns the size in bytes for the column with the given name, or {@code -1} if not found. */
+    @Override
     public long columnSizeBytes(String name) {
         int col = findColumn(name);
         return col >= 0 ? sizesBytes[col] : -1;
@@ -561,30 +567,39 @@ public final class SplitStats implements Writeable {
     }
 
     /**
-     * Resolves the effective {@link SplitStats} for a set of splits. For single-split queries
-     * the per-split stats (if available) or the sourceMetadata map is used; for multi-split
-     * queries the per-split stats are merged. Returns {@code null} if any split lacks stats.
+     * Resolves the effective {@link org.elasticsearch.xpack.esql.datasources.spi.SplitStats} for
+     * a set of splits. Uses {@link ExternalSplit#splitStats()} on each split, which handles both
+     * {@link FileSplit} and {@link CoalescedSplit} transparently without flattening. For single-split
+     * queries the per-split stats (if available) or the sourceMetadata map is used; for multi-split
+     * queries a {@link MergedSplitStats} over the per-split stats is returned. Returns {@code null}
+     * if any split lacks stats.
      */
     @Nullable
-    public static SplitStats resolveEffectiveStats(List<? extends ExternalSplit> splits, Map<String, Object> sourceMetadata) {
+    public static org.elasticsearch.xpack.esql.datasources.spi.SplitStats resolveEffectiveStats(
+        List<? extends ExternalSplit> splits,
+        Map<String, Object> sourceMetadata
+    ) {
         if (splits.size() <= 1) {
-            if (splits.size() == 1 && splits.getFirst() instanceof FileSplit fs && fs.splitStats() != null) {
-                return fs.splitStats();
+            if (splits.size() == 1) {
+                org.elasticsearch.xpack.esql.datasources.spi.SplitStats perSplit = splits.getFirst().splitStats();
+                if (perSplit != null) {
+                    return perSplit;
+                }
             }
             if (sourceMetadata != null && Boolean.TRUE.equals(sourceMetadata.get(SourceStatisticsSerializer.STATS_PARTIAL))) {
                 return null;
             }
             return of(sourceMetadata);
         }
-        List<SplitStats> perSplit = new ArrayList<>(splits.size());
+        List<org.elasticsearch.xpack.esql.datasources.spi.SplitStats> perSplitStats = new ArrayList<>(splits.size());
         for (ExternalSplit split : splits) {
-            if (split instanceof FileSplit fs && fs.splitStats() != null) {
-                perSplit.add(fs.splitStats());
-            } else {
+            org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = split.splitStats();
+            if (stats == null) {
                 return null;
             }
+            perSplitStats.add(stats);
         }
-        return merge(perSplit);
+        return new MergedSplitStats(perSplitStats);
     }
 
     @Override

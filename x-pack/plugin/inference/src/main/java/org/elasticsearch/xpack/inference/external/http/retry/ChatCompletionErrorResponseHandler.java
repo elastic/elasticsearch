@@ -11,7 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -29,20 +29,20 @@ public class ChatCompletionErrorResponseHandler {
         this.unifiedChatCompletionErrorParser = Objects.requireNonNull(errorParser);
     }
 
-    public UnifiedChatCompletionException buildChatCompletionError(String message, Request request, HttpResult result) {
+    public UnifiedChatCompletionException buildChatCompletionError(String message, OutboundRequest outboundRequest, HttpResult result) {
         var errorResponse = unifiedChatCompletionErrorParser.parse(result);
-        return buildChatCompletionErrorInternal(message, request, result, errorResponse);
+        return buildChatCompletionErrorInternal(message, outboundRequest, result, errorResponse);
     }
 
     private UnifiedChatCompletionException buildChatCompletionErrorInternal(
         String message,
-        Request request,
+        OutboundRequest outboundRequest,
         HttpResult result,
         UnifiedChatCompletionErrorResponse errorResponse
     ) {
-        assert request.isStreaming() : "Only streaming requests support this format";
+        assert outboundRequest.isStreaming() : "Only streaming requests support this format";
         var statusCode = result.response().getStatusLine().getStatusCode();
-        var errorMessage = BaseResponseHandler.constructErrorMessage(message, request, errorResponse, statusCode);
+        var errorMessage = BaseResponseHandler.constructErrorMessage(message, outboundRequest, errorResponse, statusCode);
         var restStatus = toRestStatus(statusCode);
 
         if (errorResponse.errorStructureFound()) {

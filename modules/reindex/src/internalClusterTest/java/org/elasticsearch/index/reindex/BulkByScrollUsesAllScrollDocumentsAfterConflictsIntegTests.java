@@ -259,7 +259,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
 
             final BulkResponse bulkItemResponses = bulkFuture.actionGet();
             for (BulkItemResponse bulkItemResponse : bulkItemResponses) {
-                assertThat(Strings.toString(bulkItemResponses), bulkItemResponse.isFailed(), is(false));
+                assertThat(Strings.toTruncatedString(bulkItemResponses), bulkItemResponse.isFailed(), is(false));
             }
 
             final BulkByScrollResponse bulkByScrollResponse = updateByQueryResponse.actionGet();

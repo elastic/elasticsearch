@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 
 import java.io.IOException;
 
@@ -18,7 +19,7 @@ import java.io.IOException;
  * from the TSDB block layout.
  *
  * <p>{@link #readFieldEntry} delegates to the shared metadata parsing in
- * {@link TSDBDocValuesBlockReader}. {@link #decoder()} returns the {@link Decoder} supplied at
+ * {@link TSDBDocValuesBlockReader}. {@link NumericFieldReader#decoder(PipelineDescriptor)} returns the {@link Decoder} supplied at
  * construction time, which the iteration code drives during value access.
  */
 public final class TSDBNumericFieldReader implements NumericFieldReader {
@@ -41,7 +42,7 @@ public final class TSDBNumericFieldReader implements NumericFieldReader {
     }
 
     @Override
-    public Decoder decoder() {
+    public Decoder decoder(PipelineDescriptor pipelineDescriptor) {
         return decoder;
     }
 }

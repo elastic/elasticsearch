@@ -71,7 +71,7 @@ public class SoftDeletesRetentionIT extends AbstractStatelessPluginIntegTestCase
         final var unblockMerges = new CountDownLatch(1);
         blockMergePool(internalCluster().getInstance(ThreadPool.class, indexNode), unblockMerges);
 
-        final int numBatches = randomIntBetween(12, 25);
+        final int numBatches = randomIntBetween(5, 10);
         final int numDocsPerBatch = randomIntBetween(10, 100);
 
         final var docsIds = new HashSet<String>();

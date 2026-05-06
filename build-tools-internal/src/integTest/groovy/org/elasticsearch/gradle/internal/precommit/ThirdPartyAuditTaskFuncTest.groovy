@@ -180,7 +180,7 @@ class ThirdPartyAuditTaskFuncTest extends AbstractGradleInternalPluginFuncTest {
             """.stripIndent())
         assertOutputContains(output, """\
             * What went wrong:
-            Execution failed for task ':thirdPartyAudit'.
+            Execution failed for task ':thirdPartyAudit' (registered by plugin class 'org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin').
             > Audit of third party dependencies failed:
                 Jar Hell with the JDK:
                 *

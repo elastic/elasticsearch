@@ -164,12 +164,11 @@ public class StatelessIndexBalanceAllocationDeciderIT extends AbstractStatelessP
         // When the decider is disabled, we should allocate the 3 shards to the same node. We check this to ensure that it's
         // the decider that's causing the spread, and the test is still valid
         updateClusterSettings(Settings.builder().put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false));
-        createIndexAndEnsureAllocationMatches(
-            allocatedPrimaries -> allocatedPrimaries.stream().map(ShardRouting::currentNodeId).distinct().count() == Math.min(
-                1,
-                allocatedPrimaries.size()
-            )
-        );
+        createIndexAndEnsureAllocationMatches(allocatedPrimaries -> {
+            final long distinctNodes = allocatedPrimaries.stream().map(ShardRouting::currentNodeId).distinct().count();
+            // Either no shards are allocated, or they're all allocated to a single node
+            return distinctNodes == 0 || distinctNodes == 1;
+        });
 
         // When the decider is enabled, we should allocate the 3 shards to different nodes
         updateClusterSettings(Settings.builder().put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), true));

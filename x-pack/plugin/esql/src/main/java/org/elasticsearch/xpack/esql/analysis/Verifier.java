@@ -614,7 +614,7 @@ public class Verifier {
 
         plan.forEachUp(EsRelation.class, relation -> {
             IndexResolution indexResolution = indexResolutions.get(new IndexPattern(relation.source(), relation.indexPattern()));
-            if (indexResolution != null && indexResolution.isValid()) {
+            if (indexResolution != null && indexResolution.isValid() && indexResolution.get().mapping().isEmpty() == false) {
                 Set<String> punkFieldNames = collectPotentiallyUnmappedNonKeywords(indexResolution.get().mapping());
                 for (Attribute attr : relation.output()) {
                     // punk_field::long is fine; in this case, the FieldAttribute contains a MultiTypeEsField with the conversions.

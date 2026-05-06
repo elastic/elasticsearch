@@ -16,10 +16,10 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Merges unmapped fields into the output of the ES relation. This marking is necessary for the block loaders to force loading from _source
@@ -44,21 +44,21 @@ public class PropagateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     private static EsRelation mergeMissing(EsRelation er, AttributeSet unmappedFields) {
-      Set<String> existingPuks = new HashSet<>();
-      for (Attribute attr : er.output()) {
-          if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
-              existingPuks.add(fa.fieldName().string());
-          }
-      }
+        Set<String> existingPuks = new HashSet<>();
+        for (Attribute attr : er.output()) {
+            if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
+                existingPuks.add(fa.fieldName().string());
+            }
+        }
         // Partially-mapped keyword fields are already in the EsRelation output as
         // PUKs (via IndexResolver.wrapPartiallyUnmappedField); this rule only adds
         // PUKs introduced by INSIST on a field that is not in the index.
-      List<Attribute> missing = new ArrayList<>();
-      for (Attribute attr : unmappedFields) {
-          if (attr instanceof FieldAttribute fa && existingPuks.contains(fa.fieldName().string()) == false) {
-              missing.add(attr);
-          }
-      }
+        List<Attribute> missing = new ArrayList<>();
+        for (Attribute attr : unmappedFields) {
+            if (attr instanceof FieldAttribute fa && existingPuks.contains(fa.fieldName().string()) == false) {
+                missing.add(attr);
+            }
+        }
         return missing.isEmpty() ? er : er.withAttributes(NamedExpressions.mergeOutputAttributes(missing, er.output()));
     }
 }

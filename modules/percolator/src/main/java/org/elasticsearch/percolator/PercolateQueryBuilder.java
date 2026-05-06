@@ -678,7 +678,8 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
                         source.getIndexSettings(),
                         source::lookup,
                         this::sourcePath,
-                            () -> false, fielddataOperation
+                        () -> false,
+                        fielddataOperation
                     )
                 );
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();

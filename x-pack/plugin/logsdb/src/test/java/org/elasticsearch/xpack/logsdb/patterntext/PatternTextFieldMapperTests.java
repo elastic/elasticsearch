@@ -543,7 +543,14 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals(2, reader.leaves().size());
 
-                var fieldDataContext = new FieldDataContext("", null, () -> null, Set::of, () -> false, MappedFieldType.FielddataOperation.SCRIPT);
+                var fieldDataContext = new FieldDataContext(
+                    "",
+                    null,
+                    () -> null,
+                    Set::of,
+                    () -> false,
+                    MappedFieldType.FielddataOperation.SCRIPT
+                );
                 var fieldData = ft.fielddataBuilder(fieldDataContext)
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
 
@@ -638,7 +645,14 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals(2, reader.leaves().size());
 
-                var fieldDataContext = new FieldDataContext("", null, () -> null, Set::of, () -> false, MappedFieldType.FielddataOperation.SCRIPT);
+                var fieldDataContext = new FieldDataContext(
+                    "",
+                    null,
+                    () -> null,
+                    Set::of,
+                    () -> false,
+                    MappedFieldType.FielddataOperation.SCRIPT
+                );
                 var fieldData = ft.fielddataBuilder(fieldDataContext)
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
 
@@ -670,7 +684,14 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
                 assertEquals(2, reader.leaves().size());
 
-                var fieldDataContext = new FieldDataContext("", null, () -> null, Set::of, () -> false, MappedFieldType.FielddataOperation.SCRIPT);
+                var fieldDataContext = new FieldDataContext(
+                    "",
+                    null,
+                    () -> null,
+                    Set::of,
+                    () -> false,
+                    MappedFieldType.FielddataOperation.SCRIPT
+                );
                 var fieldData = ft.fielddataBuilder(fieldDataContext)
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
 

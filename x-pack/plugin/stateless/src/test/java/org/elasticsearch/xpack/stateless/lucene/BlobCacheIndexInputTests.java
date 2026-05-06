@@ -1303,6 +1303,8 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
     // Uses a small mmap-backed cache with only 3 regions; populating additional files forces
     // eviction of file A's region.
     public void testWithByteBufferSlicesReturnsFalseAfterEviction() throws IOException {
+        // Decay runs in the background, so we want it to complete before populating the cache with the next file
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         final ByteSizeValue regionSize = pageAligned(ByteSizeValue.ofKb(randomIntBetween(4, 16)));
         final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(regionSize.getBytes() * 3);
         final var settings = Settings.builder()
@@ -1311,7 +1313,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
             .build();
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, threadPool)
+            StatelessSharedBlobCacheService sharedBlobCacheService = newCacheService(nodeEnvironment, settings, taskQueue.getThreadPool())
         ) {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
             final long primaryTerm = randomNonNegativeLong();
@@ -1341,6 +1343,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
             // Populate cache with file A
             byte[] outputA = randomReadAndSlice(indexInputA, inputA.length);
+            taskQueue.runAllRunnableTasks();
             assertArrayEquals(inputA, outputA);
 
             // Verify bulk access is available before eviction
@@ -1379,6 +1382,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
                     0
                 );
                 byte[] evictOutput = randomReadAndSlice(evictIndexInput, evictInput.length);
+                taskQueue.runAllRunnableTasks();
                 assertArrayEquals(evictInput, evictOutput);
             }
 

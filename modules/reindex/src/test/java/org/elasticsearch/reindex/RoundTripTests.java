@@ -22,7 +22,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.AbstractBulkIndexByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkIndexBySearchRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -137,13 +137,13 @@ public class RoundTripTests extends ESTestCase {
         }
     }
 
-    private void randomRequest(AbstractBulkIndexByScrollRequest<?> request) {
+    private void randomRequest(AbstractBulkIndexBySearchRequest<?> request) {
         randomRequest((AbstractBulkByScrollRequest<?>) request);
         request.setScript(random().nextBoolean() ? null : randomScript());
     }
 
     private void assertRequestEquals(ReindexRequest request, ReindexRequest tripped) {
-        assertRequestEquals((AbstractBulkIndexByScrollRequest<?>) request, (AbstractBulkIndexByScrollRequest<?>) tripped);
+        assertRequestEquals((AbstractBulkIndexBySearchRequest<?>) request, (AbstractBulkIndexBySearchRequest<?>) tripped);
         assertEquals(request.getDestination().version(), tripped.getDestination().version());
         assertEquals(request.getDestination().index(), tripped.getDestination().index());
         if (request.getRemoteInfo() == null) {
@@ -161,7 +161,7 @@ public class RoundTripTests extends ESTestCase {
         }
     }
 
-    private void assertRequestEquals(AbstractBulkIndexByScrollRequest<?> request, AbstractBulkIndexByScrollRequest<?> tripped) {
+    private void assertRequestEquals(AbstractBulkIndexBySearchRequest<?> request, AbstractBulkIndexBySearchRequest<?> tripped) {
         assertRequestEquals((AbstractBulkByScrollRequest<?>) request, (AbstractBulkByScrollRequest<?>) tripped);
         assertEquals(request.getScript(), tripped.getScript());
     }

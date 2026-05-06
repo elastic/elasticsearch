@@ -59,7 +59,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkBySearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
@@ -138,7 +138,7 @@ import static org.mockito.Mockito.when;
 
 public class AsyncBulkByScrollActionTests extends ESTestCase {
     private MyMockClient client;
-    private DummyAbstractBulkByScrollRequest testRequest;
+    private DummyAbstractBulkBySearchRequest testRequest;
     private PlainActionFuture<BulkByScrollResponse> listener;
     private String scrollId;
     private ThreadPool threadPool;
@@ -158,7 +158,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         threadPool = new TestThreadPool(getTestName());
         setupClient(threadPool);
-        testRequest = new DummyAbstractBulkByScrollRequest(new SearchRequest());
+        testRequest = new DummyAbstractBulkBySearchRequest(new SearchRequest());
         testRequest.setEligibleForRelocationOnShutdown(true); // for relocation tests
         listener = new PlainActionFuture<>();
         scrollId = null;
@@ -2007,7 +2007,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private class DummyAsyncBulkByScrollAction extends AbstractAsyncBulkByScrollAction<
-        DummyAbstractBulkByScrollRequest,
+        DummyAbstractBulkBySearchRequest,
         DummyTransportAsyncBulkByScrollAction> {
 
         DummyAsyncBulkByScrollAction() {
@@ -2060,7 +2060,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private static class DummyTransportAsyncBulkByScrollAction extends TransportAction<
-        DummyAbstractBulkByScrollRequest,
+        DummyAbstractBulkBySearchRequest,
         BulkByScrollResponse> {
 
         protected DummyTransportAsyncBulkByScrollAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
@@ -2068,24 +2068,24 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
 
         @Override
-        protected void doExecute(Task task, DummyAbstractBulkByScrollRequest request, ActionListener<BulkByScrollResponse> listener) {
+        protected void doExecute(Task task, DummyAbstractBulkBySearchRequest request, ActionListener<BulkByScrollResponse> listener) {
             // no-op
         }
     }
 
-    private static class DummyAbstractBulkByScrollRequest extends AbstractBulkByScrollRequest<DummyAbstractBulkByScrollRequest> {
+    private static class DummyAbstractBulkBySearchRequest extends AbstractBulkBySearchRequest<DummyAbstractBulkBySearchRequest> {
 
-        DummyAbstractBulkByScrollRequest(SearchRequest searchRequest) {
+        DummyAbstractBulkBySearchRequest(SearchRequest searchRequest) {
             super(searchRequest, true);
         }
 
         @Override
-        public DummyAbstractBulkByScrollRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
+        public DummyAbstractBulkBySearchRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        protected DummyAbstractBulkByScrollRequest self() {
+        protected DummyAbstractBulkBySearchRequest self() {
             return this;
         }
     }

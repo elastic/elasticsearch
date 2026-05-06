@@ -50,8 +50,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.AUTO_SLICES;
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT;
+import static org.elasticsearch.index.reindex.AbstractBulkBySearchRequest.AUTO_SLICES;
+import static org.elasticsearch.index.reindex.AbstractBulkBySearchRequest.DEFAULT_SCROLL_TIMEOUT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;

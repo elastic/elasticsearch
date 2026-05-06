@@ -35,7 +35,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 
-public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScrollRequest<Self>> extends LegacyActionRequest {
+public abstract class AbstractBulkBySearchRequest<Self extends AbstractBulkBySearchRequest<Self>> extends LegacyActionRequest {
 
     public static final int MAX_DOCS_ALL_MATCHES = -1;
     public static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
@@ -127,7 +127,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     @Nullable
     private String[] sourceIndicesForDescription;
 
-    public AbstractBulkByScrollRequest(StreamInput in) throws IOException {
+    public AbstractBulkBySearchRequest(StreamInput in) throws IOException {
         super(in);
         searchRequest = new SearchRequest(in);
         abortOnVersionConflict = in.readBoolean();
@@ -159,7 +159,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * @param setDefaults   should this request set the defaults on the search request? Usually set to true but leave it false to support
      *                      request slicing
      */
-    public AbstractBulkByScrollRequest(SearchRequest searchRequest, boolean setDefaults) {
+    public AbstractBulkBySearchRequest(SearchRequest searchRequest, boolean setDefaults) {
         this.searchRequest = searchRequest;
 
         // Set the defaults which differ from SearchRequest's defaults.

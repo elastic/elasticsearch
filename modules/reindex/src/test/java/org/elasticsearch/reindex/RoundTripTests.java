@@ -21,7 +21,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkBySearchRequest;
 import org.elasticsearch.index.reindex.AbstractBulkIndexByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -116,7 +116,7 @@ public class RoundTripTests extends ESTestCase {
         assertRequestEquals(delete, tripped);
     }
 
-    private void randomRequest(AbstractBulkByScrollRequest<?> request) {
+    private void randomRequest(AbstractBulkBySearchRequest<?> request) {
         request.getSearchRequest().indices("test");
         request.getSearchRequest().source().size(between(1, 1000));
         if (randomBoolean()) {
@@ -138,7 +138,7 @@ public class RoundTripTests extends ESTestCase {
     }
 
     private void randomRequest(AbstractBulkIndexByScrollRequest<?> request) {
-        randomRequest((AbstractBulkByScrollRequest<?>) request);
+        randomRequest((AbstractBulkBySearchRequest<?>) request);
         request.setScript(random().nextBoolean() ? null : randomScript());
     }
 
@@ -162,11 +162,11 @@ public class RoundTripTests extends ESTestCase {
     }
 
     private void assertRequestEquals(AbstractBulkIndexByScrollRequest<?> request, AbstractBulkIndexByScrollRequest<?> tripped) {
-        assertRequestEquals((AbstractBulkByScrollRequest<?>) request, (AbstractBulkByScrollRequest<?>) tripped);
+        assertRequestEquals((AbstractBulkBySearchRequest<?>) request, (AbstractBulkBySearchRequest<?>) tripped);
         assertEquals(request.getScript(), tripped.getScript());
     }
 
-    private void assertRequestEquals(AbstractBulkByScrollRequest<?> request, AbstractBulkByScrollRequest<?> tripped) {
+    private void assertRequestEquals(AbstractBulkBySearchRequest<?> request, AbstractBulkBySearchRequest<?> tripped) {
         assertArrayEquals(request.getSearchRequest().indices(), tripped.getSearchRequest().indices());
         assertEquals(request.getSearchRequest().source().size(), tripped.getSearchRequest().source().size());
         assertEquals(request.isAbortOnVersionConflict(), tripped.isAbortOnVersionConflict());

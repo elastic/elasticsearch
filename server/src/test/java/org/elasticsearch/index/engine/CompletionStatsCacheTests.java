@@ -57,6 +57,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
             document.add(new SuggestField("otherfield", "anotherval", 1));
             document.add(new SuggestField("otherfield", "yetmoreval", 1));
             indexWriter.addDocument(document);
+            indexWriter.flush();
 
             final OpenCloseCounter openCloseCounter = new OpenCloseCounter();
             final CompletionStatsCache completionStatsCache = new CompletionStatsCache(() -> {

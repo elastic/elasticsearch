@@ -545,9 +545,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithoutFailures
   issue: https://github.com/elastic/elasticsearch/issues/148310
-- class: org.elasticsearch.xpack.watcher.test.integration.SingleNodeTests
-  method: testThatLoadingWithNonExistingIndexWorks
-  issue: https://github.com/elastic/elasticsearch/issues/148323
 - class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
   method: testWithByteBufferSlicesReturnsFalseAfterEviction
   issue: https://github.com/elastic/elasticsearch/issues/148330
@@ -560,3 +557,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.MetadataSnapshotBlobStoreDirectoryTests
   method: testMetadataSnapshotWithBlobOffset
   issue: https://github.com/elastic/elasticsearch/issues/148342
+- class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
+  method: testReindexRelocatesWhenCoordinatorShutsDown
+  issue: https://github.com/elastic/elasticsearch/issues/148373
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testFlattenedSorting
+  issue: https://github.com/elastic/elasticsearch/issues/148374
+- class: org.elasticsearch.index.mapper.DateRangeDocValuesLoaderTests
+  method: testEmptyRangesAppendsNull
+  issue: https://github.com/elastic/elasticsearch/issues/148378

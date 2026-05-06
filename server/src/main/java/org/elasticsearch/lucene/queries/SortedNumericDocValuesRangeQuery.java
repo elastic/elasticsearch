@@ -31,7 +31,6 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
-import java.util.Objects;
 import java.util.function.LongPredicate;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -73,12 +72,12 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
             return false;
         }
         SortedNumericDocValuesRangeQuery that = (SortedNumericDocValuesRangeQuery) obj;
-        return Objects.equals(field, that.field) && lowerValue == that.lowerValue && upperValue == that.upperValue;
+        return delegate.equals(that.delegate);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), field, lowerValue, upperValue);
+        return delegate.hashCode();
     }
 
     @Override

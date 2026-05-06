@@ -458,9 +458,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056
-- class: org.elasticsearch.xpack.stateless.StatelessRealTimeTermVectorsIT
-  method: testUpdatedDocsNotInLiveVersionMapDoNotRefresh
-  issue: https://github.com/elastic/elasticsearch/issues/148067
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/148096
@@ -470,9 +467,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/50_index_patterns/_index LIKE with overly complex pattern}
   issue: https://github.com/elastic/elasticsearch/issues/148134
-- class: org.elasticsearch.xpack.stateless.StatelessRealTimeTermVectorsIT
-  method: testDocsNotInLiveVersionMapDoNotRefresh
-  issue: https://github.com/elastic/elasticsearch/issues/148138
 - class: org.elasticsearch.index.engine.LuceneChangesSnapshotTests
   method: testUpdateAndReadChangesConcurrently
   issue: https://github.com/elastic/elasticsearch/issues/148145

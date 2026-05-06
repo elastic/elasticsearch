@@ -173,7 +173,7 @@ String libFileName = switch (OS.current()) {
   case OS.LINUX -> "${nativeLib}.so"
   case OS.MAC -> "${nativeLib}.dylib"
   // Not produced yet but the windows archive CI tests need it.
-  case OS.WINDOWS -> libFileName = "${nativeLib}.dll"
+  case OS.WINDOWS -> "${nativeLib}.dll"
   default -> throw new GradleException("Unsupported platform: ${os}")
 }
 

@@ -89,6 +89,7 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
         final String coordNodeName = cluster.getName(COORD_NODE);
         final String coordNodeId = lookupNodeId(coordNodeName);
         final String coordHttpAddress = cluster.getHttpAddress(COORD_NODE);
+        final String dataNodeAddress = cluster.getHttpAddress(DATA_NODE);
 
         // Issue the reindex through a client that is pinned to the coordinator so the root reindex task is created on that node
         // (and is therefore the task that needs to relocate when the coordinator shuts down).
@@ -113,11 +114,11 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             // Stage 3: rethrottle to unlimited via a *non-coordinator* node, since the coordinator's HTTP transport is being torn down.
             // The rethrottle is dispatched via internal transport (which is still up on the coordinator during the relocation hook),
             // and lets the throttled reindex advance past its current sleep so it can pick up the relocation flag.
-            rethrottleViaSurvivingNode(taskId);
+            rethrottleViaSurvivingNode(dataNodeAddress, taskId);
 
             // Stage 4: wait for the relocation chain in .tasks to show the original task was relocated and the relocated task completed
             // successfully. Without the fix, the resume action is rejected by RBAC and this never happens.
-            assertReindexCompletesOnDataNode(taskId, numDocs);
+            assertReindexCompletesOnDataNode(dataNodeAddress, taskId, numDocs);
         } finally {
             stopThread.join(TimeUnit.SECONDS.toMillis(60));
         }
@@ -213,9 +214,8 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
         client().performRequest(shutdown);
     }
 
-    private void rethrottleViaSurvivingNode(String taskId) throws Exception {
-        // Use a client pinned to the data node so we don't try to reach the coordinator while it's shutting down.
-        final String dataNodeAddress = cluster.getHttpAddress(DATA_NODE);
+    private void rethrottleViaSurvivingNode(String dataNodeAddress, String taskId) throws Exception {
+        // Use the data node address captured before coordinator shutdown so the fixture is not asked to resolve a dead node.
         try (RestClient dataClient = buildClient(restClientSettings(), new HttpHost[] { HttpHost.create(dataNodeAddress) })) {
             // retry in case the reindex task is not initialized and ready to be rethrottled yet
             assertBusy(() -> {
@@ -226,8 +226,7 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
         }
     }
 
-    private void assertReindexCompletesOnDataNode(String originalTaskId, int numDocs) throws Exception {
-        final String dataNodeAddress = cluster.getHttpAddress(DATA_NODE);
+    private void assertReindexCompletesOnDataNode(String dataNodeAddress, String originalTaskId, int numDocs) throws Exception {
         try (RestClient dataClient = buildClient(restClientSettings(), new HttpHost[] { HttpHost.create(dataNodeAddress) })) {
             assertBusy(() -> {
                 // Look up the original (relocated) task in the .tasks index via the dedicated GET /_reindex/{task_id} endpoint;

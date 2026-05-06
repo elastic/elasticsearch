@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.matchesRegex;
 
+// repeat-changed-tests trigger
 public class Netty4BadRequestIT extends AbstractNetty4IT {
 
     public Netty4BadRequestIT(@Name("pooled") boolean pooledAllocator) {

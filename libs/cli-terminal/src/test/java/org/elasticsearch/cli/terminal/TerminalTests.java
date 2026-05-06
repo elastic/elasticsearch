@@ -23,6 +23,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+// repeat-changed-tests trigger
 @WithoutEntitlements // CLI tools don't run with entitlements enforced
 public class TerminalTests extends ESTestCase {
 

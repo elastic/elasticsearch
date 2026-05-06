@@ -16,6 +16,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
 
+// repeat-changed-tests trigger
 public class ApmAgentSettingsIT extends ESRestTestCase {
 
     @ClassRule

@@ -23,6 +23,7 @@ import java.util.List;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
+// repeat-changed-tests trigger
 public class MustacheSettingsIT extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

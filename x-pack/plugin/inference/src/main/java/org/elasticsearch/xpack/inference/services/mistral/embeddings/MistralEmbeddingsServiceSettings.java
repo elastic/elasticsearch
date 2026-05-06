@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.inference.services.mistral.MistralConstant
 public class MistralEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "mistral_embeddings_service_settings";
 
-    private final String model;
+    private final String modelId;
     private final Integer dimensions;
     private final SimilarityMeasure similarity;
     private final Integer maxInputTokens;
@@ -48,32 +48,55 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
     protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(240);
 
     public static MistralEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String model = extractRequiredString(map, MODEL_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer maxInputTokens = extractOptionalPositiveInteger(
+        var modelId = extractRequiredString(map, MODEL_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(
             map,
             MAX_INPUT_TOKENS,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            MistralService.NAME,
-            context
-        );
-        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, MistralService.NAME, context);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
-        return new MistralEmbeddingsServiceSettings(model, dims, maxInputTokens, similarity, rateLimitSettings);
+        return new MistralEmbeddingsServiceSettings(modelId, dimensions, maxInputTokens, similarity, rateLimitSettings);
+    }
+
+    @Override
+    public MistralEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            MistralService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new MistralEmbeddingsServiceSettings(
+            this.modelId,
+            this.dimensions,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            this.similarity,
+            extractedRateLimitSettings
+        );
     }
 
     public MistralEmbeddingsServiceSettings(StreamInput in) throws IOException {
-        this.model = in.readString();
+        this.modelId = in.readString();
         this.dimensions = in.readOptionalVInt();
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.maxInputTokens = in.readOptionalVInt();
@@ -81,13 +104,13 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
     }
 
     public MistralEmbeddingsServiceSettings(
-        String model,
+        String modelId,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
         @Nullable SimilarityMeasure similarity,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
-        this.model = model;
+        this.modelId = modelId;
         this.dimensions = dimensions;
         this.similarity = similarity;
         this.maxInputTokens = maxInputTokens;
@@ -106,7 +129,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
 
     @Override
     public String modelId() {
-        return this.model;
+        return this.modelId;
     }
 
     @Override
@@ -134,7 +157,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(model);
+        out.writeString(modelId);
         out.writeOptionalVInt(dimensions);
         out.writeOptionalEnum(similarity);
         out.writeOptionalVInt(maxInputTokens);
@@ -151,7 +174,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MODEL_FIELD, this.model);
+        builder.field(MODEL_FIELD, this.modelId);
 
         if (dimensions != null) {
             builder.field(DIMENSIONS, dimensions);
@@ -172,7 +195,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MistralEmbeddingsServiceSettings that = (MistralEmbeddingsServiceSettings) o;
-        return Objects.equals(model, that.model)
+        return Objects.equals(modelId, that.modelId)
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
             && Objects.equals(similarity, that.similarity)
@@ -181,7 +204,7 @@ public class MistralEmbeddingsServiceSettings extends FilteredXContentObject imp
 
     @Override
     public int hashCode() {
-        return Objects.hash(model, dimensions, maxInputTokens, similarity, rateLimitSettings);
+        return Objects.hash(modelId, dimensions, maxInputTokens, similarity, rateLimitSettings);
     }
 
 }

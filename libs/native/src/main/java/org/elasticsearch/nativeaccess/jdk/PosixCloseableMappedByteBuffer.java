@@ -36,6 +36,12 @@ public class PosixCloseableMappedByteBuffer extends JdkCloseableMappedByteBuffer
     }
 
     @Override
+    public PosixCloseableMappedByteBuffer slice(long index, long length) {
+        var slice = segment.asSlice(index, length);
+        return new PosixCloseableMappedByteBuffer(slice, null);
+    }
+
+    @Override
     public void prefetch(long offset, long length) {
         Objects.checkFromIndexSize(offset, length, segment.byteSize());
         // Align offset with the page size, this is required for madvise.

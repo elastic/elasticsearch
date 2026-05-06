@@ -1,5 +1,0 @@
-area: Inference
-issues: []
-pr: 145838
-summary: "[Inference API] Use 504 for timeout REST status code response"
-type: bug

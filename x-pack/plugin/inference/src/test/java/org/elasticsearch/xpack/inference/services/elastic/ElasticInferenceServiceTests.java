@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -119,7 +120,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isA;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -568,7 +568,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -627,7 +626,6 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -1490,9 +1488,12 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 """, Arrays.toString(firstEmbedding), Arrays.toString(secondEmbedding));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
+            // Inputs containing non-text, and multiple items per content object
             var inputs = List.of(
-                new InferenceStringGroup("first_input"),
-                new InferenceStringGroup(new InferenceString(IMAGE, BASE64, TEST_DATA_URI))
+                new InferenceStringGroup("first_text_input"),
+                new InferenceStringGroup(
+                    List.of(new InferenceString(IMAGE, BASE64, TEST_DATA_URI), new InferenceString(DataType.TEXT, "second_text_input"))
+                )
             );
 
             var inputType = randomFrom(InputType.INGEST, InputType.SEARCH);

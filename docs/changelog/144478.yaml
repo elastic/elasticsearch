@@ -1,6 +1,0 @@
-area: Machine Learning
-issues: []
-pr: 144478
-summary: Add exponential-backoff retry for AD job opening during system-initiated
-  reassignments
-type: enhancement

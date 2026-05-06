@@ -10,13 +10,9 @@
 package org.elasticsearch.simdvec.internal;
 
 /**
- * Reusable, lazily-grown {@code long[]} scratch buffer for the file byte
- * offsets passed into {@link IndexInputUtils#withSliceAddresses}. Holding
+ * Reusable, lazily-grown {@code long[]} scratch buffer. Holding
  * one instance per scorer avoids allocating a fresh {@code long[]} on
  * every bulk-score call.
- *
- * <p>Sibling of {@link FixedSizeScratch}, but for {@code long[]} rather than
- * {@code byte[]}, and growable rather than fixed-size.
  *
  * <p>Not thread-safe; instances must not be shared across threads.
  */

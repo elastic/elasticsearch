@@ -16,17 +16,7 @@ import java.lang.foreign.ValueLayout;
 /**
  * Reusable, lazily-grown scratch buffer for an array of native addresses
  * (pointer-width values), used to hand a contiguous {@code MemorySegment}
- * of {@code MemorySegment#address()}-style values to native bulk gather
- * calls without allocating a fresh confined arena per invocation.
- *
- * <p>Backed by a single {@link Arena#ofAuto() auto-managed} memory segment
- * that is grown on demand and reclaimed by the GC. Holding one instance per
- * scorer (which is single-threaded) eliminates the per-call
- * {@code Arena.ofConfined()} create/close overhead that otherwise dominates
- * the bulk-score allocation profile.
- *
- * <p>Sibling of {@link FixedSizeScratch}, but for native addresses rather
- * than a single byte buffer, and growable rather than fixed-size.
+ * of {@code MemorySegment#address()}-style values (array of pointers).
  *
  * <p>Not thread-safe; instances must not be shared across threads.
  */

@@ -223,9 +223,14 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
                     offsets[i] = (long) ordinals[i] * vectorPitch;
                 }
                 MemorySegment scoresSeg = MemorySegment.ofArray(scores);
-                boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, packedDims, numNodes, addrsScratch::get, addrs -> {
-                    dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, scoresSeg);
-                });
+                boolean resolved = IndexInputUtils.withSliceAddresses(
+                    input,
+                    offsets,
+                    packedDims,
+                    numNodes,
+                    addrsScratch::get,
+                    addrs -> dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, scoresSeg)
+                );
                 if (resolved) {
                     return applyCorrectionsBulk(scoresSeg, MemorySegment.ofArray(ordinals), numNodes, query);
                 }

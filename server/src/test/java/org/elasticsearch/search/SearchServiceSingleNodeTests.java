@@ -340,6 +340,66 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(activeRefs, indexShard.store().refCount());
     }
 
+    public void testContextLeak() throws Exception {
+        createIndex("test");
+        prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchService service = getInstanceFromNode(SearchService.class);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("test"));
+        IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true)
+            .scroll(TimeValue.timeValueMinutes(1))
+            .source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1));
+
+        ShardSearchRequest shardRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null
+        );
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, emptyMap());
+
+        int contextsBefore = service.getActiveContexts();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean innerOnResponseSeen = new AtomicBoolean(false);
+        AtomicBoolean innerOnFailureSeen = new AtomicBoolean(false);
+
+        service.executeQueryPhase(shardRequest, task, new ActionListener<>() {
+            @Override
+            public void onResponse(SearchPhaseResult result) {
+                innerOnResponseSeen.set(true);
+                // Simulate NetworkPathListener.onResponse throwing on serialization failure
+                throw new RuntimeException("simulated NetworkPathListener serialization failure");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                innerOnFailureSeen.set(true);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("listener must complete within 30s", latch.await(30, TimeUnit.SECONDS));
+        assertTrue("inner listener.onResponse must have run", innerOnResponseSeen.get());
+        assertTrue("inner listener.onFailure must have run", innerOnFailureSeen.get());
+
+        assertBusy(
+            () -> assertEquals(
+                "ReaderContext leaked — wrapFailureListener.processFailure was not invoked.",
+                contextsBefore,
+                service.getActiveContexts()
+            )
+        );
+    }
+
     public void testSearchWhileIndexDeleted() throws InterruptedException {
         createIndex("index");
         prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();

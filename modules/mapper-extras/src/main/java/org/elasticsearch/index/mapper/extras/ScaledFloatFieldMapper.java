@@ -159,6 +159,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 COERCE_SETTING.get(indexSettings.getSettings())
             );
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+                if (indexSettings.isIndexDisabledByDefault()) {
+                    return false;
+                }
+
                 if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
                     var metricType = getMetric().getValue();
                     return metricType != TimeSeriesParams.MetricType.COUNTER && metricType != TimeSeriesParams.MetricType.GAUGE;

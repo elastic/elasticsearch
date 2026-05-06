@@ -18,23 +18,29 @@ import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 
 import java.util.Collection;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class DoubleAsyncCounterAdapter extends AbstractInstrument<ObservableDoubleCounter> implements DoubleAsyncCounter {
+
+    private final Consumer<AbstractInstrument<?>> deregisterFunc;
 
     public DoubleAsyncCounterAdapter(
         Meter meter,
         String name,
         String description,
         String unit,
-        Supplier<Collection<DoubleWithAttributes>> observer
+        Supplier<Collection<DoubleWithAttributes>> observer,
+        Consumer<AbstractInstrument<?>> deregisterFunc
     ) {
         super(meter, new Builder(name, description, unit, observer));
+        this.deregisterFunc = deregisterFunc;
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         getInstrument().close();
+        deregisterFunc.accept(this);
     }
 
     private static class Builder extends AbstractInstrument.Builder<ObservableDoubleCounter> {

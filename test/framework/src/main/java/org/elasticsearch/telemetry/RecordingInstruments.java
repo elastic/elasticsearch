@@ -81,7 +81,7 @@ public class RecordingInstruments {
         }
 
         @Override
-        public void close() throws Exception {
+        public void close() {
             try (ReleasableLock lock = closedLock.acquire()) {
                 assert closed == false : "double close";
                 closed = true;

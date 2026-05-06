@@ -17,19 +17,32 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.util.Collection;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
  * LongGaugeAdapter wraps an otel ObservableLongGauge
  */
 public class LongGaugeAdapter extends AbstractInstrument<ObservableLongGauge> implements org.elasticsearch.telemetry.metric.LongGauge {
-    public LongGaugeAdapter(Meter meter, String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer) {
+
+    private final Consumer<AbstractInstrument<?>> deregisterFunc;
+
+    public LongGaugeAdapter(
+        Meter meter,
+        String name,
+        String description,
+        String unit,
+        Supplier<Collection<LongWithAttributes>> observer,
+        Consumer<AbstractInstrument<?>> deregisterFunc
+    ) {
         super(meter, new Builder(name, description, unit, observer));
+        this.deregisterFunc = deregisterFunc;
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         getInstrument().close();
+        deregisterFunc.accept(this);
     }
 
     private static class Builder extends AbstractInstrument.Builder<ObservableLongGauge> {

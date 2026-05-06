@@ -18,23 +18,29 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.util.Collection;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public class LongAsyncCounterAdapter extends AbstractInstrument<ObservableLongCounter> implements LongAsyncCounter {
+
+    private final Consumer<AbstractInstrument<?>> deregisterFunc;
 
     public LongAsyncCounterAdapter(
         Meter meter,
         String name,
         String description,
         String unit,
-        Supplier<Collection<LongWithAttributes>> observer
+        Supplier<Collection<LongWithAttributes>> observer,
+        Consumer<AbstractInstrument<?>> deregisterFunc
     ) {
         super(meter, new Builder(name, description, unit, observer));
+        this.deregisterFunc = deregisterFunc;
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         getInstrument().close();
+        deregisterFunc.accept(this);
     }
 
     private static class Builder extends AbstractInstrument.Builder<ObservableLongCounter> {

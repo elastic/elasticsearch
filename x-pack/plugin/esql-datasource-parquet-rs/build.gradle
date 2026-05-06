@@ -86,11 +86,14 @@ def computeNativeCodeHash = {
   paths << "${nativeDir}/Cargo.toml"
   paths << "${nativeDir}/Cargo.lock"
   paths.sort().each { rel ->
+    println("Native source file ${rel}")
     def bytes = new File(rel).bytes
     // Strip CR to normalize line ends (may be CRLF on Windows)
     def out = new ByteArrayOutputStream(bytes.length)
     for (b in bytes) { if (b != '\r') out.write(b) }
-    md.update(out.toByteArray())
+    def newBytes = out.toByteArray()
+    if (newBytes.length != bytes.length) { println ("Removed ${bytes.length - newBytes.length} bytes") }
+    md.update(newBytes)
   }
   md.digest().encodeHex().toString()
 }

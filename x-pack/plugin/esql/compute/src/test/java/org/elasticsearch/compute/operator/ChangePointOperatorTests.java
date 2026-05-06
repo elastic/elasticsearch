@@ -175,6 +175,25 @@ public class ChangePointOperatorTests extends OperatorTestCase {
         );
     }
 
+    public void testEmptyPagesAreDropped() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        List<Long> valuesColumn = Stream.of(nCopies(15, 0L), nCopies(15, 1L)).flatMap(List::stream).toList();
+        List<String> groupsColumn = nCopies(30, "A");
+        Page leadingEmpty = buildPage(blockFactory, List.of(), List.of());
+        Page normal = buildPage(blockFactory, valuesColumn, groupsColumn);
+        Page trailingEmpty = buildPage(blockFactory, List.of(), List.of());
+
+        List<Page> outputPages = invokeChangePoint(ctx, List.of(leadingEmpty, normal, trailingEmpty), 1);
+        try {
+            assertThat(outputPages, hasSize(1));
+            assertChangePointAt(outputPages.get(0), 15);
+        } finally {
+            outputPages.forEach(Page::releaseBlocks);
+        }
+    }
+
     public void testGroupedChangepointPerGroupPerPage() {
         DriverContext ctx = driverContext();
         BlockFactory blockFactory = ctx.blockFactory();

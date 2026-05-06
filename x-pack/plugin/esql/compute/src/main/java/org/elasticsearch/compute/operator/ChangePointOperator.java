@@ -167,6 +167,10 @@ public class ChangePointOperator implements Operator {
      * the single implicit group that is flushed on {@link #finish()}.
      */
     private void processPage(Page page) {
+        if (page.getPositionCount() == 0) {
+            page.releaseBlocks();
+            return;
+        }
         if (groupingChannels.length > 0 && encoder == null) {
             initEncoderAndCurrentKeyStorage(page);
             storeCurrentGroupKey(encoder.encode(page, 0));

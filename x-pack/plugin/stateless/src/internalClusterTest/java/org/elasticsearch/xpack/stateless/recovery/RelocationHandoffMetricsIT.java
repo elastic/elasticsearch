@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.stateless.recovery;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
@@ -50,8 +49,8 @@ public class RelocationHandoffMetricsIT extends AbstractStatelessPluginIntegTest
         ensureStableCluster(2);
 
         // Reset measurements on both nodes so we observe only the relocation event.
-        getTestTelemetryPlugin(sourceNode).resetMeter();
-        getTestTelemetryPlugin(targetNode).resetMeter();
+        getTelemetryPlugin(sourceNode).resetMeter();
+        getTelemetryPlugin(targetNode).resetMeter();
 
         // Trigger relocation: exclude the source, wait for green on target.
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", sourceNode), indexName);
@@ -59,12 +58,12 @@ public class RelocationHandoffMetricsIT extends AbstractStatelessPluginIntegTest
         assertThat(internalCluster().nodesInclude(indexName), not(hasItem(sourceNode)));
 
         // Source records the round-trip handoff histogram.
-        final TestTelemetryPlugin sourceTelemetry = getTestTelemetryPlugin(sourceNode);
+        final TestTelemetryPlugin sourceTelemetry = getTelemetryPlugin(sourceNode);
         sourceTelemetry.collect();
         assertHistogramRecorded(sourceTelemetry, RelocationHandoffMetrics.HANDOFF_DURATION);
 
         // Target records each sub-phase histogram.
-        final TestTelemetryPlugin targetTelemetry = getTestTelemetryPlugin(targetNode);
+        final TestTelemetryPlugin targetTelemetry = getTelemetryPlugin(targetNode);
         targetTelemetry.collect();
         assertHistogramRecorded(targetTelemetry, RelocationHandoffMetrics.PRE_RECOVERY_DURATION);
         assertHistogramRecorded(targetTelemetry, RelocationHandoffMetrics.READ_INDEXING_SHARD_STATE_DURATION);
@@ -79,12 +78,5 @@ public class RelocationHandoffMetricsIT extends AbstractStatelessPluginIntegTest
             // so it's quite likely that the times are 0 since the recovery is quite fast in the test.
             assertThat(metricName + " values must be non-negative", m.getLong(), greaterThanOrEqualTo(0L));
         }
-    }
-
-    private static TestTelemetryPlugin getTestTelemetryPlugin(String nodeName) {
-        return internalCluster().getInstance(PluginsService.class, nodeName)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
     }
 }

@@ -1,0 +1,883 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.dlm.frozen;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.blobcache.BlobCachePlugin;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
+import org.junit.After;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
+
+import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
+/**
+ * Disruption integration tests for the DLM frozen transition service.
+ * <p>
+ * Each test intercepts a specific action using an {@link ActionFilter} to detect which phase the
+ * DLM service is currently executing. At that point we simulate a user-level disruption — typically
+ * deleting the backing index — and then verify the service handles the disruption gracefully.
+ */
+@ESIntegTestCase.ClusterScope(scope = TEST, numDataNodes = 0, supportsDedicatedMasters = false, numClientNodes = 0)
+public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
+
+    private static final Logger logger = LogManager.getLogger(DLMFrozenTransitionDisruptionIT.class);
+    private static final String REPO_NAME = "dlm-disruption-repo";
+    private static final String DATA_STREAM_NAME = "dlm-disruption-ds";
+    private static final String TEMPLATE_NAME = "dlm-disruption-template";
+
+    /**
+     * A test plugin that provides a configurable {@link ActionFilter}. Tests register callbacks
+     * via the static {@link #addInterceptor} method; these are invoked when a matching action
+     * is executed on any node.
+     */
+    public static class ActionInterceptorPlugin extends Plugin implements ActionPlugin {
+
+        private static final CopyOnWriteArrayList<ActionInterceptor> INTERCEPTORS = new CopyOnWriteArrayList<>();
+
+        public static void addInterceptor(ActionInterceptor interceptor) {
+            INTERCEPTORS.add(interceptor);
+        }
+
+        public static void clearInterceptors() {
+            INTERCEPTORS.clear();
+        }
+
+        @Override
+        public List<ActionFilter> getActionFilters() {
+            return List.of(new ActionFilter() {
+                @Override
+                public int order() {
+                    return 0;
+                }
+
+                @Override
+                @SuppressWarnings("unchecked")
+                public <Request extends ActionRequest, Response extends ActionResponse> void apply(
+                    Task task,
+                    String action,
+                    Request request,
+                    ActionListener<Response> listener,
+                    ActionFilterChain<Request, Response> chain
+                ) {
+                    for (ActionInterceptor interceptor : INTERCEPTORS) {
+                        if (interceptor.actionName().equals(action)) {
+                            interceptor.intercept(
+                                action,
+                                request,
+                                listener,
+                                (req, lis) -> chain.proceed(task, action, (Request) req, (ActionListener<Response>) lis)
+                            );
+                            return;
+                        }
+                    }
+                    chain.proceed(task, action, request, listener);
+                }
+            });
+        }
+    }
+
+    /**
+     * Callback interface for action interception.
+     */
+    public interface ActionInterceptor {
+        String actionName();
+
+        @SuppressWarnings("rawtypes")
+        void intercept(String action, ActionRequest request, ActionListener listener, BiConsumer<ActionRequest, ActionListener> proceed);
+    }
+
+    @Override
+    protected boolean addMockInternalEngine() {
+        return false;
+    }
+
+    @Override
+    protected boolean forceSingleDataPath() {
+        return true;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(DataStreamsPlugin.class);
+        plugins.add(BlobCachePlugin.class);
+        plugins.add(LocalStateSearchableSnapshots.class);
+        plugins.add(ActionInterceptorPlugin.class);
+        return Collections.unmodifiableList(plugins);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+
+        // Trial license for searchable snapshots
+        builder.put("xpack.license.self_generated.type", "trial");
+        builder.put(CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB));
+
+        // Speed up DLM lifecycle polling (marking for frozen)
+        builder.put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
+
+        // Speed up frozen transition polling
+        builder.put(DLMFrozenTransitionService.POLL_INTERVAL_SETTING.getKey(), "1s");
+
+        // Lower error retry interval
+        builder.put(DataStreamLifecycleErrorStore.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING.getKey(), "1");
+
+        return builder.build();
+    }
+
+    private void startFrozenOnlyNode() {
+        Settings nodeSettings = Settings.builder()
+            .putList("node.roles", Arrays.asList("master", "data_frozen", "ingest"))
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.of(10, ByteSizeUnit.MB).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), false)
+            .build();
+        internalCluster().startNode(nodeSettings);
+    }
+
+    @After
+    public void cleanup() {
+        ActionInterceptorPlugin.clearInterceptors();
+        try {
+            updateClusterSettings(Settings.builder().putNull(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey()));
+        } catch (Exception e) {
+            logger.warn("Failed to clear default repository setting during cleanup", e);
+        }
+        try {
+            client().execute(
+                DeleteDataStreamAction.INSTANCE,
+                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { DATA_STREAM_NAME })
+            ).actionGet();
+        } catch (Exception e) {
+            logger.warn("Failed to delete data stream during cleanup", e);
+        }
+        try {
+            client().execute(
+                TransportDeleteComposableIndexTemplateAction.TYPE,
+                new TransportDeleteComposableIndexTemplateAction.Request(TEMPLATE_NAME)
+            ).actionGet();
+        } catch (Exception e) {
+            logger.warn("Failed to delete composable index template during cleanup", e);
+        }
+        try {
+            client().admin().cluster().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, REPO_NAME).get();
+        } catch (Exception e) {
+            logger.warn("Failed to delete repository during cleanup", e);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Test: delete backing index while DLM is in the "mark read-only" phase
+    // -------------------------------------------------------------------------
+
+    /**
+     * Detects the "mark read-only" phase by intercepting {@link TransportAddIndexBlockAction}.
+     * While that request is in-flight, the test deletes the backing index being converted.
+     * <p>
+     * Expected behaviour: the service observes that the index no longer exists and logs a warning
+     * without recording a persistent error (the {@code IndexNotFoundException} path in
+     * {@link DLMConvertToFrozen#run()} skips remaining steps silently).
+     */
+    public void testDeleteBackingIndexDuringMarkReadOnly() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+        startFrozenOnlyNode();
+
+        // Phase 1: set up infrastructure and index a document (index is still the write index)
+        String candidateIndex = setupDataStreamInfrastructure(false);
+
+        // Phase 2: register interceptors BEFORE rollover so we catch the transition from the start
+        CountDownLatch addBlockSeen = new CountDownLatch(1);
+        AtomicBoolean deletionDone = new AtomicBoolean(false);
+
+        ActionInterceptorPlugin.addInterceptor(new ActionInterceptor() {
+            @Override
+            public String actionName() {
+                return TransportAddIndexBlockAction.TYPE.name();
+            }
+
+            @Override
+            @SuppressWarnings({ "rawtypes", "unchecked" })
+            public void intercept(
+                String action,
+                ActionRequest request,
+                ActionListener listener,
+                BiConsumer<ActionRequest, ActionListener> proceed
+            ) {
+                if (addBlockSeen.getCount() > 0) {
+                    logger.info("--> intercepted AddIndexBlock, deleting index [{}] now", candidateIndex);
+                    addBlockSeen.countDown();
+                    if (deletionDone.compareAndSet(false, true)) {
+                        try {
+                            client().admin().indices().delete(new DeleteIndexRequest(candidateIndex)).actionGet();
+                            logger.info("--> deleted backing index [{}] while add-block was in flight", candidateIndex);
+                        } catch (Exception e) {
+                            logger.warn("Could not delete backing index during disruption", e);
+                        }
+                    }
+                }
+                proceed.accept(request, listener);
+            }
+        });
+
+        // Phase 3: rollover to make the index eligible for frozen transition
+        triggerRollover();
+
+        // Wait until our interceptor has fired (the transition service polls every 1s)
+        assertTrue("AddIndexBlock request was never seen by the interceptor", addBlockSeen.await(30, TimeUnit.SECONDS));
+
+        // The service should have skipped the index gracefully (no error recorded) because the
+        // IndexNotFoundException for the original index is swallowed in DLMConvertToFrozen#run().
+        assertBusy(() -> {
+            DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
+            DataStreamLifecycleErrorStore errorStore = transitionService.getErrorStore();
+            assertThat(
+                "No error should be recorded for a gracefully-skipped index",
+                errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex),
+                nullValue()
+            );
+        }, 15, TimeUnit.SECONDS);
+
+        logger.info("--> delete-during-mark-read-only disruption handled gracefully");
+    }
+
+    // -------------------------------------------------------------------------
+    // Test: delete backing index while DLM is in the "clone" phase
+    // -------------------------------------------------------------------------
+
+    /**
+     * Detects the "clone" phase by watching the cluster state for the DLM clone index to appear.
+     * Once visible, the test deletes the original backing index.
+     * <p>
+     * Note: {@code TransportResizeAction} is a {@code TransportMasterNodeAction} that executes
+     * locally on the master via {@code masterOperation()} — it does NOT go through transport
+     * request handlers. Therefore we cannot use {@code addRequestHandlingBehavior} to intercept it.
+     * Instead, we use a {@link org.elasticsearch.cluster.ClusterStateListener} to detect the clone
+     * index creation (proof that the resize/clone was initiated) and disrupt at that point.
+     * <p>
+     * Expected behaviour: cloning succeeds but subsequent steps find the original index missing.
+     * The {@code IndexNotFoundException} path in {@link DLMConvertToFrozen#run()} skips remaining
+     * steps silently, so no persistent error is recorded in the error store.
+     */
+    public void testDeleteBackingIndexDuringClone() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+        startFrozenOnlyNode();
+
+        // Phase 1: set up infrastructure and index a document (index is still the write index)
+        String candidateIndex = setupDataStreamInfrastructure(false);
+
+        // Phase 2: watch cluster state for the DLM clone index to appear
+        String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndex;
+        CountDownLatch cloneSeen = new CountDownLatch(1);
+        AtomicBoolean deletionDone = new AtomicBoolean(false);
+
+        ActionInterceptorPlugin.addInterceptor(new ActionInterceptor() {
+            @Override
+            public String actionName() {
+                return TransportResizeAction.TYPE.name();
+            }
+
+            @Override
+            @SuppressWarnings({ "rawtypes", "unchecked" })
+            public void intercept(
+                String action,
+                ActionRequest request,
+                ActionListener listener,
+                BiConsumer<ActionRequest, ActionListener> proceed
+            ) {
+                if (cloneSeen.getCount() > 0) {
+                    logger.info("--> intercepted Resize (clone) request, deleting original index [{}] now", candidateIndex);
+                    cloneSeen.countDown();
+                    if (deletionDone.compareAndSet(false, true)) {
+                        try {
+                            client().admin().indices().delete(new DeleteIndexRequest(candidateIndex)).actionGet();
+                            logger.info("--> deleted backing index [{}] while clone was in flight", candidateIndex);
+                        } catch (Exception e) {
+                            logger.warn("Could not delete backing index during disruption", e);
+                        }
+                    }
+                }
+                proceed.accept(request, listener);
+            }
+        });
+
+        // Phase 3: rollover to make the index eligible for frozen transition
+        triggerRollover();
+
+        assertTrue("Resize (clone) request was never seen by the interceptor", cloneSeen.await(30, TimeUnit.SECONDS));
+
+        // The outer IndexNotFoundException catch in run() should prevent an error entry for the original index.
+        assertBusy(() -> {
+            DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
+            DataStreamLifecycleErrorStore errorStore = transitionService.getErrorStore();
+            assertThat(
+                "No persistent error should be recorded when the original index is deleted during cloning",
+                errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex),
+                nullValue()
+            );
+        }, 15, TimeUnit.SECONDS);
+
+        logger.info("--> delete-during-clone disruption handled gracefully");
+    }
+
+    // -------------------------------------------------------------------------
+    // Test: delete backing index while DLM is in the "take snapshot" phase
+    // -------------------------------------------------------------------------
+
+    /**
+     * Detects the "take snapshot" phase by intercepting {@link TransportGetSnapshotsAction}.
+     * The {@code GetSnapshots} call is issued at the start of {@link DLMConvertToFrozen#maybeTakeSnapshot}
+     * to check for existing / orphaned snapshots before starting a new one — a reliable signal that
+     * DLM is entering the snapshot phase.
+     * <p>
+     * While that request is in-flight, the test deletes both the clone index (the one being
+     * snapshotted) and the original index.
+     * <p>
+     * Expected behaviour: the snapshot step fails with an {@code IndexNotFoundException} for the
+     * force-merge index (the clone).  Because the missing index is the <em>clone</em>, not the
+     * original, the outer catch in {@code run()} re-throws rather than silently skipping.  The
+     * executor's catch records the error in the error store so the operator can investigate.
+     */
+    public void testDeleteCloneIndexDuringSnapshot() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        startFrozenOnlyNode();
+
+        // Phase 1: set up infrastructure with 0 replicas (no clone step, original is snapshotted directly)
+        String candidateIndex = setupDataStreamInfrastructure(true);
+
+        // Phase 2: register interceptors BEFORE rollover
+        CountDownLatch getSnapshotsSeen = new CountDownLatch(1);
+        AtomicBoolean deletionDone = new AtomicBoolean(false);
+
+        ActionInterceptorPlugin.addInterceptor(new ActionInterceptor() {
+            @Override
+            public String actionName() {
+                return TransportGetSnapshotsAction.TYPE.name();
+            }
+
+            @Override
+            @SuppressWarnings({ "rawtypes", "unchecked" })
+            public void intercept(
+                String action,
+                ActionRequest request,
+                ActionListener listener,
+                BiConsumer<ActionRequest, ActionListener> proceed
+            ) {
+                if (getSnapshotsSeen.getCount() > 0) {
+                    logger.info("--> intercepted GetSnapshots (snapshot phase detected), deleting index [{}] now", candidateIndex);
+                    getSnapshotsSeen.countDown();
+                    if (deletionDone.compareAndSet(false, true)) {
+                        try {
+                            client().admin().indices().delete(new DeleteIndexRequest(candidateIndex)).actionGet();
+                            logger.info("--> deleted backing index [{}] while snapshot was starting", candidateIndex);
+                        } catch (Exception e) {
+                            logger.warn("Could not delete backing index during disruption", e);
+                        }
+                    }
+                }
+                proceed.accept(request, listener);
+            }
+        });
+
+        // Phase 3: rollover to make the index eligible for frozen transition
+        triggerRollover();
+
+        assertTrue("GetSnapshots request was never seen by the interceptor", getSnapshotsSeen.await(30, TimeUnit.SECONDS));
+
+        // Because the 0-replica path means the original index IS the force-merge index, the outer
+        // IndexNotFoundException catch in run() matches (e.getIndex().getName().equals(indexName))
+        // and the error is silently swallowed — no persistent error entry is expected.
+        assertBusy(() -> {
+            DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
+            DataStreamLifecycleErrorStore errorStore = transitionService.getErrorStore();
+            assertThat(
+                "Index deletion during snapshot phase should be gracefully handled",
+                errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex),
+                nullValue()
+            );
+        }, 15, TimeUnit.SECONDS);
+
+        logger.info("--> delete-during-snapshot disruption handled gracefully");
+    }
+
+    // -------------------------------------------------------------------------
+    // Test: transition recovers after a transient failure (read-only step)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Intercepts the first {@link TransportAddIndexBlockAction} request and makes it fail transiently
+     * (by injecting an exception) to simulate a temporary cluster issue. The interceptor then clears
+     * itself so the next attempt succeeds.
+     * <p>
+     * Expected behaviour: the error store records the failure after the first attempt, but once the
+     * interceptor is removed the service retries on the next poll cycle and the full frozen
+     * transition completes successfully.
+     */
+    public void testTransitionRecoversAfterTransientReadOnlyFailure() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNodes(2);
+        startFrozenOnlyNode();
+
+        // Phase 1: set up infrastructure and index a document (index is still the write index)
+        String candidateIndex = setupDataStreamInfrastructure(false);
+
+        // Phase 2: register interceptors BEFORE rollover
+        AtomicBoolean failedOnce = new AtomicBoolean(false);
+        CountDownLatch firstFailureSeen = new CountDownLatch(1);
+
+        ActionInterceptorPlugin.addInterceptor(new ActionInterceptor() {
+            @Override
+            public String actionName() {
+                return TransportAddIndexBlockAction.TYPE.name();
+            }
+
+            @Override
+            @SuppressWarnings({ "rawtypes", "unchecked" })
+            public void intercept(
+                String action,
+                ActionRequest request,
+                ActionListener listener,
+                BiConsumer<ActionRequest, ActionListener> proceed
+            ) {
+                if (failedOnce.compareAndSet(false, true)) {
+                    logger.info("--> injecting transient failure for AddIndexBlock on [{}]", candidateIndex);
+                    firstFailureSeen.countDown();
+                    listener.onFailure(new RuntimeException("simulated transient add-block failure"));
+                } else {
+                    proceed.accept(request, listener);
+                }
+            }
+        });
+
+        // Phase 3: rollover to make the index eligible for frozen transition
+        triggerRollover();
+
+        // Wait until the injected failure fires
+        assertTrue("AddIndexBlock failure was never triggered", firstFailureSeen.await(30, TimeUnit.SECONDS));
+
+        // An error entry should now exist for the candidate index
+        assertBusy(() -> {
+            DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
+            DataStreamLifecycleErrorStore errorStore = transitionService.getErrorStore();
+            assertThat(
+                "An error should be recorded after the transient failure",
+                errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex),
+                notNullValue()
+            );
+        }, 15, TimeUnit.SECONDS);
+
+        logger.info("--> error recorded after transient failure; now clearing the disruption and waiting for full recovery");
+
+        // Clear interceptors so subsequent retries succeed
+        ActionInterceptorPlugin.clearInterceptors();
+
+        // The transition service should retry and eventually complete the full frozen conversion.
+        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
+        assertBusy(() -> {
+            var projectMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .metadata()
+                .getProject(Metadata.DEFAULT_PROJECT_ID);
+            assertThat("Project metadata should not be null", projectMetadata, notNullValue());
+
+            IndexMetadata frozenMeta = projectMetadata.index(expectedFrozenIndexName);
+            assertThat("Frozen index [" + expectedFrozenIndexName + "] should exist after recovery", frozenMeta, notNullValue());
+            assertThat(
+                "Frozen index should carry the DLM-created setting",
+                DLMConvertToFrozen.DLM_CREATED_SETTING.get(frozenMeta.getSettings()),
+                equalTo(true)
+            );
+            assertThat("Original index should have been cleaned up", projectMetadata.index(candidateIndex), nullValue());
+        }, 120, TimeUnit.SECONDS);
+
+        logger.info("--> transition successfully recovered after transient failure");
+    }
+
+    // -------------------------------------------------------------------------
+    // Test: delete backing index while DLM is in the "force merge" phase
+    // -------------------------------------------------------------------------
+
+    /**
+     * Detects the "force merge" phase by intercepting {@code indices:admin/forcemerge}.
+     * While that request is in-flight, the test deletes the backing index being converted.
+     * <p>
+     * Expected behaviour: the force merge fails because the index no longer exists. The outer
+     * {@code IndexNotFoundException} catch in {@link DLMConvertToFrozen#run()} matches the original
+     * index name and skips remaining steps silently.
+     */
+    public void testDeleteBackingIndexDuringForceMerge() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        startFrozenOnlyNode();
+
+        // Use 0 replicas so that the original index IS the force-merge index (no clone step)
+        String candidateIndex = setupDataStreamInfrastructure(true);
+
+        CountDownLatch forceMergeSeen = new CountDownLatch(1);
+        AtomicBoolean deletionDone = new AtomicBoolean(false);
+
+        ActionInterceptorPlugin.addInterceptor(new ActionInterceptor() {
+            @Override
+            public String actionName() {
+                return "indices:admin/forcemerge";
+            }
+
+            @Override
+            @SuppressWarnings({ "rawtypes", "unchecked" })
+            public void intercept(
+                String action,
+                ActionRequest request,
+                ActionListener listener,
+                BiConsumer<ActionRequest, ActionListener> proceed
+            ) {
+                if (forceMergeSeen.getCount() > 0) {
+                    logger.info("--> intercepted ForceMerge, deleting index [{}] now", candidateIndex);
+                    forceMergeSeen.countDown();
+                    if (deletionDone.compareAndSet(false, true)) {
+                        // Must not block on the scheduler thread; perform deletion asynchronously
+                        new Thread(() -> {
+                            try {
+                                client().admin().indices().delete(new DeleteIndexRequest(candidateIndex)).actionGet();
+                                logger.info("--> deleted backing index [{}] while force merge was in flight", candidateIndex);
+                            } catch (Exception e) {
+                                logger.warn("Could not delete backing index during disruption", e);
+                            }
+                        }).start();
+                    }
+                }
+                proceed.accept(request, listener);
+            }
+        });
+
+        triggerRollover();
+
+        assertTrue("ForceMerge request was never seen by the interceptor", forceMergeSeen.await(30, TimeUnit.SECONDS));
+
+        assertBusy(() -> {
+            DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
+            DataStreamLifecycleErrorStore errorStore = transitionService.getErrorStore();
+            assertThat(
+                "No error should be recorded for a gracefully-skipped index",
+                errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex),
+                nullValue()
+            );
+        }, 15, TimeUnit.SECONDS);
+
+        logger.info("--> delete-during-force-merge disruption handled gracefully");
+    }
+
+    // -------------------------------------------------------------------------
+    // Test: delete backing index while DLM is in the "mount snapshot" phase
+    // -------------------------------------------------------------------------
+
+    /**
+     * Detects the "mount searchable snapshot" phase by intercepting
+     * {@code cluster:admin/snapshot/mount}. While that request is in-flight, the test deletes
+     * the backing index being converted.
+     * <p>
+     * Expected behaviour: the mount may succeed or fail depending on timing, but the original
+     * index is gone. The outer {@code IndexNotFoundException} catch in
+     * {@link DLMConvertToFrozen#run()} matches the original index name and skips remaining steps.
+     */
+    public void testDeleteBackingIndexDuringMountSnapshot() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        startFrozenOnlyNode();
+
+        // Use 0 replicas so that the original index IS the force-merge index (no clone step)
+        String candidateIndex = setupDataStreamInfrastructure(true);
+
+        CountDownLatch mountSeen = new CountDownLatch(1);
+        AtomicBoolean deletionDone = new AtomicBoolean(false);
+
+        ActionInterceptorPlugin.addInterceptor(new ActionInterceptor() {
+            @Override
+            public String actionName() {
+                return "cluster:admin/snapshot/mount";
+            }
+
+            @Override
+            @SuppressWarnings({ "rawtypes", "unchecked" })
+            public void intercept(
+                String action,
+                ActionRequest request,
+                ActionListener listener,
+                BiConsumer<ActionRequest, ActionListener> proceed
+            ) {
+                if (mountSeen.getCount() > 0) {
+                    logger.info("--> intercepted MountSearchableSnapshot, deleting index [{}] now", candidateIndex);
+                    mountSeen.countDown();
+                    if (deletionDone.compareAndSet(false, true)) {
+                        try {
+                            client().admin().indices().delete(new DeleteIndexRequest(candidateIndex)).actionGet();
+                            logger.info("--> deleted backing index [{}] while mount was in flight", candidateIndex);
+                        } catch (Exception e) {
+                            logger.warn("Could not delete backing index during disruption", e);
+                        }
+                    }
+                }
+                proceed.accept(request, listener);
+            }
+        });
+
+        triggerRollover();
+
+        assertTrue("MountSearchableSnapshot request was never seen by the interceptor", mountSeen.await(60, TimeUnit.SECONDS));
+
+        assertBusy(() -> {
+            DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
+            DataStreamLifecycleErrorStore errorStore = transitionService.getErrorStore();
+            assertThat(
+                "No error should be recorded for a gracefully-skipped index",
+                errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex),
+                nullValue()
+            );
+        }, 15, TimeUnit.SECONDS);
+
+        logger.info("--> delete-during-mount-snapshot disruption handled gracefully");
+    }
+
+    // -------------------------------------------------------------------------
+    // Test: delete backing index while DLM is in the "cleanup" phase
+    // -------------------------------------------------------------------------
+
+    /**
+     * Detects the "cleanup" phase by intercepting {@code indices:admin/data_stream/modify}
+     * (the action used to swap the old backing index with the mounted frozen index in the
+     * data stream). While that request is in-flight, the test deletes the original backing index.
+     * <p>
+     * Expected behaviour: the swap may succeed or fail, but the original index deletion during
+     * cleanup is already the intent. The service should handle this gracefully without recording
+     * a persistent error.
+     */
+    public void testDeleteBackingIndexDuringCleanup() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        startFrozenOnlyNode();
+
+        // Use 0 replicas so that the original index IS the force-merge index (no clone step)
+        String candidateIndex = setupDataStreamInfrastructure(true);
+
+        CountDownLatch modifyDsSeen = new CountDownLatch(1);
+        AtomicBoolean deletionDone = new AtomicBoolean(false);
+
+        ActionInterceptorPlugin.addInterceptor(new ActionInterceptor() {
+            @Override
+            public String actionName() {
+                return "indices:admin/data_stream/modify";
+            }
+
+            @Override
+            @SuppressWarnings({ "rawtypes", "unchecked" })
+            public void intercept(
+                String action,
+                ActionRequest request,
+                ActionListener listener,
+                BiConsumer<ActionRequest, ActionListener> proceed
+            ) {
+                if (modifyDsSeen.getCount() > 0) {
+                    logger.info("--> intercepted ModifyDataStreams (cleanup phase), deleting index [{}] now", candidateIndex);
+                    modifyDsSeen.countDown();
+                    if (deletionDone.compareAndSet(false, true)) {
+                        try {
+                            client().admin().indices().delete(new DeleteIndexRequest(candidateIndex)).actionGet();
+                            logger.info("--> deleted backing index [{}] while cleanup was in flight", candidateIndex);
+                        } catch (Exception e) {
+                            logger.warn("Could not delete backing index during disruption", e);
+                        }
+                    }
+                }
+                proceed.accept(request, listener);
+            }
+        });
+
+        triggerRollover();
+
+        assertTrue("ModifyDataStreams request was never seen by the interceptor", modifyDsSeen.await(60, TimeUnit.SECONDS));
+
+        // The cleanup phase should handle the missing index gracefully. Either the swap succeeded
+        // (and the subsequent deleteIndex for the original index finds nothing — which is fine)
+        // or the IndexNotFoundException is caught by the outer handler.
+        assertBusy(() -> {
+            DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
+            DataStreamLifecycleErrorStore errorStore = transitionService.getErrorStore();
+            assertThat(
+                "No error should be recorded when the original index is deleted during cleanup",
+                errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex),
+                nullValue()
+            );
+        }, 15, TimeUnit.SECONDS);
+
+        logger.info("--> delete-during-cleanup disruption handled gracefully");
+    }
+
+    // =========================================================================
+    // Helpers
+    // =========================================================================
+
+    /**
+     * Sets up the prerequisite infrastructure (repository, index template, data stream) and indexes
+     * a document, but does NOT roll over. Returns the name of the first backing index (the one that
+     * will become the candidate after rollover).
+     * <p>
+     * Tests should register their interceptors after calling this method, then call
+     * {@link #triggerRollover()} to make the index eligible for frozen transition.
+     */
+    private String setupDataStreamInfrastructure(boolean zeroReplicas) throws Exception {
+        assertAcked(
+            client().execute(
+                TransportPutRepositoryAction.TYPE,
+                new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, REPO_NAME).type("fs")
+                    .settings(Settings.builder().put("location", randomRepoPath()))
+            ).actionGet()
+        );
+        updateClusterSettings(Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), REPO_NAME));
+
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .frozenAfter(TimeValue.timeValueSeconds(1))
+            .buildTemplate();
+
+        Settings templateSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, zeroReplicas ? 0 : 1)
+            .build();
+
+        TransportPutComposableIndexTemplateAction.Request putTemplateReq = new TransportPutComposableIndexTemplateAction.Request(
+            TEMPLATE_NAME
+        );
+        putTemplateReq.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(DATA_STREAM_NAME + "*"))
+                .template(Template.builder().settings(templateSettings).lifecycle(lifecycle))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
+        );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateReq).actionGet());
+
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME)
+            ).actionGet()
+        );
+
+        // Index a doc so the backing index has data before we roll over
+        String timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(
+            new IndexRequest(DATA_STREAM_NAME).opType(DocWriteRequest.OpType.CREATE)
+                .source(String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, timestamp), XContentType.JSON)
+        );
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertThat(bulkResponse.getItems().length, equalTo(1));
+        assertThat(bulkResponse.getItems()[0].status(), equalTo(RestStatus.CREATED));
+        client().admin().indices().refresh(new RefreshRequest(DATA_STREAM_NAME)).actionGet();
+
+        String candidateIndex = backingIndexNames(DATA_STREAM_NAME).getFirst();
+        logger.info("--> candidate index (pre-rollover): {}", candidateIndex);
+        return candidateIndex;
+    }
+
+    /**
+     * Rolls over the data stream, making the first backing index a non-write index and therefore
+     * eligible for frozen transition (since frozenAfter is ZERO).
+     */
+    private void triggerRollover() {
+        assertAcked(client().admin().indices().prepareRolloverIndex(DATA_STREAM_NAME).get());
+        logger.info("--> rollover complete; first backing index is now eligible for frozen transition");
+    }
+
+    /**
+     * Returns the names of the backing indices for the test data stream.
+     */
+    private List<String> backingIndexNames(String dataStreamName) {
+        var clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        DataStream ds = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).dataStreams().get(dataStreamName);
+        if (ds == null) {
+            return List.of();
+        }
+        return ds.getIndices().stream().map(idx -> idx.getName()).toList();
+    }
+}

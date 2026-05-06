@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -508,8 +509,15 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
 
     public double nodeMaxShardWriteLoadProportion(String nodeId, DoubleSupplier computeIfMissing) {
         if (nodeMaxShardWriteLoadProportion.containsKey(nodeId)) {
-            assert nodeMaxShardWriteLoadProportion.get(nodeId) == computeIfMissing.getAsDouble()
-                : "We cached a different value that we calculated, this shouldn't happen";
+            if (Assertions.ENABLED) {
+                final double computed = computeIfMissing.getAsDouble();
+                final double cached = nodeMaxShardWriteLoadProportion.get(nodeId);
+                assert cached == computed
+                    : "We cached a different value that we calculated, this shouldn't happen. cached != computed: "
+                        + cached
+                        + " != "
+                        + computed;
+            }
             return nodeMaxShardWriteLoadProportion.get(nodeId);
         } else {
             double shardWriteLoadProportion = computeIfMissing.getAsDouble();

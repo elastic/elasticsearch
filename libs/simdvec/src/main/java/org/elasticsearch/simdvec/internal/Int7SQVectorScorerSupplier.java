@@ -31,6 +31,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     final FixedSizeScratch firstScratch;
     final FixedSizeScratch secondScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
+    final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     protected Int7SQVectorScorerSupplier(IndexInput input, QuantizedByteVectorValues values, float scoreCorrectionConstant) {
         this.input = input;
@@ -60,7 +61,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         return IndexInputUtils.withSlice(input, vectorTotalBytes, firstScratch::getScratch, query -> {
             float queryOffsetValue = query.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims);
 
-            long[] offsets = new long[numNodes];
+            long[] offsets = offsetsScratch.get(numNodes);
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) ordinals[i] * vectorTotalBytes;
             }

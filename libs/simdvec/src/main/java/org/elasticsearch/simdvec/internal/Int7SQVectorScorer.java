@@ -37,6 +37,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
     final float queryCorrection;
     final FixedSizeScratch scratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
+    final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     /** Return an optional whose value, if present, is the scorer. Otherwise, an empty optional is returned. */
     public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, QuantizedByteVectorValues values, float[] queryVector) {
@@ -96,7 +97,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         if (numNodes == 0) {
             return false;
         }
-        long[] offsets = new long[numNodes];
+        long[] offsets = offsetsScratch.get(numNodes);
         for (int i = 0; i < numNodes; i++) {
             offsets[i] = (long) nodes[i] * vectorPitch;
         }

@@ -36,6 +36,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
     final MemorySegment query;
     final FixedSizeScratch scratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
+    final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector) {
         if (SUPPORTS_HEAP_SEGMENTS == false) {
@@ -105,7 +106,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 return Float.NEGATIVE_INFINITY;
             }
 
-            long[] offsets = new long[numNodes];
+            long[] offsets = offsetsScratch.get(numNodes);
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) nodes[i] * vectorByteSize;
             }
@@ -154,7 +155,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 return Float.NEGATIVE_INFINITY;
             }
 
-            long[] offsets = new long[numNodes];
+            long[] offsets = offsetsScratch.get(numNodes);
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) nodes[i] * vectorByteSize;
             }
@@ -203,7 +204,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 return Float.NEGATIVE_INFINITY;
             }
 
-            long[] offsets = new long[numNodes];
+            long[] offsets = offsetsScratch.get(numNodes);
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) nodes[i] * vectorByteSize;
             }

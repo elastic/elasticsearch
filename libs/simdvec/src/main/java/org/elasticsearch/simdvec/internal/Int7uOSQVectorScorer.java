@@ -106,6 +106,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
     final int quantizedComponentSum;
     final FixedSizeScratch scratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
+    final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     Int7uOSQVectorScorer(
         IndexInput input,
@@ -150,7 +151,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
             return Float.NEGATIVE_INFINITY;
         }
 
-        long[] offsets = new long[numNodes];
+        long[] offsets = offsetsScratch.get(numNodes);
         for (int i = 0; i < numNodes; i++) {
             offsets[i] = (long) nodes[i] * vectorPitch;
         }

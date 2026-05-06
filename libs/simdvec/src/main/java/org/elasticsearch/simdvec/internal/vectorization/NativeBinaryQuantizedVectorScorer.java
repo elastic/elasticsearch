@@ -13,6 +13,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.simdvec.internal.AddressesScratch;
 import org.elasticsearch.simdvec.internal.IndexInputUtils;
+import org.elasticsearch.simdvec.internal.OffsetsScratch;
 import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.io.IOException;
@@ -23,6 +24,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
 
     private byte[] scratch;
     private final AddressesScratch addrsScratch = new AddressesScratch();
+    private final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     public NativeBinaryQuantizedVectorScorer(IndexInput in, int dimensions, int vectorLengthInBytes) {
         super(in, dimensions, vectorLengthInBytes);
@@ -81,7 +83,7 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
         if (bulkSize == 0) {
             return Float.NEGATIVE_INFINITY;
         }
-        long[] vectorOffsets = new long[bulkSize];
+        long[] vectorOffsets = offsetsScratch.get(bulkSize);
         for (int i = 0; i < bulkSize; i++) {
             vectorOffsets[i] = (long) nodes[i] * byteSize;
         }

@@ -29,6 +29,7 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
     final FixedSizeScratch firstScratch;
     final FixedSizeScratch secondScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
+    final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     protected BFloat16VectorScorerSupplier(IndexInput input, FloatVectorValues values) {
         this.input = input;
@@ -54,7 +55,7 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
         long queryByteOffset = (long) firstOrd * vectorByteSize;
         input.seek(queryByteOffset);
         return IndexInputUtils.withSlice(input, vectorByteSize, firstScratch::getScratch, query -> {
-            long[] offsets = new long[numNodes];
+            long[] offsets = offsetsScratch.get(numNodes);
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) ordinals[i] * vectorByteSize;
             }

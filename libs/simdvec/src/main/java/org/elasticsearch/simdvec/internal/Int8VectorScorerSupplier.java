@@ -34,6 +34,7 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
     final FixedSizeScratch firstScratch;
     final FixedSizeScratch secondScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
+    final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     protected Int8VectorScorerSupplier(IndexInput input, ByteVectorValues values) {
         this.input = input;
@@ -59,7 +60,7 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
         long queryByteOffset = (long) firstOrd * vectorByteSize;
         input.seek(queryByteOffset);
         return IndexInputUtils.withSlice(input, vectorByteSize, firstScratch::getScratch, query -> {
-            long[] offsets = new long[numNodes];
+            long[] offsets = offsetsScratch.get(numNodes);
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) ordinals[i] * vectorByteSize;
             }

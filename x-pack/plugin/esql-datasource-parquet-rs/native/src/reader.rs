@@ -186,8 +186,10 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
 
         let (store, object_path) = resolve_store(&file_path_str, &storage_config).map_err(err)?;
         let concurrency = if file_path_str.starts_with("s3://") { s3_concurrency() } else { local_concurrency() };
-        let needs_head = needs_file_size_hint(&file_path_str);
-        let kind = open_async(store, object_path, projected_cols, batch_size, limit, filter, concurrency, needs_head)?;
+        let arrow_meta = ASYNC_RUNTIME.block_on(
+            fetch_and_cache_metadata(&file_path_str, &storage_config)
+        ).map_err(err)?;
+        let kind = open_async(store, object_path, projected_cols, batch_size, limit, filter, concurrency, arrow_meta)?;
 
         let remaining = if limit > 0 { Some(limit as usize) } else { None };
         let state = Box::new(ParquetReaderState { kind, remaining, plan });
@@ -1407,11 +1409,11 @@ async fn spawn_file_workers<R: AsyncFileReader + Clone + Send + Unpin + 'static>
 
 /// Async reader shared by both local and remote paths.
 ///
-/// Reads file metadata once, prunes row groups with the predicate's column
-/// statistics, then splits surviving row groups into N chunks
-/// (N = `max_concurrency`). Each chunk gets its own `ParquetRecordBatchStream`
-/// running as a spawned tokio task, with decoded batches sent through an mpsc
-/// channel. Within each task, `next_row_group()` pipelines I/O and decode.
+/// Uses pre-loaded (and LRU-cached) `ArrowReaderMetadata` to skip the per-open footer
+/// parse. Prunes row groups with the predicate's column statistics, then splits surviving
+/// row groups into N chunks (N = `max_concurrency`). Each chunk gets its own
+/// `ParquetRecordBatchStream` running as a spawned tokio task, with decoded batches sent
+/// through an mpsc channel. Within each task, `next_row_group()` pipelines I/O and decode.
 fn open_async(
     store: Arc<dyn ObjectStore>,
     object_path: object_store::path::Path,
@@ -1420,19 +1422,14 @@ fn open_async(
     limit: jlong,
     filter: Option<Arc<FilterExpr>>,
     max_concurrency: usize,
-    needs_head: bool,
+    arrow_meta: ArrowReaderMetadata,
 ) -> JniResult<ReaderKind> {
     let rx = ASYNC_RUNTIME.block_on(async move {
         let inner = async {
-            let mut obj_reader = ParquetObjectReader::new(store.clone(), object_path.clone());
-            if needs_head {
-                let meta = store.head(&object_path).await.map_err(err)?;
-                obj_reader = obj_reader.with_file_size(meta.size as u64);
-            }
-
-            let arrow_meta = ArrowReaderMetadata::load_async(
-                &mut obj_reader, meta_options_for(filter.is_some()),
-            ).await.map_err(err)?;
+            // Metadata is already parsed and cached by the caller; the object reader is
+            // used only for column-data range requests (new_with_metadata never re-fetches
+            // the footer), so no file-size hint is needed here.
+            let obj_reader = ParquetObjectReader::new(store.clone(), object_path.clone());
 
             let candidates: Vec<usize> = (0..arrow_meta.metadata().num_row_groups()).collect();
             let candidates = if let Some(ref expr) = filter {

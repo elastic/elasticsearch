@@ -16,8 +16,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
+import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskResult;
+import org.elasticsearch.tasks.TaskResultTests;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -25,6 +28,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.index.reindex.resumeinfo.PitWorkerResumeInfoWireSerializingTests.randomPitWorkerResumeInfo;
 import static org.elasticsearch.index.reindex.resumeinfo.ScrollWorkerResumeInfoWireSerializingTests.randomScrollWorkerResumeInfo;
@@ -36,18 +40,18 @@ import static org.elasticsearch.index.reindex.resumeinfo.SliceStatusWireSerializ
 
 /**
  * Wire serialization tests for {@link ResumeInfo}.
- * Uses a {@link Wrapper} with content-based equals/hashCode because {@link ResumeInfo} can contain
  */
 public class ResumeInfoWireSerializingTests extends AbstractWireSerializingTestCase<ResumeInfoWireSerializingTests.Wrapper> {
 
     /**
-     * Register {@link ResumeInfo.WorkerResumeInfo} and {@link Task.Status} so that the optional worker
-     * and any nested types inside slices can be deserialized when round-tripping {@link ResumeInfo}.
+     * Register {@link ResumeInfo.WorkerResumeInfo} and {@link Task.Status} implementations so workers, slices, and
+     * optional {@link ResumeInfo#sourceTaskResult()} ({@link org.elasticsearch.tasks.TaskInfo} embedded status) can deserialize.
      */
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(org.elasticsearch.cluster.ClusterModule.getNamedWriteables());
         entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new));
+        entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new));
         entries.add(
             new NamedWriteableRegistry.Entry(
                 ResumeInfo.WorkerResumeInfo.class,
@@ -76,11 +80,12 @@ public class ResumeInfoWireSerializingTests extends AbstractWireSerializingTestC
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomNonNegativeLong()
         );
+        final TaskResult sourceTaskResult = randomBoolean() ? randomSourceTaskResult() : null;
         if (randomBoolean()) {
             WorkerResumeInfo worker = randomBoolean() ? randomScrollWorkerResumeInfo() : randomPitWorkerResumeInfo();
-            return new Wrapper(new ResumeInfo(origin, worker, null));
+            return new Wrapper(new ResumeInfo(origin, worker, null, sourceTaskResult));
         } else {
-            return new Wrapper(new ResumeInfo(origin, null, randomSlicesMap()));
+            return new Wrapper(new ResumeInfo(origin, null, randomSlicesMap(), sourceTaskResult));
         }
     }
 
@@ -97,6 +102,14 @@ public class ResumeInfoWireSerializingTests extends AbstractWireSerializingTestC
             map.put(i, randomSliceStatusWithId(i));
         }
         return map;
+    }
+
+    private static TaskResult randomSourceTaskResult() {
+        try {
+            return TaskResultTests.randomTaskResult();
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
     }
 
     /**
@@ -137,18 +150,36 @@ public class ResumeInfoWireSerializingTests extends AbstractWireSerializingTestC
         }
 
         private static boolean resumeInfoContentEquals(ResumeInfo a, ResumeInfo b) {
-            if (workerResumeInfoContentEquals(a.worker(), b.worker()) == false) return false;
-            if (a.slices() == null && b.slices() == null) return true;
-            if (a.slices() == null || b.slices() == null) return false;
-            if (a.slices().keySet().equals(b.slices().keySet()) == false) return false;
+            if (Objects.equals(a.relocationOrigin(), b.relocationOrigin()) == false) {
+                return false;
+            }
+            if (Objects.equals(a.sourceTaskResult(), b.sourceTaskResult()) == false) {
+                return false;
+            }
+            if (workerResumeInfoContentEquals(a.worker(), b.worker()) == false) {
+                return false;
+            }
+            if (a.slices() == null && b.slices() == null) {
+                return true;
+            }
+            if (a.slices() == null || b.slices() == null) {
+                return false;
+            }
+            if (a.slices().keySet().equals(b.slices().keySet()) == false) {
+                return false;
+            }
             for (Integer key : a.slices().keySet()) {
-                if (sliceStatusContentEquals(a.slices().get(key), b.slices().get(key)) == false) return false;
+                if (sliceStatusContentEquals(a.slices().get(key), b.slices().get(key)) == false) {
+                    return false;
+                }
             }
             return true;
         }
 
         private static int resumeInfoContentHashCode(ResumeInfo info) {
-            int result = workerResumeInfoContentHashCode(info.worker());
+            int result = Objects.hashCode(info.relocationOrigin());
+            result = 31 * result + Objects.hashCode(info.sourceTaskResult());
+            result = 31 * result + workerResumeInfoContentHashCode(info.worker());
             if (info.slices() != null) {
                 for (Map.Entry<Integer, ResumeInfo.SliceStatus> entry : info.slices().entrySet()) {
                     result = 31 * result + entry.getKey().hashCode();

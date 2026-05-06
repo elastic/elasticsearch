@@ -86,6 +86,10 @@ tasks.register('generateStandaloneTsvFixtures') {
   dependsOn generateStandaloneTsvTasks
 }
 
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.tsv'
+}
+
 sourceSets.javaRestTest.resources {
   srcDir csvIcebergFixtureRoot
   srcDir tsvFixtureOutputRoot

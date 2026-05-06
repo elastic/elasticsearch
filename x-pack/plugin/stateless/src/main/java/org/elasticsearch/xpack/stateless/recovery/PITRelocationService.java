@@ -1,0 +1,93 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.recovery;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.internal.ReaderContext;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+
+public class PITRelocationService implements IndexEventListener {
+
+    private static final Logger logger = LogManager.getLogger(PITRelocationService.class);
+    private final Map<ShardId, Set<Runnable>> relocatingContexts = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+    private final SetOnce<Function<ShardId, List<ReaderContext>>> activeReaderContextProvider = new SetOnce<>();
+    private boolean pitRelocationEnabled = true;
+
+    public PITRelocationService() {}
+
+    public void setActiveReaderContextProvider(Function<ShardId, List<ReaderContext>> activeReaderContextProvider) {
+        this.activeReaderContextProvider.set(activeReaderContextProvider);
+    }
+
+    public void setPitRelocationEnabled(boolean pitRelocationEnabled) {
+        this.pitRelocationEnabled = pitRelocationEnabled;
+    }
+
+    @Override
+    public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+        ActionListener.run(listener, l -> {
+            if (pitRelocationEnabled) {
+                if (relocatingContexts.isEmpty() == false) {
+                    ShardId shardId = indexShard.shardId();
+                    logger.debug("afterIndexShardStarted [{}], relocatingContexts keys: [{}]", shardId, relocatingContexts.keySet());
+                    Set<Runnable> cleanupRelocationContexts = relocatingContexts.remove(shardId);
+                    if (cleanupRelocationContexts != null) {
+                        for (Runnable contextSupplier : cleanupRelocationContexts) {
+                            try {
+                                contextSupplier.run();
+                            } catch (Exception e) {
+                                // We don't want to fail the recovery process because of a PIT context relocation issue
+                                logger.warn("failed to run PIT relocation context supplier", e);
+                            }
+                        }
+                    }
+                }
+            }
+            l.onResponse(null);
+        });
+    }
+
+    public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+        if (pitRelocationEnabled) {
+            logger.debug("afterIndexShardClosed [{}]", shardId);
+            // on shard close, free all PIT contexts related to this shard. This is important on the source node of a PIT relocation
+            // because otherwise we will never route searches to the new location of the PIT
+            Function<ShardId, List<ReaderContext>> shardIdListFunction = this.activeReaderContextProvider.get();
+            if (shardIdListFunction != null) {
+                List<ReaderContext> activePITContexts = shardIdListFunction.apply(shardId);
+                for (ReaderContext context : activePITContexts) {
+                    context.relocate();
+                    logger.debug("forcing PIT context [{}] on shard [{}] to expire in next Reaper run.", context.id(), shardId);
+                }
+            }
+            // also remove potential relocating contexts on the target node. This is important when the relocation fails
+            relocatingContexts.remove(shardId);
+        }
+    }
+
+    public void addRelocatingContext(ShardId shardId, Runnable readerContextCreation) {
+        if (pitRelocationEnabled) {
+            this.relocatingContexts.computeIfAbsent(shardId, k -> ConcurrentCollections.newConcurrentSet()).add(readerContextCreation);
+            logger.debug("addRelocatingContext [{}], relocatingContexts: [{}]", shardId, relocatingContexts);
+        }
+    }
+
+}

@@ -44,7 +44,8 @@ public class UpdateByQueryMetadataTests extends AbstractAsyncBulkByScrollActionM
                 null,
                 request(),
                 listener(),
-                randomPositiveTimeValue()
+                randomPositiveTimeValue(),
+                null
             );
         }
 

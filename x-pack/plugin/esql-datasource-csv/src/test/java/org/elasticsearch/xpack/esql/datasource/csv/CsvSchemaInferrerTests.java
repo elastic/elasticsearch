@@ -197,4 +197,15 @@ public class CsvSchemaInferrerTests extends ESTestCase {
         assertEquals("name", schema.get(0).name());
         assertEquals("age", schema.get(1).name());
     }
+
+    public void testSynthesizeColumnNames() {
+        String[] names = CsvFormatReader.synthesizeColumnNames(4, "col");
+        assertArrayEquals(new String[] { "col0", "col1", "col2", "col3" }, names);
+
+        String[] custom = CsvFormatReader.synthesizeColumnNames(3, "f_");
+        assertArrayEquals(new String[] { "f_0", "f_1", "f_2" }, custom);
+
+        String[] zero = CsvFormatReader.synthesizeColumnNames(0, "col");
+        assertEquals(0, zero.length);
+    }
 }

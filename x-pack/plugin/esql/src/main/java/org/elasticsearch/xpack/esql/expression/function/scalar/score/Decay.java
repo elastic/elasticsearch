@@ -511,7 +511,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         Point originPoint = SpatialCoordinateTypes.UNSPECIFIED.wkbAsPoint(origin);
         GeoPoint originGeoPoint = new GeoPoint(originPoint.getY(), originPoint.getX());
 
-        String originStr = originGeoPoint.getX() + "," + originGeoPoint.getY();
+        // GeoUtils.parseGeoPoint expects coordinate strings in "lat,lon" order; use getY (lat) then getX (lon).
+        String originStr = originGeoPoint.getY() + "," + originGeoPoint.getX();
         String scaleStr = scale.utf8ToString();
         String offsetStr = offset.utf8ToString();
 

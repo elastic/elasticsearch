@@ -40,7 +40,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
 
     private static final Pattern DATA_URI_PATTERN = Pattern.compile("^data:.*/.*;base64,");
 
-    static final String TYPE_FIELD = "type";
+    public static final String TYPE_FIELD = "type";
     static final String FORMAT_FIELD = "format";
     static final String VALUE_FIELD = "value";
 
@@ -128,13 +128,31 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
         return DataType.PDF.equals(dataType);
     }
 
+    public boolean isNonText() {
+        return isText() == false;
+    }
+
+    /**
+     * Converts a list of {@link String} to a list of {@link InferenceString} where all of the {@link InferenceString} are
+     * {@link DataType#TEXT}.
+     * <p>
+     * <b>
+     * This method should only be called in code paths that do not deal with multimodal inputs, i.e. code paths where all inputs are
+     * guaranteed to be raw text, since it assumes that the {@link DataType} for every string is {@link DataType#TEXT}.
+     *</b>
+     * @param strings the strings to convert to {@link InferenceString}
+     * @return a list of {@link InferenceString}
+     */
+    public static List<InferenceString> fromStringList(List<String> strings) {
+        return strings.stream().map(aString -> new InferenceString(DataType.TEXT, aString)).toList();
+    }
+
     /**
      * Converts a list of {@link InferenceString} to a list of {@link String}.
      * <p>
      * <b>
      * This method should only be called in code paths that do not deal with multimodal inputs, i.e. code paths where all inputs are
-     * guaranteed to be raw text, since it discards the {@link DataType} associated with
-     * each input.
+     * guaranteed to be raw text, since it discards the {@link DataType} associated with each input.
      *</b>
      * @param inferenceStrings The list of {@link InferenceString} to convert to a list of {@link String}
      * @return a list of String inference inputs that do not contain any non-text inputs

@@ -184,6 +184,11 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
     }
 
     @Override
+    public boolean isEmpty() {
+        return negativeBuckets.numBuckets == 0 && positiveBuckets.numBuckets == 0 && zeroBucket.count() == 0;
+    }
+
+    @Override
     public int scale() {
         return bucketScale;
     }

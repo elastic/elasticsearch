@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
@@ -604,31 +603,5 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             false,
             context
         );
-    }
-
-    public void testWriteTo_ForHasBeenReroutedChanges() throws IOException {
-        var instance = new InferenceAction.Request(
-            TaskType.TEXT_EMBEDDING,
-            "model",
-            null,
-            null,
-            null,
-            List.of("input"),
-            Map.of(),
-            InputType.UNSPECIFIED,
-            randomTimeValue(),
-            false
-        );
-        {
-            // From a version with rerouting removed
-            InferenceAction.Request deserializedInstance = copyWriteable(
-                instance,
-                getNamedWriteableRegistry(),
-                instanceReader(),
-                BaseInferenceActionRequest.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED
-            );
-
-            assertEquals(instance, deserializedInstance);
-        }
     }
 }

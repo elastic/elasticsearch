@@ -100,60 +100,6 @@ public final class IndexInputUtils {
     }
 
     /**
-     * Bulk variant of {@link #withSlice}. Resolves {@code count} byte ranges
-     * at the given file offsets to {@link MemorySegment}s and passes a
-     * resolver function to the action. The resolver maps an index
-     * {@code [0..count)} to the corresponding segment.
-     *
-     * <p> This method first tries {@link MemorySegmentAccessInput}: if a
-     * single contiguous segment covers the whole input, each slice is
-     * derived from it with no per-slice allocation. Next it tries
-     * {@link DirectAccessInput#withByteBufferSlices}. As a last resort it
-     * copies each range onto the heap.
-     *
-     * <p> The segments provided by the resolver are valid only for the
-     * duration of the action. Callers must not retain references to them.
-     *
-     * @param in              the index input
-     * @param offsets         file byte offsets for each range
-     * @param length          byte length of each range (same for all)
-     * @param count           number of ranges
-     * @param scratchSupplier supplies a byte array for the heap-copy fallback
-     * @param action          receives a function mapping index to MemorySegment
-     * @return the result of applying {@code action}
-     */
-    public static <R> R withSlices(
-        IndexInput in,
-        long[] offsets,
-        int length,
-        int count,
-        IntFunction<byte[]> scratchSupplier,
-        CheckedFunction<IntFunction<MemorySegment>, R, IOException> action
-    ) throws IOException {
-        checkInputType(in);
-        if (in instanceof MemorySegmentAccessInput msai) {
-            MemorySegment full = msai.segmentSliceOrNull(0, in.length());
-            if (full != null) {
-                return action.apply(i -> full.asSlice(offsets[i], length));
-            }
-        }
-        if (in instanceof DirectAccessInput dai) {
-            @SuppressWarnings("unchecked")
-            R[] result = (R[]) new Object[1];
-            boolean available = dai.withByteBufferSlices(offsets, length, count, bbs -> {
-                result[0] = action.apply(i -> {
-                    assert bbs[i].isDirect();
-                    return MemorySegment.ofBuffer(bbs[i]);
-                });
-            });
-            if (available) {
-                return result[0];
-            }
-        }
-        return copySlicesAndApply(in, offsets, length, count, scratchSupplier, action);
-    }
-
-    /**
      * Resolves {@code count} file ranges to native memory addresses and passes the
      * address array to the action. Tries {@link MemorySegmentAccessInput} first
      * (contiguous segment, pointer arithmetic), then {@link DirectAccessInput}
@@ -214,21 +160,25 @@ public final class IndexInputUtils {
         int count,
         CheckedConsumer<MemorySegment, IOException> action
     ) throws IOException {
-        MemorySegment full = msai.segmentSliceOrNull(0, ((IndexInput) msai).length());
-        if (full == null) {
-            return false;
-        }
-        assert validateNativeSegment(full, "mmap segment");
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment addrs = allocateAddrs(arena, count);
             for (int i = 0; i < count; i++) {
-                addrs.setAtIndex(ValueLayout.ADDRESS, i, full.asSlice(offsets[i], length));
+                var segment = msai.segmentSliceOrNull(offsets[i], length);
+                if (segment == null) {
+                    return false;
+                }
+                assert validateNativeSegment(segment, "mmap segment");
+                addrs.setAtIndex(ValueLayout.ADDRESS, i, segment);
             }
             assert validateAddresses(addrs, count);
             try {
                 action.accept(addrs);
             } finally {
-                Reference.reachabilityFence(full);
+                // We rely on the MSAI contract that segments returned by
+                // segmentSliceOrNull remain valid until the input is closed:
+                // keeping msai reachable across the native call keeps the
+                // backing memory alive.
+                Reference.reachabilityFence(msai);
             }
         }
         return true;

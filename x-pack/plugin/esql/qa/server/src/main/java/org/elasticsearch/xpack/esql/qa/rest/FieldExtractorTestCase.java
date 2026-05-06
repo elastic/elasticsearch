@@ -292,6 +292,28 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         new Test("version").test(randomVersionString());
     }
 
+    /**
+     * Querying a date_range field with doc_values disabled should return null for every document
+     * rather than throwing an exception. Before the fix, this caused a full query failure because
+     * the block loader tried to access doc values that were not present.
+     */
+    public void testDateRangeNoDocValues() throws IOException {
+        assumeDateRangeFieldTypeSupported();
+        createIndex("test", index -> {
+            index.startObject("properties");
+            index.startObject("dates");
+            index.field("type", "date_range");
+            index.field("doc_values", false);
+            index.endObject();
+            index.endObject();
+        });
+        index("test", """
+            {"dates": {"gte": "2024-01-01", "lte": "2024-12-31"}}""");
+
+        Map<String, Object> result = runEsql("FROM test* | LIMIT 10");
+        assertResultMap(result, List.of(columnInfo("dates", "date_range")), List.of(matchesList().item(null)));
+    }
+
     public void testGeoPoint() throws IOException {
         new Test("geo_point")
             // TODO we should support loading geo_point from doc values if source isn't enabled
@@ -323,14 +345,36 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         intTest().createAlias().test(randomInt());
     }
 
-    public void testFlattenedUnsupported() throws IOException {
-        assumeOriginalTypesReported();
-        new Test("flattened").createIndex("test", "flattened");
-        index("test", """
-            {"flattened": {"a": "foo"}}""");
-        Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
+    public void testFlattenedField() throws IOException {
+        assumeFlattenedDatatype();
+        int count = between(1, 3);
+        Map<String, Object> input = new TreeMap<>();
+        Map<String, Object> expected = new TreeMap<>();
+        for (int i = 0; i < count; i++) {
+            boolean nested = randomBoolean();
+            boolean array = randomBoolean();
+            String leafKey = "leaf" + i;
+            String fullKey = nested ? "parent" + i + "." + leafKey : leafKey;
+            Object value;
+            if (array) {
+                ArrayList<String> vals = new ArrayList<>();
+                vals.add(randomAlphaOfLength(5));
+                vals.add(randomValueOtherThan(vals.get(0), () -> randomAlphaOfLength(5)));
+                Collections.sort(vals);
+                value = vals;
+            } else {
+                value = randomAlphaOfLength(5);
+            }
+            input.put(fullKey, value);
+            expected.put(fullKey, value);
+        }
+        new Test("flattened").test(input, equalTo(expected));
+    }
 
-        assertResultMap(result, List.of(unsupportedColumnInfo("flattened", "flattened")), List.of(matchesList().item(null)));
+    public void testFlattenedFieldNullResult() throws IOException {
+        assumeFlattenedDatatype();
+        // Both an empty object and a missing field load as null
+        new Test("flattened").test(randomBoolean() ? Map.of() : null, null);
     }
 
     public void testEmptyMapping() throws IOException {
@@ -1520,6 +1564,18 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         var capsName = EsqlCapabilities.Cap.REPORT_ORIGINAL_TYPES.name().toLowerCase(Locale.ROOT);
         boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
         assumeTrue("This test makes sense for versions that report original types", requiredClusterCapability);
+    }
+
+    private void assumeFlattenedDatatype() throws IOException {
+        var capsName = EsqlCapabilities.Cap.FLATTENED_DATATYPE.name().toLowerCase(Locale.ROOT);
+        boolean supported = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
+        assumeTrue("Requires flattened datatype support", supported);
+    }
+
+    private void assumeDateRangeFieldTypeSupported() throws IOException {
+        var capsName = EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V3.name().toLowerCase(Locale.ROOT);
+        boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
+        assumeTrue("date_range field type not supported in this version", requiredClusterCapability);
     }
 
     private void assumeSuggestedCastReported() throws IOException {

@@ -1,0 +1,6 @@
+pr: 147504
+summary: '`DenseVectorQuery`: lazy filter evaluation and use bulk scorer'
+area: Vector Search
+type: enhancement
+issues:
+- 137042

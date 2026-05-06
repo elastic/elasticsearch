@@ -16,8 +16,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.SparseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundSparseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -30,7 +30,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 
-public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInferenceServiceRequest implements SparseEmbeddingRequest {
+public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInferenceServiceRequest
+    implements
+        OutboundSparseEmbeddingRequest {
 
     private final URI uri;
     private final ElasticInferenceServiceSparseEmbeddingsModel model;
@@ -94,7 +96,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
         return new ElasticInferenceServiceSparseEmbeddingsRequest(
             truncator,

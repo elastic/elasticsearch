@@ -13,7 +13,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.ESTestCase;
@@ -186,7 +188,14 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         var action = createRerankAction();
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new QueryAndDocsInputs("query", List.of(randomAlphaOfLength(10))), null, listener);
+        action.execute(
+            new QueryAndDocsInputs(
+                new InferenceString(DataType.TEXT, "query"),
+                List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10)))
+            ),
+            null,
+            listener
+        );
 
         var result = listener.actionGet(TIMEOUT);
         assertThat(
@@ -204,7 +213,14 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         var action = createRerankAction();
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new QueryAndDocsInputs("query", List.of(randomAlphaOfLength(10))), null, listener);
+        action.execute(
+            new QueryAndDocsInputs(
+                new InferenceString(DataType.TEXT, "query"),
+                List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10)))
+            ),
+            null,
+            listener
+        );
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("error"));
@@ -215,7 +231,14 @@ public class AlibabaCloudSearchActionCreatorTests extends ESTestCase {
         var action = createRerankAction();
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new QueryAndDocsInputs("query", List.of(randomAlphaOfLength(10))), null, listener);
+        action.execute(
+            new QueryAndDocsInputs(
+                new InferenceString(DataType.TEXT, "query"),
+                List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10)))
+            ),
+            null,
+            listener
+        );
 
         var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is("Failed to send AlibabaCloud Search rerank request. Cause: error"));

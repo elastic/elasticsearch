@@ -15,7 +15,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
@@ -132,8 +134,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "id": "embd-45e6d99b97a645c0af96653598069cd9",
@@ -192,7 +192,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -249,7 +248,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -313,7 +311,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -375,7 +372,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             var contentTooLargeErrorMessage = """
                 This model's maximum context length is 8192 tokens, however you requested 13531 tokens (13531 in your prompt;\
@@ -455,7 +451,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             var contentTooLargeErrorMessage = """
                 This model's maximum context length is 8192 tokens, however you requested 13531 tokens (13531 in your prompt;\
@@ -533,7 +528,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             var responseJson = """
                 {
@@ -588,7 +582,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -631,7 +624,11 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(QUERY_VALUE, DOCUMENTS_VALUE, null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, QUERY_VALUE), InferenceString.fromStringList(DOCUMENTS_VALUE)),
+                null,
+                listener
+            );
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationRerank(RERANK_EXPECTATIONS_WITH_TEXT_TWO_RESULTS)));
@@ -643,7 +640,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -686,7 +682,11 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(QUERY_VALUE, DOCUMENTS_VALUE, null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, QUERY_VALUE), InferenceString.fromStringList(DOCUMENTS_VALUE)),
+                null,
+                listener
+            );
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationRerank(RERANK_EXPECTATIONS_NO_TEXT_SINGLE_RESULT)));
@@ -698,7 +698,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -735,7 +734,11 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(QUERY_VALUE, DOCUMENTS_VALUE, null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, QUERY_VALUE), InferenceString.fromStringList(DOCUMENTS_VALUE)),
+                null,
+                listener
+            );
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationRerank(RERANK_EXPECTATIONS_WITH_TEXT_TWO_RESULTS)));
@@ -747,7 +750,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -784,7 +786,11 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(QUERY_VALUE, DOCUMENTS_VALUE, null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, QUERY_VALUE), InferenceString.fromStringList(DOCUMENTS_VALUE)),
+                null,
+                listener
+            );
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationRerank(RERANK_EXPECTATIONS_WITH_TEXT_TWO_RESULTS)));
@@ -796,7 +802,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -834,7 +839,13 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(QUERY_VALUE, DOCUMENTS_VALUE, RETURN_DOCUMENTS_DEFAULT_VALUE, TOP_N_DEFAULT_VALUE, false),
+                new QueryAndDocsInputs(
+                    new InferenceString(DataType.TEXT, QUERY_VALUE),
+                    InferenceString.fromStringList(DOCUMENTS_VALUE),
+                    RETURN_DOCUMENTS_DEFAULT_VALUE,
+                    TOP_N_DEFAULT_VALUE,
+                    false
+                ),
                 null,
                 listener
             );
@@ -849,7 +860,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -883,7 +893,13 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(QUERY_VALUE, DOCUMENTS_VALUE, RETURN_DOCUMENTS_OVERRIDDEN_VALUE, TOP_N_OVERRIDDEN_VALUE, false),
+                new QueryAndDocsInputs(
+                    new InferenceString(DataType.TEXT, QUERY_VALUE),
+                    InferenceString.fromStringList(DOCUMENTS_VALUE),
+                    RETURN_DOCUMENTS_OVERRIDDEN_VALUE,
+                    TOP_N_OVERRIDDEN_VALUE,
+                    false
+                ),
                 null,
                 listener
             );
@@ -898,7 +914,6 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -941,7 +956,11 @@ public class OpenShiftAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(QUERY_VALUE, DOCUMENTS_VALUE, null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, QUERY_VALUE), InferenceString.fromStringList(DOCUMENTS_VALUE)),
+                null,
+                listener
+            );
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
             assertThat(

@@ -53,6 +53,11 @@ public final class FloatArrowBufBlock extends AbstractArrowBufBlock<FloatVector,
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Float.BYTES;
+    }
+
+    @Override
     protected ArrowBufVectorConstructor<FloatVector> vectorConstructor() {
         return FloatArrowBufVector::new;
     }

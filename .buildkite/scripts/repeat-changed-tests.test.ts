@@ -6,6 +6,7 @@ import {
   deduplicateYamlRunners,
   generateBatchCommand,
   generatePipeline,
+  resolveMergeBaseTarget,
   toGradleProject,
   toFqcn,
   ClassifiedTest,
@@ -29,6 +30,16 @@ describe("toGradleProject", () => {
     expect(toGradleProject("x-pack/plugin/ml/qa/native-multi-node-tests")).toBe(
       ":x-pack:plugin:ml:qa:native-multi-node-tests"
     );
+  });
+
+  test("prefixes test- on children of test/external-modules", () => {
+    expect(toGradleProject("test/external-modules/apm-integration")).toBe(
+      ":test:external-modules:test-apm-integration"
+    );
+  });
+
+  test("leaves sibling test paths unchanged", () => {
+    expect(toGradleProject("test/fixtures/some-fixture")).toBe(":test:fixtures:some-fixture");
   });
 });
 
@@ -151,6 +162,21 @@ describe("classifyChangedFiles", () => {
         kind: "test",
         sourceSet: "test",
         fqcn: "org.elasticsearch.xpack.core.SomeTests",
+      },
+    ]);
+  });
+
+  test("classifies external-modules javaRestTest with test- prefix", () => {
+    const result = classifyChangedFiles([
+      "test/external-modules/apm-integration/src/javaRestTest/java/org/elasticsearch/test/apmintegration/ApmAgentTracesIT.java",
+    ]);
+
+    expect(result).toEqual([
+      {
+        gradleProject: ":test:external-modules:test-apm-integration",
+        kind: "javaRestTest",
+        sourceSet: "javaRestTest",
+        fqcn: "org.elasticsearch.test.apmintegration.ApmAgentTracesIT",
       },
     ]);
   });
@@ -517,5 +543,39 @@ describe("generatePipeline", () => {
     expect(pipeline.steps).toHaveLength(1);
     expect(pipeline.steps[0].group).toBe("repeat-changed-tests");
     expect(pipeline.steps[0].steps).toEqual([]);
+  });
+});
+
+describe("resolveMergeBaseTarget", () => {
+  test("uses target branch directly when ref exists locally", () => {
+    const commands: string[] = [];
+    const runner = (command: string): Buffer => {
+      commands.push(command);
+      return Buffer.from("");
+    };
+
+    const result = resolveMergeBaseTarget("main", runner, "/repo");
+
+    expect(result).toBe("main");
+    expect(commands).toEqual(["git rev-parse --verify main^{commit}"]);
+  });
+
+  test("fetches remote target and falls back to FETCH_HEAD when ref is missing", () => {
+    const commands: string[] = [];
+    const runner = (command: string): Buffer => {
+      commands.push(command);
+      if (command.startsWith("git rev-parse")) {
+        throw new Error("missing ref");
+      }
+      return Buffer.from("");
+    };
+
+    const result = resolveMergeBaseTarget("gh/MattAlp/1/base", runner, "/repo");
+
+    expect(result).toBe("FETCH_HEAD");
+    expect(commands).toEqual([
+      "git rev-parse --verify gh/MattAlp/1/base^{commit}",
+      "git fetch --no-tags origin gh/MattAlp/1/base",
+    ]);
   });
 });

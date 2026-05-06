@@ -54,7 +54,7 @@ public class ServerLauncher<D extends LaunchDescriptor> {
     }
 
     protected void run(String[] args) throws Exception {
-        Terminal.SystemStreams originalStreams = terminal.wrapSystemStreams();
+        Terminal.SystemStreams originalStreams = terminal.installSystemStreams();
         Process preparerProcess = startPreparer(args);
         PreparerOutputPump outputPump = new PreparerOutputPump(
             preparerProcess.getErrorStream(),

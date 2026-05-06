@@ -74,9 +74,9 @@ public abstract class Terminal {
      * Captures the current system streams and, if this terminal requires it,
      * replaces them with terminal-aware wrappers.
      *
-     * @return the original system streams prior to wrapping.
+     * @return the original system streams prior to installation of terminal system streams.
      */
-    public SystemStreams wrapSystemStreams() {
+    public SystemStreams installSystemStreams() {
         return new SystemStreams(System.out, System.err);
     }
 
@@ -455,15 +455,15 @@ public abstract class Terminal {
         }
 
         @Override
-        public SystemStreams wrapSystemStreams() {
+        public SystemStreams installSystemStreams() {
             if (parseBoolean(System.getenv(ES_CLI_JSON_STREAMS), true)) {
-                SystemStreams originals = super.wrapSystemStreams();
+                SystemStreams originals = super.installSystemStreams();
                 System.setOut(new TerminalPrintStream(this, false));
                 System.setErr(new TerminalPrintStream(this, true));
                 return originals;
             }
             // if not installing the JSON wrappers, let the delegate install wrappers if necessary
-            return delegate.wrapSystemStreams();
+            return delegate.installSystemStreams();
         }
 
         @Override

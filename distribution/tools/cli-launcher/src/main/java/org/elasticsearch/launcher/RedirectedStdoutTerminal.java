@@ -71,8 +71,8 @@ class RedirectedStdoutTerminal extends Terminal {
     }
 
     @Override
-    public SystemStreams wrapSystemStreams() {
-        SystemStreams originalStreams = super.wrapSystemStreams();
+    public SystemStreams installSystemStreams() {
+        SystemStreams originalStreams = super.installSystemStreams();
         System.setOut(outStream);
         System.setErr(errStream);
         return originalStreams;

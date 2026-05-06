@@ -53,7 +53,7 @@ class CliToolLauncher {
     @SuppressForbidden(reason = "uses System.out and System.err")
     public static void main(String[] args) throws Exception {
         Terminal terminal = isRedirectStdoutToStderr() ? Terminal.DEFAULT.delegateTo(RedirectedStdoutTerminal.create()) : Terminal.DEFAULT;
-        terminal.wrapSystemStreams();
+        terminal.installSystemStreams();
 
         ProcessInfo pinfo = ProcessInfo.fromSystem();
 

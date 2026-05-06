@@ -20,6 +20,8 @@ import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
 final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
+    static final DefaultESVectorUtilSupport INSTANCE = new DefaultESVectorUtilSupport();
+
     private static float fma(float a, float b, float c) {
         if (Constants.HAS_FAST_SCALAR_FMA) {
             return Math.fma(a, b, c);
@@ -205,6 +207,30 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void centerAndCalculateOSQStatsEuclidean(byte[] target, float[] centroid, float[] centered, float[] stats) {
+        float vecMean = 0;
+        float vecVar = 0;
+        float norm2 = 0;
+        float min = Float.MAX_VALUE;
+        float max = -Float.MAX_VALUE;
+        for (int i = 0; i < target.length; i++) {
+            centered[i] = (float) target[i] - centroid[i];
+            min = Math.min(min, centered[i]);
+            max = Math.max(max, centered[i]);
+            norm2 = fma(centered[i], centered[i], norm2);
+            float delta = centered[i] - vecMean;
+            vecMean += delta / (i + 1);
+            float delta2 = centered[i] - vecMean;
+            vecVar = fma(delta, delta2, vecVar);
+        }
+        stats[0] = vecMean;
+        stats[1] = vecVar / target.length;
+        stats[2] = norm2;
+        stats[3] = min;
+        stats[4] = max;
+    }
+
+    @Override
     public void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats) {
         float vecMean = 0;
         float vecVar = 0;
@@ -215,6 +241,34 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         for (int i = 0; i < target.length; i++) {
             centroidDot = fma(target[i], centroid[i], centroidDot);
             centered[i] = target[i] - centroid[i];
+            min = Math.min(min, centered[i]);
+            max = Math.max(max, centered[i]);
+            norm2 = fma(centered[i], centered[i], norm2);
+            float delta = centered[i] - vecMean;
+            vecMean += delta / (i + 1);
+            float delta2 = centered[i] - vecMean;
+            vecVar = fma(delta, delta2, vecVar);
+        }
+        stats[0] = vecMean;
+        stats[1] = vecVar / target.length;
+        stats[2] = norm2;
+        stats[3] = min;
+        stats[4] = max;
+        stats[5] = centroidDot;
+    }
+
+    @Override
+    public void centerAndCalculateOSQStatsDp(byte[] target, float[] centroid, float[] centered, float[] stats) {
+        float vecMean = 0;
+        float vecVar = 0;
+        float norm2 = 0;
+        float centroidDot = 0;
+        float min = Float.MAX_VALUE;
+        float max = -Float.MAX_VALUE;
+        for (int i = 0; i < target.length; i++) {
+            float t = (float) target[i];
+            centroidDot = fma(t, centroid[i], centroidDot);
+            centered[i] = t - centroid[i];
             min = Math.min(min, centered[i]);
             max = Math.max(max, centered[i]);
             norm2 = fma(centered[i], centered[i], norm2);

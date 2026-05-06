@@ -343,6 +343,24 @@ public class ESVectorUtil {
     }
 
     /**
+     * Center the byte target vector and calculate the optimized-scalar quantization statistics for euclidean similarity.
+     * @param target The byte vector being quantized
+     * @param centroid The centroid of the target vector
+     * @param centered The destination of the centered vector, will be overwritten
+     * @param stats The array to store the statistics, must be of length 5
+     */
+    public static void centerAndCalculateOSQStatsEuclidean(byte[] target, float[] centroid, float[] centered, float[] stats) {
+        assert stats.length == 5;
+        if (target.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
+        }
+        if (centered.length != target.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
+        }
+        IMPL.centerAndCalculateOSQStatsEuclidean(target, centroid, centered, stats);
+    }
+
+    /**
      * Center the target vector and calculate the optimized-scalar quantization statistics
      * @param target The vector being quantized
      * @param centroid The centroid of the target vector
@@ -361,7 +379,24 @@ public class ESVectorUtil {
     }
 
     /**
-     * Calculates the difference between two vectors and stores the result in a third vector.
+     * Center the byte target vector and calculate the optimized-scalar quantization statistics for dot-product similarity.
+     * @param target The byte vector being quantized
+     * @param centroid The centroid of the target vector
+     * @param centered The destination of the centered vector, will be overwritten
+     * @param stats The array to store the statistics, must be of length 6
+     */
+    public static void centerAndCalculateOSQStatsDp(byte[] target, float[] centroid, float[] centered, float[] stats) {
+        if (target.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
+        }
+        if (centered.length != target.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
+        }
+        assert stats.length == 6;
+        IMPL.centerAndCalculateOSQStatsDp(target, centroid, centered, stats);
+    }
+
+    /** Calculates the difference between two vectors and stores the result in a third vector.
      * @param v1 the first vector
      * @param v2 the second vector
      * @param result the result vector, must be the same length as the input vectors

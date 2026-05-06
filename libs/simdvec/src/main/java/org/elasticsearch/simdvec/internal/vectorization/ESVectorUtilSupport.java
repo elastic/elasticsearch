@@ -73,7 +73,11 @@ public interface ESVectorUtilSupport {
 
     void centerAndCalculateOSQStatsEuclidean(float[] target, float[] centroid, float[] centered, float[] stats);
 
+    void centerAndCalculateOSQStatsEuclidean(byte[] target, float[] centroid, float[] centered, float[] stats);
+
     void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats);
+
+    void centerAndCalculateOSQStatsDp(byte[] target, float[] centroid, float[] centered, float[] stats);
 
     float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm);
 

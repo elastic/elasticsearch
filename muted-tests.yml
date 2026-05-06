@@ -527,18 +527,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
   method: testCloseWhileSegmentatorParkedOnDispatchPermit
   issue: https://github.com/elastic/elasticsearch/issues/148229
-- class: org.elasticsearch.xpack.esql.action.ExternalParquetCountPushdownIT
-  method: testCountStarPushdownCoordinatorOnly
-  issue: https://github.com/elastic/elasticsearch/issues/148116
-- class: org.elasticsearch.xpack.esql.action.ExternalParquetCountPushdownIT
-  method: testCountStarPushdown
-  issue: https://github.com/elastic/elasticsearch/issues/148118
-- class: org.elasticsearch.xpack.esql.action.ExternalParquetCountPushdownIT
-  method: testCountStarPushdownSingleRowGroup
-  issue: https://github.com/elastic/elasticsearch/issues/148119
-- class: org.elasticsearch.xpack.esql.action.ExternalParquetCountPushdownIT
-  method: testCountStarPushdownManyRowGroups
-  issue: https://github.com/elastic/elasticsearch/issues/148117
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testCommitsTrackingTakesIntoAccountSearchNodeUsage
   issue: https://github.com/elastic/elasticsearch/issues/148300

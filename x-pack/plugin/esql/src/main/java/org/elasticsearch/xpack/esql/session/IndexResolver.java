@@ -80,12 +80,20 @@ public class IndexResolver {
         .build();
 
     /**
-     * Configuration options used for resolving indices in a "flat world"/CPS context.
+     * Configuration options used for resolving indices in a CPS context.
      * Those options shift index resolution validation to FieldCaps action itself
      * as well as automatically expand flat expressions to multiple qualified ones.
      */
-    private static final IndicesOptions FLAT_WORLD_OPTIONS = IndicesOptions.builder(DEFAULT_OPTIONS)
+    private static final IndicesOptions FLAT_STRICT_OPTIONS = IndicesOptions.builder(DEFAULT_OPTIONS)
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .crossProjectModeOptions(new CrossProjectModeOptions(true))
+        .build();
+
+    /**
+     * Same as above, except lenient (eg allows expressions to be missing)
+     */
+    private static final IndicesOptions FLAT_LENIENT_OPTIONS = IndicesOptions.builder(DEFAULT_OPTIONS)
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .crossProjectModeOptions(new CrossProjectModeOptions(true))
         .build();
 
@@ -171,10 +179,9 @@ public class IndexResolver {
     }
 
     /**
-     * Like {@code IndexResolver#resolveIndicesVersioned}
-     * but for flat world queries.
+     * Like {@code IndexResolver#resolveIndicesVersioned} but for flat queries.
      */
-    public void resolveMainFlatWorldIndicesVersioned(
+    public void resolveStrictFlatIndicesVersioned(
         String indexPattern,
         String projectRouting,
         Set<String> fieldNames,
@@ -192,15 +199,68 @@ public class IndexResolver {
         ActionListener<Versioned<IndexResolution>> listener
     ) {
         doResolveIndices(
-            createFieldCapsRequest(FLAT_WORLD_OPTIONS, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
+            createFieldCapsRequest(
+                FLAT_STRICT_OPTIONS,
+                indexPattern,
+                projectRouting,
+                fieldNames,
+                requestFilter,
+                includeAllDimensions,
+                true
+            ),
             indexPattern,
-            true, /* cps/flat index expression might resolve to empty */
+            true, /* flat index expression could resolve to empty */
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
             hasTimeSeriesAggregation,
             trackUnmappedFieldIndices,
-            (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
+            (innerIndexPattern, fieldCapabilitiesResponse) -> Maps.transformValues(
+                EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
+                v -> List.copyOf(v.expression())
+            ),
+            listener.delegateResponse((l, e) -> {
+                var infe = (IndexNotFoundException) ExceptionsHelper.unwrap(e, IndexNotFoundException.class);
+                l.onFailure(infe != null ? new VerificationException("Unknown index [" + infe.getIndex().getName() + "]") : e);
+            })
+        );
+    }
+
+    public void resolveLenientFlatIndicesVersioned(
+        String indexPattern,
+        String projectRouting,
+        Set<String> fieldNames,
+        QueryBuilder requestFilter,
+        boolean includeAllDimensions,
+        TransportVersion minimumVersion,
+        // Used for bwc with 9.2.0, which supports aggregate_metric_double but doesn't provide its version in the field
+        // caps response. We'll just assume the type is supported based on usage in the query to not break compatibility
+        // with 9.2.0.
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        // Same as above
+        boolean useDenseVectorWhenNotSupported,
+        boolean hasTimeSeriesAggregation,
+        boolean trackUnmappedFieldIndices,
+        ActionListener<Versioned<IndexResolution>> listener
+    ) {
+        doResolveIndices(
+            createFieldCapsRequest(
+                FLAT_LENIENT_OPTIONS,
+                indexPattern,
+                projectRouting,
+                fieldNames,
+                requestFilter,
+                includeAllDimensions,
+                true
+            ),
+            indexPattern,
+            true, /* flat index expression could resolve to empty */
+            minimumVersion,
+            useAggregateMetricDoubleWhenNotSupported,
+            useDenseVectorWhenNotSupported,
+            hasTimeSeriesAggregation,
+            trackUnmappedFieldIndices,
+            (innerIndexPattern, fieldCapabilitiesResponse) -> Maps.transformValues(
                 EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
                 v -> List.copyOf(v.expression())
             ),

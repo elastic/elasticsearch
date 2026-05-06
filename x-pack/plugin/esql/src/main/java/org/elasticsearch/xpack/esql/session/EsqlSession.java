@@ -1419,7 +1419,7 @@ public class EsqlSession {
         ActionListener<PreAnalysisResult> listener
     ) {
         executionInfo.queryProfile().incFieldCapsCalls();
-        indexResolver.resolveMainFlatWorldIndicesVersioned(
+        indexResolver.resolveStrictFlatIndicesVersioned(
             indexPattern.indexPattern(),
             projectRouting,
             result.fieldNames,
@@ -1439,7 +1439,7 @@ public class EsqlSession {
                 planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 maybeRetryConcreteTimeSeriesResolution(indexPattern, indexMode, result, indexResolution, l, retryListener -> {
                     executionInfo.queryProfile().incFieldCapsCalls();
-                    indexResolver.resolveMainFlatWorldIndicesVersioned(
+                    indexResolver.resolveStrictFlatIndicesVersioned(
                         indexPattern.indexPattern(),
                         projectRouting,
                         result.fieldNames,

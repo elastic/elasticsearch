@@ -685,18 +685,15 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         }
     }
 
-    public void testWildcardLikeNotInverts() {
-        // Pins the actual two-valued bit semantics of Not: WordMask#negate flips every bit, so a
-        // null row (LIKE bit = 0, by parity with AutomataMatch.process(null) = false) becomes a
-        // survivor after negation. With ["x.google.com", "x.bing.com", null] and pattern "*google*",
-        // LIKE produces mask {1,0,0}; Not flips it to {0,1,1}.
-        //
-        // Note: SQL three-valued logic says NOT (NULL LIKE p) is unknown and should not survive.
-        // The bitmask path here intentionally does not encode TVL — correctness of NOT (LIKE …)
-        // around nulls is restored by the FilterExec re-check that PushFiltersToSource always
-        // keeps downstream of late-mat (ParquetFilterPushdownSupport.canPush returns RECHECK and
-        // pushFilters keeps every original conjunct in the remainder). The contract is documented
-        // on ParquetPushedExpressions#evaluateWildcardLike.
+    public void testWildcardLikeNotInvertsAndExcludesNulls() {
+        // Pins SQL three-valued logic for NOT (col LIKE p): a null row evaluates to UNKNOWN
+        // and must not survive the predicate, even though its bit in the inner LIKE mask is 0.
+        // With ["x.google.com", "x.bing.com", null] and pattern "*google*":
+        // LIKE mask = {1, 0, 0} (index 2 is 0 because null, not because no-match)
+        // |= null mask = {1, 0, 1}
+        // negate = {0, 1, 0} ← survivors
+        // Without the Not(WildcardLike) special case in evaluateExpression, the result would be
+        // {0, 1, 1} and the YES pushdown would silently change query results around nulls.
         try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
             builder.appendBytesRef(new BytesRef("x.google.com"));
             builder.appendBytesRef(new BytesRef("x.bing.com"));
@@ -707,7 +704,46 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
 
             Expression like = new WildcardLike(Source.EMPTY, attr("url", DataType.KEYWORD), new WildcardPattern("*google*"));
             Expression not = new Not(Source.EMPTY, like);
-            assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, reusable, new int[] { 1, 2 });
+            assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 3, reusable, new int[] { 1 });
+        }
+    }
+
+    public void testWildcardLikeNotOnAllNullColumn() {
+        // Pure-null block: NOT (NULL LIKE p) is UNKNOWN for every row, so zero survivors.
+        // Exercises the mayHaveNulls() fast path being false (always-null) — guards against
+        // the inverse mistake of optimizing away the null scan when nulls are dense.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendNull();
+            builder.appendNull();
+            builder.appendNull();
+            builder.appendNull();
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("url", block);
+            WordMask reusable = new WordMask();
+
+            Expression like = new WildcardLike(Source.EMPTY, attr("url", DataType.KEYWORD), new WildcardPattern("*google*"));
+            Expression not = new Not(Source.EMPTY, like);
+            assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 4, reusable, new int[] {});
+        }
+    }
+
+    public void testWildcardLikeNotWithoutNullsMatchesGenericNegate() {
+        // When the block has no nulls, Not(WildcardLike) must agree with the generic "evaluate
+        // then negate" path: the null-OR step is a no-op. This locks in that the TVL fix doesn't
+        // perturb the no-null common case (e.g. dense URL columns on web-traffic logs).
+        try (var builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(new BytesRef("alpha"));
+            builder.appendBytesRef(new BytesRef("beta"));
+            builder.appendBytesRef(new BytesRef("alphabet"));
+            builder.appendBytesRef(new BytesRef("gamma"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern("alpha*"));
+            Expression not = new Not(Source.EMPTY, like);
+            // alpha + alphabet match the inner LIKE; NOT flips to {beta, gamma}.
+            assertSurvivors(new ParquetPushedExpressions(List.of(not)), blocks, 4, reusable, new int[] { 1, 3 });
         }
     }
 

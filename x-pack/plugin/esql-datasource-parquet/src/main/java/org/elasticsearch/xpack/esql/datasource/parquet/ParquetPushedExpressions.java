@@ -595,6 +595,25 @@ final class ParquetPushedExpressions {
             return null;
         }
         if (expr instanceof Not not) {
+            // Special case: NOT (col LIKE p) needs SQL three-valued logic so that
+            // NOT (NULL LIKE p) → UNKNOWN → row is filtered out (bit 0), not flipped
+            // to bit 1 by the generic negate. This is a hard requirement for the YES
+            // pushability of WildcardLike (see ParquetFilterPushdownSupport.isFullyEvaluable);
+            // without this branch, dropping FilterExec for NOT (LIKE) would let null rows
+            // survive the predicate, giving wrong results.
+            //
+            // Implementation: build the LIKE mask and the null mask, OR them ("matches OR
+            // null"), then negate to get "non-null AND no-match" — the TVL-correct survivor
+            // set. The mask for the inner WildcardLike already maps null rows to bit 0, so
+            // OR-ing the explicit null mask is what restores the missing TVL bit before
+            // the bitwise complement.
+            if (not.field() instanceof WildcardLike wl && wl.field() instanceof NamedExpression ne) {
+                Block block = blocks.get(ne.name());
+                if (block == null) {
+                    return null;
+                }
+                return evaluateNotWildcardLike(wl, block, rowCount);
+            }
             WordMask inner = evaluateExpression(not.field(), blocks, rowCount);
             if (inner != null) {
                 inner.negate();
@@ -909,28 +928,35 @@ final class ParquetPushedExpressions {
      * collapses {@code O(rowCount)} automaton runs into {@code O(dictionarySize)} runs plus a
      * per-row int lookup.
      *
-     * <p><b>Null and {@code NOT} semantics.</b> The mask is two-valued: a row's bit is set when
-     * the value is non-null and the automaton accepts its bytes. Nulls map to bit {@code 0}, the
-     * same convention as {@link #evaluateStartsWith} and the standard runtime
+     * <p><b>Null semantics.</b> The mask is two-valued: a row's bit is set when the value is
+     * non-null and the automaton accepts its bytes. Nulls map to bit {@code 0}, the same convention
+     * as {@link #evaluateStartsWith} and the standard runtime
      * {@link org.elasticsearch.xpack.esql.expression.function.scalar.string.AutomataMatch#process}
-     * (which returns {@code false} for null input). When the caller composes with
-     * {@link org.elasticsearch.xpack.esql.expression.predicate.logical.Not}, {@link WordMask#negate}
-     * flips every bit including those for null rows, so {@code NOT (col LIKE p)} would mark nulls
-     * as survivors here. That diverges from SQL three-valued logic, which says
-     * {@code NOT (NULL LIKE p)} is unknown and should be filtered out. <b>Correctness depends on
-     * the FilterExec re-check that always remains downstream of late-mat</b> — see
-     * {@link ParquetFilterPushdownSupport#canPush} which only ever returns
-     * {@link org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport.Pushability#RECHECK},
-     * and {@link ParquetFilterPushdownSupport#pushFilters} which keeps every original conjunct in
-     * the remainder. If a future change ever drops that re-check, this method's null handling for
-     * the {@code Not}-wrapped case must be tightened (e.g. by emitting a separate "definitely
-     * null" mask and AND-ing it out after negation).
+     * (which returns {@code false} for null input). For a bare {@code col LIKE p}, this is the
+     * SQL three-valued-logic answer ({@code NULL LIKE p} → unknown → not a survivor) and the
+     * predicate can be pushed as
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport.Pushability#YES}.
+     *
+     * <p><b>{@code NOT (col LIKE p)} semantics.</b> A naive {@link WordMask#negate} on this mask
+     * is wrong for nulls: bit {@code 0} for "no match" is correctly flipped to bit {@code 1}, but
+     * bit {@code 0} for "null" is also flipped to bit {@code 1} — and SQL TVL says
+     * {@code NOT (NULL LIKE p)} is unknown and must not survive. The {@code Not(WildcardLike)}
+     * branch in {@link #evaluateExpression} routes through {@link #evaluateNotWildcardLike}, which
+     * OR-s the explicit null mask before negating. <b>YES pushability for {@code NOT (col LIKE p)}
+     * depends on that special case</b>, and on the gating in
+     * {@link ParquetFilterPushdownSupport#isFullyEvaluable}, which only allows {@code YES} for
+     * {@code Not} when its child is a bare {@link WildcardLike}.
      *
      * <p>Returns {@code null} when the block is neither an {@link OrdinalBytesRefBlock} on the
      * dense path nor a {@link BytesRefBlock} (e.g. a constant-null block) — the conservative
      * "all rows survive" sentinel that {@link #evaluateFilter} treats as a no-op for this
-     * predicate. Returns {@code null} also when the pattern is unusable (failed to determinize),
-     * matching the safety-net role of the FilterExec re-check.
+     * predicate. Returns {@code null} also when the pattern is unusable (failed to determinize).
+     * Both cases are safe under RECHECK because {@code FilterExec} re-checks; under YES they are
+     * prevented at plan time by {@link ParquetFilterPushdownSupport#canPush}, which probes
+     * {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern#createAutomaton}
+     * up front and falls back to RECHECK if it throws. The Parquet KEYWORD reader always produces
+     * one of the two supported block types, so the block-type {@code null} sentinel is unreachable
+     * on the YES path in practice.
      */
     private WordMask evaluateWildcardLike(WildcardLike wl, Block block, int rowCount) {
         CompiledWildcard compiled = automatonFor(wl);
@@ -971,6 +997,52 @@ final class ParquetPushedExpressions {
             return mask;
         }
         return null;
+    }
+
+    /**
+     * Evaluates {@code NOT (col LIKE p)} with SQL three-valued logic.
+     *
+     * <p>The straightforward {@code WordMask#negate} flip on the result of
+     * {@link #evaluateWildcardLike} is wrong for null rows: the inner mask sets bit {@code 0}
+     * for both "non-match" and "null", so the complement would mark nulls as survivors. SQL
+     * says {@code NOT (NULL LIKE p)} is unknown and must not survive the predicate.
+     *
+     * <p>This method computes the survivor set "non-null AND no-match" directly:
+     * {@code mask = LIKE(col, p)} (bit {@code 1} on match, bit {@code 0} on null/no-match);
+     * then for every row that is null, set the bit (turning the mask into "match OR null");
+     * then negate. The result has bit {@code 1} only for rows that are non-null and don't
+     * match — TVL-correct.
+     *
+     * <p>Returns {@code null} when {@link #evaluateWildcardLike} returns {@code null}
+     * (block type unsupported or pattern failed to determinize). The caller propagates that
+     * up; {@link #evaluateFilter} treats it as "all rows survive" — the same conservative
+     * sentinel used everywhere in this evaluator. <b>That null-return is only safe when the
+     * predicate is RECHECK'd downstream</b>, but the YES path in
+     * {@link ParquetFilterPushdownSupport} only fires when the block is a
+     * {@link BytesRefBlock}/{@link OrdinalBytesRefBlock} (the Parquet KEYWORD reader's only
+     * output) and the pattern is determinizable (KEYWORD inputs guarantee valid UTF-8 and
+     * {@link org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern}'s
+     * automaton build only throws {@code TooComplexToDeterminize} for pathological patterns
+     * far beyond {@code "*google*"}). If a future change broadens the YES-eligible set, this
+     * contract must be revisited.
+     */
+    private WordMask evaluateNotWildcardLike(WildcardLike wl, Block block, int rowCount) {
+        WordMask likeMask = evaluateWildcardLike(wl, block, rowCount);
+        if (likeMask == null) {
+            return null;
+        }
+        // Set bit i for null rows so the subsequent negate turns them into 0 (filtered out).
+        // mayHaveNulls() is a cheap pre-check that lets the all-non-nulls common case skip
+        // the per-row scan; matches the WildcardLike scalar path.
+        if (block.mayHaveNulls()) {
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i)) {
+                    likeMask.set(i);
+                }
+            }
+        }
+        likeMask.negate();
+        return likeMask;
     }
 
     /**

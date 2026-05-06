@@ -142,6 +142,8 @@ public final class CsvFixtureParser {
                 continue;
             }
             if (c == '[' && fieldHasNonWhitespace == false) {
+                // No hasMvcBracketClose check here: see CsvFormatReader.CsvBatchIterator.hasUnclosedQuote
+                // for the rationale — unconditional bracket entry is safe and avoids false multi-line gluing.
                 bracketDepth = 1;
                 continue;
             }
@@ -162,8 +164,12 @@ public final class CsvFixtureParser {
         return true;
     }
 
-    /** Same semantics as {@link CsvFormatReader} bracket lookahead — see that class. */
-    private static boolean hasMvcBracketClose(String line, int openBracketIndex, char quote, char esc, char delim) {
+    /**
+     * Whether {@code line} starting at {@code openBracketIndex} contains a balanced bracket suffix that closes the
+     * MVC cell. Only {@code [} and {@code ]} adjust depth — quote/escape/delimiter characters inside the bracket
+     * cell are treated as literal data, matching the splitter's {@code bracketDepth > 0} branch.
+     */
+    private static boolean hasMvcBracketClose(String line, int openBracketIndex) {
         if (openBracketIndex < 0 || openBracketIndex >= line.length() || line.charAt(openBracketIndex) != '[') {
             return false;
         }
@@ -223,7 +229,7 @@ public final class CsvFixtureParser {
                 inQuotes = true;
                 i++;
             } else if (c == '[' && (current.length() == 0 || isWhitespaceOnlyFieldPrefix(current))) {
-                if (hasMvcBracketClose(line, i, quote, esc, delim)) {
+                if (hasMvcBracketClose(line, i)) {
                     bracketDepth = 1;
                 }
                 current.append(c);
@@ -251,6 +257,7 @@ public final class CsvFixtureParser {
             entries.add(current.toString().trim());
         }
         // Trailing delimiter (RFC 4180): one more empty field after the last comma, unless escaped as \,
+        // No inQuotes guard needed: if we reach here with an unclosed quote the throw above fires first.
         if (line.length() > 0 && line.charAt(line.length() - 1) == delim) {
             int last = line.length() - 1;
             if (last == 0 || line.charAt(last - 1) != esc) {

@@ -1055,14 +1055,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Whether {@code line} contains a bracket-multi-value cell opener at {@code openBracketIndex} that is closed by a
-     * matching {@code ]} with correct nesting. If not (e.g. literal {@code [6:42)} text), bracket-aware splitting must
-     * not treat {@code ,} inside the cell as internal MV commas — otherwise the parser never sees {@code ]} and fails
-     * with "Unclosed bracket cell".
-     * <p>
-     * Quote and {@code esc}+{@code delim} rules match {@code splitLineBracketAware} on the batch iterator.
-     */
-    /**
      * Whether {@code current} contains only whitespace — treated like an empty field prefix so a following {@code [}
      * still opens bracket MVC parsing (mirrors parallel record-boundary scanning).
      */
@@ -1077,13 +1069,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /**
      * Whether {@code line} starting at {@code openBracketIndex} contains a balanced bracket suffix that closes the
-     * MVC cell. Mirrors the splitter's {@code bracketDepth > 0} branch which treats every byte inside the cell as
-     * literal: only {@code [} and {@code ]} adjust depth. A stray {@code "} or {@code \} inside the cell is data,
-     * not a quote toggle — otherwise real-world rows like {@code [text",1,2013-...,38,-12345]} would look unclosed
-     * here, the splitter would treat the leading {@code [} as literal, and the inner commas would become delimiters,
-     * yielding extra columns and the {@code "row has [N+k] columns but schema defines [N]"} failure.
+     * MVC cell. Only {@code [} and {@code ]} adjust depth — quote/escape/delimiter characters inside the bracket
+     * cell are treated as literal data (matching the splitter's {@code bracketDepth > 0} branch). A stray {@code "}
+     * or {@code \} inside the cell is data, not a quote toggle — otherwise real-world rows like
+     * {@code [text",1,2013-...,38,-12345]} would look unclosed here, the splitter would treat the leading {@code [}
+     * as literal, and the inner commas would become delimiters, yielding extra columns and the
+     * {@code "row has [N+k] columns but schema defines [N]"} failure.
      */
-    private static boolean hasMvcBracketClose(String line, int openBracketIndex, char quote, char esc, char delim) {
+    private static boolean hasMvcBracketClose(String line, int openBracketIndex) {
         if (openBracketIndex < 0 || openBracketIndex >= line.length() || line.charAt(openBracketIndex) != '[') {
             return false;
         }
@@ -1159,7 +1152,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 inQuotes = true;
                 continue;
             }
-            if (c == '[' && fieldHasNonWhitespace == false && hasMvcBracketClose(line, i, quote, esc, delim)) {
+            if (c == '[' && fieldHasNonWhitespace == false && hasMvcBracketClose(line, i)) {
                 bracketDepth = 1;
                 continue;
             }
@@ -1216,7 +1209,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 inQuotes = true;
                 i++;
             } else if (c == '[' && (current.length() == 0 || isWhitespaceOnlyFieldPrefix(current))) {
-                if (hasMvcBracketClose(line, i, quote, esc, delim)) {
+                if (hasMvcBracketClose(line, i)) {
                     bracketDepth = 1;
                 }
                 current.append(c);
@@ -1531,6 +1524,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     continue;
                 }
                 if (c == '[' && fieldHasNonWhitespace == false) {
+                    // Intentionally enters bracket mode without calling hasMvcBracketClose: this
+                    // method only determines whether a quote is unclosed for multi-line gluing.
+                    // An unclosed bracket here is harmless (it suppresses quote detection for the
+                    // remainder of the line) while a false-negative hasMvcBracketClose would cause
+                    // spurious multi-line gluing on rows with stray quotes inside bracket cells.
                     bracketDepth = 1;
                     continue;
                 }

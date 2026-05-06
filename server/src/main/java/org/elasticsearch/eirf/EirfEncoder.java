@@ -62,7 +62,6 @@ public class EirfEncoder implements Releasable {
     private static final int HEADER_SIZE = 32;
     private static final int INITIAL_CAPACITY = 16;
     private static final int INITIAL_PARTITION_CAPACITY = 4;
-    public static final int DEFAULT_PARTITION = 0;
 
     private final EirfSchema schema;
     private final ScratchBuffers scratch;
@@ -83,9 +82,9 @@ public class EirfEncoder implements Releasable {
      * Adds a single document to the encoder's default partition. Equivalent to
      * {@code parseToScratch(source, xContentType, NO_OP_LEAF_SINK); commitScratchTo(DEFAULT_PARTITION);}.
      */
-    public void addDocument(BytesReference source, XContentType xContentType) throws IOException {
+    public void addDocument(BytesReference source, XContentType xContentType, int partition) throws IOException {
         parseToScratch(source, xContentType, LeafSink.NO_OP);
-        commitScratchTo(DEFAULT_PARTITION);
+        commitScratchTo(partition);
     }
 
     /**
@@ -136,14 +135,6 @@ public class EirfEncoder implements Releasable {
     }
 
     /**
-     * Builds the {@link EirfBatch} for the {@link #DEFAULT_PARTITION default partition}. Equivalent
-     * to {@code buildPartition(DEFAULT_PARTITION)}.
-     */
-    public EirfBatch build() {
-        return buildPartition(DEFAULT_PARTITION);
-    }
-
-    /**
      * Builds an {@link EirfBatch} for the partition identified by {@code partitionKey}. Producing a
      * batch consumes that partition's row data; subsequent calls for the same key will produce an
      * empty batch.
@@ -154,13 +145,6 @@ public class EirfEncoder implements Releasable {
         BytesReference headerBytes = buildHeader(schema, partition.docCount, partition.rowOffsets, partition.rowLengths, rowBytes.length());
         BytesReference combined = CompositeBytesReference.of(headerBytes, rowBytes);
         return new EirfBatch(combined, rowBytes);
-    }
-
-    /**
-     * Returns the doc count of the {@link #DEFAULT_PARTITION default partition}.
-     */
-    public int docCount() {
-        return docCount(DEFAULT_PARTITION);
     }
 
     /**
@@ -179,10 +163,6 @@ public class EirfEncoder implements Releasable {
     public boolean hasPartition(int partitionKey) {
         Partition partition = partitionKey < partitions.length ? partitions[partitionKey] : null;
         return partition != null && partition.docCount > 0;
-    }
-
-    EirfSchema schema() {
-        return schema;
     }
 
     /**
@@ -218,9 +198,9 @@ public class EirfEncoder implements Releasable {
     public static EirfBatch encode(List<BytesReference> sources, XContentType xContentType) throws IOException {
         try (EirfEncoder encoder = new EirfEncoder()) {
             for (BytesReference source : sources) {
-                encoder.addDocument(source, xContentType);
+                encoder.addDocument(source, xContentType, 0);
             }
-            return encoder.build();
+            return encoder.buildPartition(0);
         }
     }
 

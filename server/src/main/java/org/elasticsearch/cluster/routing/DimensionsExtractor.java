@@ -42,11 +42,16 @@ import org.elasticsearch.xcontent.XContentString;
 final class DimensionsExtractor extends RoutingExtractor {
 
     private final IndexRouting.ExtractFromSource.ForIndexDimensions strategy;
-    private TsidBuilder tsidBuilder;
+    private final TsidBuilder tsidBuilder;
 
     DimensionsExtractor(IndexRouting.ExtractFromSource.ForIndexDimensions strategy) {
         this.strategy = strategy;
         this.tsidBuilder = new TsidBuilder();
+    }
+
+    @Override
+    protected void resetBuilderState() {
+        tsidBuilder.reset();
     }
 
     @Override
@@ -85,14 +90,6 @@ final class DimensionsExtractor extends RoutingExtractor {
     @Override
     protected void handleBooleanPrimitive(String dottedPath, boolean value) {
         tsidBuilder.addBooleanDimension(dottedPath, value);
-    }
-
-    @Override
-    protected void resetBuilderState() {
-        // TsidBuilder has no clear() method; allocate a fresh one per document. This matches the
-        // existing source-parser path which also constructs a new TsidBuilder per call to
-        // ForIndexDimensions.buildTsid.
-        tsidBuilder = new TsidBuilder();
     }
 
     @Override

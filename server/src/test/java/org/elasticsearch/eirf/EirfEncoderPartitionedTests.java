@@ -144,14 +144,13 @@ public class EirfEncoderPartitionedTests extends ESTestCase {
         }
     }
 
-    public void testLegacyAddDocumentStillWorks() throws IOException {
-        // Regression: addDocument + build (single-partition shorthand) must continue to work.
+    public void testAddDocumentWorks() throws IOException {
         try (EirfEncoder encoder = new EirfEncoder()) {
             encoder.addDocument(json("""
-                {"x":1}"""), XContentType.JSON);
+                {"x":1}"""), XContentType.JSON, 0);
             encoder.addDocument(json("""
-                {"x":2}"""), XContentType.JSON);
-            try (EirfBatch batch = encoder.build()) {
+                {"x":2}"""), XContentType.JSON, 0);
+            try (EirfBatch batch = encoder.buildPartition(0)) {
                 assertThat(batch.docCount(), equalTo(2));
             }
         }

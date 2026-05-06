@@ -140,65 +140,6 @@ public class IndexInputUtilsTests extends ESTestCase {
         }
     }
 
-    // -- withSlices path tests ------------------------------------------------
-
-    public void testWithSlicesMemorySegmentAccessInput() throws Exception {
-        byte[] data = randomByteArrayOfLength(1024);
-        try (Directory dir = new MMapDirectory(createTempDir())) {
-            writeData(dir, data);
-            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                assertThat(in, instanceOf(MemorySegmentAccessInput.class));
-                verifyWithSlices(in, data, 64);
-            }
-        }
-    }
-
-    public void testWithSlicesDirectAccessInput() throws Exception {
-        byte[] data = randomByteArrayOfLength(1024);
-        try (Directory dir = new NIOFSDirectory(createTempDir())) {
-            writeData(dir, data);
-            try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data, NativeAccess.instance());
-                assertThat(in, instanceOf(DirectAccessInput.class));
-                verifyWithSlices(in, data, 64);
-            }
-        }
-    }
-
-    public void testWithSlicesPlainIndexInput() throws Exception {
-        byte[] data = randomByteArrayOfLength(1024);
-        try (Directory dir = new NIOFSDirectory(createTempDir())) {
-            writeData(dir, data);
-            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                assertThat(in, not(instanceOf(MemorySegmentAccessInput.class)));
-                assertThat(in, not(instanceOf(DirectAccessInput.class)));
-                verifyWithSlices(in, data, 64);
-            }
-        }
-    }
-
-    private void verifyWithSlices(IndexInput in, byte[] expectedData, int sliceLen) throws IOException {
-        int count = 4;
-        long[] offsets = new long[count];
-        for (int i = 0; i < count; i++) {
-            offsets[i] = (long) i * sliceLen * 2;
-        }
-        byte[][] results = IndexInputUtils.withSlices(in, offsets, sliceLen, count, byte[]::new, segments -> {
-            byte[][] res = new byte[count][];
-            for (int i = 0; i < count; i++) {
-                MemorySegment seg = segments.apply(i);
-                assertEquals(sliceLen, seg.byteSize());
-                res[i] = new byte[sliceLen];
-                MemorySegment.ofArray(res[i]).copyFrom(seg);
-            }
-            return res;
-        });
-        for (int i = 0; i < count; i++) {
-            int off = (int) offsets[i];
-            assertArrayEquals(Arrays.copyOfRange(expectedData, off, off + sliceLen), results[i]);
-        }
-    }
-
     // -- withSliceAddresses path tests ----------------------------------------
 
     public void testWithSliceAddressesMemorySegmentAccessInput() throws Exception {

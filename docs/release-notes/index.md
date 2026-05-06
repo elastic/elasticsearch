@@ -42,11 +42,10 @@ versatility of ES|QL and makes it easier for users to integrate with Prometheus 
 
 The syntax is illustrated in the following example:
 
-[source,yaml]
-----
+```esql
 PROMQL index=k8s-downsampled start="2026-02-17T08:00:00Z" end="2026-02-17T09:00:00Z" step=30m avg_bytes=(avg(rate(network.total_bytes_in[30m])))
 | SORT avg_bytes DESC, step;
-----
+```
 ::::
 
 ::::{dropdown} Discover time series metrics with ES|QL `METRICS_INFO`
@@ -57,22 +56,20 @@ are typed before you aggregate with `STATS`.
 
 For example, list metrics sorted by name:
 
-[source,esql]
-----
+```esql
 TS my_data_stream
 | METRICS_INFO
 | SORT metric_name
-----
+```
 
 Or filter to counters only:
 
-[source,esql]
-----
+```esql
 TS my_data_stream
 | METRICS_INFO
 | WHERE metric_type == "counter"
 | SORT metric_name
-----
+```
 ::::
 
 ::::{dropdown} Implement Prometheus remote write indexing support
@@ -89,20 +86,19 @@ time series data.
 
 For example:
 
-[source,esql]
-----
+```esql
 TS my_data_stream
 | TS_INFO
 | SORT metric_name, dimensions
-----
+```
 ::::
 
 ::::{dropdown} Downsampling preserves the resets of counters when the `aggregate` sampling method is used.
-Until {es} `9.3`, both downsampling methods (`aggregate` and `last_value`) used to store only the last value of a counter
+Until Elasticsearch `9.3`, both downsampling methods (`aggregate` and `last_value`) used to store only the last value of a counter
 in the downsampled document. This works great for the `last_value` method where we optimise for storage efficiency, but
 it is not ideal for the `aggregate` method where we optimise for accuracy.
 
-In {es} `9.4`, we change the way the (default) `aggregate` sampling method is working. We store the first encountered
+In Elasticsearch `9.4`, we change the way the (default) `aggregate` sampling method is working. We store the first encountered
 value for a counter in the downsampled document and then we add auxiliary documents when we detect counter resets.
 This enables the rate calculation to take the counter resets into account and produce more accurate results. This change
 is backwards compatible.
@@ -111,10 +107,9 @@ is backwards compatible.
 ::::{dropdown} Time series aggregations support windows that are smaller than the time bucket
 Time series aggregations in ES|QL are enhanced to support windows smaller than the time bucket.
 
-[source,yaml]
-----
+```esql
 TS metrics | STATS AVG(RATE(requests, 5m)) BY TBUCKET(10m), host
-----
+```
 
 Previously, only window values that were equal or exact multiples of the time bucket were supported.
 ::::
@@ -122,10 +117,9 @@ Previously, only window values that were equal or exact multiples of the time bu
 ::::{dropdown} Time series aggregations support windows that are not an exact multiple of the bucket
 Time series aggregations in ES|QL are enhanced to support windows that are not an exact multiple of the time bucket.
 
-[source,yaml]
-----
+```esql
 TS metrics | STATS AVG(RATE(requests, 15m)) BY TBUCKET(10m), host
-----
+```
 
 Previously, only window values that were exact multiples of the time bucket were supported.
 ::::
@@ -191,17 +185,19 @@ The average was selected because in most cases it is a more representative signa
 operations such as `max`, `min`, `sum`, `avg`, and `count` will be supported natively by the respective sub-fields.
 
 For example, the following query is now supported where `network.eth0.tx` is a an `aggregate_metric_double`:
-[source]
-----
-  FROM k8s-downsampled
-  | STATS max = max(network.eth0.tx), std_dev = STD_DEV(network.eth0.tx) by pod
-  | sort pod
+```esql
+FROM k8s-downsampled
+| STATS max = max(network.eth0.tx), std_dev = STD_DEV(network.eth0.tx) by pod
+| sort pod
+```
+Response:
 
-  max:double | std_dev:double | pod:keyword
-  1060.0     | 275.6970067    | one
-  824.0      | 184.1213952    | three
-  1419.0     | 356.9865993    | two
-----
+```
+max:double | std_dev:double | pod:keyword
+1060.0     | 275.6970067    | one
+824.0      | 184.1213952    | three
+1419.0     | 356.9865993    | two
+```
 ::::
 
 ### Features and enhancements [elasticsearch-9.4.0-features-enhancements]
@@ -4913,5 +4909,4 @@ Vector Search:
 
 Watcher:
 * Watcher history index has too many indexed fields - [#117701](https://github.com/elastic/elasticsearch/pull/117701) (issue: [#71479](https://github.com/elastic/elasticsearch/issues/71479))
-
 

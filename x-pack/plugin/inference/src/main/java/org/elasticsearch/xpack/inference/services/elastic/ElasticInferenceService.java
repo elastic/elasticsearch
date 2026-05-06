@@ -456,8 +456,6 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
      */
     @Override
     public int rerankerWindowSize(String modelId) {
-        // Using 1 token = 0.75 words as a rough estimate, we get 7500 words
-        // allowing for some headroom, we set the window size below 7000 words
         return 7000;
     }
 }

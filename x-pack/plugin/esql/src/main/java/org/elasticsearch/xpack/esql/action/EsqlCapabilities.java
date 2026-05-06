@@ -2807,6 +2807,11 @@ public class EsqlCapabilities {
          */
         FIX_REORDER_LIMIT_PROJECT_AND_ORDER_BY_PRESERVES_REFS,
 
+        /**
+         * Support query approximation with FORK and subqueries.
+         */
+        APPROXIMATION_FORK(Build.current().isSnapshot())
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

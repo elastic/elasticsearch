@@ -848,6 +848,222 @@ sum:long                                                  | key:integer        |
 ;
 
 
+Fork before stats
+required_capability: approximation_v7
+required_capability: approximation_fork
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| FORK (EVAL x=1)
+       (WHERE true)
+       (EVAL y=MV_APPEND(0,1) | MV_EXPAND y)
+| STATS count = COUNT(*), avg = AVG(sv)
+;
+
+count:long      | avg:double | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean
+800000..1200000 | 440..490   | [800000..1200000,800000..1200000]              | {any}                                   | [440..490,440..490]                            | {any}
+;
+
+
+Fork before stats by _fork
+required_capability: approximation_v7
+required_capability: approximation_fork
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| FORK (EVAL x=1)
+       (EVAL y=1)
+| STATS count = COUNT(*) BY _fork
+| SORT _fork
+;
+
+count:long     | _fork:keyword | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
+200000..300000 | fork1         | [200000..300000,200000..300000]                | {any}
+200000..300000 | fork2         | [200000..300000,200000..300000]                | {any}
+;
+
+
+Fork with filters before stats
+required_capability: approximation_v7
+required_capability: approximation_fork
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| FORK (WHERE sv < 100)
+       (WHERE sv > 100)
+| STATS count = COUNT(*) BY _fork
+| SORT _fork
+;
+
+count:long     | _fork:keyword | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
+1000..10000    | fork1         | [1000..10000,1000..10000]                      | {any}
+200000..300000 | fork2         | [200000..300000,200000..300000]                | {any}
+;
+
+
+Fork after exact stats
+required_capability: approximation_v7
+required_capability: approximation_fork
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| STATS count = COUNT(*)
+| FORK (EVAL x=1)
+       (EVAL y=2)
+| SORT _fork
+;
+
+count:long | x:integer | _fork:keyword | y:integer | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
+245350     | 1         | fork1         | null      | [245350,245350]                                | true
+245350     | null      | fork2         | 2         | [245350,245350]                                | true
+;
+
+
+Fork after approximate stats
+required_capability: approximation_v7
+required_capability: approximation_fork
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| STATS count = COUNT(*), sum = SUM(sv)
+| FORK (EVAL x=1)
+       (EVAL y=2)
+| SORT _fork
+;
+
+count:long     | sum:long            | x:integer | _fork:keyword | y:integer | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean
+200000..300000 | 90000000..140000000 | 1         | fork1         | null      | [200000..300000,200000..300000]                | {any}                                   | [90000000..140000000,90000000..140000000]    | {any}
+200000..300000 | 90000000..140000000 | null      | fork2         | 2         | [200000..300000,200000..300000]                | {any}                                   | [90000000..140000000,90000000..140000000]    | {any}
+;
+
+
+Fork with same stats in branches
+required_capability: approximation_v7
+required_capability: approximation_fork
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| FORK (EVAL x=1 | STATS count = COUNT())
+       (EVAL y=1 | STATS count = COUNT())
+| SORT _fork
+;
+
+count:long      | _fork:keyword | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
+200000..300000  | fork1         | [200000..300000,200000..300000]                | {any}
+200000..300000  | fork2         | [200000..300000,200000..300000]                | {any}
+;
+
+
+Fork with different stats in branches
+required_capability: approximation_v7
+required_capability: approximation_fork
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| FORK (STATS count = COUNT())
+       (WHERE true | STATS sum = SUM(sv))
+| SORT _fork
+;
+
+count:long      | _fork:keyword | sum:long            |  _approximation_confidence_interval(count):long | _approximation_certified(count):boolean | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean
+200000..300000  | fork1         | null                | [200000..300000,200000..300000]                 | {any}                                   | null                                         | null
+null            | fork2         | 90000000..140000000 | null                                            | null                                    | [90000000..140000000,90000000..140000000]    | {any}
+;
+
+
+Fork with filtered stats in branches
+required_capability: approximation_v7
+required_capability: approximation_fork
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| FORK (WHERE sv <= 100 | STATS count = COUNT(), sum = SUM(sv), avg = AVG(sv))
+       (WHERE sv >= 100 | STATS count = COUNT(), sum = SUM(sv), avg = AVG(sv))
+| SORT _fork
+;
+
+count:long     | sum:long            | avg:double | _fork:keyword | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean
+5050           | 338350              | 67         | fork1         | [5050,5050]                                    | true                                    | [338350,338350]                              | true                                  | [67,67]                                        | true
+200000..300000 | 90000000..140000000 | 440..490   | fork2         | [200000..300000,200000..300000]                | {any}                                   | [90000000..140000000,90000000..140000000]    | {any}                                 | [440..490,440..490]                            | {any}
+;
+
+
+Fork with filtered stats by in branches
+required_capability: approximation_v7
+required_capability: approximation_fork
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| FORK (WHERE sv <= 3                 | STATS count = COUNT() BY sv | EVAL comment="exact") 
+       (WHERE sv >= 100 AND sv <= 102 | STATS count = COUNT() BY sv | EVAL comment="exact")
+       (WHERE sv >= 500               | STATS count = COUNT() BY sv | EVAL comment="approximate")
+| DROP _fork
+| SORT sv
+| LIMIT 10
+;
+
+count:long  | sv:integer | comment:keyword | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
+1           | 1          | exact           | [1,1]                                          | true
+2           | 2          | exact           | [2,2]                                          | true
+3           | 3          | exact           | [3,3]                                          | true
+100         | 100        | exact           | [100,100]                                      | true
+101         | 101        | exact           | [101,101]                                      | true
+102         | 102        | exact           | [102,102]                                      | true
+100..2000   | 500        | approximate     | [100..2000,100..2000]                          | {any}
+100..2000   | 501        | approximate     | [100..2000,100..2000]                          | {any}
+100..2000   | 502        | approximate     | [100..2000,100..2000]                          | {any}
+100..2000   | 503        | approximate     | [100..2000,100..2000]                          | {any}
+;
+
+
+Fork with stats and variables in branches
+required_capability: approximation_v7
+required_capability: approximation_fork
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| FORK (STATS x = COUNT() | EVAL y = 1::LONG, z = 1::DOUBLE)
+       (STATS y = SUM(sv) | EVAL z = 2::DOUBLE)
+       (STATS z = AVG(sv))
+| SORT _fork
+;
+
+x:long          | y:long              | z:double | _fork:keyword |  _approximation_confidence_interval(x):long | _approximation_certified(x):boolean | _approximation_confidence_interval(y):long | _approximation_certified(y):boolean | _approximation_confidence_interval(z):double | _approximation_certified(z):boolean
+200000..300000  | 1                   | 1.0      | fork1         | [200000..300000,200000..300000]             | {any}                               | [1,1]                                      | true                                | [1.0,1.0]                                    | true
+null            | 90000000..140000000 | 2.0      | fork2         | null                                        | null                                | [90000000..140000000,90000000..140000000]  | {any}                               | [2.0,2.0]                                    | true
+null            | null                | 440..490 | fork3         | null                                        | null                                | null                                       | null                                | [440..490,440..490]                          | {any}
+;
+
+
+Fork with stats in just one branch
+required_capability: approximation_v7
+required_capability: approximation_fork
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| FORK (STATS count = COUNT())
+       (KEEP sv)
+| SORT _fork, sv
+| LIMIT 5
+;
+
+count:long      | _fork:keyword | sv:integer | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
+200000..300000  | fork1         | null       | [200000..300000,200000..300000]                | {any}
+null            | fork2         | 1          | null                                           | null
+null            | fork2         | 2          | null                                           | null
+null            | fork2         | 2          | null                                           | null
+null            | fork2         | 3          | null                                           | null
+;
+
+
 Warn on no stats
 required_capability: approximation_v7
 request_stored: skip

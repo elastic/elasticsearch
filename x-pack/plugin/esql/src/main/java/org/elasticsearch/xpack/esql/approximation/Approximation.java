@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
@@ -74,9 +75,11 @@ import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.session.Result;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -85,7 +88,10 @@ import java.util.Set;
  * <p>
  * A query is currently suitable for approximation if:
  * <ul>
- *   <li> it contains exactly one {@code STATS} command
+ *   <li> it has a supported {@code STATS} layout: without {@code FORK}, exactly one
+ *        {@code STATS}; with {@code FORK}, either {@code FROM | FORK (...) | STATS}
+ *        (one {@code STATS} after the fork, none inside branches) or
+ *        {@code FROM | STATS | FORK (...)} (exactly one {@code STATS} per branch)
  *   <li> the other processing commands are from the supported set
  *        ({@link Approximation#SUPPORTED_COMMANDS}); this set contains almost all
  *        unary commands, and some non-unary ones; most notably not {@code FORK}.
@@ -133,9 +139,9 @@ import java.util.Set;
  * final probability is used to compute the probability using for approximating
  * the original query.
  */
-public class Approximation {
+public class Approximation implements ApproximationDriver {
 
-    public record QueryProperties(boolean hasGrouping, boolean canDecreaseRowCount) {}
+    public record QueryProperties(Boolean hasGrouping, Boolean canDecreaseRowCount, List<QueryProperties> forkBranchProperties) {}
 
     /**
      * These processing commands are fully supported.
@@ -177,6 +183,9 @@ public class Approximation {
         if (EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled()) {
             SUPPORTED_COMMANDS_BUILDER.add(InlineJoin.class);
             SUPPORTED_COMMANDS_BUILDER.add(StubRelation.class);  // temporary node
+        }
+        if (EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled()) {
+            SUPPORTED_COMMANDS_BUILDER.add(Fork.class);
         }
         SUPPORTED_COMMANDS = Collections.unmodifiableSet(SUPPORTED_COMMANDS_BUILDER);
     }
@@ -223,6 +232,7 @@ public class Approximation {
     /**
      * These commands never decrease the number of all rows, making it easier to predict the number of output rows.
      */
+    // TODO: remove: just track "preserving"
     private static final Set<Class<? extends LogicalPlan>> ROW_NON_DECREASING_COMMANDS = Sets.union(
         Set.of(MvExpand.class),
         ROW_PRESERVING_COMMANDS
@@ -368,6 +378,19 @@ public class Approximation {
         }
     }
 
+    /**
+     * Builds an approximation handle for the logical plan, or {@code null} if the plan is not an approximation plan.
+     */
+    public static ApproximationDriver create(LogicalPlan logicalPlan, ApproximationSettings settings) {
+        // TODO: remove multiple verifyPlanOrThrow calls.
+        QueryProperties queryProperties = verifyPlanOrThrow(logicalPlan);
+        if (queryProperties.forkBranchProperties == null) {
+            return new Approximation(logicalPlan, settings);
+        } else {
+            return new ForkApproximation(logicalPlan, settings);
+        }
+    }
+
     static QueryProperties verifyPlanOrThrow(LogicalPlan logicalPlan) {
         // The plan must contain a STATS command.
         if (logicalPlan.anyMatch(plan -> plan instanceof Aggregate) == false) {
@@ -383,6 +406,7 @@ public class Approximation {
             if ((SUPPORTED_COMMANDS.contains(plan.getClass()) == false && SUPPORTED_COMMANDS_AFTER_STATS.contains(plan.getClass()) == false)
                 || (plan instanceof EsRelation esRelation && SUPPORTED_INDEX_MODES.contains(esRelation.indexMode()) == false)) {
                 // TODO: ideally just return the command from the source
+                // this can give bad messages (e.g. for subqueries) or long ones (many irrelevant extras)
                 throw new VerificationException(
                     "line {}:{}: approximation not supported: query with [{}] cannot be approximated",
                     plan.source().source().getLineNumber(),
@@ -392,9 +416,58 @@ public class Approximation {
             }
         });
 
+        List<Fork> forks = logicalPlan.collect(Fork.class);
+        if (forks.isEmpty()) {
+            return verifyBranchOrThrow(logicalPlan);
+        } else {
+            assert forks.size() == 1;
+            Fork fork = forks.getFirst();
+
+            boolean statsInBranches = fork.anyMatch(plan -> plan instanceof Aggregate);
+
+            if (statsInBranches == false) {
+                List<Aggregate> aggregates = logicalPlan.collect(Aggregate.class);
+                assert aggregates.size() == 1;
+                Aggregate aggregate = aggregates.getFirst();
+                return new QueryProperties(aggregate.groupings().isEmpty() == false, true, null);
+            } else {
+                List<QueryProperties> branchProperties = new ArrayList<>();
+
+                VerificationException firstVerificationException = null;
+                for (int branchIndex = 0; branchIndex < fork.children().size(); branchIndex++) {
+                    int branchIndexFinal = branchIndex;
+                    LogicalPlan branch = logicalPlan.transformDown(Fork.class, f -> f.children().get(branchIndexFinal));
+                    try {
+                        branchProperties.add(verifyBranchOrThrow(branch));
+                    } catch (VerificationException e) {
+                        if (e.getMessage().contains("query with chained [STATS] cannot be approximated")) {
+                            throw e;
+                        }
+                        branchProperties.add(null);
+                        if (firstVerificationException == null) {
+                            firstVerificationException = e;
+                        }
+                    }
+                }
+
+                if (branchProperties.stream().allMatch(Objects::isNull)) {
+                    assert firstVerificationException != null;
+                    throw firstVerificationException;
+                } else {
+                    return new QueryProperties(null, null, branchProperties);
+                }
+            }
+        }
+    }
+
+    private static QueryProperties verifyBranchOrThrow(LogicalPlan logicalPlan) {
         Holder<Boolean> encounteredStats = new Holder<>(false);
         Holder<Boolean> hasGrouping = new Holder<>();
         Holder<Boolean> canDecreaseRowCount = new Holder<>(false);
+
+        if (logicalPlan.anyMatch(plan -> plan instanceof Aggregate) == false) {
+            return null;
+        }
 
         logicalPlan.forEachUp(plan -> {
             if (encounteredStats.get() == false) {
@@ -437,10 +510,10 @@ public class Approximation {
                     }
                 }
             } else {
-                // Multiple STATS commands are not supported.
+                // Chained STATS commands are not supported.
                 if (plan instanceof Aggregate) {
                     throw new VerificationException(
-                        "line {}:{}: approximation not supported: query with multiple [STATS] cannot be approximated",
+                        "line {}:{}: approximation not supported: query with chained [STATS] cannot be approximated",
                         plan.source().source().getLineNumber(),
                         plan.source().source().getColumnNumber()
                     );
@@ -448,12 +521,13 @@ public class Approximation {
             }
         });
 
-        return new QueryProperties(hasGrouping.get(), canDecreaseRowCount.get());
+        return new QueryProperties(hasGrouping.get(), canDecreaseRowCount.get(), null);
     }
 
     /**
      * Returns the first subplan to execute for approximation, or null if the main plan can be executed directly.
      */
+    @Override
     public LogicalPlan firstSubPlan() {
         if (sourceRowCount.get() == null) {
             return sourceCountSubPlan();
@@ -464,16 +538,25 @@ public class Approximation {
         }
     }
 
+    @Override
+    public LogicalPlan newMainPlan(LogicalPlan mainPlan, Result result) {
+        Double p = processResult(rowCount(result));
+        if (p == null) {
+            return mainPlan;
+        }
+        return ApproximationPlan.substituteSampleProbability(mainPlan, p);
+    }
+
     /**
      * Processes the subplan results.
      * Returns the sample probability suitable for approximation if possible,
      * or null if more subplans need to be executed to obtain it.
      */
-    public Double processResult(Result result) {
+    Double processResult(long rowCount) {
         if (sourceRowCount.get() == null) {
-            return processSourceCount(rowCount(result));
+            return processSourceCount(rowCount);
         } else {
-            return processCount(rowCount(result));
+            return processCount(rowCount);
         }
     }
 
@@ -499,11 +582,12 @@ public class Approximation {
     /**
      * Returns the leftmost leaf of a plan, which is the large source index for approximation.
      */
-    private LogicalPlan getLeftmostLeaf(LogicalPlan plan) {
+    private static LogicalPlan getLeftmostLeaf(LogicalPlan plan) {
         while (plan instanceof LeafPlan == false) {
             plan = switch (plan) {
                 case UnaryPlan unaryPlan -> unaryPlan.child();
                 case Join join -> join.left();
+                case Fork fork -> fork.children().getFirst();
                 default -> throw new IllegalStateException("unsupported plan type: " + plan.getClass());
             };
         }
@@ -559,7 +643,7 @@ public class Approximation {
                 if (plan instanceof Aggregate aggregate) {
                     // The STATS function should be replaced by a STATS COUNT(*).
                     encounteredStats.set(true);
-                    String aggName = Attribute.rawTemporaryName("count", Double.toString(sampleProbability));
+                    String aggName = Attribute.rawTemporaryName("count");
                     if (sampleProbability == 1.0) {
                         List<NamedExpression> aggregations = List.of(new Alias(Source.EMPTY, aggName, COUNT_ALL_ROWS_EXACT));
                         plan = new Aggregate(Source.EMPTY, aggregate.child(), List.of(), aggregations);
@@ -632,7 +716,7 @@ public class Approximation {
      * To be safe, the maximum iteration count is capped at 10, and an exception is thrown
      * when this count is exceeded.
      */
-    private Double processCount(long rowCount) {
+    Double processCount(long rowCount) {
         subPlanIterationCount += 1;
         if (subPlanIterationCount > 10) {
             throw new IllegalStateException("Approximation count iteration limit exceeded");
@@ -663,7 +747,7 @@ public class Approximation {
     /**
      * Returns the row count in the result and closes the result.
      */
-    private long rowCount(Result countResult) {
+    static long rowCount(Result countResult) {
         assert countResult.pages().size() == 1;
         assert countResult.pages().getFirst().getBlockCount() == 1;
         assert countResult.pages().getFirst().getPositionCount() == 1;

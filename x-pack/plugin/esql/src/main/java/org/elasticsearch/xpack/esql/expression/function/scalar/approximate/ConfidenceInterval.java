@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -277,6 +278,9 @@ public class ConfidenceInterval extends EsqlScalarFunction {
                 allNaNs = false;
             }
         }
+
+        System.out.println("*** best estimate: " + bestEstimate);
+        System.out.println("*** estimates: " + Arrays.toString(estimates));
 
         // Every single bucket being NaN indicates that the bestEstimate is exact,
         // hence the confidence intervals should be zero width.

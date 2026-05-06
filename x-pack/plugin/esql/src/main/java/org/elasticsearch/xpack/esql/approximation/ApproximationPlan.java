@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteApproximat
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -61,6 +63,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * The approximation plan, that is substituted during logical plan optimization
@@ -158,8 +162,11 @@ public class ApproximationPlan {
      */
     public static class SampleProbabilityPlaceHolder extends LeafExpression {
 
-        public SampleProbabilityPlaceHolder(Source source) {
+        private final int id;
+
+        public SampleProbabilityPlaceHolder(Source source, int id) {
             super(source);
+            this.id = id;
         }
 
         @Override
@@ -186,22 +193,26 @@ public class ApproximationPlan {
 
         @Override
         protected NodeInfo<? extends Expression> info() {
-            return NodeInfo.create(this);
+            return NodeInfo.create(this, SampleProbabilityPlaceHolder::new, id);
+        }
+
+        public int id() {
+            return id;
         }
 
         @Override
         public String toString() {
-            return "SampleProbabilityPlaceHolder";
+            return "SampleProbabilityPlaceHolder[" + id + "]";
         }
 
         @Override
         public boolean equals(Object obj) {
-            return obj != null && getClass() == obj.getClass();
+            return obj != null && getClass() == obj.getClass() && id == ((SampleProbabilityPlaceHolder) obj).id;
         }
 
         @Override
         public int hashCode() {
-            return 0;
+            return id;
         }
     }
 
@@ -274,8 +285,8 @@ public class ApproximationPlan {
 
         Double confidenceLevel = settings.confidenceLevel();
 
-        // Whether of not the first STATS command has been encountered yet.
-        Holder<Boolean> encounteredStats = new Holder<>(false);
+        // Logical plans that have STATS somewhere in their children.
+        Set<LogicalPlan> plansThatEncounteredStats = new HashSet<>();
 
         // The keys are the IDs of the fields that have buckets. Confidence intervals are computed
         // for these fields at the end of the computation. They map to the list of buckets for
@@ -290,22 +301,30 @@ public class ApproximationPlan {
         // is rewritten to AVG::double = SUM::double / COUNT::long.
         Map<NameId, Attribute> notRoundedExpressions = new HashMap<>();
 
+        Holder<Integer> sampleProbabilityId = new Holder<>(0);
+
         LogicalPlan approximationPlan = logicalPlan.transformUp(plan -> {
-            if (encounteredStats.get() == false) {
+            boolean encounteredStats = plan.children().stream().anyMatch(plansThatEncounteredStats::contains);
+            if (encounteredStats == false) {
                 if (plan instanceof Aggregate == false) {
                     // Commands before the first STATS function should be left unchanged.
                     return plan;
                 } else {
                     // The first STATS function should be replaced by a STATS with buckets
                     // (for computing confidence intervals).
-                    encounteredStats.set(true);
-                    return sampleCorrectedAggregateAndBuckets((Aggregate) plan, fieldBuckets, notRoundedExpressions);
+                    Expression sampleProbability = new SampleProbabilityPlaceHolder(Source.EMPTY, sampleProbabilityId.get());
+                    sampleProbabilityId.set(sampleProbabilityId.get() + 1);
+                    plan = sampleCorrectedAggregateAndBuckets((Aggregate) plan, sampleProbability, fieldBuckets, notRoundedExpressions);
+                    plansThatEncounteredStats.add(plan);
+                    return plan;
                 }
             } else {
                 // After the STATS function, any processing of fields that have buckets, should
                 // also process the buckets, so that confidence intervals for the dependent fields
                 // can be computed.
-                return planIncludingBuckets(plan, fieldBuckets, notRoundedExpressions);
+                plan = planIncludingBuckets(plan, fieldBuckets, notRoundedExpressions);
+                plansThatEncounteredStats.add(plan);
+                return plan;
             }
         });
 
@@ -354,11 +373,10 @@ public class ApproximationPlan {
      */
     private static LogicalPlan sampleCorrectedAggregateAndBuckets(
         Aggregate aggregate,
+        Expression sampleProbability,
         Map<NameId, List<Attribute>> fieldBuckets,
         Map<NameId, Attribute> notRoundedExpressions
     ) {
-        Expression sampleProbability = new SampleProbabilityPlaceHolder(Source.EMPTY);
-
         Expression randomBucketId = new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT));
         Expression bucketIds = randomBucketId;
         for (int trialId = 1; trialId < TRIAL_COUNT; trialId++) {
@@ -546,6 +564,7 @@ public class ApproximationPlan {
             case Eval eval -> evalIncludingBuckets(eval, fieldBuckets, notRoundedExpressions);
             case Project project -> projectIncludingBuckets(project, fieldBuckets, notRoundedExpressions);
             case MvExpand mvExpand -> mvExpandIncludingBuckets(mvExpand, fieldBuckets);
+            case Fork fork -> forkIncludingBuckets(fork, fieldBuckets);
             default -> plan;
         };
     }
@@ -680,6 +699,68 @@ public class ApproximationPlan {
     }
 
     /**
+     * (...)
+     */
+    private static LogicalPlan forkIncludingBuckets(Fork fork, Map<NameId, List<Attribute>> fieldBuckets) {
+        if (fieldBuckets == null) {
+            return fork;
+        }
+
+        List<Attribute> output = null;
+        for (Attribute attribute : fork.output()) {
+            children: for (LogicalPlan child : fork.children()) {
+                for (Attribute childAttribute : child.output()) {
+                    if (childAttribute.name().equals(attribute.name()) && fieldBuckets.containsKey(childAttribute.id())) {
+                        List<Attribute> buckets = new ArrayList<>();
+                        for (Attribute bucket : fieldBuckets.get(childAttribute.id())) {
+                            buckets.add(new ReferenceAttribute(Source.EMPTY, bucket.qualifier(), bucket.name(), bucket.dataType()));
+                        }
+                        if (output == null) {
+                            output = new ArrayList<>(fork.output());
+                        }
+                        fieldBuckets.put(attribute.id(), buckets);
+                        output.addAll(buckets);
+                        break children;
+                    }
+                }
+            }
+        }
+
+        if (output == null) {
+            return fork;
+        }
+
+        List<LogicalPlan> children = new ArrayList<>();
+        for (LogicalPlan child : fork.children()) {
+            Map<String, Attribute> childAttributes = child.output()
+                .stream()
+                .collect(Collectors.toMap(Attribute::name, Function.identity()));
+            List<NamedExpression> projections = new ArrayList<>();
+            List<Alias> missingAttributes = new ArrayList<>();
+            for (Attribute outputAttribute : output) {
+                Attribute childAttribute = childAttributes.get(outputAttribute.name());
+                if (childAttribute != null) {
+                    projections.add(childAttribute);
+                } else {
+                    Alias missingAttribute = new Alias(
+                        Source.EMPTY,
+                        outputAttribute.name(),
+                        new Literal(Source.EMPTY, null, outputAttribute.dataType())
+                    );
+                    missingAttributes.add(missingAttribute);
+                    projections.add(missingAttribute.toAttribute());
+                }
+            }
+            if (missingAttributes.isEmpty() == false) {
+                child = new Eval(Source.EMPTY, child, missingAttributes);
+            }
+            children.add(new Project(Source.EMPTY, child, projections));
+        }
+
+        return new Fork(fork.source(), children, output);
+    }
+
+    /**
      * Returns the confidence interval and certified fields for the fields.
      * This is the expression:
      * <pre>
@@ -711,7 +792,7 @@ public class ApproximationPlan {
                 // This is a bit of a back, because ES|QL generally does not support NaN values,
                 // but these values stay inside here and the confidence interval computation, and
                 // never reach the user.
-                // TODO: don't use NaNs, perhaps when nulls in multivalued are supported, see:
+                // TODO: don't use NaNs, perhaps when nulls in multivalued are supported, se
                 // https://github.com/elastic/elasticsearch/issues/141383
                 Expression bucketsMv = null;
                 for (int i = 0; i < TRIAL_COUNT * BUCKET_COUNT; i++) {
@@ -809,6 +890,50 @@ public class ApproximationPlan {
             });
             logicalPlan = new PruneColumns().apply(logicalPlan);
         }
+
+        logicalPlan.setOptimized();
+        return logicalPlan;
+    }
+
+    /**
+     * Substitutes the {@link SampleProbabilityPlaceHolder} in the approximation plan
+     * by the actual sample probability. If the sample probability is 1.0, the
+     * SampledAggregate is also replaced by a regular Aggregate.
+     */
+    public static LogicalPlan substituteSampleProbabilityInForkBranch(LogicalPlan logicalPlan, double sampleProbability) {
+        logicalPlan = logicalPlan.transformExpressionsDown(
+            ApproximationPlan.SampleProbabilityPlaceHolder.class,
+            prob -> Literal.fromDouble(Source.EMPTY, sampleProbability)
+        );
+        if (sampleProbability == 1.0) {
+            // TODO: ...
+            logicalPlan = logicalPlan.transformDown(SampledAggregate.class, sampledAggregate -> {
+                List<Alias> fields = new ArrayList<>();
+                int bucketIndex = sampledAggregate.originalAggregates().size();
+                for (int i = 0; i < sampledAggregate.originalAggregates().size(); i++) {
+                    NamedExpression aggOrKey = sampledAggregate.originalAggregates().get(i);
+                    if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
+                        continue;
+                    }
+                    for (int j = 0; j < TRIAL_COUNT * BUCKET_COUNT; j++) {
+                        Alias bucket = (Alias) sampledAggregate.aggregates().get(bucketIndex++);
+                        fields.add(bucket.replaceChild(aggOrKey.toAttribute()));
+                    }
+                }
+                return new Eval(
+                    Source.EMPTY,
+                    new Aggregate(
+                        sampledAggregate.source(),
+                        sampledAggregate.child(),
+                        sampledAggregate.groupings(),
+                        sampledAggregate.originalAggregates()
+                    ),
+                    fields
+                );
+            });
+            logicalPlan = new PruneColumns().apply(logicalPlan);
+        }
+
         logicalPlan.setOptimized();
         return logicalPlan;
     }

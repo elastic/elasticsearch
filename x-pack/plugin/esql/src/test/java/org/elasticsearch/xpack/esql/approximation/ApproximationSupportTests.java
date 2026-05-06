@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
@@ -146,7 +145,6 @@ public class ApproximationSupportTests extends ESTestCase {
 
         // Non-unary plans are not supported yet.
         // These require more complicated expression tree traversal.
-        Fork.class,
         UnionAll.class,
         ViewUnionAll.class,
         ParameterizedQuery.class,

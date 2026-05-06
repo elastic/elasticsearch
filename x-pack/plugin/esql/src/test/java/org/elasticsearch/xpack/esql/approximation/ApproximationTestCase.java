@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
@@ -26,6 +29,7 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -60,6 +64,20 @@ public abstract class ApproximationTestCase extends ESTestCase {
         return new Result(null, List.of(new Page(block)), null, null, null, null);
     }
 
+    /**
+     * Creates a result representing a FORK count subplan output: one page per branch,
+     * each with a count value (block 0) and a {@code _fork} label (block 1).
+     */
+    static Result newForkCountResult(long... counts) {
+        List<Page> pages = new ArrayList<>();
+        for (int i = 0; i < counts.length; i++) {
+            LongBlock countBlock = blockFactory.newConstantLongBlockWith(counts[i], 1);
+            IntBlock forkBlock = blockFactory.newConstantIntBlockWith(i, 1);
+            pages.add(new Page(countBlock, forkBlock));
+        }
+        return new Result(null, pages, null, null, null);
+    }
+
     static Predicate<? super Aggregate> withAggs(Class<?>... aggs) {
         return aggregate -> aggregate.aggregates()
             .stream()
@@ -71,8 +89,11 @@ public abstract class ApproximationTestCase extends ESTestCase {
             .equals(Set.of(aggs));
     }
 
-    static Predicate<SampledAggregate> withProbability(double probablity) {
-        return sampledAggregate -> (double) Foldables.literalValueOf(sampledAggregate.sampleProbability()) == probablity;
+    static Predicate<SampledAggregate> withProbability(double probability) {
+        return sampledAggregate -> {
+            double actualProbability = (double) Foldables.literalValueOf(sampledAggregate.sampleProbability());
+            return Math.abs(actualProbability - probability) / probability < 1e-9;
+        };
     }
 
     static Predicate<Eval> withField(String field) {

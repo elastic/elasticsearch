@@ -34,7 +34,7 @@ public class ApproximationPlanTests extends ApproximationTestCase {
      * It must not be treated as nullable by optimizer rules (e.g. FoldNull, PropagateNullable).
      */
     public void testSampleProbabilityPlaceHolderIsNotNullable() {
-        var placeholder = new ApproximationPlan.SampleProbabilityPlaceHolder(Source.EMPTY);
+        var placeholder = new ApproximationPlan.SampleProbabilityPlaceHolder(Source.EMPTY, randomInt());
         assertThat(placeholder.nullable(), equalTo(Nullability.FALSE));
     }
 

@@ -13,11 +13,13 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproxima
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import org.elasticsearch.xpack.esql.session.Result;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -40,6 +42,7 @@ public class ApproximationTests extends ApproximationTestCase {
         verify("ROW i=[1,2,3] | EVAL x=TO_STRING(i) | DISSECT x \"%{x}\" | STATS i=10*POW(PERCENTILE(i, 0.5), 2) | LIMIT 10");
         verify("FROM test | URI_PARTS parts = last_name | STATS scheme_count = COUNT() BY parts.scheme | LIMIT 10");
         verify("FROM test | REGISTERED_DOMAIN rd = last_name | STATS c = COUNT() BY rd.registered_domain | LIMIT 10");
+        verify("FROM test | INLINE STATS COUNT() BY last_name | LIMIT 10");
     }
 
     public void testVerify_inlineStats() {
@@ -68,30 +71,149 @@ public class ApproximationTests extends ApproximationTestCase {
         );
     }
 
+    public void testVerify_fork() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+        verify("FROM test | FORK (EVAL x=1 | STATS c = COUNT()) (EVAL y=1 | STATS c = COUNT())");
+        verify("FROM test | FORK (EVAL x=1) (EVAL y=1) | STATS c = COUNT()");
+        verify("FROM test | FORK (WHERE true) (STATS c = COUNT())");
+    }
+
+    public void testVerify_fork_disabled() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled() == false);
+        assertError(
+            "FROM test | FORK (EVAL x=1 | STATS c = COUNT()) (EVAL y=1 | STATS c = COUNT())",
+            equalTo(
+                "line 1:13: approximation not supported: "
+                    + "query with [FORK (EVAL x=1 | STATS c = COUNT()) (EVAL y=1 | STATS c = COUNT())] cannot be approximated"
+            )
+        );
+        assertError(
+            "FROM test | FORK (EVAL x=1) (EVAL y=1) | STATS c = COUNT()",
+            equalTo("line 1:13: approximation not supported: query with [FORK (EVAL x=1) (EVAL y=1)] cannot be approximated")
+        );
+        assertError(
+            "FROM test | FORK (WHERE true) (STATS c = COUNT())",
+            equalTo("line 1:13: approximation not supported: query with [FORK (WHERE true) (STATS c = COUNT())] cannot be approximated")
+        );
+    }
+
     public void testVerify_validQuery_queryProperties() throws Exception {
         assertThat(
             verify("FROM test | SORT last_name | RENAME gender AS whatever | EVAL blah=1 | STATS COUNT() BY emp_no"),
-            equalTo(new Approximation.QueryProperties(true, false))
+            equalTo(new Approximation.QueryProperties(true, false, null))
         );
         assertThat(
             verify("FROM test | STATS COUNT() BY emp_no | WHERE emp_no > 10 | LIMIT 3 | MV_EXPAND emp_no"),
-            equalTo(new Approximation.QueryProperties(true, false))
+            equalTo(new Approximation.QueryProperties(true, false, null))
         );
-        assertThat(verify("FROM test | WHERE emp_no > 10 | STATS SUM(emp_no)"), equalTo(new Approximation.QueryProperties(false, true)));
-        assertThat(verify("FROM test | SAMPLE 0.3 | STATS COUNT() BY emp_no"), equalTo(new Approximation.QueryProperties(true, true)));
+        assertThat(
+            verify("FROM test | STATS COUNT() BY emp_no | WHERE emp_no > 10 | LIMIT 3 | MV_EXPAND emp_no"),
+            equalTo(new Approximation.QueryProperties(true, false, null))
+        );
+        assertThat(
+            verify("FROM test | WHERE emp_no > 10 | STATS SUM(emp_no)"),
+            equalTo(new Approximation.QueryProperties(false, true, null))
+        );
+        assertThat(
+            verify("FROM test | SAMPLE 0.3 | STATS COUNT() BY emp_no"),
+            equalTo(new Approximation.QueryProperties(true, true, null))
+        );
+        assertThat(
+            verify("FROM test | WHERE emp_no > 10 | STATS SUM(emp_no)"),
+            equalTo(new Approximation.QueryProperties(false, true, null)
+        ));
+        assertThat(
+            verify("FROM test | SAMPLE 0.3 | STATS COUNT() BY emp_no"),
+            equalTo(new Approximation.QueryProperties(true, true, null)
+        ));
         assertThat(
             verify("FROM test | MV_EXPAND gender | STATS COUNT() BY emp_no"),
-            equalTo(new Approximation.QueryProperties(true, false))
+            equalTo(new Approximation.QueryProperties(true, false, null))
         );
         assertThat(
             verify("FROM test | MV_EXPAND gender | WHERE emp_no < 3 | STATS COUNT()"),
-            equalTo(new Approximation.QueryProperties(false, true))
+            equalTo(new Approximation.QueryProperties(false, true, null))
+        );
+        assertThat(
+            verify("FROM test | MV_EXPAND gender | WHERE emp_no < 3 | STATS COUNT()"),
+            equalTo(new Approximation.QueryProperties(false, true, null))
+        );
+        assertThat(
+            verify("FROM test | WHERE emp_no < 3 | INLINE STATS COUNT()"),
+            equalTo(new Approximation.QueryProperties(false, true, null))
         );
     }
 
     public void testVerify_validQuery_queryProperties_inlineStats() throws Exception {
         assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
-        assertThat(verify("FROM test | WHERE emp_no < 3 | INLINE STATS COUNT()"), equalTo(new Approximation.QueryProperties(false, true)));
+        assertThat(
+            verify("FROM test | WHERE emp_no < 3 | INLINE STATS COUNT()"),
+            equalTo(new Approximation.QueryProperties(false, true, null))
+        );
+    }
+
+    public void testVerify_validForkQuery_queryProperties() throws Exception {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+        assertThat(
+            verify("FROM test | FORK (STATS COUNT()) | EVAL x=1"),
+            equalTo(
+                new Approximation.QueryProperties(null, null, List.of(new Approximation.QueryProperties(false, false, null)))
+            )
+        );
+        assertThat(
+            verify("FROM test | FORK (STATS COUNT() BY emp_no) | EVAL x=1"),
+            equalTo(
+                new Approximation.QueryProperties(null, null, List.of(new Approximation.QueryProperties(true, false, null)))
+            )
+        );
+        assertThat(
+            verify("FROM test | FORK (WHERE emp_no < 100 | STATS COUNT()) | EVAL x=1"),
+            equalTo(
+                new Approximation.QueryProperties(null, null, List.of(new Approximation.QueryProperties(false, true, null)))
+            )
+        );
+        assertThat(
+            verify("FROM test | FORK (MV_EXPAND emp_no | STATS COUNT()) | EVAL x=1"),
+            equalTo(
+                new Approximation.QueryProperties(null, null, List.of(new Approximation.QueryProperties(false, false, null)))
+            )
+        );
+        assertThat(
+            verify("FROM test | FORK (WHERE emp_no<1 | STATS COUNT()) (EVAL x=1) (STATS SUM(emp_no) BY emp_no) (STATS COUNT())"),
+            equalTo(
+                new Approximation.QueryProperties(
+                    null,
+                    null,
+                    Arrays.asList(
+                        new Approximation.QueryProperties(false, true, null),
+                        null,
+                        new Approximation.QueryProperties(true, false, null),
+                        new Approximation.QueryProperties(false, false, null)
+                    )
+                )
+            )
+        );
+        assertThat(
+            verify("FROM test | STATS COUNT() BY emp_no | FORK (WHERE emp_no < 10) (WHERE emp_no == 42)"),
+            equalTo(
+                new Approximation.QueryProperties(
+                    null,
+                    null,
+                    Arrays.asList(
+                        new Approximation.QueryProperties(true, false, null),
+                        new Approximation.QueryProperties(true, false, null)
+                    )
+                )
+            )
+        );
+        assertThat(
+            verify("FROM test | FORK (EVAL x=1) (WHERE true) | STATS COUNT() BY emp_no"),
+            equalTo(new Approximation.QueryProperties(true, true, null))
+        );
+        assertThat(
+            verify("FROM test | FORK (EVAL x=1) (WHERE true) | STATS SUM(emp_no)"),
+            equalTo(new Approximation.QueryProperties(false, true, null))
+        );
     }
 
     public void testVerify_exactlyOneStats() {
@@ -101,23 +223,56 @@ public class ApproximationTests extends ApproximationTestCase {
         );
         assertError(
             "FROM test | STATS COUNT() BY emp_no | STATS COUNT()",
-            equalTo("line 1:39: approximation not supported: query with multiple [STATS] cannot be approximated")
+            equalTo("line 1:39: approximation not supported: query with chained [STATS] cannot be approximated")
         );
     }
 
     public void testVerify_exactlyOneStats_inlineStats() {
         assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
+
         assertError(
             "FROM test | INLINE STATS count=COUNT() BY emp_no | STATS AVG(count)",
-            equalTo("line 1:52: approximation not supported: query with multiple [STATS] cannot be approximated")
+            equalTo("line 1:52: approximation not supported: query with chained [STATS] cannot be approximated")
         );
         assertError(
             "FROM test | STATS COUNT() BY emp_no | INLINE STATS COUNT()",
-            equalTo("line 1:39: approximation not supported: query with multiple [STATS] cannot be approximated")
+            equalTo("line 1:39: approximation not supported: query with chained [STATS] cannot be approximated")
         );
         assertError(
             "FROM test | INLINE STATS count=COUNT() | INLINE STATS SUM(count)",
-            equalTo("line 1:42: approximation not supported: query with multiple [STATS] cannot be approximated")
+            equalTo("line 1:42: approximation not supported: query with chained [STATS] cannot be approximated")
+        );
+    }
+
+    public void testVerify_noChainedStats_inlineStats() {
+        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
+        assertError(
+            "FROM test | INLINE STATS count=COUNT() BY emp_no | STATS AVG(count)",
+            equalTo("line 1:52: approximation not supported: query with chained [STATS] cannot be approximated")
+        );
+        assertError(
+            "FROM test | STATS COUNT() BY emp_no | INLINE STATS COUNT()",
+            equalTo("line 1:39: approximation not supported: query with chained [STATS] cannot be approximated")
+        );
+        assertError(
+            "FROM test | INLINE STATS count=COUNT() | INLINE STATS SUM(count)",
+            equalTo("line 1:42: approximation not supported: query with chained [STATS] cannot be approximated")
+        );
+    }
+
+    public void testVerify_noChainedStats_fork() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+        assertError(
+            "FROM test | STATS COUNT() BY emp_no | FORK (EVAL x=1) (STATS COUNT())",
+            equalTo("line 1:56: approximation not supported: query with chained [STATS] cannot be approximated")
+        );
+        assertError(
+            "FROM test | FORK (EVAL x=1) (STATS COUNT() BY emp_no) | STATS COUNT()",
+            equalTo("line 1:57: approximation not supported: query with chained [STATS] cannot be approximated")
+        );
+        assertError(
+            "FROM test | STATS COUNT() BY emp_no | FORK (EVAL x=1) (WHERE true) | STATS COUNT()",
+            equalTo("line 1:70: approximation not supported: query with chained [STATS] cannot be approximated")
         );
     }
 
@@ -134,12 +289,8 @@ public class ApproximationTests extends ApproximationTestCase {
 
     public void testVerify_incompatibleProcessingCommand() {
         assertError(
-            "FROM test | FORK (EVAL x=1) (EVAL y=1) | STATS COUNT()",
-            equalTo("line 1:13: approximation not supported: query with [FORK (EVAL x=1) (EVAL y=1)] cannot be approximated")
-        );
-        assertError(
-            "FROM test | STATS COUNT() | FORK (EVAL x=1) (EVAL y=1)",
-            equalTo("line 1:29: approximation not supported: query with [FORK (EVAL x=1) (EVAL y=1)] cannot be approximated")
+            "FROM (FROM test | WHERE emp_no > 2), (FROM k8s) | STATS COUNT()",
+            equalTo("line 1:6: approximation not supported: query with [(FROM test | WHERE emp_no > 2)] cannot be approximated")
         );
     }
 
@@ -174,6 +325,9 @@ public class ApproximationTests extends ApproximationTestCase {
             equalTo("line 1:35: approximation not supported: aggregation function [SUM(x)] must return a numeric value; got [DENSE_VECTOR]")
         );
     }
+
+    // TODO: fork with unsupported in one branch
+    // TODO: fork with unsupported in all branches
 
     public void testPlans_noData() {
         // This test simulates a source count of 0.
@@ -501,8 +655,86 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(mainPlan, hasPlan(Aggregate.class, withAggs(Sum.class)));
     }
 
-    private LogicalPlan processResult(Approximation approximation, LogicalPlan mainPlan, Result result) {
-        Double sampleProbability = approximation.processResult(result);
-        return sampleProbability == null ? mainPlan : ApproximationPlan.substituteSampleProbability(mainPlan, sampleProbability);
+    public void testPlans_statsAfterFork() throws Exception {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+
+        // This test simulates a source count of 10^10, and a filtered count of 10^10.
+
+        LogicalPlan originalPlan = getLogicalPlan("FROM test | FORK (WHERE emp_no > 42) (WHERE emp_no <= 42) | STATS SUM(emp_no)");
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
+        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
+
+        // The first subplan should be the source count.
+        LogicalPlan subplan = approximation.firstSubPlan();
+        assertThat(subplan, not(hasPlan(Filter.class)));
+        assertThat(subplan, not(hasPlan(SampledAggregate.class)));
+        assertThat(subplan, hasPlan(Aggregate.class, withAggs(Count.class)));
+
+        // Source count of 10^10.
+        processResult(approximation, mainPlan, newCountResult(10_000_000_000L));
+        // There's filtering, so start with a count plan with sampling with probability 10^4 / 10^10.
+        subplan = approximation.firstSubPlan();
+        assertThat(subplan, hasPlan(Filter.class));
+        assertThat(subplan, not(hasPlan(Aggregate.class)));
+        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-6), withAggs(CountApproximate.class)));
+
+        // Sampled-corrected filtered count of 10^10 (so actual count of 10,000), so no more subplans.
+        mainPlan = processResult(approximation, mainPlan, newCountResult(10_000_000_000L));
+        subplan = approximation.firstSubPlan();
+        assertThat(subplan, nullValue());
+
+        // The main plan should have sampling with probability 10^5 / 10^10.
+        assertThat(mainPlan, hasPlan(Filter.class));
+        assertThat(mainPlan, not(hasPlan(Aggregate.class)));
+        assertThat(mainPlan, hasPlan(SampledAggregate.class, withProbability(1e-5), withAggs(Sum.class)));
+    }
+
+    public void testPlans_statsInsideFork() throws Exception {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+
+        // This test simulates a source count of 10^10. Both branches have filtering,
+        // so they need count subplans. The source count is shared (run once), and the
+        // count subplans for both branches are combined into a single FORK plan.
+
+        LogicalPlan originalPlan = getLogicalPlan(
+            "FROM test | FORK (WHERE emp_no > 42 | STATS SUM(emp_no)) (WHERE emp_no <= 42 | STATS SUM(emp_no))"
+        );
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
+        ApproximationDriver approximation = Approximation.create(mainPlan, ApproximationSettings.DEFAULT);
+
+        // The first subplan should be the shared source count (run once, not per branch).
+        LogicalPlan subplan = approximation.firstSubPlan();
+        assertThat(subplan, not(hasPlan(Fork.class)));
+        assertThat(subplan, not(hasPlan(Filter.class)));
+        assertThat(subplan, not(hasPlan(SampledAggregate.class)));
+        assertThat(subplan, hasPlan(Aggregate.class, withAggs(Count.class)));
+
+        // Source count of 10^10. Both branches have filtering, so both need count subplans.
+        mainPlan = processResult(approximation, mainPlan, newCountResult(10_000_000_000L));
+
+        // The next subplan should be a FORK combining both branches' count subplans.
+        subplan = approximation.firstSubPlan();
+        assertThat(subplan, hasPlan(Fork.class));
+        assertThat(subplan, hasPlan(Filter.class));
+        assertThat(subplan, not(hasPlan(Aggregate.class)));
+        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-6), withAggs(CountApproximate.class)));
+
+        // Process the FORK count result: both branches converge in one iteration.
+        // Branch 0: sample-corrected count 10^10 (actual 10,000) -> p = 1e-5
+        // Branch 1: sample-corrected count 8*10^9 (actual 8,000) -> p = 1.25e-5
+        mainPlan = processResult(approximation, mainPlan, newForkCountResult(10_000_000_000L, 8_000_000_000L));
+        subplan = approximation.firstSubPlan();
+        assertThat(subplan, nullValue());
+
+        // The main plan should have per-branch sampling probabilities.
+        assertThat(mainPlan, hasPlan(Filter.class));
+        assertThat(mainPlan, not(hasPlan(Aggregate.class)));
+        assertThat(mainPlan, hasPlan(SampledAggregate.class, withProbability(1e-5), withAggs(Sum.class)));
+        assertThat(mainPlan, hasPlan(SampledAggregate.class, withProbability(1.25e-5), withAggs(Sum.class)));
+    }
+
+    // TODO: remove
+    private LogicalPlan processResult(ApproximationDriver approximation, LogicalPlan mainPlan, Result result) {
+        return approximation.newMainPlan(mainPlan, result);
     }
 }

@@ -12,6 +12,7 @@ import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpHandler;
 import software.amazon.awssdk.awscore.AwsRequestOverrideConfiguration;
 import software.amazon.awssdk.core.internal.http.pipeline.stages.ApplyTransactionIdStage;
+import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.ListMultipartUploadsRequest;
 import software.amazon.awssdk.services.s3.model.MultipartUpload;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -61,7 +63,9 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
+import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -117,11 +121,15 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     private static final TimeValue TEST_COOLDOWN_PERIOD = TimeValue.timeValueSeconds(10L);
     private static final long MAX_COPY_SIZE_BEFORE_MULTIPART_MB = 5;
 
+    private String region;
+    private final AtomicBoolean shouldFailCompleteMultipartUploadRequest = new AtomicBoolean();
+
+    private static final AtomicBoolean testTenaciousRetries = new AtomicBoolean(false);
     private static final AtomicLong tenaciousAttempts = new AtomicLong(0);
     private static final AtomicLong tenaciousRetriesRequired = new AtomicLong(0);
 
-    private String region;
-    private final AtomicBoolean shouldFailCompleteMultipartUploadRequest = new AtomicBoolean();
+    private static final RecordingMeterRegistry tenaciousRecordingMeterRegistry = new RecordingMeterRegistry();
+    private static final RepositoriesMetrics tenaciousRepositoriesMetrics = new RepositoriesMetrics(tenaciousRecordingMeterRegistry);
 
     @Override
     public void setUp() throws Exception {
@@ -198,10 +206,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 S3ClientSettings.Defaults.CONNECTION_MAX_IDLE_TIME
             );
         }
-
-        // This setting alone will not enable tenacious retries. Thus, safe for other tests.
-        builder.put(S3ClientSettings.S3_TENACIOUS_RETRIES_ENABLED_SETTING.getConcreteSettingForNamespace("test").getKey(), true);
-
         return builder.build();
     }
 
@@ -677,6 +681,54 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         return data;
     }
 
+    private int getMeasurements(RecordingMeterRegistry meterRegistry) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL)
+            .size();
+    }
+
+    private Map<String, Object> getAttributes(RecordingMeterRegistry meterRegistry) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL)
+            .getFirst()
+            .attributes();
+    }
+
+    public void testTenaciousRetries() throws IOException {
+        testTenaciousRetries.set(true);
+        tenaciousAttempts.set(0);
+        final var requiredAttempts = randomIntBetween(10, 15);
+        tenaciousRetriesRequired.set(requiredAttempts);
+
+        final String repoName = createRepository(randomRepositoryName(), false);
+        final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
+        BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
+        final BlobStoreWrapper blobStore = asInstanceOf(BlobStoreWrapper.class, repository.blobStore());
+
+        final BlobContainer container = blobStore.blobContainer(repository.basePath());
+
+        try {
+            if (super.applyErroneousHttpHandler) {
+                // No retry logics for non list operations.
+                expectThrows(IOException.class, () -> container.listBlobs(BlobStoreTestUtil.randomFiniteRetryingPurpose()));
+
+                expectThrows(
+                    IOException.class,
+                    () -> container.listBlobsByPrefix(BlobStoreTestUtil.randomFiniteRetryingPurpose(), randomIdentifier())
+                );
+
+                expectThrows(IOException.class, () -> container.listBlobs(BlobStoreTestUtil.randomFiniteRetryingPurpose()));
+
+                tenaciousRecordingMeterRegistry.getRecorder().resetCalls();
+                container.children(OperationPurpose.INDICES);
+            }
+        } finally {
+            testTenaciousRetries.set(false);
+            container.delete(randomPurpose());
+            blobStore.close();
+        }
+    }
+
     /**
      * S3RepositoryPlugin that allows to disable chunked encoding and to set a low threshold between single upload and multipart upload.
      */
@@ -714,6 +766,14 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     return new BlobStoreWrapper(super.blobStore()) {
                         @Override
                         public BlobContainer blobContainer(final BlobPath path) {
+
+                            if (testTenaciousRetries.get()) {
+                                return new S3TenaciousRetryBlobContainer(
+                                    new S3BlobContainer(path, (S3BlobStore) delegate()),
+                                    tenaciousRepositoriesMetrics
+                                );
+                            }
+
                             return new S3BlobContainer(path, (S3BlobStore) delegate()) {
                                 @Override
                                 long getLargeBlobThresholdInBytes() {
@@ -726,6 +786,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                         }
                     };
                 }
+
             };
         }
     }
@@ -776,7 +837,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
          */
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            if (failurePermits.tryAcquire()) {
+            if (failurePermits.tryAcquire() || testTenaciousRetries.get()) {
                 super.handle(exchange);
             } else {
                 delegate.handle(exchange);
@@ -788,6 +849,38 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             // Amazon SDK client provides a unique ID per request
             return exchange.getRequestHeaders().getFirst(ApplyTransactionIdStage.HEADER_SDK_TRANSACTION_ID);
         }
+
+        @Override
+        protected boolean canFailRequest(final HttpExchange exchange) {
+
+            if (testTenaciousRetries.get()) {
+                tenaciousAttempts.incrementAndGet();
+                return tenaciousAttempts.get() < tenaciousRetriesRequired.get();
+            }
+
+            return super.canFailRequest(exchange);
+        }
+
+        @Override
+        protected void handleAsError(final HttpExchange exchange) throws IOException {
+            if (testTenaciousRetries.get()) {
+                try (exchange) {
+                    drainInputStream(exchange.getRequestBody());
+                    exchange.sendResponseHeaders(
+                        randomFrom(HttpStatusCode.THROTTLING, HttpStatusCode.SERVICE_UNAVAILABLE, HttpStatusCode.REQUEST_TIMEOUT),
+                        -1
+                    );
+                }
+            }
+
+            super.handleAsError(exchange);
+        }
+
+        @Override
+        protected boolean applyMaxErrorsPerRequest() {
+            return testTenaciousRetries.get() == false;
+        }
+
     }
 
     /**

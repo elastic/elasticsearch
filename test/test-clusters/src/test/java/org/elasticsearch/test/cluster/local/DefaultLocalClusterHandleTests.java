@@ -244,6 +244,54 @@ public class DefaultLocalClusterHandleTests {
         handle.checkNodesAlive();
     }
 
+    @Test
+    public void testUpgradeToVersionSuppressesHealthChecksForCallbackDuration() throws Exception {
+        // Rolling upgrade tests call getHttpAddresses() (→ checkNodesAlive()) inside the per-node
+        // callback. A node that was just restarted may momentarily refuse direct HTTP connections
+        // even after waitUntilReady() returns. The handle must suppress health checks during each
+        // upgrade+callback window so these transient failures do not produce false positives.
+        CountingFailingWaitForHttpResource probe = new CountingFailingWaitForHttpResource();
+        DefaultLocalClusterHandle handle = new DefaultLocalClusterHandle("cluster", List.of(newNode("node-0", true))) {
+            @Override
+            protected List<WaitForHttpResource> createHealthChecks() {
+                return List.of(probe);
+            }
+
+            @Override
+            protected long healthCheckCacheTtlNanos() {
+                return 0L;
+            }
+
+            @Override
+            protected void waitUntilReady() {
+                // no-op: skip real cluster probing in unit test
+            }
+
+            @Override
+            public void upgradeNodeToVersion(int index, Version version) {
+                // no-op: skip actual node stop/start in unit test; just invalidate the cache
+                // to simulate what the real implementation does before waitUntilReady().
+                try {
+                    java.lang.reflect.Method m = DefaultLocalClusterHandle.class.getDeclaredMethod("invalidateHealthCheckCache");
+                    m.setAccessible(true);
+                    m.invoke(this);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+                waitUntilReady();
+            }
+        };
+        setStarted(handle, true);
+
+        // The callback fires inside upgradeToVersion; health checks must be suppressed there.
+        handle.upgradeToVersion(org.elasticsearch.test.cluster.util.Version.CURRENT, () -> {
+            // This must not throw even though the probe always fails.
+            handle.checkNodesAlive();
+        });
+
+        assertThat("health check probe must not have been called during callback", probe.checks.get(), is(0));
+    }
+
     private static class TestProcess extends Process {
         private final boolean alive;
 

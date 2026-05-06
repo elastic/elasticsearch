@@ -68,6 +68,12 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     private final List<Node> nodes;
     private final AtomicReference<Long> lastHealthCheckNanos = new AtomicReference<>();
     private volatile List<WaitForHttpResource> cachedHealthChecks;
+    /**
+     * Suppresses {@link #checkNodesAlive()} probes during deliberate node lifecycle transitions
+     * (rolling upgrades). Set and cleared by {@link #upgradeToVersion(Version, Runnable)} so that
+     * transient connection failures while a node restarts do not produce false-positive failures.
+     */
+    private volatile boolean suppressHealthChecks = false;
 
     public DefaultLocalClusterHandle(String name, List<Node> nodes) {
         this.name = name;
@@ -209,8 +215,16 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     public void upgradeToVersion(Version version, Runnable onNodeUpgradeComplete) {
         int numNodes = getNumNodes();
         for (int index = 0; index < numNodes; index++) {
-            upgradeNodeToVersion(index, version);
-            onNodeUpgradeComplete.run();
+            // Suppress health-check probes for the entire upgrade+callback window. A node being
+            // restarted may momentarily refuse direct HTTP connections even after waitUntilReady()
+            // returns, producing a false-positive "Cluster may be in a bad state" failure.
+            suppressHealthChecks = true;
+            try {
+                upgradeNodeToVersion(index, version);
+                onNodeUpgradeComplete.run();
+            } finally {
+                suppressHealthChecks = false;
+            }
         }
     }
 
@@ -351,7 +365,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     }
 
     protected boolean isStartedForChecks() {
-        return started.get();
+        return started.get() && suppressHealthChecks == false;
     }
 
     protected long healthCheckCacheTtlNanos() {

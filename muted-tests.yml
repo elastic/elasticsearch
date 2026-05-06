@@ -464,9 +464,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.store.input.CachedBlobContainerIndexInputTests
   method: testRandomReads
   issue: https://github.com/elastic/elasticsearch/issues/148163
-- class: org.elasticsearch.xpack.stateless.recovery.SearchShardRelocationIT
-  method: testUnpromotableRelocationHandoffFailsIfTargetAllocationIdChanges
-  issue: https://github.com/elastic/elasticsearch/issues/147957
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/148175

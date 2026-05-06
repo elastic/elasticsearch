@@ -1815,10 +1815,12 @@ public class EsqlCapabilities {
 
         /**
          * Support for the DATE_RANGE field type, RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX.
-         * V4: RANGE_MIN, RANGE_MAX and RANGE_WITHIN now warn and return null on multi-valued input instead of
-         * silently aggregating across values
+         * V5: TO_DATE_RANGE(string) honors the query timezone (Configuration); malformed input now produces a
+         * warning + null (via the standard {@code warnExceptions} path) rather than an assertion error
+         * in production. RANGE_MIN/MAX/WITHIN evaluators are now generated and warn on multi-valued input
+         * instead of silently aggregating across values.
          */
-        DATE_RANGE_FIELD_TYPE_V4(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V5(Build.current().isSnapshot()),
 
         /**
          * Network direction function.

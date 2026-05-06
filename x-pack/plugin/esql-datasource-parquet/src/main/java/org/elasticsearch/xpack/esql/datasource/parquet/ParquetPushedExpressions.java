@@ -1030,6 +1030,8 @@ final class ParquetPushedExpressions {
                 // over to "accepts every valid UTF-8 byte sequence". Our inputs come from KEYWORD
                 // columns, which Elasticsearch guarantees to be valid UTF-8, so this is a sound
                 // proxy for "this LIKE accepts every non-null row" — the contract of matchesAll.
+                // (For invalid UTF-8 — outside the KEYWORD contract — the byte-level automaton would
+                // simply reject the malformed prefix, matching the per-row scalar path's behavior.)
                 boolean matchesAll = Operations.isTotal(automaton);
                 compiled = new CompiledWildcard(new ByteRunAutomaton(automaton), matchesAll);
             } catch (IllegalArgumentException | TooComplexToDeterminizeException e) {

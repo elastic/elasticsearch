@@ -5,7 +5,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 use lru::LruCache;
 use object_store::ObjectStore;
 use object_store::aws::AmazonS3Builder;
-use object_store::azure::{MicrosoftAzure, MicrosoftAzureBuilder};
+use object_store::azure::MicrosoftAzureBuilder;
 use object_store::client::ClientOptions;
 use object_store::gcp::GoogleCloudStorageBuilder;
 use object_store::http::HttpBuilder;
@@ -227,8 +227,7 @@ pub fn resolve_store(
     config: &StorageConfig,
 ) -> Result<(Arc<dyn ObjectStore>, object_store::path::Path), Box<dyn std::error::Error + Send + Sync>>
 {
-    println!("\n*******resolve_store: uri = {}", uri);
-    let s = if uri.starts_with("s3://") {
+    if uri.starts_with("s3://") {
         get_or_build_store(uri, config, || build_s3(uri, config))
     } else if uri.starts_with("az://") || uri.starts_with("abfss://") || uri.starts_with("wasbs://") {
         get_or_build_store(uri, config, || build_azure(uri, config))
@@ -238,10 +237,7 @@ pub fn resolve_store(
         get_or_build_store(uri, config, || build_http(uri))
     } else {
         resolve_local(uri)
-    };
-
-    println!("*******resolve_store: s = {:?}", s);
-    s
+    }
 }
 
 fn build_s3(
@@ -322,8 +318,6 @@ fn build_azure(
             .collect();
         builder = builder.with_sas_authorization(pairs);
     }
-
-    println!("*******build_azure: builder = {:?}", builder);
 
     Ok(Arc::new(LimitStore::new(builder.build()?, S3_MAX_CONCURRENT_REQUESTS)))
 }

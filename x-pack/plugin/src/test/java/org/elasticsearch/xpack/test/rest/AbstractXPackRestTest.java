@@ -146,6 +146,10 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
     private void clearMlState() throws Exception {
         if (isMachineLearningTest()) {
             new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
+            // _features/_reset can enqueue async cluster-state updates (e.g. inference
+            // endpoint cache invalidation via ClearInferenceEndpointCacheAction). Drain
+            // them here so the subsequent waitForPendingTasks does not race with them.
+            waitForClusterUpdates();
         }
     }
 

@@ -189,12 +189,27 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Whether this mapper can be driven through {@link #parse(DocumentParserContext)} by the
+     * bulk batch-indexing fast path (see {@code ShardBatchMapper}). The fast path pre-resolves
+     * one mapper per schema column and bypasses the normal document-level traversal, so mappers
+     * that rely on the surrounding parsing flow — scripts, {@code copy_to}, multi-fields,
+     * dimensions, compound structures, etc. — must return {@code false}. Defaults to
+     * {@code false}; supported mappers override after validating their configuration.
+     */
+    public boolean supportsBatchIndexing() {
+        return false;
+    }
+
+    /**
      * Parse the field value using the provided {@link DocumentParserContext}.
      */
     public void parse(DocumentParserContext context) throws IOException {
         try {
             if (builderParams.hasScript) {
                 throwIndexingWithScriptParam();
+            }
+            if (isSingleValueEnforced()) {
+                context.enforceSingleValue(fullPath());
             }
 
             parseCreateField(context);
@@ -265,6 +280,14 @@ public abstract class FieldMapper extends Mapper {
      * current failing token
      */
     protected abstract void parseCreateField(DocumentParserContext context) throws IOException;
+
+    /**
+     * Whether this mapper enforces single-valued semantics (ie. {@code multi_value=no}). When {@code true}, a second value for the same
+     * document throws. Override on mappers that expose the {@code multi_value} doc values mapping parameter.
+     */
+    protected boolean isSingleValueEnforced() {
+        return false;
+    }
 
     /**
      * @return whether this field mapper uses a script to generate its values

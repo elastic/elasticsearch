@@ -20,9 +20,12 @@ import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Tests for LocalStorageProvider and LocalStorageObject.
@@ -119,7 +122,6 @@ public class LocalStorageProviderTests extends ESTestCase {
     }
 
     public void testFileNotFound() throws IOException {
-        // Use a temp directory path that doesn't exist (within allowed paths)
         Path tempDir = createTempDir();
         Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
 
@@ -128,7 +130,53 @@ public class LocalStorageProviderTests extends ESTestCase {
         StorageObject object = provider.newObject(path);
 
         assertFalse(object.exists());
-        expectThrows(IOException.class, () -> object.newStream());
+        expectThrows(NoSuchFileException.class, () -> object.newStream());
+    }
+
+    public void testLengthOnNonExistentFileThrows() throws IOException {
+        Path tempDir = createTempDir();
+        Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(nonExistentFile));
+        StorageObject object = provider.newObject(path);
+
+        NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> object.length());
+        assertThat(e.getMessage(), containsString("nonexistent_file.txt"));
+    }
+
+    public void testLastModifiedOnNonExistentFileThrows() throws IOException {
+        Path tempDir = createTempDir();
+        Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(nonExistentFile));
+        StorageObject object = provider.newObject(path);
+
+        expectThrows(NoSuchFileException.class, () -> object.lastModified());
+    }
+
+    public void testReadBytesOnNonExistentFileThrows() throws IOException {
+        Path tempDir = createTempDir();
+        Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(nonExistentFile));
+        StorageObject object = provider.newObject(path);
+
+        ByteBuffer buf = ByteBuffer.allocate(10);
+        expectThrows(NoSuchFileException.class, () -> object.readBytes(0, buf));
+    }
+
+    public void testNewStreamRangeOnNonExistentFileThrows() throws IOException {
+        Path tempDir = createTempDir();
+        Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(nonExistentFile));
+        StorageObject object = provider.newObject(path);
+
+        expectThrows(NoSuchFileException.class, () -> object.newStream(0, 10));
     }
 
     public void testSupportedSchemes() {

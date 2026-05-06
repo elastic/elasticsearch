@@ -367,6 +367,9 @@ public class KnnSearcher {
         FilterQueryProvider filterProvider,
         ResultsConsumer resultsConsumer
     ) throws IOException {
+        if (sliced && indexType != KnnIndexTester.IndexType.IVF) {
+            logger.info("Data configurartion is sliced but this setting has no effect for index type \"{}\"", indexType);
+        }
         int totalSearches = filterProvider.searchCount();
         TopDocs[] results = new TopDocs[totalSearches];
         int[][] resultIds = new int[totalSearches][];

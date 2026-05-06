@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.stateless.commits;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Set;
@@ -17,6 +19,8 @@ import java.util.function.Supplier;
  * Utility class to access package private methods of the StatelessCommitService in testing outside of that package.
  */
 public class StatelessCommitServiceTestUtils {
+
+    private static final Logger logger = LogManager.getLogger(StatelessCommitServiceTestUtils.class);
 
     private StatelessCommitServiceTestUtils() {}
 
@@ -33,6 +37,7 @@ public class StatelessCommitServiceTestUtils {
     }
 
     public static void logBlobReferences(StatelessCommitService statelessCommitService, ShardId shardId, Level logLevel) {
-        statelessCommitService.logBlobReferences(shardId, logLevel);
+        final var commitState = statelessCommitService.getSafe(shardId);
+        logger.log(logLevel, "blob references of shard [{}]: {}", shardId, commitState.getPrimaryTermAndGenToBlobReferences());
     }
 }

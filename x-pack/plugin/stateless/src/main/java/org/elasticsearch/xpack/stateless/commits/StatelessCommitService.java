@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexFileNames;
@@ -1162,32 +1161,23 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return commitState.getAllSearchNodesRetainingCommits();
     }
 
-    // Visible for testing
-    void logBlobReferences(ShardId shardId, Level logLevel) {
-        if (Assertions.ENABLED) {
-            try {
-                ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
-                logger.log(logLevel, "blob references for shard [{}]: {}", shardId, commitState.primaryTermAndGenToBlobReference);
-            } catch (Exception loggingException) {
-                logger.log(logLevel, () -> "failed to log blob references for shard [" + shardId + "]", loggingException);
-            }
-        } else {
-            assert false : "should only be called in tests";
-        }
-    }
-
     /**
      * Returns the {@link ShardCommitState} for the given {@link ShardId}. Throws an exception if there is no commit state found, meaning
      * that the shard is closed.
      *
      * Visible for testing.
      */
-    private static ShardCommitState getSafe(ConcurrentHashMap<ShardId, ShardCommitState> map, ShardId shardId) {
+    static ShardCommitState getSafe(ConcurrentHashMap<ShardId, ShardCommitState> map, ShardId shardId) {
         final ShardCommitState commitState = map.get(shardId);
         if (commitState == null) {
             throw new AlreadyClosedException("shard [" + shardId + "] has already been closed");
         }
         return commitState;
+    }
+
+    // Visible for testing.
+    ShardCommitState getSafe(ShardId shardId) {
+        return getSafe(shardsCommitsStates, shardId);
     }
 
     class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
@@ -1925,6 +1915,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 );
             }
             blobReference.removeLocalCommitRef(commitPrimaryTermAndGeneration);
+        }
+
+        // Visible for testing.
+        Map<PrimaryTermAndGeneration, BlobReference> getPrimaryTermAndGenToBlobReferences() {
+            return primaryTermAndGenToBlobReference;
         }
 
         private PrimaryTermAndGeneration resolvePrimaryTermForGeneration(long generation) {

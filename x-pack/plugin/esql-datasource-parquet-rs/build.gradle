@@ -80,20 +80,19 @@ configurations {
 def computeNativeCodeHash = {
   def md = MessageDigest.getInstance("SHA-1")
   def paths = []
-  // Collect all native file names and sort them.
+  // Collect all native file names and sort them. We use File objects and convert them to String
+  // ensure the same sort order on every platform (file sorting is platform-dependent).
   file("${nativeDir}/.cargo").eachFileRecurse(groovy.io.FileType.FILES) { paths << it.toString() }
   file("${nativeDir}/src").eachFileRecurse(groovy.io.FileType.FILES)    { paths << it.toString() }
-  paths << "${nativeDir}/Cargo.toml"
-  paths << "${nativeDir}/Cargo.lock"
+  paths << file("${nativeDir}/Cargo.toml").toString()
+  paths << file("${nativeDir}/Cargo.lock").toString()
   paths.sort().each { rel ->
     println("Native source file ${rel}")
     def bytes = new File(rel).bytes
     // Strip CR to normalize line ends (may be CRLF on Windows)
     def out = new ByteArrayOutputStream(bytes.length)
     for (b in bytes) { if (b != '\r') out.write(b) }
-    def newBytes = out.toByteArray()
-    if (newBytes.length != bytes.length) { println ("Removed ${bytes.length - newBytes.length} bytes") }
-    md.update(newBytes)
+    md.update(out.toByteArray())
   }
   md.digest().encodeHex().toString()
 }

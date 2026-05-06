@@ -242,7 +242,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             lateMaterialization,
             storageObject,
             columnInfos,
-            isPredicateColumn,
             reader.getRowGroups(),
             projectedColumnPaths,
             predicateColumnPaths,
@@ -349,6 +348,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         // Larger projected sizes need deeper prefetch: an S3 GET for a 20MB string column takes
         // ~200ms while decode takes ~10ms, so single-ahead can't hide the latency. The circuit
         // breaker caps actual memory regardless of depth.
+        //
+        // Two-phase note: under two-phase the queued prefetches carry only predicate columns, so
+        // the actual queued bytes are a fraction of {@code projectedBytes}. We intentionally keep
+        // the depth sized on the full projection footprint because the synchronous Phase-2 fetch
+        // we issue inside {@code advanceRowGroup} is what dominates per-row-group latency under
+        // two-phase, and a deeper queue lets Phase 1 of the next row group overlap that wait.
         if (projectedBytes > DEEPER_PREFETCH_BYTES) {
             return 3;
         }
@@ -402,17 +407,21 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
      * <p>Two-phase requires (a) late materialization to be active, (b) at least one
      * projection-only column (otherwise Phase 2 has nothing to fetch), (c) a storage object that
      * benefits from skipping bytes (i.e., remote — proxied here via
-     * {@link StorageObject#supportsNativeAsync()} since all remote backends override it and
-     * local files do not), (d) no list columns (their decode path needs a unified
-     * {@code ColumnReadStoreImpl} that we don't split between predicate and projection stores),
-     * and (e) the projected bytes must be dominated by projection-only columns rather than
-     * predicate columns.
+     * {@link StorageObject#supportsNativeAsync()}; today this is the de-facto remote signal,
+     * overridden by every cloud-backed {@code StorageObject} in the codebase — {@code S3StorageObject},
+     * {@code GcsStorageObject}, {@code AzureStorageObject}, and {@code HttpStorageObject} — and not
+     * by any local-only implementation. If a future {@code StorageObject} returns {@code true}
+     * without remote-like fetch cost, this gate may activate two-phase where it isn't profitable;
+     * the fallback is the single-phase late-mat path, so the worst case is wasted CPU on the
+     * unnecessary survivor-mask plumbing rather than incorrect results.), (d) no list columns
+     * (their decode path needs a unified {@code ColumnReadStoreImpl} that we don't split between
+     * predicate and projection stores), and (e) the projected bytes must be dominated by
+     * projection-only columns rather than predicate columns.
      */
     private static boolean shouldUseTwoPhase(
         boolean lateMaterialization,
         StorageObject storageObject,
         ColumnInfo[] columnInfos,
-        boolean[] isPredicateColumn,
         List<BlockMetaData> rowGroups,
         Set<String> projectedColumnPaths,
         Set<String> predicateColumnPaths,
@@ -785,8 +794,22 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                 rowsConsumed += rowsToRead;
             }
         } catch (Exception e) {
+            // Mirror the success path's cleanup so a partially-decoded row group doesn't leak the
+            // predicate PageReadStore / PageColumnReaders even if the caller forgets to close()
+            // the iterator. close() itself is still defensive against this state, so doing the
+            // teardown here just narrows the leak window to "exception propagated and iterator
+            // immediately discarded".
             for (Block[] arr : predicateBatches) {
                 Releasables.closeExpectNoException(arr);
+            }
+            closePageColumnReaders();
+            if (rowGroup != null) {
+                try {
+                    rowGroup.close();
+                } catch (Exception closeEx) {
+                    e.addSuppressed(closeEx);
+                }
+                rowGroup = null;
             }
             throw e;
         }

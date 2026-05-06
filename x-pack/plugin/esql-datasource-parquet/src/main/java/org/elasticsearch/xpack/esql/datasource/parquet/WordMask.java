@@ -61,10 +61,6 @@ final class WordMask {
         return words[index];
     }
 
-    int numBits() {
-        return numBits;
-    }
-
     void clear(int index) {
         words[index >>> 6] &= ~(1L << index);
     }

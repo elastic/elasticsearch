@@ -163,11 +163,14 @@ public class TwoPhaseReaderTests extends ESTestCase {
 
     public void testTwoPhaseFallsBackToSinglePhaseWhenNoProjectionOnlyColumn() throws Exception {
         // When the only projected column is also a predicate column, two-phase has nothing to
-        // save in Phase 2 — the gate should reject and the iterator should fall back to the
-        // standard read path. Late-materialization is also off (no projection-only columns), so
-        // the parquet-mr filter only drives row-group / page-index pruning, not row-level
-        // filtering. With a single small row group, no rows are dropped — but the iterator must
-        // still read the file end-to-end without throwing.
+        // save in Phase 2 — the gate rejects and the iterator falls back to the standard read
+        // path. The reader is still constructed with the late-materialization *flag* enabled
+        // ({@code lateMaterializationEnabled=true} via the default ctor), but the runtime
+        // {@code lateMaterialization} decision inside {@code OptimizedParquetColumnIterator}
+        // turns off because there are no projection-only columns. With late-mat off, the
+        // parquet-mr filter only drives row-group / page-index pruning, not row-level filtering;
+        // a single small row group survives entirely. The iterator must still read the file
+        // end-to-end without throwing — that's the contract this test pins.
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
 
         byte[] parquetData = buildParquet(schema, 100, i -> {

@@ -1,6 +1,5 @@
 config:
   trigger-phrase: '.*run\W+elasticsearch-ci/bwc.*'
-  allow-labels: ">non-issue"
   skip-labels:
     - ">test-mute"
     - "test-full-bwc"
@@ -17,7 +16,7 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-16
+          machineType: n4-standard-32
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 2 / bwc-snapshots"
@@ -30,7 +29,7 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-16
+          machineType: n4-standard-32
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 3 / bwc-snapshots"
@@ -43,12 +42,12 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-16
+          machineType: n4-standard-32
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 4 / bwc-snapshots"
         key: "bwc-snapshots-part4"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart4
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart5
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -56,7 +55,7 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-16
+          machineType: n4-standard-32
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 5 / bwc-snapshots"
@@ -69,7 +68,7 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-16
+          machineType: n4-standard-32
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 6 / bwc-snapshots"
@@ -82,87 +81,6 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-16
-          diskType: hyperdisk-balanced
-          buildDirectory: /dev/shm/bk
-
-  - group: bwc-snapshots-smaller
-    steps:
-      - label: "{{matrix.BWC_VERSION}} / Part 1 / bwc-snapshots"
-        key: "bwc-snapshots-part1-smaller"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart1
-        timeout_in_minutes: 300
-        matrix:
-          setup:
-            BWC_VERSION: $SNAPSHOT_BWC_VERSIONS
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
-          buildDirectory: /dev/shm/bk
-      - label: "{{matrix.BWC_VERSION}} / Part 2 / bwc-snapshots"
-        key: "bwc-snapshots-part2-smaller"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart2
-        timeout_in_minutes: 300
-        matrix:
-          setup:
-            BWC_VERSION: $SNAPSHOT_BWC_VERSIONS
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
-          buildDirectory: /dev/shm/bk
-      - label: "{{matrix.BWC_VERSION}} / Part 3 / bwc-snapshots"
-        key: "bwc-snapshots-part3-smaller"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart3
-        timeout_in_minutes: 300
-        matrix:
-          setup:
-            BWC_VERSION: $SNAPSHOT_BWC_VERSIONS
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
-          buildDirectory: /dev/shm/bk
-      - label: "{{matrix.BWC_VERSION}} / Part 4 / bwc-snapshots"
-        key: "bwc-snapshots-part4-smaller"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart4
-        timeout_in_minutes: 300
-        matrix:
-          setup:
-            BWC_VERSION: $SNAPSHOT_BWC_VERSIONS
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
-          buildDirectory: /dev/shm/bk
-      - label: "{{matrix.BWC_VERSION}} / Part 5 / bwc-snapshots"
-        key: "bwc-snapshots-part5-smaller"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart5
-        timeout_in_minutes: 300
-        matrix:
-          setup:
-            BWC_VERSION: $SNAPSHOT_BWC_VERSIONS
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
-          diskType: hyperdisk-balanced
-          buildDirectory: /dev/shm/bk
-      - label: "{{matrix.BWC_VERSION}} / Part 6 / bwc-snapshots"
-        key: "bwc-snapshots-part6-smaller"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart6
-        timeout_in_minutes: 300
-        matrix:
-          setup:
-            BWC_VERSION: $SNAPSHOT_BWC_VERSIONS
-        agents:
-          provider: gcp
-          image: family/elasticsearch-ubuntu-2404
-          machineType: n4-standard-8
+          machineType: n4-standard-32
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk

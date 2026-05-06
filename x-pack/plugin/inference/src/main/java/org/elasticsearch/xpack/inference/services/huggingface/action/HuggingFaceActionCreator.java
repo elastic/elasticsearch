@@ -78,8 +78,8 @@ public class HuggingFaceActionCreator implements HuggingFaceActionVisitor {
             overriddenModel,
             RERANK_HANDLER,
             inputs -> new HuggingFaceRerankRequest(
-                inputs.getQuery(),
-                inputs.getChunks(),
+                inputs.getQueryAsString(),
+                inputs.getDocsAsStrings(),
                 inputs.getReturnDocuments(),
                 inputs.getTopN(),
                 model

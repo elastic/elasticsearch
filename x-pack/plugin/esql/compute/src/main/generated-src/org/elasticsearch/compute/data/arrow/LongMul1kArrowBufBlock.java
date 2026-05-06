@@ -53,6 +53,11 @@ public final class LongMul1kArrowBufBlock extends AbstractArrowBufBlock<LongVect
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Long.BYTES;
+    }
+
+    @Override
     protected ArrowBufVectorConstructor<LongVector> vectorConstructor() {
         return LongMul1kArrowBufVector::new;
     }

@@ -123,7 +123,7 @@ str:keyword                                          | range:date_range
 
 
 toDateRangeMalformedInput
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 ROW s = "not-a-range"
 | EVAL r = TO_DATE_RANGE(s)
@@ -137,7 +137,7 @@ not-a-range | null
 
 
 toDateRangeFromStringMultiValue
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 ROW s = ["2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z", "2022-01-01T00:00:00.000Z..2023-01-01T00:00:00.000Z"]
 | EVAL r = MV_SORT(TO_STRING(TO_DATE_RANGE(s)))
@@ -149,7 +149,7 @@ s:keyword                                                                       
 
 
 toStringDateRangeMultiValue
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM mv_decades
 | EVAL s = MV_SORT(TO_STRING(date_range))

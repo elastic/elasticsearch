@@ -62,7 +62,7 @@ public class GatewayMetaStateTests extends ESTestCase {
             return templates;
         }), List.of());
 
-        Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
+        Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader, true);
         assertNotSame(upgrade, metadata);
         assertFalse(Metadata.isGlobalStateEquals(upgrade, metadata));
         assertTrue(upgrade.hasProject(projectId));
@@ -73,7 +73,7 @@ public class GatewayMetaStateTests extends ESTestCase {
     public void testNoMetadataUpgrade() {
         Metadata metadata = randomMetadata(new CustomMetadata1("data"));
         MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.emptyList(), List.of());
-        Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
+        Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader, true);
         assertSame(upgrade, metadata);
         assertTrue(Metadata.isGlobalStateEquals(upgrade, metadata));
         for (IndexMetadata indexMetadata : upgrade.getProject(projectId)) {
@@ -85,7 +85,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         Metadata metadata = randomMetadata(new CustomMetadata1("data"));
         MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.emptyList(), List.of());
         try {
-            GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
+            GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader, true);
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(), equalTo("custom meta data too old"));
         }
@@ -94,7 +94,7 @@ public class GatewayMetaStateTests extends ESTestCase {
     public void testIndexMetadataUpgrade() {
         Metadata metadata = randomMetadata();
         MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.emptyList(), List.of());
-        Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(true), metadataUpgrader);
+        Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(true), metadataUpgrader, true);
         assertNotSame(upgrade, metadata);
         assertTrue(Metadata.isGlobalStateEquals(upgrade, metadata));
         for (IndexMetadata indexMetadata : upgrade.getProject(projectId)) {
@@ -102,10 +102,59 @@ public class GatewayMetaStateTests extends ESTestCase {
         }
     }
 
+    public void testSkipIndexVerificationStillUpgradesTemplatesAndProject() {
+        Metadata metadata = Metadata.builder(Metadata.EMPTY_METADATA)
+            .put(
+                ProjectMetadata.builder(projectId)
+                    .put(
+                        IndexMetadata.builder(randomAlphaOfLength(10))
+                            .settings(settings(IndexVersion.current()))
+                            .numberOfReplicas(randomIntBetween(0, 3))
+                            .numberOfShards(randomIntBetween(1, 5))
+                    )
+                    .putCustom(ProjectCustomMetadata1.TYPE, new ProjectCustomMetadata1("data"))
+            )
+            .build();
+        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.singletonList(templates -> {
+            templates.put(
+                "added_test_template",
+                IndexTemplateMetadata.builder("added_test_template").patterns(randomIndexPatterns()).build()
+            );
+            return templates;
+        }),
+            List.of(
+                Map.of(
+                    ProjectCustomMetadata1.TYPE,
+                    toUpgrade -> new ProjectCustomMetadata1("upgraded " + ((ProjectCustomMetadata1) toUpgrade).getData())
+                )
+            )
+        );
+
+        // A throwing verifier proves we never call it on the skip path.
+        IndexMetadataVerifier throwingVerifier = new MockIndexMetadataVerifier(false) {
+            @Override
+            public IndexMetadata verifyIndexMetadata(
+                IndexMetadata indexMetadata,
+                IndexVersion minimumIndexCompatibilityVersion,
+                IndexVersion minimumReadOnlyIndexCompatibilityVersion
+            ) {
+                throw new AssertionError("verifyIndexMetadata must not be called when verifyIndexMetadata=false");
+            }
+        };
+
+        Metadata upgraded = GatewayMetaState.upgradeMetadata(metadata, throwingVerifier, metadataUpgrader, false);
+
+        assertTrue(upgraded.getProject(projectId).templates().containsKey("added_test_template"));
+        assertEquals(new ProjectCustomMetadata1("upgraded data"), upgraded.getProject(projectId).custom(ProjectCustomMetadata1.TYPE));
+        for (IndexMetadata indexMetadata : upgraded.getProject(projectId)) {
+            assertTrue(metadata.getProject(projectId).hasIndexMetadata(indexMetadata));
+        }
+    }
+
     public void testCustomMetadataNoChange() {
         Metadata metadata = randomMetadata(new CustomMetadata1("data"));
         MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.singletonList(HashMap::new), List.of());
-        Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
+        Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader, true);
         assertSame(upgrade, metadata);
         assertTrue(Metadata.isGlobalStateEquals(upgrade, metadata));
         for (IndexMetadata indexMetadata : upgrade.getProject(projectId)) {
@@ -144,7 +193,8 @@ public class GatewayMetaStateTests extends ESTestCase {
         Metadata upgradedMetadata = GatewayMetaState.upgradeMetadata(
             originalMetadata,
             new MockIndexMetadataVerifier(false),
-            metadataUpgrader
+            metadataUpgrader,
+            true
         );
         // ...and assert that the ProjectCustomMetadata1 has been upgraded...
         assertEquals(new ProjectCustomMetadata1("new data"), upgradedMetadata.getProject(projectId).custom(ProjectCustomMetadata1.TYPE));
@@ -177,7 +227,8 @@ public class GatewayMetaStateTests extends ESTestCase {
         Metadata upgradedMetadata = GatewayMetaState.upgradeMetadata(
             originalMetadata,
             new MockIndexMetadataVerifier(false),
-            metadataUpgrader
+            metadataUpgrader,
+            true
         );
         // ...and assert that the first upgrader has been applied to the ProjectCustomMetadata1...
         assertEquals(new ProjectCustomMetadata1("new data"), upgradedMetadata.getProject(projectId).custom(ProjectCustomMetadata1.TYPE));
@@ -195,7 +246,7 @@ public class GatewayMetaStateTests extends ESTestCase {
         }), List.of());
         String message = expectThrows(
             IllegalStateException.class,
-            () -> GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader)
+            () -> GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader, true)
         ).getMessage();
         assertThat(message, equalTo("template is incompatible"));
     }
@@ -227,7 +278,7 @@ public class GatewayMetaStateTests extends ESTestCase {
             );
             return indexTemplateMetadatas;
         }), List.of());
-        Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
+        Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader, true);
         assertNotSame(upgrade, metadata);
         assertFalse(Metadata.isGlobalStateEquals(upgrade, metadata));
         assertNotNull(upgrade.getProject(projectId).templates().get("template1"));

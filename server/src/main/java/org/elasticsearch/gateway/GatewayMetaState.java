@@ -186,11 +186,15 @@ public class GatewayMetaState implements Closeable {
         PersistedState persistedState = null;
         boolean success = false;
         try {
-            // Skip index metadata verification on non-master nodes since they will receive
-            // verified metadata from the master via cluster state updates
-            final Metadata upgradedMetadata = DiscoveryNode.isMasterNode(settings)
-                ? upgradeMetadataForNode(metadata, indexMetadataVerifier, metadataUpgrader)
-                : metadata;
+            // Per-index metadata verification can be skipped on non-master-eligible nodes: they will receive verified metadata from the
+            // master via cluster state updates after joining. Plugin templates and project custom metadata are still upgraded so that any
+            // local consumers reading them before the join see consistent values.
+            final Metadata upgradedMetadata = upgradeMetadataForNode(
+                metadata,
+                indexMetadataVerifier,
+                metadataUpgrader,
+                DiscoveryNode.isMasterNode(settings)
+            );
             final ClusterState clusterState = prepareInitialClusterState(
                 transportService,
                 clusterService,
@@ -287,24 +291,37 @@ public class GatewayMetaState implements Closeable {
     }
 
     // exposed so it can be overridden by tests
-    Metadata upgradeMetadataForNode(Metadata metadata, IndexMetadataVerifier indexMetadataVerifier, MetadataUpgrader metadataUpgrader) {
-        return upgradeMetadata(metadata, indexMetadataVerifier, metadataUpgrader);
+    Metadata upgradeMetadataForNode(
+        Metadata metadata,
+        IndexMetadataVerifier indexMetadataVerifier,
+        MetadataUpgrader metadataUpgrader,
+        boolean verifyIndexMetadata
+    ) {
+        return upgradeMetadata(metadata, indexMetadataVerifier, metadataUpgrader, verifyIndexMetadata);
     }
 
     /**
      * This method uses {@link IndexMetadataVerifier} to ensure that indices are compatible
      * with the current version. It also calls into plugins to update their index templates.
      *
+     * @param verifyIndexMetadata whether to run {@link IndexMetadataVerifier} on each index. Plugin templates and project custom metadata
+     *                            are upgraded regardless of this flag.
      * @return input <code>metadata</code> if no upgrade is needed or an upgraded metadata
      */
-    static Metadata upgradeMetadata(Metadata metadata, IndexMetadataVerifier indexMetadataVerifier, MetadataUpgrader metadataUpgrader) {
+    static Metadata upgradeMetadata(
+        Metadata metadata,
+        IndexMetadataVerifier indexMetadataVerifier,
+        MetadataUpgrader metadataUpgrader,
+        boolean verifyIndexMetadata
+    ) {
         boolean changed = false;
         final Metadata.Builder upgradedMetadata = Metadata.builder(metadata);
         for (ProjectMetadata projectMetadata : metadata.projects().values()) {
             final ProjectMetadata upgradedProjectMetadata = upgradeProjectMetadata(
                 projectMetadata,
                 indexMetadataVerifier,
-                metadataUpgrader
+                metadataUpgrader,
+                verifyIndexMetadata
             );
             changed |= projectMetadata != upgradedProjectMetadata;
             upgradedMetadata.put(upgradedProjectMetadata);
@@ -315,16 +332,19 @@ public class GatewayMetaState implements Closeable {
     private static ProjectMetadata upgradeProjectMetadata(
         ProjectMetadata metadata,
         IndexMetadataVerifier indexMetadataVerifier,
-        MetadataUpgrader metadataUpgrader
+        MetadataUpgrader metadataUpgrader,
+        boolean verifyIndexMetadata
     ) {
         boolean changed = false;
         final ProjectMetadata.Builder upgradedMetadata = ProjectMetadata.builder(metadata);
         for (IndexMetadata indexMetadata : metadata) {
-            IndexMetadata newMetadata = indexMetadataVerifier.verifyIndexMetadata(
-                indexMetadata,
-                IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersions.MINIMUM_READONLY_COMPATIBLE
-            );
+            IndexMetadata newMetadata = verifyIndexMetadata
+                ? indexMetadataVerifier.verifyIndexMetadata(
+                    indexMetadata,
+                    IndexVersions.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_READONLY_COMPATIBLE
+                )
+                : indexMetadata;
             changed |= indexMetadata != newMetadata;
             upgradedMetadata.put(newMetadata, false);
         }

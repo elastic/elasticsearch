@@ -46,6 +46,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -374,7 +375,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         if (usually()) {
             ensureYellow();
         } else {
-            internalCluster().startNode();
+            // start a non-master-eligible second node so we exercise the path that skips per-index verification at startup
+            internalCluster().startNode(dataOnlyNode());
             clusterAdmin().health(
                 new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, new String[] {}).waitForGreenStatus()
                     .waitForEvents(Priority.LANGUID)
@@ -415,22 +417,24 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         indicesAdmin().prepareClose("test").get();
 
         state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        assertEquals(IndexMetadata.State.CLOSE, state.getMetadata().getProject().index(metadata.getIndex()).getState());
-
-        // Verify archived settings are synchronized across all nodes
-        String archivedSettingKey = "archived.index.similarity.BM25.type";
-        assertTrue(state.getMetadata().getProject().index(metadata.getIndex()).getSettings().hasValue(archivedSettingKey));
         IndexMetadata masterIndexMetadata = state.getMetadata().getProject().index(metadata.getIndex());
-        String masterArchivedValue = masterIndexMetadata.getSettings().get(archivedSettingKey);
-        for (String nodeName : internalCluster().getNodeNames()) {
-            ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
-            IndexMetadata nodeIndexMetadata = clusterService.state().metadata().getProject().index(metadata.getIndex());
-            String nodeArchivedValue = nodeIndexMetadata.getSettings().get(archivedSettingKey);
-            assertEquals(
-                "Archived setting " + archivedSettingKey + " should be synchronized on node " + nodeName,
-                masterArchivedValue,
-                nodeArchivedValue
-            );
+        assertEquals(IndexMetadata.State.CLOSE, masterIndexMetadata.getState());
+
+        String archivedSettingKey = "archived.index.similarity.BM25.type";
+        assertTrue(masterIndexMetadata.getSettings().hasValue(archivedSettingKey));
+
+        // verify archived setting is synchronized across all nodes (only meaningful when there is more than one node)
+        if (internalCluster().size() > 1) {
+            String masterArchivedValue = masterIndexMetadata.getSettings().get(archivedSettingKey);
+            for (String nodeName : internalCluster().getNodeNames()) {
+                ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
+                IndexMetadata nodeIndexMetadata = clusterService.state().metadata().getProject().index(metadata.getIndex());
+                assertEquals(
+                    "Archived setting " + archivedSettingKey + " should be synchronized on node " + nodeName,
+                    masterArchivedValue,
+                    nodeIndexMetadata.getSettings().get(archivedSettingKey)
+                );
+            }
         }
 
         // try to open it with the broken setting - fail again!

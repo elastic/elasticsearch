@@ -44,7 +44,12 @@ public class MockGatewayMetaState extends GatewayMetaState {
     }
 
     @Override
-    Metadata upgradeMetadataForNode(Metadata metadata, IndexMetadataVerifier indexMetadataVerifier, MetadataUpgrader metadataUpgrader) {
+    Metadata upgradeMetadataForNode(
+        Metadata metadata,
+        IndexMetadataVerifier indexMetadataVerifier,
+        MetadataUpgrader metadataUpgrader,
+        boolean verifyIndexMetadata
+    ) {
         // Metadata upgrade is tested in GatewayMetaStateTests, we override this method to NOP to make mocking easier
         return metadata;
     }

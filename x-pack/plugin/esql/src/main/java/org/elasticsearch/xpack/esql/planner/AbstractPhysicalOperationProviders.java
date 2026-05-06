@@ -19,6 +19,7 @@ import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -34,7 +35,10 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
@@ -99,6 +103,10 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             // grouping
             List<GroupingAggregator.Factory> aggregatorFactories = new ArrayList<>();
             List<GroupSpec> groupSpecs = new ArrayList<>(aggregateExec.groupings().size());
+            // Look once for a transient Top-N grouping hint pushed onto an ExternalSourceExec by
+            // PushTopNIntoExternalSource. The rule only fires when there is a single grouping key, so we only
+            // forward the hint in that case.
+            BlockHash.TopNDef pushedTopN = aggregateExec.groupings().size() == 1 ? extractPushedTopN(aggregateExec.child()) : null;
             for (Expression group : aggregateExec.groupings()) {
                 Attribute groupAttribute = Expressions.attribute(group);
                 // In case of `... BY groupAttribute = CATEGORIZE(sourceGroupAttribute)` the actual source attribute is different.
@@ -144,7 +152,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 }
                 layout.append(groupAttributeLayout);
                 Layout.ChannelAndType groupInput = source.layout.get(sourceGroupAttribute.id());
-                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group));
+                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group, pushedTopN));
             }
 
             if (aggregatorMode.isOutputPartial()) {
@@ -355,7 +363,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
      * @param attribute The attribute, source of this group
      * @param expression The expression being used to group
      */
-    private record GroupSpec(Integer channel, Attribute attribute, Expression expression) {
+    private record GroupSpec(Integer channel, Attribute attribute, Expression expression, @Nullable BlockHash.TopNDef topNDef) {
         BlockHash.GroupSpec toHashGroupSpec() {
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
@@ -364,13 +372,26 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 channel,
                 elementType(),
                 Alias.unwrap(expression) instanceof Categorize categorize ? categorize.categorizeDef() : null,
-                null
+                topNDef
             );
         }
 
         ElementType elementType() {
             return PlannerUtils.toElementType(attribute.dataType());
         }
+    }
+
+    /**
+     * Walks down the child subtree of an {@link AggregateExec} looking for an {@link ExternalSourceExec}
+     * whose transient {@link ExternalSourceExec#pushedTopN()} hint is set. Delegates the wrapper-shape
+     * traversal to {@link ExternalSourceAggregatePushdown#findExternalSource(PhysicalPlan)} so the local
+     * execution plan honours the same rewrites the optimizer already validated against.
+     * Returns {@code null} when no external source (or no Top-N hint) is found.
+     */
+    @Nullable
+    private static BlockHash.TopNDef extractPushedTopN(PhysicalPlan child) {
+        ExternalSourceExec ext = ExternalSourceAggregatePushdown.findExternalSource(child);
+        return ext == null ? null : ext.pushedTopN();
     }
 
     public abstract Operator.OperatorFactory timeSeriesAggregatorOperatorFactory(

@@ -535,10 +535,12 @@ public class Verifier {
         Set<String> names = new HashSet<>();
 
         for (Attribute attribute : attributes) {
-            if (attribute instanceof FieldAttribute fa
-                && fa.field() instanceof UnsupportedEsField uef
-                && uef.getOriginalTypes().contains(FlattenedFieldMapper.CONTENT_TYPE)) {
-                names.add(fa.name());
+            if (attribute instanceof FieldAttribute fa) {
+                if (fa.field() instanceof UnsupportedEsField uef && uef.getOriginalTypes().contains(FlattenedFieldMapper.CONTENT_TYPE)) {
+                    names.add(fa.name());
+                } else if (fa.dataType() == DataType.FLATTENED) {
+                    names.add(fa.name());
+                }
             }
         }
 

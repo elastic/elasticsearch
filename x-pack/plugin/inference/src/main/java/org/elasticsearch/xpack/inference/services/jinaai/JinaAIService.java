@@ -210,7 +210,7 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
     }
 
     @Override
-    protected boolean supportsImageEmbeddingContent() {
+    protected boolean supportsNonTextEmbeddingContent() {
         return true;
     }
 

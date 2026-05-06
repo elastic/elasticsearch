@@ -28,7 +28,9 @@ import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_
 import static org.elasticsearch.inference.InferenceString.FORMAT_FIELD;
 import static org.elasticsearch.inference.InferenceString.TYPE_FIELD;
 import static org.elasticsearch.inference.InferenceString.VALUE_FIELD;
+import static org.elasticsearch.inference.InferenceString.fromStringList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class InferenceStringTests extends AbstractBWCSerializationTestCase<InferenceString> {
@@ -310,6 +312,19 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
                 cause.getCause().getMessage(),
                 containsString("base64 inputs must be specified as data URIs with the format [data:{MIME-type};base64,...]")
             );
+        }
+    }
+
+    public void testFromStringList_CreatesExpectedList() {
+        var strings = randomList(1, 5, () -> randomAlphanumericOfLength(8));
+        var inferenceStrings = fromStringList(strings);
+
+        assertThat(inferenceStrings, hasSize(strings.size()));
+        for (int i = 0; i < strings.size(); ++i) {
+            var inferenceString = inferenceStrings.get(i);
+            assertThat(inferenceString.dataType(), is(DataType.TEXT));
+            assertThat(inferenceString.dataFormat(), is(DataFormat.TEXT));
+            assertThat(inferenceString.value(), is(strings.get(i)));
         }
     }
 

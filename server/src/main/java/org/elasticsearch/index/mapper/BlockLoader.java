@@ -798,12 +798,12 @@ public interface BlockLoader {
          * Append multiple BytesRef. Offsets contains offsets of each BytesRef in the byte array.
          * The length of the offsets array is one more than the number of BytesRefs.
          */
-        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException;
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int[] offsets) throws IOException;
 
         /**
          * Append multiple BytesRefs, all with the same length.
          */
-        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long bytesRefLengths) throws IOException;
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int bytesRefLengths) throws IOException;
     }
 
     interface FloatBuilder extends Builder {

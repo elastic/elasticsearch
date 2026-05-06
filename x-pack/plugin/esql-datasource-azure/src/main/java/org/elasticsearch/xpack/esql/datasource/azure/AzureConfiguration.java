@@ -52,6 +52,15 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
         return raw == null || raw.isEmpty() ? null : new AzureConfiguration(raw);
     }
 
+    /**
+     * Lenient factory for query-time WITH clauses, which may carry format-level options
+     * (e.g. {@code header_row}) alongside storage-level options. Filters unknown keys
+     * before construction; cross-field validation (auth/credential conflicts) still runs.
+     */
+    public static AzureConfiguration fromQueryConfig(Map<String, Object> raw) {
+        return fromMap(filterKnown(raw, FIELDS));
+    }
+
     public static AzureConfiguration fromFields(String connectionString, String account, String key, String sasToken, String endpoint) {
         return fromFields(connectionString, account, key, sasToken, endpoint, null);
     }

@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ChatCompletionError
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParserContract;
 import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponseUtils;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 import org.elasticsearch.xpack.inference.services.anthropic.response.AnthropicChatCompletionResponseEntity;
@@ -43,10 +43,10 @@ public class AnthropicChatCompletionResponseHandler extends AnthropicResponseHan
     }
 
     @Override
-    public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
+    public InferenceServiceResults parseResult(OutboundRequest outboundRequest, Flow.Publisher<HttpResult> flow) {
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
         var anthropicProcessor = new AnthropicChatCompletionStreamingProcessor(
-            (m, e) -> chatCompletionErrorResponseHandler.buildMidStreamChatCompletionError(request.getInferenceEntityId(), m, e)
+            (m, e) -> chatCompletionErrorResponseHandler.buildMidStreamChatCompletionError(outboundRequest.getInferenceEntityId(), m, e)
         );
         flow.subscribe(serverSentEventProcessor);
         serverSentEventProcessor.subscribe(anthropicProcessor);
@@ -54,7 +54,7 @@ public class AnthropicChatCompletionResponseHandler extends AnthropicResponseHan
     }
 
     @Override
-    protected UnifiedChatCompletionException buildError(String message, Request request, HttpResult result) {
-        return chatCompletionErrorResponseHandler.buildChatCompletionError(message, request, result);
+    protected UnifiedChatCompletionException buildError(String message, OutboundRequest outboundRequest, HttpResult result) {
+        return chatCompletionErrorResponseHandler.buildChatCompletionError(message, outboundRequest, result);
     }
 }

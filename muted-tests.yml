@@ -524,6 +524,3 @@ tests:
 - class: org.elasticsearch.index.mapper.DateRangeDocValuesLoaderTests
   method: testEmptyRangesAppendsNull
   issue: https://github.com/elastic/elasticsearch/issues/148378
-- class: org.elasticsearch.xpack.inference.rest.BaseInferenceActionTests
-  method: testResolveTimeoutForTaskType_NonNullTimeout_ReturnsTimeout
-  issue: https://github.com/elastic/elasticsearch/issues/148396

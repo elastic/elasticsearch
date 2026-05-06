@@ -1210,6 +1210,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             ? SemanticInferenceMetadataFieldsMapperTests.randomIndexSettings(true)
             : Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current()).build();
         when(indexMetadata.getSettings()).thenReturn(indexSettings);
+        when(indexMetadata.getCreationVersion()).thenReturn(IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings));
 
         ProjectMetadata project = spy(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).build());
         when(project.index(anyString())).thenReturn(indexMetadata);

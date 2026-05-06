@@ -121,6 +121,48 @@ str:keyword                                          | range:date_range
 2024-07-04T00:00:00.000Z..2024-07-05T00:00:00.000Z   | 2024-07-04T00:00:00.000Z..2024-07-05T00:00:00.000Z
 ;
 
+
+toDateRangeMalformedInput
+required_capability: date_range_field_type_v4
+
+ROW s = "not-a-range"
+| EVAL r = TO_DATE_RANGE(s)
+;
+warningRegex:evaluation of \[TO_DATE_RANGE\(s\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: expected date range in the form 'from..to', got \[not-a-range\]
+
+s:keyword   | r:date_range
+not-a-range | null
+;
+
+
+toDateRangeFromStringMultiValue
+required_capability: date_range_field_type_v4
+
+ROW s = ["2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z", "2022-01-01T00:00:00.000Z..2023-01-01T00:00:00.000Z"]
+| EVAL r = MV_SORT(TO_STRING(TO_DATE_RANGE(s)))
+;
+
+s:keyword                                                                                                | r:keyword
+[2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z, 2022-01-01T00:00:00.000Z..2023-01-01T00:00:00.000Z] | [2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z, 2022-01-01T00:00:00.000Z..2023-01-01T00:00:00.000Z]
+;
+
+
+toStringDateRangeMultiValue
+required_capability: date_range_field_type_v4
+
+FROM mv_decades
+| EVAL s = MV_SORT(TO_STRING(date_range))
+| KEEP decade, s
+| SORT decade
+;
+
+decade:integer | s:keyword
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
+1950           | [1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z, 1955-01-01T00:00:00.000Z..1965-01-01T00:00:00.000Z]
+2000           | [1995-01-01T00:00:00.000Z..2005-01-01T00:00:00.000Z, 2000-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z]
+;
+
 ###############################################
 # RANGE_WITHIN tests
 ###############################################

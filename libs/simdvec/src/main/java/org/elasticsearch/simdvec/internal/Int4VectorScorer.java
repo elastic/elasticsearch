@@ -222,11 +222,12 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
                 for (int i = 0; i < numNodes; i++) {
                     offsets[i] = (long) ordinals[i] * vectorPitch;
                 }
+                MemorySegment scoresSeg = MemorySegment.ofArray(scores);
                 boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, packedDims, numNodes, addrsScratch::get, addrs -> {
-                    dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, MemorySegment.ofArray(scores));
+                    dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, scoresSeg);
                 });
                 if (resolved) {
-                    return applyCorrectionsBulk(MemorySegment.ofArray(scores), MemorySegment.ofArray(ordinals), numNodes, query);
+                    return applyCorrectionsBulk(scoresSeg, MemorySegment.ofArray(ordinals), numNodes, query);
                 }
             }
 

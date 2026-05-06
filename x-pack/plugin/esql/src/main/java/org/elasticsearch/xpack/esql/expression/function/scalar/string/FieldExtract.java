@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,13 +15,15 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -33,8 +34,10 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.List;
@@ -51,8 +54,15 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *     exactly the dotted key as it is stored in doc values for the flattened root (for example
  *     {@code "host.name"}).
  * </p>
+ * <p>
+ *     When the path is a foldable literal key on a real {@code flattened} {@link FieldAttribute},
+ *     the call is fused into the field load via {@link BlockLoaderExpression}. The keyed sub-field's
+ *     doc values are read directly instead of materializing the whole flattened JSON and re-parsing
+ *     it per row. The path is the flat sub-field name as is (no parsing), so any path that passes
+ *     verifier-time validation is eligible for pushdown.
+ * </p>
  */
-public class FieldExtract extends EsqlScalarFunction {
+public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpression {
     private static final BytesRef TRUE_BYTES = new BytesRef("true");
     private static final BytesRef FALSE_BYTES = new BytesRef("false");
 
@@ -224,13 +234,6 @@ public class FieldExtract extends EsqlScalarFunction {
         }
     }
 
-    private static void copyCurrentStructureFallback(BytesRefBlock.Builder builder, XContentParser parser) throws IOException {
-        try (XContentBuilder jsonBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            jsonBuilder.copyCurrentStructure(parser);
-            builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());
-        }
-    }
-
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new FieldExtract(source(), newChildren.get(0), newChildren.get(1));
@@ -259,5 +262,28 @@ public class FieldExtract extends EsqlScalarFunction {
 
     Expression path() {
         return path;
+    }
+
+    @Override
+    public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
+        if (EsqlCapabilities.Cap.FIELD_EXTRACT_PUSHDOWN.isEnabled() == false) {
+            return null;
+        }
+        // Pushdown requires a real flattened field reference and a constant literal key. The
+        // path argument is already the flat storage key (verifier rejects brackets and indices),
+        // so we hand it to the keyed sub-field loader as is.
+        if (field instanceof FieldAttribute fa
+            && fa.dataType() == DataType.FLATTENED
+            && path.foldable()
+            && path.fold(FoldContext.small()) instanceof BytesRef foldedPath) {
+            String key = foldedPath.utf8ToString();
+            try {
+                validateFieldExtractPath(key);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+            return new PushedBlockLoaderExpression(fa, new BlockLoaderFunctionConfig.ExtractFlattenedSubfield(key));
+        }
+        return null;
     }
 }

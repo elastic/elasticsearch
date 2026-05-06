@@ -418,6 +418,15 @@ public class EsqlCapabilities {
         FIELD_EXTRACT_FUNCTION(Build.current().isSnapshot()),
 
         /**
+         * Block-loader pushdown for {@code field_extract}: when the path is a constant literal key
+         * (e.g. {@code "host.name"}) and the field is a {@code flattened} root, the call fuses into
+         * a per-key doc-values load instead of materializing the whole flattened JSON per row. As a
+         * side effect, multi-valued sub-keys are returned as a real multi-value {@code keyword}
+         * block (rather than a JSON-array string), matching {@code keyword} semantics.
+         */
+        FIELD_EXTRACT_PUSHDOWN(Build.current().isSnapshot()),
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,

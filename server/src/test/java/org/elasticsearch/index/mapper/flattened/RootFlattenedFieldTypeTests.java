@@ -23,16 +23,22 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.DummyBlockLoaderContext;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.IndexType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
 
@@ -245,5 +251,85 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
         Map<String, Object> sourceValue = Map.of("key1", List.of("the quick brown", 1_234_567, "jumps over", 2_456));
 
         assertEquals(List.of(Map.of("key1", List.of(1_234_567, 2_456))), fetchSourceValue(createDefaultFieldType(8), sourceValue));
+    }
+
+    /**
+     * {@code RootFlattenedFieldType} advertises support for the {@code ExtractFlattenedSubfield} loader config when doc
+     * values are present, so the optimizer may rewrite {@code field_extract(root, "<key>")} into a fused load.
+     */
+    public void testSupportsBlockLoaderConfigAcceptsExtractFlattenedSubfieldWhenDocValuesPresent() {
+        RootFlattenedFieldType withDv = createDefaultFieldType(Integer.MAX_VALUE);
+        assertTrue(
+            "with doc values, ExtractFlattenedSubfield must be advertised as supported",
+            withDv.supportsBlockLoaderConfig(
+                new BlockLoaderFunctionConfig.ExtractFlattenedSubfield("host.name"),
+                MappedFieldType.FieldExtractPreference.NONE
+            )
+        );
+    }
+
+    /**
+     * Without doc values, the keyed sub-field loader cannot be built, so the optimizer must keep
+     * the per-row evaluator.
+     */
+    public void testSupportsBlockLoaderConfigRejectsExtractFlattenedSubfieldWhenDocValuesAbsent() {
+        RootFlattenedFieldType noDv = noDocValuesFieldType();
+        assertFalse(
+            "without doc values the field type must reject the ExtractFlattenedSubfield config",
+            noDv.supportsBlockLoaderConfig(
+                new BlockLoaderFunctionConfig.ExtractFlattenedSubfield("host.name"),
+                MappedFieldType.FieldExtractPreference.NONE
+            )
+        );
+    }
+
+    public void testSupportsBlockLoaderConfigRejectsUnrelatedFunctions() {
+        RootFlattenedFieldType withDv = createDefaultFieldType(Integer.MAX_VALUE);
+        BlockLoaderFunctionConfig unrelated = new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.LENGTH);
+        assertFalse(
+            "the flattened root only supports the ExtractFlattenedSubfield fusion. Other configs must be rejected",
+            withDv.supportsBlockLoaderConfig(unrelated, MappedFieldType.FieldExtractPreference.NONE)
+        );
+    }
+
+    public void testBlockLoaderReturnsKeyedFlattenedLoaderForExtractFlattenedSubfield() {
+        RootFlattenedFieldType withDv = createDefaultFieldType(Integer.MAX_VALUE);
+        BlockLoader loader = withDv.blockLoader(new DummyBlockLoaderContext("test-index") {
+            @Override
+            public BlockLoaderFunctionConfig blockLoaderFunctionConfig() {
+                return new BlockLoaderFunctionConfig.ExtractFlattenedSubfield("host.name");
+            }
+        });
+        assertThat(
+            "with an ExtractFlattenedSubfield config, the field type must dispatch to the keyed sub-field loader",
+            loader,
+            instanceOf(KeyedFlattenedDocValuesBlockLoader.class)
+        );
+    }
+
+    public void testBlockLoaderFallsBackToRootLoaderWithoutExtractConfig() {
+        RootFlattenedFieldType withDv = createDefaultFieldType(Integer.MAX_VALUE);
+        BlockLoader loader = withDv.blockLoader(new DummyBlockLoaderContext("test-index"));
+        assertThat(
+            "without an Extract config, the existing RootFlattenedDocValuesBlockLoader path must still be used",
+            loader,
+            instanceOf(RootFlattenedDocValuesBlockLoader.class)
+        );
+    }
+
+    private static RootFlattenedFieldType noDocValuesFieldType() {
+        return new RootFlattenedFieldType(
+            "field",
+            IndexType.terms(true, false),
+            Collections.emptyMap(),
+            false,
+            false,
+            IGNORE_ABOVE,
+            false,
+            false,
+            null,
+            false,
+            FlattenedFieldMapper.PreserveLeafArrays.LOSSY
+        );
     }
 }

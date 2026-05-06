@@ -242,6 +242,29 @@ FROM flattened_otel_logs
 2020-01-01T11:43:13.255Z | filebeat-6t7v6        | low
 ;
 
+// When field_extract fuses into the keyed sub-field
+// loader, multi-valued sub-keys come back as a real multi-value keyword block
+// rather than a JSON-array string. MV_COUNT distinguishes the two: pushdown gives
+// 2, the per-row JSON evaluator gives 1 (a single string holding "[a,b]").
+multiValuedSubkeyAsMultiValue
+required_capability: field_extract_function
+required_capability: field_extract_pushdown
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:07:43.000Z"
+| EVAL ips = field_extract(resource.attributes, "host.ip")
+| EVAL n = MV_COUNT(ips)
+| SORT @timestamp
+| LIMIT 1
+| KEEP n
+;
+
+n:integer
+2
+;
+
 // Numeric leaves in a flattened root come out as their stringified value
 // in doc values, so FIELD_EXTRACT returns them as a keyword.
 numericLeafReturnedAsKeyword

@@ -78,6 +78,29 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
     }
 
     /**
+     * {@code field_extract(<flattened>, "<key>")} must fuse into a per-key doc-values
+     * load via {@link org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader}
+     * (its {@code SortedSetKeyedBlockDocValuesReader} for non-time-series indices). The profile
+     * signature {@code test:column_at_a_time:SortedSetKeyedBlockDocValuesReader} is the proof that
+     * the rewrite reached the data node and the keyed loader was actually used to read values.
+     */
+    public void testFieldExtractFusesToKeyedFlattenedLoader() throws IOException {
+        assumeTrue("field_extract is a snapshot-only feature", Build.current().isSnapshot());
+        assumeTrue(
+            "field_extract pushdown is a snapshot-only feature",
+            EsqlCapabilities.Cap.FIELD_EXTRACT_PUSHDOWN.isEnabled()
+        );
+        String hostName = "host-" + randomAlphaOfLength(8);
+        test(
+            justType("flattened"),
+            b -> b.startObject("test").field("host.name", hostName).endObject(),
+            "| EVAL test = field_extract(test, \"host.name\")",
+            matchesList().item(hostName),
+            matchesMap().entry("test:column_at_a_time:SortedSetKeyedBlockDocValuesReader", 1)
+        );
+    }
+
+    /**
      * We don't support fusing {@code LENGTH} into loading {@code wildcard} fields because
      * we haven't written support for fusing functions to loading from its source format.
      * We haven't done that because {@code wildcard} fields aren't super common.

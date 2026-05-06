@@ -99,7 +99,10 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             return;
         }
         final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        final boolean transformIsRunning = TransformTask.getTransformTask(request.getId(), state) != null;
+        final boolean transformIsRunning = TransformTask.getTransformTask(
+            request.getId(),
+            projectResolver.getProjectMetadata(state)
+        ) != null;
         if (transformIsRunning && request.isForce() == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(

@@ -100,7 +100,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
         var responseJsonParser = extractResponseParser(taskType, jsonParserMap, validationException);
 
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, CustomService.NAME, context);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         var inputTypeTranslator = InputTypeTranslator.fromMap(map, validationException, CustomService.NAME);
         var batchSize = extractOptionalPositiveInteger(map, BATCH_SIZE, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -357,7 +357,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            CustomService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

@@ -49,7 +49,7 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
                 if (config == null || config.isEmpty()) {
                     return create(settings);
                 }
-                GcsConfiguration gcsConfig = GcsConfiguration.fromMap(config);
+                GcsConfiguration gcsConfig = GcsConfiguration.fromQueryConfig(config);
                 return new GcsStorageProvider(gcsConfig);
             }
         };

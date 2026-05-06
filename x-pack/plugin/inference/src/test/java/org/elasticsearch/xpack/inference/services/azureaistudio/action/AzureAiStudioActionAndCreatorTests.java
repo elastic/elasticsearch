@@ -11,7 +11,9 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockRequest;
@@ -181,7 +183,17 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             final var action = creator.create(model, Map.of());
 
             final PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(query, documents, returnDocuments, topN, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(
+                    new InferenceString(DataType.TEXT, query),
+                    InferenceString.fromStringList(documents),
+                    returnDocuments,
+                    topN,
+                    false
+                ),
+                null,
+                listener
+            );
 
             final var result = listener.actionGet(TIMEOUT);
 

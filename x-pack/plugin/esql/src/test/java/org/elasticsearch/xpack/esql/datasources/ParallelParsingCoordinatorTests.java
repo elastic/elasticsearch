@@ -33,6 +33,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -271,12 +272,16 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Each segment ends at a record boundary by construction: non-final segments stop at the byte
-     * after the next segment's leading newline, and the final segment runs to {@code fileLength}.
-     * The coordinator therefore must mark every segment as {@code lastSplit=true} so the NDJSON
-     * reader can skip its byte-by-byte {@code TrimLastPartialLineInputStream} scan over the chunk.
+     * Verifies the per-segment context flags set by {@link ParallelParsingCoordinator}:
+     * <ul>
+     *   <li>Exactly one segment owns the file's leading bytes ({@code firstSplit=true}).</li>
+     *   <li>Exactly one segment runs to file end ({@code lastSplit=true}); non-final segments must
+     *       not be marked lastSplit so codecs/readers correctly handle the segment-boundary tail.</li>
+     *   <li>Every segment is {@code recordAligned=true} so line-oriented readers can skip the
+     *       leading-partial-line trim that byte-range macro-splits otherwise need.</li>
+     * </ul>
      */
-    public void testParseSegmentMarksAllChunksAsLastSplit() throws Exception {
+    public void testParseSegmentSetsExpectedSplitFlags() throws Exception {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 200; i++) {
             sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\n");
@@ -284,10 +289,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         byte[] content = sb.toString().getBytes(StandardCharsets.UTF_8);
         StorageObject obj = new InMemoryStorageObject(content);
         BlockFactory blockFactory = blockFactory();
-        ContextRecordingFormatReader reader = new ContextRecordingFormatReader(blockFactory);
+        ContextCapturingLineReader reader = new ContextCapturingLineReader(blockFactory);
 
-        // Force several segments by setting parallelism > 1 with a small minimum segment size on
-        // the recording reader (1 byte) so computeSegments produces multiple chunks.
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
             CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec);
@@ -300,13 +303,25 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             exec.shutdown();
         }
 
-        List<FormatReadContext> seen = reader.contexts();
+        List<FormatReadContext> seen;
+        synchronized (reader.contexts) {
+            seen = new ArrayList<>(reader.contexts);
+        }
         assertTrue("Expected at least 2 segments, recorded " + seen.size(), seen.size() >= 2);
+        int firstSplitCount = 0;
+        int lastSplitCount = 0;
         for (int i = 0; i < seen.size(); i++) {
             FormatReadContext ctx = seen.get(i);
-            assertTrue("segment[" + i + "] must have firstSplit=true", ctx.firstSplit());
-            assertTrue("segment[" + i + "] must have lastSplit=true (record-boundary aligned)", ctx.lastSplit());
+            if (ctx.firstSplit()) {
+                firstSplitCount++;
+            }
+            if (ctx.lastSplit()) {
+                lastSplitCount++;
+            }
+            assertTrue("segment[" + i + "] must have recordAligned=true", ctx.recordAligned());
         }
+        assertEquals("exactly one segment must own the file's leading bytes", 1, firstSplitCount);
+        assertEquals("exactly one segment must run to file end", 1, lastSplitCount);
     }
 
     /**
@@ -342,6 +357,25 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         FormatReadContext only = seen.get(0);
         assertTrue("Whole-file fallback path must mark firstSplit=true", only.firstSplit());
         assertTrue("Whole-file fallback path must mark lastSplit=true", only.lastSplit());
+    }
+
+    /**
+     * Records the {@link FormatReadContext} of every {@code read} call so tests can assert the
+     * coordinator's per-segment split-flag dispatch behavior. Otherwise behaves like the parent
+     * {@link LineFormatReader}.
+     */
+    private static class ContextCapturingLineReader extends LineFormatReader {
+        final List<FormatReadContext> contexts = Collections.synchronizedList(new ArrayList<>());
+
+        ContextCapturingLineReader(BlockFactory blockFactory) {
+            super(blockFactory);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            contexts.add(context);
+            return super.read(object, context);
+        }
     }
 
     private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
@@ -451,7 +485,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-            boolean skipFirstLine = context.firstSplit() == false;
+            // Mirror production semantics: drop a leading partial record only when the caller has
+            // not guaranteed record-alignment. `ParallelParsingCoordinator` now sets
+            // `recordAligned=true` for every segment, so `skipFirstLine` is effectively false here.
+            boolean skipFirstLine = context.firstSplit() == false && context.recordAligned() == false;
             int batchSize = context.batchSize();
             InputStream stream = object.newStream();
             java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(stream, StandardCharsets.UTF_8));
@@ -659,7 +696,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-            boolean skipFirstLine = context.firstSplit() == false;
+            // See note in the other test fixture: drop a leading partial record only when the caller
+            // has not guaranteed record-alignment.
+            boolean skipFirstLine = context.firstSplit() == false && context.recordAligned() == false;
             int batchSize = context.batchSize();
             InputStream stream = object.newStream();
             java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(stream, StandardCharsets.UTF_8));

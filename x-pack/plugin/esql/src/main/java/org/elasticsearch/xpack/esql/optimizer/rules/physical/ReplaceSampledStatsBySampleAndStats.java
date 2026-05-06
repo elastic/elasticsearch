@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
+package org.elasticsearch.xpack.esql.optimizer.rules.physical;
 
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.ElementType;
@@ -59,8 +59,20 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
 
     @Override
     protected PhysicalPlan rule(SampledAggregateExec plan) {
-        double sampleProbability = (double) Foldables.literalValueOf(plan.sampleProbability());
-        assert sampleProbability < 1.0;
+        // Partial input is already corrected for sampling.
+        if (plan.getMode().isInputPartial()) {
+            return new AggregateExec(
+                plan.source(),
+                plan.child(),
+                plan.groupings(),
+                plan.aggregates(),
+                plan.getMode(),
+                plan.intermediateAttributes(),
+                plan.estimatedRowSize()
+            );
+        }
+
+        assert (double) Foldables.literalValueOf(plan.sampleProbability()) < 1.0;
 
         // The only non-unary plans that are currently supported are lookup joins.
         // At the moment, the left side of the join is the "expensive" side and
@@ -80,6 +92,41 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
         });
 
         List<Alias> sampleCorrections = new ArrayList<>();
+        List<Attribute> intermediateAttributes;
+        List<? extends NamedExpression> aggregates;
+        switch (plan.getMode()) {
+            case INITIAL:
+                // In initial mode: correct the intermediate attributes for sampling.
+                intermediateAttributes = correctIntermediateAttributes(plan, sampleCorrections);
+                aggregates = plan.aggregates();
+                break;
+            case SINGLE:
+                // In single mode: correct the final aggregates for sampling.
+                intermediateAttributes = plan.intermediateAttributes();
+                aggregates = correctAggregates(plan, sampleCorrections);
+                break;
+            case INTERMEDIATE, FINAL:
+                // fall through
+            case null:
+                throw new IllegalStateException("Unexpected aggregator mode: " + plan.getMode());
+        }
+
+        PhysicalPlan result = new AggregateExec(
+            plan.source(),
+            child,
+            plan.groupings(),
+            aggregates,
+            plan.getMode(),
+            intermediateAttributes,
+            plan.estimatedRowSize()
+        );
+        if (sampleCorrections.isEmpty() == false) {
+            result = new ProjectExec(Source.EMPTY, new EvalExec(Source.EMPTY, result, sampleCorrections), plan.output());
+        }
+        return result;
+    }
+
+    private List<Attribute> correctIntermediateAttributes(SampledAggregateExec plan, List<Alias> sampleCorrections) {
         List<Attribute> intermediateAttributes = new ArrayList<>();
 
         Expression bucketSampleProbability = new Div(
@@ -116,7 +163,7 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
 
                 if (aggFnNeedsCorrection && desc.type() != ElementType.BOOLEAN) {
                     // Create a new alias for the uncorrected value, and reuse the existing attribute for the corrected value.
-                    Alias uncorrectedAlias = new Alias(Source.EMPTY, attr.name(), attr);
+                    Alias uncorrectedAlias = new Alias(Source.EMPTY, Attribute.rawTemporaryName(attr.name(), "uncorrected"), attr);
                     intermediateAttributes.add(uncorrectedAlias.toAttribute());
                     Expression corrected = new Div(
                         Source.EMPTY,
@@ -131,18 +178,49 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
             }
         }
 
-        PhysicalPlan result = new AggregateExec(
-            plan.source(),
-            child,
-            plan.groupings(),
-            plan.aggregates(),
-            plan.getMode(),
-            intermediateAttributes,
-            plan.estimatedRowSize()
+        return intermediateAttributes;
+    }
+
+    private List<? extends NamedExpression> correctAggregates(SampledAggregateExec plan, List<Alias> sampleCorrections) {
+        List<NamedExpression> aggregates = new ArrayList<>();
+
+        Expression bucketSampleProbability = new Div(
+            Source.EMPTY,
+            plan.sampleProbability(),
+            Literal.integer(Source.EMPTY, ApproximationPlan.BUCKET_COUNT)
         );
-        if (sampleCorrections.isEmpty() == false) {
-            result = new ProjectExec(Source.EMPTY, new EvalExec(Source.EMPTY, result, sampleCorrections), plan.output());
+
+        Set<String> originalAggregatesNames = plan.originalAggregates().stream().map(NamedExpression::name).collect(Collectors.toSet());
+
+        // The following intermediate attributes are the aggregates states.
+        // They come in the same order as the aggregates.
+        for (NamedExpression aggOrKey : plan.aggregates()) {
+            if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
+                // This is a grouping key.
+                aggregates.add(aggOrKey);
+                continue;
+            }
+
+            Attribute attr = aggOrKey.toAttribute();
+            AggregateFunction aggFn = (AggregateFunction) ((Alias) aggOrKey).child();
+            boolean aggFnNeedsCorrection = aggFn instanceof CountApproximate || aggFn instanceof Sum;
+
+            if (aggFnNeedsCorrection) {
+                // Create a new alias for the uncorrected value, and reuse the existing attribute for the corrected value.
+                Alias uncorrectedAlias = new Alias(Source.EMPTY, Attribute.rawTemporaryName(attr.name(), "uncorrected"), aggFn);
+                aggregates.add(uncorrectedAlias);
+                Expression corrected = new Div(
+                    Source.EMPTY,
+                    uncorrectedAlias.toAttribute(),
+                    originalAggregatesNames.contains(attr.name()) ? plan.sampleProbability() : bucketSampleProbability
+                );
+                Alias correctedAlias = new Alias(Source.EMPTY, attr.name(), corrected, attr.id());
+                sampleCorrections.add(correctedAlias);
+            } else {
+                aggregates.add(aggOrKey);
+            }
         }
-        return result;
+
+        return aggregates;
     }
 }

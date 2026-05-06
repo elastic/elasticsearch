@@ -324,11 +324,6 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     }
 
     private void doHandleStartHandoff(StartHandoffRequest request, ActionListener<RelocationHandoffResponse> listener) {
-        if (searchService.isPitRelocationEnabled() == false) {
-            listener.onResponse(EMPTY_RESPONSE);
-            return;
-        }
-
         try {
             ShardId shardId = request.getShardId();
             final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
@@ -346,6 +341,11 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                 throw new IllegalStateException(
                     "Invalid relocation state: expected [" + shardRouting + "] to be relocation source of [" + targetShardRouting + "]"
                 );
+            }
+
+            if (searchService.isPitRelocationEnabled() == false) {
+                listener.onResponse(EMPTY_RESPONSE);
+                return;
             }
 
             getOpenPITContextInfos(shardId, listener.map(RelocationHandoffResponse::new));

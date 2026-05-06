@@ -355,6 +355,12 @@ public class IndexShardTests extends IndexShardTestCase {
         return allocationId;
     }
 
+    private static IndexMetadata newTestIndexMetadata() {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        return IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+    }
+
     public void testShardStateMetaHashCodeEquals() {
         AllocationId allocationId = randomBoolean() ? null : randomAllocationId();
         ShardStateMetadata meta = new ShardStateMetadata(
@@ -3088,9 +3094,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testTranslogRecoverySyncsTranslog() throws IOException {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
 
@@ -3214,9 +3218,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testShardActiveDuringPeerRecovery() throws IOException {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
 
@@ -3263,9 +3265,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testRefreshListenersDuringPeerRecovery() throws IOException {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
         recoverShardFromStore(primary);
 
@@ -3338,9 +3338,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testWaitForEngineListener() throws IOException {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
 
         AtomicBoolean called = new AtomicBoolean(false);
@@ -3354,9 +3352,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testWaitForClosedListener() throws IOException {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
 
         AtomicBoolean called = new AtomicBoolean(false);
@@ -3368,9 +3364,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testWaitForSearchReadyListener() throws Exception {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
 
         AtomicBoolean called = new AtomicBoolean(false);
@@ -3384,9 +3378,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testWaitForSearchReadyOnClose() throws Exception {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
 
         AtomicBoolean called = new AtomicBoolean(false);
@@ -3410,9 +3402,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testWaitForSearchReadyMultipleListeners() throws Exception {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
 
         int listenerCount = randomIntBetween(2, 10);
@@ -3572,9 +3562,7 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testWaitForPrimaryTermAndGenerationFailsForClosedShard() throws IOException {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard initializingShard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
 
         var future = new PlainActionFuture<Long>();
@@ -4254,10 +4242,9 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testIsSearchIdle() throws Exception {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        Settings settings = metadata.getSettings();
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
@@ -4304,10 +4291,9 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testScheduledRefresh() throws Exception {
         // Setup and make shard search idle:
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        Settings settings = metadata.getSettings();
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());
@@ -4388,10 +4374,9 @@ public class IndexShardTests extends IndexShardTestCase {
     }
 
     public void testRefreshIsNeededWithRefreshListeners() throws IOException, InterruptedException {
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
-        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
-            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexMetadata metadata = newTestIndexMetadata();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        Settings settings = metadata.getSettings();
         recoverShardFromStore(primary);
         indexDoc(primary, "_doc", "0", "{\"foo\" : \"bar\"}");
         assertTrue(primary.getEngine().refreshNeeded());

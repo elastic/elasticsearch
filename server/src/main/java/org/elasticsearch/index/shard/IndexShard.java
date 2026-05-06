@@ -1951,6 +1951,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                     checkAndCallWaitForEngineOrClosedShardListeners();
                 } finally {
+                    // Intentionally outside mutex: a concurrent waitForSearchReady seeing CLOSED before this fires
+                    // can be rejected with 429 (retriable); parked listeners still drain with IndexShardClosedException.
                     searchReadyGate.onClosed(shardId);
                     final Engine engine = getAndSetCurrentEngine(null);
                     closeExecutor.execute(ActionRunnable.run(closeListener, new CheckedRunnable<>() {

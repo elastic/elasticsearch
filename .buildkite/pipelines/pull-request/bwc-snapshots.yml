@@ -48,7 +48,7 @@ steps:
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 4 / bwc-snapshots"
         key: "bwc-snapshots-part4"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart5
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart4
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -89,7 +89,7 @@ steps:
   - group: bwc-snapshots-smaller
     steps:
       - label: "{{matrix.BWC_VERSION}} / Part 1 / bwc-snapshots"
-        key: "bwc-snapshots-part1"
+        key: "bwc-snapshots-part1-smaller"
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart1
         timeout_in_minutes: 300
         matrix:
@@ -102,7 +102,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 2 / bwc-snapshots"
-        key: "bwc-snapshots-part2"
+        key: "bwc-snapshots-part2-smaller"
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart2
         timeout_in_minutes: 300
         matrix:
@@ -115,7 +115,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 3 / bwc-snapshots"
-        key: "bwc-snapshots-part3"
+        key: "bwc-snapshots-part3-smaller"
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart3
         timeout_in_minutes: 300
         matrix:
@@ -128,8 +128,8 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 4 / bwc-snapshots"
-        key: "bwc-snapshots-part4"
-        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart5
+        key: "bwc-snapshots-part4-smaller"
+        command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart4
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -141,7 +141,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 5 / bwc-snapshots"
-        key: "bwc-snapshots-part5"
+        key: "bwc-snapshots-part5-smaller"
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart5
         timeout_in_minutes: 300
         matrix:
@@ -154,7 +154,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 6 / bwc-snapshots"
-        key: "bwc-snapshots-part6"
+        key: "bwc-snapshots-part6-smaller"
         command: .ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTestPart6
         timeout_in_minutes: 300
         matrix:

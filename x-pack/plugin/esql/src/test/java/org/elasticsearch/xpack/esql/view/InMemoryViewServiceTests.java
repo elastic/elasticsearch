@@ -2218,6 +2218,36 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM closed-idx")));
     }
 
+    // Stronger probes — the actual collision cases between view names and other abstractions.
+
+    public void testAddViewRejectsCollisionWithExistingAlias() {
+        viewService.addIndex(projectId, "real-index");
+        viewService.addAlias(projectId, "shared", "real-index");
+        Exception e = expectThrows(RuntimeException.class, () -> addView("shared", "FROM emp1"));
+        assertThat(e.getMessage(), containsString("shared"));
+    }
+
+    public void testAddViewRejectsCollisionWithExistingIndex() {
+        viewService.addIndex(projectId, "shared");
+        Exception e = expectThrows(RuntimeException.class, () -> addView("shared", "FROM emp1"));
+        assertThat(e.getMessage(), containsString("shared"));
+    }
+
+    public void testAddViewRejectsCollisionWithExistingClosedIndex() {
+        viewService.addClosedIndex(projectId, "shared");
+        Exception e = expectThrows(RuntimeException.class, () -> addView("shared", "FROM emp1"));
+        assertThat(e.getMessage(), containsString("shared"));
+    }
+
+    public void testWildcardMatchingBothViewAndAlias() {
+        viewService.addIndex(projectId, "shared-real");
+        viewService.addAlias(projectId, "shared-alias", "shared-real");
+        addView("shared-view", "FROM emp1");
+        LogicalPlan plan = query("FROM shared-*");
+        // Wildcard should expand to: view body + alias name passed through.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, shared-*")));
+    }
+
     public void testDeleteMultipleViews() {
         addView("view1", "FROM emp");
         addView("view2", "FROM emp");

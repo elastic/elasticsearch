@@ -2,7 +2,6 @@ config:
   skip-labels:
     - ">test-mute"
     - ":Delivery/Packaging"
-  allow-labels: ">non-issue"
 steps:
   - group: packaging-tests-unix-sample
     steps:

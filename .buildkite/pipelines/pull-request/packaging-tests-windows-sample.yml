@@ -2,7 +2,6 @@ config:
   skip-labels:
     - ">test-mute"
     - ":Delivery/Packaging"
-  allow-labels: ">non-issue"
 steps:
   - group: packaging-tests-windows-sample
     steps:
@@ -20,26 +19,6 @@ steps:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
           machineType: n4-standard-16
-          diskType: hyperdisk-balanced
-          diskSizeGb: 350
-        env:
-          PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
-  - group: packaging-tests-windows-sample-smaller
-    steps:
-      - label: "{{matrix.image}} / {{matrix.PACKAGING_TASK}} / packaging-tests-windows-sample"
-        key: "packaging-tests-windows-sample-smaller"
-        command: .\.buildkite\scripts\run-script.ps1 .\.ci\scripts\packaging-test.ps1 -GradleTasks destructiveDistroTest.{{matrix.PACKAGING_TASK}}
-        timeout_in_minutes: 300
-        matrix:
-          setup:
-            image:
-              - windows-2022
-            PACKAGING_TASK:
-              - default-windows-archive
-        agents:
-          provider: gcp
-          image: family/elasticsearch-{{matrix.image}}
-          machineType: n4-standard-8
           diskType: hyperdisk-balanced
           diskSizeGb: 350
         env:

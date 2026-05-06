@@ -210,7 +210,6 @@ public class KnnSearcher {
         @Override
         public Query filter(int searchIndex, boolean sliced) {
             if (sliced) {
-                // TODO: is this how we will query IVF slices?
                 return selectivityFilter;
             }
             Query partitionFilter = SortedDocValuesField.newSlowExactQuery(PARTITION_ID_FIELD, partition(searchIndex));

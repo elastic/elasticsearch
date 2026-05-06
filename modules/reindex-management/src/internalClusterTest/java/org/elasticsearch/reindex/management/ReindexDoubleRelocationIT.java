@@ -51,9 +51,9 @@ import static org.hamcrest.Matchers.nullValue;
 /// Integration test that relocates a reindex task twice across three nodes (A -> B -> C), then
 /// exercises all reindex-management endpoints (rethrottle, list, get, cancel) against the
 /// doubly-relocated task using the original task ID.
-/// Node A (coordinating) — starts reindex     → shutdown → relocates to B
-/// Node B (coordinating) — first relocation   → shutdown → relocates to C
-/// Node C (data+master)  — holds indices, final relocation destination
+/// Node A (`firstCoordinatorNode`)     — starts reindex     → shutdown → relocates to B
+/// Node B (`secondCoordinatorNode`)    — first relocation   → shutdown → relocates to C
+/// Node C (`finalMasterDataNodeName`)  — holds indices, final relocation destination
 /// {@code StatefulReindexRelocationNodePicker} prefers coordinating-only nodes, making the
 /// relocation path deterministic: A → B → C.
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -84,41 +84,41 @@ public class ReindexDoubleRelocationIT extends ESIntegTestCase {
     }
 
     public void testDoubleRelocationWithManagementEndpoints() throws Exception {
-        final String nodeCName = internalCluster().startNode(
+        final String finalMasterDataNodeName = internalCluster().startNode(
             NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
         );
-        final String nodeCId = nodeIdByName(nodeCName);
+        final String finalMasterDataNodeId = nodeIdByName(finalMasterDataNodeName);
 
-        final String nodeBName = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
-        final String nodeBId = nodeIdByName(nodeBName);
+        final String secondCoordinatorNodeName = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        final String secondCoordinatorNodeId = nodeIdByName(secondCoordinatorNodeName);
 
-        final String nodeAName = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
-        final String nodeAId = nodeIdByName(nodeAName);
+        final String firstCoordinatorNodeName = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        final String firstCoordinatorNodeId = nodeIdByName(firstCoordinatorNodeName);
 
         ensureStableCluster(3);
 
-        createIndexPinnedToNodeName(SOURCE_INDEX, nodeCName);
-        createIndexPinnedToNodeName(DEST_INDEX, nodeCName);
+        createIndexPinnedToNodeName(SOURCE_INDEX, finalMasterDataNodeName);
+        createIndexPinnedToNodeName(DEST_INDEX, finalMasterDataNodeName);
         indexRandom(true, SOURCE_INDEX, numberOfDocumentsThatTakes60SecondsToIngest);
         ensureGreen(SOURCE_INDEX, DEST_INDEX);
 
-        final TaskId originalTaskId = startAsyncThrottledReindexOnNode(nodeAName);
-        assertThat(originalTaskId.getNodeId(), equalTo(nodeAId));
+        final TaskId originalTaskId = startAsyncThrottledReindexOnNode(firstCoordinatorNodeName);
+        assertThat(originalTaskId.getNodeId(), equalTo(firstCoordinatorNodeId));
 
         final GetReindexResponse initialResponse = getReindex(originalTaskId, false);
         final long originalStartTimeMillis = initialResponse.getTaskResult().getTask().startTime();
 
         // ---- First relocation: A -> B ----
         assertFalse(".tasks should not exist before first shutdown", indexExists(TaskResultsService.TASK_INDEX));
-        internalCluster().getInstance(ShutdownPrepareService.class, nodeAName).prepareForShutdown();
+        internalCluster().getInstance(ShutdownPrepareService.class, firstCoordinatorNodeName).prepareForShutdown();
         assertTrue(".tasks should be created after relocation", indexExists(TaskResultsService.TASK_INDEX));
         ensureGreen(TaskResultsService.TASK_INDEX);
-        internalCluster().stopNode(nodeAName);
+        internalCluster().stopNode(firstCoordinatorNodeName);
 
         final GetReindexResponse midRelocationGet = getReindex(originalTaskId, false);
         final TaskInfo midInfo = midRelocationGet.getTaskResult().getTask();
         assertThat(midRelocationGet.getTaskResult().isCompleted(), is(false));
-        assertThat(midInfo.taskId().getNodeId(), equalTo(nodeBId));
+        assertThat(midInfo.taskId().getNodeId(), equalTo(secondCoordinatorNodeId));
         assertThat(midInfo.originalTaskId(), equalTo(originalTaskId));
         assertThat(midInfo.startTime(), equalTo(originalStartTimeMillis));
         final Map<String, Object> midMap = XContentTestUtils.convertToMap(midRelocationGet);
@@ -128,9 +128,16 @@ public class ReindexDoubleRelocationIT extends ESIntegTestCase {
         assertThat(midMap.get("original_start_time_in_millis"), is(nullValue()));
 
         // ---- Second relocation: B -> C ----
-        // prepareForShutdown polls for up to the grace period (10s default), which covers the 5s relocation cooldown
-        internalCluster().getInstance(ShutdownPrepareService.class, nodeBName).prepareForShutdown();
-        internalCluster().stopNode(nodeBName);
+        // prepareForShutdown polls for up to the grace period (10s default), which covers the 5s relocation cooldown, which
+        // prevents race conditions
+        internalCluster().getInstance(ShutdownPrepareService.class, secondCoordinatorNodeName).prepareForShutdown();
+        final long secondRelocationFinishedMillis = System.currentTimeMillis();
+        assertThat(
+            "second relocation should wait until at least 5s after the task started",
+            secondRelocationFinishedMillis - originalStartTimeMillis,
+            greaterThanOrEqualTo(TimeUnit.SECONDS.toMillis(5))
+        );
+        internalCluster().stopNode(secondCoordinatorNodeName);
         ensureStableCluster(1);
 
         // ---- Rethrottle ----
@@ -154,7 +161,7 @@ public class ReindexDoubleRelocationIT extends ESIntegTestCase {
         final TaskResult getResult = getResponse.getTaskResult();
         final TaskInfo getInfo = getResult.getTask();
         assertThat(getResult.isCompleted(), is(false));
-        assertThat(getInfo.taskId().getNodeId(), equalTo(nodeCId));
+        assertThat(getInfo.taskId().getNodeId(), equalTo(finalMasterDataNodeId));
         assertThat(getInfo.originalTaskId(), equalTo(originalTaskId));
         assertThat(getInfo.startTime(), equalTo(originalStartTimeMillis));
         final Map<String, Object> getMap = XContentTestUtils.convertToMap(getResponse);

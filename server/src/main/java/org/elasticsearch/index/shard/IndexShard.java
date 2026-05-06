@@ -389,7 +389,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         this.searchStats = new ShardSearchStats(searchStatsSettings);
-        this.searchReadyGate = new SearchReadyGate(SearchReadyGate.defaultMaxPendingSupplier(threadPool));
+        this.searchReadyGate = new SearchReadyGate(SearchReadyGate.defaultMaxPendingSupplier(threadPool), threadPool.generic());
         this.searchOperationListener = new SearchOperationListener.CompositeListener(
             CollectionUtils.appendToCopyNoNullElements(searchOperationListener, searchStats),
             logger
@@ -5052,11 +5052,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         private final SubscribableListener<Void> listener = new SubscribableListener<>();
         private final AtomicInteger pending = new AtomicInteger();
         private final IntSupplier maxPendingSupplier;
+        private final Executor listenerExecutor;
 
         private boolean recovering;
 
-        SearchReadyGate(IntSupplier maxPendingSupplier) {
+        SearchReadyGate(IntSupplier maxPendingSupplier, Executor listenerExecutor) {
             this.maxPendingSupplier = maxPendingSupplier;
+            this.listenerExecutor = listenerExecutor;
         }
 
         /**
@@ -5081,7 +5083,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     pending.decrementAndGet();
                 }
             };
-            listener.addListener(ActionListener.runAfter(l, slot::close), EsExecutors.DIRECT_EXECUTOR_SERVICE, threadContext);
+            listener.addListener(ActionListener.runAfter(l, slot::close), listenerExecutor, threadContext);
             return slot;
         }
 

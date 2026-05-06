@@ -3367,7 +3367,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat("listener should have been called", called.get(), equalTo(true));
     }
 
-    public void testWaitForSearchReadyListener() throws IOException {
+    public void testWaitForSearchReadyListener() throws Exception {
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
             { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
@@ -3378,12 +3378,12 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat("listener should not have been called yet", called.get(), equalTo(false));
 
         recoverShardFromStore(primary);
-        assertThat("listener should have been called after recovery", called.get(), equalTo(true));
+        assertBusy(() -> assertThat("listener should have been called after recovery", called.get(), equalTo(true)));
 
         closeShards(primary);
     }
 
-    public void testWaitForSearchReadyOnClose() throws IOException {
+    public void testWaitForSearchReadyOnClose() throws Exception {
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
             { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
@@ -3391,22 +3391,12 @@ public class IndexShardTests extends IndexShardTestCase {
 
         AtomicBoolean called = new AtomicBoolean(false);
         AtomicBoolean failed = new AtomicBoolean(false);
-        primary.waitForSearchReady(new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {
-                called.set(true);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                failed.set(true);
-            }
-        });
+        primary.waitForSearchReady(ActionListener.wrap(v -> called.set(true), e -> failed.set(true)));
         assertThat("listener should not have been called yet", called.get(), equalTo(false));
 
         closeShards(primary);
+        assertBusy(() -> assertThat("listener should have failed on close", failed.get(), equalTo(true)));
         assertThat("listener should not have succeeded", called.get(), equalTo(false));
-        assertThat("listener should have failed on close", failed.get(), equalTo(true));
     }
 
     public void testWaitForSearchReadyWhenAlreadyStarted() throws IOException {
@@ -3419,7 +3409,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
-    public void testWaitForSearchReadyMultipleListeners() throws IOException {
+    public void testWaitForSearchReadyMultipleListeners() throws Exception {
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
             { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
@@ -3433,14 +3423,24 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat("no listeners should have been called yet", completedCount.get(), equalTo(0));
 
         recoverShardFromStore(primary);
-        assertThat("all listeners should have been called", completedCount.get(), equalTo(listenerCount));
+        assertBusy(() -> assertThat("all listeners should have been called", completedCount.get(), equalTo(listenerCount)));
 
         closeShards(primary);
     }
 
+    private static void assertOverCapRejection(IndexShard.SearchReadyGate gate, ThreadContext threadContext) {
+        assertOverCapRejection(gate, threadContext, "expected EsRejectedExecutionException");
+    }
+
+    private static void assertOverCapRejection(IndexShard.SearchReadyGate gate, ThreadContext threadContext, String reason) {
+        AtomicReference<Exception> rejection = new AtomicReference<>();
+        gate.addListener(ActionListener.wrap(v -> fail("expected rejection"), rejection::set), threadContext);
+        assertThat(reason, rejection.get(), instanceOf(EsRejectedExecutionException.class));
+    }
+
     public void testSearchReadyGateRejectsWhenPendingCapExceeded() {
         int maxPending = 4;
-        IndexShard.SearchReadyGate gate = new IndexShard.SearchReadyGate(() -> maxPending);
+        IndexShard.SearchReadyGate gate = new IndexShard.SearchReadyGate(() -> maxPending, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
         AtomicInteger parked = new AtomicInteger();
@@ -3449,9 +3449,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         assertThat("no parked listener should have fired yet", parked.get(), equalTo(0));
 
-        AtomicReference<Exception> rejection = new AtomicReference<>();
-        gate.addListener(ActionListener.wrap(v -> fail("expected rejection"), rejection::set), threadContext);
-        assertThat("over-cap caller should be rejected", rejection.get(), instanceOf(EsRejectedExecutionException.class));
+        assertOverCapRejection(gate, threadContext, "over-cap caller should be rejected");
 
         gate.onReady();
         assertThat("all parked listeners should be released on ready", parked.get(), equalTo(maxPending));
@@ -3464,7 +3462,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testSearchReadyGateSlotCloseFreesPending() {
         int maxPending = 2;
-        IndexShard.SearchReadyGate gate = new IndexShard.SearchReadyGate(() -> maxPending);
+        IndexShard.SearchReadyGate gate = new IndexShard.SearchReadyGate(() -> maxPending, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
         // Fill the cap. Listeners stay parked because the gate has not fired.
@@ -3474,9 +3472,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat("listeners must be parked while waiting for the gate", fired.get(), equalTo(0));
 
         // Over-cap caller is rejected while the slots are held.
-        AtomicReference<Exception> rejection = new AtomicReference<>();
-        gate.addListener(ActionListener.wrap(v -> fail("expected rejection"), rejection::set), threadContext);
-        assertThat(rejection.get(), instanceOf(EsRejectedExecutionException.class));
+        assertOverCapRejection(gate, threadContext);
 
         // Closing slot1 must free a pending slot even though the gate has not fired and the parked listener
         // for slot1 has not been notified externally; this models the task-cancellation case.
@@ -3487,13 +3483,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // Closing the same handle twice must not double-decrement and let an extra caller in over the cap.
         slot1.close();
-        AtomicReference<Exception> secondRejection = new AtomicReference<>();
-        gate.addListener(ActionListener.wrap(v -> fail("expected rejection"), secondRejection::set), threadContext);
-        assertThat(
-            "idempotent close must not free additional capacity",
-            secondRejection.get(),
-            instanceOf(EsRejectedExecutionException.class)
-        );
+        assertOverCapRejection(gate, threadContext, "idempotent close must not free additional capacity");
 
         // When the gate finally fires, the runAfter hook attached to slot1's listener races with the
         // already-released flag and must not decrement pending again. We verify by filling the cap from scratch
@@ -3504,15 +3494,13 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testSearchReadyGateDynamicCap() {
         AtomicInteger cap = new AtomicInteger(2);
-        IndexShard.SearchReadyGate gate = new IndexShard.SearchReadyGate(cap::get);
+        IndexShard.SearchReadyGate gate = new IndexShard.SearchReadyGate(cap::get, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
         gate.addListener(ActionListener.noop(), threadContext);
         gate.addListener(ActionListener.noop(), threadContext);
 
-        AtomicReference<Exception> rejection = new AtomicReference<>();
-        gate.addListener(ActionListener.wrap(v -> fail("expected rejection"), rejection::set), threadContext);
-        assertThat(rejection.get(), instanceOf(EsRejectedExecutionException.class));
+        assertOverCapRejection(gate, threadContext);
 
         // Raising the cap at runtime allows the next caller through without releasing the earlier parked ones.
         cap.set(3);
@@ -3549,8 +3537,8 @@ public class IndexShardTests extends IndexShardTestCase {
         IntSupplier supplier = IndexShard.SearchReadyGate.defaultMaxPendingSupplier(100_000L);
         int baseline = supplier.getAsInt();
 
-        IndexShard.SearchReadyGate gateA = new IndexShard.SearchReadyGate(() -> Integer.MAX_VALUE);
-        IndexShard.SearchReadyGate gateB = new IndexShard.SearchReadyGate(() -> Integer.MAX_VALUE);
+        IndexShard.SearchReadyGate gateA = new IndexShard.SearchReadyGate(() -> Integer.MAX_VALUE, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        IndexShard.SearchReadyGate gateB = new IndexShard.SearchReadyGate(() -> Integer.MAX_VALUE, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         // The test directly manipulates the node-global counter via onShardStateChanged; the finally block
         // guarantees we leave it where we found it even if an assertion fails mid-test, so we don't pollute

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -200,8 +201,9 @@ public final class InferenceQueryUtils {
 
         try {
             return future.result();
-        } catch (ExecutionException e) {
-            throw new InferenceException("Unable to get inference information", e.getCause());
+        } catch (Exception e) {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            throw new InferenceException("Unable to get inference information", cause);
         }
     }
 

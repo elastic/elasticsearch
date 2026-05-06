@@ -116,6 +116,12 @@ public class StatelessCommitNotificationPublisher {
             if (oldSearchNodesRetainingCommits.isEmpty()) {
                 // Not running the Fetch action, no old search nodes to which to send requests.
                 fetchShardCommitsInUseResponse.set(Set.of());
+                // race repro, see issue #147888
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
                 return;
             }
 

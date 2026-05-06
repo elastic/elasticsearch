@@ -563,3 +563,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.VerifierTests
   method: testFlattenedSorting
   issue: https://github.com/elastic/elasticsearch/issues/148374
+- class: org.elasticsearch.index.mapper.DateRangeDocValuesLoaderTests
+  method: testEmptyRangesAppendsNull
+  issue: https://github.com/elastic/elasticsearch/issues/148378

@@ -10,6 +10,8 @@
 package org.elasticsearch.index.reindex.resumeinfo;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.BulkByScrollTaskStatusTests;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.SliceStatus;
@@ -31,7 +34,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.reindex.resumeinfo.PitWorkerResumeInfoWireSerializingTests.pitWorkerResumeInfoContentEquals;
 import static org.elasticsearch.index.reindex.resumeinfo.PitWorkerResumeInfoWireSerializingTests.pitWorkerResumeInfoContentHashCode;
 import static org.elasticsearch.index.reindex.resumeinfo.PitWorkerResumeInfoWireSerializingTests.randomPitWorkerResumeInfo;
@@ -40,6 +42,7 @@ import static org.elasticsearch.index.reindex.resumeinfo.ScrollWorkerResumeInfoW
 /**
  * Wire serialization tests for {@link SliceStatus}.
  * Uses a {@link Wrapper} with content-based equals/hashCode because {@link SliceStatus}
+ * embeds {@link BulkByScrollResponse} and {@link Exception} without structural {@code equals}.
  */
 public class SliceStatusWireSerializingTests extends AbstractWireSerializingTestCase<SliceStatusWireSerializingTests.Wrapper> {
 
@@ -108,8 +111,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
         result = 31 * result + workerResumeInfoContentHashCode(status.resumeInfo());
         if (status.result() != null) {
             if (status.result().getResponse().isPresent()) {
-                BulkByScrollResponse response = status.result().getResponse().get();
-                result = 31 * result + Objects.hash(response.getTook(), response.getStatus(), response.isTimedOut());
+                result = 31 * result + bulkByScrollResponseContentHashCode(status.result().getResponse().get());
             } else {
                 result = 31 * result + Objects.hashCode(status.result().getFailure().get().getMessage());
             }
@@ -138,16 +140,111 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
         if (a.getStatus().equals(b.getStatus()) == false) {
             return false;
         }
-        if (a.getBulkFailures().size() != b.getBulkFailures().size()) {
-            return false;
-        }
-        if (a.getSearchFailures().size() != b.getSearchFailures().size()) {
-            return false;
-        }
         if (a.isTimedOut() != b.isTimedOut()) {
             return false;
         }
+        if (bulkFailuresContentEquals(a.getBulkFailures(), b.getBulkFailures()) == false) {
+            return false;
+        }
+        return searchFailuresContentEquals(a.getSearchFailures(), b.getSearchFailures());
+    }
+
+    static int bulkByScrollResponseContentHashCode(BulkByScrollResponse response) {
+        int result = Objects.hash(response.getTook(), response.getStatus(), response.isTimedOut());
+        result = 31 * result + bulkFailuresContentHashCode(response.getBulkFailures());
+        result = 31 * result + searchFailuresContentHashCode(response.getSearchFailures());
+        return result;
+    }
+
+    private static boolean bulkFailuresContentEquals(List<BulkItemResponse.Failure> a, List<BulkItemResponse.Failure> b) {
+        if (a.size() != b.size()) {
+            return false;
+        }
+        for (int i = 0; i < a.size(); i++) {
+            if (bulkFailureContentEquals(a.get(i), b.get(i)) == false) {
+                return false;
+            }
+        }
         return true;
+    }
+
+    private static int bulkFailuresContentHashCode(List<BulkItemResponse.Failure> failures) {
+        int result = 1;
+        for (BulkItemResponse.Failure f : failures) {
+            result = 31 * result + bulkFailureContentHashCode(f);
+        }
+        return result;
+    }
+
+    private static boolean bulkFailureContentEquals(BulkItemResponse.Failure a, BulkItemResponse.Failure b) {
+        return Objects.equals(a.getIndex(), b.getIndex())
+            && Objects.equals(a.getId(), b.getId())
+            && a.getStatus() == b.getStatus()
+            && a.getSeqNo() == b.getSeqNo()
+            && a.getTerm() == b.getTerm()
+            && a.isAborted() == b.isAborted()
+            && a.getFailureStoreStatus() == b.getFailureStoreStatus()
+            && throwablesShallowEquals(a.getCause(), b.getCause());
+    }
+
+    private static int bulkFailureContentHashCode(BulkItemResponse.Failure f) {
+        return Objects.hash(
+            f.getIndex(),
+            f.getId(),
+            f.getStatus(),
+            f.getSeqNo(),
+            f.getTerm(),
+            f.isAborted(),
+            f.getFailureStoreStatus(),
+            f.getCause() == null ? null : f.getCause().getClass().getName(),
+            f.getCause() == null ? null : f.getCause().getMessage()
+        );
+    }
+
+    private static boolean searchFailuresContentEquals(List<PaginatedSearchFailure> a, List<PaginatedSearchFailure> b) {
+        if (a.size() != b.size()) {
+            return false;
+        }
+        for (int i = 0; i < a.size(); i++) {
+            if (paginatedSearchFailureContentEquals(a.get(i), b.get(i)) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static int searchFailuresContentHashCode(List<PaginatedSearchFailure> failures) {
+        int result = 1;
+        for (PaginatedSearchFailure f : failures) {
+            result = 31 * result + paginatedSearchFailureContentHashCode(f);
+        }
+        return result;
+    }
+
+    private static boolean paginatedSearchFailureContentEquals(PaginatedSearchFailure a, PaginatedSearchFailure b) {
+        return a.getStatus() == b.getStatus()
+            && Objects.equals(a.getIndex(), b.getIndex())
+            && Objects.equals(a.getShardId(), b.getShardId())
+            && Objects.equals(a.getNodeId(), b.getNodeId())
+            && throwablesShallowEquals(a.getReason(), b.getReason());
+    }
+
+    private static int paginatedSearchFailureContentHashCode(PaginatedSearchFailure f) {
+        Throwable reason = f.getReason();
+        return Objects.hash(
+            f.getStatus(),
+            f.getIndex(),
+            f.getShardId(),
+            f.getNodeId(),
+            reason == null ? null : reason.getClass().getName(),
+            reason == null ? null : reason.getMessage()
+        );
+    }
+
+    private static boolean throwablesShallowEquals(Throwable a, Throwable b) {
+        if (a == b) return true;
+        if (a == null || b == null) return false;
+        return a.getClass().equals(b.getClass()) && Objects.equals(a.getMessage(), b.getMessage());
     }
 
     /**
@@ -203,13 +300,52 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
         }
     }
 
-    private static BulkByScrollResponse randomBulkByScrollResponse() {
+    static BulkByScrollResponse randomBulkByScrollResponse() {
         return new BulkByScrollResponse(
             TimeValue.timeValueMillis(randomNonNegativeLong()),
             BulkByScrollTaskStatusTests.randomStatusWithoutException(),
-            emptyList(),
-            emptyList(),
+            randomBulkFailuresList(),
+            randomSearchFailuresList(),
             randomBoolean()
+        );
+    }
+
+    private static List<BulkItemResponse.Failure> randomBulkFailuresList() {
+        int n = randomIntBetween(0, 2);
+        List<BulkItemResponse.Failure> list = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            list.add(randomBulkFailure());
+        }
+        return list;
+    }
+
+    private static BulkItemResponse.Failure randomBulkFailure() {
+        return new BulkItemResponse.Failure(
+            randomAlphaOfLengthBetween(1, 10),
+            randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null,
+            new ElasticsearchException(randomAlphaOfLengthBetween(1, 20)),
+            randomLong(),
+            randomNonNegativeLong(),
+            randomBoolean(),
+            randomFrom(IndexDocFailureStoreStatus.values())
+        );
+    }
+
+    private static List<PaginatedSearchFailure> randomSearchFailuresList() {
+        int n = randomIntBetween(0, 2);
+        List<PaginatedSearchFailure> list = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            list.add(randomSearchFailure());
+        }
+        return list;
+    }
+
+    private static PaginatedSearchFailure randomSearchFailure() {
+        return new PaginatedSearchFailure(
+            new ElasticsearchException(randomAlphaOfLengthBetween(1, 20)),
+            randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null,
+            randomBoolean() ? randomIntBetween(0, 10) : null,
+            randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null
         );
     }
 }

@@ -12,7 +12,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -25,7 +28,9 @@ import org.elasticsearch.xpack.inference.queries.GenericQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -127,10 +132,12 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
         String field = fieldName(localFieldType, remoteFieldType);
         Consumer<SearchRequest> modifier = s -> s.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
 
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(field, buildQvb(), 10, 100, 10f, null);
+        QueryVectorBuilder qvb = buildQvb();
+        InferenceStringGroup embeddingInput = qvb instanceof EmbeddingQueryVectorBuilder eqvb ? eqvb.getInput() : null;
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(field, qvb, 10, 100, 10f, null);
 
-        boolean localCompatible = isCompatible(qvbType, localFieldType);
-        boolean remoteCompatible = isCompatible(qvbType, remoteFieldType);
+        boolean localCompatible = isCompatible(qvbType, localFieldType, embeddingInput);
+        boolean remoteCompatible = isCompatible(qvbType, remoteFieldType, embeddingInput);
 
         if (localCompatible && remoteCompatible) {
             String expectedLocalAlias = getExpectedLocalClusterAlias(ccsMinimizeRoundtrips);
@@ -152,12 +159,21 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
                 List.of(new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, docId(field))),
                 new ClusterFailure(
                     SearchResponse.Cluster.Status.SKIPPED,
-                    Set.of(new FailureCause(IllegalArgumentException.class, incompatibleError(qvbType)))
+                    Set.of(new FailureCause(IllegalArgumentException.class, incompatibleError(qvbType, remoteFieldType, embeddingInput)))
                 ),
                 modifier
             );
         } else {
-            assertSearchFailure(query, QUERY_INDICES, IllegalArgumentException.class, incompatibleError(qvbType), modifier);
+            // When local is incompatible, its failure propagates before remote is contacted.
+            // When only remote is incompatible (with !ccsMinimizeRoundtrips), the remote error propagates.
+            String failingFieldType = localCompatible ? remoteFieldType : localFieldType;
+            assertSearchFailure(
+                query,
+                QUERY_INDICES,
+                IllegalArgumentException.class,
+                incompatibleError(qvbType, failingFieldType, embeddingInput),
+                modifier
+            );
         }
     }
 
@@ -167,30 +183,74 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
                 generateDenseVectorFieldValue(DIMS, DenseVectorFieldMapper.ElementType.FLOAT, 1.0f)
             );
             case QVB_TEXT_EMBEDDING -> new TextEmbeddingQueryVectorBuilder(null, "hello");
-            case QVB_EMBEDDING -> new EmbeddingQueryVectorBuilder(null, new InferenceStringGroup("hello"), null);
+            case QVB_EMBEDDING -> new EmbeddingQueryVectorBuilder(null, randomEmbeddingInput(), null);
             case QVB_LOOKUP -> new LookupQueryVectorBuilder(docId(LOOKUP_SOURCE_FIELD), LOCAL_INDEX_NAME, LOOKUP_SOURCE_FIELD, null);
             default -> throw new IllegalArgumentException("unknown qvb type: " + qvbType);
         };
     }
 
     /**
-     * Returns true when the QVB can resolve an embedding for the given field type without an explicit model/inference ID.
-     * Both {@code text_embedding} and {@code embedding} require an inference endpoint on the field; {@code dense_vector}
-     * fields carry none, so they are incompatible. {@code generic} and {@code lookup} supply a pre-computed vector
-     * and are always compatible.
+     * Returns a randomly chosen {@link InferenceStringGroup} for use with {@link EmbeddingQueryVectorBuilder}:
+     * <ul>
+     *   <li>single text — compatible with both {@code text_embedding} and {@code embedding} endpoints</li>
+     *   <li>single image (base64) — compatible only with {@code embedding} endpoints</li>
+     *   <li>text + image (multi-input) — compatible only with {@code embedding} endpoints</li>
+     * </ul>
      */
-    private static boolean isCompatible(String qvbType, String fieldType) {
+    private InferenceStringGroup randomEmbeddingInput() {
+        String base64Image = "data:image/png;base64,"
+            + Base64.getEncoder().encodeToString(randomAlphaOfLength(8).getBytes(StandardCharsets.UTF_8));
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new InferenceStringGroup(randomAlphaOfLength(10));
+            case 1 -> new InferenceStringGroup(new InferenceString(DataType.IMAGE, base64Image));
+            case 2 -> new InferenceStringGroup(
+                List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(5)), new InferenceString(DataType.IMAGE, base64Image))
+            );
+            default -> throw new IllegalStateException("unexpected random value");
+        };
+    }
+
+    /**
+     * Returns true when the QVB can resolve an embedding for the given field type without an explicit model/inference ID.
+     * <ul>
+     *   <li>{@code generic} and {@code lookup} supply a pre-computed vector — always compatible.</li>
+     *   <li>{@code text_embedding} requires an inference endpoint on the field ({@code semantic_text} or {@code semantic}).</li>
+     *   <li>{@code embedding} also requires an inference endpoint, but additionally the input type must match what the endpoint
+     *       supports: {@code embedding} (EMBEDDING) endpoints accept all input types; {@code text_embedding} (TEXT_EMBEDDING)
+     *       endpoints only accept single plain-text inputs.</li>
+     * </ul>
+     */
+    private static boolean isCompatible(String qvbType, String fieldType, @Nullable InferenceStringGroup embeddingInput) {
         return switch (qvbType) {
             case QVB_GENERIC, QVB_LOOKUP -> true;
-            case QVB_TEXT_EMBEDDING, QVB_EMBEDDING -> fieldType.equals("semantic_text") || fieldType.equals("semantic");
+            case QVB_TEXT_EMBEDDING -> fieldType.equals("semantic_text") || fieldType.equals("semantic");
+            case QVB_EMBEDDING -> switch (fieldType) {
+                // EMBEDDING endpoints accept all input types
+                case "semantic" -> true;
+                // TEXT_EMBEDDING endpoints only accept single plain-text inputs
+                case "semantic_text" -> embeddingInput != null
+                    && embeddingInput.containsNonTextEntry() == false
+                    && embeddingInput.containsMultipleInferenceStrings() == false;
+                // dense_vector has no inference endpoint
+                default -> false;
+            };
             default -> throw new IllegalArgumentException("unknown qvb type: " + qvbType);
         };
     }
 
-    private static String incompatibleError(String qvbType) {
+    /**
+     * Returns the expected error message substring when the QVB is incompatible with {@code failingFieldType}.
+     */
+    private static String incompatibleError(String qvbType, String failingFieldType, @Nullable InferenceStringGroup embeddingInput) {
         return switch (qvbType) {
             case QVB_TEXT_EMBEDDING -> "[model_id] must be specified";
-            case QVB_EMBEDDING -> "[inference_id] must be specified";
+            case QVB_EMBEDDING -> switch (failingFieldType) {
+                case "dense_vector" -> "[inference_id] must be specified";
+                case "semantic_text" -> embeddingInput != null && embeddingInput.containsNonTextEntry()
+                    ? "Non-text input is not supported for [text_embedding]"
+                    : "Multiple text inputs are not supported for [text_embedding]";
+                default -> throw new IllegalArgumentException("unexpected failing field type: " + failingFieldType);
+            };
             default -> throw new IllegalArgumentException("no error expected for qvb type: " + qvbType);
         };
     }

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
+package org.elasticsearch.xpack.esql.optimizer.rules.physical;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.is;
 
 public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
 
-    public void testReplace_count() {
+    public void testReplace_count_initialMode() {
         Alias count = countApproximateAlias(Literal.keyword(Source.EMPTY, "*"));
         SampledAggregateExec sampledAgg = sampledAggregate(esQueryExec(), List.of(count), List.of(), AggregatorMode.INITIAL, 0.5);
 
@@ -63,11 +63,11 @@ public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
         assertThat(sampleExec.child(), instanceOf(EsQueryExec.class));
     }
 
-    public void testReplace_countAndStddev_finalMode() {
+    public void testReplace_countAndStddev_initialMode() {
         FieldAttribute empNo = fieldAttribute("emp_no", DataType.INTEGER);
         Alias count = countApproximateAlias(empNo);
         Alias stddev = new Alias(Source.EMPTY, "stddev", new StdDev(Source.EMPTY, empNo));
-        SampledAggregateExec sampledAgg = sampledAggregate(esQueryExec(), List.of(count, stddev), List.of(), AggregatorMode.FINAL, 0.3);
+        SampledAggregateExec sampledAgg = sampledAggregate(esQueryExec(), List.of(count, stddev), List.of(), AggregatorMode.INITIAL, 0.3);
 
         PhysicalPlan result = applyRule(sampledAgg);
 
@@ -83,7 +83,7 @@ public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
         assertThat(sampleExec.probability(), is(sampledAgg.sampleProbability()));
     }
 
-    public void testReplace_countAndSum() {
+    public void testReplace_countAndSum_initialMode() {
         Alias count = countApproximateAlias(Literal.keyword(Source.EMPTY, "*"));
         FieldAttribute salary = fieldAttribute("salary", DataType.INTEGER);
         Alias sum = new Alias(Source.EMPTY, "sum", new Sum(Source.EMPTY, salary));
@@ -112,10 +112,10 @@ public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
         assertThat(sampleExec.child(), instanceOf(EsQueryExec.class));
     }
 
-    public void testReplace_stdDev() {
+    public void testReplace_stdDev_initialMode() {
         FieldAttribute empNo = fieldAttribute("emp_no", DataType.INTEGER);
         Alias stddev = new Alias(Source.EMPTY, "stddev", new StdDev(Source.EMPTY, empNo));
-        SampledAggregateExec sampledAgg = sampledAggregate(esQueryExec(), List.of(stddev), List.of(), AggregatorMode.FINAL, 0.3);
+        SampledAggregateExec sampledAgg = sampledAggregate(esQueryExec(), List.of(stddev), List.of(), AggregatorMode.INITIAL, 0.3);
 
         PhysicalPlan result = applyRule(sampledAgg);
 
@@ -125,7 +125,66 @@ public class ReplaceSampledStatsBySampleAndStatsTests extends ESTestCase {
         assertThat(sampleExec.probability(), is(sampledAgg.sampleProbability()));
     }
 
-    public void testReplace_join() {
+    public void testReplace_count_singleMode() {
+        Alias count = countApproximateAlias(Literal.keyword(Source.EMPTY, "*"));
+        SampledAggregateExec sampledAgg = sampledAggregate(esQueryExec(), List.of(count), List.of(), AggregatorMode.SINGLE, 0.5);
+
+        PhysicalPlan result = applyRule(sampledAgg);
+
+        assertThat(result, instanceOf(ProjectExec.class));
+        ProjectExec project = (ProjectExec) result;
+        assertThat(project.child(), instanceOf(EvalExec.class));
+        EvalExec eval = (EvalExec) project.child();
+        assertThat(eval.fields(), hasSize(2));
+        assertThat(eval.child(), instanceOf(AggregateExec.class));
+        AggregateExec aggExec = (AggregateExec) eval.child();
+        assertThat(aggExec.getMode(), is(AggregatorMode.SINGLE));
+        assertThat(aggExec.groupings(), is(sampledAgg.groupings()));
+        assertThat(aggExec.child(), instanceOf(SampleExec.class));
+        SampleExec sampleExec = (SampleExec) aggExec.child();
+        assertThat(sampleExec.probability(), is(sampledAgg.sampleProbability()));
+        assertThat(sampleExec.child(), instanceOf(EsQueryExec.class));
+    }
+
+    public void testReplace_countAndStddev_singleMode() {
+        FieldAttribute empNo = fieldAttribute("emp_no", DataType.INTEGER);
+        Alias count = countApproximateAlias(empNo);
+        Alias stddev = new Alias(Source.EMPTY, "stddev", new StdDev(Source.EMPTY, empNo));
+        SampledAggregateExec sampledAgg = sampledAggregate(esQueryExec(), List.of(count, stddev), List.of(), AggregatorMode.SINGLE, 0.3);
+
+        PhysicalPlan result = applyRule(sampledAgg);
+
+        assertThat(result, instanceOf(ProjectExec.class));
+        ProjectExec project = (ProjectExec) result;
+        assertThat(project.child(), instanceOf(EvalExec.class));
+        EvalExec eval = (EvalExec) project.child();
+        // Only COUNT and its bucket need correction; STDDEV and its bucket do not.
+        assertThat(eval.fields(), hasSize(2));
+        assertThat(eval.child(), instanceOf(AggregateExec.class));
+        AggregateExec aggExec = (AggregateExec) eval.child();
+        assertThat(aggExec.getMode(), is(AggregatorMode.SINGLE));
+        assertThat(aggExec.child(), instanceOf(SampleExec.class));
+        SampleExec sampleExec = (SampleExec) aggExec.child();
+        assertThat(sampleExec.probability(), is(sampledAgg.sampleProbability()));
+        assertThat(sampleExec.child(), instanceOf(EsQueryExec.class));
+    }
+
+    public void testReplace_stdDev_singleMode() {
+        FieldAttribute empNo = fieldAttribute("emp_no", DataType.INTEGER);
+        Alias stddev = new Alias(Source.EMPTY, "stddev", new StdDev(Source.EMPTY, empNo));
+        SampledAggregateExec sampledAgg = sampledAggregate(esQueryExec(), List.of(stddev), List.of(), AggregatorMode.SINGLE, 0.3);
+
+        PhysicalPlan result = applyRule(sampledAgg);
+
+        // No sample correction needed for STDDEV, so no Project/Eval wrapper.
+        AggregateExec aggExec = assertAggregate(result, sampledAgg);
+        assertThat(aggExec.child(), instanceOf(SampleExec.class));
+        SampleExec sampleExec = (SampleExec) aggExec.child();
+        assertThat(sampleExec.probability(), is(sampledAgg.sampleProbability()));
+        assertThat(sampleExec.child(), instanceOf(EsQueryExec.class));
+    }
+
+    public void testReplace_join_initialMode() {
         Alias count = countApproximateAlias(Literal.keyword(Source.EMPTY, "*"));
         EsQueryExec left = esQueryExec();
         EsQueryExec right = esQueryExec();

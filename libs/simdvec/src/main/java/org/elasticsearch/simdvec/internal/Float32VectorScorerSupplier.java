@@ -28,6 +28,7 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
     final FloatVectorValues values;
     final FixedSizeScratch firstScratch;
     final FixedSizeScratch secondScratch;
+    final AddressesScratch addrsScratch = new AddressesScratch();
 
     protected Float32VectorScorerSupplier(IndexInput input, FloatVectorValues values) {
         this.input = input;
@@ -64,6 +65,7 @@ public abstract sealed class Float32VectorScorerSupplier implements RandomVector
                 offsets,
                 vectorByteSize,
                 numNodes,
+                addrsScratch::get,
                 addrs -> maxScore[0] = bulkScoreFromSegment(addrs, query, MemorySegment.ofArray(scores), numNodes)
             );
             if (resolved == false) {

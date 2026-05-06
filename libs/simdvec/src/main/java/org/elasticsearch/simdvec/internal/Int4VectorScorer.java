@@ -141,6 +141,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
         private final Int4Corrections.SingleCorrection correction;
         private final Int4Corrections.BulkCorrection bulkCorrection;
         private byte[] scratch;
+        private final AddressesScratch addrsScratch = new AddressesScratch();
 
         ScorerImpl(
             IndexInput input,
@@ -220,7 +221,7 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
                 for (int i = 0; i < numNodes; i++) {
                     offsets[i] = (long) ordinals[i] * vectorPitch;
                 }
-                boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, packedDims, numNodes, addrs -> {
+                boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, packedDims, numNodes, addrsScratch::get, addrs -> {
                     dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, MemorySegment.ofArray(scores));
                 });
                 if (resolved) {

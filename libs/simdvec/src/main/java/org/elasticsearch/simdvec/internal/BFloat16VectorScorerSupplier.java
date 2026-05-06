@@ -28,6 +28,7 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
     final FloatVectorValues values;
     final FixedSizeScratch firstScratch;
     final FixedSizeScratch secondScratch;
+    final AddressesScratch addrsScratch = new AddressesScratch();
 
     protected BFloat16VectorScorerSupplier(IndexInput input, FloatVectorValues values) {
         this.input = input;
@@ -64,6 +65,7 @@ public abstract class BFloat16VectorScorerSupplier implements RandomVectorScorer
                 offsets,
                 vectorByteSize,
                 numNodes,
+                addrsScratch::get,
                 addrs -> maxScore[0] = bulkScoreFromSegment(addrs, query, MemorySegment.ofArray(scores), numNodes)
             );
             if (resolved == false) {

@@ -35,6 +35,7 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
     final IndexInput input;
     final MemorySegment query;
     final FixedSizeScratch scratch;
+    final AddressesScratch addrsScratch = new AddressesScratch();
 
     public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector) {
         if (SUPPORTS_HEAP_SEGMENTS == false) {
@@ -113,6 +114,7 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
                 offsets,
                 vectorByteSize,
                 numNodes,
+                addrsScratch::get,
                 addrs -> dotProductDBF16QF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
             );
             if (resolved) {
@@ -162,6 +164,7 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
                 offsets,
                 vectorByteSize,
                 numNodes,
+                addrsScratch::get,
                 addrs -> squareDistanceDBF16QF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
             );
             if (resolved) {
@@ -211,6 +214,7 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
                 offsets,
                 vectorByteSize,
                 numNodes,
+                addrsScratch::get,
                 addrs -> dotProductDBF16QF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
             );
             if (resolved) {

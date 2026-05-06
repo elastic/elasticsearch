@@ -105,6 +105,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
     final float additionalCorrection;
     final int quantizedComponentSum;
     final FixedSizeScratch scratch;
+    final AddressesScratch addrsScratch = new AddressesScratch();
 
     Int7uOSQVectorScorer(
         IndexInput input,
@@ -155,7 +156,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         }
 
         float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
-        boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorByteSize, numNodes, addrs -> {
+        boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorByteSize, numNodes, addrsScratch::get, addrs -> {
             var scoresSeg = MemorySegment.ofArray(scores);
             dotProductI7uBulkSparse(addrs, query, vectorByteSize, numNodes, scoresSeg);
             maxScore[0] = applyCorrectionsBulk(scores, nodes, numNodes);

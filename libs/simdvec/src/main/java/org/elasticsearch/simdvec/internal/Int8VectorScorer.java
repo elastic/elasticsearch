@@ -34,6 +34,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
     final IndexInput input;
     final MemorySegment query;
     final FixedSizeScratch scratch;
+    final AddressesScratch addrsScratch = new AddressesScratch();
 
     public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, ByteVectorValues values, byte[] queryVector) {
         if (SUPPORTS_HEAP_SEGMENTS == false) {
@@ -97,6 +98,7 @@ public abstract sealed class Int8VectorScorer extends RandomVectorScorer.Abstrac
             offsets,
             vectorByteSize,
             numNodes,
+            addrsScratch::get,
             a -> sparseScorer.score(a, query, dimensions, numNodes, MemorySegment.ofArray(scores))
         );
     }

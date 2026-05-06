@@ -33,6 +33,7 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
     final ByteVectorValues values;
     final FixedSizeScratch firstScratch;
     final FixedSizeScratch secondScratch;
+    final AddressesScratch addrsScratch = new AddressesScratch();
 
     protected Int8VectorScorerSupplier(IndexInput input, ByteVectorValues values) {
         this.input = input;
@@ -69,6 +70,7 @@ public abstract sealed class Int8VectorScorerSupplier implements RandomVectorSco
                 offsets,
                 vectorByteSize,
                 numNodes,
+                addrsScratch::get,
                 addrs -> maxScore[0] = bulkScoreFromSegment(addrs, query, MemorySegment.ofArray(scores), numNodes)
             );
             if (resolved == false) {

@@ -30,6 +30,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     final int vectorTotalBytes;
     final FixedSizeScratch firstScratch;
     final FixedSizeScratch secondScratch;
+    final AddressesScratch addrsScratch = new AddressesScratch();
 
     protected Int7SQVectorScorerSupplier(IndexInput input, QuantizedByteVectorValues values, float scoreCorrectionConstant) {
         this.input = input;
@@ -70,6 +71,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
                 offsets,
                 vectorTotalBytes,
                 numNodes,
+                addrsScratch::get,
                 addrs -> maxScore[0] = bulkScoreFromSegment(addrs, query, queryOffsetValue, MemorySegment.ofArray(scores), numNodes)
             );
             if (resolved == false) {

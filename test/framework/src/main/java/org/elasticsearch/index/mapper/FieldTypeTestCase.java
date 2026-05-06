@@ -17,7 +17,6 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.FieldLookup;
@@ -56,21 +55,6 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         SearchLookup searchLookup = mock(SearchLookup.class);
         when(searchExecutionContext.lookup()).thenReturn(searchLookup);
         when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
-        when(searchExecutionContext.getIndexSettings()).thenReturn(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY));
-        return searchExecutionContext;
-    }
-
-    public static SearchExecutionContext createMockContextWithTimeSeries(boolean useTimeSeriesDocValuesFormat) {
-        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
-        when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
-        SearchLookup searchLookup = mock(SearchLookup.class);
-        when(searchExecutionContext.lookup()).thenReturn(searchLookup);
-        when(searchExecutionContext.indexVersionCreated()).thenReturn(IndexVersion.current());
-        Settings settings = Settings.builder()
-            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesDocValuesFormat)
-            .build();
-        when(searchExecutionContext.getIndexSettings()).thenReturn(IndexSettingsModule.newIndexSettings("test", settings));
         return searchExecutionContext;
     }
 

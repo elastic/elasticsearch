@@ -282,19 +282,18 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
      * If the term field is a string of date-time format with exact seconds (no sub-seconds), any data within a 1second range will match.
      */
     public void testTermQuery() {
-        boolean useTimeSeriesFormat = randomBoolean();
-        SearchExecutionContext context = prepareIndexForTermQuery(useTimeSeriesFormat);
+        SearchExecutionContext context = prepareIndexForTermQuery();
         MappedFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T14:10:55";
         long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant, instant + 999),
-            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant + 999, useTimeSeriesFormat)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant + 999)
         );
         assertEquals(expected, ft.termQuery(date, context));
 
         ft = new DateFieldType("field", false);
-        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant + 999, useTimeSeriesFormat);
+        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant + 999);
         assertEquals(expected, ft.termQuery(date, context));
 
         assertIndexUnsearchable(Resolution.MILLISECONDS, (unsearchable) -> unsearchable.termQuery(date, context));
@@ -304,19 +303,18 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
      * If the term field is a string of date-time format with sub-seconds, only data with exact ms precision will match.
      */
     public void testTermQuerySubseconds() {
-        boolean useTimeSeriesFormat = randomBoolean();
-        SearchExecutionContext context = prepareIndexForTermQuery(useTimeSeriesFormat);
+        SearchExecutionContext context = prepareIndexForTermQuery();
         MappedFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T14:10:55.01";
         long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant, instant),
-            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant, useTimeSeriesFormat)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant)
         );
         assertEquals(expected, ft.termQuery(date, context));
 
         ft = new DateFieldType("field", false);
-        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant, useTimeSeriesFormat);
+        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant);
         assertEquals(expected, ft.termQuery(date, context));
 
         assertIndexUnsearchable(Resolution.MILLISECONDS, (unsearchable) -> unsearchable.termQuery(date, context));
@@ -326,19 +324,18 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
      * If the term field is a string of the long value (ms since epoch), only data with exact ms precision will match.
      */
     public void testTermQueryMillis() {
-        boolean useTimeSeriesFormat = randomBoolean();
-        SearchExecutionContext context = prepareIndexForTermQuery(useTimeSeriesFormat);
+        SearchExecutionContext context = prepareIndexForTermQuery();
         MappedFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T14:10:55";
         long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant, instant),
-            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant, useTimeSeriesFormat)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant)
         );
         assertEquals(expected, ft.termQuery(instant, context));
 
         ft = new DateFieldType("field", false);
-        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant, useTimeSeriesFormat);
+        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant);
         assertEquals(expected, ft.termQuery(instant, context));
 
         assertIndexUnsearchable(Resolution.MILLISECONDS, (unsearchable) -> unsearchable.termQuery(instant, context));
@@ -348,19 +345,18 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
      * This query has similar behaviour to passing a String containing a long to termQuery, only data with exact ms precision will match.
      */
     public void testEqualityQuery() {
-        boolean useTimeSeriesFormat = randomBoolean();
-        SearchExecutionContext context = prepareIndexForTermQuery(useTimeSeriesFormat);
+        SearchExecutionContext context = prepareIndexForTermQuery();
         DateFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T14:10:55";
         long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant, instant),
-            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant, useTimeSeriesFormat)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant)
         );
         assertEquals(expected, ft.equalityQuery(instant, context));
 
         ft = new DateFieldType("field", false);
-        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant, useTimeSeriesFormat);
+        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant);
         assertEquals(expected, ft.equalityQuery(instant, context));
 
         assertIndexUnsearchable(Resolution.MILLISECONDS, (unsearchable) -> unsearchable.equalityQuery(instant, context));
@@ -370,19 +366,18 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
      * This query supports passing a ns value, and only data with exact ns precision will match.
      */
     public void testEqualityNanosQuery() {
-        boolean useTimeSeriesFormat = randomBoolean();
-        SearchExecutionContext context = prepareIndexForTermQuery(useTimeSeriesFormat);
+        SearchExecutionContext context = prepareIndexForTermQuery();
         DateFieldType ft = new DateFieldType("field", Resolution.NANOSECONDS);
         String date = "2015-10-12T14:10:55";
         long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli() * 1000000L;
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant, instant),
-            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant, useTimeSeriesFormat)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant)
         );
         assertEquals(expected, ft.equalityQuery(instant, context));
 
         ft = new DateFieldType("field", false);
-        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant, useTimeSeriesFormat);
+        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant, instant);
         assertEquals(expected, ft.equalityQuery(instant, context));
 
         assertIndexUnsearchable(Resolution.NANOSECONDS, (unsearchable) -> unsearchable.equalityQuery(instant, context));
@@ -393,8 +388,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
      * the second field will be rounded up to the next second.
      */
     public void testRangeQuery() throws IOException {
-        boolean useTimeSeriesFormat = randomBoolean();
-        SearchExecutionContext context = prepareIndexForRangeQuery(useTimeSeriesFormat);
+        SearchExecutionContext context = prepareIndexForRangeQuery();
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";
         String date2 = "2016-04-28T11:33:52";
@@ -402,12 +396,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant2 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date2)).toInstant().toEpochMilli() + 999;
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant1, instant2),
-            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2, useTimeSeriesFormat)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2)
         ).rewrite(newSearcher(new MultiReader()));
         assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(newSearcher(new MultiReader())));
 
         MappedFieldType ft2 = new DateFieldType("field", false);
-        Query expected2 = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2, useTimeSeriesFormat);
+        Query expected2 = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2);
         assertEquals(expected2, ft2.rangeQuery(date1, date2, true, true, null, null, null, context));
 
         instant1 = nowInMillis;
@@ -415,12 +409,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         expected = new DateRangeIncludingNowQuery(
             new IndexOrDocValuesQuery(
                 LongPoint.newRangeQuery("field", instant1, instant2),
-                SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2, useTimeSeriesFormat)
+                SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2)
             )
         );
         assertEquals(expected, ft.rangeQuery("now", instant2, true, true, null, null, null, context));
 
-        expected2 = new DateRangeIncludingNowQuery(SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2, useTimeSeriesFormat));
+        expected2 = new DateRangeIncludingNowQuery(SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2));
         assertEquals(expected2, ft2.rangeQuery("now", instant2, true, true, null, null, null, context));
 
         assertIndexUnsearchable(
@@ -434,8 +428,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
      * the lower and upper values will be matched inclusively to the ms.
      */
     public void testRangeQuerySubseconds() throws IOException {
-        boolean useTimeSeriesFormat = randomBoolean();
-        SearchExecutionContext context = prepareIndexForRangeQuery(useTimeSeriesFormat);
+        SearchExecutionContext context = prepareIndexForRangeQuery();
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55.01";
         String date2 = "2016-04-28T11:33:52.01";
@@ -443,12 +436,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant2 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date2)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant1, instant2),
-            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2, useTimeSeriesFormat)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2)
         ).rewrite(newSearcher(new MultiReader()));
         assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(newSearcher(new MultiReader())));
 
         MappedFieldType ft2 = new DateFieldType("field", false);
-        Query expected2 = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2, useTimeSeriesFormat);
+        Query expected2 = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2);
         assertEquals(expected2, ft2.rangeQuery(date1, date2, true, true, null, null, null, context));
 
         instant1 = nowInMillis;
@@ -456,12 +449,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         expected = new DateRangeIncludingNowQuery(
             new IndexOrDocValuesQuery(
                 LongPoint.newRangeQuery("field", instant1, instant2),
-                SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2, useTimeSeriesFormat)
+                SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2)
             )
         );
         assertEquals(expected, ft.rangeQuery("now", instant2, true, true, null, null, null, context));
 
-        expected2 = new DateRangeIncludingNowQuery(SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2, useTimeSeriesFormat));
+        expected2 = new DateRangeIncludingNowQuery(SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2));
         assertEquals(expected2, ft2.rangeQuery("now", instant2, true, true, null, null, null, context));
 
         assertIndexUnsearchable(
@@ -474,8 +467,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
      * If the term fields are strings of long ms, the lower and upper values will be matched inclusively to the ms.
      */
     public void testRangeQueryMillis() throws IOException {
-        boolean useTimeSeriesFormat = randomBoolean();
-        SearchExecutionContext context = prepareIndexForRangeQuery(useTimeSeriesFormat);
+        SearchExecutionContext context = prepareIndexForRangeQuery();
         DateFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55.01";
         String date2 = "2016-04-28T11:33:52.01";
@@ -483,12 +475,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant2 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date2)).toInstant().toEpochMilli();
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant1, instant2),
-            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2, useTimeSeriesFormat)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2)
         ).rewrite(newSearcher(new MultiReader()));
         assertEquals(expected, ft.rangeQuery(instant1, instant2, true, true, context).rewrite(newSearcher(new MultiReader())));
 
         DateFieldType ft2 = new DateFieldType("field", false);
-        Query expected2 = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2, useTimeSeriesFormat);
+        Query expected2 = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2);
         assertEquals(expected2, ft2.rangeQuery(instant1, instant2, true, true, context));
 
         assertIndexUnsearchable(
@@ -501,8 +493,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
      * If the term fields are strings of long ns, the lower and upper values will be matched inclusively to the ns.
      */
     public void testRangeQueryNanos() throws IOException {
-        boolean useTimeSeriesFormat = randomBoolean();
-        SearchExecutionContext context = prepareIndexForRangeQuery(useTimeSeriesFormat);
+        SearchExecutionContext context = prepareIndexForRangeQuery();
         DateFieldType ft = new DateFieldType("field", Resolution.NANOSECONDS);
         String date1 = "2015-10-12T14:10:55.01";
         String date2 = "2016-04-28T11:33:52.01";
@@ -510,23 +501,19 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant2 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date2)).toInstant().toEpochMilli() * 1000000L;
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", instant1, instant2),
-            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2, useTimeSeriesFormat)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2)
         ).rewrite(newSearcher(new MultiReader()));
         assertEquals(expected, ft.rangeQuery(instant1, instant2, true, true, context).rewrite(newSearcher(new MultiReader())));
 
         DateFieldType ft2 = new DateFieldType("field", false, Resolution.NANOSECONDS);
-        Query expected2 = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2, useTimeSeriesFormat);
+        Query expected2 = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2);
         assertEquals(expected2, ft2.rangeQuery(date1, date2, true, true, null, null, null, context));
 
         assertIndexUnsearchable(Resolution.NANOSECONDS, (unsearchable) -> unsearchable.rangeQuery(instant1, instant2, true, true, context));
     }
 
     public void testRangeQueryWithIndexSort() {
-        boolean useTimeSeriesFormat = randomBoolean();
-        Settings settings = indexSettings(IndexVersion.current(), 1, 1)
-            .put("index.sort.field", "field")
-            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesFormat)
-            .build();
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put("index.sort.field", "field").build();
 
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
@@ -540,7 +527,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant2 = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date2)).toInstant().toEpochMilli() + 999;
 
         Query pointQuery = LongPoint.newRangeQuery("field", instant1, instant2);
-        Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2, useTimeSeriesFormat);
+        Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery("field", instant1, instant2);
         Query expected = new IndexSortSortedNumericDocValuesRangeQuery(
             "field",
             instant1,
@@ -639,10 +626,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(nullValueDate), fetchSourceValue(nullValueMapper, null));
     }
 
-    private SearchExecutionContext prepareIndexForTermQuery(boolean useTimeSeriesFormat) {
-        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1)
-            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesFormat)
-            .build();
+    private SearchExecutionContext prepareIndexForTermQuery() {
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
         return SearchExecutionContextHelper.createSimple(
             new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
             parserConfig(),
@@ -650,10 +635,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
-    private SearchExecutionContext prepareIndexForRangeQuery(boolean useTimeSeriesFormat) {
-        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1)
-            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesFormat)
-            .build();
+    private SearchExecutionContext prepareIndexForRangeQuery() {
+        Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
         return new SearchExecutionContext(
             0,
             0,

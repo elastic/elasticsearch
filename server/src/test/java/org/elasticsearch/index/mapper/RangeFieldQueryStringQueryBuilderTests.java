@@ -166,8 +166,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
         Query controlDv = SortedNumericDocValuesRangeQuery.newRangeQuery(
             DATE_FIELD_NAME,
             parser.parse(lowerBoundExact, () -> 0).toEpochMilli(),
-            parser.parse(upperBoundExact, () -> 0).toEpochMilli(),
-            false
+            parser.parse(upperBoundExact, () -> 0).toEpochMilli()
         );
         assertEquals(new IndexOrDocValuesQuery(controlQuery, controlDv), queryOnDateField);
     }

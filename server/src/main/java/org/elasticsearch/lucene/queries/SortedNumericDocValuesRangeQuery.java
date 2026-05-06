@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.LongPredicate;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -47,14 +48,14 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
 
     /**
      * Returns a range query over sorted numeric doc values for the given field.
-     * When {@link #NUMERIC_RANGE_COLLECT_PUSHDOWN} is enabled and {@code useTimeSeriesFormat} is
-     * {@code true}, returns this Elasticsearch subclass which supports SIMD-based collect pushdown
-     * into TSDB codec blocks. Otherwise returns Lucene's own (package-private) implementation via
-     * {@link SortedNumericDocValuesField#newSlowRangeQuery} to avoid shipping the diverged copy of
-     * that code on the hot path.
+     * When {@link #NUMERIC_RANGE_COLLECT_PUSHDOWN} is enabled, returns this Elasticsearch
+     * subclass which supports SIMD-based collect pushdown into TSDB codec blocks.
+     * When disabled, returns Lucene's own (package-private) implementation via
+     * {@link SortedNumericDocValuesField#newSlowRangeQuery} to avoid shipping the
+     * diverged copy of that code on the hot path.
      */
-    public static Query newRangeQuery(String field, long lowerValue, long upperValue, boolean useTimeSeriesFormat) {
-        if (NUMERIC_RANGE_COLLECT_PUSHDOWN.isEnabled() && useTimeSeriesFormat) {
+    public static Query newRangeQuery(String field, long lowerValue, long upperValue) {
+        if (NUMERIC_RANGE_COLLECT_PUSHDOWN.isEnabled()) {
             return new SortedNumericDocValuesRangeQuery(field, lowerValue, upperValue);
         }
         return SortedNumericDocValuesField.newSlowRangeQuery(field, lowerValue, upperValue);
@@ -72,12 +73,12 @@ public final class SortedNumericDocValuesRangeQuery extends NumericDocValuesRang
             return false;
         }
         SortedNumericDocValuesRangeQuery that = (SortedNumericDocValuesRangeQuery) obj;
-        return delegate.equals(that.delegate);
+        return Objects.equals(field, that.field) && lowerValue == that.lowerValue && upperValue == that.upperValue;
     }
 
     @Override
     public int hashCode() {
-        return delegate.hashCode();
+        return Objects.hash(classHash(), field, lowerValue, upperValue);
     }
 
     @Override

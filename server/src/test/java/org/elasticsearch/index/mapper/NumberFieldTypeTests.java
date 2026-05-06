@@ -177,12 +177,10 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     private record TermQueryTestCase(NumberType type, Query[] expectedQueries) {}
 
     public void testTermQuery() {
-        boolean useTimeSeriesFormat = randomBoolean();
-        SearchExecutionContext ctx = createMockContextWithTimeSeries(useTimeSeriesFormat);
         Query[] expectedIntegerQueries = new Query[] {
             IntField.newExactQuery("field", 42),
             IntPoint.newExactQuery("field", 42),
-            SortedNumericDocValuesRangeQuery.newRangeQuery("field", 42, 42, useTimeSeriesFormat) };
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", 42, 42) };
         List<TermQueryTestCase> testCases = List.of(
             new TermQueryTestCase(NumberType.BYTE, expectedIntegerQueries),
             new TermQueryTestCase(NumberType.SHORT, expectedIntegerQueries),
@@ -192,7 +190,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 new Query[] {
                     LongField.newExactQuery("field", 42),
                     LongPoint.newExactQuery("field", 42),
-                    SortedNumericDocValuesRangeQuery.newRangeQuery("field", 42, 42, useTimeSeriesFormat) }
+                    SortedNumericDocValuesRangeQuery.newRangeQuery("field", 42, 42) }
             ),
             new TermQueryTestCase(
                 NumberType.FLOAT,
@@ -202,8 +200,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                     SortedNumericDocValuesRangeQuery.newRangeQuery(
                         "field",
                         NumericUtils.floatToSortableInt(42),
-                        NumericUtils.floatToSortableInt(42),
-                        useTimeSeriesFormat
+                        NumericUtils.floatToSortableInt(42)
                     ) }
             ),
             new TermQueryTestCase(
@@ -214,8 +211,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                     SortedNumericDocValuesRangeQuery.newRangeQuery(
                         "field",
                         NumericUtils.doubleToSortableLong(42),
-                        NumericUtils.doubleToSortableLong(42),
-                        useTimeSeriesFormat
+                        NumericUtils.doubleToSortableLong(42)
                     ) }
             ),
             new TermQueryTestCase(
@@ -226,32 +222,30 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                         SortedNumericDocValuesRangeQuery.newRangeQuery(
                             "field",
                             HalfFloatPoint.halfFloatToSortableShort(42),
-                            HalfFloatPoint.halfFloatToSortableShort(42),
-                            useTimeSeriesFormat
+                            HalfFloatPoint.halfFloatToSortableShort(42)
                         )
                     ),
                     HalfFloatPoint.newExactQuery("field", 42),
                     SortedNumericDocValuesRangeQuery.newRangeQuery(
                         "field",
                         HalfFloatPoint.halfFloatToSortableShort(42),
-                        HalfFloatPoint.halfFloatToSortableShort(42),
-                        useTimeSeriesFormat
+                        HalfFloatPoint.halfFloatToSortableShort(42)
                     ) }
             )
         );
 
         for (TermQueryTestCase testCase : testCases) {
             MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", testCase.type());
-            assertEquals(testCase.expectedQueries[0], ft.termQuery("42", ctx));
+            assertEquals(testCase.expectedQueries[0], ft.termQuery("42", MOCK_CONTEXT));
 
             ft = new NumberFieldMapper.NumberFieldType("field", testCase.type(), true, false);
-            assertEquals(testCase.expectedQueries[1], ft.termQuery("42", ctx));
+            assertEquals(testCase.expectedQueries[1], ft.termQuery("42", MOCK_CONTEXT));
 
             ft = new NumberFieldMapper.NumberFieldType("field", testCase.type(), false, true);
-            assertEquals(testCase.expectedQueries[2], ft.termQuery("42", ctx));
+            assertEquals(testCase.expectedQueries[2], ft.termQuery("42", MOCK_CONTEXT));
 
             MappedFieldType unsearchable = new NumberFieldMapper.NumberFieldType("field", testCase.type(), false, false);
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("42", ctx));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("42", MOCK_CONTEXT));
             assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
 
             MappedFieldType ft2 = new NumberFieldMapper.NumberFieldType("field", testCase.type(), false, true);
@@ -306,7 +300,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             boolean indexed = randomBoolean();
             boolean hasDocValues = indexed == false || randomBoolean();
             assertTrue(
-                testCase.type.termQuery("field", testCase.value, IndexType.points(indexed, hasDocValues), randomBoolean()) instanceof MatchNoDocsQuery
+                testCase.type.termQuery("field", testCase.value, IndexType.points(indexed, hasDocValues)) instanceof MatchNoDocsQuery
             );
         }
     }
@@ -624,23 +618,21 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() {
-        boolean useTimeSeriesFormat = randomBoolean();
-        SearchExecutionContext ctx = createMockContextWithTimeSeries(useTimeSeriesFormat);
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", 1, 3),
-            SortedNumericDocValuesRangeQuery.newRangeQuery("field", 1, 3, useTimeSeriesFormat)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", 1, 3)
         );
-        assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, ctx));
+        assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT));
 
         ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, true);
-        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", 1, 3, useTimeSeriesFormat);
-        assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, ctx));
+        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", 1, 3);
+        assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT));
 
         MappedFieldType unsearchable = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, false);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> unsearchable.rangeQuery("1", "3", true, true, null, null, null, ctx)
+            () -> unsearchable.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT)
         );
         assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
 
@@ -786,18 +778,17 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         );
 
         final boolean hasDocValues = isIndexed == false || randomBoolean(); // at least one should be true
-        boolean useTimeSeriesFormat = randomBoolean();
         assertNotEquals(
-            NumberType.DOUBLE.termQuery("field", -0d, IndexType.points(isIndexed, hasDocValues), useTimeSeriesFormat),
-            NumberType.DOUBLE.termQuery("field", +0d, IndexType.points(isIndexed, hasDocValues), useTimeSeriesFormat)
+            NumberType.DOUBLE.termQuery("field", -0d, IndexType.points(isIndexed, hasDocValues)),
+            NumberType.DOUBLE.termQuery("field", +0d, IndexType.points(isIndexed, hasDocValues))
         );
         assertNotEquals(
-            NumberType.FLOAT.termQuery("field", -0f, IndexType.points(isIndexed, hasDocValues), useTimeSeriesFormat),
-            NumberType.FLOAT.termQuery("field", +0f, IndexType.points(isIndexed, hasDocValues), useTimeSeriesFormat)
+            NumberType.FLOAT.termQuery("field", -0f, IndexType.points(isIndexed, hasDocValues)),
+            NumberType.FLOAT.termQuery("field", +0f, IndexType.points(isIndexed, hasDocValues))
         );
         assertNotEquals(
-            NumberType.HALF_FLOAT.termQuery("field", -0f, IndexType.points(isIndexed, hasDocValues), useTimeSeriesFormat),
-            NumberType.HALF_FLOAT.termQuery("field", +0f, IndexType.points(isIndexed, hasDocValues), useTimeSeriesFormat)
+            NumberType.HALF_FLOAT.termQuery("field", -0f, IndexType.points(isIndexed, hasDocValues)),
+            NumberType.HALF_FLOAT.termQuery("field", +0f, IndexType.points(isIndexed, hasDocValues))
         );
     }
 

@@ -350,10 +350,19 @@ public class VectorScorerOSQBenchmark {
         int[] sums = new int[BULK_SIZE];
         float[] additional = new float[BULK_SIZE];
 
+        // Control benchmark: pure per-vector scoring in a loop.
+        // For each chunk of BULK_SIZE vectors we issue BULK_SIZE single-vector quantizeScore calls
+        // (no bulk dot-product amortization), then read the corrections in bulk and apply them
+        // one-by-one in Java. This isolates the per-call overhead of the dot-product kernel and
+        // serves as a baseline against bulkScore (fused native bulk).
+        // Note: corrections are still bulk-read per chunk because the on-disk layout is
+        // [BULK_SIZE x vectors | BULK_SIZE x lowerIntervals | ... | BULK_SIZE x additional].
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
             for (int i = 0; i < NUM_VECTORS; i += BULK_SIZE) {
-                scorer.quantizeScoreBulk(binaryQueries[j].quantizedVector(), BULK_SIZE, scratchScores);
+                for (int b = 0; b < BULK_SIZE; b++) {
+                    scratchScores[b] = scorer.quantizeScore(binaryQueries[j].quantizedVector());
+                }
                 input.readFloats(lowerIntervals, 0, BULK_SIZE);
                 input.readFloats(upperIntervals, 0, BULK_SIZE);
                 input.readInts(sums, 0, BULK_SIZE);

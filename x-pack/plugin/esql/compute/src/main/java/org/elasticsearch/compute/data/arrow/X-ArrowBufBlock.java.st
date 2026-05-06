@@ -53,6 +53,11 @@ public final class $Name$ArrowBufBlock extends AbstractArrowBufBlock<$Type$Vecto
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return $BYTES$;
+    }
+
+    @Override
     protected ArrowBufVectorConstructor<$Type$Vector> vectorConstructor() {
         return $Name$ArrowBufVector::new;
     }

@@ -1854,6 +1854,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Returns a listener that guarantees {@code releasable} is closed and {@code listener}
      * is notified, regardless of whether the operation succeeds or fails.
      *
+     * {@code releasable} is closed before the wrapped listener is invoked so that
+     * cleanup doesn't run while refcounts are still held.
+     *
      * Visible for testing.
      */
     static <T> ActionListener<T> wrapFailureListener(
@@ -1864,11 +1867,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return new ActionListener<>() {
             @Override
             public void onResponse(T response) {
-                try {
-                    listener.onResponse(response);
-                } finally {
-                    Releasables.close(releasable);
-                }
+                Releasables.close(releasable);
+                listener.onResponse(response);
             }
 
             @Override

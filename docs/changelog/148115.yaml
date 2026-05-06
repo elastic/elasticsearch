@@ -1,5 +1,0 @@
-area: Searchable Snapshots
-issues: []
-pr: 148115
-summary: Wait for offline warming ignore stale shutdown entries
-type: enhancement

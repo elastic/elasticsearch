@@ -70,6 +70,11 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Long.BYTES * 2;
+    }
+
+    @Override
     public BlockFactory blockFactory() {
         return fromBlock.blockFactory();
     }

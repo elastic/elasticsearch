@@ -20,7 +20,7 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -45,7 +44,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * This function is used internally by {@link Approximation}, and is not exposed
+ * This function is used internally by {@link ApproximationPlan}, and is not exposed
  * to users via the {@link EsqlFunctionRegistry}.
  */
 public class ConfidenceInterval extends EsqlScalarFunction {
@@ -278,9 +277,6 @@ public class ConfidenceInterval extends EsqlScalarFunction {
                 allNaNs = false;
             }
         }
-
-        System.out.println("*** best estimate: " + bestEstimate);
-        System.out.println("*** estimates: " + Arrays.toString(estimates));
 
         // Every single bucket being NaN indicates that the bestEstimate is exact,
         // hence the confidence intervals should be zero width.

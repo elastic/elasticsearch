@@ -16,6 +16,18 @@ import org.elasticsearch.xpack.esql.session.Result;
 public interface ApproximationDriver {
 
     /**
+     * Builds an approximation driver for the logical plan.
+     */
+    static ApproximationDriver create(LogicalPlan logicalPlan, ApproximationSettings settings) {
+        ApproximationVerifier.QueryProperties queryProperties = ApproximationVerifier.verifyPlanOrThrow(logicalPlan);
+        if (queryProperties.forkBranchProperties() == null) {
+            return new Approximation(logicalPlan, queryProperties, settings);
+        } else {
+            return new ForkApproximation(logicalPlan, queryProperties, settings);
+        }
+    }
+
+    /**
      * Returns the next subplan to execute for calibration, or {@code null} if the main plan can run.
      */
     LogicalPlan firstSubPlan();

@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestOptimizer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -50,8 +49,8 @@ public abstract class ApproximationTestCase extends ESTestCase {
         return optimizer.coordinatorPlan(query);
     }
 
-    static Approximation.QueryProperties verify(String query) {
-        return Approximation.verifyPlanOrThrow(getLogicalPlan(query));
+    static ApproximationVerifier.QueryProperties verify(String query) {
+        return ApproximationVerifier.verifyPlanOrThrow(getLogicalPlan(query));
     }
 
     static void assertError(String esql, Matcher<String> matcher) {
@@ -116,5 +115,10 @@ public abstract class ApproximationTestCase extends ESTestCase {
                 description.appendText("a plan containing [" + typeToken.getSimpleName() + "] matching the predicate");
             }
         };
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return EsqlTestUtils.withDefaultLimitWarning(super.filteredWarnings());
     }
 }

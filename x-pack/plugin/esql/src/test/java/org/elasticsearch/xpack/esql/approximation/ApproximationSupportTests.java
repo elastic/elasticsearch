@@ -127,7 +127,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  * These tests verify that each LogicalPlan and AggregateFunction is either explicitly
- * supported for approximation (by being on a whitelist in {@link Approximation}) or
+ * supported for approximation (by being on a whitelist in {@link ApproximationVerifier}) or
  * explicitly not supported (by being on a blacklist here).
  * This forces a conscious decision about whether LogicalPlans and AggregateFunctions
  * are supported for approximation or not.
@@ -312,14 +312,14 @@ public class ApproximationSupportTests extends ESTestCase {
     public void testAllCommandsWhitelistedOrBlacklisted() throws Exception {
         testAllClassesListed(
             LogicalPlan.class,
-            List.of(Approximation.SUPPORTED_COMMANDS, Approximation.SUPPORTED_COMMANDS_AFTER_STATS, UNSUPPORTED_COMMANDS)
+            List.of(ApproximationVerifier.SUPPORTED_COMMANDS, ApproximationVerifier.SUPPORTED_COMMANDS_AFTER_STATS, UNSUPPORTED_COMMANDS)
         );
     }
 
     public void testAllAggregationsWhitelistedOrBlacklisted() throws Exception {
         testAllClassesListed(
             AggregateFunction.class,
-            List.of(Approximation.SUPPORTED_SINGLE_VALUED_AGGS, Approximation.SUPPORTED_MULTIVALUED_AGGS, UNSUPPORTED_AGGS)
+            List.of(ApproximationVerifier.SUPPORTED_SINGLE_VALUED_AGGS, ApproximationVerifier.SUPPORTED_MULTIVALUED_AGGS, UNSUPPORTED_AGGS)
         );
     }
 

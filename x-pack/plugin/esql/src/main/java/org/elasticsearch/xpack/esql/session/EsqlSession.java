@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalysisVerifier;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.approximation.Approximation;
 import org.elasticsearch.xpack.esql.approximation.ApproximationDriver;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
@@ -682,15 +681,11 @@ public class EsqlSession {
         LogicalPlan plan = subPlanAndCallback != null ? subPlanAndCallback.subPlan : mainPlan;
         if (ApproximationPlan.is(plan)) {
             if (approximation.get() == null) {
-                approximation.set(Approximation.create(plan, configuration.approximationSettings()));
+                approximation.set(ApproximationDriver.create(plan, configuration.approximationSettings()));
             }
             LogicalPlan subPlan = approximation.get().firstSubPlan();
             if (subPlan != null) {
-                subPlanAndCallback = new SubPlanAndCallback(
-                    subPlan,
-                    result -> approximation.get().newMainPlan(mainPlan, result),
-                    () -> {}
-                );
+                subPlanAndCallback = new SubPlanAndCallback(subPlan, result -> approximation.get().newMainPlan(mainPlan, result), () -> {});
             }
         }
 

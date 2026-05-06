@@ -11,7 +11,6 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,28 +24,31 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Approximation for a query that contains {@code FORK} with one {@link Approximation} per branch.
+ * Approximation for a query that contains {@code FORK} and {@code STATS} in
+ * one or more branches.
  * <p>
- * The source count is shared across all branches (run once), and the filtered count subplans
- * for all unconverged branches are combined into a single FORK plan so they execute in parallel.
- * Each branch is independently calibrated via its own sample probability.
+ * The approximation process is similar to {@link Approximation}, and makes
+ * heavy use of that:
+ * <ul>
+ *     <li>The source count is obtained by executing the source count plan
+ *     of any the branches.
+ *     <li>If needed, the (filtered) counts are obtained by creating a FORK
+ *     query containing the branches' count subplans.
+ * </ul>
+ * Each branch gets its individual sample probability.
  */
 public final class ForkApproximation implements ApproximationDriver {
 
     private final List<Approximation> branches;
     private boolean sourceCountDone;
 
-    ForkApproximation(LogicalPlan logicalPlan, ApproximationSettings settings) {
-        List<Fork> forks = new ArrayList<>();
-        logicalPlan.forEachUp(Fork.class, forks::add);
-        Fork fork = forks.getFirst();
+    ForkApproximation(LogicalPlan logicalPlan, ApproximationVerifier.QueryProperties queryProperties, ApproximationSettings settings) {
+        List<Fork> forks = logicalPlan.collect(Fork.class);
+        assert forks.size() == 1;
         branches = new ArrayList<>();
-        for (LogicalPlan child : fork.children()) {
-            try {
-                branches.add(new Approximation(child, settings));
-            } catch (VerificationException e) {
-                branches.add(null);
-            }
+        for (LogicalPlan child : forks.getFirst().children()) {
+            ApproximationVerifier.QueryProperties branchProperties = queryProperties.forkBranchProperties().get(branches.size());
+            branches.add(branchProperties != null ? new Approximation(child, branchProperties, settings) : null);
         }
         sourceCountDone = false;
     }
@@ -54,7 +56,7 @@ public final class ForkApproximation implements ApproximationDriver {
     @Override
     public LogicalPlan firstSubPlan() {
         if (sourceCountDone == false) {
-            return branches.stream().filter(Objects::nonNull).findFirst().get().firstSubPlan();
+            return sourceCountSubPlan();
         } else {
             return countSubPlan();
         }
@@ -70,6 +72,14 @@ public final class ForkApproximation implements ApproximationDriver {
     }
 
     /**
+     * Returns the source count subplan of the first branch that has one.
+     * (All branches share the same source count.)
+     */
+    private LogicalPlan sourceCountSubPlan() {
+        return branches.stream().filter(Objects::nonNull).findFirst().get().firstSubPlan();
+    }
+
+    /**
      * Processes the shared source count result, feeding it to every approximable branch.
      * Branches that converge immediately (e.g. row-preserving) get their probability substituted.
      */
@@ -81,7 +91,7 @@ public final class ForkApproximation implements ApproximationDriver {
             if (branch != null) {
                 Double sampleProbability = branch.processResult(rowCount);
                 if (sampleProbability != null) {
-                    mainPlan = substituteSampleProbability(mainPlan, branchIndex, sampleProbability);
+                    mainPlan = ApproximationPlan.substituteSampleProbabilityInForkBranch(mainPlan, sampleProbability, branchIndex);
                 }
             }
         }
@@ -90,7 +100,7 @@ public final class ForkApproximation implements ApproximationDriver {
 
     /**
      * Builds a FORK plan that combines the count subplans of all unconverged branches.
-     * Each branch gets an {@code EVAL _fork = "fork{i}"} so the result rows can be distinguished.
+     * Each branch gets an {@code EVAL _fork = index} so the result rows can be distinguished.
      * Returns {@code null} when all branches have converged.
      */
     private LogicalPlan countSubPlan() {
@@ -114,9 +124,7 @@ public final class ForkApproximation implements ApproximationDriver {
     }
 
     /**
-     * Processes the multi-row FORK count result. Each row's branch is identified by the
-     * {@code _fork} column (e.g. {@code "fork0"}, {@code "fork1"}) rather than by row position,
-     * because MergeExec does not guarantee child-order delivery.
+     * Processes the multi-row FORK count result.
      */
     private LogicalPlan processCount(Result result, LogicalPlan mainPlan) {
         for (Page page : result.pages()) {
@@ -127,24 +135,13 @@ public final class ForkApproximation implements ApproximationDriver {
                     case LongBlock longBlock -> longBlock.getLong(position);
                     default -> throw new IllegalStateException("Unexpected block type: " + page.getBlock(0));
                 };
-                Double p = branches.get(branchIndex).processCount(rowCount);
-                if (p != null) {
-                    mainPlan = substituteSampleProbability(mainPlan, branchIndex, p);
+                Double sampleProbability = branches.get(branchIndex).processCount(rowCount);
+                if (sampleProbability != null) {
+                    mainPlan = ApproximationPlan.substituteSampleProbabilityInForkBranch(mainPlan, sampleProbability, branchIndex);
                 }
             }
             page.close();
         }
-        return mainPlan;
-    }
-
-    private LogicalPlan substituteSampleProbability(LogicalPlan mainPlan, int branchIndex, double sampleProbability) {
-        mainPlan = mainPlan.transformUp(Fork.class, fork -> {
-            List<LogicalPlan> children = new ArrayList<>(fork.children());
-            assert branchIndex >= 0 && branchIndex < children.size();
-            children.set(branchIndex, ApproximationPlan.substituteSampleProbabilityInForkBranch(children.get(branchIndex), sampleProbability));
-            return fork.replaceSubPlans(children).refreshOutput();
-        });
-        mainPlan.setOptimized();
         return mainPlan;
     }
 }

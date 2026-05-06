@@ -982,14 +982,14 @@ request_stored: skip
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
-| FORK (WHERE sv <= 100 | STATS count = COUNT(), sum = SUM(sv), avg = AVG(sv))
-       (WHERE sv >= 100 | STATS count = COUNT(), sum = SUM(sv), avg = AVG(sv))
+| FORK (WHERE sv <= 100 | STATS count = COUNT(), sum = SUM(sv), avg = AVG(sv) | EVAL comment="exact")
+       (WHERE sv >= 100 | STATS count = COUNT(), sum = SUM(sv), avg = AVG(sv) | EVAL comment="approximate")
 | SORT _fork
 ;
 
-count:long     | sum:long            | avg:double | _fork:keyword | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean
-5050           | 338350              | 67         | fork1         | [5050,5050]                                    | true                                    | [338350,338350]                              | true                                  | [67,67]                                        | true
-200000..300000 | 90000000..140000000 | 440..490   | fork2         | [200000..300000,200000..300000]                | {any}                                   | [90000000..140000000,90000000..140000000]    | {any}                                 | [440..490,440..490]                            | {any}
+count:long     | sum:long            | avg:double | comment:keyword | _fork:keyword | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean
+5050           | 338350              | 67.0       | exact           | fork1         | [5050,5050]                                    | true                                    | [338350,338350]                              | true                                  | [67,67]                                        | true
+200000..300000 | 90000000..140000000 | 440..490   | approximate     | fork2         | [200000..300000,200000..300000]                | {any}                                   | [90000000..140000000,90000000..140000000]    | {any}                                 | [440..490,440..490]                            | {any}
 ;
 
 

@@ -895,9 +895,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             node.indexingDirectory.getBlobStoreCacheDirectory().updateMetadata(blobFileRanges, randomNonNegativeLong());
 
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            var type = randomFrom(INDEXING, SEARCH);
             node.warmingService.warmCache(
-                type,
+                INDEXING,
                 mockIndexShard(node),
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),

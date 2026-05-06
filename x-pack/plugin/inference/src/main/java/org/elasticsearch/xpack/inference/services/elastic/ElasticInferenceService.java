@@ -266,7 +266,12 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
     }
 
     @Override
-    protected boolean supportsImageEmbeddingContent() {
+    protected boolean supportsNonTextEmbeddingContent() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsMultipleItemsPerContent() {
         return true;
     }
 

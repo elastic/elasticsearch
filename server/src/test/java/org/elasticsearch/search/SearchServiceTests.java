@@ -325,11 +325,10 @@ public class SearchServiceTests extends IndexShardTestCase {
         var releasableClosed = new AtomicBoolean(false);
         var response = new AtomicReference<String>();
 
-        var wrapped = wrapFailureListener(
-            ActionListener.<String>wrap(response::set, e -> fail("unexpected failure")),
-            () -> releasableClosed.set(true),
-            e -> fail("cleanup must not run on success")
-        );
+        var wrapped = wrapFailureListener(ActionListener.<String>wrap((r) -> {
+            assertTrue("releasable must be closed before listener.onResponse runs", releasableClosed.get());
+            response.set(r);
+        }, e -> fail("unexpected failure")), () -> releasableClosed.set(true), e -> fail("cleanup must not run on success"));
         wrapped.onResponse("ok");
 
         assertTrue("releasable must be closed after onResponse", releasableClosed.get());

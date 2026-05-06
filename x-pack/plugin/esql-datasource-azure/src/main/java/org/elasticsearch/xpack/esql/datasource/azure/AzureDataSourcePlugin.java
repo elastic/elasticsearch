@@ -49,7 +49,7 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
                 if (config == null || config.isEmpty()) {
                     return create(settings);
                 }
-                AzureConfiguration azureConfig = AzureConfiguration.fromMap(config);
+                AzureConfiguration azureConfig = AzureConfiguration.fromQueryConfig(config);
                 return new AzureStorageProvider(azureConfig);
             }
         };

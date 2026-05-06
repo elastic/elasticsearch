@@ -11,7 +11,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.io.IOException;
 import java.util.List;
@@ -70,8 +70,8 @@ public class AlibabaCloudSearchEmbeddingsResponseEntity extends AlibabaCloudSear
      * </code>
      * </pre>
      */
-    public static DenseEmbeddingFloatResults fromResponse(Request request, HttpResult response) throws IOException {
-        return fromResponse(request, response, parser -> {
+    public static DenseEmbeddingFloatResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
+        return fromResponse(outboundRequest, response, parser -> {
             positionParserAtTokenAfterField(parser, "embeddings", FAILED_TO_FIND_FIELD_TEMPLATE);
 
             List<DenseEmbeddingFloatResults.Embedding> embeddingList = XContentParserUtils.parseList(

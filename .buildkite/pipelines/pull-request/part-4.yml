@@ -1,3 +1,6 @@
+config:
+  allow-labels: []
+
 steps:
   - label: part-4
     command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart4
@@ -5,6 +8,6 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
-      machineType: n4-standard-32
+      machineType: n4-standard-64
       diskType: hyperdisk-balanced
       buildDirectory: /dev/shm/bk

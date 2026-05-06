@@ -815,6 +815,7 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     record MergedResult(Map<String, EsField> mapping, Map<String, Set<String>> fieldToUnmappedIndices) {}
 
+    // TODO reduce duplication (See https://github.com/elastic/elasticsearch/issues/148409).
     private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
         int numberOfIndices = mappingsPerIndex.size();
         Set<String> allIndices = mappingsPerIndex.stream().map(MappingPerIndex::index).collect(toSet());

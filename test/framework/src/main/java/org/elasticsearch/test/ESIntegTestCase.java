@@ -1204,7 +1204,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // Align health with async IndicesClusterStateService application.
         // TODO: should health report green/yellow if ICSS has not yet finished?
         // Or should this be moved to the health workflow itself?
-        safeAwait(newStateFullyAppliedListener());
+        safeAwait(SubscribableListener.<Void>newForked(listener -> {
+            try (var listeners = new RefCountingListener(listener)) {
+                for (final var cs : internalCluster().getInstances(ClusterService.class)) {
+                    cs.getClusterApplierService().awaitAllAsyncAppliers(listeners.acquire());
+                }
+            }
+        }));
         logger.debug("indices {} are {}", indices.length == 0 ? "[_all]" : indices, color);
         return clusterHealthResponse.getStatus();
     }
@@ -1245,7 +1251,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         // waitForNoRelocatingShards only ensures the cluster state shows the relocation as complete. With async ICSS,
         // the source node's IndicesService still holds the old shard until its ICSS processes the updated state.
-        safeAwait(newStateFullyAppliedListener());
+        safeAwait(SubscribableListener.<Void>newForked(listener -> {
+            try (var listeners = new RefCountingListener(listener)) {
+                for (final var cs : internalCluster().getInstances(ClusterService.class)) {
+                    cs.getClusterApplierService().awaitAllAsyncAppliers(listeners.acquire());
+                }
+            }
+        }));
         return actionGet.getStatus();
     }
 
@@ -1936,10 +1948,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     @Nullable
     public static ClusterInfo refreshClusterInfo() {
-        final ClusterInfoService clusterInfoService = internalCluster().getInstance(
-            ClusterInfoService.class,
-            internalCluster().getMasterName()
-        );
+        final var masterName = internalCluster().getMasterName();
+        final ClusterInfoService clusterInfoService = internalCluster().getInstance(ClusterInfoService.class, masterName);
         if (clusterInfoService instanceof InternalClusterInfoService == false) {
             return null;
         }
@@ -1947,7 +1957,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // The refresh synchronously calls listeners such as DiskThresholdMonitor.onNewInfo, which may submit
         // cluster state updates. Those updates must be fully applied by async ICSS before callers can rely on
         // the resulting state (e.g. index blocks being present or absent).
-        safeAwait(newStateFullyAppliedListener());
+        safeAwait(
+            SubscribableListener.newForked(
+                internalCluster().getInstance(ClusterService.class, masterName).getClusterApplierService()::awaitAllAsyncAppliers
+            )
+        );
         return result;
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -432,7 +433,6 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
             );
         }
         ClusterState newState = ClusterState.builder(currentState)
-            .incrementVersion()
             .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
             .build();
         CountDownLatch latch = new CountDownLatch(1);
@@ -450,6 +450,8 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         });
         latch.await();
         waitNoPendingTasksOnAll();
+        // Wait for IndicesClusterStateService to finish processing the fake state before asserting shards still exist.
+        safeAwait(SubscribableListener.newForked(clusterApplierService::awaitAllAsyncAppliers));
         logger.info("Checking if shards aren't removed");
         for (int shard : node2Shards) {
             assertShardExists(nonMasterNode, index, shard);

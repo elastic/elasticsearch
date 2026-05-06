@@ -73,7 +73,7 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
             case BYTE:
                 if (values.getVectorByteLength() == values.dimension()) {
                     return defaultVectorFormat.flatVectorsScorer();
-                } else if (values.getVectorByteLength() == values.dimension() / 8) {
+                } else if (values.getVectorByteLength() == values.dimension() / Byte.SIZE) {
                     return bitVectorFormat.flatVectorsScorer();
                 }
                 break;

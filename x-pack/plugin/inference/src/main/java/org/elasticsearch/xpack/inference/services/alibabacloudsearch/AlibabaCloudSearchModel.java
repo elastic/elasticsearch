@@ -23,29 +23,29 @@ import java.util.Objects;
 public abstract class AlibabaCloudSearchModel extends Model {
     private final AlibabaCloudSearchRateLimitServiceSettings rateLimitServiceSettings;
     // Only used for testing, should always be null in production environments
-    private final URI url;
+    private final URI uri;
 
     public AlibabaCloudSearchModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
         AlibabaCloudSearchRateLimitServiceSettings rateLimitServiceSettings,
-        @Nullable URI url
+        @Nullable URI uri
     ) {
         super(configurations, secrets);
         this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
-        this.url = url;
+        this.uri = uri;
     }
 
     protected AlibabaCloudSearchModel(AlibabaCloudSearchModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
         rateLimitServiceSettings = model.rateLimitServiceSettings();
-        this.url = model.getUrl();
+        this.uri = model.uri();
     }
 
     protected AlibabaCloudSearchModel(AlibabaCloudSearchModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
         rateLimitServiceSettings = model.rateLimitServiceSettings();
-        this.url = model.getUrl();
+        this.uri = model.uri();
     }
 
     public abstract ExecutableAction accept(AlibabaCloudSearchActionVisitor creator, Map<String, Object> taskSettings);
@@ -54,7 +54,7 @@ public abstract class AlibabaCloudSearchModel extends Model {
         return rateLimitServiceSettings;
     }
 
-    public URI getUrl() {
-        return url;
+    public URI uri() {
+        return uri;
     }
 }

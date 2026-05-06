@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -98,7 +98,6 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings.API_KEY;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -421,7 +420,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
             service.infer(model, null, null, null, List.of(""), false, new HashMap<>(), InputType.CLASSIFICATION, null, listener);
 
@@ -440,7 +439,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         when(model.getTaskType()).thenReturn(TaskType.SPARSE_EMBEDDING);
 
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
             service.infer(model, null, null, null, List.of(""), false, new HashMap<>(), InputType.CLASSIFICATION, null, listener);
 
@@ -471,7 +470,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         when(model.getTaskType()).thenReturn(TaskType.RERANK);
 
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
             service.rerankInfer(
                 model,
@@ -487,10 +486,14 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             );
 
             var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
+            var expectedNumberOfErrors = (returnDocuments != null ? 1 : 0) + (topN != null ? 1 : 0);
+            var validationErrors = thrownException.validationErrors();
+            assertThat(validationErrors, hasSize(expectedNumberOfErrors));
+
             if (returnDocuments != null) {
                 assertThat(
-                    thrownException.getMessage(),
-                    containsString(
+                    validationErrors.getFirst(),
+                    is(
                         Strings.format(
                             "Invalid return_documents [%b]. The return_documents option is not supported by this service",
                             returnDocuments
@@ -500,8 +503,8 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             }
             if (topN != null) {
                 assertThat(
-                    thrownException.getMessage(),
-                    containsString(Strings.format("Invalid top_n [%d]. The top_n option is not supported by this service", topN))
+                    validationErrors.getLast(),
+                    is(Strings.format("Invalid top_n [%d]. The top_n option is not supported by this service", topN))
                 );
             }
         }
@@ -533,7 +536,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         when(model.getTaskType()).thenReturn(TaskType.RERANK);
 
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
             service.rerankInfer(model, new RerankRequest(inputs, query, null, null, new HashMap<>()), null, listener);
 
@@ -600,7 +603,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
                 null
             );
 
-            var listener = new PlainActionFuture<InferenceServiceResults>();
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
             service.doRerankInfer(model, request, null, listener);
             var result = listener.actionGet(TIMEOUT);
 
@@ -642,7 +645,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
     public void testChunkedInfer_noInputs() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+        TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = createModelForTaskType(randomFrom(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING), null);
 
@@ -660,7 +663,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = createModelForTaskType(taskType, chunkingSettings);
 
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             service.chunkedInfer(model, null, input, new HashMap<>(), InputTypeTests.randomWithIngestAndSearch(), null, listener);
 
             var results = listener.actionGet(TIMEOUT);

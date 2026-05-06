@@ -33,7 +33,13 @@ public abstract class AbstractAuditLoggingDynamicSwitchingTestCase extends Secur
     @Override
     protected final Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        startupAuditEnabled().ifPresent(value -> builder.put(XPackSettings.AUDIT_ENABLED.getKey(), value));
+        Optional<Boolean> auditEnabled = startupAuditEnabled();
+        if (auditEnabled.isPresent()) {
+            builder.put(XPackSettings.AUDIT_ENABLED.getKey(), auditEnabled.get());
+        } else {
+            // Remove any value that SecuritySettingsSource (which uses randomBoolean()) may have set
+            builder.remove(XPackSettings.AUDIT_ENABLED.getKey());
+        }
         return builder.build();
     }
 

@@ -50,7 +50,9 @@ dependencies {
 
 // Standalone CSVs under iceberg-fixtures/ are copied from esql:qa:testFixtures (single source of truth).
 def testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
+def serverProject = project(xpackModule('esql:qa:server'))
 def csvIcebergFixtureRoot = file("${buildDir}/csv-iceberg-fixtures")
+def tsvFixtureOutputRoot = file("${buildDir}/generated-tsv-fixtures")
 
 tasks.register('syncCsvIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
@@ -61,14 +63,44 @@ tasks.register('syncCsvIcebergFixtures', Sync) {
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone")
 }
 
-sourceSets.javaRestTest.resources.srcDir csvIcebergFixtureRoot
+// Same basenames as syncCsvIcebergFixtures — external-basic.csv-spec uses {{employees}}, {{web_logs}}, {{books}}.
+def csvBasenamesForTsv = ['employees', 'web_logs', 'books']
+
+def generateStandaloneTsvTasks = []
+csvBasenamesForTsv.each { baseName ->
+  def taskName = "generateStandaloneTsv_${baseName}"
+  def csvSynced = file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone/${baseName}.csv")
+  def tsvOut = file("${tsvFixtureOutputRoot}/iceberg-fixtures/standalone/${baseName}.tsv")
+  tasks.register(taskName, JavaExec) {
+    dependsOn tasks.named('syncCsvIcebergFixtures'), serverProject.tasks.named('compileTsvFixtureGeneratorJava')
+    classpath = serverProject.configurations.tsvFixtureGenerator + serverProject.sourceSets.tsvFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.TsvFixtureGenerator'
+    args = [csvSynced.path, tsvOut.path]
+    inputs.file(csvSynced)
+    outputs.file(tsvOut)
+  }
+  generateStandaloneTsvTasks.add(tasks.named(taskName))
+}
+
+tasks.register('generateStandaloneTsvFixtures') {
+  dependsOn generateStandaloneTsvTasks
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.tsv'
+}
+
+sourceSets.javaRestTest.resources {
+  srcDir csvIcebergFixtureRoot
+  srcDir tsvFixtureOutputRoot
+}
 
 tasks.named('processJavaRestTestResources').configure {
-  dependsOn 'syncCsvIcebergFixtures'
+  dependsOn 'syncCsvIcebergFixtures', 'generateStandaloneTsvFixtures'
 }
 
 tasks.named('javaRestTest') {
-  dependsOn 'syncCsvIcebergFixtures'
+  dependsOn 'syncCsvIcebergFixtures', 'generateStandaloneTsvFixtures'
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild

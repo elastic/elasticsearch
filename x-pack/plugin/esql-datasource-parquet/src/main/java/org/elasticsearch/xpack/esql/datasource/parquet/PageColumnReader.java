@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
@@ -59,19 +60,32 @@ import java.util.Arrays;
  * <p>For dictionary-encoded BINARY/UTF8 columns, {@code readBytesBatch} takes an ordinal
  * fast path that emits an {@link OrdinalBytesRefBlock} so downstream {@code BlockHash} can
  * hash only the {@code k} dictionary entries instead of the {@code N} row values. The
- * dictionary {@code BytesRefVector} is rebuilt per batch (deep-copying the bytes via
- * {@link BytesRefArray#append}) so each emitted block fully owns its memory and is safe to
- * outlive the {@link PageColumnReader} or its row group — pages can be buffered and
- * consumed asynchronously by a different driver thread without aliasing into Parquet-side
- * state. UUID-typed columns skip the ordinal path because their values need per-row byte
- * formatting that would have to be applied to dictionary entries instead.
+ * dictionary bytes are deep-copied into a {@link BytesRefArray} once per chunk and that
+ * array is shared across every batch in the chunk via its atomic ref-count
+ * ({@link BytesRefArray} extends {@code AbstractRefCounted}). Each emitted batch creates a
+ * fresh {@code BytesRefArrayVector} wrapper that holds one ref to the shared array; the
+ * wrapper itself is single-driver-owned (its non-thread-safe ref counter is never shared)
+ * and decRefs the shared array when the block is closed. This decoupling lets pages be
+ * buffered and consumed asynchronously by a different driver thread (see
+ * {@code AsyncExternalSourceOperatorFactory} which calls
+ * {@code page.allowPassingToDifferentDriver()}) without racing the producer's per-batch
+ * ref-count updates against the consumer's close. UUID-typed columns skip the ordinal path
+ * because their values need per-row byte formatting that would have to be applied to
+ * dictionary entries instead.
+ *
+ * <p>The cached {@link BytesRefArray} is released when this reader's chunk changes
+ * (currently never — chunk is fixed for the reader's lifetime, so this is defensive) or
+ * when the reader is {@link #close() closed}. Closing is driven by
+ * {@code OptimizedParquetColumnIterator}, which closes any previous readers when it
+ * advances row groups (in {@code initColumnReaders}) and when the iterator itself is
+ * closed.
  *
  * <p>If a non-dictionary page is encountered mid-batch (rare in practice — Parquet writers
  * keep encoding consistent across all data pages of a column chunk), the partial ordinal
  * batch is resolved through the dictionary and the remainder is read via the materialized
  * binary path.
  */
-final class PageColumnReader {
+final class PageColumnReader implements Releasable {
 
     private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
     private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
@@ -86,6 +100,16 @@ final class PageColumnReader {
 
     private Dictionary dictionary;
     private boolean dictionaryLoaded;
+
+    /**
+     * Cached deep-copy of the current dictionary's entries as a ref-counted {@link BytesRefArray}.
+     * Built lazily on the first ordinal batch of the chunk and reused (via {@code incRef}) for every
+     * subsequent batch. A defensive {@link #cachedDictArraySource} reference guards against the
+     * (currently impossible) case of the underlying {@link Dictionary} changing within a single
+     * reader's lifetime — if it does, the old cache is released and rebuilt.
+     */
+    private BytesRefArray cachedDictArray;
+    private Dictionary cachedDictArraySource;
 
     private final DefinitionLevelDecoder defDecoder = new DefinitionLevelDecoder();
     private final PlainValueDecoder plainDecoder = new PlainValueDecoder();
@@ -1111,20 +1135,63 @@ final class PageColumnReader {
     }
 
     private BytesRefVector buildDictionaryVector(BytesRef[] entries, BlockFactory blockFactory) {
+        BytesRefArray array = ensureCachedDictArray(entries, blockFactory);
+        // newBytesRefArrayVector takes ownership of one ref of the array: its closeInternal calls
+        // values.close() -> decRef(). The class Javadoc on BytesRefArrayVector that says it "does
+        // not take ownership" is misleading on the refcount side and applies only to the
+        // breaker accounting (which the factory adjusts here). To keep our cached ref alive
+        // across batches, incRef before handing the array to the wrapper.
+        array.incRef();
+        boolean success = false;
+        try {
+            BytesRefVector vector = blockFactory.newBytesRefArrayVector(array, entries.length);
+            success = true;
+            return vector;
+        } finally {
+            if (success == false) {
+                array.decRef();
+            }
+        }
+    }
+
+    private BytesRefArray ensureCachedDictArray(BytesRef[] entries, BlockFactory blockFactory) {
+        if (cachedDictArray != null && cachedDictArraySource == dictionary) {
+            return cachedDictArray;
+        }
+        // First call for this reader, or — and this should never happen given parquet-mr keeps
+        // one Dictionary per chunk and a PageColumnReader reads exactly one chunk — the
+        // Dictionary identity changed mid-reader. Assert in dev/test builds so a violated
+        // invariant fails loudly; rebuild rather than reuse a stale cache in production.
+        assert cachedDictArray == null : "PageColumnReader saw a Dictionary identity change mid-chunk; reader should have been replaced";
+        releaseCachedDictArray();
         BytesRefArray array = new BytesRefArray(entries.length, blockFactory.bigArrays());
         boolean success = false;
         try {
             for (BytesRef entry : entries) {
                 array.append(entry);
             }
-            BytesRefVector vector = blockFactory.newBytesRefArrayVector(array, entries.length);
+            cachedDictArray = array;
+            cachedDictArraySource = dictionary;
             success = true;
-            return vector;
+            return array;
         } finally {
             if (success == false) {
                 array.close();
             }
         }
+    }
+
+    private void releaseCachedDictArray() {
+        if (cachedDictArray != null) {
+            cachedDictArray.decRef();
+            cachedDictArray = null;
+            cachedDictArraySource = null;
+        }
+    }
+
+    @Override
+    public void close() {
+        releaseCachedDictArray();
     }
 
     private Block finishMaterializedFallback(int[] ordinals, WordMask nulls, int produced, int remaining, BlockFactory blockFactory) {

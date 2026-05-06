@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.settings;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -25,83 +24,173 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase<RateLimitSettings> {
 
     private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
         "inference_api_disable_eis_rate_limiting"
     );
+    private static final String TEST_SERVICE_NAME = "test-service";
+    private static final String TEST_SCOPE = "some-scope";
+    private static final int TEST_REQUESTS_PER_MINUTE = 100;
+    private static final String TEST_UNKNOWN_FIELD_NAME = "some-unknown-field";
 
     public static RateLimitSettings createRandom() {
         return new RateLimitSettings(randomLongBetween(1, 1000000));
     }
 
-    public void testThrows_WhenGiven0() {
-        expectThrows(IllegalArgumentException.class, () -> new RateLimitSettings(0));
+    public void testConstructor_ZeroValue_ThrowsIllegalArgumentException() {
+        var zeroValue = 0L;
+        assertConstructor_InvalidValue_ThrowsIllegalArgumentException(() -> new RateLimitSettings(zeroValue));
     }
 
-    public void testThrows_WhenGivenNegativeValue() {
-        expectThrows(IllegalArgumentException.class, () -> new RateLimitSettings(-3));
+    public void testConstructor_NegativeValue_ThrowsIllegalArgumentException() {
+        var negativeValue = randomNegativeLong();
+        assertConstructor_InvalidValue_ThrowsIllegalArgumentException(() -> new RateLimitSettings(negativeValue));
     }
 
-    public void testThrows_WhenGiven0_WithTimeUnit() {
-        expectThrows(IllegalArgumentException.class, () -> new RateLimitSettings(0, TimeUnit.MILLISECONDS));
+    public void testConstructor_ZeroValueWithTimeUnit_ThrowsIllegalArgumentException() {
+        var zeroValue = 0L;
+        assertConstructor_InvalidValue_ThrowsIllegalArgumentException(() -> new RateLimitSettings(zeroValue, TimeUnit.MILLISECONDS));
     }
 
-    public void testThrows_WhenGivenNegativeValue_WithTimeUnit() {
-        expectThrows(IllegalArgumentException.class, () -> new RateLimitSettings(-3, TimeUnit.MILLISECONDS));
+    public void testConstructor_NegativeValueWithTimeUnit_ThrowsIllegalArgumentException() {
+        long negativeValue = randomNegativeLong();
+        assertConstructor_InvalidValue_ThrowsIllegalArgumentException(() -> new RateLimitSettings(negativeValue, TimeUnit.MILLISECONDS));
     }
 
-    public void testOf() {
-        var validation = new ValidationException();
-        Map<String, Object> settings = new HashMap<>(
-            Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100)))
+    private static void assertConstructor_InvalidValue_ThrowsIllegalArgumentException(ThrowingRunnable throwingRunnable) {
+        var exception = expectThrows(IllegalArgumentException.class, throwingRunnable);
+        assertThat(exception.getMessage(), is("requests per minute must be positive"));
+    }
+
+    public void testOf_RequestPerMinutePresent_CreatesInstanceSuccessfully() {
+        var validationException = new ValidationException();
+        Map<String, Object> settingsMap = new HashMap<>(
+            Map.of(
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_REQUESTS_PER_MINUTE))
+            )
         );
-        var res = RateLimitSettings.of(settings, new RateLimitSettings(1), validation, "test", ConfigurationParseContext.PERSISTENT);
 
-        assertThat(res, is(new RateLimitSettings(100)));
-        assertTrue(res.isEnabled());
-        assertTrue(validation.validationErrors().isEmpty());
+        var settings = RateLimitSettings.of(
+            settingsMap,
+            createRandom(),
+            validationException,
+            randomFrom(ConfigurationParseContext.values())
+        );
+
+        assertThat(settings, is(new RateLimitSettings(TEST_REQUESTS_PER_MINUTE)));
+        assertTrue(settings.isEnabled());
+        assertTrue(validationException.validationErrors().isEmpty());
     }
 
     public void testOf_UsesDefaultValue_WhenRateLimit_IsAbsent() {
-        var validation = new ValidationException();
-        Map<String, Object> settings = new HashMap<>(
-            Map.of("abc", new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100)))
+        var validationException = new ValidationException();
+        Map<String, Object> settingsMap = new HashMap<>(
+            Map.of(TEST_UNKNOWN_FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_REQUESTS_PER_MINUTE)))
         );
-        var res = RateLimitSettings.of(settings, new RateLimitSettings(1), validation, "test", ConfigurationParseContext.PERSISTENT);
+        var defaultValue = createRandom();
 
-        assertThat(res, is(new RateLimitSettings(1)));
-        assertTrue(res.isEnabled());
-        assertTrue(validation.validationErrors().isEmpty());
+        var settings = RateLimitSettings.of(settingsMap, defaultValue, validationException, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(settings, sameInstance(defaultValue));
+        assertTrue(settings.isEnabled());
+        assertTrue(validationException.validationErrors().isEmpty());
     }
 
-    public void testOf_UsesDefaultValue_WhenRequestsPerMinute_IsAbsent() {
-        var validation = new ValidationException();
-        Map<String, Object> settings = new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of("abc", 100))));
-        var res = RateLimitSettings.of(settings, new RateLimitSettings(1), validation, "test", ConfigurationParseContext.PERSISTENT);
+    public void testOf_NoRequestsPerMinute_UsesDefaultValue() {
+        var validationException = new ValidationException();
+        Map<String, Object> settingsMap = new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>()));
+        var defaultValue = createRandom();
 
-        assertThat(res, is(new RateLimitSettings(1)));
-        assertTrue(res.isEnabled());
-        assertTrue(validation.validationErrors().isEmpty());
+        var settings = RateLimitSettings.of(settingsMap, defaultValue, validationException, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(settings, sameInstance(defaultValue));
+        assertTrue(settings.isEnabled());
+        assertTrue(validationException.validationErrors().isEmpty());
     }
 
-    public void testOf_ThrowsException_WithUnknownField_InRequestContext() {
-        var validation = new ValidationException();
-        Map<String, Object> settings = new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of("abc", 100))));
+    public void testOf_ZeroValue_AddsValidationError() {
+        var zeroValue = 0L;
+        assertOf_InvalidValue_AddsValidationError(zeroValue);
+    }
 
-        var exception = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> RateLimitSettings.of(settings, new RateLimitSettings(1), validation, "test", ConfigurationParseContext.REQUEST)
+    public void testOf_NegativeValue_AddsValidationError() {
+        var negativeValue = randomNegativeLong();
+        assertOf_InvalidValue_AddsValidationError(negativeValue);
+    }
+
+    private static void assertOf_InvalidValue_AddsValidationError(long invalidValue) {
+        var validationException = new ValidationException();
+        Map<String, Object> settingsMap = new HashMap<>(
+            Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, invalidValue)))
         );
+        var defaultValue = createRandom();
 
-        assertThat(exception.getMessage(), is("Configuration contains settings [{abc=100}] unknown to the [test] service"));
+        var settings = RateLimitSettings.of(settingsMap, defaultValue, validationException, randomFrom(ConfigurationParseContext.values()));
+
+        assertThat(settings, sameInstance(defaultValue));
+        assertThat(validationException.validationErrors().size(), is(1));
+        assertThat(
+            validationException.validationErrors().getFirst(),
+            is(
+                Strings.format(
+                    "[%s] Invalid value [%s]. [%s] must be a positive long",
+                    RateLimitSettings.FIELD_NAME,
+                    invalidValue,
+                    RateLimitSettings.REQUESTS_PER_MINUTE_FIELD
+                )
+            )
+        );
     }
 
-    public void testToXContent() throws IOException {
-        var settings = new RateLimitSettings(100);
+    public void testOf_RequestContext_WithUnknownField_AddsValidationError() {
+        var validationException = new ValidationException();
+        Map<String, Object> settingsMap = new HashMap<>(
+            Map.of(
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(
+                    Map.of(
+                        RateLimitSettings.REQUESTS_PER_MINUTE_FIELD,
+                        TEST_REQUESTS_PER_MINUTE,
+                        TEST_UNKNOWN_FIELD_NAME,
+                        TEST_REQUESTS_PER_MINUTE
+                    )
+                )
+            )
+        );
+        var defaultValue = createRandom();
+
+        var settings = RateLimitSettings.of(settingsMap, defaultValue, validationException, ConfigurationParseContext.REQUEST);
+
+        assertThat(settings, sameInstance(defaultValue));
+        assertTrue(settings.isEnabled());
+        assertThat(validationException.validationErrors().size(), is(1));
+        assertThat(
+            validationException.validationErrors().getFirst(),
+            is(Strings.format("Rate limit settings contain unknown entries [{%s=%d}]", TEST_UNKNOWN_FIELD_NAME, TEST_REQUESTS_PER_MINUTE))
+        );
+    }
+
+    public void testOf_PersistentContext_WithUnknownField_DoesNotAddValidationError() {
+        var validationException = new ValidationException();
+        Map<String, Object> settingsMap = new HashMap<>(
+            Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(TEST_UNKNOWN_FIELD_NAME, TEST_REQUESTS_PER_MINUTE)))
+        );
+        var defaultValue = createRandom();
+
+        var settings = RateLimitSettings.of(settingsMap, defaultValue, validationException, ConfigurationParseContext.PERSISTENT);
+
+        assertThat(settings, sameInstance(defaultValue));
+        assertTrue(settings.isEnabled());
+        assertTrue(validationException.validationErrors().isEmpty());
+    }
+
+    public void testToXContent_HasRequestsPerMinuteValue_WritesSuccessfully() throws IOException {
+        var settings = new RateLimitSettings(TEST_REQUESTS_PER_MINUTE);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject();
@@ -109,70 +198,104 @@ public class RateLimitSettingsTests extends AbstractBWCWireSerializationTestCase
         builder.endObject();
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"rate_limit":{"requests_per_minute":100}}"""));
-    }
-
-    public void testToXContent_WhenDisabled() throws IOException {
-        var settings = new RateLimitSettings(1, TimeUnit.MINUTES, false);
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject();
-        settings.toXContent(builder, null);
-        builder.endObject();
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, is(XContentHelper.stripWhitespace("""
+        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
             {
-            }""")));
+                "rate_limit": {
+                    "requests_per_minute": %d
+                }
+            }""", TEST_REQUESTS_PER_MINUTE))));
     }
 
-    public void testRejectRateLimitFieldForRequestContext_DoesNotAddError_WhenRateLimitFieldDoesNotExist() {
-        var mapWithoutRateLimit = new HashMap<String, Object>(Map.of("abc", 100));
-        var validation = new ValidationException();
+    public void testToXContent_EnabledIsFalse_IsDisabledAndNotSerialized() throws IOException {
+        var settings = new RateLimitSettings(TEST_REQUESTS_PER_MINUTE, TimeUnit.MINUTES, false);
+
+        assertToXContent_IsDisabledAndNotSerialized(settings);
+    }
+
+    public void testToXContent_DisabledInstance_IsDisabledAndNotSerialized() throws IOException {
+        var settings = RateLimitSettings.DISABLED_INSTANCE;
+
+        assertToXContent_IsDisabledAndNotSerialized(settings);
+    }
+
+    private static void assertToXContent_IsDisabledAndNotSerialized(RateLimitSettings settings) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject();
+        settings.toXContent(builder, null);
+        builder.endObject();
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(settings.isEnabled(), is(false));
+        assertThat(xContentResult, is("{}"));
+    }
+
+    public void testRejectRateLimitFieldForRequestContext_RequestContext_NoRateLimitField_DoesNotAddValidationError() {
+        var mapWithoutRateLimit = new HashMap<String, Object>(Map.of(TEST_UNKNOWN_FIELD_NAME, TEST_REQUESTS_PER_MINUTE));
+        var validationException = new ValidationException();
+
         RateLimitSettings.rejectRateLimitFieldForRequestContext(
             mapWithoutRateLimit,
-            "scope",
-            "service",
+            TEST_SCOPE,
+            TEST_SERVICE_NAME,
             TaskType.CHAT_COMPLETION,
             ConfigurationParseContext.REQUEST,
-            validation
+            validationException
         );
-        assertTrue(validation.validationErrors().isEmpty());
+
+        assertTrue(validationException.validationErrors().isEmpty());
     }
 
-    public void testRejectRateLimitFieldForRequestContext_DoesNotAddError_WhenRateLimitFieldDoesExist_PersistentContext() {
+    public void testRejectRateLimitFieldForRequestContext_PersistentContext_WithRateLimitField_DoesNotAddValidationError() {
         var mapWithRateLimit = new HashMap<String, Object>(
-            Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100)))
+            Map.of(
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_REQUESTS_PER_MINUTE))
+            )
         );
-        var validation = new ValidationException();
+        var validationException = new ValidationException();
+
         RateLimitSettings.rejectRateLimitFieldForRequestContext(
             mapWithRateLimit,
-            "scope",
-            "service",
+            TEST_SCOPE,
+            TEST_SERVICE_NAME,
             TaskType.CHAT_COMPLETION,
             ConfigurationParseContext.PERSISTENT,
-            validation
+            validationException
         );
-        assertTrue(validation.validationErrors().isEmpty());
+
+        assertTrue(validationException.validationErrors().isEmpty());
     }
 
-    public void testRejectRateLimitFieldForRequestContext_DoesAddError_WhenRateLimitFieldDoesExist() {
+    public void testRejectRateLimitFieldForRequestContext_RequestContext_WithRateLimitField_AddsValidationError() {
         var mapWithRateLimit = new HashMap<String, Object>(
-            Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100)))
+            Map.of(
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_REQUESTS_PER_MINUTE))
+            )
         );
-        var validation = new ValidationException();
+        var validationException = new ValidationException();
+        var taskType = randomFrom(TaskType.values());
+
         RateLimitSettings.rejectRateLimitFieldForRequestContext(
             mapWithRateLimit,
-            "scope",
-            "service",
-            TaskType.CHAT_COMPLETION,
+            TEST_SCOPE,
+            TEST_SERVICE_NAME,
+            taskType,
             ConfigurationParseContext.REQUEST,
-            validation
+            validationException
         );
+
+        assertThat(validationException.validationErrors().size(), is(1));
         assertThat(
-            validation.getMessage(),
-            containsString("[scope] rate limit settings are not permitted for service [service] and task type [chat_completion]")
+            validationException.validationErrors().getFirst(),
+            is(
+                Strings.format(
+                    "[%s] rate limit settings are not permitted for service [%s] and task type [%s]",
+                    TEST_SCOPE,
+                    TEST_SERVICE_NAME,
+                    taskType.toString()
+                )
+            )
         );
     }
 

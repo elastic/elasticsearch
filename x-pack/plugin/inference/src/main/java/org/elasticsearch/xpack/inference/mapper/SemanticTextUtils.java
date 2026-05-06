@@ -109,6 +109,7 @@ public class SemanticTextUtils {
     }
 
     private static InferenceString parseInferenceStringValue(String field, Map<String, Object> value) {
+        InferenceString inferenceString;
         try (
             XContentParser parser = new MapXContentParser(
                 NamedXContentRegistry.EMPTY,
@@ -117,9 +118,19 @@ public class SemanticTextUtils {
                 XContentType.JSON
             )
         ) {
-            return InferenceString.PARSER.parse(parser, null);
+            inferenceString = InferenceString.PARSER.parse(parser, null);
         } catch (Exception e) {
             throw new ElasticsearchStatusException("Invalid object value format for field [{}]", RestStatus.BAD_REQUEST, e, field);
         }
+
+        if (inferenceString.isText()) {
+            throw new ElasticsearchStatusException(
+                "Invalid object value format for field [{}]. Objects for text values are not supported, use a string literal instead.",
+                RestStatus.BAD_REQUEST,
+                field
+            );
+        }
+
+        return inferenceString;
     }
 }

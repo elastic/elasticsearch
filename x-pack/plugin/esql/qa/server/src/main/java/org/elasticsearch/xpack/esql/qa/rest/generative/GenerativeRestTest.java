@@ -108,7 +108,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
         "long overflow", // https://github.com/elastic/elasticsearch/issues/99575
-        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
+        // "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
         // https://github.com/elastic/elasticsearch/issues/142537 for null arguments in clamp() function
         "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
         "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
@@ -373,7 +373,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isTsOutputChangedError(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isForkWithSortBranchBug(ctx.normalizedErrorMessage, ctx.query), };
 
     private static boolean isAllowedFailure(FailureContext ctx) {
         if (ctx == null || ctx.errorMessage == null) {
@@ -782,6 +783,45 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return query.toUpperCase(Locale.ROOT).contains("FORK");
+    }
+
+    private static final Pattern OPTIMIZED_INCORRECTLY_ORDERBY_PATTERN = Pattern.compile(
+        ".*Plan \\[OrderBy\\[.*optimized incorrectly due to missing references.*",
+        Pattern.DOTALL
+    );
+
+    private static final Pattern COMPUTE_BLOCK_CLASS_CAST_PATTERN = Pattern.compile(
+        ".*class org\\.elasticsearch\\.compute\\.data\\.\\w+Block cannot be cast"
+            + " to class org\\.elasticsearch\\.compute\\.data\\.\\w+Block.*",
+        Pattern.DOTALL
+    );
+
+    private static final Pattern FORK_WITH_SORT_BRANCH_PATTERN = Pattern.compile(
+        "(?is)\\bFORK\\b.*\\bSORT\\b.*\\|\\s*WHERE\\s+_fork\\s*=="
+    );
+
+    /**
+     * FORK with an in-branch SORT on a field that becomes unused after the FORK currently
+     * triggers two distinct bugs depending on the surrounding pipeline:
+     * <ul>
+     *   <li>{@code Plan [OrderBy[...]] optimized incorrectly due to missing references [...]}
+     *       — see <a href="https://github.com/elastic/elasticsearch/issues/148382">#148382</a></li>
+     *   <li>{@code ClassCastException} between compute {@code Block} subclasses (e.g.
+     *       {@code BytesRefArrayBlock} cast to {@code IntBlock}) downstream of the FORK
+     *       — see <a href="https://github.com/elastic/elasticsearch/issues/148386">#148386</a></li>
+     * </ul>
+     * Gated on the query containing a FORK command with at least one branch that uses SORT, to
+     * avoid masking unrelated regressions.
+     */
+    static boolean isForkWithSortBranchBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_ORDERBY_PATTERN.matcher(errorMessage).matches() == false
+            && COMPUTE_BLOCK_CLASS_CAST_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return FORK_WITH_SORT_BRANCH_PATTERN.matcher(query).find();
     }
 
     @Override

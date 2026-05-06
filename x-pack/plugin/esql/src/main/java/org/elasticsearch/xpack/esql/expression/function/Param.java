@@ -34,7 +34,7 @@ public @interface Param {
     String since() default "";
 
     @Nullable
-    Hint hint() default @Hint(entityType = Hint.ENTITY_TYPE.NONE);
+    Hint hint() default @Hint;
 
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.PARAMETER)
@@ -44,7 +44,32 @@ public @interface Param {
             INFERENCE_ENDPOINT,
         }
 
-        ENTITY_TYPE entityType();
+        enum Kind {
+            /**
+             * Depends on the function type and command.
+             * {@snippet lang="txt" :
+             * ┌───────┬──────────────────────────────────────┬──────────────────────────────────┐
+             * │       │ Scalar                               │ Aggregation                      │
+             * ├───────┼──────────────────────────────────────┼──────────────────────────────────┤
+             * │ EVAL  │ may only be a scalar                 │ invalid                          │
+             * │ STATS │ must contain an aggregation function │ can only contain scalar function │
+             * └───────┴──────────────────────────────────────┴──────────────────────────────────┘
+             * }
+             */
+            STANDARD,
+            /**
+             * A constant that references some entity to load.
+             */
+            ENTITY,
+            /**
+             * This <strong>must</strong> be an aggregation function.
+             */
+            AGGREGATION,
+        }
+
+        ENTITY_TYPE entityType() default ENTITY_TYPE.NONE;
+
+        Kind kind() default Kind.STANDARD;
 
         Constraint[] constraints() default {};
 

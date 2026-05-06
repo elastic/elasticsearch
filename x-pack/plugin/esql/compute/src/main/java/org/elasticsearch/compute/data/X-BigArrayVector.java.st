@@ -173,6 +173,11 @@ $endif$
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return $BYTES$;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.$TYPE$;
     }

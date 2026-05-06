@@ -8,20 +8,21 @@
 package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
+import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -35,26 +36,34 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 
-public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
+public class VoyageAIEmbeddingsServiceSettings extends VoyageAIServiceSettings {
     public static final String NAME = "voyageai_embeddings_service_settings";
-    public static final VoyageAIEmbeddingsServiceSettings EMPTY_SETTINGS = new VoyageAIEmbeddingsServiceSettings(
-        null,
-        null,
-        null,
-        null,
-        null,
-        false
-    );
 
     private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
+    private static final TransportVersion VOYAGE_AI_EMBEDDING_TYPE_NON_NULLABLE = TransportVersion.fromName(
+        "voyage_ai_embedding_type_non_nullable"
+    );
 
     public static VoyageAIEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
-        var commonServiceSettings = VoyageAICommonServiceSettings.fromMap(map, context, validationException);
 
-        var embeddingType = parseEmbeddingType(map, context, validationException);
+        var modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var rateLimitSettings = extractRateLimitSettings(map, context, validationException);
+
+        var embeddingType = Objects.requireNonNullElse(
+            extractOptionalEnum(
+                map,
+                ServiceFields.EMBEDDING_TYPE,
+                ModelConfigurations.SERVICE_SETTINGS,
+                VoyageAIEmbeddingType::fromString,
+                EnumSet.allOf(VoyageAIEmbeddingType.class),
+                validationException
+            ),
+            VoyageAIEmbeddingType.FLOAT
+        );
 
         var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -86,7 +95,8 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         validationException.throwIfValidationErrorsExist();
 
         return new VoyageAIEmbeddingsServiceSettings(
-            commonServiceSettings,
+            modelId,
+            rateLimitSettings,
             embeddingType,
             similarity,
             dimensions,
@@ -95,28 +105,6 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         );
     }
 
-    static VoyageAIEmbeddingType parseEmbeddingType(
-        Map<String, Object> map,
-        ConfigurationParseContext context,
-        ValidationException validationException
-    ) {
-        return switch (context) {
-            case REQUEST, PERSISTENT -> Objects.requireNonNullElse(
-                extractOptionalEnum(
-                    map,
-                    ServiceFields.EMBEDDING_TYPE,
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    VoyageAIEmbeddingType::fromString,
-                    EnumSet.allOf(VoyageAIEmbeddingType.class),
-                    validationException
-                ),
-                VoyageAIEmbeddingType.FLOAT
-            );
-
-        };
-    }
-
-    private final VoyageAICommonServiceSettings commonSettings;
     private final VoyageAIEmbeddingType embeddingType;
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
@@ -124,32 +112,33 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
     private final boolean dimensionsSetByUser;
 
     public VoyageAIEmbeddingsServiceSettings(
-        VoyageAICommonServiceSettings commonSettings,
-        @Nullable VoyageAIEmbeddingType embeddingType,
+        String modelId,
+        @Nullable RateLimitSettings rateLimitSettings,
+        VoyageAIEmbeddingType embeddingType,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
         boolean dimensionsSetByUser
     ) {
-        this.commonSettings = commonSettings;
+        super(modelId, rateLimitSettings);
         this.similarity = similarity;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
-        this.embeddingType = embeddingType;
+        this.embeddingType = Objects.requireNonNull(embeddingType);
         this.dimensionsSetByUser = dimensionsSetByUser;
     }
 
     public VoyageAIEmbeddingsServiceSettings(StreamInput in) throws IOException {
-        this.commonSettings = new VoyageAICommonServiceSettings(in);
+        super(in);
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.dimensions = in.readOptionalVInt();
         this.maxInputTokens = in.readOptionalVInt();
-        this.embeddingType = Objects.requireNonNullElse(in.readOptionalEnum(VoyageAIEmbeddingType.class), VoyageAIEmbeddingType.FLOAT);
+        if (VOYAGE_AI_EMBEDDING_TYPE_NON_NULLABLE.supports(in.getTransportVersion())) {
+            this.embeddingType = in.readEnum(VoyageAIEmbeddingType.class);
+        } else {
+            this.embeddingType = Objects.requireNonNullElse(in.readOptionalEnum(VoyageAIEmbeddingType.class), VoyageAIEmbeddingType.FLOAT);
+        }
         this.dimensionsSetByUser = in.readBoolean();
-    }
-
-    public VoyageAICommonServiceSettings getCommonSettings() {
-        return commonSettings;
     }
 
     @Override
@@ -167,15 +156,8 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
     }
 
     @Override
-    public String modelId() {
-        return commonSettings.modelId();
-    }
-
-    @Override
     public VoyageAIEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
-
-        var updatedCommonSettings = this.commonSettings.updateCommonServiceSettings(serviceSettings, validationException);
 
         var extractedMaxInputTokens = extractOptionalPositiveInteger(
             serviceSettings,
@@ -184,10 +166,19 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
             validationException
         );
 
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings(),
+            validationException,
+            VoyageAIService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
         validationException.throwIfValidationErrorsExist();
 
         return new VoyageAIEmbeddingsServiceSettings(
-            updatedCommonSettings,
+            this.modelId(),
+            extractedRateLimitSettings,
             this.embeddingType,
             this.similarity,
             this.dimensions,
@@ -196,13 +187,13 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         );
     }
 
-    public VoyageAIEmbeddingType getEmbeddingType() {
+    public VoyageAIEmbeddingType embeddingType() {
         return embeddingType;
     }
 
     @Override
     public DenseVectorFieldMapper.ElementType elementType() {
-        return embeddingType == null ? DenseVectorFieldMapper.ElementType.FLOAT : embeddingType.toElementType();
+        return embeddingType.toElementType();
     }
 
     @Override
@@ -218,8 +209,15 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        toXContentFragmentOfExposedFields(builder, params);
+        builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+        builder.endObject();
+        return builder;
+    }
 
-        builder = commonSettings.toXContentFragment(builder, params);
+    @Override
+    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
+        super.toXContentFragmentOfExposedFields(builder, params);
         if (similarity != null) {
             builder.field(SIMILARITY, similarity);
         }
@@ -229,17 +227,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
-        if (embeddingType != null) {
-            builder.field(ServiceFields.EMBEDDING_TYPE, embeddingType);
-        }
-        builder.endObject();
-        return builder;
-    }
-
-    @Override
-    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        commonSettings.toXContentFragmentOfExposedFields(builder, params);
-
+        builder.field(ServiceFields.EMBEDDING_TYPE, embeddingType);
         return builder;
     }
 
@@ -256,11 +244,15 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        commonSettings.writeTo(out);
+        super.writeTo(out);
         out.writeOptionalEnum(similarity);
         out.writeOptionalVInt(dimensions);
         out.writeOptionalVInt(maxInputTokens);
-        out.writeOptionalEnum(embeddingType);
+        if (VOYAGE_AI_EMBEDDING_TYPE_NON_NULLABLE.supports(out.getTransportVersion())) {
+            out.writeEnum(embeddingType);
+        } else {
+            out.writeOptionalEnum(embeddingType);
+        }
         out.writeBoolean(dimensionsSetByUser);
     }
 
@@ -269,7 +261,8 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         VoyageAIEmbeddingsServiceSettings that = (VoyageAIEmbeddingsServiceSettings) o;
-        return Objects.equals(commonSettings, that.commonSettings)
+        return Objects.equals(modelId(), that.modelId())
+            && Objects.equals(rateLimitSettings(), that.rateLimitSettings())
             && Objects.equals(similarity, that.similarity)
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
@@ -279,6 +272,11 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
 
     @Override
     public int hashCode() {
-        return Objects.hash(commonSettings, similarity, dimensions, maxInputTokens, embeddingType, dimensionsSetByUser);
+        return Objects.hash(modelId(), rateLimitSettings(), similarity, dimensions, maxInputTokens, embeddingType, dimensionsSetByUser);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

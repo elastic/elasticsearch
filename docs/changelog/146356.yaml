@@ -1,6 +1,0 @@
-area: Search
-issues:
- - 146184
-pr: 146356
-summary: "Async Search: Ensure cleanup is also done against aliases"
-type: bug

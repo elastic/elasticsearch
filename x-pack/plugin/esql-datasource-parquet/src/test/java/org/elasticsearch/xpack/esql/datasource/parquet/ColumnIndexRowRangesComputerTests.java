@@ -101,13 +101,68 @@ public class ColumnIndexRowRangesComputerTests extends ESTestCase {
         assertFalse("Page [200,300) should be excluded (min=200, not <= 199)", result.overlaps(200, 300));
     }
 
-    public void testNotEqReturnsAll() {
+    public void testNotEqPrunesConstantPagesMatchingValue() {
+        // Half the pages are constant value 5 (the excluded value), the other half are constant 99.
+        // NotEq(5) must prune the value-5 pages and keep the rest. Result density must be low
+        // enough to survive the RowRanges discard heuristic, hence pruning many pages here.
+        int[] pageValues = { 5, 5, 5, 5, 5, 99, 99, 99, 99, 99 };
+        PreloadedRowGroupMetadata metadata = buildConstantIntMetadata("id", pageValues, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.notEq(FilterApi.intColumn("id"), 5);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, ROW_GROUP_ROW_COUNT);
+
+        assertFalse("Page [0,100) (constant value 5) should be pruned by NotEq(5)", result.overlaps(0, 100));
+        assertFalse("Page [400,500) (constant value 5) should be pruned by NotEq(5)", result.overlaps(400, 500));
+        assertTrue("Page [500,600) (constant value 99) should survive", result.overlaps(500, 600));
+        assertTrue("Page [900,1000) (constant value 99) should survive", result.overlaps(900, 1000));
+        assertEquals("Exactly the value-99 pages survive", 500L, result.selectedRowCount());
+    }
+
+    public void testNotEqKeepsConstantPagesNotMatchingValue() {
+        // None of the constant pages equal the excluded value, so every page survives the predicate.
+        // Because the result selects all rows, RowRanges.shouldDiscard() normalizes it to the all-rows
+        // sentinel, which is what isAll() observes here. The assertion verifies semantic correctness:
+        // NotEq never wrongly drops rows when no page can be safely pruned.
+        int[] pageValues = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        PreloadedRowGroupMetadata metadata = buildConstantIntMetadata("id", pageValues, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.notEq(FilterApi.intColumn("id"), 42);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, ROW_GROUP_ROW_COUNT);
+
+        assertTrue("All pages should survive when value matches no constant page", result.isAll());
+    }
+
+    public void testNotEqKeepsPagesWithMixedValues() {
+        // Pages have min < max, so NotEq cannot prune any page (only min == max == value is prunable).
+        // Same isAll() / shouldDiscard() caveat as testNotEqKeepsConstantPagesNotMatchingValue.
         PreloadedRowGroupMetadata metadata = buildIntMetadata("id", PAGE_COUNT, PAGE_SIZE);
         FilterPredicate pred = FilterApi.notEq(FilterApi.intColumn("id"), 500);
 
         RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, ROW_GROUP_ROW_COUNT);
 
-        assertTrue("NotEq should conservatively return all rows", result.isAll());
+        assertTrue("NotEq should keep all pages when no page has min == max == value", result.isAll());
+    }
+
+    public void testNotEqBinaryPrunesConstantPagesMatchingValue() {
+        String[] pageValues = { "active", "active", "active", "active", "active", "idle", "idle", "idle", "idle", "idle" };
+        PreloadedRowGroupMetadata metadata = buildConstantBinaryMetadata("status", pageValues, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.notEq(FilterApi.binaryColumn("status"), Binary.fromString("active"));
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, ROW_GROUP_ROW_COUNT);
+
+        assertFalse("Page [0,100) (constant 'active') should be pruned", result.overlaps(0, 100));
+        assertFalse("Page [400,500) (constant 'active') should be pruned", result.overlaps(400, 500));
+        assertTrue("Page [500,600) (constant 'idle') should survive", result.overlaps(500, 600));
+        assertEquals("Exactly the 'idle' pages survive", 500L, result.selectedRowCount());
+    }
+
+    public void testNotEqWithNullValueReturnsAll() {
+        PreloadedRowGroupMetadata metadata = buildIntMetadata("id", PAGE_COUNT, PAGE_SIZE);
+        FilterPredicate pred = FilterApi.notEq(FilterApi.intColumn("id"), null);
+
+        RowRanges result = ColumnIndexRowRangesComputer.compute(pred, metadata, 0, ROW_GROUP_ROW_COUNT);
+
+        assertTrue("NotEq with null value (IS NOT NULL) should conservatively return all rows", result.isAll());
     }
 
     public void testAndIntersectsRanges() {
@@ -244,6 +299,61 @@ public class ColumnIndexRowRangesComputerTests extends ESTestCase {
         OffsetIndex oi = new OffsetIndex(pageLocations);
 
         PrimitiveType ptype = Types.required(PrimitiveType.PrimitiveTypeName.INT32).named(columnPath);
+        org.apache.parquet.internal.column.columnindex.ColumnIndex typedCi = ParquetMetadataConverter.fromParquetColumnIndex(ptype, ci);
+        org.apache.parquet.internal.column.columnindex.OffsetIndex typedOi = ParquetMetadataConverter.fromParquetOffsetIndex(oi);
+
+        return buildMetadata(columnPath, typedCi, typedOi);
+    }
+
+    /**
+     * Builds metadata where page p has constant value pageValues[p] (i.e. min == max == pageValues[p]).
+     * Useful for exercising NotEq pruning on low-cardinality / sorted-clustered data. Boundary order
+     * is reported as UNORDERED because the per-page values are caller-supplied and may not be sorted.
+     */
+    private static PreloadedRowGroupMetadata buildConstantIntMetadata(String columnPath, int[] pageValues, int pageSize) {
+        List<ByteBuffer> minValues = new ArrayList<>();
+        List<ByteBuffer> maxValues = new ArrayList<>();
+        List<Boolean> nullPages = new ArrayList<>();
+        List<PageLocation> pageLocations = new ArrayList<>();
+
+        for (int p = 0; p < pageValues.length; p++) {
+            minValues.add(intToBuffer(pageValues[p]));
+            maxValues.add(intToBuffer(pageValues[p]));
+            nullPages.add(false);
+            pageLocations.add(new PageLocation(p * 1000L, pageSize * 4, p * pageSize));
+        }
+
+        ColumnIndex ci = new ColumnIndex(nullPages, minValues, maxValues, BoundaryOrder.UNORDERED);
+        OffsetIndex oi = new OffsetIndex(pageLocations);
+
+        PrimitiveType ptype = Types.required(PrimitiveType.PrimitiveTypeName.INT32).named(columnPath);
+        org.apache.parquet.internal.column.columnindex.ColumnIndex typedCi = ParquetMetadataConverter.fromParquetColumnIndex(ptype, ci);
+        org.apache.parquet.internal.column.columnindex.OffsetIndex typedOi = ParquetMetadataConverter.fromParquetOffsetIndex(oi);
+
+        return buildMetadata(columnPath, typedCi, typedOi);
+    }
+
+    /**
+     * Builds metadata where page p has constant binary value pageValues[p] (i.e. min == max == pageValues[p]).
+     */
+    private static PreloadedRowGroupMetadata buildConstantBinaryMetadata(String columnPath, String[] pageValues, int pageSize) {
+        List<ByteBuffer> minValues = new ArrayList<>();
+        List<ByteBuffer> maxValues = new ArrayList<>();
+        List<Boolean> nullPages = new ArrayList<>();
+        List<PageLocation> pageLocations = new ArrayList<>();
+
+        for (int p = 0; p < pageValues.length; p++) {
+            Binary value = Binary.fromString(pageValues[p]);
+            minValues.add(ByteBuffer.wrap(value.getBytes()));
+            maxValues.add(ByteBuffer.wrap(value.getBytes()));
+            nullPages.add(false);
+            pageLocations.add(new PageLocation(p * 1000L, pageSize * 10, p * pageSize));
+        }
+
+        ColumnIndex ci = new ColumnIndex(nullPages, minValues, maxValues, BoundaryOrder.UNORDERED);
+        OffsetIndex oi = new OffsetIndex(pageLocations);
+
+        PrimitiveType ptype = Types.required(PrimitiveType.PrimitiveTypeName.BINARY).named(columnPath);
         org.apache.parquet.internal.column.columnindex.ColumnIndex typedCi = ParquetMetadataConverter.fromParquetColumnIndex(ptype, ci);
         org.apache.parquet.internal.column.columnindex.OffsetIndex typedOi = ParquetMetadataConverter.fromParquetOffsetIndex(oi);
 

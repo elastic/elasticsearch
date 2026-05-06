@@ -420,7 +420,6 @@ class IndicesAndAliasesResolver {
 
                     if (shouldSetResolvedIndexExpressions(replaceable, resolved)) {
                         replaceable.setResolvedIndexExpressions(resolved);
-                        replaceable.setTargetProjects(targetProjects);
                     }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
@@ -436,7 +435,6 @@ class IndicesAndAliasesResolver {
                     var resolved = ResolvedIndexExpressions.builder().build();
                     if (shouldSetResolvedIndexExpressions(replaceable, resolved)) {
                         replaceable.setResolvedIndexExpressions(resolved);
-                        replaceable.setTargetProjects(targetProjects);
                     }
                 }
 
@@ -463,7 +461,6 @@ class IndicesAndAliasesResolver {
                     );
                     if (shouldSetResolvedIndexExpressions(replaceable, resolved)) {
                         replaceable.setResolvedIndexExpressions(resolved);
-                        replaceable.setTargetProjects(targetProjects);
                     }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
@@ -484,7 +481,6 @@ class IndicesAndAliasesResolver {
                     );
                     if (shouldSetResolvedIndexExpressions(replaceable, resolved)) {
                         replaceable.setResolvedIndexExpressions(resolved);
-                        replaceable.setTargetProjects(targetProjects);
                     }
                     resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                     resolvedIndicesBuilder.addRemote(split.getRemote());

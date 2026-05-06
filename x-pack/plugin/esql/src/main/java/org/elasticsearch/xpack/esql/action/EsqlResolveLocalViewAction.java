@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
 import org.elasticsearch.cluster.ProjectState;
@@ -54,15 +54,13 @@ public class EsqlResolveLocalViewAction extends TransportLocalProjectMetadataAct
 
     @Override
     protected void localClusterStateOperation(Task task, Request request, ProjectState project, ActionListener<Response> listener) {
-        listener.onResponse(new Response(request.getTargetProjects().originProject() != null));
+        listener.onResponse(new Response(request.getResolvedTargetProjects().originProject() != null));
     }
 
-    public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
-
-        private static final String[] INDICES = new String[] { "*", "-*" };
+    public static class Request extends LocalClusterStateRequest implements CompositeIndicesRequest, IndicesRequest.CrossProjectCandidate {
 
         private final String projectRouting;
-        private TargetProjects targetProjects;
+        private TargetProjects resolvedTargetProjects;
 
         public Request(TimeValue masterTimeout, String projectRouting) {
             super(masterTimeout);
@@ -70,27 +68,23 @@ public class EsqlResolveLocalViewAction extends TransportLocalProjectMetadataAct
         }
 
         @Override
-        public IndicesRequest indices(String... indices) {
-            return null;
+        public boolean allowsCrossProject() {
+            return true;
         }
 
         @Override
-        public String[] indices() {
-            return INDICES;
+        public String getProjectRouting() {
+            return projectRouting;
         }
 
         @Override
-        public IndicesOptions indicesOptions() {
-            return IndicesOptions.DEFAULT;
+        public void setResolvedTargetProjects(TargetProjects resolvedTargetProjects) {
+            this.resolvedTargetProjects = resolvedTargetProjects;
         }
 
         @Override
-        public void setTargetProjects(TargetProjects targetProjects) {
-            this.targetProjects = targetProjects;
-        }
-
-        public TargetProjects getTargetProjects() {
-            return targetProjects;
+        public TargetProjects getResolvedTargetProjects() {
+            return resolvedTargetProjects;
         }
 
         public String projectRouting() {

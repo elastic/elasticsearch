@@ -307,6 +307,7 @@ public class RBACEngine implements AuthorizationEngine {
             case "indices:data/read/sql/translate":
             case "indices:data/read/esql":
             case "indices:data/read/esql/compute":
+            case "indices:data/read/esql/resolve_local_views":
                 if (request instanceof BulkShardRequest) {
                     return false;
                 }

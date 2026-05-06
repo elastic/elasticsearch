@@ -93,11 +93,6 @@ public interface IndicesRequest {
         default void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {}
 
         /**
-         * Records the result target projects into request
-         */
-        default void setTargetProjects(TargetProjects targetProjects) {}
-
-        /**
          * Returns the results of index resolution, if recorded via
          * {@link #setResolvedIndexExpressions(ResolvedIndexExpressions)}. Null if not recorded.
          */

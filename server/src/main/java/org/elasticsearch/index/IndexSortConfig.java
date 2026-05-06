@@ -33,6 +33,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -338,12 +339,14 @@ public final class IndexSortConfig {
     private final IndexVersion indexCreatedVersion;
     private final String indexName;
     private final IndexMode indexMode;
+    private final boolean sliceEnabled;
 
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
         this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
         this.indexName = indexSettings.getIndex().getName();
         this.indexMode = indexSettings.getMode();
+        this.sliceEnabled = indexSettings.isSliceEnabled();
 
         validateSortSettings(settings);
 
@@ -413,7 +416,11 @@ public final class IndexSortConfig {
         final SortField[] sortFields = new SortField[sortSpecs.length];
         for (int i = 0; i < sortSpecs.length; i++) {
             FieldSortSpec sortSpec = sortSpecs[i];
-            final MappedFieldType ft = fieldTypeLookup.apply(sortSpec.field);
+            // This is only necessary because of the logic of "{}" empty mappings.
+            // metadata fields are not eagerly loaded as mapped fields, so if we have slice enabled, and no mapped fields, we get an empty
+            // lookup and must handle this weird edge case.
+            final MappedFieldType ft = Optional.ofNullable(fieldTypeLookup.apply(sortSpec.field))
+                .orElseGet(() -> sliceEnabled && RoutingFieldMapper.NAME.equals(sortSpec.field) ?  RoutingFieldMapper.DOC_VALUES_FIELD_TYPE : null);
             if (ft == null) {
                 String err = "unknown index sort field:[" + sortSpec.field + "]";
                 if (this.indexMode == IndexMode.TIME_SERIES) {

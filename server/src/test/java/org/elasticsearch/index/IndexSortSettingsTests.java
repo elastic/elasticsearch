@@ -83,6 +83,15 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(sort.getSort()[0].getField(), equalTo(RoutingFieldMapper.NAME));
     }
 
+    public void testSliceEnabledBuildIndexSortWithoutRoutingFieldLookup() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IndexSettings indexSettings = indexSettings(Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
+
+        Sort sort = buildIndexSort(indexSettings, Map.of());
+        assertThat(sort.getSort(), arrayWithSize(1));
+        assertThat(sort.getSort()[0].getField(), equalTo(RoutingFieldMapper.NAME));
+    }
+
     public void testSliceEnabledPrependsRoutingToExplicitIndexSort() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()

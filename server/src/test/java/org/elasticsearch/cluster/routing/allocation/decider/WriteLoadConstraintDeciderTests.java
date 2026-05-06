@@ -455,7 +455,12 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         final TimeValue highLatencyThreshold = randomTimeValue(1000, 10000, TimeUnit.MILLISECONDS);
         final String highLatencyThresholdString = highLatencyThreshold.toHumanReadableString(2);
         final int maxShardWriteLoadProportionSettingAsPercent = randomIntBetween(80, 95);
-        final var settings = createSettings(null, hotspotUtilizationThreshold, highLatencyThreshold, maxShardWriteLoadProportionSettingAsPercent);
+        final var settings = createSettings(
+            null,
+            hotspotUtilizationThreshold,
+            highLatencyThreshold,
+            maxShardWriteLoadProportionSettingAsPercent
+        );
         final var decider = createWriteLoadConstraintDecider(settings);
         final var indexName = randomIdentifier();
         final var state = ClusterStateCreationUtils.state(1, new String[] { indexName }, 4);
@@ -861,12 +866,12 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
     private Map<ShardId, Double> generateWriteLoads(ClusterState state, String nodeId, double maxConcentration) {
         assert maxConcentration >= 0.5 && maxConcentration < 0.95
             : "maxConcentration must be between 0.5 and 0.95, was " + maxConcentration;
-        List<ShardRouting> list = state.getRoutingNodes().node(nodeId).shardsWithState(ShardRoutingState.STARTED).toList();
-        Map<ShardId, Double> writeLoads = new HashMap<>();
-        double totalWriteLoad = randomDoubleBetween(1.0, 10.0, true);
-        double busiestShardLoad = totalWriteLoad * maxConcentration;
-        double otherShardLoads = (totalWriteLoad - busiestShardLoad) / (list.size() - 1);
-        for (ShardRouting shardRouting : list) {
+        final var startedShards = state.getRoutingNodes().node(nodeId).shardsWithState(ShardRoutingState.STARTED).toList();
+        final var writeLoads = new HashMap<ShardId, Double>();
+        final double totalWriteLoad = randomDoubleBetween(1.0, 10.0, true);
+        final double busiestShardLoad = totalWriteLoad * maxConcentration;
+        final double otherShardLoads = (totalWriteLoad - busiestShardLoad) / (startedShards.size() - 1);
+        for (ShardRouting shardRouting : startedShards) {
             if (shardRouting.shardId().getId() == 0) {
                 writeLoads.put(shardRouting.shardId(), busiestShardLoad);
             } else {

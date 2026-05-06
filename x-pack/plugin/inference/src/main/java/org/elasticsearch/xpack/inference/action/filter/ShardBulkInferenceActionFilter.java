@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,6 +36,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
@@ -68,6 +71,7 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.InferenceLicenceCheck;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
@@ -193,9 +197,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     ) {
         final ProjectMetadata project = clusterService.state().getMetadata().getProject();
         var index = project.index(bulkShardRequest.index());
-        boolean useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(index.getSettings()) == false;
-        new AsyncBulkShardInferenceAction(useLegacyFormat, fieldInferenceMap, bulkShardRequest, onCompletion, coordinatingIndexingPressure)
-            .run();
+        new AsyncBulkShardInferenceAction(index, fieldInferenceMap, bulkShardRequest, onCompletion, coordinatingIndexingPressure).run();
     }
 
     private record InferenceProvider(InferenceService service, Model model) {}
@@ -224,6 +226,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
     private class AsyncBulkShardInferenceAction implements Runnable {
         private final boolean useLegacyFormat;
+        private final IndexVersion indexVersion;
         private final Map<String, InferenceFieldMetadata> fieldInferenceMap;
         private final BulkShardRequest bulkShardRequest;
         private final Runnable onCompletion;
@@ -231,13 +234,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private final IndexingPressure.Coordinating coordinatingIndexingPressure;
 
         private AsyncBulkShardInferenceAction(
-            boolean useLegacyFormat,
+            IndexMetadata indexMetadata,
             Map<String, InferenceFieldMetadata> fieldInferenceMap,
             BulkShardRequest bulkShardRequest,
             Runnable onCompletion,
             IndexingPressure.Coordinating coordinatingIndexingPressure
         ) {
-            this.useLegacyFormat = useLegacyFormat;
+            this.useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(indexMetadata.getSettings()) == false;
+            this.indexVersion = indexMetadata.getCreationVersion();
             this.fieldInferenceMap = fieldInferenceMap;
             this.bulkShardRequest = bulkShardRequest;
             this.inferenceResults = new AtomicArray<>(bulkShardRequest.items().length);
@@ -693,9 +697,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         serviceSettings = serviceSettingsMap.get(inferenceId);
                     }
 
+                    final boolean allowObjectValues = indexVersion.onOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE)
+                        && serviceSettings.taskType() == TaskType.EMBEDDING
+                        && SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled();
                     final List<?> values;
                     try {
-                        values = serviceSettings.taskType() == TaskType.EMBEDDING
+                        values = allowObjectValues
                             ? SemanticTextUtils.nodeObjectValues(field, valueObj)
                             : SemanticTextUtils.nodeStringValues(field, valueObj);
                     } catch (Exception exc) {

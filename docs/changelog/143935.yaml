@@ -1,5 +1,0 @@
-area: CCR
-issues: []
-pr: 143935
-summary: Fix `FollowingEngine#lookupPrimaryTerm` when sequence numbers are disabled
-type: bug

@@ -38,13 +38,13 @@ import static java.util.stream.IntStream.range;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.daily;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.weekly;
-import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
-public class TickerScheduleEngineTests extends ESTestCase {
+public class TickerScheduleTriggerEngineTests extends ESTestCase {
 
     private TickerScheduleTriggerEngine engine;
     protected ClockMock clock = ClockMock.frozen();
@@ -133,42 +133,21 @@ public class TickerScheduleEngineTests extends ESTestCase {
     }
 
     /**
-     * When the .watches index is first created, the index creation triggers a reload while the document indexing runs concurrently.
-     * WatcherIndexingListener.postIndex() calls add() while the engine is paused. These watches must survive the subsequent start()
-     * call even if loadWatches() returns an empty set due to the race.
+     * While the engine is paused (between {@code pauseExecution} and {@code start}), {@code add()} must not insert into
+     * the schedules map: the engine is between reloads and {@code WatcherService} owns the pending-watch tracking that
+     * gets merged in by the next {@code loadWatches}. Any add during this window would just get cleared on start().
      */
-    public void testWatchesAddedWhilePausedSurviveStart() {
+    public void testAddWhilePausedIsNoOp() {
         engine.start(List.of());
         engine.pauseExecution();
 
-        Watch watch = createWatch("concurrently_indexed", interval("1s"));
-        engine.add(watch);
+        engine.add(createWatch("ignored_while_paused", interval("1s")));
+        assertThat("add() must be a no-op while paused", engine.getSchedules().keySet(), is(empty()));
 
-        // start() with empty list simulates loadWatches() finding nothing due to the race
+        // After start(), the engine again accepts adds
         engine.start(List.of());
-
-        assertThat("Watch added while paused should be present after start", engine.getSchedules(), hasKey("concurrently_indexed"));
-    }
-
-    /**
-     * Watches added while paused should not override watches loaded by start() if they share the same id.
-     * The loaded version is authoritative since it comes from the index.
-     */
-    public void testConcurrentlyAddedTakesPrecedenceOverLoadedWatch() {
-        final String watchName = "watch_name";
-        engine.start(List.of());
-        engine.pauseExecution();
-
-        Watch addedWatch = createWatch(watchName, interval("1s"));
-        engine.add(addedWatch);
-
-        Watch loadedWatch = createWatch(watchName, interval("5s"));
-        engine.start(List.of(loadedWatch));
-
-        var schedules = engine.getSchedules();
-        assertThat("Loaded watch should be present", schedules, hasKey(watchName));
-        assertThat(schedules, aMapWithSize(1));
-        assertThat(schedules.get(watchName).getSchedule(), is(interval("1s")));
+        engine.add(createWatch("accepted_after_start", interval("1s")));
+        assertThat(engine.getSchedules(), hasKey("accepted_after_start"));
     }
 
     private List<Watch> createRandomWatches(int watchesToCreate) {

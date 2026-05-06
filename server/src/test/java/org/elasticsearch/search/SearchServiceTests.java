@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -89,6 +90,8 @@ import java.util.function.Predicate;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.search.SearchService.isExecutorQueuedBeyondPrewarmingFactor;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.elasticsearch.search.SearchService.wrapFailureListener;
 import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
@@ -634,13 +637,15 @@ public class SearchServiceTests extends IndexShardTestCase {
             Collections.emptyList(),
             IndexMode.STANDARD
         );
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getFieldDataEnabled()).thenReturn(() -> false);
         return new SearchExecutionContext(
             0,
             0,
             indexSettings,
             null,
             indexFieldDataLookup,
-            null,
+            mapperService,
             mappingLookup,
             null,
             null,

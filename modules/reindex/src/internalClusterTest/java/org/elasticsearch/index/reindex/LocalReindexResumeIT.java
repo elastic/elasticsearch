@@ -1109,6 +1109,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             .setDestIndex(destIndex)
             .setSourceBatchSize(batchSize)
             .setRefresh(true)
+            .setRequestsPerSecond(resumeStatus.getRequestsPerSecond())
             .setResumeInfo(new ResumeInfo(randomOrigin(), new ScrollWorkerResumeInfo(scrollId, startTime, resumeStatus, null), null));
         request.getDestination().routing("keep").setRoutingFromSlice(true);
 
@@ -1122,6 +1123,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             .setDestIndex(destIndex)
             .setSourceBatchSize(batchSize)
             .setRefresh(true)
+            .setRequestsPerSecond(resumeStatus.getRequestsPerSecond())
             .setResumeInfo(new ResumeInfo(randomOrigin(), new ScrollWorkerResumeInfo(scrollId, startTime, resumeStatus, null), null));
         invalidRequest.getDestination().routing("keep").setRoutingFromSlice(false);
 
@@ -1180,6 +1182,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             .setDestIndex(destIndex)
             .setSourceBatchSize(batchSize)
             .setRefresh(true)
+            .setRequestsPerSecond(resumeStatus.getRequestsPerSecond())
             .setResumeInfo(
                 new ResumeInfo(randomOrigin(), new PitWorkerResumeInfo(pitId, searchAfterValues, startTime, resumeStatus, null), null)
             );
@@ -1201,6 +1204,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             .setDestIndex(destIndex)
             .setSourceBatchSize(batchSize)
             .setRefresh(true)
+            .setRequestsPerSecond(resumeStatus.getRequestsPerSecond())
             .setResumeInfo(
                 new ResumeInfo(randomOrigin(), new PitWorkerResumeInfo(pitId, searchAfterValues, startTime, resumeStatus, null), null)
             );

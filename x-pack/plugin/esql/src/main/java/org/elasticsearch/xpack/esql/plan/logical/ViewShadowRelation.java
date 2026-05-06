@@ -19,31 +19,47 @@ import java.util.Objects;
 /**
  * Marker leaf node that represents a view-name being looked up on linked projects (CPS) as a
  * potential <em>remote index</em> with the same name as a local view. It is emitted by
- * {@link org.elasticsearch.xpack.esql.view.ViewResolver} as a sibling of each resolved view's
- * recursive substitution, inside the per-resolution-level {@link ViewUnionAll}.
+ * {@link org.elasticsearch.xpack.esql.view.ViewResolver} (only when CPS is enabled) as a sibling
+ * of each resolved view's recursive substitution, inside the per-resolution-level
+ * {@link ViewUnionAll}.
  * <p>
- * Lifecycle:
+ * Lifecycle, with the parts each PR is responsible for:
  * <ol>
- *   <li>Emitted during view resolution alongside the strict (recursive) resolution.</li>
- *   <li>{@code PreAnalyzer} collects {@code ViewShadowRelation} patterns into a separate set, so
- *       they go to field-caps with lenient indices options ({@code ALLOW_UNAVAILABLE_TARGETS}) and
- *       project routing scoped to linked projects only.</li>
- *   <li>A dedicated analyzer rule (sibling of {@code ResolveTable}) consults the lenient
- *       {@code IndexResolution} for this shadow's name. If a remote <em>index</em> is found, the
- *       shadow is replaced with a corresponding {@code EsRelation}; otherwise the shadow is
- *       dropped from its parent {@link ViewUnionAll}.</li>
- *   <li>The post-resolution {@code ViewCompaction} rule then lifts any nested {@link Fork}/
- *       {@link ViewUnionAll} structures and finalises the plan. Per Strategy A in
- *       <a href="https://github.com/elastic/esql-planning/issues/543">esql-planning#543</a>, sibling
- *       {@code EsRelation}s remain separate (a {@code UnionAll} of {@code EsRelation}s) rather than
- *       being merged into a single {@code EsRelation} via a third combined field-caps call.</li>
+ *   <li>Emitted during view resolution alongside the strict (recursive) resolution. The shadow
+ *       and its strict sibling form the strict/lenient pair for that level.
+ *       <em>(landed in the {@code ViewResolver} refactor)</em></li>
+ *   <li>{@code ViewCompaction.preIndexResolution} reshapes user-written {@code Subquery}/
+ *       {@code UnionAll} structures into {@link ViewUnionAll} but leaves shadows in place so
+ *       PreAnalyzer can still pair each shadow with its sibling at index-resolution time.
+ *       <em>(landed)</em></li>
+ *   <li>{@code PreAnalyzer} collects {@code ViewShadowRelation} patterns into a separate set,
+ *       and {@code EsqlSession} issues a lenient field-caps request per batch
+ *       ({@code ALLOW_UNAVAILABLE_TARGETS} + project routing scoped to linked projects only —
+ *       {@code IndexResolver.FLAT_WORLD_OPTIONS}). Results land in
+ *       {@code AnalyzerContext.lenientResolution}, keyed by view name.
+ *       <em>(deferred to the lenient field-caps PR)</em></li>
+ *   <li>The {@code ResolveViewShadow} analyzer rule (sibling of {@code ResolveTable}, in the
+ *       Initialize batch) consults {@code AnalyzerContext.lenientResolution} for this shadow's
+ *       {@link #viewName()}. If a remote <em>index</em> is found the shadow is replaced with a
+ *       corresponding {@code EsRelation}; otherwise the shadow is left unresolved.
+ *       <em>(this PR — backed by a mocked {@code lenientResolution} map until the lenient
+ *       field-caps PR provides real data)</em></li>
+ *   <li>{@code ViewCompactionPostIndexResolution} runs after {@code ResolveViewShadow}: any
+ *       still-unresolved shadow is stripped, then nested {@link ViewUnionAll}s are flattened
+ *       and remaining {@code NamedSubquery} wrappers unwrapped. Per Strategy A in
+ *       <a href="https://github.com/elastic/esql-planning/issues/543">esql-planning#543</a>,
+ *       sibling {@code EsRelation}s stay separate (a {@code UnionAll}/{@link ViewUnionAll}
+ *       of {@code EsRelation}s) rather than being merged via a third combined field-caps call.
+ *       <em>(landed)</em></li>
  * </ol>
  * <p>
- * The {@code exclusions} list captures any exclusion patterns that appeared <em>after</em> the
- * view's referencing position in the parent {@code UnresolvedRelation} pattern list. These travel
- * with the lenient lookup so the per-shadow field-caps target is {@code viewName,exclusion1,...}
- * — mirroring the local exclusion scope exactly. See the design table in
- * {@code refactor_view_resolver_for_cps.md} for the position-aware semantics.
+ * The {@link #exclusions()} list captures any exclusion patterns that appeared <em>after</em>
+ * the view's referencing position in the parent {@code UnresolvedRelation} pattern list. These
+ * travel with the lenient lookup as part of {@link #indexPattern()} so the per-shadow field-caps
+ * target is {@code viewName,exclusion1,...} — mirroring the local exclusion scope exactly. See
+ * {@code refactor_view_resolver_for_cps.md} for the position-aware semantics. Note: the
+ * {@code lenientResolution} map is keyed by {@link #viewName()} alone, not {@link #indexPattern()};
+ * the exclusions are only relevant to the field-caps target.
  * <p>
  * The strict, default-options field-caps path on the local cluster keeps {@code resolveViews(true)}
  * unchanged, so a remote project that has a <em>view</em> with the same name still fails the query

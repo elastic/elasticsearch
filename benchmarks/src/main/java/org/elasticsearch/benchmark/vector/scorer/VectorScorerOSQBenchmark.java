@@ -49,6 +49,32 @@ import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestU
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomVector;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writeBulkOSQVectorData;
 
+/**
+ * Benchmarks for {@link ES940OSQVectorsScorer} as used by the DiskBBQ readers
+ * ({@code ES9{20,40}DiskBBQVectorsReader}, {@code ESNextDiskBBQVectorsReader}).
+ *
+ * <p>Methods are split into two groups:
+ * <ul>
+ *   <li><b>{@code score*}</b> — production paths. These mirror the dispatch in the DiskBBQ
+ *       readers (see {@code ES940DiskBBQVectorsReader#visit}): {@link #scoreBulk} for the
+ *       all-pass / no-filter case, {@link #scoreBulkFilteredDense} /
+ *       {@link #scoreBulkFilteredSparse} for partial filters, and
+ *       {@link #scoreIndividualFilteredOne} for the "exactly one doc passes" case.</li>
+ *   <li><b>{@code controlScore*}</b> — control / baseline benchmarks not used in production,
+ *       kept to isolate the per-call cost of the dot-product kernel and to compare against the
+ *       prod paths (e.g. what would per-vector scoring cost if used everywhere).</li>
+ * </ul>
+ *
+ * <p>JMH filter patterns (the leading {@code \.} anchors at the method-name boundary):
+ * <pre>
+ *   # prod only
+ *   ./gradlew :benchmarks:jmh -Pargs='VectorScorerOSQBenchmark\.score'
+ *   # control only
+ *   ./gradlew :benchmarks:jmh -Pargs='VectorScorerOSQBenchmark\.controlScore'
+ *   # all, exclude control
+ *   ./gradlew :benchmarks:jmh -Pargs='VectorScorerOSQBenchmark -e controlScore'
+ * </pre>
+ */
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Benchmark)
@@ -342,7 +368,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     @Benchmark
-    public float[] score() throws IOException {
+    public float[] controlScoreIndividual() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
 
         float[] lowerIntervals = new float[BULK_SIZE];
@@ -354,7 +380,7 @@ public class VectorScorerOSQBenchmark {
         // For each chunk of BULK_SIZE vectors we issue BULK_SIZE single-vector quantizeScore calls
         // (no bulk dot-product amortization), then read the corrections in bulk and apply them
         // one-by-one in Java. This isolates the per-call overhead of the dot-product kernel and
-        // serves as a baseline against bulkScore (fused native bulk).
+        // serves as a baseline against scoreBulk (fused native bulk).
         // Note: corrections are still bulk-read per chunk because the on-disk layout is
         // [BULK_SIZE x vectors | BULK_SIZE x lowerIntervals | ... | BULK_SIZE x additional].
         for (int j = 0; j < NUM_QUERIES; j++) {
@@ -390,7 +416,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     @Benchmark
-    public float[] bulkScore() throws IOException {
+    public float[] scoreBulk() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
@@ -412,7 +438,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     @Benchmark
-    public float[] filteredScoreBulkOne() throws IOException {
+    public float[] controlScoreBulkFilteredOne() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
@@ -437,7 +463,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     @Benchmark
-    public float[] filteredScoreIndividuallyOne() throws IOException {
+    public float[] scoreIndividualFilteredOne() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
@@ -450,7 +476,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     @Benchmark
-    public float[] filteredScoreBulkDense() throws IOException {
+    public float[] scoreBulkFilteredDense() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
@@ -475,7 +501,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     @Benchmark
-    public float[] filteredScoreIndividuallyDense() throws IOException {
+    public float[] controlScoreIndividualFilteredDense() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
@@ -488,7 +514,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     @Benchmark
-    public float[] filteredScoreBulkSparse() throws IOException {
+    public float[] scoreBulkFilteredSparse() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
@@ -513,7 +539,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     @Benchmark
-    public float[] filteredScoreIndividuallySparse() throws IOException {
+    public float[] controlScoreIndividualFilteredSparse() throws IOException {
         float[] results = new float[NUM_QUERIES * NUM_VECTORS];
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);

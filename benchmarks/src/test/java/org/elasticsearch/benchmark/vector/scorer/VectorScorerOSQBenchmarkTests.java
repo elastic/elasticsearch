@@ -64,7 +64,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
                 bench.setup(data);
 
                 try {
-                    float[] result = bench.score();
+                    float[] result = bench.controlScoreIndividual();
                     // just check against the first one - they should all be identical to each other
                     if (expected == null) {
                         expected = result;
@@ -97,7 +97,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
                 bench.setup(data);
 
                 try {
-                    float[] result = bench.bulkScore();
+                    float[] result = bench.scoreBulk();
                     // just check against the first one - they should all be identical to each other
                     if (expected == null) {
                         expected = result;

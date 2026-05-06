@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCount;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -76,6 +77,11 @@ public class ApproximationPlan {
     public static final String BUCKET_ID_COLUMN_NAME = Attribute.rawTemporaryName("approximation", "bucket_id");
 
     /**
+     * Part of the temporary column names for the bucket columns.
+     */
+    public static final String BUCKET_NAME_PART = "bucket";
+
+    /**
      * Prefix for confidence interval column names in the approximation output.
      */
     public static final String CONFIDENCE_INTERVAL_COLUMN_PREFIX = "_approximation_confidence_interval(";
@@ -108,7 +114,7 @@ public class ApproximationPlan {
     /**
      * The number of times (trials) the sampled rows are divided into buckets.
      */
-    static final int TRIAL_COUNT = 2;
+    public static final int TRIAL_COUNT = 2;
 
     /**
      * The number of buckets to use for computing confidence intervals.
@@ -424,7 +430,7 @@ public class ApproximationPlan {
                         );
                         Alias bucket = new Alias(
                             Source.EMPTY,
-                            Attribute.rawTemporaryName(agg.name(), "bucket", Integer.toString(trialId * BUCKET_COUNT + bucketId)),
+                            Attribute.rawTemporaryName(agg.name(), BUCKET_NAME_PART, Integer.toString(trialId * BUCKET_COUNT + bucketId)),
                             aggFn.withFilter(
                                 aggFn.hasFilter() == false ? bucketIdFilter : new And(Source.EMPTY, aggFn.filter(), bucketIdFilter)
                             )
@@ -439,7 +445,11 @@ public class ApproximationPlan {
                             // which can be used for follow-up operations and the confidence interval computation.
                             Alias roundedBucket = new Alias(
                                 Source.EMPTY,
-                                Attribute.rawTemporaryName(aggOrKey.name(), "bucket", Integer.toString(trialId * BUCKET_COUNT + bucketId)),
+                                Attribute.rawTemporaryName(
+                                    aggOrKey.name(),
+                                    BUCKET_NAME_PART,
+                                    Integer.toString(trialId * BUCKET_COUNT + bucketId)
+                                ),
                                 new ToLong(Source.EMPTY, bucket.toAttribute())
                             );
                             if (aggFn instanceof CountApproximate) {
@@ -555,7 +565,7 @@ public class ApproximationPlan {
                         final int finalBucketId = bucketId;
                         Alias bucket = new Alias(
                             Source.EMPTY,
-                            Attribute.rawTemporaryName(field.name(), "bucket", Integer.toString(bucketId)),
+                            Attribute.rawTemporaryName(field.name(), BUCKET_NAME_PART, Integer.toString(bucketId)),
                             field.child()
                                 .transformDown(
                                     e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id())
@@ -771,14 +781,21 @@ public class ApproximationPlan {
                 SampledAggregate.class,
                 agg -> new Aggregate(agg.source(), agg.child(), agg.groupings(), agg.originalAggregates())
             );
-            logicalPlan = logicalPlan.transformExpressionsDown(
-                ConfidenceInterval.class,
-                ci -> new MvAppend(
+            logicalPlan = logicalPlan.transformExpressionsDown(ConfidenceInterval.class, ci -> {
+                // For multivalued aggs (that occur in the case of INLINE STATS ... BY mv_field),
+                // set result of the CONFIDENCE_INTERVAL function to NULL. Otherwise, set it to
+                // [single_value, single_value, 1.0], which represents the zero-width confidence
+                // interval around single_value, with certified=true.
+                Expression value = ci.arguments().getFirst();
+                return new Case(
                     Source.EMPTY,
-                    new MvAppend(Source.EMPTY, ci.arguments().getFirst(), ci.arguments().getFirst()),
-                    Literal.fromDouble(Source.EMPTY, 1.0)
-                )
-            );
+                    new Equals(Source.EMPTY, new MvCount(Source.EMPTY, value), Literal.integer(Source.EMPTY, 1)),
+                    List.of(
+                        new MvAppend(Source.EMPTY, new MvAppend(Source.EMPTY, value, value), Literal.fromDouble(Source.EMPTY, 1.0)),
+                        Literal.NULL
+                    )
+                );
+            });
             logicalPlan = new PruneColumns().apply(logicalPlan);
         }
         logicalPlan.setOptimized();

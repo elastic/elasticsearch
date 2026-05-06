@@ -56,6 +56,7 @@ import org.elasticsearch.inference.telemetry.InferenceStatsTests;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -331,7 +332,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testItemFailures() throws Exception {
-        final InferenceStats inferenceStats = InferenceStatsTests.mockInferenceStats();
+        var mockRequestCount = mock(LongCounter.class);
+        final InferenceStats inferenceStats = new InferenceStats(mockRequestCount, mock(), mock(), Map.of());
         StaticModel model = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
@@ -399,7 +401,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         AtomicInteger success = new AtomicInteger(0);
         AtomicInteger failed = new AtomicInteger(0);
-        verify(inferenceStats.requestCount(), atMost(3)).incrementBy(anyLong(), assertArg(attributes -> {
+        verify(mockRequestCount, atMost(3)).incrementBy(anyLong(), assertArg(attributes -> {
             var statusCode = attributes.get("status_code");
             if (statusCode == null) {
                 failed.incrementAndGet();

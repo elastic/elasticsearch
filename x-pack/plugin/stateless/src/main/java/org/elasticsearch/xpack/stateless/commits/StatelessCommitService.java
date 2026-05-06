@@ -1167,12 +1167,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      *
      * Visible for testing.
      */
-    private static ShardCommitState getSafe(ConcurrentHashMap<ShardId, ShardCommitState> map, ShardId shardId) {
+    static ShardCommitState getSafe(ConcurrentHashMap<ShardId, ShardCommitState> map, ShardId shardId) {
         final ShardCommitState commitState = map.get(shardId);
         if (commitState == null) {
             throw new AlreadyClosedException("shard [" + shardId + "] has already been closed");
         }
         return commitState;
+    }
+
+    // Visible for testing.
+    ShardCommitState getSafe(ShardId shardId) {
+        return getSafe(shardsCommitsStates, shardId);
     }
 
     class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
@@ -1910,6 +1915,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 );
             }
             blobReference.removeLocalCommitRef(commitPrimaryTermAndGeneration);
+        }
+
+        // Visible for testing.
+        Map<PrimaryTermAndGeneration, BlobReference> getPrimaryTermAndGenToBlobReferences() {
+            return primaryTermAndGenToBlobReference;
         }
 
         private PrimaryTermAndGeneration resolvePrimaryTermForGeneration(long generation) {

@@ -70,6 +70,8 @@ interface Pipeline {
   steps: [PipelineGroup];
 }
 
+type CommandRunner = (command: string, options: { cwd: string; stdio?: "inherit" | "ignore" }) => Buffer;
+
 export function toGradleProject(path: string): string {
   const segments = path.split("/");
   // Mirror the rename in settings.gradle: direct children of :test:external-modules
@@ -276,13 +278,31 @@ export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
   };
 }
 
+export function resolveMergeBaseTarget(
+  targetBranch: string,
+  run: CommandRunner = (command, options) => execSync(command, options),
+  projectRoot: string = PROJECT_ROOT
+): string {
+  try {
+    run(`git rev-parse --verify ${targetBranch}^{commit}`, { cwd: projectRoot, stdio: "ignore" });
+    return targetBranch;
+  } catch {
+  // Some target branches aren't present in the local checkout: ghstack synthetic
+  // refs (gh/<user>/<n>/base) and serverless patch branches (patch/<name>). Fetch
+  // the ref and use FETCH_HEAD so we don't depend on origin/<branch> naming.
+    run(`git fetch --no-tags origin ${targetBranch}`, { cwd: projectRoot, stdio: "inherit" });
+    return "FETCH_HEAD";
+  }
+}
+
 function main() {
   console.log("Computing merge base...");
   const targetBranch = process.env.GITHUB_PR_TARGET_BRANCH;
   if (!targetBranch) {
     throw new Error("GITHUB_PR_TARGET_BRANCH environment variable is required");
   }
-  const mergeBase = execSync(`git merge-base ${targetBranch} HEAD`, { cwd: PROJECT_ROOT }).toString().trim();
+  const targetRef = resolveMergeBaseTarget(targetBranch);
+  const mergeBase = execSync(`git merge-base ${targetRef} HEAD`, { cwd: PROJECT_ROOT }).toString().trim();
   console.log(`Merge base: ${mergeBase}`);
 
   console.log("Getting changed files...");

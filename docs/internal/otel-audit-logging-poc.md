@@ -92,6 +92,25 @@ The implementation lives in either an alternate `LogEntryBuilder` selected by se
 
 **T-shirt: medium (~3–4 weeks).** Dominated by: (a) cross-team alignment on the long-tail fields, (b) PII review for `request.body`, (c) tests across all event categories.
 
+#### 4.2.1 Attribute-key shape — implementation options
+
+The POC's IT currently asserts on prefixed keys (`log4j.map_message.event.action`) because that is what arrives today. The prefix is hardcoded by the upstream `opentelemetry-log4j-appender-2.17` library: `LogEventMapper` writes every `MapMessage` entry under `"log4j.map_message." + key`. Production needs bare keys (or semconv keys after §4.2 lands).
+
+There is no off-the-shelf knob on the upstream library to drop the prefix today. The library has a `v3_preview` flag (read via `commonConfig.getBoolean("v3_preview", false)`) that does drop the prefix, but it is preview behavior, undocumented in the library README, and not currently enabled.
+
+Four implementation paths, all viable, each with trade-offs:
+
+| Path | Code volume | New deps | Scope of behavior change | Notes |
+|---|---|---|---|---|
+| Custom log4j appender | ~50 LOC | none | Only attribute key shape | Subclass `AbstractAppender`, talk directly to OTel SDK via `OpenTelemetry.getLogsBridge()`. Drops the `OpenTelemetryAppender` library dependency. Aligned with where v3 of the upstream library is going (prefix off by default). |
+| `v3_preview` wrapper | ~15 LOC | `opentelemetry-sdk-extension-declarative-config`, `opentelemetry-api-incubator` | All v3-preview-gated changes in OTel logs path | Wrap our SDK as `ExtendedOpenTelemetry` whose `getInstrumentationConfig("common")` returns a `YamlDeclarativeConfigProperties.create(Map.of("v3_preview", true), loader)`. Uses upstream library as designed; relies on incubator (unstable) APIs. |
+| Switch to `AutoConfiguredOpenTelemetrySdk` | non-trivial refactor of `OtelSdkExportLogsSupplier` (and probably the meter/tracer suppliers too, for consistency) | `opentelemetry-sdk-extension-autoconfigure` | All auto-configure-driven config; v3-preview flips via system property | The closest thing to "config-driven SDK setup" that ES doesn't currently use. Worth considering for the apm module overall, not just for this feature. |
+| `LogRecordProcessor` rewriter | ~30 LOC | none | Strips `log4j.map_message.` prefix post-hoc; doesn't address semconv translation directly | Smell: prefixed keys are added by one stage and stripped by the next. Works but feels like cleanup-after-the-fact. |
+
+Recommendation: pick within the §4.2 work item, not before. The custom appender is the lowest-risk path if the answer is "just get bare keys"; the AutoConfigured switch is worth a separate conversation about ES's overall OTel SDK setup.
+
+A note on the OTel-Java config story: per the [OTel configuration spec](https://opentelemetry.io/docs/specs/otel/configuration/#programmatic), the SDK is required to expose a programmatic configuration interface. The Java implementation does — `YamlDeclarativeConfigProperties.create(Map, ComponentLoader)` — but it lives in a separate extension module, and the public `OpenTelemetrySdkBuilder` does not expose a `setConfigProvider(...)` method (it's package-private internally). So programmatic config is reachable, but not via the bare hand-wired SDK builder. This is friction worth knowing about beyond ES-14356.
+
 ### 4.3 mTLS to the otel-delivery-gateway
 
 The TDD specifies mTLS, with client certs distributed by Control-Plane. The POC speaks plaintext OTLP/HTTP to a local mock — production is different.

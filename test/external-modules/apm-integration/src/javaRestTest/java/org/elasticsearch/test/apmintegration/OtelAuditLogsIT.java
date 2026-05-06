@@ -102,6 +102,10 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
         // empty for StringMapMessage). The "type":"audit" literal is in the file appender's
         // PatternLayout, not in the StringMapMessage, so it is not on this path.
         assertNotNull(log.attributes());
+        // POC-only: the real implementation will assert on bare semconv keys (event.action,
+        // event.type, ...). The "log4j.map_message." prefix is a wart of the upstream
+        // OpenTelemetryAppender; removing it is part of §4.2 — see §4.2.1 of
+        // docs/internal/otel-audit-logging-poc.md for the implementation options.
         assertNotNull("audit log should carry event.action", log.attributes().get("log4j.map_message.event.action"));
         assertNotNull("audit log should carry event.type", log.attributes().get("log4j.map_message.event.type"));
     }

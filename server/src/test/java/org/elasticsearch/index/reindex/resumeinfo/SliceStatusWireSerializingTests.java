@@ -31,7 +31,9 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.reindex.resumeinfo.PitWorkerResumeInfoWireSerializingTests.pitWorkerResumeInfoContentEquals;
@@ -75,7 +77,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
         return null;
     }
 
-    static boolean workerResumeInfoContentEquals(WorkerResumeInfo a, WorkerResumeInfo b) {
+    public static boolean workerResumeInfoContentEquals(WorkerResumeInfo a, WorkerResumeInfo b) {
         if (Objects.equals(a, b)) return true;
         if (a == null || b == null) return false;
         if (a instanceof PitWorkerResumeInfo pa && b instanceof PitWorkerResumeInfo pb) {
@@ -84,7 +86,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
         return a.equals(b);
     }
 
-    static int workerResumeInfoContentHashCode(WorkerResumeInfo info) {
+    public static int workerResumeInfoContentHashCode(WorkerResumeInfo info) {
         if (info == null) return 0;
         if (info instanceof PitWorkerResumeInfo pit) {
             return pitWorkerResumeInfoContentHashCode(pit);
@@ -92,7 +94,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
         return info.hashCode();
     }
 
-    static boolean sliceStatusContentEquals(SliceStatus a, SliceStatus b) {
+    public static boolean sliceStatusContentEquals(SliceStatus a, SliceStatus b) {
         if (a.sliceId() != b.sliceId()) {
             return false;
         }
@@ -106,7 +108,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
         return workerResultContentEquals(a.result(), b.result());
     }
 
-    static int sliceStatusContentHashCode(SliceStatus status) {
+    public static int sliceStatusContentHashCode(SliceStatus status) {
         int result = Integer.hashCode(status.sliceId());
         result = 31 * result + workerResumeInfoContentHashCode(status.resumeInfo());
         if (status.result() != null) {
@@ -245,6 +247,36 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
         if (a == b) return true;
         if (a == null || b == null) return false;
         return a.getClass().equals(b.getClass()) && Objects.equals(a.getMessage(), b.getMessage());
+    }
+
+    /**
+     * Compares slice maps (e.g. {@link org.elasticsearch.index.reindex.ResumeInfo#slices()}) for wire-test equality.
+     */
+    public static boolean sliceMapsContentEqual(Map<Integer, SliceStatus> first, Map<Integer, SliceStatus> second) {
+        if (first.size() != second.size()) {
+            return false;
+        }
+        for (Map.Entry<Integer, SliceStatus> entry : first.entrySet()) {
+            SliceStatus otherSlice = second.get(entry.getKey());
+            if (otherSlice == null || sliceStatusContentEquals(entry.getValue(), otherSlice) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Hash code consistent with {@link #sliceMapsContentEqual(Map, Map)} for wire-test wrappers.
+     */
+    public static int sliceMapContentHashCode(Map<Integer, SliceStatus> slices) {
+        List<Integer> keys = new ArrayList<>(slices.keySet());
+        Collections.sort(keys);
+        int result = 1;
+        for (Integer key : keys) {
+            result = 31 * result + key;
+            result = 31 * result + sliceStatusContentHashCode(slices.get(key));
+        }
+        return result;
     }
 
     /**

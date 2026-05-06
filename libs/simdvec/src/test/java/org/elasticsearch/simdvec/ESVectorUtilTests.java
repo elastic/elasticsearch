@@ -20,9 +20,11 @@ import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.ShortBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.Random;
 import java.util.function.ToLongBiFunction;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
@@ -73,6 +75,44 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float expected = defaultedProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defaultScoresScratch);
         float actual = defOrPanamaProvider.getVectorUtilSupport().maxSimDotProduct(source, queryVectors, defOrPanamaScoresScratch);
         assertEquals(expected, actual, 1e-3f * dims * numQueryVectors);
+    }
+
+    public void testBFloat16ToFloat() {
+        Random r = random();
+        int dims = r.nextInt(1025);
+        float[] floats = new float[dims];
+        short[] bFloats = new short[dims];
+        for (int i = 0; i < bFloats.length; i++) {
+            floats[i] = BFloat16.truncateToBFloat16(r.nextFloat());
+            bFloats[i] = BFloat16.floatToBFloat16(floats[i]);
+        }
+
+        float[] defaultFloats = new float[dims];
+        defaultedProvider.getVectorUtilSupport().bFloat16ToFloat(ShortBuffer.wrap(bFloats), defaultFloats);
+        assertArrayEquals(floats, defaultFloats, 0f);
+
+        float[] panamaFloats = new float[dims];
+        defOrPanamaProvider.getVectorUtilSupport().bFloat16ToFloat(ShortBuffer.wrap(bFloats), panamaFloats);
+        assertArrayEquals(floats, panamaFloats, 0f);
+    }
+
+    public void testFloatToBFloat16() {
+        Random r = random();
+        int dims = r.nextInt(1025);
+        float[] floats = new float[dims];
+        short[] bFloats = new short[dims];
+        for (int i = 0; i < bFloats.length; i++) {
+            floats[i] = r.nextFloat();
+            bFloats[i] = BFloat16.floatToBFloat16(floats[i]);
+        }
+
+        short[] defaultBFloats = new short[dims];
+        defaultedProvider.getVectorUtilSupport().floatToBFloat16(floats, ShortBuffer.wrap(defaultBFloats));
+        assertArrayEquals(bFloats, defaultBFloats);
+
+        short[] panamaBFloats = new short[dims];
+        defOrPanamaProvider.getVectorUtilSupport().floatToBFloat16(floats, ShortBuffer.wrap(panamaBFloats));
+        assertArrayEquals(bFloats, panamaBFloats);
     }
 
     public void testIpByteBit() {
@@ -612,7 +652,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         ByteBuffer buffer = ByteBuffer.allocate(vectors.length * dims * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         var bFloat16Buffer = buffer.asShortBuffer();
         for (float[] vector : vectors) {
-            BFloat16.floatToBFloat16(vector, bFloat16Buffer);
+            ESVectorUtil.floatToBFloat16(vector, bFloat16Buffer);
         }
         return new BytesRef(buffer.array());
     }

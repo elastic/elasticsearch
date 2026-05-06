@@ -83,6 +83,34 @@ public class CrossClusterViewIT extends AbstractCrossClusterTestCase {
         }
     }
 
+    public void testLocalViewBodyTargetsRemoteIndexSucceeds() throws IOException {
+        createViewOnCluster(LOCAL_CLUSTER, "logs-from-remote", "FROM remote-b:logs-1");
+        try (var resp = runQuery("FROM logs-from-remote", null)) {
+            assertNotNull(resp);
+        }
+    }
+
+    public void testLocalViewBodyTargetsRemoteWildcardSucceeds() throws IOException {
+        createViewOnCluster(LOCAL_CLUSTER, "logs-from-remote-wild", "FROM remote-b:logs-*");
+        try (var resp = runQuery("FROM logs-from-remote-wild", null)) {
+            assertNotNull(resp);
+        }
+    }
+
+    public void testLocalViewBodyMixesLocalAndRemoteSucceeds() throws IOException {
+        createViewOnCluster(LOCAL_CLUSTER, "logs-mixed", "FROM logs-1, remote-b:logs-1");
+        try (var resp = runQuery("FROM logs-mixed", null)) {
+            assertNotNull(resp);
+        }
+    }
+
+    public void testLocalViewBodyTargetsRemoteViewFailsWithRemoteViewError() throws IOException {
+        createViewOnCluster(LOCAL_CLUSTER, "wraps-remote-view", "FROM cluster-a:logs-web");
+        Exception e = expectThrows(Exception.class, () -> runQuery("FROM wraps-remote-view", null));
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        assertThat(cause.getMessage(), containsString("ES|QL queries with remote views are not supported"));
+    }
+
     private void createViewOnCluster(String clusterAlias, String viewName, String query) {
         assertAcked(
             client(clusterAlias).execute(

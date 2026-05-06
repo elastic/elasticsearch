@@ -35,7 +35,7 @@ steps:
           agents:
             provider: gcp
             zones: us-east1-b,us-east1-c,us-east1-d,us-west1-a,us-west1-b,us-west1-c
-            image: family/elasticsearch-ubuntu-2004
+            image: family/elasticsearch-ubuntu-2404
             machineType: n4-standard-32
             diskType: hyperdisk-balanced
             buildDirectory: /dev/shm/bk

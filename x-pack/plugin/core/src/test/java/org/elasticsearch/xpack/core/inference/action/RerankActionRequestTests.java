@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringTests;
@@ -76,11 +75,8 @@ public class RerankActionRequestTests extends AbstractBWCWireSerializationTestCa
             var expectedRequest = new RerankAction.Request(
                 inferenceId,
                 new RerankRequest(
-                    List.of(
-                        new InferenceString(DataType.TEXT, DataFormat.TEXT, firstInputText),
-                        new InferenceString(DataType.TEXT, DataFormat.TEXT, secondInputText)
-                    ),
-                    new InferenceString(DataType.TEXT, DataFormat.TEXT, queryText),
+                    List.of(new InferenceString(DataType.TEXT, firstInputText), new InferenceString(DataType.TEXT, secondInputText)),
+                    new InferenceString(DataType.TEXT, queryText),
                     topN,
                     returnDocuments,
                     Map.of("field", "value")

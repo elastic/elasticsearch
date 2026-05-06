@@ -183,8 +183,8 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
             TransportAwaitClusterStateVersionAppliedAction.TYPE,
             new AwaitClusterStateVersionAppliedRequest(state.version(), request.waitForTimeout(), dataNodes),
             listener.delegateFailureAndWrap((l, response) -> {
-                if (response.hasActualFailures()) {
-                    final List<FailedNodeException> nonConnectFailures = response.actualFailures()
+                if (response.hasFailures()) {
+                    final List<FailedNodeException> nonConnectFailures = response.failures()
                         .stream()
                         .filter(f -> ExceptionsHelper.unwrap(f, ConnectTransportException.class) == null)
                         .toList();
@@ -192,7 +192,7 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
                         l.onFailure(nonConnectFailures.getFirst());
                         return;
                     }
-                    logger.debug("Some nodes disconnected while awaiting async cluster state application: {}", response.actualFailures());
+                    logger.debug("Some nodes disconnected while awaiting async cluster state application: {}", response.failures());
                 }
                 if (cancellableTask.notifyIfCancelled(l) == false) {
                     executor.execute(ActionRunnable.supply(l, () -> buildResponse(request, state)));

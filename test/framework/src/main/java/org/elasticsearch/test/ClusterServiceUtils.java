@@ -406,12 +406,12 @@ public class ClusterServiceUtils {
                     nodes.toArray(DiscoveryNode[]::new)
                 ),
                 l.map(response -> {
-                    if (response.hasActualFailures()) {
-                        final var nonConnectionFailures = response.actualFailures()
+                    if (response.hasFailures()) {
+                        final var nonConnectionFailures = response.failures()
                             .stream()
                             .filter(f -> ExceptionsHelper.unwrap(f, ConnectTransportException.class) == null)
                             .toList();
-                        for (var failure : response.actualFailures()) {
+                        for (var failure : response.failures()) {
                             if (nonConnectionFailures.contains(failure)) {
                                 logger.warn("peer node disconnected while waiting for state-fully-applied listener", failure);
                             } else {

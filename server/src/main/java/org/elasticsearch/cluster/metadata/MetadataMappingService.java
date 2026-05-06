@@ -322,7 +322,7 @@ public class MetadataMappingService {
                                 clusterState.version(),
                                 awaitResponse.hasFailures()
                             );
-                            l.onResponse(AcknowledgedResponse.of(response.isAcknowledged() && awaitResponse.actualFailures().isEmpty()));
+                            l.onResponse(AcknowledgedResponse.of(response.isAcknowledged() && awaitResponse.failures().isEmpty()));
                         }
 
                         @Override

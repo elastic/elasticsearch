@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
@@ -18,6 +19,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateVersionAppliedListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -33,23 +35,30 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 /// An action that waits until a given cluster state version is applied on each target [DiscoveryNode].
 ///
-/// Old nodes that do not recognize the action (due to being on an earlier version) return
-/// [org.elasticsearch.transport.ActionNotFoundTransportException].
-/// Callers can use [AwaitClusterStateVersionAppliedResponse#actualFailures] to strip those compatibility failures.
+/// Old nodes that do not support this action (transport version below [#AWAIT_CLUSTER_STATE_VERSION_APPLIED_ACTION])
+/// are filtered out in [#resolveRequest] and never receive the request.
+/// TODO: how do we make sure we still apply synchronous await in that case?
 public class TransportAwaitClusterStateVersionAppliedAction extends TransportNodesAction<
     AwaitClusterStateVersionAppliedRequest,
     AwaitClusterStateVersionAppliedResponse,
     TransportAwaitClusterStateVersionAppliedAction.NodeRequest,
     TransportAwaitClusterStateVersionAppliedAction.NodeResponse,
     Void> {
+
+    static final TransportVersion AWAIT_CLUSTER_STATE_VERSION_APPLIED_ACTION = TransportVersion.fromName(
+        "await_cluster_state_version_applied_action"
+    );
+
     public static final ActionType<AwaitClusterStateVersionAppliedResponse> TYPE = new ActionType<>(
         "internal:cluster/nodes/state/await_version"
     );
@@ -93,6 +102,17 @@ public class TransportAwaitClusterStateVersionAppliedAction extends TransportNod
     @Override
     protected NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new NodeResponse(in, node);
+    }
+
+    @Override
+    protected DiscoveryNode[] resolveRequest(AwaitClusterStateVersionAppliedRequest request, ClusterState clusterState) {
+        return Arrays.stream(super.resolveRequest(request, clusterState)).filter(node -> {
+            try {
+                return transportService.getConnection(node).getTransportVersion().supports(AWAIT_CLUSTER_STATE_VERSION_APPLIED_ACTION);
+            } catch (NodeNotConnectedException e) {
+                return false;
+            }
+        }).toArray(DiscoveryNode[]::new);
     }
 
     @Override

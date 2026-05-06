@@ -148,7 +148,10 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
             // materialization (see ParquetPushedExpressions#evaluateWildcardLike) so the reader can
             // skip decoding projection columns for non-matching rows. Only KEYWORD-typed fields with
             // a non-null pattern qualify; the dictionary short-circuit collapses the per-row automaton
-            // run to one run per dictionary entry.
+            // run to one run per dictionary entry. The wl.pattern() != null check is structurally
+            // unreachable today (WildcardLike's constructor takes a non-null WildcardPattern), but is
+            // kept as a cheap boundary guard so an upstream regression cannot turn into an NPE in the
+            // per-batch evaluator. Mirrors the prefix() != null guard on StartsWith above.
             return wl.field() instanceof NamedExpression ne && ne.dataType() == DataType.KEYWORD && wl.pattern() != null;
         }
         return false;

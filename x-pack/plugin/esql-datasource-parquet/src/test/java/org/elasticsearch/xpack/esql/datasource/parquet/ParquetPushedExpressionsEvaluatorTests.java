@@ -794,12 +794,11 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
     }
 
     public void testWildcardLikeAutomatonIsCachedAcrossBatches() {
-        // The same ParquetPushedExpressions instance is reused across batches. If the automaton
-        // were rebuilt every call, the cache field would not be needed. We assert the cache works
-        // by re-running evaluateFilter and confirming results are stable. (We cannot directly
-        // observe the cache hit count without breaking encapsulation; the contract under test is
-        // that repeated evaluations produce identical results, which transitively confirms the
-        // cache returns a usable runner each time.)
+        // The same ParquetPushedExpressions instance is reused across batches. We directly assert
+        // memoization via the package-private cache-size hook: after the first evaluateFilter the
+        // cache holds exactly one entry, and after subsequent evaluations the size never grows —
+        // proving the second-and-later calls hit the cache instead of rebuilding the automaton.
+        // Outcome stability is checked too as a regression guard.
         try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
             builder.appendBytesRef(new BytesRef("apple"));
             builder.appendBytesRef(new BytesRef("application"));
@@ -809,11 +808,13 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
 
             Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern("*app*"));
             ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(like));
+            assertEquals("cache should start empty", 0, pushed.automatonCacheSizeForTesting());
 
             for (int i = 0; i < 3; i++) {
                 WordMask mask = pushed.evaluateFilter(blocks, 3, new WordMask());
                 assertNotNull("iteration " + i + " produced a null mask", mask);
                 assertArrayEquals("iteration " + i + " survivors changed", new int[] { 0, 1 }, mask.survivingPositions());
+                assertEquals("automaton should be compiled exactly once after iteration " + i, 1, pushed.automatonCacheSizeForTesting());
             }
         }
     }

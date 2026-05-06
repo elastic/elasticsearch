@@ -1024,6 +1024,12 @@ final class ParquetPushedExpressions {
             CompiledWildcard compiled;
             try {
                 Automaton automaton = wl.pattern().createAutomaton(wl.caseInsensitive());
+                // Operations.isTotal returns true iff the automaton accepts every code-point sequence
+                // over its alphabet (Unicode 0..0x10FFFF for WildcardPattern's UTF-32 output). After
+                // the implicit UTF-32->UTF-8 conversion in the ByteRunAutomaton ctor, "total" carries
+                // over to "accepts every valid UTF-8 byte sequence". Our inputs come from KEYWORD
+                // columns, which Elasticsearch guarantees to be valid UTF-8, so this is a sound
+                // proxy for "this LIKE accepts every non-null row" — the contract of matchesAll.
                 boolean matchesAll = Operations.isTotal(automaton);
                 compiled = new CompiledWildcard(new ByteRunAutomaton(automaton), matchesAll);
             } catch (IllegalArgumentException | TooComplexToDeterminizeException e) {
@@ -1036,6 +1042,14 @@ final class ParquetPushedExpressions {
             }
             automatonCache.put(wl, compiled);
             return compiled;
+        }
+    }
+
+    // Package-private hook so tests can directly assert that automaton compilation is memoized
+    // across batches (there is no public metric for it). Not part of the production contract.
+    int automatonCacheSizeForTesting() {
+        synchronized (automatonCache) {
+            return automatonCache.size();
         }
     }
 

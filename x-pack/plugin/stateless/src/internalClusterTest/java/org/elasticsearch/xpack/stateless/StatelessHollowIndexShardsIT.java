@@ -912,8 +912,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             }
             writersStart.countDown();
             assertAcked(indicesAdmin().prepareClose(clusterInfo.indexName));
-            stopIngest.set(true);
         } finally {
+            stopIngest.set(true);
             ingestPool.shutdown();
             assertTrue(ingestPool.awaitTermination(2, TimeUnit.MINUTES));
             assertThat(unexpected, empty());

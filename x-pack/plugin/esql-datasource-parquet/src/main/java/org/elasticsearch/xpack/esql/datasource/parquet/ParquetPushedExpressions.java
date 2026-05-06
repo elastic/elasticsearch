@@ -18,9 +18,11 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -48,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
@@ -555,6 +558,13 @@ record ParquetPushedExpressions(List<Expression> expressions) {
                     mask.set(i);
                 }
             }
+        } else if (block instanceof OrdinalBytesRefBlock obb && shouldShortCircuitOnDictionary(obb)) {
+            // Dictionary short-circuit: evaluate the comparison once per dictionary entry,
+            // then map each row's ordinal to a precomputed boolean. Avoids one string compareTo
+            // per row in favor of one int lookup per row.
+            BytesRef val = toByteRef(literal);
+            boolean[] dictMatches = matchingDictionaryEntries(obb.getDictionaryVector(), entry -> compareResult(entry.compareTo(val), bc));
+            applyDictionaryMatches(obb, dictMatches, mask, rowCount);
         } else if (block instanceof BytesRefBlock bb) {
             BytesRef val = toByteRef(literal);
             BytesRef scratch = new BytesRef();
@@ -653,6 +663,13 @@ record ParquetPushedExpressions(List<Expression> expressions) {
                     mask.set(i);
                 }
             }
+        } else if (block instanceof OrdinalBytesRefBlock obb && shouldShortCircuitOnDictionary(obb)) {
+            Set<BytesRef> refSet = new HashSet<>();
+            for (Object v : values) {
+                refSet.add(toByteRef(v));
+            }
+            boolean[] dictMatches = matchingDictionaryEntries(obb.getDictionaryVector(), refSet::contains);
+            applyDictionaryMatches(obb, dictMatches, mask, rowCount);
         } else if (block instanceof BytesRefBlock bb) {
             Set<BytesRef> refSet = new HashSet<>();
             for (Object v : values) {
@@ -757,6 +774,16 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             return null;
         }
         BytesRef prefix = toByteRef(prefixValue);
+        if (block instanceof OrdinalBytesRefBlock obb && shouldShortCircuitOnDictionary(obb)) {
+            WordMask mask = new WordMask();
+            mask.reset(rowCount);
+            boolean[] dictMatches = matchingDictionaryEntries(
+                obb.getDictionaryVector(),
+                entry -> entry.length >= prefix.length && startsWith(entry, prefix)
+            );
+            applyDictionaryMatches(obb, dictMatches, mask, rowCount);
+            return mask;
+        }
         if (block instanceof BytesRefBlock bb) {
             WordMask mask = new WordMask();
             mask.reset(rowCount);
@@ -781,5 +808,63 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             }
         }
         return true;
+    }
+
+    /**
+     * Returns {@code true} when running the predicate over the dictionary entries is expected
+     * to be cheaper than running it over every row. Dictionary scan cost is
+     * {@code O(dictionarySize)} compares; the per-row scalar path is {@code O(rowCount)}
+     * compares plus the same indirection through the ordinal block. The optimization is a
+     * clear win only when the dictionary is materially smaller than the row count.
+     *
+     * <p>Reuses {@link OrdinalBytesRefBlock#isDense}, which encodes the same crossover
+     * heuristic ({@code rowCount >= 2 * dictionarySize}). This also filters out tiny blocks
+     * where the constant cost of allocating the {@code boolean[]} dominates.
+     */
+    private static boolean shouldShortCircuitOnDictionary(OrdinalBytesRefBlock block) {
+        return block.isDense();
+    }
+
+    /**
+     * Evaluates {@code matcher} against every entry of {@code dictionary} and returns a
+     * boolean array indexed by ordinal — {@code true} at position {@code k} means the
+     * entry at ordinal {@code k} satisfies the predicate.
+     *
+     * <p>This is the core of the dictionary short-circuit: instead of running a per-row
+     * predicate on every materialized value, we run it once per unique entry. For dictionary
+     * encodings that are well chosen by the writer, the dictionary holds far fewer entries
+     * than the row count, so we collapse O(rowCount) string compares into O(dictSize) plus
+     * a per-row int lookup.
+     */
+    private static boolean[] matchingDictionaryEntries(BytesRefVector dictionary, Predicate<BytesRef> matcher) {
+        int size = dictionary.getPositionCount();
+        boolean[] matches = new boolean[size];
+        BytesRef scratch = new BytesRef();
+        for (int i = 0; i < size; i++) {
+            matches[i] = matcher.test(dictionary.getBytesRef(i, scratch));
+        }
+        return matches;
+    }
+
+    /**
+     * Sets bits in {@code mask} for rows whose dictionary ordinal is flagged in
+     * {@code dictMatches}, skipping null rows.
+     *
+     * <p>This relies on the ordinals block being <strong>single-valued</strong>: position
+     * {@code i} maps directly to value index {@code i}. The Parquet reader's dictionary
+     * path always satisfies this — see {@code PageColumnReader#buildOrdinalsBlock}, which
+     * constructs the ordinals block with {@code firstValueIndexes == null}. The assertion
+     * below documents and guards the invariant for any future producer.
+     */
+    private static void applyDictionaryMatches(OrdinalBytesRefBlock block, boolean[] dictMatches, WordMask mask, int rowCount) {
+        IntBlock ordinals = block.getOrdinalsBlock();
+        assert rowCount == block.getPositionCount() : "rowCount " + rowCount + " != block positions " + block.getPositionCount();
+        assert ordinals.asVector() != null || ordinals.mayHaveMultivaluedFields() == false
+            : "OrdinalBytesRefBlock with multivalued ordinals is not supported by the dictionary short-circuit";
+        for (int i = 0; i < rowCount; i++) {
+            if (block.isNull(i) == false && dictMatches[ordinals.getInt(i)]) {
+                mask.set(i);
+            }
+        }
     }
 }

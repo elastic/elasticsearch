@@ -363,7 +363,7 @@ public class TaskInfoTests extends AbstractXContentSerializingTestCase<TaskInfo>
         assertEquals(info.originalStartTimeMillis(), same.originalStartTimeMillis());
     }
 
-    static TaskInfo randomTaskInfo() {
+    public static TaskInfo randomTaskInfo() {
         String nodeId = randomAlphaOfLength(5);
         TaskId taskId = randomTaskId(nodeId);
         String type = randomAlphaOfLength(5);

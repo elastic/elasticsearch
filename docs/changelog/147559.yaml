@@ -1,5 +1,0 @@
-area: Vector Search
-issues: []
-pr: 147559
-summary: Fix integer overflow in CuVSResourceManager.estimateNNDescentMemory
-type: bug

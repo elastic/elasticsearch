@@ -1,5 +1,0 @@
-pr: 139777
-summary: Always do bulk scoring for rescoring when possible
-area: Vector Search
-type: enhancement
-issues: []

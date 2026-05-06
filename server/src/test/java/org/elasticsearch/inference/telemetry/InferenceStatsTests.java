@@ -383,7 +383,7 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testWithProductContext_bothPresent() {
+    public void testWithProductContext_UseCase_Origin_Present() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
         var ctx = new InferenceProductContext(TEST_USE_CASE, TEST_PRODUCT_ORIGIN);
@@ -407,7 +407,7 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testWithProductContext_onlyProductUseCase() {
+    public void testWithProductContext_OnlyProductUseCase() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
         var ctx = new InferenceProductContext(TEST_USE_CASE, null);
@@ -429,7 +429,7 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testWithProductContext_onlyProductOrigin() {
+    public void testWithProductContext_OnlyProductOrigin() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
         var ctx = new InferenceProductContext(null, TEST_PRODUCT_ORIGIN);
@@ -451,7 +451,7 @@ public class InferenceStatsTests extends ESTestCase {
         );
     }
 
-    public void testWithProductContext_empty() {
+    public void testWithProductContext_Empty() {
         var longCounter = mock(LongCounter.class);
         var stats = new InferenceStats(longCounter, mock(), mock(), Map.of());
 

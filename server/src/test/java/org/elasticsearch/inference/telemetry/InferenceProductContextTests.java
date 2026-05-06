@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class InferenceProductContextTests extends ESTestCase {
 
-    public void testCreate_readsHeadersFromThreadContext() {
+    public void testCreate_ReadsHeadersFromThreadContext() {
         var expectedContext = randomInferenceProductContext();
 
         var threadContext = new ThreadContext(Settings.EMPTY);
@@ -32,7 +32,7 @@ public class InferenceProductContextTests extends ESTestCase {
         assertThat(createdContext, is(expectedContext));
     }
 
-    public void testCreate_returnsNullFieldsWhenHeadersAbsent() {
+    public void testCreate_ReturnsEmptyInstanceWhenHeadersAreAbsent() {
         var context = InferenceProductContext.create(new ThreadContext(Settings.EMPTY));
 
         assertThat(context, sameInstance(InferenceProductContext.EMPTY));

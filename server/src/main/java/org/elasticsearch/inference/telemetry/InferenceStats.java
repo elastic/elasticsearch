@@ -173,11 +173,8 @@ public class InferenceStats {
          * Either or both may be absent; they are recorded independently.
          */
         public B withProductContext(@Nullable InferenceProductContext ctx) {
-            @SuppressWarnings("unchecked")
-            var castedThis = (B) this;
-
             if (ctx == null) {
-                return castedThis;
+                return cast();
             }
             if (Strings.isNullOrEmpty(ctx.productUseCase()) == false) {
                 attributes.put(INFERENCE_SOURCE_ATTRIBUTE, ctx.productUseCase());
@@ -186,7 +183,7 @@ public class InferenceStats {
                 attributes.put(ES_PRODUCT_ORIGIN_ATTRIBUTE, ctx.productOrigin());
             }
 
-            return castedThis;
+            return cast();
         }
 
         /**
@@ -194,11 +191,11 @@ public class InferenceStats {
          * Use this when the product use case is known statically at the call site (e.g. {@code "semantic_text_bulk"}).
          */
         public B withProductUseCase(String value) {
-            attributes.put(INFERENCE_SOURCE_ATTRIBUTE, value);
+            if (Strings.isNullOrEmpty(value) == false) {
+                attributes.put(INFERENCE_SOURCE_ATTRIBUTE, value);
+            }
 
-            @SuppressWarnings("unchecked")
-            var castedThis = (B) this;
-            return castedThis;
+            return cast();
         }
     }
 

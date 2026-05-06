@@ -45,8 +45,8 @@ public abstract class ElasticInferenceServiceRequest implements OutboundRequest 
         HttpRequestBase request = createHttpRequestBase();
         // TODO: consider moving tracing here, too
 
-        var productOrigin = metadata.productOrigin();
-        var productUseCase = metadata.productUseCase();
+        var productOrigin = metadata.context().productOrigin();
+        var productUseCase = metadata.context().productUseCase();
         var esVersion = metadata.esVersion();
 
         if (Strings.isNullOrEmpty(productOrigin) == false) {

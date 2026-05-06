@@ -24,6 +24,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.Elasti
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModelCreator;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.EnumSet;
@@ -78,7 +80,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator.USER_ROLE;
 
-public class ElasticInferenceService extends SenderService<ElasticInferenceServiceModel> {
+public class ElasticInferenceService extends SenderService<ElasticInferenceServiceModel> implements RerankingInferenceService {
 
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
@@ -548,5 +550,20 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             .setTaskTypes(enabledTaskTypes)
             .setConfigurations(configurationMap)
             .build();
+    }
+
+    /**
+     * EIS only supports Jina reranker models, so the same value from {@link JinaAIService#rerankerWindowSize(String)} is used.
+     * <p>
+     * The {@code jina-reranker-m0} model <a href="https://jina.ai/models/jina-reranker-m0">has a 10,000 token input length</a>, which is
+     * the smallest of the non-deprecated Jina reranker models, so that value is used here.
+     * <p>
+     * Using 1 token = 0.75 words as a rough estimate, we get 7500 words. Allowing for some headroom, we set the window size to 7000 words
+     * @param modelId The model ID
+     * @return the max input size for the model, in words
+     */
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        return 7000;
     }
 }

@@ -107,6 +107,7 @@ rate_with_window
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation
 required_capability: time_series_window_v1
+required_capability: fix_time_series_window_backward
 
 // tag::rate_with_window[]
 TS k8s
@@ -117,22 +118,21 @@ TS k8s
 | SORT time_bucket, cluster | LIMIT 30;
 // tag::rate_with_window-result[]
 rate_bytes_in:double | cluster:keyword | time_bucket:datetime
-3.399375             | prod            | 2024-05-10T00:05:00.000Z
-13.638384            | qa              | 2024-05-10T00:05:00.000Z
-7.307225             | staging         | 2024-05-10T00:05:00.000Z
-2.323347             | prod            | 2024-05-10T00:06:00.000Z
-12.178015            | qa              | 2024-05-10T00:06:00.000Z
-7.366226             | staging         | 2024-05-10T00:06:00.000Z
+0.015                | prod            | 2024-05-10T00:05:00.000Z
+2.511924             | qa              | 2024-05-10T00:05:00.000Z
+0.9425               | prod            | 2024-05-10T00:06:00.000Z
+4.794301             | qa              | 2024-05-10T00:06:00.000Z
+3.105417             | staging         | 2024-05-10T00:06:00.000Z
 // end::rate_with_window-result[]
-2.307778             | prod            | 2024-05-10T00:07:00.000Z
-10.485661            | qa              | 2024-05-10T00:07:00.000Z
-5.233056             | staging         | 2024-05-10T00:07:00.000Z
-2.198563             | prod            | 2024-05-10T00:08:00.000Z
-5.589111             | qa              | 2024-05-10T00:08:00.000Z
-5.098565             | staging         | 2024-05-10T00:08:00.000Z
-2.440908             | prod            | 2024-05-10T00:09:00.000Z
-5.502833             | qa              | 2024-05-10T00:09:00.000Z
-3.8278               | staging         | 2024-05-10T00:09:00.000Z
+0.9425               | prod            | 2024-05-10T00:07:00.000Z
+7.306365             | qa              | 2024-05-10T00:07:00.000Z
+3.105417             | staging         | 2024-05-10T00:07:00.000Z
+2.427832             | prod            | 2024-05-10T00:08:00.000Z
+10.637878            | qa              | 2024-05-10T00:08:00.000Z
+4.734548             | staging         | 2024-05-10T00:08:00.000Z
+3.399375             | prod            | 2024-05-10T00:09:00.000Z
+13.638384            | qa              | 2024-05-10T00:09:00.000Z
+7.307225             | staging         | 2024-05-10T00:09:00.000Z
 
 ;
 
@@ -450,6 +450,7 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 
 trange_absolute_with_rate_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket
 
 PROMQL index=k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:00.000Z" rate_bytes_in=(avg by (cluster) (rate(network.total_bytes_in[2m])))
 | EVAL rate_bytes_in=ROUND(rate_bytes_in, 6), step=step, cluster=cluster
@@ -457,16 +458,16 @@ PROMQL index=k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:
 | LIMIT 10;
 
 rate_bytes_in:double | step:datetime            | cluster:keyword
-1.517381             | 2024-05-10T00:22:00.000Z | staging
-4.428024             | 2024-05-10T00:22:00.000Z | qa
-5.205085             | 2024-05-10T00:20:00.000Z | staging
-5.422222             | 2024-05-10T00:14:00.000Z | staging
-7.347831             | 2024-05-10T00:16:00.000Z | staging
-7.8322               | 2024-05-10T00:18:00.000Z | staging
-8.001423             | 2024-05-10T00:22:00.000Z | prod
-8.155203             | 2024-05-10T00:14:00.000Z | prod
-8.939832             | 2024-05-10T00:14:00.000Z | qa
-9.531694             | 2024-05-10T00:20:00.000Z | qa
+1.589583             | 2024-05-10T00:23:00.000Z | staging
+2.227083             | 2024-05-10T00:17:00.000Z | staging
+3.918056             | 2024-05-10T00:23:00.000Z | qa
+4.257292             | 2024-05-10T00:17:00.000Z | prod
+4.84375              | 2024-05-10T00:15:00.000Z | qa
+6.759054             | 2024-05-10T00:21:00.000Z | staging
+8.392708             | 2024-05-10T00:19:00.000Z | staging
+8.453935             | 2024-05-10T00:17:00.000Z | qa
+9.83125              | 2024-05-10T00:23:00.000Z | prod
+10.64375             | 2024-05-10T00:21:00.000Z | prod
 ;
 
 bare_rate_outputs_dimensions

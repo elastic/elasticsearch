@@ -246,6 +246,118 @@ a:keyword   | b:keyword | c:integer
 foobar      | foo       | 12
 ;
 
+
+filterAfterMvExpandOnUnexpandedField
+ROW a = [1, 2, 3], b = 2
+| MV_EXPAND a
+| WHERE b == 2
+| SORT a;
+
+a:integer | b:integer
+1         | 2
+2         | 2
+3         | 2
+;
+
+
+filterAfterMvExpandOnExpandedAndUnexpandedFields
+ROW a = [1, 2, 3], b = 2
+| MV_EXPAND a
+| WHERE b == 2 AND a > 1
+| SORT a;
+
+a:integer | b:integer
+2         | 2
+3         | 2
+;
+
+
+pushDownFilterPastMvExpand
+ROW emp_no = 11, languages = [1, 2]
+| MV_EXPAND languages
+| WHERE emp_no > 10 AND languages == 1
+| SORT languages;
+
+emp_no:integer | languages:integer
+11             | 1
+;
+
+
+pushDownFilterPastSequentialMvExpands
+ROW emp_no = 11, languages = [1, 2], first_name = ["John", "Jane"]
+| MV_EXPAND languages
+| MV_EXPAND first_name
+| WHERE emp_no > 10 AND languages == 1 AND first_name == "John"
+| SORT languages, first_name;
+
+emp_no:integer | languages:integer | first_name:keyword
+11             | 1                 | John
+;
+
+
+dontPushDownOrFilterPastMvExpand
+ROW emp_no = 9, languages = [1, 2]
+| MV_EXPAND languages
+| WHERE emp_no > 10 OR languages == 1
+| SORT languages;
+
+emp_no:integer | languages:integer
+9              | 1
+;
+
+
+pushDownFilterPastMvExpandWithEval
+ROW emp_no = 11, languages = [1, 2]
+| EVAL double_emp = emp_no * 2
+| MV_EXPAND languages
+| WHERE double_emp > 20 AND languages == 1
+| SORT languages;
+
+emp_no:integer | languages:integer | double_emp:integer
+11             | 1                 | 22
+;
+
+
+pushDownChainedWherePastMvExpand
+ROW emp_no = 11, languages = [1, 2], salary = 60000
+| MV_EXPAND languages
+| WHERE emp_no > 10
+| WHERE languages == 1
+| WHERE salary > 50000
+| SORT languages;
+
+emp_no:integer | languages:integer | salary:integer
+11             | 1                 | 60000
+;
+
+
+filterAfterMvExpandOnUnexpandedFieldFromSource
+FROM employees
+| KEEP emp_no, job_positions
+| MV_EXPAND job_positions
+| WHERE emp_no == 10004
+| SORT job_positions;
+
+emp_no:integer | job_positions:keyword
+10004          |Head Human Resources
+10004          |Reporting Analyst
+10004          |Support Engineer
+10004          |Tech Lead
+;
+
+
+filterAfterMvExpandOnExpandedAndUnexpandedFieldsFromSource
+FROM employees
+| KEEP emp_no, job_positions
+| MV_EXPAND job_positions
+| WHERE emp_no == 10004 AND job_positions LIKE "*Lead"
+| SORT job_positions;
+
+emp_no:integer | job_positions:keyword
+10004          |Tech Lead
+;
+
+
 expandEvalFoldable
 from employees | sort emp_no | limit 2 | eval foldable = "foo,bar" | eval generate_mv = split(foldable,",") | mv_expand generate_mv | keep emp_no, first_name, generate_mv | sort emp_no asc, generate_mv desc;
 

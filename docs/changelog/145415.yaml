@@ -1,7 +1,0 @@
-pr: 145415
-summary: "Fix CsvIT overflow tests failing on JDK 25 due to missing OmitStackTraceInFastThrow flag"
-area: ES|QL
-type: bug
-issues:
-  - 145415
-  - 145424

@@ -38,7 +38,6 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
 
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
-        preview = true,
         returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos" },
         description = """
             An alias for [`FIRST`](/reference/query-languages/esql/functions-operators/aggregation-functions/first.md) where

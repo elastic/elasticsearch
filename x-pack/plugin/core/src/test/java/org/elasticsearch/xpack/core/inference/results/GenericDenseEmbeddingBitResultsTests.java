@@ -45,7 +45,7 @@ public class GenericDenseEmbeddingBitResultsTests extends AbstractWireSerializin
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
         var entity = new GenericDenseEmbeddingBitResults(List.of(new GenericDenseEmbeddingByteResults.Embedding(new byte[] { (byte) 23 })));
 
-        String xContentResult = Strings.toString(entity, true, true);
+        String xContentResult = Strings.toTruncatedString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "embeddings_bits" : [
@@ -66,7 +66,7 @@ public class GenericDenseEmbeddingBitResultsTests extends AbstractWireSerializin
             )
         );
 
-        String xContentResult = Strings.toString(entity, true, true);
+        String xContentResult = Strings.toTruncatedString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "embeddings_bits" : [

@@ -48,6 +48,7 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
@@ -386,13 +387,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                             }
                         } else if (isDense(firstDocId, lastDocId, count)) {
                             try (var builder = factory.singletonBytesRefs(count)) {
-                                long[] offsets = new long[count + 1];
+                                int[] offsets = new int[count + 1];
 
                                 long startOffset = addresses.get(firstDocId);
                                 for (int i = offset, j = 1; i < docs.count(); i++, j++) {
                                     int docId = docs.get(i);
-                                    long nextOffset = addresses.get(docId + 1) - startOffset;
-                                    offsets[j] = nextOffset;
+                                    offsets[j] = Math.toIntExact(addresses.get(docId + 1) - startOffset);
                                 }
 
                                 int length = Math.toIntExact(addresses.get(lastDocId + 1L) - startOffset);
@@ -886,7 +886,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             final int bufferSize = computeMultipleBlockBufferSize(firstBlockId, endBlockId);
 
             int offsetBufferIndex = 0;
-            final long[] offsetBuffer = new long[count + 1];
+            final int[] offsetBuffer = new int[count + 1];
             int valuesBufferIndex = 0;
             final byte[] valuesBuffer = new byte[bufferSize];
 
@@ -2014,13 +2014,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     private void readNumericField(IndexInput meta, NumericEntry entry, int numericBlockShift) throws IOException {
-        entry.numericFieldReader = numericCodec.createReader(readContext);
-        entry.numericFieldReader.readFieldEntry(meta, entry, numericBlockShift);
+        var numericFieldReader = numericCodec.createReader(readContext);
+        numericFieldReader.readFieldEntry(meta, entry, numericBlockShift);
     }
 
     private void readOrdinalField(IndexInput meta, NumericEntry entry, int numericBlockShift) throws IOException {
-        entry.ordinalFieldReader = ordinalCodec.createReader(readContext);
-        entry.ordinalFieldReader.readFieldEntry(meta, entry, numericBlockShift);
+        var ordinalFieldReader = ordinalCodec.createReader(readContext);
+        ordinalFieldReader.readFieldEntry(meta, entry, numericBlockShift);
     }
 
     private BinaryEntry readBinary(IndexInput meta, int version) throws IOException {
@@ -2179,10 +2179,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     private BlockDecoder blockDecoder(NumericEntry entry, long maxOrd) {
         if (maxOrd != AbstractTSDBDocValuesConsumer.NO_MAX_ORD) {
             final int bitsPerOrd = PackedInts.bitsRequired(maxOrd - 1);
-            final OrdinalFieldReader.Decoder decoder = entry.ordinalFieldReader.decoder();
+            var ordinalFieldReader = ordinalCodec.createReader(readContext);
+            final OrdinalFieldReader.Decoder decoder = ordinalFieldReader.decoder();
             return (input, values) -> decoder.decodeOrdinals(input, values, bitsPerOrd);
         } else {
-            final NumericFieldReader.Decoder decoder = entry.numericFieldReader.decoder();
+            var numericFieldReader = numericCodec.createReader(readContext);
+            final NumericFieldReader.Decoder decoder = numericFieldReader.decoder(entry.pipelineDescriptor);
             return (input, values) -> decoder.decodeBlock(input, values, numericBlockSize);
         }
     }
@@ -2743,8 +2745,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         public long valuesOffset;
         public long valuesLength;
         public DirectMonotonicReader.Meta sortedOrdinals;
-        public NumericFieldReader numericFieldReader;
-        public OrdinalFieldReader ordinalFieldReader;
+        public PipelineDescriptor pipelineDescriptor;
     }
 
     static class BinaryEntry {

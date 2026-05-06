@@ -58,7 +58,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.ingest.IngestDocument.deepCopyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveTaskType;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
 
@@ -230,10 +229,10 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         ServiceSettings mergedServiceSettings = existingServiceSettings;
 
         if (newSettings.serviceSettings() != null) {
-            mergedServiceSettings = mergedServiceSettings.updateServiceSettings(deepCopyMap(newSettings.serviceSettings()));
+            mergedServiceSettings = mergedServiceSettings.updateServiceSettings(newSettings.serviceSettings());
         }
         if (newSettings.taskSettings() != null) {
-            mergedTaskSettings = mergedTaskSettings.updatedTaskSettings(deepCopyMap(newSettings.taskSettings()));
+            mergedTaskSettings = mergedTaskSettings.updatedTaskSettings(newSettings.taskSettings());
         }
 
         return new ModelConfigurations(
@@ -257,7 +256,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         SecretSettings mergedSecretSettings = existingSecretSettings;
 
         if (newSettingsMap != null && existingSecretSettings != null) {
-            mergedSecretSettings = existingSecretSettings.newSecretSettings(deepCopyMap(newSettingsMap));
+            mergedSecretSettings = existingSecretSettings.newSecretSettings(newSettingsMap);
         }
 
         return new ModelSecrets(mergedSecretSettings);

@@ -61,7 +61,6 @@ import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -558,7 +557,9 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         assertThat(resultModelConfigurations.getChunkingSettings(), sameInstance(model.getConfigurations().getChunkingSettings()));
     }
 
-    public void testCombineExistingModelConfigurationsWithNewSettings_NewServiceAndTaskSettings_UsesCopiedMap() {
+    public void testCombineExistingModelConfigurationsWithNewSettings_PassesNewSettingsMapsThroughDirectlyToParsers() {
+        // The Settings produced by Request#getContentAsSettings already contain freshly deep-copied maps,
+        // so this consumer must pass them straight through without re-copying.
         Map<String, Object> newServiceSettingsMap = Map.of(SERVICE_SETTINGS_KEY, SERVICE_SETTINGS_VALUE);
         var originalServiceSettings = mock(ServiceSettings.class);
         var updatedServiceSettings = mock(ServiceSettings.class);
@@ -582,23 +583,10 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         ArgumentCaptor<Map<String, Object>> taskSettingsCaptor = ArgumentCaptor.forClass(Map.class);
 
         verify(originalServiceSettings).updateServiceSettings(serviceSettingsCaptor.capture());
-        var serviceSettingsValue = serviceSettingsCaptor.getValue();
-        assertThat(serviceSettingsValue, equalTo(newServiceSettingsMap));
-        assertThat(serviceSettingsValue, not(sameInstance(newServiceSettingsMap)));
-        // The map should be modifiable
-        assertThat(serviceSettingsValue.remove(SERVICE_SETTINGS_KEY), is(SERVICE_SETTINGS_VALUE));
+        assertThat(serviceSettingsCaptor.getValue(), sameInstance(newServiceSettingsMap));
 
         verify(originalTaskSettings).updatedTaskSettings(taskSettingsCaptor.capture());
-        var taskSettingsValue = taskSettingsCaptor.getValue();
-        assertThat(taskSettingsValue, equalTo(newTaskSettingsMap));
-        assertThat(taskSettingsValue, not(sameInstance(newTaskSettingsMap)));
-        // The map should be modifiable
-        assertThat(taskSettingsValue.remove(TASK_SETTINGS_KEY), is(TASK_SETTINGS_VALUE));
-
-        assertThat(resultModelConfigurations.getInferenceEntityId(), sameInstance(model.getInferenceEntityId()));
-        assertThat(resultModelConfigurations.getTaskType(), sameInstance(model.getTaskType()));
-        assertThat(resultModelConfigurations.getService(), sameInstance(SERVICE_NAME_VALUE));
-        assertThat(resultModelConfigurations.getChunkingSettings(), sameInstance(model.getConfigurations().getChunkingSettings()));
+        assertThat(taskSettingsCaptor.getValue(), sameInstance(newTaskSettingsMap));
 
         assertThat(resultModelConfigurations.getServiceSettings(), sameInstance(updatedServiceSettings));
         assertThat(resultModelConfigurations.getTaskSettings(), sameInstance(updatedTaskSettings));
@@ -636,7 +624,9 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         verify(originalSecretSettings).newSecretSettings(newSecretsMap);
     }
 
-    public void testCombineExistingSecretsWithNewSecrets_NewSecretSettings_UpdatesSecrets_UsesCopiedMap() {
+    public void testCombineExistingSecretsWithNewSecrets_PassesNewSecretsMapThroughDirectlyToParser() {
+        // The Settings produced by Request#getContentAsSettings already contain freshly deep-copied maps,
+        // so this consumer must pass them straight through without re-copying.
         Map<String, Object> newSecretsMap = Map.of(SECRET_SETTINGS_KEY, SECRET_SETTINGS_VALUE);
         var originalSecretSettings = mock(SecretSettings.class);
         var updatedSecretSettings = mock(SecretSettings.class);
@@ -650,13 +640,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
         verify(originalSecretSettings).newSecretSettings(captor.capture());
-
-        var value = captor.getValue();
-        assertThat(value, equalTo(newSecretsMap));
-        assertThat(value, not(sameInstance(newSecretsMap)));
-
-        // The map should be modifiable
-        assertThat(value.remove(SECRET_SETTINGS_KEY), is(SECRET_SETTINGS_VALUE));
+        assertThat(captor.getValue(), sameInstance(newSecretsMap));
     }
 
     private static Model createMockedModel(

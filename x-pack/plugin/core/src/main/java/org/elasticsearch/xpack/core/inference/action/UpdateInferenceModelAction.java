@@ -28,13 +28,13 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.inference.ModelConfigurations.TASK_SETTINGS;
+import static org.elasticsearch.ingest.IngestDocument.deepCopyMap;
 
 public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelAction.Response> {
 
@@ -87,7 +87,6 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
          * The body of the request.
          * For in-cluster models, this is expected to contain some of the following:
          * "number_of_allocations": `an integer`
-         *
          * For third-party services, this is expected to contain:
          *  "service_settings": {
          *      "api_key": `a string` // service settings can only contain an api key
@@ -103,9 +102,15 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
          * The body of the request as a map.
          * The map is validated such that only allowed fields are present.
          * If any fields in the body are not on the allow list, this function will throw an exception.
+         *
+         * <p>Each invocation returns a fresh {@link Settings} instance whose nested service/task maps
+         * are deep copies of the cached parsed result. This lets callers (notably the
+         * {@code *Settings.update*} parsers in the inference services) freely call {@code remove(...)}
+         * at any depth without risking corruption of the cached settings or interference between
+         * consumers that read the same body.
          */
         public Settings getContentAsSettings() {
-            if (settings == null) { // settings is deterministic on content, so we only need to compute it once
+            if (settings == null) { // settings is deterministic on content, so we only need to parse it once
                 Map<String, Object> unvalidatedMap = XContentHelper.convertToMap(content, false, contentType).v2();
                 Map<String, Object> serviceSettings = new HashMap<>();
                 Map<String, Object> taskSettings = new HashMap<>();
@@ -183,12 +188,16 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
                 }
 
                 this.settings = new Settings(
-                    serviceSettings.isEmpty() == false ? Collections.unmodifiableMap(serviceSettings) : null,
-                    taskSettings.isEmpty() == false ? Collections.unmodifiableMap(taskSettings) : null,
+                    serviceSettings.isEmpty() == false ? serviceSettings : null,
+                    taskSettings.isEmpty() == false ? taskSettings : null,
                     taskType
                 );
             }
-            return this.settings;
+            return new Settings(
+                this.settings.serviceSettings() != null ? deepCopyMap(this.settings.serviceSettings()) : null,
+                this.settings.taskSettings() != null ? deepCopyMap(this.settings.taskSettings()) : null,
+                this.settings.taskType()
+            );
         }
 
         public XContentType getContentType() {

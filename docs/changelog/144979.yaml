@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 144636
+pr: 144979
+summary: "ESQL: Push down unrelated filters past MV_EXPAND"
+type: enhancement

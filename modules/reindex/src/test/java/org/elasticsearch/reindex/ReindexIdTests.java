@@ -121,7 +121,8 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             request(),
             listener(),
             randomBoolean() ? null : Version.CURRENT,
-            randomPositiveTimeValue()
+            randomPositiveTimeValue(),
+            null
         );
     }
 }

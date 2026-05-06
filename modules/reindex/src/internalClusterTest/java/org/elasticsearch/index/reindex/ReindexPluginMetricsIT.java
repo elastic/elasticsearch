@@ -17,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.reindex.BulkByScrollSearchContextMetrics;
 import org.elasticsearch.reindex.BulkIndexByScrollResponseMatcher;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.Reindexer;
@@ -45,6 +46,7 @@ import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_COMPLETION_COUNTE
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_TIME_HISTOGRAM;
 import static org.elasticsearch.reindex.UpdateByQueryMetrics.UPDATE_BY_QUERY_TIME_HISTOGRAM;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -448,6 +450,111 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             assertThat(completions.size(), equalTo(1));
             assertNull(completions.getFirst().attributes().get(ATTRIBUTE_NAME_ERROR_TYPE));
             assertThat(completions.getFirst().attributes().get(ATTRIBUTE_NAME_SOURCE), equalTo(ATTRIBUTE_VALUE_SOURCE_LOCAL));
+        });
+    }
+
+    /**
+     * Successful local reindex must not increment {@link BulkByScrollSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER}.
+     * That counter is reserved for when the underlying search context's keep-alive expires
+     */
+    public void testSuccessfulLocalReindexDoesNotEmitSearchContextKeepaliveExpiredMetric() throws Exception {
+        final String dataNodeName = internalCluster().startNode();
+
+        indexRandom(
+            true,
+            prepareIndex("source").setId("1").setSource("foo", "a"),
+            prepareIndex("source").setId("2").setSource("foo", "b"),
+            prepareIndex("source").setId("3").setSource("foo", "c")
+        );
+        assertHitCount(prepareSearch("source").setSize(0), 3);
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        testTelemetryPlugin.resetMeter();
+
+        BulkByScrollResponse response = reindex().source("source").destination("dest").refresh(true).get();
+        assertThat(response.getBulkFailures(), empty());
+        assertThat(response.getSearchFailures(), empty());
+        assertHitCount(prepareSearch("dest").setSize(0), 3);
+
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            final long keepaliveExpiredTotal = testTelemetryPlugin.getLongCounterMeasurement(
+                BulkByScrollSearchContextMetrics.SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER
+            ).stream().mapToLong(Measurement::getLong).sum();
+            assertThat(keepaliveExpiredTotal, equalTo(0L));
+        });
+    }
+
+    /**
+     * Successful update by query must not increment {@link BulkByScrollSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER}.
+     * That counter is reserved for when the underlying search context's keep-alive expires
+     */
+    public void testSuccessfulUpdateByQueryDoesNotEmitSearchContextKeepaliveExpiredMetric() throws Exception {
+        final String dataNodeName = internalCluster().startNode();
+
+        indexRandom(
+            true,
+            prepareIndex("test").setId("1").setSource("foo", "a"),
+            prepareIndex("test").setId("2").setSource("foo", "b"),
+            prepareIndex("test").setId("3").setSource("foo", "c")
+        );
+        assertHitCount(prepareSearch("test").setSize(0), 3);
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        testTelemetryPlugin.resetMeter();
+
+        BulkByScrollResponse response = updateByQuery().source("test").refresh(true).get();
+        assertThat(response.getBulkFailures(), empty());
+        assertThat(response.getSearchFailures(), empty());
+        assertHitCount(prepareSearch("test").setSize(0), 3);
+
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            final long keepaliveExpiredTotal = testTelemetryPlugin.getLongCounterMeasurement(
+                BulkByScrollSearchContextMetrics.SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER
+            ).stream().mapToLong(Measurement::getLong).sum();
+            assertThat(keepaliveExpiredTotal, equalTo(0L));
+        });
+    }
+
+    /**
+     * Successful delete by query must not increment {@link BulkByScrollSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER}.
+     * That counter is reserved for when the underlying search context's keep-alive expires
+     */
+    public void testSuccessfulDeleteByQueryDoesNotEmitSearchContextKeepaliveExpiredMetric() throws Exception {
+        final String dataNodeName = internalCluster().startNode();
+
+        indexRandom(
+            true,
+            prepareIndex("test").setId("1").setSource("foo", "a"),
+            prepareIndex("test").setId("2").setSource("foo", "b"),
+            prepareIndex("test").setId("3").setSource("foo", "c")
+        );
+        assertHitCount(prepareSearch("test").setSize(0), 3);
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        testTelemetryPlugin.resetMeter();
+
+        BulkByScrollResponse response = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get();
+        assertThat(response.getBulkFailures(), empty());
+        assertThat(response.getSearchFailures(), empty());
+        assertHitCount(prepareSearch("test").setSize(0), 0);
+
+        assertBusy(() -> {
+            testTelemetryPlugin.collect();
+            final long keepaliveExpiredTotal = testTelemetryPlugin.getLongCounterMeasurement(
+                BulkByScrollSearchContextMetrics.SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER
+            ).stream().mapToLong(Measurement::getLong).sum();
+            assertThat(keepaliveExpiredTotal, equalTo(0L));
         });
     }
 

@@ -117,7 +117,7 @@ public class NvidiaActionCreator implements NvidiaActionVisitor {
             serviceComponents.threadPool(),
             model,
             RERANK_HANDLER,
-            inputs -> new NvidiaRerankRequest(inputs.getQuery(), inputs.getChunks(), model),
+            inputs -> new NvidiaRerankRequest(inputs.getQueryAsString(), inputs.getDocsAsStrings(), model),
             QueryAndDocsInputs.class
         );
         var errorMessage = buildErrorMessage(TaskType.RERANK, model.getInferenceEntityId());

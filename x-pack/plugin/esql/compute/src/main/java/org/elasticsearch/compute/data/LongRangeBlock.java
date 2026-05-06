@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 /**
  * Block that stores long ranges.
@@ -87,4 +88,23 @@ public sealed interface LongRangeBlock extends Block permits LongRangeArrayBlock
      * @return {@code scratch}, populated with {@code from}/{@code to} for the value at {@code valueIndex}
      */
     LongRangeBlockBuilder.LongRange getLongRange(int valueIndex, LongRangeBlockBuilder.LongRange scratch);
+
+    /**
+     * Builder for {@link LongRangeBlock}.
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.LongRangeBuilder permits LongRangeBlockBuilder {
+
+        /**
+         * Append the given range to this builder.
+         */
+        Block.Builder appendLongRange(LongRangeBlockBuilder.LongRange range);
+
+        /**
+         * Copy the value(s) at the given position of {@code block} into this builder.
+         */
+        LongRangeBlock.Builder copyFrom(LongRangeBlock block, int position);
+
+        @Override
+        LongRangeBlock build();
+    }
 }

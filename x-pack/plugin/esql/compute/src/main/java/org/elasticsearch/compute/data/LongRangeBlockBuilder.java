@@ -20,7 +20,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
 
-public class LongRangeBlockBuilder extends AbstractBlockBuilder implements BlockLoader.LongRangeBuilder {
+public final class LongRangeBlockBuilder extends AbstractBlockBuilder implements LongRangeBlock.Builder {
 
     private LongBlockBuilder fromBuilder;
     private LongBlockBuilder toBuilder;

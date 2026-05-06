@@ -66,7 +66,7 @@ public class Types {
     static final ClassName FLOAT_BLOCK_BUILDER = FLOAT_BLOCK.nestedClass("Builder");
     static final ClassName EXPONENTIAL_HISTOGRAM_BLOCK_BUILDER = EXPONENTIAL_HISTOGRAM_BLOCK.nestedClass("Builder");
     static final ClassName TDIGEST_BLOCK_BUILDER = TDIGEST_BLOCK.nestedClass("Builder");
-    static final ClassName LONG_RANGE_BLOCK_BUILDER = ClassName.get(DATA_PACKAGE, "LongRangeBlockBuilder");
+    static final ClassName LONG_RANGE_BLOCK_BUILDER = LONG_RANGE_BLOCK.nestedClass("Builder");
 
     static final ClassName ELEMENT_TYPE = ClassName.get(DATA_PACKAGE, "ElementType");
 

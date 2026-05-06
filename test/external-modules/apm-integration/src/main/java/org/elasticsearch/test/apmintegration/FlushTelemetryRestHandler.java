@@ -46,6 +46,7 @@ public class FlushTelemetryRestHandler extends BaseRestHandler {
         return channel -> {
             telemetryProvider.get().attemptFlushMetrics();
             telemetryProvider.get().attemptFlushTraces();
+            telemetryProvider.get().attemptFlushLogs();
             try (XContentBuilder builder = channel.newBuilder()) {
                 channel.sendResponse(new RestResponse(RestStatus.OK, builder));
             }

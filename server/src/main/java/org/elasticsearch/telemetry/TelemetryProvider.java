@@ -37,6 +37,15 @@ public interface TelemetryProvider {
      */
     void attemptFlushTraces();
 
+    /**
+     * Ensures buffered log records are exported via the OTel logs SDK. Implementations should flush
+     * the {@code SdkLoggerProvider} they own. No-op when OTel logs export is disabled.
+     * <p>
+     * Needed both for tests (so assertions don't race the {@code BatchLogRecordProcessor}'s schedule)
+     * and for graceful shutdown (so audit events emitted just before stop aren't dropped).
+     */
+    default void attemptFlushLogs() {}
+
     TelemetryProvider NOOP = new NoopTelemetryProvider();
 
     class NoopTelemetryProvider implements TelemetryProvider {

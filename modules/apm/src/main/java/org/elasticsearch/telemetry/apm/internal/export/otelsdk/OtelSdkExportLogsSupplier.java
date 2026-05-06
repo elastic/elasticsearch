@@ -25,6 +25,7 @@ import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Builds an {@link SdkLoggerProvider} that exports log records via OTLP/HTTP, then installs
@@ -87,7 +88,6 @@ public class OtelSdkExportLogsSupplier implements Closeable {
             .build();
 
         OpenTelemetrySdk built = OpenTelemetrySdk.builder().setLoggerProvider(provider).build();
-        OpenTelemetryAppender.install(built);
 
         LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
         Configuration config = ctx.getConfiguration();
@@ -98,7 +98,16 @@ public class OtelSdkExportLogsSupplier implements Closeable {
             logger.warn("Audit logger config not found; skipping OTel logs install");
             return;
         }
-        OpenTelemetryAppender appender = OpenTelemetryAppender.builder().setName(OTEL_APPENDER_NAME).build();
+        // Set the OpenTelemetry instance directly on the builder rather than via the static
+        // OpenTelemetryAppender.install(...) — install() iterates registered appenders, which is
+        // brittle when we're constructing one programmatically. setCaptureMapMessageAttributes
+        // makes the StringMapMessage entries that LoggingAuditTrail emits surface as OTLP
+        // attributes (otherwise only the formatted body is captured).
+        OpenTelemetryAppender appender = OpenTelemetryAppender.builder()
+            .setName(OTEL_APPENDER_NAME)
+            .setOpenTelemetry(built)
+            .setCaptureMapMessageAttributes(true)
+            .build();
         appender.start();
         config.addAppender(appender);
         auditLoggerConfig.addAppender(appender, null, null);
@@ -108,6 +117,17 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         this.sdk = built;
         this.attachedAppender = appender;
         logger.info("OTel SDK logs export installed; endpoint={}", endpoint);
+    }
+
+    /**
+     * Force an immediate flush of any buffered log records through the {@code BatchLogRecordProcessor}
+     * to the exporter. Bounded to a few seconds to avoid hanging shutdown if the gateway is unreachable.
+     */
+    public void forceFlush() {
+        SdkLoggerProvider lp = loggerProvider;
+        if (lp != null) {
+            lp.forceFlush().join(10, TimeUnit.SECONDS);
+        }
     }
 
     @Override

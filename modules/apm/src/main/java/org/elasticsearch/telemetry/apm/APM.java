@@ -82,6 +82,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
         final OtelSdkExportLogsSupplier logs = new OtelSdkExportLogsSupplier(settings);
         logs.install();
         logsSupplier.set(logs);
+        telemetryProvider.get().setLogsSupplier(logs);
         logger.info("Sending otel logs is {}", OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENABLED.get(settings) ? "enabled" : "disabled");
 
         return List.of(apmTracer, apmMeter, logs);

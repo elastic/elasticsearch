@@ -12,11 +12,13 @@ package org.elasticsearch.telemetry.apm.internal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportLogsSupplier;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 public class APMTelemetryProvider implements TelemetryProvider {
     private final APMTracer apmTracer;
     private final APMMeterService apmMeterService;
+    private volatile OtelSdkExportLogsSupplier logsSupplier;
 
     public APMTelemetryProvider(Settings settings) {
         apmTracer = new APMTracer(settings);
@@ -37,6 +39,10 @@ public class APMTelemetryProvider implements TelemetryProvider {
         return apmMeterService.getMeterRegistry();
     }
 
+    public void setLogsSupplier(OtelSdkExportLogsSupplier logsSupplier) {
+        this.logsSupplier = logsSupplier;
+    }
+
     @Override
     public void attemptFlushMetrics() {
         apmMeterService.attemptFlushMetrics();
@@ -45,5 +51,13 @@ public class APMTelemetryProvider implements TelemetryProvider {
     @Override
     public void attemptFlushTraces() {
         apmTracer.attemptFlushTraces();
+    }
+
+    @Override
+    public void attemptFlushLogs() {
+        OtelSdkExportLogsSupplier supplier = logsSupplier;
+        if (supplier != null) {
+            supplier.forceFlush();
+        }
     }
 }

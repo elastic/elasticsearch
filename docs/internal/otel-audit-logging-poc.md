@@ -37,16 +37,24 @@ All code lives in the apm module unless noted.
 | `x-pack/plugin/security/.../LoggingAuditTrail.java` | Added `PROJECT_ID_FIELD_NAME = "project.id"` constant and one `setThreadContextField(...)` line in `LogEntryBuilder.withThreadContext(...)` so audit events stamp the project id from the `X-Elastic-Project-Id` header (see §4.1). |
 | `x-pack/plugin/security/.../LoggingAuditTrailTests.java` | `projectId(...)` helper; 31 call sites updated; randomised header injection in `setup()`. |
 | `gradle/verification-metadata.xml` | Auto-regenerated to add SHA-256 entries for the new `opentelemetry-log4j-appender-2.17` artifact (and any transitive deps). |
+| `test/external-modules/apm-integration/.../ReceivedTelemetry.java` | Added `ReceivedLog` record (timeUnixNano, severity, body, attributes, optional traceId). |
+| `test/external-modules/apm-integration/.../OtlpLogsParser.java` | New. Parses OTLP `ExportLogsServiceRequest` into `ReceivedLog`. |
+| `test/external-modules/apm-integration/.../RecordingApmServer.java` | Added `/v1/logs` route. |
+| `test/external-modules/apm-integration/.../OtelAuditLogsIT.java` | New. End-to-end IT: boots a security-enabled cluster with audit + OTel logs pointed at the recording server, hits `/_security/_authenticate`, asserts a `ReceivedLog` arrives. |
+| `test/external-modules/apm-integration/build.gradle` | `usesDefaultDistribution(...)` so the security-enabled test cluster gets x-pack. |
+| `server/src/main/java/.../telemetry/TelemetryProvider.java` | Added `attemptFlushLogs()` (default no-op). Symmetric with the existing `attemptFlushMetrics()` / `attemptFlushTraces()`. Needed both for tests *and* graceful shutdown so audit events emitted just before stop aren't dropped. |
+| `modules/apm/.../APMTelemetryProvider.java` | Implements `attemptFlushLogs()` by delegating to the supplier's new `forceFlush()` method. |
+| `test/external-modules/apm-integration/.../FlushTelemetryRestHandler.java` | Calls `attemptFlushLogs()` so `/_flush_telemetry` flushes all three signal types. |
 
 ### Verified by build
 
-- `:modules:apm:compileJava` — clean.
-- `:modules:apm:compileTestJava` — clean.
+- `:modules:apm:compileJava` / `:compileTestJava` — clean.
 - `:modules:apm:test --tests *OtelSdkExportLogsSupplierTests*` — 7/7 passing.
 - `:modules:apm:thirdPartyAudit` — clean.
 - `:x-pack:plugin:core:processResources :compileJava` — clean.
 - `:x-pack:plugin:security:test --tests *LoggingAuditTrailTests*` — 35/35 passing (covers the new `project.id` field).
-- **`./gradlew run` end-to-end** — ES boots cleanly with `xpack.security.audit.enabled=true` and `telemetry.otel.logs.enabled=true`; the supplier emits `OTel SDK logs export installed`, log4j parses the audit logger config without errors, ES reaches `[o.e.n.Node] started`, and audit events emitted via `LoggingAuditTrail` flow through both the rolling file and the OpenTelemetry appender.
+- `./gradlew run` end-to-end — ES boots cleanly with `xpack.security.audit.enabled=true` and `telemetry.otel.logs.enabled=true`; the supplier emits `OTel SDK logs export installed`, log4j parses the audit logger config without errors, ES reaches `[o.e.n.Node] started`.
+- **`:test:external-modules:test-apm-integration:javaRestTest --tests *OtelAuditLogsIT*` — passing.** Boots a security-enabled cluster, hits `/_security/_authenticate`, calls `/_flush_telemetry`, asserts a `ReceivedLog` arrives at `RecordingApmServer` with audit attributes (`event.action`, `event.type`, `user.name`, `project.id`, etc.) carried as OTLP attributes. This is the load-bearing end-to-end validation: log4j → `OpenTelemetryAppender` → `SdkLoggerProvider` → `OtlpHttpLogRecordExporter` → recording server.
 
 ## 4. What this POC investigated but did not build
 
@@ -119,10 +127,10 @@ The TDD specifies mTLS, with client certs distributed by Control-Plane. The POC 
    ```
    The NPE cascaded across log4j config parsing and broke *all* appender registration, not just the OpenTelemetry one. Adding the dep to `:server` (so it's on the boot classpath) caused **jar hell** — `opentelemetry-context` is also pulled transitively by `:x-pack:plugin:esql-datasource-gcs` at a different version, and ES rejects cross-classpath duplicate classes at plugin-load time.
 
-   The working solution: don't declare the appender in `log4j2.properties` at all. Instead, in `OtelSdkExportLogsSupplier.install(...)`, programmatically build an `OpenTelemetryAppender` via its log4j builder, look up the audit logger's `LoggerConfig`, and attach. This runs after plugin classloaders are in scope, so the class is reachable. Verified by booting ES end-to-end: `OTel SDK logs export installed` followed by `[o.e.n.Node] [runTask-0] started` with no log4j errors.
+   The working solution: don't declare the appender in `log4j2.properties` at all. Instead, in `OtelSdkExportLogsSupplier.install(...)`, programmatically build an `OpenTelemetryAppender` via its log4j builder, look up the audit logger's `LoggerConfig`, and attach. This runs after plugin classloaders are in scope, so the class is reachable. A second subtlety: pass the `OpenTelemetry` instance to the appender via `Builder.setOpenTelemetry(sdk)` rather than the static `OpenTelemetryAppender.install(sdk)` indirection — the latter only pushes the SDK to appenders that are already in the log4j config at install time, which makes ordering brittle. Verified by booting ES end-to-end and by `OtelAuditLogsIT` (see §3).
 2. **Third-party audit on the new appender JAR.** *(Resolved — clean.)* `:modules:apm:thirdPartyAudit` ran cleanly with the new dep added; no `ignoreViolations` or `ignoreMissingClasses` entries needed.
 3. **Bootstrap timing.** `OpenTelemetryAppender.install(sdk)` happens during `createComponents`, after log4j has parsed the properties file. Audit events emitted before that point would be silently dropped by the appender. In practice, audit events fire during request handling, well after plugin init — theoretical, but worth a note.
-4. **No assertion test against MockApmServer in this POC.** The POC includes 7 unit tests including an in-process SDK→exporter end-to-end via `InMemoryLogRecordExporter`, but does not yet stand up a JUnit-driven OTLP/HTTP capture against `MockApmServer`. The hooks are in place: `MockApmServer` now has a `/v1/logs` handler. Wiring it into a `javaRestTest` is a ~half-day follow-on; doing so would also surface (1) above.
+4. **End-to-end assertion test.** Wired up via `RecordingApmServer` (under `:test:external-modules:test-apm-integration`) — a more capable test fixture than `MockApmServer`. Added `ReceivedLog` to the protocol-neutral `ReceivedTelemetry` hierarchy, an `OtlpLogsParser` for the OTLP protobuf, and a `/v1/logs` route on `RecordingApmServer`. New `OtelAuditLogsIT` boots a security-enabled cluster with audit + OTel logs, hits `/_security/_authenticate`, and asserts a `ReceivedLog` arrives. (Note: `MockApmServer` also got an `/v1/logs` handler in this POC, but the recording server is the right primitive for assertion-based tests since it queues records for inspection.)
 5. **Entitlement grant required.** *(Resolved.)* First test run failed with `NotEntitledException: component [apm], module [io.opentelemetry.sdk.logs], class [class io.opentelemetry.sdk.logs.export.BatchLogRecordProcessor], entitlement [manage_threads]`. The OTel logs SDK's batch processor spawns a worker thread, which the entitlement system blocks unless explicitly granted. Adding `io.opentelemetry.sdk.logs: [manage_threads]` to `entitlement-policy.yaml` resolved it. This is the kind of finding the POC was meant to surface — a "small" task that would have been a 30-minute mystery in a real PR cycle.
 6. **Dependency verification metadata.** *(Resolved.)* New artifact required `gradle/verification-metadata.xml` regeneration (`./gradlew --write-verification-metadata sha256 ...`). Mechanical, but worth knowing the cost upfront — the regen takes ~2 minutes and produces a sizeable diff.
 
@@ -136,7 +144,7 @@ For ES-14356, audit-log delivery in serverless, ES core/infra side only:
 | `project.id` propagation into audit records | originally 1–2 hours | **done** in POC (~30 min, simpler than expected — header read from `ThreadContext`) |
 | OTel semconv field mapping across all 13 audit event types, including `request.body` PII story | 3–4 weeks | not started |
 | mTLS to the gateway, with cert hot-reload | ~1 week | not started |
-| Integration test against `MockApmServer` (or equivalent) | 0.5 day | hooks ready (handler exists); wiring deferred |
+| Integration test against the recording APM server | 0.5 day | **done** in POC (`OtelAuditLogsIT`) |
 | Cross-team review (security, observability, gateway) | ~1 week of calendar time, mostly waiting | not started |
 | **Total ES core/infra effort (remaining)** | **~5–6 engineering weeks** | |
 

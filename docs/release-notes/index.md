@@ -192,10 +192,12 @@ FROM k8s-downsampled
 ```
 Response:
 
+```
 max:double | std_dev:double | pod:keyword
 1060.0     | 275.6970067    | one
 824.0      | 184.1213952    | three
 1419.0     | 356.9865993    | two
+```
 ::::
 
 ### Features and enhancements [elasticsearch-9.4.0-features-enhancements]

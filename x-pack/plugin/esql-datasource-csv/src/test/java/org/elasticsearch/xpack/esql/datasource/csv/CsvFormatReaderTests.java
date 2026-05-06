@@ -1625,6 +1625,29 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testQuotedCsvWithoutHeaderDoesNotSilentlyConsumeFirstDataRowOrQuotedNewLines() throws IOException {
+        // Always-quoted CSV with no header. Five data rows.
+        String csv = """
+            "9110818468285196899","1","hello\\nworld"
+            "9110818468285196900","0","world\\rhello"
+            "9110818468285196901","1","foo\\r\\nbar"
+            "9110818468285196902","0","bar"
+            "9110818468285196903","1","baz"
+            """;
+        StorageObject object = createStorageObject(csv);
+        var reader = new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+
+        int rowCount = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                rowCount += page.getPositionCount();
+            }
+        }
+
+        assertEquals(5, rowCount);
+    }
+
     public void testWithConfigMultipleOptions() throws IOException {
         String csv = "id:long;name:keyword\n1;N/A\n2;Bob\n";
         StorageObject object = createStorageObject(csv);

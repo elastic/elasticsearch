@@ -20,7 +20,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
 
-public class LongRangeBlockBuilder extends AbstractBlockBuilder implements BlockLoader.LongRangeBuilder {
+public final class LongRangeBlockBuilder extends AbstractBlockBuilder implements LongRangeBlock.Builder {
 
     private LongBlockBuilder fromBuilder;
     private LongBlockBuilder toBuilder;
@@ -92,10 +92,10 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
         return this;
     }
 
-    public LongRange appendLongRange(long from, long to) {
+    public LongRangeBlockBuilder appendLongRange(long from, long to) {
         fromBuilder.appendLong(from);
         toBuilder.appendLong(to);
-        return new LongRange(from, to);
+        return this;
     }
 
     public LongRangeBlockBuilder appendLongRange(@Nullable LongRange lit) {
@@ -149,15 +149,48 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
         return toBuilder;
     }
 
-    public record LongRange(long from, long to) implements GenericNamedWriteable {
+    /**
+     * A mutable container for a half-open {@code [from, to)} long range.
+     * <p>
+     * Instances act both as a value type (used for literals and serialization) and as a reusable
+     * scratch passed to {@link LongRangeBlock#getLongRange(int, LongRange)}.
+     * The accessor mutates the scratch in place and returns it,
+     * so any reference held by the caller is only valid until the next call.
+     */
+    public static final class LongRange implements GenericNamedWriteable {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             GenericNamedWriteable.class,
             "LongRange",
             LongRange::new
         );
 
+        private long from;
+        private long to;
+
+        public LongRange() {}
+
+        public LongRange(long from, long to) {
+            this.from = from;
+            this.to = to;
+        }
+
         public LongRange(StreamInput in) throws IOException {
-            this(in.readLong(), in.readLong());
+            this.from = in.readLong();
+            this.to = in.readLong();
+        }
+
+        public long from() {
+            return from;
+        }
+
+        public long to() {
+            return to;
+        }
+
+        public LongRange reset(long from, long to) {
+            this.from = from;
+            this.to = to;
+            return this;
         }
 
         @Override
@@ -174,6 +207,27 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(from);
             out.writeLong(to);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o instanceof LongRange that) {
+                return from == that.from && to == that.to;
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return Long.hashCode(from) * 31 + Long.hashCode(to);
+        }
+
+        @Override
+        public String toString() {
+            return "LongRange[from=" + from + ", to=" + to + "]";
         }
     }
 }

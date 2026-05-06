@@ -145,6 +145,29 @@ count:long | avg:double | sum:long | _approximation_confidence_interval(count):l
 ;
 
 
+Exact stats on large row data
+required_capability: approximation_v6
+required_capability: approximation_fix_min_source_row_count
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+ROW a1 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    a2 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    a3 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    a4 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    a5 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    a6 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    a7 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    a8 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+| MV_EXPAND a1 | MV_EXPAND a2 | MV_EXPAND a3 | MV_EXPAND a4 | MV_EXPAND a5 | MV_EXPAND a6 | MV_EXPAND a7 | MV_EXPAND a8
+| STATS SUM(a1)
+;
+
+SUM(a1):long    |  _approximation_confidence_interval(SUM(a1)):long | _approximation_certified(SUM(a1)):boolean
+550000000       | [550000000,550000000]                             | true
+;
+
+
 Multiple total counts
 required_capability: approximation_v6
 request_stored: skip
@@ -315,6 +338,21 @@ FROM many_numbers
 
 sv:double
 [1,440..490]
+;
+
+
+Approximate stats with dependent constant variable
+required_capability: approximation_v6
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+    | STATS avg = AVG(sv)
+    | EVAL zero = 0 * avg
+;
+
+avg:double | zero:double | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean | _approximation_confidence_interval(zero):double | _approximation_certified(zero):boolean
+440..490   | 0           | [440..490,440..490]                            | {any}                                 | [0,0]                                           | true
 ;
 
 

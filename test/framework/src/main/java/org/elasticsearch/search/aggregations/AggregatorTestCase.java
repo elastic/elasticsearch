@@ -99,6 +99,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -406,13 +407,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 )
             ).build(new IndexFieldDataCache.None(), breakerService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getFieldDataEnabled()).thenReturn(() -> false);
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
             0,
             -1,
             indexSettings,
             bitsetFilterCache,
             fieldDataBuilder,
-            null,
+            mapperService,
             mappingLookup,
             null,
             getMockScriptService(),

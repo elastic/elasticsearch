@@ -622,6 +622,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         when(
             context.callApi(
                 "indices.get_field_mapping",
+                null,
                 singletonMap("index", "test_index"),
                 emptyList(),
                 emptyMap(),
@@ -633,6 +634,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         doSection.execute(context);
         verify(context).callApi(
             "indices.get_field_mapping",
+            null,
             singletonMap("index", "test_index"),
             emptyList(),
             emptyMap(),

@@ -14,4 +14,10 @@ import java.time.Instant;
 /**
  * Metadata about an object returned from directory listing.
  */
-public record StorageEntry(StoragePath path, long length, Instant lastModified) {}
+public record StorageEntry(StoragePath path, long length, Instant lastModified) {
+    public StorageEntry {
+        if (lastModified == null) {
+            lastModified = Instant.EPOCH;
+        }
+    }
+}

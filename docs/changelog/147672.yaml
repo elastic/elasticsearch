@@ -1,0 +1,5 @@
+pr: 147672
+summary: BF16 bulk AVX-512 K-unroll for sequential paths
+area: Vector Search
+type: enhancement
+issues: []

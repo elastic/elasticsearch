@@ -202,6 +202,7 @@ public final class ResponseValueUtils {
                 return TimeSeriesIdFieldMapper.encodeTsid(val);
             };
             case DENSE_VECTOR -> (block, offset, scratch) -> ((FloatBlock) block).getFloat(offset);
+            case FLATTENED -> (block, offset, scratch) -> ((BytesRefBlock) block).getBytesRef(offset, scratch).utf8ToString();
             case NULL, UNSUPPORTED -> (block, offset, scratch) -> null;
             case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, PARTIAL_AGG ->
                 throw EsqlIllegalArgumentException.illegalDataType(dataType);

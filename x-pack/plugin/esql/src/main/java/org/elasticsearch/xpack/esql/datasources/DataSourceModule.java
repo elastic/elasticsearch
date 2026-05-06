@@ -180,7 +180,13 @@ public final class DataSourceModule implements Closeable {
 
         // Register the framework-internal FileSourceFactory as a catch-all fallback.
         // It must be last so that plugin-provided factories (Iceberg, Flight) get priority.
-        FileSourceFactory fileFallback = new FileSourceFactory(storageProviderRegistry, formatReaderRegistry, codecRegistry, settings);
+        FileSourceFactory fileFallback = new FileSourceFactory(
+            storageProviderRegistry,
+            formatReaderRegistry,
+            codecRegistry,
+            settings,
+            executor
+        );
         sourceFactoryMap.put("file", fileFallback);
         // Also register under each format name so OperatorFactoryRegistry can look up
         // by the sourceType returned from FormatReader.formatName() (e.g. "parquet", "csv").
@@ -218,7 +224,11 @@ public final class DataSourceModule implements Closeable {
     }
 
     public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor) {
-        return new OperatorFactoryRegistry(sourceFactories, pluginFactories, executor);
+        return createOperatorFactoryRegistry(executor, executor);
+    }
+
+    public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor, Executor fileReadExecutor) {
+        return new OperatorFactoryRegistry(sourceFactories, pluginFactories, executor, fileReadExecutor);
     }
 
     /**

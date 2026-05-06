@@ -1,0 +1,105 @@
+ProjectExec[[parts.domain{r}#0, parts.fragment{r}#1, parts.path{r}#2, parts.extension{r}#3, parts.port{r}#4, parts.query{r}#5, parts.scheme{r}#6, parts.user_info{r}#7, parts.username{r}#8, parts.password{r}#9]]
+\_UriPartsExec[_timeseries{r}#10,[domain, fragment, path, extension, port, query, scheme, user_info, username, password],[parts.domain{r}#0, parts.fragment{r}#1, parts.path{r}#2, parts.extension{r}#3, parts.port{r}#4, parts.query{r}#5, parts.scheme{r}#6, parts.user_info{r}#7, parts.username{r}#8, parts.password{r}#9]]
+  \_LimitExec[1[INTEGER],null]
+    \_FilterExec[ISNOTNULL(oYJdEiiJ{r}#11)]
+      \_EvalExec[[UNPACKDIMENSION(group__timeseries_$1{r}#12) AS _timeseries#10, TODOUBLE(oYJdEiiJ{r}#13) AS oYJdEiiJ#11]]
+        \_AggregateExec[[step{r}#14, pack__timeseries_$1{r}#15],[VALUES(LASTOVERTIME_$1{r}#16,true[BOOLEAN],PT0S[TIME_DURATION]) AS oYJdEiiJ#13, pack__timeseries_$1{r}#15 AS group__timeseries_$1#12],SINGLE,[step{r}#14, pack__timeseries_$1{r}#15, $$oYJdEiiJ$values{r}#17],null]
+          \_EvalExec[[PACKDIMENSION(_timeseries{r}#18) AS pack__timeseries_$1#15]]
+            \_TimeSeriesAggregateExec[[_tsid{m}#19, step{r}#14],[LASTOVERTIME(network.bytes_in{f}#20,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#21) AS LASTOVERTIME_$1#16, DIMENSIONVALUES(_timeseries{f}#10,true[BOOLEAN],PT0S[TIME_DURATION]) AS _timeseries#18, step{r}#14],FINAL,[_tsid{m}#19, step{r}#14, $$LASTOVERTIME_$0$timestamps{r}#22, $$LASTOVERTIME_$1$values{r}#23, $$_timeseries$values{r}#24],null,BUCKET(@timestamp{f}#21,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#21,PT1H[TIME_DURATION]),false]
+              \_ExchangeExec[[_tsid{m}#19, step{r}#14, $$LASTOVERTIME_$0$timestamps{r}#22, $$LASTOVERTIME_$1$values{r}#23, $$_timeseries$values{r}#24],true]
+                \_ProjectExec[[_tsid{m}#19, step{r}#14, $$LASTOVERTIME_$0$timestamps{r}#25, $$LASTOVERTIME_$1$values{r}#26, $$_timeseries$values{r}#27]]
+                  \_EvalExec[[_timeseries{f$}#28 AS _timeseries#27]]
+                    \_FieldExtractExec[_timeseries{f$}#28]<[],[],[]>
+                      \_TimeSeriesAggregateExec[[_tsid{m}#19, step{r}#14],[LASTOVERTIME(network.bytes_in{f}#20,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#21) AS LASTOVERTIME_$1#16, step{r}#14, FIRSTDOCID(_doc{f}#29,true[BOOLEAN],PT0S[TIME_DURATION]) AS _doc#30],INITIAL,[_tsid{m}#19, step{r}#14, $$LASTOVERTIME_$0$timestamps{r}#25, $$LASTOVERTIME_$1$values{r}#26, _doc{r}#31],136,BUCKET(@timestamp{f}#21,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#21,PT1H[TIME_DURATION]),false]
+                        \_FieldExtractExec[_tsid{m}#19, network.bytes_in{f}#20]<[],[],[]>
+                          \_EvalExec[[BUCKET(@timestamp{f}#21,PT1H[TIME_DURATION]) AS step#14]]
+                            \_FieldExtractExec[@timestamp{f}#21]<[],[],[]>
+                              \_EsQueryExec[k8s-downsampled], indexMode[standard], [_doc{f}#29], limit[], sort[] estimatedRowSize[44] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "bool" : {
+    "must" : [
+      {
+        "bool" : {
+          "should" : [
+            {
+              "bool" : {
+                "must_not" : [
+                  {
+                    "exists" : {
+                      "field" : "cluster",
+                      "boost" : 0.0
+                    }
+                  }
+                ],
+                "boost" : 0.0
+              }
+            },
+            {
+              "esql_single_value" : {
+                "field" : "cluster",
+                "next" : {
+                  "bool" : {
+                    "must_not" : [
+                      {
+                        "terms" : {
+                          "cluster" : [
+                            "qa"
+                          ],
+                          "boost" : 0.0
+                        }
+                      }
+                    ],
+                    "boost" : 0.0
+                  }
+                },
+                "source" : "network.bytes_in{cluster!=\"qa\",pod!=\"two\"}@1:48"
+              }
+            }
+          ],
+          "boost" : 1.0
+        }
+      },
+      {
+        "bool" : {
+          "should" : [
+            {
+              "bool" : {
+                "must_not" : [
+                  {
+                    "exists" : {
+                      "field" : "pod",
+                      "boost" : 0.0
+                    }
+                  }
+                ],
+                "boost" : 0.0
+              }
+            },
+            {
+              "esql_single_value" : {
+                "field" : "pod",
+                "next" : {
+                  "bool" : {
+                    "must_not" : [
+                      {
+                        "terms" : {
+                          "pod" : [
+                            "two"
+                          ],
+                          "boost" : 0.0
+                        }
+                      }
+                    ],
+                    "boost" : 0.0
+                  }
+                },
+                "source" : "network.bytes_in{cluster!=\"qa\",pod!=\"two\"}@1:48"
+              }
+            }
+          ],
+          "boost" : 1.0
+        }
+      }
+    ],
+    "boost" : 1.0
+  }
+}, tags=[]]]]

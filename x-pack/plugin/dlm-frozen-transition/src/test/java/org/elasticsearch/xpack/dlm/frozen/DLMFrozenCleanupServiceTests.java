@@ -16,457 +16,149 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.elasticsearch.xpack.dlm.frozen.DLMConvertToFrozen.CLONE_INDEX_PREFIX;
-import static org.elasticsearch.xpack.dlm.frozen.DLMConvertToFrozen.DLM_MANAGED_METADATA_KEY;
-import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DLMFrozenCleanupServiceTests extends ESTestCase {
 
-    private TestThreadPool threadPool;
+    private static final String REPO_NAME = "test-repo";
+
+    private ThreadPool threadPool;
     private ClusterService clusterService;
-    private RecordingClient client;
+    private ProjectId projectId;
+
+    private AtomicReference<GetSnapshotsRequest> capturedGetSnapshotsRequest;
+    private AtomicReference<GetSnapshotsResponse> mockGetSnapshotsResponse;
+    private AtomicReference<Exception> mockGetSnapshotsFailure;
+
+    private AtomicReference<DeleteSnapshotRequest> capturedDeleteSnapshotRequest;
+    private AtomicReference<AcknowledgedResponse> mockDeleteSnapshotResponse;
+    private AtomicReference<Exception> mockDeleteSnapshotFailure;
+
+    private CopyOnWriteArrayList<DeleteIndexRequest> capturedDeleteIndexRequests;
+    private AtomicReference<AcknowledgedResponse> mockDeleteIndexResponse;
+    private AtomicReference<Exception> mockDeleteIndexFailure;
 
     @Before
-    public void setupTest() {
-        Set<Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingSet.add(DLMFrozenCleanupService.POLL_INTERVAL_SETTING);
-        settingSet.add(RepositoriesService.DEFAULT_REPOSITORY_SETTING);
+    public void setup() {
         threadPool = new TestThreadPool(getTestName());
-        clusterService = createClusterService(
-            threadPool,
-            DiscoveryNodeUtils.create("node", "node"),
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, settingSet)
-        );
-        client = new RecordingClient(threadPool);
+        clusterService = createClusterService(threadPool);
+        projectId = randomProjectIdOrDefault();
+
+        capturedGetSnapshotsRequest = new AtomicReference<>();
+        mockGetSnapshotsResponse = new AtomicReference<>();
+        mockGetSnapshotsFailure = new AtomicReference<>();
+
+        capturedDeleteSnapshotRequest = new AtomicReference<>();
+        mockDeleteSnapshotResponse = new AtomicReference<>();
+        mockDeleteSnapshotFailure = new AtomicReference<>();
+
+        capturedDeleteIndexRequests = new CopyOnWriteArrayList<>();
+        mockDeleteIndexResponse = new AtomicReference<>();
+        mockDeleteIndexFailure = new AtomicReference<>();
     }
 
     @After
-    public void tearDown() throws Exception {
+    public void cleanup() {
         clusterService.close();
         terminate(threadPool);
-        super.tearDown();
     }
 
-    public void testClusterChangedIgnoredWhenStateNotRecovered() {
-        try (var service = new DLMFrozenCleanupService(clusterService, null)) {
-            ClusterState stateWithBlock = ClusterState.builder(clusterService.state())
-                .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
-                .build();
-            ClusterState previousState = ClusterState.builder(new ClusterName("test")).build();
-
-            ClusterChangedEvent event = new ClusterChangedEvent("test", stateWithBlock, previousState);
-            service.clusterChanged(event);
-
-            assertFalse(service.isSchedulerThreadRunning());
-        }
-    }
-
-    public void testBecomingMasterStartsThenLosingMasterStopsThreadPool() {
-        try (var service = new DLMFrozenCleanupService(clusterService, null)) {
-            assertFalse(service.isSchedulerThreadRunning());
-
-            service.clusterChanged(createMasterEvent(true));
-            assertTrue(service.isSchedulerThreadRunning());
-
-            service.clusterChanged(createMasterEvent(false));
-            assertFalse(service.isSchedulerThreadRunning());
-
-            // Becoming master again should re-create the pool
-            service.clusterChanged(createMasterEvent(true));
-            assertTrue(service.isSchedulerThreadRunning());
-        }
-    }
-
-    public void testRepeatedMasterEventsAreIdempotent() {
-        try (var service = new DLMFrozenCleanupService(clusterService, null)) {
-            service.clusterChanged(createMasterEvent(true));
-            var firstRunning = service.isSchedulerThreadRunning();
-
-            // Repeated master events should not recreate the pool
-            service.clusterChanged(createMasterEvent(true));
-            assertTrue(service.isSchedulerThreadRunning());
-            assertEquals(firstRunning, service.isSchedulerThreadRunning());
-        }
-    }
-
-    public void testRepeatedNonMasterEventsAreIdempotent() {
-        try (var service = new DLMFrozenCleanupService(clusterService, null)) {
-            service.clusterChanged(createMasterEvent(false));
-            assertFalse(service.isSchedulerThreadRunning());
-
-            service.clusterChanged(createMasterEvent(false));
-            assertFalse(service.isSchedulerThreadRunning());
-        }
-    }
-
-    public void testCloseWhileMaster() {
-        var service = new DLMFrozenCleanupService(clusterService, null);
-        service.clusterChanged(createMasterEvent(true));
-        assertTrue(service.isSchedulerThreadRunning());
-
-        service.close();
-        assertTrue(service.isClosing());
-        assertFalse(service.isSchedulerThreadRunning());
-
-        // After close, becoming master should not start thread pool
-        service.clusterChanged(createMasterEvent(true));
-        assertFalse(service.isSchedulerThreadRunning());
-    }
-
-    public void testCloseWhenNeverMaster() {
-        var service = new DLMFrozenCleanupService(clusterService, null);
-        assertFalse(service.isSchedulerThreadRunning());
-
-        service.close();
-        assertTrue(service.isClosing());
-        assertFalse(service.isSchedulerThreadRunning());
-    }
-
-    public void testCheckForOrphanedResourcesDeletesOrphanClones() {
-        ProjectId projectId1 = randomUniqueProjectId();
-        String sourceName1 = randomAlphaOfLength(10);
-        String sourceUuid1 = randomAlphaOfLength(10);
-        String cloneName1 = CLONE_INDEX_PREFIX + sourceName1;
-
-        ProjectId projectId2 = randomUniqueProjectId();
-        String sourceName2 = randomAlphaOfLength(10);
-        String sourceUuid2 = randomAlphaOfLength(10);
-        String cloneName2 = CLONE_INDEX_PREFIX + sourceName2;
-
-        setClusterState(
-            Settings.EMPTY,
-            projectWithIndices(projectId1, createCloneIndexMetadata(cloneName1, randomAlphaOfLength(10), sourceName1, sourceUuid1)),
-            projectWithIndices(projectId2, createCloneIndexMetadata(cloneName2, randomAlphaOfLength(10), sourceName2, sourceUuid2))
-        );
-
-        runCleanup();
-
-        assertThat(client.capturedDeleteIndexRequests, hasSize(2));
-        assertThat(client.capturedDeleteIndexProjectIds, containsInAnyOrder(projectId1, projectId2));
-        for (int i = 0; i < client.capturedDeleteIndexRequests.size(); i++) {
-            DeleteIndexRequest request = client.capturedDeleteIndexRequests.get(i);
-            ProjectId projectId = client.capturedDeleteIndexProjectIds.get(i);
-            assertThat(request.indicesOptions(), equalTo(DLMConvertToFrozen.IGNORE_MISSING_OPTIONS));
-            if (projectId.equals(projectId1)) {
-                assertThat(request.indices(), arrayContaining(cloneName1));
-            } else {
-                assertThat(request.indices(), arrayContaining(cloneName2));
+    private NoOpClient createCapturingTestClient() {
+        return new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
+            @Override
+            @SuppressWarnings("unchecked")
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                switch (request) {
+                    case GetSnapshotsRequest req -> {
+                        capturedGetSnapshotsRequest.set(req);
+                        if (mockGetSnapshotsFailure.get() != null) {
+                            listener.onFailure(mockGetSnapshotsFailure.get());
+                        } else if (mockGetSnapshotsResponse.get() != null) {
+                            listener.onResponse((Response) mockGetSnapshotsResponse.get());
+                        }
+                    }
+                    case DeleteSnapshotRequest req -> {
+                        capturedDeleteSnapshotRequest.set(req);
+                        if (mockDeleteSnapshotFailure.get() != null) {
+                            listener.onFailure(mockDeleteSnapshotFailure.get());
+                        } else if (mockDeleteSnapshotResponse.get() != null) {
+                            listener.onResponse((Response) mockDeleteSnapshotResponse.get());
+                        }
+                    }
+                    case DeleteIndexRequest req -> {
+                        capturedDeleteIndexRequests.add(req);
+                        if (mockDeleteIndexFailure.get() != null) {
+                            listener.onFailure(mockDeleteIndexFailure.get());
+                        } else if (mockDeleteIndexResponse.get() != null) {
+                            listener.onResponse((Response) mockDeleteIndexResponse.get());
+                        }
+                    }
+                    default -> fail("Unexpected request type: " + request.getClass());
+                }
             }
-        }
-        assertThat(client.capturedDeleteSnapshotRequests, empty());
+        };
     }
 
-    public void testCheckForOrphanedResourcesSkipsCloneWithoutResizeSource() {
-        ProjectId projectId = randomUniqueProjectId();
-        String cloneName = CLONE_INDEX_PREFIX + randomAlphaOfLength(10);
-        setClusterState(Settings.EMPTY, projectWithIndices(projectId, createIndexMetadata(cloneName, randomAlphaOfLength(10))));
-
-        runCleanup();
-
-        assertThat(client.capturedDeleteIndexRequests, empty());
-        assertThat(client.capturedGetSnapshotsRequest, nullValue());
+    private DLMFrozenCleanupService createService() {
+        return new DLMFrozenCleanupService(clusterService, createCapturingTestClient(), TimeValue.timeValueDays(1).millis());
     }
 
-    public void testCheckForOrphanedResourcesDeletesCloneWhenSourceExistsInOtherProjectOnly() {
-        ProjectId orphanedCloneProjectId = randomUniqueProjectId();
-        ProjectId sourceProjectId = randomUniqueProjectId();
-        String sourceName = randomAlphaOfLength(10);
-        String sourceUuid = randomAlphaOfLength(10);
-        String cloneName = CLONE_INDEX_PREFIX + sourceName;
-        setClusterState(
-            Settings.EMPTY,
-            projectWithIndices(
-                orphanedCloneProjectId,
-                createCloneIndexMetadata(cloneName, randomAlphaOfLength(10), sourceName, sourceUuid)
-            ),
-            projectWithIndices(sourceProjectId, createIndexMetadata(sourceName, sourceUuid))
-        );
-
-        runCleanup();
-
-        assertThat(client.capturedDeleteIndexRequests, hasSize(1));
-        assertThat(client.capturedDeleteIndexProjectIds.getFirst(), equalTo(orphanedCloneProjectId));
-        assertThat(client.capturedDeleteIndexRequests.getFirst().indices(), arrayContaining(cloneName));
-    }
-
-    public void testCheckForOrphanedResourcesSkipsCloneWhenSourceExistsInSameProject() {
-        ProjectId projectId = randomUniqueProjectId();
-        String sourceName = randomAlphaOfLength(10);
-        String sourceUuid = randomAlphaOfLength(10);
-        String cloneName = CLONE_INDEX_PREFIX + sourceName;
-        setClusterState(
-            Settings.EMPTY,
-            projectWithIndices(
-                projectId,
-                createCloneIndexMetadata(cloneName, randomAlphaOfLength(10), sourceName, sourceUuid),
-                createIndexMetadata(sourceName, sourceUuid)
-            )
-        );
-
-        runCleanup();
-
-        assertThat(client.capturedDeleteIndexRequests, empty());
-        assertThat(client.capturedGetSnapshotsRequest, nullValue());
-    }
-
-    public void testCheckForOrphanedResourcesSkipsSnapshotWhenIndexExistsInSameProject() {
-        String repository = randomAlphaOfLength(8);
-        String snapshotIndexName = randomAlphaOfLength(10);
-        ProjectId projectId = randomUniqueProjectId();
-        setClusterStateWithRepository(
-            repository,
-            projectWithIndices(projectId, createIndexMetadata(snapshotIndexName, randomAlphaOfLength(10)))
-        );
-        client.getSnapshotsResponse = new GetSnapshotsResponse(
-            List.of(
-                createSnapshotInfo(repository, randomAlphaOfLength(10), List.of(snapshotIndexName), Map.of(DLM_MANAGED_METADATA_KEY, true))
-            ),
-            null,
-            1,
-            0
-        );
-
-        runCleanup();
-
-        assertThat(client.capturedGetSnapshotsRequest, notNullValue());
-        assertThat(client.capturedDeleteSnapshotRequests, empty());
-    }
-
-    public void testCheckForOrphanedResourcesSkipsSnapshotWithNullMetadata() {
-        String repository = randomAlphaOfLength(8);
-        String orphanedIndexName = randomAlphaOfLength(10);
-        setClusterStateWithRepository(repository, emptyProjectMetadata());
-        client.getSnapshotsResponse = new GetSnapshotsResponse(
-            List.of(createSnapshotInfo(repository, randomAlphaOfLength(10), List.of(orphanedIndexName), null)),
-            null,
-            1,
-            0
-        );
-
-        runCleanup();
-
-        assertThat(client.capturedGetSnapshotsRequest, notNullValue());
-        assertThat(client.capturedDeleteSnapshotRequests, empty());
-    }
-
-    public void testCheckForOrphanedResourcesSkipsSnapshotWithEmptyMetadata() {
-        String repository = randomAlphaOfLength(8);
-        String orphanedIndexName = randomAlphaOfLength(10);
-        setClusterStateWithRepository(repository, emptyProjectMetadata());
-        client.getSnapshotsResponse = new GetSnapshotsResponse(
-            List.of(createSnapshotInfo(repository, randomAlphaOfLength(10), List.of(orphanedIndexName), Map.of())),
-            null,
-            1,
-            0
-        );
-
-        runCleanup();
-
-        assertThat(client.capturedGetSnapshotsRequest, notNullValue());
-        assertThat(client.capturedDeleteSnapshotRequests, empty());
-    }
-
-    public void testCheckForOrphanedResourcesSkipsSnapshotWithDlmManagedFalse() {
-        String repository = randomAlphaOfLength(8);
-        String orphanedIndexName = randomAlphaOfLength(10);
-        setClusterStateWithRepository(repository, emptyProjectMetadata());
-        client.getSnapshotsResponse = new GetSnapshotsResponse(
-            List.of(
-                createSnapshotInfo(repository, randomAlphaOfLength(10), List.of(orphanedIndexName), Map.of(DLM_MANAGED_METADATA_KEY, false))
-            ),
-            null,
-            1,
-            0
-        );
-
-        runCleanup();
-
-        assertThat(client.capturedGetSnapshotsRequest, notNullValue());
-        assertThat(client.capturedDeleteSnapshotRequests, empty());
-    }
-
-    public void testCheckForOrphanedResourcesSkipsSnapshotWithDlmManagedStringInsteadOfBoolean() {
-        String repository = randomAlphaOfLength(8);
-        String orphanedIndexName = randomAlphaOfLength(10);
-        setClusterStateWithRepository(repository, emptyProjectMetadata());
-        client.getSnapshotsResponse = new GetSnapshotsResponse(
-            List.of(
-                createSnapshotInfo(
-                    repository,
-                    randomAlphaOfLength(10),
-                    List.of(orphanedIndexName),
-                    Map.of(DLM_MANAGED_METADATA_KEY, "true")
-                )
-            ),
-            null,
-            1,
-            0
-        );
-
-        runCleanup();
-
-        assertThat(client.capturedGetSnapshotsRequest, notNullValue());
-        assertThat(client.capturedDeleteSnapshotRequests, empty());
-    }
-
-    public void testCheckForOrphanedResourcesSkipsSnapshotWithMultipleIndices() {
-        String repository = randomAlphaOfLength(8);
-        setClusterStateWithRepository(repository, emptyProjectMetadata());
-        client.getSnapshotsResponse = new GetSnapshotsResponse(
-            List.of(
-                createSnapshotInfo(
-                    repository,
-                    randomAlphaOfLength(10),
-                    List.of(randomAlphaOfLength(10), randomAlphaOfLength(10)),
-                    Map.of(DLM_MANAGED_METADATA_KEY, true)
-                )
-            ),
-            null,
-            1,
-            0
-        );
-
-        runCleanup();
-
-        assertThat(client.capturedGetSnapshotsRequest, notNullValue());
-        assertThat(client.capturedDeleteSnapshotRequests, empty());
-    }
-
-    public void testCheckForOrphanedResourcesIgnoresSnapshotListingFailure() {
-        String repository = randomAlphaOfLength(8);
-        setClusterStateWithRepository(repository, emptyProjectMetadata());
-        client.getSnapshotsFailure = new RuntimeException("snapshot listing exception");
-
-        runCleanup();
-
-        assertThat(client.capturedGetSnapshotsRequest, notNullValue());
-        assertThat(client.capturedDeleteSnapshotRequests, empty());
-    }
-
-    public void testCheckForOrphanedSnapshotsQueriesEachProjectSeparately() {
-        String repository = randomAlphaOfLength(8);
-        ProjectId projectId1 = randomUniqueProjectId();
-        ProjectId projectId2 = randomUniqueProjectId();
-        setClusterStateWithRepository(repository, ProjectMetadata.builder(projectId1), ProjectMetadata.builder(projectId2));
-
-        runCleanup();
-
-        assertThat(client.capturedGetSnapshotsProjectIds, hasSize(2));
-        assertThat(client.capturedGetSnapshotsProjectIds, containsInAnyOrder(projectId1, projectId2));
-        assertThat(client.capturedDeleteSnapshotRequests, empty());
-    }
-
-    private void runCleanup() {
-        try (var service = new DLMFrozenCleanupService(clusterService, client)) {
-            service.checkForOrphanedResources();
-        }
-    }
-
-    private ClusterChangedEvent createMasterEvent(boolean isMaster) {
-        var localNode = DiscoveryNodeUtils.create("local-node", "local-node");
-        var otherNode = DiscoveryNodeUtils.create("other-node", "other-node");
-
-        DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder().add(localNode).add(otherNode).localNodeId("local-node");
-
-        if (isMaster) {
-            nodesBuilder.masterNodeId("local-node");
-        } else {
-            nodesBuilder.masterNodeId("other-node");
-        }
-
-        ClusterState newState = ClusterState.builder(clusterService.state())
-            .nodes(nodesBuilder)
-            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+    private IndexMetadata createDlmManagedIndex(String name) {
+        return IndexMetadata.builder(name)
+            .settings(settings(IndexVersion.current()).put(DLMConvertToFrozen.DLM_CREATED_SETTING_KEY, true).build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
             .build();
-
-        ClusterState previousState = ClusterState.builder(new ClusterName("test"))
-            .nodes(
-                DiscoveryNodes.builder()
-                    .add(localNode)
-                    .add(otherNode)
-                    .localNodeId("local-node")
-                    .masterNodeId(isMaster ? "other-node" : "local-node")
-            )
-            .build();
-
-        return new ClusterChangedEvent("test", newState, previousState);
     }
 
-    private void setClusterState(Settings persistentSettings, ProjectMetadata.Builder... projects) {
-        Metadata.Builder metadataBuilder = Metadata.builder().persistentSettings(persistentSettings);
-        for (ProjectMetadata.Builder project : projects) {
-            metadataBuilder.put(project);
-        }
-        setState(clusterService, ClusterState.builder(new ClusterName("test")).metadata(metadataBuilder.build()).build());
-    }
-
-    private void setClusterStateWithRepository(String repository, ProjectMetadata.Builder... projects) {
-        setClusterState(Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), repository).build(), projects);
-    }
-
-    private ProjectMetadata.Builder emptyProjectMetadata() {
-        return ProjectMetadata.builder(randomUniqueProjectId());
-    }
-
-    private ProjectMetadata.Builder projectWithIndices(ProjectId projectId, IndexMetadata... indices) {
-        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
-        for (IndexMetadata indexMetadata : indices) {
-            builder.put(indexMetadata, false);
-        }
-        return builder;
-    }
-
-    private IndexMetadata createIndexMetadata(String indexName, String indexUuid) {
-        return IndexMetadata.builder(indexName)
+    private IndexMetadata createDlmManagedMountedIndex(String name, String sourceIndexName) {
+        return IndexMetadata.builder(name)
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexMetadata.SETTING_INDEX_UUID, indexUuid)
+                settings(IndexVersion.current()).put(DLMConvertToFrozen.DLM_CREATED_SETTING_KEY, true)
+                    .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY, sourceIndexName)
                     .build()
             )
             .numberOfShards(1)
@@ -474,14 +166,12 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
             .build();
     }
 
-    private IndexMetadata createCloneIndexMetadata(String indexName, String indexUuid, String sourceName, String sourceUuid) {
-        return IndexMetadata.builder(indexName)
+    private IndexMetadata createDlmManagedClonedIndex(String name, String sourceIndexName, String sourceIndexUuid) {
+        return IndexMetadata.builder(name)
             .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexMetadata.SETTING_INDEX_UUID, indexUuid)
-                    .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), sourceName)
-                    .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID.getKey(), sourceUuid)
+                settings(IndexVersion.current()).put(DLMConvertToFrozen.DLM_CREATED_SETTING_KEY, true)
+                    .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndexName)
+                    .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, sourceIndexUuid)
                     .build()
             )
             .numberOfShards(1)
@@ -489,89 +179,348 @@ public class DLMFrozenCleanupServiceTests extends ESTestCase {
             .build();
     }
 
-    private SnapshotInfo createSnapshotInfo(String repository, String snapshotName, List<String> indices, Map<String, Object> metadata) {
+    private IndexMetadata createPlainIndex(String name) {
+        return IndexMetadata.builder(name).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0).build();
+    }
+
+    private DataStream createDlmDatastream(IndexMetadata... backingIndices) {
+        List<Index> indices = Arrays.stream(backingIndices).map(IndexMetadata::getIndex).toList();
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.dataLifecycleBuilder().frozenAfter(TimeValue.timeValueDays(30)).build();
+        return DataStream.builder("my-ds", indices).setGeneration(1).setLifecycle(lifecycle).build();
+    }
+
+    private void setClusterState(List<IndexMetadata> indices, List<DataStream> dataStreams, String defaultRepository) {
+        setClusterStateForProjects(Map.of(projectId, new TestProjectData(indices, dataStreams)), defaultRepository);
+    }
+
+    private void setClusterStateForProjects(Map<ProjectId, TestProjectData> projects, String defaultRepository) {
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        if (defaultRepository != null) {
+            metadataBuilder.persistentSettings(
+                Settings.builder().put(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey(), defaultRepository).build()
+            );
+        }
+        for (Map.Entry<ProjectId, TestProjectData> entry : projects.entrySet()) {
+            ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(entry.getKey());
+            for (IndexMetadata idx : entry.getValue().indices()) {
+                projectBuilder.put(idx, false);
+            }
+            for (DataStream ds : entry.getValue().dataStreams()) {
+                projectBuilder.put(ds);
+            }
+            metadataBuilder.put(projectBuilder);
+        }
+        setState(clusterService, ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build());
+    }
+
+    private SnapshotInfo createSnapshotInfo(String snapshotName, List<String> snapshotIndices) {
+        return createSnapshotInfo(snapshotName, snapshotIndices, Map.of(DLMConvertToFrozen.DLM_CREATED_METADATA_KEY, true));
+    }
+
+    private SnapshotInfo createSnapshotInfo(String snapshotName, List<String> snapshotIndices, Map<String, Object> userMetadata) {
         return new SnapshotInfo(
-            new Snapshot(repository, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
-            indices,
+            new Snapshot(projectId, REPO_NAME, new SnapshotId(snapshotName, randomAlphaOfLength(10))),
+            snapshotIndices,
             List.of(),
             List.of(),
             null,
             IndexVersion.current(),
             0L,
             0L,
-            0,
-            0,
+            1,
+            1,
             List.of(),
-            Boolean.FALSE,
-            metadata,
+            false,
+            userMetadata,
             SnapshotState.SUCCESS,
             Map.of()
         );
     }
 
-    private class RecordingClient extends NoOpClient {
-        private final List<DeleteIndexRequest> capturedDeleteIndexRequests = new ArrayList<>();
-        private final List<ProjectId> capturedDeleteIndexProjectIds = new ArrayList<>();
-        private final List<ProjectId> capturedGetSnapshotsProjectIds = new ArrayList<>();
-        private final Map<ProjectId, GetSnapshotsResponse> getSnapshotsResponseByProject = new HashMap<>();
-        private final Map<ProjectId, Exception> getSnapshotsFailureByProject = new HashMap<>();
-        private final List<DeleteSnapshotRequest> capturedDeleteSnapshotRequests = new ArrayList<>();
-        private final List<ProjectId> capturedDeleteSnapshotProjectIds = new ArrayList<>();
-        private final AcknowledgedResponse deleteIndexResponse = AcknowledgedResponse.of(true);
-        private final AcknowledgedResponse deleteSnapshotResponse = AcknowledgedResponse.of(true);
-        private Exception deleteIndexFailure;
-        private GetSnapshotsRequest capturedGetSnapshotsRequest;
-        private GetSnapshotsResponse getSnapshotsResponse = new GetSnapshotsResponse(List.of(), null, 0, 0);
-        private Exception getSnapshotsFailure;
-        private DeleteSnapshotRequest capturedDeleteSnapshotRequest;
+    public void testNotOrphaned_cloneSourceInHealthyDataStream_nothingDeleted() {
+        String sourceIndex = randomAlphaOfLength(10);
+        IndexMetadata sourceMeta = createPlainIndex(sourceIndex);
+        IndexMetadata cloneMeta = createDlmManagedClonedIndex(
+            DLMConvertToFrozen.CLONE_INDEX_PREFIX + sourceIndex,
+            sourceIndex,
+            sourceMeta.getIndexUUID()
+        );
 
-        private RecordingClient(TestThreadPool threadPool) {
-            super(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
+        setClusterState(List.of(sourceMeta, cloneMeta), List.of(createDlmDatastream(sourceMeta)), REPO_NAME);
+        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(), null, 0, 0));
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
         }
 
-        @Override
-        @SuppressWarnings("unchecked")
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-            ActionType<Response> action,
-            Request request,
-            ActionListener<Response> listener
-        ) {
-            switch (request) {
-                case DeleteIndexRequest deleteIndexRequest -> {
-                    capturedDeleteIndexRequests.add(deleteIndexRequest);
-                    String projectIdHeader = threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
-                    capturedDeleteIndexProjectIds.add(
-                        projectIdHeader == null ? Metadata.DEFAULT_PROJECT_ID : ProjectId.fromId(projectIdHeader)
-                    );
-                    if (deleteIndexFailure != null) {
-                        listener.onFailure(deleteIndexFailure);
-                    } else {
-                        listener.onResponse((Response) deleteIndexResponse);
-                    }
-                }
-                case GetSnapshotsRequest getSnapshotsRequest -> {
-                    capturedGetSnapshotsRequest = getSnapshotsRequest;
-                    String projectIdHeader = threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
-                    ProjectId requestProjectId = projectIdHeader == null ? Metadata.DEFAULT_PROJECT_ID : ProjectId.fromId(projectIdHeader);
-                    capturedGetSnapshotsProjectIds.add(requestProjectId);
-                    Exception failure = getSnapshotsFailureByProject.getOrDefault(requestProjectId, getSnapshotsFailure);
-                    if (failure != null) {
-                        listener.onFailure(failure);
-                    } else {
-                        GetSnapshotsResponse response = getSnapshotsResponseByProject.getOrDefault(requestProjectId, getSnapshotsResponse);
-                        listener.onResponse((Response) response);
-                    }
-                }
-                case DeleteSnapshotRequest deleteSnapshotRequest -> {
-                    capturedDeleteSnapshotRequest = deleteSnapshotRequest;
-                    capturedDeleteSnapshotRequests.add(deleteSnapshotRequest);
-                    String projectIdHeader = threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
-                    ProjectId requestProjectId = projectIdHeader == null ? Metadata.DEFAULT_PROJECT_ID : ProjectId.fromId(projectIdHeader);
-                    capturedDeleteSnapshotProjectIds.add(requestProjectId);
-                    listener.onResponse((Response) deleteSnapshotResponse);
-                }
-                case null, default -> fail("unexpected action: " + action.name());
-            }
-        }
+        assertThat(capturedDeleteIndexRequests, empty());
+        assertThat(capturedDeleteSnapshotRequest.get(), nullValue());
     }
+
+    public void testNotOrphaned_mountedSnapshotResolvesToHealthySource_nothingDeleted() {
+        String sourceIndex = randomAlphaOfLength(10);
+        IndexMetadata sourceMeta = createPlainIndex(sourceIndex);
+        IndexMetadata mountedMeta = createDlmManagedMountedIndex(DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + sourceIndex, sourceIndex);
+
+        setClusterState(List.of(sourceMeta, mountedMeta), List.of(createDlmDatastream(sourceMeta)), REPO_NAME);
+        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(), null, 0, 0));
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        assertThat(capturedDeleteIndexRequests, empty());
+    }
+
+    public void testOrphaned_sourceMissing_cloneDeleted() {
+        String sourceIndex = randomAlphaOfLength(10);
+        String cloneIndex = DLMConvertToFrozen.CLONE_INDEX_PREFIX + sourceIndex;
+        IndexMetadata cloneMeta = createDlmManagedClonedIndex(cloneIndex, sourceIndex, randomAlphaOfLength(10));
+
+        setClusterState(List.of(cloneMeta), List.of(), null);
+        mockDeleteIndexResponse.set(AcknowledgedResponse.TRUE);
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        DeleteIndexRequest req = capturedDeleteIndexRequests.getFirst();
+        assertThat(req, not(nullValue()));
+        assertThat(List.of(req.indices()), containsInAnyOrder(cloneIndex));
+    }
+
+    public void testOrphaned_sourceNotInAnyDataStream_cloneDeleted() {
+        String sourceIndex = randomAlphaOfLength(10);
+        String cloneIndex = DLMConvertToFrozen.CLONE_INDEX_PREFIX + sourceIndex;
+        IndexMetadata sourceMeta = createPlainIndex(sourceIndex);
+        IndexMetadata cloneMeta = createDlmManagedClonedIndex(cloneIndex, sourceIndex, sourceMeta.getIndexUUID());
+
+        setClusterState(List.of(sourceMeta, cloneMeta), List.of(), null);
+        mockDeleteIndexResponse.set(AcknowledgedResponse.TRUE);
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        assertThat(capturedDeleteIndexRequests, not(empty()));
+        assertThat(List.of(capturedDeleteIndexRequests.getFirst().indices()), containsInAnyOrder(cloneIndex));
+    }
+
+    public void testOrphaned_mountedSnapshotOfClone_bothResolutionStepsTraverseToOrphanedSource_deleted() {
+        String sourceIndex = randomAlphaOfLength(10);
+        String cloneIndex = DLMConvertToFrozen.CLONE_INDEX_PREFIX + sourceIndex;
+        String frozenIndex = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + sourceIndex;
+        IndexMetadata sourceMeta = createPlainIndex(sourceIndex);
+        IndexMetadata cloneMeta = createDlmManagedClonedIndex(cloneIndex, sourceIndex, sourceMeta.getIndexUUID());
+        IndexMetadata frozenMeta = createDlmManagedMountedIndex(frozenIndex, cloneIndex);
+
+        setClusterState(List.of(sourceMeta, cloneMeta, frozenMeta), List.of(), null);
+        mockDeleteIndexResponse.set(AcknowledgedResponse.TRUE);
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        DeleteIndexRequest req = capturedDeleteIndexRequests.getFirst();
+        assertThat(req, not(nullValue()));
+        assertThat(List.of(req.indices()), containsInAnyOrder(cloneIndex, frozenIndex));
+    }
+
+    public void testNotOrphaned_mountedFrozenIndexIsLiveBackingIndex_nothingDeleted() {
+        String sourceIndex = "foo";
+        String cloneIndex = DLMConvertToFrozen.CLONE_INDEX_PREFIX + sourceIndex;
+        String frozenIndex = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + sourceIndex;
+
+        IndexMetadata frozenMeta = IndexMetadata.builder(frozenIndex)
+            .settings(
+                settings(IndexVersion.current()).put(DLMConvertToFrozen.DLM_CREATED_SETTING_KEY, true)
+                    .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY, cloneIndex)
+                    .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex)
+                    .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, randomAlphaOfLength(10))
+                    .build()
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        setClusterState(List.of(frozenMeta), List.of(createDlmDatastream(frozenMeta)), REPO_NAME);
+        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(), null, 0, 0));
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        assertThat(capturedDeleteIndexRequests, empty());
+        assertThat(capturedDeleteSnapshotRequest.get(), nullValue());
+    }
+
+    public void testNonDlmManagedIndex_notConsidered() {
+        setClusterState(List.of(createPlainIndex(randomAlphaOfLength(10))), List.of(), null);
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        assertThat(capturedDeleteIndexRequests, empty());
+    }
+
+    public void testOrphanedSnapshot_soleIndexIsOrphaned_snapshotDeleted() {
+        String orphanedIndex = randomAlphaOfLength(10);
+        String snapshotName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + orphanedIndex;
+        SnapshotInfo orphanedSnapshot = createSnapshotInfo(snapshotName, List.of(orphanedIndex));
+
+        setClusterState(List.of(), List.of(), REPO_NAME);
+        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(orphanedSnapshot), null, 1, 0));
+        mockDeleteSnapshotResponse.set(AcknowledgedResponse.TRUE);
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        DeleteSnapshotRequest req = capturedDeleteSnapshotRequest.get();
+        assertThat(req, not(nullValue()));
+        assertThat(req.repository(), is(REPO_NAME));
+        assertThat(List.of(req.snapshots()), containsInAnyOrder(snapshotName));
+    }
+
+    public void testSnapshot_multipleIndices_notDeleted() {
+        String snapshotName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + randomAlphaOfLength(10);
+        SnapshotInfo multiIndexSnapshot = createSnapshotInfo(snapshotName, List.of(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+
+        setClusterState(List.of(), List.of(), REPO_NAME);
+        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(multiIndexSnapshot), null, 1, 0));
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        assertThat(capturedDeleteSnapshotRequest.get(), nullValue());
+    }
+
+    public void testSnapshot_indexNotOrphaned_notDeleted() {
+        String sourceIndex = randomAlphaOfLength(10);
+        IndexMetadata sourceMeta = createPlainIndex(sourceIndex);
+        SnapshotInfo snapshot = createSnapshotInfo(DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + sourceIndex, List.of(sourceIndex));
+
+        setClusterState(List.of(sourceMeta), List.of(createDlmDatastream(sourceMeta)), REPO_NAME);
+        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(snapshot), null, 1, 0));
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        assertThat(capturedDeleteSnapshotRequest.get(), nullValue());
+    }
+
+    public void testSnapshot_missingDlmMetadata_notDeleted() {
+        String orphanedIndex = randomAlphaOfLength(10);
+        String snapshotName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + orphanedIndex;
+        SnapshotInfo snapshotWithoutMetadata = createSnapshotInfo(snapshotName, List.of(orphanedIndex), null);
+
+        setClusterState(List.of(), List.of(), REPO_NAME);
+        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(snapshotWithoutMetadata), null, 1, 0));
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        assertThat(capturedDeleteSnapshotRequest.get(), nullValue());
+    }
+
+    public void testSnapshot_dlmMetadataKeyAbsent_notDeleted() {
+        String orphanedIndex = randomAlphaOfLength(10);
+        String snapshotName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + orphanedIndex;
+        SnapshotInfo snapshot = createSnapshotInfo(snapshotName, List.of(orphanedIndex), Map.of("some-other-key", true));
+
+        setClusterState(List.of(), List.of(), REPO_NAME);
+        mockGetSnapshotsResponse.set(new GetSnapshotsResponse(List.of(snapshot), null, 1, 0));
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        assertThat(capturedDeleteSnapshotRequest.get(), nullValue());
+    }
+
+    public void testNoDefaultRepository_snapshotCleanupSkipped_indicesStillCleaned() {
+        String cloneIndex = DLMConvertToFrozen.CLONE_INDEX_PREFIX + randomAlphaOfLength(10);
+
+        setClusterState(List.of(createDlmManagedIndex(cloneIndex)), List.of(), null);
+        mockDeleteIndexResponse.set(AcknowledgedResponse.TRUE);
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        assertThat(capturedDeleteIndexRequests, not(empty()));
+        assertThat(capturedGetSnapshotsRequest.get(), nullValue());
+    }
+
+    public void testIndexDeletion_failure_doesNotPropagate() {
+        setClusterState(List.of(createDlmManagedIndex(DLMConvertToFrozen.CLONE_INDEX_PREFIX + randomAlphaOfLength(10))), List.of(), null);
+        mockDeleteIndexFailure.set(new RuntimeException("deletion failed"));
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        assertThat(capturedDeleteIndexRequests, not(empty()));
+    }
+
+    public void testSnapshotDeletion_failure_doesNotPropagate() {
+        String orphanedIndex = randomAlphaOfLength(10);
+        String snapshotName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + orphanedIndex;
+
+        setClusterState(List.of(), List.of(), REPO_NAME);
+        mockGetSnapshotsResponse.set(
+            new GetSnapshotsResponse(List.of(createSnapshotInfo(snapshotName, List.of(orphanedIndex))), null, 1, 0)
+        );
+        mockDeleteSnapshotFailure.set(new RuntimeException("snapshot delete failed"));
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        assertThat(capturedDeleteSnapshotRequest.get(), not(nullValue()));
+    }
+
+    public void testSnapshotListing_failure_doesNotPropagate() {
+        setClusterState(List.of(), List.of(), REPO_NAME);
+        mockGetSnapshotsFailure.set(new RuntimeException("listing failed"));
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        assertThat(capturedGetSnapshotsRequest.get(), not(nullValue()));
+        assertThat(capturedDeleteSnapshotRequest.get(), nullValue());
+    }
+
+    public void testMultipleProjects_eachProjectCleaned() {
+        ProjectId projectId2 = randomValueOtherThan(projectId, ESTestCase::randomProjectIdOrDefault);
+
+        String clone1 = DLMConvertToFrozen.CLONE_INDEX_PREFIX + randomAlphaOfLength(10);
+        String clone2 = DLMConvertToFrozen.CLONE_INDEX_PREFIX + randomAlphaOfLength(10);
+
+        setClusterStateForProjects(
+            Map.of(
+                projectId,
+                new TestProjectData(List.of(createDlmManagedIndex(clone1)), List.of()),
+                projectId2,
+                new TestProjectData(List.of(createDlmManagedIndex(clone2)), List.of())
+            ),
+            null
+        );
+        mockDeleteIndexResponse.set(AcknowledgedResponse.TRUE);
+
+        try (DLMFrozenCleanupService service = createService()) {
+            service.checkForOrphanedResources();
+        }
+
+        assertThat(capturedDeleteIndexRequests.size(), is(2));
+        List<String> allDeletedIndices = capturedDeleteIndexRequests.stream().flatMap(req -> Arrays.stream(req.indices())).toList();
+        assertThat(allDeletedIndices, containsInAnyOrder(clone1, clone2));
+    }
+
+    private record TestProjectData(List<IndexMetadata> indices, List<DataStream> dataStreams) {}
 }

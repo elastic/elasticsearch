@@ -256,6 +256,7 @@ public class MetricValidator {
             Map.entry("es.search_response.took_durations.histogram", SEARCH_ATTRIBUTES),
             Map.entry("es.search_response.took_durations.open_pit.histogram", SEARCH_ATTRIBUTES),
             Map.entry("es.search_response.took_durations.query.histogram", SEARCH_ATTRIBUTES),
+            Map.entry("es.search_response.took_durations.rank_feature.histogram", SEARCH_ATTRIBUTES),
             Map.entry("es.search.shards.phases.can_match.duration.histogram", SEARCH_SHARD_ATTRIBUTES),
             Map.entry("es.search.shards.phases.dfs.duration.histogram", SEARCH_SHARD_ATTRIBUTES),
             Map.entry("es.search.shards.phases.fetch.duration.histogram", SEARCH_SHARD_ATTRIBUTES),

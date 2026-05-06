@@ -265,7 +265,7 @@ public final class DateFieldMapper extends FieldMapper {
 
     public static final class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).indexed, true);
+        private final Parameter<Boolean> index;
         private final DocValuesParameter docValuesParameters = DocValuesParameter.sorted(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParameters()
@@ -308,6 +308,7 @@ public final class DateFieldMapper extends FieldMapper {
             IndexSettings indexSettings
         ) {
             super(name);
+            this.index = Parameter.indexParam(m -> toType(m).indexed, indexSettings.isIndexDisabledByDefault() == false);
             this.resolution = resolution;
             this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);

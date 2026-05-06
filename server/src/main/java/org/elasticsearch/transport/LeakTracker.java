@@ -15,10 +15,15 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 
 import java.lang.ref.Cleaner;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -43,7 +48,76 @@ public final class LeakTracker {
 
     private static volatile String contextHint = "";
 
+    /**
+     * When assertions are enabled and {@link #installTestLeakCollector()} has run on this thread, each new {@link Leak}
+     * is registered here until {@link Leak#close()}; {@link #verifyNoLeaksAndClear()} asserts the set is empty.
+     */
+    private static final ThreadLocal<Set<Leak>> testLeakCollector = new ThreadLocal<>();
+
     private LeakTracker() {}
+
+    /**
+     * Begin collecting {@link Leak} instances on this thread for synchronous leak detection in tests.
+     * No-op when assertions are disabled. Call {@link #verifyNoLeaksAndClear()} or {@link #clearTestLeakCollector()} in teardown.
+     */
+    public static void installTestLeakCollector() {
+        if (Assertions.ENABLED == false) {
+            return;
+        }
+        testLeakCollector.set(Collections.synchronizedSet(new LinkedHashSet<>()));
+    }
+
+    /**
+     * Removes the per-thread collector without asserting, whether or not one was installed.
+     * Use to opt out of leak verification or for defensive cleanup in teardown.
+     */
+    public static void clearTestLeakCollector() {
+        testLeakCollector.remove();
+    }
+
+    /**
+     * Checks that no tracked leaks remain for this thread without removing the collector. No-op when assertions are
+     * disabled. Unlike {@link #verifyNoLeaksAndClear()}, this is safe to call repeatedly, e.g. from
+     * {@code assertBusy}, because it leaves the collector in place for subsequent checks.
+     *
+     * @throws AssertionError if any leak registered since {@link #installTestLeakCollector()} was not closed
+     */
+    public static void assertNoLeaks() {
+        if (Assertions.ENABLED == false) {
+            return;
+        }
+        Set<Leak> leaks = testLeakCollector.get();
+        if (leaks == null) {
+            return;
+        }
+        // Snapshot under the set's own lock: Leak.close() may be called concurrently from background threads.
+        List<Leak> snapshot;
+        synchronized (leaks) {
+            if (leaks.isEmpty()) {
+                return;
+            }
+            snapshot = new ArrayList<>(leaks);
+        }
+        StringBuilder sb = new StringBuilder("Leaked resources (").append(snapshot.size()).append("):\n");
+        for (Leak leak : snapshot) {
+            // leak is open (not yet closed), so toString() returns the full record chain, not "".
+            sb.append(leak.toString()).append('\n');
+        }
+        throw new AssertionError(sb.toString());
+    }
+
+    /**
+     * Asserts no tracked leaks remain for this thread, then clears the collector. No-op when assertions are disabled.
+     *
+     * @throws AssertionError if any leak registered since {@link #installTestLeakCollector()} was not closed
+     */
+    public static void verifyNoLeaksAndClear() {
+        try {
+            assertNoLeaks();
+        } finally {
+            testLeakCollector.remove();
+        }
+    }
 
     /**
      * Track the given object.
@@ -52,7 +126,12 @@ public final class LeakTracker {
      * @return leak object that must be released by a call to {@link LeakTracker.Leak#close()} before {@code obj} goes out of scope
      */
     public Leak track(Object obj) {
-        return new Leak(obj);
+        Set<Leak> collector = Assertions.ENABLED ? testLeakCollector.get() : null;
+        Leak leak = new Leak(obj, collector);
+        if (collector != null) {
+            collector.add(leak);
+        }
+        return leak;
     }
 
     /**
@@ -166,10 +245,17 @@ public final class LeakTracker {
 
         private final Cleaner.Cleanable cleanable;
 
+        /**
+         * If non-null, this leak was registered with the test-thread leak collector when allocated.
+         * {@link #close()} may run on a different thread; removal must use this reference, not {@link LeakTracker#testLeakCollector}.
+         */
+        private final Set<Leak> registeringTestCollector;
+
         @SuppressWarnings("this-escape")
-        private Leak(Object referent) {
+        private Leak(Object referent, @Nullable Set<Leak> registeringTestCollector) {
             this.cleanable = cleaner.register(referent, this);
             headUpdater.set(this, new Record(Record.BOTTOM));
+            this.registeringTestCollector = registeringTestCollector;
         }
 
         @Override
@@ -221,6 +307,9 @@ public final class LeakTracker {
             if (closed.compareAndSet(false, true)) {
                 cleanable.clean();
                 headUpdater.set(this, null);
+                if (Assertions.ENABLED && registeringTestCollector != null) {
+                    registeringTestCollector.remove(this);
+                }
                 return true;
             }
             return false;

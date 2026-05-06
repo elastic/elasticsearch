@@ -12,6 +12,9 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -35,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -527,7 +531,271 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         assertNull(result);
     }
 
+    // ---- Test 9: OrdinalBytesRefBlock dictionary short-circuit ----
+
+    public void testOrdinalEqualsMatchesDictionaryEntries() {
+        // Dictionary: ["alpha", "beta", "gamma", "delta"] (4 entries).
+        // Pattern repeated to satisfy OrdinalBytesRefBlock#isDense (rows >= 2 * dictSize),
+        // which gates the dictionary short-circuit path.
+        int[] pattern = { 0, 2, 1, 0, 3, 2, 0 };
+        int[] ordinals = repeatPattern(pattern, 21);
+        Block block = ordinalBlock(new String[] { "alpha", "beta", "gamma", "delta" }, ordinals, null);
+        try (block) {
+            Map<String, Block> blocks = Map.of("x", block);
+            WordMask reusable = new WordMask();
+            int[] expected = positionsWithOrdinal(ordinals, 0);
+            Expression expr = new Equals(Source.EMPTY, attr("x", DataType.KEYWORD), lit(new BytesRef("alpha"), DataType.KEYWORD), null);
+            assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, ordinals.length, reusable, expected);
+        }
+    }
+
+    public void testOrdinalNotEqualsExcludesDictionaryEntries() {
+        // x != "beta" -> exclude rows where ordinal == 1.
+        int[] pattern = { 0, 1, 2, 3, 0, 1 };
+        int[] ordinals = repeatPattern(pattern, 24);
+        Block block = ordinalBlock(new String[] { "alpha", "beta", "gamma", "delta" }, ordinals, null);
+        try (block) {
+            Map<String, Block> blocks = Map.of("x", block);
+            WordMask reusable = new WordMask();
+            int[] expected = positionsExcludingOrdinal(ordinals, 1);
+            Expression expr = new NotEquals(Source.EMPTY, attr("x", DataType.KEYWORD), lit(new BytesRef("beta"), DataType.KEYWORD), null);
+            assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, ordinals.length, reusable, expected);
+        }
+    }
+
+    public void testOrdinalLessThanComparesDictionaryEntries() {
+        // Dictionary: ["b", "d", "a", "c"]; "a" < "b" < "c" < "d" lexicographically.
+        // x < "c" -> matching entries are "b" (ordinal 0) and "a" (ordinal 2).
+        int[] pattern = { 0, 1, 2, 3, 0, 2 };
+        int[] ordinals = repeatPattern(pattern, 24);
+        Block block = ordinalBlock(new String[] { "b", "d", "a", "c" }, ordinals, null);
+        try (block) {
+            Map<String, Block> blocks = Map.of("x", block);
+            WordMask reusable = new WordMask();
+            int[] expected = positionsWithOrdinalIn(ordinals, 0, 2);
+            Expression expr = new LessThan(Source.EMPTY, attr("x", DataType.KEYWORD), lit(new BytesRef("c"), DataType.KEYWORD), null);
+            assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, ordinals.length, reusable, expected);
+        }
+    }
+
+    public void testOrdinalInMatchesAnyDictionaryEntry() {
+        // x IN ("alpha", "gamma") -> dict matches at ordinals 0, 2.
+        int[] pattern = { 0, 1, 2, 3, 0, 2 };
+        int[] ordinals = repeatPattern(pattern, 24);
+        Block block = ordinalBlock(new String[] { "alpha", "beta", "gamma", "delta" }, ordinals, null);
+        try (block) {
+            Map<String, Block> blocks = Map.of("x", block);
+            WordMask reusable = new WordMask();
+            int[] expected = positionsWithOrdinalIn(ordinals, 0, 2);
+            Expression expr = new In(
+                Source.EMPTY,
+                attr("x", DataType.KEYWORD),
+                List.of(lit(new BytesRef("alpha"), DataType.KEYWORD), lit(new BytesRef("gamma"), DataType.KEYWORD))
+            );
+            assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, ordinals.length, reusable, expected);
+        }
+    }
+
+    public void testOrdinalStartsWithMatchesDictionaryPrefix() {
+        // STARTS_WITH(x, "ap") -> matching entries are "apple" (0) and "application" (1).
+        int[] pattern = { 0, 1, 2, 0, 2 };
+        int[] ordinals = repeatPattern(pattern, 24);
+        Block block = ordinalBlock(new String[] { "apple", "application", "banana" }, ordinals, null);
+        try (block) {
+            Map<String, Block> blocks = Map.of("x", block);
+            WordMask reusable = new WordMask();
+            int[] expected = positionsWithOrdinalIn(ordinals, 0, 1);
+            Expression expr = new StartsWith(Source.EMPTY, attr("x", DataType.KEYWORD), lit(new BytesRef("ap"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, ordinals.length, reusable, expected);
+        }
+    }
+
+    public void testOrdinalRespectsNullPositions() {
+        // Dictionary: ["X", "Y"] with interleaved nulls. Even null rows still occupy ordinal
+        // slots in the underlying IntBlock, so the dense check uses the full row count.
+        int[] pattern = { 0, 0, 1, 0, 0 };
+        boolean[] nullPattern = { false, true, false, false, true };
+        int[] ordinals = repeatPattern(pattern, 25);
+        boolean[] nulls = repeatBoolPattern(nullPattern, 25);
+        Block block = ordinalBlock(new String[] { "X", "Y" }, ordinals, nulls);
+        try (block) {
+            Map<String, Block> blocks = Map.of("x", block);
+            WordMask reusable = new WordMask();
+            int[] expected = positionsWithOrdinalAndNotNull(ordinals, nulls, 0);
+            Expression expr = new Equals(Source.EMPTY, attr("x", DataType.KEYWORD), lit(new BytesRef("X"), DataType.KEYWORD), null);
+            assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, ordinals.length, reusable, expected);
+        }
+    }
+
+    public void testOrdinalSparseDictionaryFallsBackToScalarPath() {
+        // Dictionary size > rowCount / 2 -> OrdinalBytesRefBlock#isDense returns false, so
+        // the dictionary short-circuit is skipped. The scalar BytesRefBlock branch must
+        // still produce correct results for the same predicate. This test guards the gate.
+        // 6-entry dict, 8 rows -> rows < 2 * dictSize, so the block is not dense.
+        String[] dict = { "a0", "a1", "a2", "a3", "a4", "a5" };
+        int[] ordinals = { 0, 1, 2, 3, 4, 5, 0, 1 };
+        Block block = ordinalBlock(dict, ordinals, null);
+        try (block) {
+            Map<String, Block> blocks = Map.of("x", block);
+            WordMask reusable = new WordMask();
+            Expression expr = new Equals(Source.EMPTY, attr("x", DataType.KEYWORD), lit(new BytesRef("a3"), DataType.KEYWORD), null);
+            assertSurvivors(new ParquetPushedExpressions(List.of(expr)), blocks, ordinals.length, reusable, new int[] { 3 });
+        }
+    }
+
+    public void testOrdinalShortCircuitMatchesScalarPathSemantics() {
+        // Cross-check the dictionary fast path against the scalar per-row path under several
+        // shapes: (a) a randomized partial-match case, (b) a deterministic "all rows match"
+        // case that exercises evaluateFilter's null-mask optimization, and (c) a deterministic
+        // "no rows match" case. Any divergence between the two paths surfaces as a failure.
+        String[] dict = { "the", "quick", "brown", "fox", "jumps" };
+        int rowCount = 200;
+
+        // (a) Random partial match.
+        int[] randomOrdinals = new int[rowCount];
+        for (int i = 0; i < rowCount; i++) {
+            randomOrdinals[i] = randomIntBetween(0, dict.length - 1);
+        }
+        BytesRef randomLiteral = new BytesRef(dict[randomIntBetween(0, dict.length - 1)]);
+        assertOrdinalAndScalarAgree(dict, randomOrdinals, randomLiteral);
+
+        // (b) Every row matches the literal -> evaluateFilter should return null (all survive).
+        int matchOrdinal = randomIntBetween(0, dict.length - 1);
+        int[] allMatchOrdinals = new int[rowCount];
+        Arrays.fill(allMatchOrdinals, matchOrdinal);
+        assertOrdinalAndScalarAgree(dict, allMatchOrdinals, new BytesRef(dict[matchOrdinal]));
+
+        // (c) No row matches the literal -> evaluateFilter should return an empty mask.
+        int presentOrdinal = randomIntBetween(0, dict.length - 1);
+        int[] noMatchOrdinals = new int[rowCount];
+        Arrays.fill(noMatchOrdinals, presentOrdinal);
+        assertOrdinalAndScalarAgree(dict, noMatchOrdinals, new BytesRef("never_in_dict"));
+    }
+
+    private void assertOrdinalAndScalarAgree(String[] dict, int[] ordinals, BytesRef literal) {
+        int rowCount = ordinals.length;
+        Block ordinalBlock = ordinalBlock(dict, ordinals, null);
+        Block plainBlock = plainBytesRefBlock(dict, ordinals);
+        try (ordinalBlock; plainBlock) {
+            Expression expr = new Equals(Source.EMPTY, attr("x", DataType.KEYWORD), lit(literal, DataType.KEYWORD), null);
+
+            WordMask ordinalMask = new ParquetPushedExpressions(List.of(expr)).evaluateFilter(
+                Map.of("x", ordinalBlock),
+                rowCount,
+                new WordMask()
+            );
+            WordMask plainMask = new ParquetPushedExpressions(List.of(expr)).evaluateFilter(
+                Map.of("x", plainBlock),
+                rowCount,
+                new WordMask()
+            );
+            if (ordinalMask == null) {
+                assertNull("ordinal returned null (all survive); plain must also", plainMask);
+            } else {
+                assertNotNull("ordinal produced a mask; plain must too", plainMask);
+                assertArrayEquals(plainMask.survivingPositions(), ordinalMask.survivingPositions());
+            }
+        }
+    }
+
     // ---- helpers ----
+
+    /**
+     * Builds an {@link OrdinalBytesRefBlock} from a string dictionary plus per-row ordinals
+     * and an optional null mask. The block is owned by the caller and must be closed.
+     */
+    private OrdinalBytesRefBlock ordinalBlock(String[] dict, int[] ordinals, boolean[] nulls) {
+        BytesRefVector dictVector = null;
+        IntBlock ordinalsBlock = null;
+        boolean success = false;
+        try (BytesRefVector.Builder dictBuilder = blockFactory.newBytesRefVectorBuilder(dict.length)) {
+            for (String s : dict) {
+                dictBuilder.appendBytesRef(new BytesRef(s));
+            }
+            dictVector = dictBuilder.build();
+            try (IntBlock.Builder ordinalsBuilder = blockFactory.newIntBlockBuilder(ordinals.length)) {
+                for (int i = 0; i < ordinals.length; i++) {
+                    if (nulls != null && nulls[i]) {
+                        ordinalsBuilder.appendNull();
+                    } else {
+                        ordinalsBuilder.appendInt(ordinals[i]);
+                    }
+                }
+                ordinalsBlock = ordinalsBuilder.build();
+            }
+            OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(ordinalsBlock, dictVector);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                if (ordinalsBlock != null) ordinalsBlock.close();
+                if (dictVector != null) dictVector.close();
+            }
+        }
+    }
+
+    /**
+     * Builds an equivalent plain {@link Block} (BytesRefBlock) by materializing each row.
+     * Used by {@link #testOrdinalShortCircuitMatchesScalarPathSemantics} to cross-check
+     * that the dictionary fast path yields the same survivors as the per-row path.
+     */
+    private Block plainBytesRefBlock(String[] dict, int[] ordinals) {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(ordinals.length)) {
+            for (int o : ordinals) {
+                builder.appendBytesRef(new BytesRef(dict[o]));
+            }
+            return builder.build();
+        }
+    }
+
+    /** Repeats {@code pattern} {@code times} times to produce a longer ordinal sequence. */
+    private static int[] repeatPattern(int[] pattern, int times) {
+        int[] out = new int[pattern.length * times];
+        for (int t = 0; t < times; t++) {
+            System.arraycopy(pattern, 0, out, t * pattern.length, pattern.length);
+        }
+        return out;
+    }
+
+    private static boolean[] repeatBoolPattern(boolean[] pattern, int times) {
+        boolean[] out = new boolean[pattern.length * times];
+        for (int t = 0; t < times; t++) {
+            System.arraycopy(pattern, 0, out, t * pattern.length, pattern.length);
+        }
+        return out;
+    }
+
+    private static int[] positionsWithOrdinal(int[] ordinals, int target) {
+        return positionsWhere(ordinals, null, ord -> ord == target);
+    }
+
+    private static int[] positionsExcludingOrdinal(int[] ordinals, int excluded) {
+        return positionsWhere(ordinals, null, ord -> ord != excluded);
+    }
+
+    private static int[] positionsWithOrdinalIn(int[] ordinals, int... targets) {
+        return positionsWhere(ordinals, null, ord -> {
+            for (int t : targets) {
+                if (ord == t) return true;
+            }
+            return false;
+        });
+    }
+
+    private static int[] positionsWithOrdinalAndNotNull(int[] ordinals, boolean[] nulls, int target) {
+        return positionsWhere(ordinals, nulls, ord -> ord == target);
+    }
+
+    private static int[] positionsWhere(int[] ordinals, boolean[] nulls, java.util.function.IntPredicate matcher) {
+        int[] tmp = new int[ordinals.length];
+        int n = 0;
+        for (int i = 0; i < ordinals.length; i++) {
+            if ((nulls == null || nulls[i] == false) && matcher.test(ordinals[i])) {
+                tmp[n++] = i;
+            }
+        }
+        return Arrays.copyOf(tmp, n);
+    }
 
     private static void assertSurvivors(
         ParquetPushedExpressions pushed,

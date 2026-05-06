@@ -604,6 +604,22 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 b -> b.startObject("index_options").field("type", newType).endObject()
             );
         }
+
+        // update for bbq_disk
+        registerIndexOptionsUpdate(
+            checker,
+            b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
+            b -> b.field("type", "bbq_disk").field("cluster_size", 1000),
+            b -> b.field("type", "bbq_disk").field("cluster_size", 500),
+            hasToString(containsString("\"cluster_size\":500"))
+        );
+        registerConflict(
+            checker,
+            "index_options",
+            b -> b.field("type", "dense_vector").field("dims", dims * 16).field("index", true),
+            b -> b.startObject("index_options").field("type", "bbq_disk").field("precondition", true).endObject(),
+            b -> b.startObject("index_options").field("type", "bbq_disk").field("precondition", false).endObject()
+        );
     }
 
     @Override

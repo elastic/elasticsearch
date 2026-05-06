@@ -12,6 +12,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.RequestTests;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModelTests;
 
@@ -46,7 +47,7 @@ public class IbmWatsonxChatCompletionRequestTests extends ESTestCase {
         var truncatedRequest = request.truncate();
         assertThat(request.getURI().toString(), is(API_COMPLETIONS_PATH));
 
-        var httpRequest = truncatedRequest.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
@@ -72,7 +73,7 @@ public class IbmWatsonxChatCompletionRequestTests extends ESTestCase {
 
     public static IbmWatsonxChatCompletionRequest createRequest(String apiKey, String input, @Nullable String model, boolean stream)
         throws URISyntaxException {
-        var chatCompletionModel = IbmWatsonxChatCompletionModelTests.createModel(
+        var chatCompletionModel = IbmWatsonxChatCompletionModelTests.createCompletionModel(
             new URI("abc.com"),
             "apiVersion",
             model,
@@ -95,7 +96,7 @@ public class IbmWatsonxChatCompletionRequestTests extends ESTestCase {
 
     private void assertCreateRequestWithStreaming(boolean isStreaming) throws URISyntaxException, IOException {
         var request = createRequest(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5), isStreaming);
-        var httpRequest = request.createHttpRequest();
+        var httpRequest = RequestTests.getHttpRequestSync(request);
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();

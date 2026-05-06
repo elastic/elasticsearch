@@ -13,6 +13,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.ReleasableIterator;
+
+import java.util.Arrays;
 // end generated imports
 
 /**
@@ -36,12 +38,22 @@ final class ConstantFloatVector extends AbstractVector implements FloatVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, float[] dst, int dstPosition, int length) {
+        Arrays.fill(dst, dstPosition, dstPosition + length, value);
+    }
+
+    @Override
     public FloatBlock asBlock() {
         return new FloatVectorBlock(this);
     }
 
     @Override
-    public FloatVector filter(int... positions) {
+    public int valueMaxByteSize() {
+        return Float.BYTES;
+    }
+
+    @Override
+    public FloatVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantFloatVector(value, positions.length);
     }
 
@@ -91,6 +103,15 @@ final class ConstantFloatVector extends AbstractVector implements FloatVector {
             return ReleasableIterator.single(positions.blockFactory().newConstantFloatBlockWith(value, positions.getPositionCount()));
         }
         return new FloatLookup(asBlock(), positions, targetBlockSize);
+    }
+
+    @Override
+    public FloatVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        return blockFactory().newConstantFloatVector(value, endExclusive - beginInclusive);
     }
 
     @Override

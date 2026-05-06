@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
@@ -28,6 +27,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -38,12 +38,15 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.usage.SearchUsageHolder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
@@ -68,14 +71,16 @@ public class RestSearchAction extends BaseRestHandler {
 
     private final SearchUsageHolder searchUsageHolder;
     private final Predicate<NodeFeature> clusterSupportsFeature;
-    private final Settings settings;
     private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestSearchAction(SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature, Settings settings) {
+    public RestSearchAction(
+        SearchUsageHolder searchUsageHolder,
+        Predicate<NodeFeature> clusterSupportsFeature,
+        CrossProjectModeDecider crossProjectModeDecider
+    ) {
         this.searchUsageHolder = searchUsageHolder;
         this.clusterSupportsFeature = clusterSupportsFeature;
-        this.settings = settings;
-        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override
@@ -109,9 +114,6 @@ public class RestSearchAction extends BaseRestHandler {
         request.param("min_compatible_shard_node");
 
         final boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
-        if (crossProjectEnabled) {
-            searchRequest.setProjectRouting(request.param("project_routing"));
-        }
 
         /*
          * We have to pull out the call to `source().size(size)` because
@@ -134,19 +136,22 @@ public class RestSearchAction extends BaseRestHandler {
                 clusterSupportsFeature,
                 setSize,
                 searchUsageHolder,
-                crossProjectEnabled
+                Optional.of(crossProjectEnabled)
             )
         );
 
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(TransportSearchAction.TYPE, searchRequest, new RestRefCountedChunkedToXContentListener<>(channel));
+            var params = serializationParams(searchRequest, channel.request());
+            cancelClient.execute(TransportSearchAction.TYPE, searchRequest, new RestRefCountedChunkedToXContentListener<>(channel, params));
         };
     }
 
     /**
      * Parses the rest request on top of the SearchRequest, preserving values that are not overridden by the rest request.
-     *
+     * The endpoint calling this method is treated as if it does not support Cross Project Search (CPS). In case it supports
+     * CPS, it should call in the other appropriate overload and pass in the CPS state explicitly either via Optional.of(true)
+     * or Optional.of(false).
      * @param searchRequest the search request that will hold what gets parsed
      * @param request the rest request to read from
      * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
@@ -172,7 +177,15 @@ public class RestSearchAction extends BaseRestHandler {
         IntConsumer setSize,
         @Nullable SearchUsageHolder searchUsageHolder
     ) throws IOException {
-        parseSearchRequest(searchRequest, request, requestContentParser, clusterSupportsFeature, setSize, searchUsageHolder, false);
+        parseSearchRequest(
+            searchRequest,
+            request,
+            requestContentParser,
+            clusterSupportsFeature,
+            setSize,
+            searchUsageHolder,
+            Optional.empty()
+        );
     }
 
     /**
@@ -185,7 +198,10 @@ public class RestSearchAction extends BaseRestHandler {
      * @param clusterSupportsFeature used to check if certain features are available in this cluster
      * @param setSize how the size url parameter is handled. {@code udpate_by_query} and regular search differ here.
      * @param searchUsageHolder the holder of search usage stats
-     * @param crossProjectEnabled whether serverless.cross_project.enabled is set to true
+     * @param crossProjectEnabled Specifies the state of Cross Project Search (CPS) for the endpoint that's calling this method.
+     *                            Optional.of(true)  - signifies that the endpoint supports CPS,
+     *                            Optional.of(false) - signifies that the endpoint supports CPS but CPS is disabled, and,
+     *                            Optional.empty()   - signifies that the endpoint does not support CPS.
      */
     public static void parseSearchRequest(
         SearchRequest searchRequest,
@@ -194,7 +210,7 @@ public class RestSearchAction extends BaseRestHandler {
         Predicate<NodeFeature> clusterSupportsFeature,
         IntConsumer setSize,
         @Nullable SearchUsageHolder searchUsageHolder,
-        boolean crossProjectEnabled
+        Optional<Boolean> crossProjectEnabled
     ) throws IOException {
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
@@ -205,7 +221,7 @@ public class RestSearchAction extends BaseRestHandler {
          * We only do it if in a Cross Project Environment, though, because outside it, such details are not
          * expected and valid.
          */
-        SearchRequest searchRequestForParsing = crossProjectEnabled ? searchRequest : null;
+        SearchRequest searchRequestForParsing = crossProjectEnabled.orElse(false) ? searchRequest : null;
         if (requestContentParser != null) {
             if (searchUsageHolder == null) {
                 searchRequest.source().parseXContent(searchRequestForParsing, requestContentParser, true, clusterSupportsFeature);
@@ -250,7 +266,7 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, searchRequest.indicesOptions());
-        if (crossProjectEnabled && searchRequest.allowsCrossProject() && searchRequest.pointInTimeBuilder() == null) {
+        if (crossProjectEnabled.orElse(false) && searchRequest.allowsCrossProject()) {
             indicesOptions = IndicesOptions.builder(indicesOptions)
                 .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
                 .build();
@@ -263,7 +279,7 @@ public class RestSearchAction extends BaseRestHandler {
             preparePointInTime(searchRequest, request);
         } else {
             searchRequest.setCcsMinimizeRoundtrips(
-                request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
+                SearchParamsParser.parseCcsMinimizeRoundtrips(crossProjectEnabled, request, searchRequest.isCcsMinimizeRoundtrips())
             );
         }
         if (request.paramAsBoolean("force_synthetic_source", false)) {
@@ -460,6 +476,15 @@ public class RestSearchAction extends BaseRestHandler {
                 "cannot set [search_type] when using [knn] search, since the search type is determined automatically"
             );
         }
+    }
+
+    private static ToXContent.Params serializationParams(SearchRequest searchRequest, ToXContent.Params channelParams) {
+        if (searchRequest.source() != null
+            && searchRequest.source().seqNoAndPrimaryTerm() != null
+            && searchRequest.source().seqNoAndPrimaryTerm()) {
+            return new ToXContent.DelegatingMapParams(Map.of(SearchHit.SEQ_NO_PRIMARY_TERM_PARAMS_KEY, "true"), channelParams);
+        }
+        return channelParams;
     }
 
     @Override

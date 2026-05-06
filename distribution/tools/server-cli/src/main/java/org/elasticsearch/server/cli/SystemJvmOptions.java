@@ -62,6 +62,7 @@ final class SystemJvmOptions {
                 "-Dio.netty.recycler.maxCapacityPerThread=0",
                 // Needed to get access to raw vectors from Lucene scorers
                 "--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.lucene99=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.hnsw=org.elasticsearch.server",
                 "--add-opens=org.apache.lucene.core/org.apache.lucene.internal.vectorization=org.elasticsearch.server",
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",
@@ -173,9 +174,10 @@ final class SystemJvmOptions {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
+
         // We instrument classes in these modules to call the bridge. Because the bridge gets patched
         // into java.base, we must export the bridge from java.base to these modules, as a comma-separated list
-        String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
+        String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net,jdk.zipfs";
         return Stream.of(
             "-XX:+EnableDynamicAgentLoading",
             "-Djdk.attach.allowAttachSelf=true",

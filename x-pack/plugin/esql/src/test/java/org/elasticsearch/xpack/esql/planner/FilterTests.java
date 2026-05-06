@@ -26,8 +26,8 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Queries;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -54,6 +53,8 @@ import java.util.Set;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -65,6 +66,7 @@ import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.MUST;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.SHOULD;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FilterTests extends ESTestCase {
@@ -74,7 +76,6 @@ public class FilterTests extends ESTestCase {
     private static final String LAST_NAME = "last_name";
     private static final String OTHER_FIELD = "salary";
 
-    private static EsqlParser parser;
     private static Analyzer analyzer;
     private static LogicalPlanOptimizer logicalOptimizer;
     private static PhysicalPlanOptimizer physicalPlanOptimizer;
@@ -82,10 +83,8 @@ public class FilterTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        parser = new EsqlParser();
-
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
+        EsIndex test = EsIndexGenerator.esIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
         TransportVersion minimumVersion = logicalOptimizer.context().minimumVersion();
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG, minimumVersion));
@@ -94,12 +93,13 @@ public class FilterTests extends ESTestCase {
         analyzer = new Analyzer(
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
+                TEST_FUNCTION_REGISTRY,
                 indexResolutions(test),
                 Map.of(),
                 EsqlTestUtils.emptyPolicyResolution(),
                 emptyInferenceResolution(),
-                minimumVersion
+                minimumVersion,
+                UNMAPPED_FIELDS.defaultValue()
             ),
             TEST_VERIFIER
         );
@@ -373,7 +373,7 @@ public class FilterTests extends ESTestCase {
     }
 
     private PhysicalPlan plan(String query, QueryBuilder restFilter) {
-        var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query)));
+        var logical = logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(new Versioned<>(logical, logicalOptimizer.context().minimumVersion()));
         // System.out.println("physical\n" + physical);

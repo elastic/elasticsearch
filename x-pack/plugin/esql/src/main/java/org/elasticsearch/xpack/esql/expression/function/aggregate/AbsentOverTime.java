@@ -14,32 +14,47 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Similar to {@link Absent}, but it is used to check the absence of values over a time series in the given field.
  */
-public class AbsentOverTime extends TimeSeriesAggregateFunction {
+public class AbsentOverTime extends TimeSeriesAggregateFunction implements AggregateMetricDoubleNativeSupport, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "AbsentOverTime",
         AbsentOverTime::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(AbsentOverTime.class)
+        .binary(AbsentOverTime::new)
+        .name("absent_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTime(AbsentOverTime::new)
+        .counterSupport(PromqlFunctionDefinition.CounterSupport.SUPPORTED)
+        .description("Returns 1 if the range vector has no elements, otherwise returns an empty vector.")
+        .example("absent_over_time(nonexistent_metric[5m])")
+        .name("absent_over_time");
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "boolean" },
         description = "Calculates the absence of a field in the output result over time range.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
-        preview = true,
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") },
         examples = { @Example(file = "k8s-timeseries", tag = "absent_over_time") }
     )
     public AbsentOverTime(
@@ -59,16 +74,26 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction {
                 "geohash",
                 "geotile",
                 "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
                 "text",
                 "unsigned_long",
-                "version" }
-        ) Expression field
+                "version",
+                "exponential_histogram",
+                "tdigest" },
+            description = "the metric field to calculate the value for"
+        ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to compute the absent over time",
+            optional = true
+        ) Expression window
     ) {
-        this(source, field, Literal.TRUE, NO_WINDOW);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
     public AbsentOverTime(Source source, Expression field, Expression filter, Expression window) {
@@ -107,6 +132,11 @@ public class AbsentOverTime extends TimeSeriesAggregateFunction {
     @Override
     public DataType dataType() {
         return perTimeSeriesAggregation().dataType();
+    }
+
+    @Override
+    public Expression surrogate() {
+        return perTimeSeriesAggregation();
     }
 
     @Override

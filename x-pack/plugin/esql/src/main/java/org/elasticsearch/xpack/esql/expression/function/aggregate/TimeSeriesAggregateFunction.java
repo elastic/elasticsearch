@@ -8,11 +8,10 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
 import java.io.IOException;
@@ -24,7 +23,7 @@ import java.util.function.Supplier;
  * Extends {@link AggregateFunction} to support aggregation per time_series,
  * such as {@link Rate} or {@link MaxOverTime}.
  */
-public abstract class TimeSeriesAggregateFunction extends AggregateFunction {
+public abstract class TimeSeriesAggregateFunction extends AggregateFunction implements OptionalArgument {
 
     protected TimeSeriesAggregateFunction(
         Source source,
@@ -53,21 +52,23 @@ public abstract class TimeSeriesAggregateFunction extends AggregateFunction {
     }
 
     @Override
-    public AttributeSet aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
+    public List<Attribute> aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
         if (requiredTimeSeriesSource()) {
             List<? extends Expression> parameters = parameters();
-            List<Expression> expressions = new ArrayList<>(1 + parameters.size() + EsQueryExec.TIME_SERIES_SOURCE_FIELDS.size());
-            expressions.add(field());
-            expressions.addAll(parameters);
+            List<Attribute> attributes = new ArrayList<>();
+            attributes.addAll(field().references());
+            for (Expression p : parameters) {
+                attributes.addAll(p.references());
+            }
             for (Attribute attr : inputAttributes.get()) {
                 for (EsField f : EsQueryExec.TIME_SERIES_SOURCE_FIELDS) {
                     if (attr.name().equals(f.getName())) {
-                        expressions.add(attr);
+                        attributes.addAll(attr.references());
                         break;
                     }
                 }
             }
-            return Expressions.references(expressions);
+            return attributes;
         } else {
             return super.aggregateInputReferences(inputAttributes);
         }

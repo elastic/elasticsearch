@@ -194,7 +194,6 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         components.withModule("org.apache.arrow:arrow-vector", ExcludeAllTransitivesRule.class);
 
         // Apache Commons dependencies
-        components.withModule("org.apache.commons:commons-compress", ExcludeAllTransitivesRule.class);
         components.withModule("org.apache.commons:commons-text", ExcludeAllTransitivesRule.class);
 
         // org.apache.directory.api:api-asn1-ber brings in org.slf4j:slf4j-api:1.7.25. We use 2.0.6
@@ -375,15 +374,15 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         // org.apache.tika:tika-parser-microsoft-module brings in com.pff:java-libpst:0.9.3.
         // org.apache.tika:tika-parser-microsoft-module brings in commons-logging:commons-logging:1.3.5. We use 1.2.
         // org.apache.tika:tika-parser-microsoft-module brings in org.bouncycastle:bcjmail-jdk18on:1.81.
-        // org.apache.tika:tika-parser-microsoft-module brings in org.bouncycastle:bcprov-jdk18on:1.81. We use 1.78.1/1.79.
+        // org.apache.tika:tika-parser-microsoft-module brings in org.bouncycastle:bcprov-jdk18on:1.81. We use 1.84.
         // org.apache.tika:tika-parser-microsoft-module brings in tika-parser-mail-commons.
         components.withModule("org.apache.tika:tika-parser-microsoft-module", ExcludeAllTransitivesRule.class);
         // org.apache.tika:tika-parser-miscoffice-module brings in org.glassfish.jaxb:jaxb-runtime:4.0.5.
         components.withModule("org.apache.tika:tika-parser-miscoffice-module", ExcludeOtherGroupsTransitiveRule.class);
         // org.apache.tika:tika-parser-pdf-module brings in org.apache.pdfbox:pdfbox-tools:3.0.5.
         // org.apache.tika:tika-parser-pdf-module brings in org.bouncycastle:bcjmail-jdk18on:1.81. Closest we use is
-        // bcprov-jdk18on:1.78.1/1.79.
-        // org.apache.tika:tika-parser-pdf-module brings in org.bouncycastle:bcprov-jdk18on:1.81. We use 1.78.1/1.79.
+        // bcprov-jdk18on:1.84.
+        // org.apache.tika:tika-parser-pdf-module brings in org.bouncycastle:bcprov-jdk18on:1.81. We use 1.84.
         // org.apache.tika:tika-parser-pdf-module brings in org.glassfish.jaxb:jaxb-runtime:4.0.5.
         components.withModule("org.apache.tika:tika-parser-pdf-module", ExcludeOtherGroupsTransitiveRule.class);
         // org.apache.tika:tika-parser-text-module brings in com.github.albfernandez:juniversalchardet:2.5.0..
@@ -457,9 +456,6 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
 
         // SubEtha SMTP dependencies
         components.withModule("org.subethamail:subethasmtp", ExcludeAllTransitivesRule.class);
-
-        // Testcontainers dependencies
-        components.withModule("org.testcontainers:testcontainers", ExcludeAllTransitivesRule.class);
 
         // AWS SDK dependencies
         components.withModule("software.amazon.awssdk:apache-client", ExcludeAllTransitivesRule.class);

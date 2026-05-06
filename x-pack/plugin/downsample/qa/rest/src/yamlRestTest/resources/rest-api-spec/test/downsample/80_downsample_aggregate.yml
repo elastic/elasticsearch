@@ -2,8 +2,11 @@
   - requires:
       cluster_features: ["data_stream.downsample.default_aggregate_metric_fix"]
       reason: "#119696 fixed"
+      test_runner_features: allowed_warnings
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index: test
         body:
@@ -44,12 +47,16 @@
           - '{"@timestamp": "2021-04-28T20:00:00Z", "sensor_id": "1", "temperature": {"min": 24.6, "sum": 49.1, "value_count": 2}}'
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.put_settings:
         index: test
         body:
           index.blocks.write: true
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample

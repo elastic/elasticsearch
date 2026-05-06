@@ -40,6 +40,14 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
         return expressions.stream().flatMap(e -> e.remoteExpressions().stream()).toList();
     }
 
+    public boolean localIndicesEmptyOrMissing() {
+        return expressions.stream().noneMatch(e -> {
+            var local = e.localExpressions();
+            return local.localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
+                && local.indices().isEmpty() == false;
+        });
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -93,8 +101,14 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
         public void excludeFromLocalExpressions(Set<String> expressionsToExclude) {
             Objects.requireNonNull(expressionsToExclude);
             if (expressionsToExclude.isEmpty() == false) {
-                for (ResolvedIndexExpression prior : expressions) {
-                    final Set<String> localExpressions = prior.localExpressions().indices();
+                final var iter = expressions.iterator();
+                while (iter.hasNext()) {
+                    final ResolvedIndexExpression current = iter.next();
+                    if (expressionsToExclude.contains(current.original())) {
+                        iter.remove();
+                        continue;
+                    }
+                    final Set<String> localExpressions = current.localExpressions().indices();
                     if (localExpressions.isEmpty()) {
                         continue;
                     }

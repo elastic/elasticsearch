@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.EngineResetLock;
@@ -64,6 +65,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -78,7 +80,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.engine.EngineTestCase.getDocIds;
+import static org.elasticsearch.index.EngineTestUtils.getDocIds;
 import static org.elasticsearch.index.engine.EngineTestCase.getNumVersionLookups;
 import static org.elasticsearch.index.engine.EngineTestCase.getTranslog;
 import static org.hamcrest.Matchers.containsString;
@@ -251,7 +253,7 @@ public class FollowingEngineTests extends ESTestCase {
             indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE
         );
-        final MapperService mapperService = EngineTestCase.createMapperService();
+        final MapperService mapperService = EngineTestCase.createMapperService(indexSettings.getSettings(), "{}");
         return new EngineConfig(
             shardIdValue,
             threadPool,
@@ -262,7 +264,7 @@ public class FollowingEngineTests extends ESTestCase {
             newMergePolicy(),
             indexWriterConfig.getAnalyzer(),
             indexWriterConfig.getSimilarity(),
-            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
+            new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null),
             new Engine.EventListener() {
                 @Override
                 public void onFailedEngine(String reason, Exception e) {
@@ -779,12 +781,14 @@ public class FollowingEngineTests extends ESTestCase {
 
     public void testProcessOnceOnPrimary() throws Exception {
         final Settings.Builder settingsBuilder = indexSettings(IndexVersion.current(), 1, 0).put("index.xpack.ccr.following_index", true);
+        boolean useSyntheticId = indexMode == IndexMode.TIME_SERIES && randomBoolean();
         switch (indexMode) {
             case STANDARD:
                 break;
             case TIME_SERIES:
                 settingsBuilder.put("index.mode", "time_series").put("index.routing_path", "foo");
                 settingsBuilder.put("index.seq_no.index_options", "points_and_doc_values");
+                settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId);
                 break;
             case LOGSDB:
                 settingsBuilder.put("index.mode", IndexMode.LOGSDB.getName());
@@ -803,8 +807,18 @@ public class FollowingEngineTests extends ESTestCase {
         int numOps = between(10, 100);
         List<Engine.Operation> operations = new ArrayList<>(numOps);
         for (int i = 0; i < numOps; i++) {
-            String docId = Integer.toString(between(1, 100));
-            ParsedDocument doc = randomBoolean() ? EngineTestCase.createParsedDoc(docId, null) : nestedDocFunc.apply(docId, randomInt(3));
+            String docId = useSyntheticId
+                ? TsidExtractingIdFieldMapper.createSyntheticId(
+                    new BytesRef(Integer.toString(i)),
+                    Instant.now().toEpochMilli(),
+                    randomNonNegativeInt()
+                )
+                : Integer.toString(i);
+            ParsedDocument doc = randomBoolean() || useSyntheticId
+                ? EngineTestCase.createParsedDoc(docId, null, false, useSyntheticId)
+                // The nested docs uses the default mapper to create the document, and that doesn't include all the necessary
+                // fields for the synthetic id. Hence we just skip using nested docs if the synthetic id is enabled.
+                : nestedDocFunc.apply(docId, randomInt(3));
             if (randomBoolean()) {
                 operations.add(
                     new Engine.Index(

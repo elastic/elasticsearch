@@ -11,12 +11,17 @@
 
 set -euo pipefail
 
+if [[ "${SKIP_BC_UPGRADE_TESTS:-}" == "true" ]]; then
+  echo "SKIP_BC_UPGRADE_TESTS is set. Skipping BC upgrade tests."
+  exit 0
+fi
+
 echo "Selecting the most recent build from branch [$BUILDKITE_BRANCH]."
 
 # Select the most recent build from the current branch.
 # We collect snapshots, order by date, then collect BCs, order by date, and concat them; then we select the last.
 # So if we have one (or more) BC, we will always prefer to use that. Otherwise we will use the latest snapshot.
-MANIFEST_URL="$(curl -s https://artifacts.elastic.co/releases/TfEVhiaBGqR64ie0g0r0uUwNAbEQMu1Z/future-releases/stack.json |
+MANIFEST_URL="$(curl -s https://elastic-release-api.s3.us-west-2.amazonaws.com/public/future-releases.json |
 jq ".releases[] |
 select(.branch == \"$BUILDKITE_BRANCH\") |
 select(.active_release == true) |

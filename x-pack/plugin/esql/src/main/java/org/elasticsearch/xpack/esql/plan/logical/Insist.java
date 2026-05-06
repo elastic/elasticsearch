@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
-import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,7 +46,7 @@ public class Insist extends UnaryPlan implements SurrogateLogicalPlan, Streaming
 
     @Override
     public boolean expressionsResolved() {
-        // Like EsqlProject, we allow unsupported attributes to flow through the engine.
+        // Like Project, we allow unsupported attributes to flow through the engine.
         return insistedAttributes().stream().allMatch(a -> a.resolved() || a instanceof UnsupportedAttribute);
     }
 

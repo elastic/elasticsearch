@@ -56,7 +56,9 @@ public class GlobalBalancingWeightsFactory implements BalancingWeightsFactory {
 
         @Override
         public NodeSorters createNodeSorters(BalancedShardsAllocator.ModelNode[] modelNodes, BalancedShardsAllocator.Balancer balancer) {
-            return new GlobalNodeSorters(new BalancedShardsAllocator.NodeSorter(modelNodes, weightFunction, balancer));
+            return new GlobalNodeSorters(
+                new BalancedShardsAllocator.NodeSorter(modelNodes, weightFunction, balancer, balancerSettings.getThreshold())
+            );
         }
 
         @Override

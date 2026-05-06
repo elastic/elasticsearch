@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -59,7 +58,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
     public boolean isMinTransportVersionSupported(TransportVersion minTransportVersion) {
         // Automatic rollover does not require any new features
         // but wait for all nodes to be upgraded anyway
-        return minTransportVersion.supports(TransportVersions.V_8_18_0);
+        return true;
     }
 
     @Override

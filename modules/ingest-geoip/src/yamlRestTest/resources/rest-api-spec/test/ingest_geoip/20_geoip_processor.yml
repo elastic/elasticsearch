@@ -345,3 +345,287 @@
         }
 - length: { docs: 1 }
 - match: { docs.0.doc._source.source.geo.city_name: "Linköping" }
+
+---
+"Test geoip processor with flexible field access mode":
+  - skip:
+      features: [ "flexible_field_access_pattern" ]
+      reason: "Flexible field access pattern support required"
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline_flexible"
+        body:  >
+          {
+            "description": "Test flexible field access mode with dotted target field",
+            "field_access_pattern": "flexible",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "ip",
+                  "target_field" : "geo.location_data"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline_flexible"
+        body: {ip: "89.160.20.128"}
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.ip: "89.160.20.128" }
+  # In flexible mode, fields are written as dotted keys, not nested objects
+  - match: { _source.geo\.location_data\.city_name: "Linköping" }
+  - match: { _source.geo\.location_data\.country_iso_code: "SE" }
+  - match: { _source.geo\.location_data\.country_name: "Sweden" }
+  - match: { _source.geo\.location_data\.continent_name: "Europe" }
+  - match: { _source.geo\.location_data\.region_iso_code: "SE-E" }
+  - match: { _source.geo\.location_data\.region_name: "Östergötland County" }
+  # Location should be written as an array [lon, lat] in flexible mode
+  - match: { _source.geo\.location_data\.location.0: 15.6167 }
+  - match: { _source.geo\.location_data\.location.1: 58.4167 }
+  # Verify that nested object was NOT created
+  - is_false: _source.geo
+---
+"Test geoip processor flexible mode with ASN database":
+  - skip:
+      features: [ "flexible_field_access_pattern" ]
+
+      reason: "Flexible field access pattern support required"
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline_flexible_asn"
+        body:  >
+          {
+            "description": "Test flexible mode with ASN database",
+            "field_access_pattern": "flexible",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "source_ip",
+                  "target_field" : "network.asn_info",
+                  "database_file" : "GeoLite2-ASN.mmdb"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline_flexible_asn"
+        body: {source_ip: "89.160.20.128"}
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.source_ip: "89.160.20.128" }
+  # In flexible mode, ASN fields are written as dotted keys
+  - match: { _source.network\.asn_info\.ip: "89.160.20.128" }
+  - match: { _source.network\.asn_info\.asn: 29518 }
+  - match: { _source.network\.asn_info\.organization_name: "Bredband2 AB" }
+  - match: { _source.network\.asn_info\.network: "89.160.0.0/17" }
+  # Verify that nested object was NOT created
+  - is_false: _source.network
+---
+"Test geoip processor flexible mode with first_only":
+  - skip:
+
+      features: [ "flexible_field_access_pattern" ]
+      reason: "Flexible field access pattern support required"
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline_flexible_first"
+        body:  >
+          {
+            "description": "Test flexible mode with array and first_only",
+            "field_access_pattern": "flexible",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "ips",
+                  "target_field" : "geo.data",
+                  "first_only" : true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline_flexible_first"
+        body: {ips: ["127.0.0.1", "89.160.20.128"]}
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.ips.0: "127.0.0.1" }
+  - match: { _source.ips.1: "89.160.20.128" }
+  # Only the first valid IP should be processed
+  - match: { _source.geo\.data\.city_name: "Linköping" }
+  - match: { _source.geo\.data\.country_iso_code: "SE" }
+  - match: { _source.geo\.data\.location.0: 15.6167 }
+  - match: { _source.geo\.data\.location.1: 58.4167 }
+---
+"Test geoip processor classic mode vs flexible mode comparison":
+  - skip:
+
+      features: [ "flexible_field_access_pattern" ]
+      reason: "Flexible field access pattern support required"
+  - do:
+      ingest.put_pipeline:
+        id: "classic_pipeline"
+        body:  >
+          {
+            "description": "Classic mode creates nested objects",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "ip",
+                  "target_field" : "geo.info"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      ingest.put_pipeline:
+        id: "flexible_pipeline"
+        body:  >
+          {
+            "description": "Flexible mode creates dotted fields",
+            "field_access_pattern": "flexible",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "ip",
+                  "target_field" : "geo.info"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      index:
+        index: test
+        id: "classic"
+        pipeline: "classic_pipeline"
+        body: {ip: "89.160.20.128"}
+  - do:
+      index:
+        index: test
+        id: "flexible"
+        pipeline: "flexible_pipeline"
+        body: {ip: "89.160.20.128"}
+  - do:
+      get:
+        index: test
+        id: "classic"
+  # Classic mode creates nested objects
+  - match: { _source.geo.info.city_name: "Linköping" }
+  - match: { _source.geo.info.location.lon: 15.6167 }
+  - do:
+      get:
+        index: test
+        id: "flexible"
+  # Flexible mode creates dotted fields
+  - match: { _source.geo\.info\.city_name: "Linköping" }
+  - match: { _source.geo\.info\.location.0: 15.6167 }
+  - is_false: _source.geo
+---
+"Test geoip processor flexible mode with array of IPs":
+  - skip:
+
+      features: [ "flexible_field_access_pattern" ]
+      reason: "Flexible field access pattern support required"
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline_flexible_array"
+        body:  >
+          {
+            "description": "Test flexible mode with array of IPs",
+            "field_access_pattern": "flexible",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "ips",
+                  "target_field" : "geo.data",
+                  "first_only" : false
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline_flexible_array"
+        body: {ips: ["8.8.8.8", "82.171.64.0"]}
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.ips.0: "8.8.8.8" }
+  - match: { _source.ips.1: "82.171.64.0" }
+  # In flexible mode with arrays, each property becomes a list
+  - match: { _source.geo\.data\.ip.0: "8.8.8.8" }
+  - match: { _source.geo\.data\.ip.1: "82.171.64.0" }
+  - match: { _source.geo\.data\.city_name.1: "Hoensbroek" }
+  # Location should be a list of arrays [[lon1, lat1], [lon2, lat2]]
+  - match: { _source.geo\.data\.location.0.0: -97.822 }
+  - match: { _source.geo\.data\.location.0.1: 37.751 }
+  - match: { _source.geo\.data\.location.1.0: 5.9345 }
+  - match: { _source.geo\.data\.location.1.1: 50.9118 }
+  # Verify that nested object was NOT created
+  - is_false: _source.geo
+---
+"Test geoip processor flexible mode with partially valid array":
+  - skip:
+
+      features: [ "flexible_field_access_pattern" ]
+      reason: "Flexible field access pattern support required"
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline_flexible_partial"
+        body:  >
+          {
+            "description": "Test flexible mode with partially valid array",
+            "field_access_pattern": "flexible",
+            "processors": [
+              {
+                "geoip" : {
+                  "field" : "ips",
+                  "target_field" : "geo.data",
+                  "first_only" : false
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline_flexible_partial"
+        body: {ips: ["8.8.8.8", "127.0.0.1"]}
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.ips.0: "8.8.8.8" }
+  - match: { _source.ips.1: "127.0.0.1" }
+  # In flexible mode with arrays, each property becomes a list with nulls for failed lookups
+  - match: { _source.geo\.data\.ip.0: "8.8.8.8" }
+  - match: { _source.geo\.data\.ip.1: null }
+  - match: { _source.geo\.data\.location.1: null }
+  # Verify that nested object was NOT created
+  - is_false: _source.geo

@@ -13,6 +13,7 @@ module org.elasticsearch.compute.gen {
     requires com.squareup.javapoet;
     requires org.elasticsearch.compute.ann;
     requires java.compiler;
+    requires org.elasticsearch.base;
 
     exports org.elasticsearch.compute.gen;
     exports org.elasticsearch.compute.gen.argument;

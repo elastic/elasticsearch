@@ -11,31 +11,31 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvContains}.
+ * {@link ExpressionEvaluator} implementation for {@link MvContains}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MvContainsBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class MvContainsBytesRefEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvContainsBytesRefEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator superset;
+  private final ExpressionEvaluator superset;
 
-  private final EvalOperator.ExpressionEvaluator subset;
+  private final ExpressionEvaluator subset;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public MvContainsBytesRefEvaluator(Source source, EvalOperator.ExpressionEvaluator superset,
-      EvalOperator.ExpressionEvaluator subset, DriverContext driverContext) {
+  public MvContainsBytesRefEvaluator(Source source, ExpressionEvaluator superset,
+      ExpressionEvaluator subset, DriverContext driverContext) {
     this.source = source;
     this.superset = superset;
     this.subset = subset;
@@ -81,25 +81,20 @@ public final class MvContainsBytesRefEvaluator implements EvalOperator.Expressio
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory superset;
+    private final ExpressionEvaluator.Factory superset;
 
-    private final EvalOperator.ExpressionEvaluator.Factory subset;
+    private final ExpressionEvaluator.Factory subset;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory superset,
-        EvalOperator.ExpressionEvaluator.Factory subset) {
+    public Factory(Source source, ExpressionEvaluator.Factory superset,
+        ExpressionEvaluator.Factory subset) {
       this.source = source;
       this.superset = superset;
       this.subset = subset;

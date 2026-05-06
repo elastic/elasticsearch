@@ -10,7 +10,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
@@ -22,8 +21,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -53,11 +52,11 @@ import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.MAX
 /**
  * A query that will determine based on query context and configured query rules,
  * whether a query should be modified based on actions specified in matching rules.
- *
+ * <p>
  * This iteration will determine if a query should have pinned documents and if so,
  * modify the query accordingly to pin those documents.
  */
-public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
+public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
 
     public static final ParseField NAME = new ParseField("rule", "rule_query");
 
@@ -77,7 +76,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_10_X;
+        return TransportVersion.minimumCompatible();
     }
 
     public RuleQueryBuilder(QueryBuilder organicQuery, Map<String, Object> matchCriteria, List<String> rulesetIds) {
@@ -88,13 +87,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         super(in);
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
         matchCriteria = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rulesetIds = in.readStringCollectionAsList();
-        } else {
-            rulesetIds = List.of(in.readString());
-            in.readOptionalStringCollectionAsList();
-            in.readOptionalCollectionAsList(SpecifiedDocument::new);
-        }
+        rulesetIds = in.readStringCollectionAsList();
         pinnedDocsSupplier = null;
         excludedDocsSupplier = null;
     }
@@ -143,14 +136,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
         out.writeNamedWriteable(organicQuery);
         out.writeGenericMap(matchCriteria);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeStringCollection(rulesetIds);
-        } else {
-            out.writeString(rulesetIds.get(0));
-            out.writeOptionalStringCollection(null);
-            out.writeOptionalCollection(null);
-        }
+        out.writeStringCollection(rulesetIds);
     }
 
     public List<String> rulesetIds() {
@@ -289,7 +275,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         ).queryName(this.queryName);
     }
 
-    private QueryBuilder buildExcludedDocsQuery(List<SpecifiedDocument> identifiedExcludedDocs) {
+    QueryBuilder buildExcludedDocsQuery(List<SpecifiedDocument> identifiedExcludedDocs) {
         QueryBuilder excludedDocsQueryBuilder;
         if (identifiedExcludedDocs.stream().allMatch(item -> item.index() == null)) {
             // Easy case - just add an ids query
@@ -305,7 +291,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                     excludeQueryBuilder.must(QueryBuilders.termQuery(IndexFieldMapper.NAME, item.index()));
                 }
                 return excludeQueryBuilder;
-            }).forEach(excludeQueryBuilder -> ((BoolQueryBuilder) excludedDocsQueryBuilder).must(excludeQueryBuilder));
+            }).forEach(excludeQueryBuilder -> ((BoolQueryBuilder) excludedDocsQueryBuilder).should(excludeQueryBuilder));
         }
         return excludedDocsQueryBuilder;
     }
@@ -355,6 +341,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetIds);
         }
     );
+
     static {
         PARSER.declareObject(constructorArg(), (p, c) -> parseInnerQueryBuilder(p), ORGANIC_QUERY_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> p.map(), MATCH_CRITERIA_FIELD);

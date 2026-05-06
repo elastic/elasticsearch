@@ -11,6 +11,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -26,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
@@ -39,6 +42,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -114,6 +118,20 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """, taskType, apiKey, temperature);
     }
 
+    static String updateConfigWithFailedValidationFlag(TaskType taskType) {
+        return Strings.format("""
+            {
+              "task_type": "%s",
+              "service_settings": {
+                "api_key": "some_new_api_key"
+              },
+              "task_settings": {
+                "should_fail_validation": true
+              }
+            }
+            """, taskType);
+    }
+
     static String mockCompletionServiceModelConfig(@Nullable TaskType taskTypeInBody, String service) {
         var taskType = taskTypeInBody == null ? "" : "\"task_type\": \"" + taskTypeInBody + "\",";
         return Strings.format("""
@@ -150,7 +168,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """, taskType, shouldReturnHiddenField);
     }
 
-    static String mockDenseServiceModelConfig() {
+    static String mockTextEmbeddingServiceModelConfig() {
         return """
             {
               "task_type": "text_embedding",
@@ -166,7 +184,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """;
     }
 
-    static String mockDenseServiceModelConfig(int dimensions) {
+    static String mockTextEmbeddingServiceModelConfig(int dimensions) {
         return Strings.format("""
             {
               "task_type": "text_embedding",
@@ -194,6 +212,26 @@ public class InferenceBaseRestTest extends ESRestTestCase {
               }
             }
             """;
+    }
+
+    static String mockEmbeddingServiceModelConfig() {
+        return mockEmbeddingServiceModelConfig(246);
+    }
+
+    static String mockEmbeddingServiceModelConfig(int dimensions) {
+        return Strings.format("""
+            {
+              "task_type": "embedding",
+              "service": "text_embedding_test_service",
+              "service_settings": {
+                "model": "my_dense_vector_model",
+                "api_key": "abc64",
+                "dimensions": %s
+              },
+              "task_settings": {
+              }
+            }
+            """, dimensions);
     }
 
     static void deleteModel(String modelId) throws IOException {
@@ -354,8 +392,23 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    static List<Map<String, Object>> getAllModels() throws IOException {
+    public static List<Map<String, Object>> getAllModels() throws IOException {
         return (List<Map<String, Object>>) getInternalAsMap("_inference/_all").get("endpoints");
+    }
+
+    /**
+     * Ensure that the internal inference indices shards have been initialized.
+     */
+    public static void initInferenceIndices() throws Exception {
+        assertBusy(() -> {
+            try {
+                var request = new Request("GET", "_inference/_all");
+                client().performRequest(request);
+            } catch (ResponseException e) {
+                // Translate the exception to an AssertionError so assertBusy can retry it
+                fail();
+            }
+        });
     }
 
     private static Map<String, Object> getInternalAsMap(String endpoint) throws IOException {
@@ -365,9 +418,19 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return entityAsMap(response);
     }
 
+    protected static Map<String, Object> getTrainedModelStats(String modelId) throws IOException {
+        var request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
+        return entityAsMap(client().performRequest(request));
+    }
+
     protected Map<String, Object> infer(String modelId, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s", modelId);
         return inferInternal(endpoint, input, null, Map.of());
+    }
+
+    protected Map<String, Object> rerankInfer(String modelId, List<String> input, String query) throws IOException {
+        var endpoint = Strings.format("_inference/%s", modelId);
+        return inferInternal(endpoint, input, query, Map.of());
     }
 
     protected Deque<ServerSentEvent> streamInferOnMockService(
@@ -388,6 +451,15 @@ public class InferenceBaseRestTest extends ESRestTestCase {
     ) throws Exception {
         var endpoint = Strings.format("_inference/%s/%s/_stream", taskType, modelId);
         return callAsyncUnified(endpoint, input, "user", responseConsumerCallback);
+    }
+
+    protected Map<String, Object> embedding(String modelId, List<InferenceString> input) throws IOException {
+        var endpoint = Strings.format("_inference/embedding/%s", modelId);
+        var request = new Request("POST", endpoint);
+        request.setJsonEntity(jsonBodyEmbedding(input));
+        var response = client().performRequest(request);
+        assertStatusOkOrCreated(response);
+        return entityAsMap(response);
     }
 
     private Deque<ServerSentEvent> callAsync(String endpoint, List<String> input, @Nullable Consumer<Response> responseConsumerCallback)
@@ -506,6 +578,16 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return bodyBuilder.toString();
     }
 
+    private String jsonBodyEmbedding(List<InferenceString> inputs) {
+        final StringBuilder bodyBuilder = new StringBuilder("{\"input\": [");
+        String contents = inputs.stream().map(s -> Strings.format("""
+            {"content": {"type": "%s", "format": "%s", "value": "%s"}}
+            """, s.dataType(), s.dataFormat(), s.value())).collect(Collectors.joining(","));
+        bodyBuilder.append(contents);
+        bodyBuilder.append("]}");
+        return bodyBuilder.toString();
+    }
+
     @SuppressWarnings("unchecked")
     protected void assertNonEmptyInferenceResults(Map<String, Object> resultMap, int expectedNumberOfResults, TaskType taskType) {
         switch (taskType) {
@@ -521,11 +603,15 @@ public class InferenceBaseRestTest extends ESRestTestCase {
                 var results = (List<Map<String, Object>>) resultMap.get(DenseEmbeddingFloatResults.TEXT_EMBEDDING);
                 assertThat(results, hasSize(expectedNumberOfResults));
             }
+            case EMBEDDING -> {
+                var results = (List<Map<String, Object>>) resultMap.get(GenericDenseEmbeddingFloatResults.EMBEDDINGS);
+                assertThat(results, hasSize(expectedNumberOfResults));
+            }
             default -> fail("test with task type [" + taskType + "] are not supported yet");
         }
     }
 
-    static void assertStatusOkOrCreated(Response response) throws IOException {
+    public static void assertStatusOkOrCreated(Response response) throws IOException {
         int statusCode = response.getStatusLine().getStatusCode();
         // Once EntityUtils.toString(entity) is called the entity cannot be reused.
         // Avoid that call with check here.

@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiService;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -84,9 +85,7 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
                 }
             }
         }
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new OpenShiftAiEmbeddingsServiceSettings(
             commonServiceSettings.model(),
@@ -164,6 +163,37 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
     }
 
     @Override
+    public OpenShiftAiEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            OpenShiftAiService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new OpenShiftAiEmbeddingsServiceSettings(
+            this.modelId,
+            this.uri,
+            this.dimensions,
+            this.similarity,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            extractedRateLimitSettings,
+            this.dimensionsSetByUser
+        );
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
@@ -201,7 +231,7 @@ public class OpenShiftAiEmbeddingsServiceSettings extends OpenShiftAiServiceSett
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalVInt(dimensions);
-        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
+        out.writeOptionalEnum(similarity);
         out.writeOptionalVInt(maxInputTokens);
         out.writeBoolean(dimensionsSetByUser);
     }

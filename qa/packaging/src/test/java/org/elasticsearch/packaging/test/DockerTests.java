@@ -44,7 +44,9 @@ import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.Distribution.Packaging;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
+import static org.elasticsearch.packaging.util.FileMatcher.p440;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
+import static org.elasticsearch.packaging.util.FileMatcher.p640;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p750;
@@ -57,6 +59,7 @@ import static org.elasticsearch.packaging.util.docker.Docker.chownWithPrivilegeE
 import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.findInContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.getContainerId;
 import static org.elasticsearch.packaging.util.docker.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageHealthcheck;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageLabels;
@@ -123,13 +126,20 @@ public class DockerTests extends PackagingTestCase {
 
     @After
     public void teardownTest() {
-        removeContainer();
+        // Container cleanup is handled in PackagingTestCase.teardown() so that the TestWatcher
+        // can dump container logs before we remove the container on failures.
         rm(tempDir);
+    }
+
+    @Override
+    protected boolean shouldRemoveDockerContainerAfterTest() {
+        return true;
     }
 
     @Override
     protected void dumpDebug() {
         final Result containerLogs = getContainerLogs();
+        logger.warn("Container id for debug logs: " + getContainerId());
         logger.warn("Elasticsearch log stdout:\n" + containerLogs.stdout());
         logger.warn("Elasticsearch log stderr:\n" + containerLogs.stderr());
     }
@@ -622,6 +632,78 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that the elastic user's password can be configured via a file with group-readable (440) permissions.
+     */
+    public void test081ConfigurePasswordThroughEnvironmentVariableFileWith440Permissions() throws Exception {
+        final String xpackPassword = "hunter2";
+        final String passwordFilename = "password.txt";
+
+        Files.writeString(tempDir.resolve(passwordFilename), xpackPassword + "\n");
+
+        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p440);
+        chownWithPrivilegeEscalation(tempDir.resolve(passwordFilename), "1000:0");
+
+        runContainer(
+            distribution(),
+            builder().volume(tempDir, "/run/secrets").envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
+        );
+
+        try {
+            waitForElasticsearch(installation, "elastic", xpackPassword);
+        } catch (Exception e) {
+            throw new AssertionError(
+                "Failed to check whether Elasticsearch had started. This could be because "
+                    + "authentication isn't working properly. Check the container logs",
+                e
+            );
+        }
+
+        final int statusCode = ServerUtils.makeRequestAndGetStatus(
+            Request.Get("https://localhost:9200"),
+            null,
+            null,
+            ServerUtils.getCaCert(installation)
+        );
+        assertThat("Expected server to require authentication", statusCode, equalTo(401));
+    }
+
+    /**
+     * Check that the elastic user's password can be configured via a file with owner-rw + group-readable (640) permissions.
+     */
+    public void test080cConfigurePasswordThroughEnvironmentVariableFileWith640Permissions() throws Exception {
+        final String xpackPassword = "hunter2";
+        final String passwordFilename = "password.txt";
+
+        Files.writeString(tempDir.resolve(passwordFilename), xpackPassword + "\n");
+
+        Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p640);
+        chownWithPrivilegeEscalation(tempDir.resolve(passwordFilename), "1000:0");
+
+        runContainer(
+            distribution(),
+            builder().volume(tempDir, "/run/secrets").envVar("ELASTIC_PASSWORD_FILE", "/run/secrets/" + passwordFilename)
+        );
+
+        try {
+            waitForElasticsearch(installation, "elastic", "hunter2");
+        } catch (Exception e) {
+            throw new AssertionError(
+                "Failed to check whether Elasticsearch had started. This could be because "
+                    + "authentication isn't working properly. Check the container logs",
+                e
+            );
+        }
+
+        final int statusCode = ServerUtils.makeRequestAndGetStatus(
+            Request.Get("https://localhost:9200"),
+            null,
+            null,
+            ServerUtils.getCaCert(installation)
+        );
+        assertThat("Expected server to require authentication", statusCode, equalTo(401));
+    }
+
+    /**
      * Check that when verifying the file permissions of _FILE environment variables, symlinks
      * are followed.
      */
@@ -699,7 +781,9 @@ public class DockerTests extends PackagingTestCase {
         assertThat(
             dockerLogs.stderr(),
             containsString(
-                "ERROR: File /run/secrets/" + passwordFilename + " from ELASTIC_PASSWORD_FILE must have file permissions 400 or 600"
+                "ERROR: File /run/secrets/"
+                    + passwordFilename
+                    + " from ELASTIC_PASSWORD_FILE must have file permissions 400, 440, 600 or 640"
             )
         );
     }
@@ -739,7 +823,7 @@ public class DockerTests extends PackagingTestCase {
                     + passwordFilename
                     + " (target of symlink /run/secrets/"
                     + symlinkFilename
-                    + " from ELASTIC_PASSWORD_FILE) must have file permissions 400 or 600, but actually has: 775"
+                    + " from ELASTIC_PASSWORD_FILE) must have file permissions 400, 440, 600 or 640, but actually has: 775"
             )
         );
     }
@@ -970,7 +1054,7 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test130JavaHasCorrectOwnership() {
         final List<ProcessInfo> infos = ProcessInfo.getProcessInfo(sh, "java");
-        assertThat(infos, hasSize(2));
+        assertThat(infos, hasSize(1));
 
         for (ProcessInfo info : infos) {
             assertThat("Incorrect UID", info.uid(), equalTo(1000));
@@ -997,6 +1081,20 @@ public class DockerTests extends PackagingTestCase {
 
         assertThat("Incorrect GID", info.gid(), equalTo(0));
         assertThat("Incorrect group", info.group(), equalTo("root"));
+    }
+
+    /**
+     * Check that the native server-launcher is used instead of the Java fallback. When the native
+     * launcher is executable, the bin/elasticsearch script execs it directly and the launcher forks
+     * a single JVM for the ES server. The Java fallback path would instead produce two java
+     * processes (the launcher JVM and the server JVM).
+     */
+    public void test132NativeServerLauncherIsUsed() {
+        final List<ProcessInfo> launcherProcesses = ProcessInfo.getProcessInfo(sh, "server-launcher");
+        assertThat("Expected native server-launcher process to be running", launcherProcesses, hasSize(1));
+
+        final List<ProcessInfo> javaProcesses = ProcessInfo.getProcessInfo(sh, "java");
+        assertThat("Expected exactly one java process, indicating the native server-launcher is in use", javaProcesses, hasSize(1));
     }
 
     /**
@@ -1215,7 +1313,6 @@ public class DockerTests extends PackagingTestCase {
             builder().envVar("readiness.port", "9399").envVar("xpack.security.enabled", "false").envVar("discovery.type", "single-node")
         );
         waitForElasticsearch(installation);
-        dumpDebug();
         // readiness may still take time as file settings are applied into cluster state (even non-existent file settings)
         assertBusy(() -> assertTrue(readinessProbe(9399)));
     }

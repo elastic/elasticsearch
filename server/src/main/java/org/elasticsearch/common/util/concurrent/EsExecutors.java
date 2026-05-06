@@ -119,12 +119,14 @@ public class EsExecutors {
         boolean rejectAfterShutdown,
         ThreadFactory threadFactory,
         ThreadContext contextHolder,
-        TaskTrackingConfig config
+        TaskTrackingConfig config,
+        HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig
     ) {
         LinkedTransferQueue<Runnable> queue = newUnboundedScalingLTQueue(min, max);
         // Force queued work via ForceQueuePolicy might starve if no worker is available (if core size is empty),
         // probing the worker pool prevents this.
         boolean probeWorkerPool = min == 0 && queue instanceof ExecutorScalingQueue;
+        final ForceQueuePolicy queuePolicy = new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool);
         if (config.trackExecutionTime()) {
             return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
@@ -135,9 +137,10 @@ public class EsExecutors {
                 queue,
                 TimedRunnable::new,
                 threadFactory,
-                new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
+                queuePolicy,
                 contextHolder,
-                config
+                config,
+                hotThreadsOnLargeQueueConfig
             );
         } else {
             return new EsThreadPoolExecutor(
@@ -148,8 +151,9 @@ public class EsExecutors {
                 unit,
                 queue,
                 threadFactory,
-                new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
-                contextHolder
+                queuePolicy,
+                contextHolder,
+                hotThreadsOnLargeQueueConfig
             );
         }
     }
@@ -188,7 +192,8 @@ public class EsExecutors {
             rejectAfterShutdown,
             threadFactory,
             contextHolder,
-            TaskTrackingConfig.DO_NOT_TRACK
+            TaskTrackingConfig.DO_NOT_TRACK,
+            HotThreadsOnLargeQueueConfig.DISABLED
         );
     }
 
@@ -221,7 +226,8 @@ public class EsExecutors {
                 threadFactory,
                 rejectedExecutionHandler,
                 contextHolder,
-                config
+                config,
+                HotThreadsOnLargeQueueConfig.DISABLED
             );
         } else {
             return new EsThreadPoolExecutor(
@@ -233,7 +239,8 @@ public class EsExecutors {
                 queue,
                 threadFactory,
                 rejectedExecutionHandler,
-                contextHolder
+                contextHolder,
+                HotThreadsOnLargeQueueConfig.DISABLED
             );
         }
     }
@@ -654,4 +661,12 @@ public class EsExecutors {
         }
     }
 
+    public record HotThreadsOnLargeQueueConfig(int sizeThreshold, long durationThresholdInMillis, long intervalInMillis) {
+
+        public static final HotThreadsOnLargeQueueConfig DISABLED = new HotThreadsOnLargeQueueConfig(0, -1, -1);
+
+        public boolean isEnabled() {
+            return sizeThreshold > 0;
+        }
+    }
 }

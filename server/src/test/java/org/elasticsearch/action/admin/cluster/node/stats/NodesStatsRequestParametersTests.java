@@ -9,37 +9,11 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.BytesRefStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EnumSerializationTestUtils;
 
-import java.io.IOException;
-import java.util.EnumSet;
-import java.util.List;
-
 public class NodesStatsRequestParametersTests extends ESTestCase {
-
-    public void testReadWriteMetricSet() {
-        for (var version : List.of(TransportVersions.V_8_15_0, TransportVersions.V_8_16_0)) {
-            var randSet = randomSubsetOf(Metric.ALL);
-            var metricsOut = randSet.isEmpty() ? EnumSet.noneOf(Metric.class) : EnumSet.copyOf(randSet);
-            try {
-                var out = new BytesRefStreamOutput();
-                out.setTransportVersion(version);
-                Metric.writeSetTo(out, metricsOut);
-                var in = new ByteArrayStreamInput(out.get().bytes);
-                in.setTransportVersion(version);
-                var metricsIn = Metric.readSetFrom(in);
-                assertEquals(metricsOut, metricsIn);
-            } catch (IOException e) {
-                var errMsg = "metrics=" + metricsOut.toString();
-                throw new AssertionError(errMsg, e);
-            }
-        }
-    }
 
     // future-proof of accidental enum ordering change or extension
     public void testEnsureMetricOrdinalsOrder() {

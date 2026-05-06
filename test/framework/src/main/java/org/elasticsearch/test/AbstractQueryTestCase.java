@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.search.internal.MaxClauseCountQueryVisitor;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -75,7 +76,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends AbstractBuilderTestCase {
 
-    private static final int NUMBER_OF_TESTQUERIES = 20;
+    protected static final int NUMBER_OF_TESTQUERIES = 20;
 
     public final QB createTestQueryBuilder() {
         return createTestQueryBuilder(supportsBoost(), supportsQueryName());
@@ -478,7 +479,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                  * We do it this way in SearchService where
                  * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
                 QueryBuilder rewritten = rewriteQuery(firstQuery, createQueryRewriteContext(), new SearchExecutionContext(context));
-                Query firstLuceneQuery = rewritten.toQuery(context);
+                Query firstLuceneQuery = rewritten.toQuery(context, new MaxClauseCountQueryVisitor(Integer.MAX_VALUE));
                 assertNotNull("toQuery should not return null", firstLuceneQuery);
                 assertLuceneQuery(firstQuery, firstLuceneQuery, context);
                 // remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
@@ -512,7 +513,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 }
                 context = new SearchExecutionContext(context);
                 Query secondLuceneQuery = rewriteQuery(secondQuery, createQueryRewriteContext(), new SearchExecutionContext(context))
-                    .toQuery(context);
+                    .toQuery(context, new MaxClauseCountQueryVisitor(Integer.MAX_VALUE));
                 assertNotNull("toQuery should not return null", secondLuceneQuery);
                 assertLuceneQuery(secondQuery, secondLuceneQuery, context);
 
@@ -532,7 +533,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 if (supportsBoost() && firstLuceneQuery instanceof MatchNoDocsQuery == false) {
                     secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
                     Query thirdLuceneQuery = rewriteQuery(secondQuery, createQueryRewriteContext(), new SearchExecutionContext(context))
-                        .toQuery(context);
+                        .toQuery(context, new MaxClauseCountQueryVisitor(Integer.MAX_VALUE));
                     assertNotEquals(
                         "modifying the boost doesn't affect the corresponding lucene query",
                         rewrite(firstLuceneQuery),

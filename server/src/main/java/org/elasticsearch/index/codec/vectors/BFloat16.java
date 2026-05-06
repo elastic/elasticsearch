@@ -18,18 +18,25 @@ public final class BFloat16 {
     public static final int BYTES = Short.BYTES;
 
     public static short floatToBFloat16(float f) {
-        // this rounds towards 0
+        // this rounds towards even
         // zero - zero exp, zero fraction
         // denormal - zero exp, non-zero fraction
         // infinity - all-1 exp, zero fraction
         // NaN - all-1 exp, non-zero fraction
-        // the Float.NaN constant is 0x7fc0_0000, so this won't turn the most common NaN values into
-        // infinities
-        return (short) (Float.floatToIntBits(f) >>> 16);
+
+        // note that floatToIntBits doesn't maintain specific NaN values,
+        // unlike floatToRawIntBits, but instead can return different NaN bit patterns.
+        // this means that a NaN is unlikely to be turned into infinity by rounding
+
+        int bits = Float.floatToIntBits(f);
+        // with thanks to https://github.com/microsoft/onnxruntime Fp16Conversions
+        int roundingBias = 0x7fff + ((bits >> 16) & 1);
+        bits += roundingBias;
+        return (short) (bits >> 16);
     }
 
     public static float truncateToBFloat16(float f) {
-        return Float.intBitsToFloat(Float.floatToIntBits(f) & 0xffff0000);
+        return Float.intBitsToFloat(floatToBFloat16(f) << 16);
     }
 
     public static float bFloat16ToFloat(short bf) {

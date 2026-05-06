@@ -57,7 +57,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
                     .trackOngoingTasks()
                     .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
                     .build()
-                : EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST).build()
+                : EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST).build(),
+            EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -129,7 +130,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
                 : EsExecutors.TaskTrackingConfig.builder()
                     .trackMaxQueueLatency()
                     .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
-                    .build()
+                    .build(),
+            EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
         );
         try {
             executor.prestartAllCoreThreads();
@@ -196,7 +198,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
                 : EsExecutors.TaskTrackingConfig.builder()
                     .trackMaxQueueLatency()
                     .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
-                    .build()
+                    .build(),
+            EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
         );
         try {
             executor.prestartAllCoreThreads();
@@ -242,7 +245,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
                     .trackOngoingTasks()
                     .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
                     .build()
-                : EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST).build()
+                : EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST).build(),
+            EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -276,7 +280,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.TaskTrackingConfig.builder()
                 .trackOngoingTasks()
                 .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
-                .build()
+                .build(),
+            EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
         );
         var taskRunningLatch = new CountDownLatch(1);
         var exitTaskLatch = new CountDownLatch(1);
@@ -313,7 +318,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.TaskTrackingConfig.builder()
                 .trackOngoingTasks()
                 .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
-                .build()
+                .build(),
+            EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
         );
         executor.setupMetrics(meterRegistry, threadPoolName);
 

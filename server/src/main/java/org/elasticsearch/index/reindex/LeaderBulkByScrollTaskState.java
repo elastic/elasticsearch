@@ -9,13 +9,24 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -35,12 +46,26 @@ public class LeaderBulkByScrollTaskState {
      * How many subtasks are still running
      */
     private final AtomicInteger runningSubtasks;
+    private final SetOnce<Supplier<Optional<String>>> nodeToRelocateToSupplier;
+    /**
+     * The latest PIT ID from slice responses. Updated on each completion so we close the most recent context.
+     */
+    private final AtomicReference<BytesReference> latestPitId = new AtomicReference<>();
 
-    public LeaderBulkByScrollTaskState(BulkByScrollTask task, int slices) {
+    /// The source-of-truth requests-per-second for this sliced task.
+    /// Updated by rethrottle, read during relocation to patch per-slice RPS in ResumeInfo.
+    /// Used to prevent race condition to ensure the customer doesn't get success on rethrottling, and then we relocate with old RPS.
+    /// Guarded by {@code synchronized(this)} for rethrottle and relocation operations.
+    private volatile float relocationRequestsPerSecond;
+    private boolean capturedRpsForRelocation = false;
+
+    public LeaderBulkByScrollTaskState(BulkByScrollTask task, int slices, float requestsPerSecond) {
         this.task = task;
         this.slices = slices;
         results = new AtomicArray<>(slices);
         runningSubtasks = new AtomicInteger(slices);
+        this.nodeToRelocateToSupplier = new SetOnce<>();
+        setRequestsPerSecondWithRelocationGuard(requestsPerSecond);
     }
 
     /**
@@ -51,7 +76,9 @@ public class LeaderBulkByScrollTaskState {
     }
 
     /**
-     * Get the combined statuses of slice subtasks, merged with the given list of statuses
+     * Get the combined statuses of slice subtasks, merged with the given list of statuses.
+     * Uses the leader's stored source-of-truth RPS rather than summing children, which can be stale after rethrottle
+     * with completed slices.
      */
     public BulkByScrollTask.Status getStatus(List<BulkByScrollTask.StatusOrException> statuses) {
         // We only have access to the statuses of requests that have finished so we return them
@@ -59,7 +86,7 @@ public class LeaderBulkByScrollTaskState {
             throw new IllegalArgumentException("Given number of statuses does not match amount of expected results");
         }
         addResultsToList(statuses);
-        return new BulkByScrollTask.Status(unmodifiableList(statuses), task.getReasonCancelled());
+        return new BulkByScrollTask.Status(unmodifiableList(statuses), task.getReasonCancelled(), relocationRequestsPerSecond);
     }
 
     /**
@@ -91,6 +118,9 @@ public class LeaderBulkByScrollTaskState {
      */
     public void onSliceResponse(ActionListener<BulkByScrollResponse> listener, int sliceId, BulkByScrollResponse response) {
         results.setOnce(sliceId, new Result(sliceId, response));
+        if (response != null && response.getPitId().isPresent()) {
+            latestPitId.set(response.getPitId().get());
+        }
         /* If the request isn't finished we could automatically rethrottle the sub-requests here but we would only want to do that if we
          * were fairly sure they had a while left to go. */
         recordSliceCompletionAndRespondIfAllDone(listener);
@@ -105,10 +135,51 @@ public class LeaderBulkByScrollTaskState {
         // TODO cancel when a slice fails?
     }
 
+    public void setNodeToRelocateToSupplier(Supplier<Optional<String>> nodeToRelocateToSupplier) {
+        this.nodeToRelocateToSupplier.set(Objects.requireNonNull(nodeToRelocateToSupplier));
+    }
+
+    public Optional<String> getNodeToRelocateTo() {
+        final Supplier<Optional<String>> supplier = this.nodeToRelocateToSupplier.get();
+        if (supplier == null) {
+            throw new IllegalStateException("Node to relocate to supplier should be set before, if this method is called");
+        }
+        return supplier.get();
+    }
+
+    /// Updates the source-of-truth total RPS for this leader task. Called by rethrottle before fanning out to children.
+    /// Throws 503 if the RPS has already been captured for relocation, meaning the task is mid-relocation and the
+    /// caller should retry after the relocation completes. If we apply RPS then relocated task would resume with old RPS value.
+    public synchronized void setRequestsPerSecondWithRelocationGuard(float rps) {
+        if (rps <= 0) {
+            throw new IllegalArgumentException("requests per second must be more than 0 but was [" + rps + "]");
+        }
+        if (capturedRpsForRelocation) {
+            throw new ElasticsearchStatusException("cannot rethrottle, task is being relocated", RestStatus.SERVICE_UNAVAILABLE);
+        }
+        relocationRequestsPerSecond = rps;
+    }
+
+    /// Atomically reads the source-of-truth total RPS and sets a flag preventing further rethrottle. Called during relocation
+    /// so that the captured value is consistent with what the destination will inherit.
+    public synchronized float captureRequestsPerSecondForRelocation() {
+        capturedRpsForRelocation = true;
+        return relocationRequestsPerSecond;
+    }
+
     private void recordSliceCompletionAndRespondIfAllDone(ActionListener<BulkByScrollResponse> listener) {
         if (runningSubtasks.decrementAndGet() != 0) {
             return;
         }
+
+        if (task.isRelocationRequested() && getNodeToRelocateTo().isPresent()) {
+            final BulkByScrollResponse relocationResponse = relocationResponseIfNeeded().orElse(null);
+            if (relocationResponse != null) {
+                listener.onResponse(relocationResponse);
+                return;
+            }
+        }
+
         List<BulkByScrollResponse> responses = new ArrayList<>(results.length());
         Exception exception = null;
         for (Result t : results.asList()) {
@@ -125,10 +196,54 @@ public class LeaderBulkByScrollTaskState {
             }
         }
         if (exception == null) {
-            listener.onResponse(new BulkByScrollResponse(responses, task.getReasonCancelled()));
+            listener.onResponse(
+                new BulkByScrollResponse(responses, task.getReasonCancelled(), latestPitId.get(), relocationRequestsPerSecond)
+            );
         } else {
             listener.onFailure(exception);
         }
+    }
+
+    private Optional<BulkByScrollResponse> relocationResponseIfNeeded() {
+        final Map<Integer, ResumeInfo.SliceStatus> sliceResumeInfoMap = new HashMap<>();
+        boolean allJobsCompletedThereforeNoNeedForRelocation = true;
+        for (final Result result : results.asList()) {
+            final var sliceStatus = getSliceStatus(result);
+            if (sliceStatus.resumeInfo() != null) {
+                allJobsCompletedThereforeNoNeedForRelocation = false;
+            }
+            sliceResumeInfoMap.put(result.sliceId, sliceStatus);
+        }
+        if (allJobsCompletedThereforeNoNeedForRelocation) {
+            return Optional.empty();
+        }
+        final var resumeInfo = new ResumeInfo(task.relocationOrigin(), null, sliceResumeInfoMap);
+        // this response is a local carrier for resumeInfo only — for higher-level code to handle relocation and then discard.
+        // the status for the task that's serialized into the .tasks index is taken from the leader state.
+        return Optional.of(
+            new BulkByScrollResponse(
+                TimeValue.MINUS_ONE,
+                new BulkByScrollTask.Status(List.of(), null, 0f),
+                List.of(),
+                List.of(),
+                false,
+                resumeInfo
+            )
+        );
+    }
+
+    private static ResumeInfo.SliceStatus getSliceStatus(final Result result) {
+        final var workerResumeInfo = Optional.ofNullable(result.response)
+            .flatMap(BulkByScrollResponse::getTaskResumeInfo)
+            .flatMap(resumeInfo -> {
+                assert resumeInfo.worker() != null : "if taskResumeInfo present, worker should have resume info";
+                assert resumeInfo.slices() == null : "if taskResumeInfo present, worker shouldn't have slices";
+                return resumeInfo.getWorker();
+            })
+            .orElse(null);
+        // even if we have slice failure(s), still relocate and run other slices to completion (current functionality without relocations)
+        final var workerResult = workerResumeInfo == null ? new ResumeInfo.WorkerResult(result.response, result.failure) : null;
+        return new ResumeInfo.SliceStatus(result.sliceId, workerResumeInfo, workerResult);
     }
 
     private static final class Result {

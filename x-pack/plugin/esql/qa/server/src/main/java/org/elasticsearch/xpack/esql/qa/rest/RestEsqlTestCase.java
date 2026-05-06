@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
@@ -74,6 +75,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -96,7 +98,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static final String MAPPING_ALL_TYPES_LOOKUP;
 
     static {
-        String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-all-types.json");
+        String properties = CsvTestsDataLoader.getResourceString("/index/mappings/mapping-all-types.json");
         MAPPING_FIELD = "\"mappings\": " + properties;
         MAPPING_ALL_TYPES = "{" + MAPPING_FIELD + "}";
         String settings = "\"settings\" : {\"mode\" : \"lookup\"}";
@@ -134,8 +136,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private final XContentBuilder builder;
         private boolean isBuilt = false;
 
-        private Map<String, Map<String, TypeAndValues>> tables;
-
         private Boolean keepOnCompletion = null;
 
         private Boolean profile = null;
@@ -158,11 +158,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
-        public RequestObjectBuilder tables(Map<String, Map<String, TypeAndValues>> tables) {
-            this.tables = tables;
-            return this;
-        }
-
         public RequestObjectBuilder columnar(boolean columnar) throws IOException {
             builder.field("columnar", columnar);
             return this;
@@ -174,7 +169,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
 
         public RequestObjectBuilder timeZone(ZoneId zoneId) throws IOException {
-            builder.field("time_zone", zoneId.toString());
+            return timeZone(zoneId.toString());
+        }
+
+        public RequestObjectBuilder timeZone(String timezone) throws IOException {
+            builder.field("time_zone", timezone);
             return this;
         }
 
@@ -239,19 +238,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder build() throws IOException {
             if (isBuilt == false) {
-                if (tables != null) {
-                    builder.startObject("tables");
-                    for (var table : tables.entrySet()) {
-                        builder.startObject(table.getKey());
-                        for (var column : table.getValue().entrySet()) {
-                            builder.startObject(column.getKey());
-                            builder.field(column.getValue().type(), column.getValue().values());
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                }
                 if (profile != null) {
                     builder.field("profile", profile);
                 }
@@ -288,7 +274,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(6, answer.size());
+        assertEquals(9, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
@@ -300,6 +286,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .entry("values_loaded", 0)
                 .entry("columns", List.of(colA, colB))
                 .entry("values", List.of(List.of(1, 2)))
+                .entry("completion_time_in_millis", greaterThan(0L))
+                .entry("expiration_time_in_millis", greaterThan(0L))
+                .entry("start_time_in_millis", greaterThan(0L))
         );
     }
 
@@ -1854,6 +1843,46 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    public void testParamsWithLike() throws IOException {
+        assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
+        bulkLoadTestData(11);
+        var anonymous_query = requestObjectBuilder().query(
+            format(null, "from {} | where keyword like ? | keep keyword | sort keyword", testIndexName())
+        ).params("[\"key*0\"]");
+        Map<String, Object> result = runEsql(anonymous_query);
+        assertEquals(List.of(List.of("keyword0"), List.of("keyword10")), result.get("values"));
+    }
+
+    public void testParamsWithLikeList() throws IOException {
+        assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
+        bulkLoadTestData(11);
+        var positional_query = requestObjectBuilder().query(
+            format(null, "from {} | where keyword like (?1, ?2) | keep keyword | sort keyword", testIndexName())
+        ).params("[\"key*0\", \"key*1\"]");
+        Map<String, Object> result = runEsql(positional_query);
+        assertEquals(List.of(List.of("keyword0"), List.of("keyword1"), List.of("keyword10")), result.get("values"));
+    }
+
+    public void testParamsWithRLike() throws IOException {
+        assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
+        bulkLoadTestData(11);
+        var query = requestObjectBuilder().query(
+            format(null, "from {} | where keyword rlike ?pattern | keep keyword | sort keyword", testIndexName())
+        ).params("[{\"pattern\" : \"key.*0\"}]");
+        Map<String, Object> result = runEsql(query);
+        assertEquals(List.of(List.of("keyword0"), List.of("keyword10")), result.get("values"));
+    }
+
+    public void testParamsWithRLikeList() throws IOException {
+        assumeTrue("like parameter support", EsqlCapabilities.Cap.LIKE_PARAMETER_SUPPORT.isEnabled());
+        bulkLoadTestData(11);
+        var query = requestObjectBuilder().query(
+            format(null, "from {} | where keyword rlike (?p1, ?p2) | keep keyword | sort keyword", testIndexName())
+        ).params("[{\"p1\" : \"key.*0\"}, {\"p2\" : \"key.*1\"}]");
+        Map<String, Object> result = runEsql(query);
+        assertEquals(List.of(List.of("keyword0"), List.of("keyword1"), List.of("keyword10")), result.get("values"));
+    }
+
     @SuppressWarnings("fallthrough")
     public void testRandomTimezoneBuckets() throws IOException {
         assumeTrue("timezone support for date_trunc is required", EsqlCapabilities.Cap.DATE_TRUNC_TIMEZONE_SUPPORT.isEnabled());
@@ -1919,6 +1948,36 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 }
             }
         }
+    }
+
+    public void testApproximationColumnMetadata() throws IOException {
+        assumeTrue("approximation support", EsqlCapabilities.Cap.APPROXIMATION_V7.isEnabled());
+        bulkLoadTestData(10);
+
+        String query = "SET approximation=true; " + fromIndex() + " | STATS count=COUNT()";
+        Map<String, Object> result = runEsql(requestObjectBuilder().query(query));
+
+        assertResultMap(
+            result,
+            matchesList().item(matchesMap().entry("name", "count").entry("type", "long"))
+                .item(
+                    matchesMap().entry("name", "_approximation_confidence_interval(count)")
+                        .entry("type", "long")
+                        .entry(
+                            "_meta",
+                            matchesMap().entry("approximation", matchesMap().entry("type", "confidence_interval").entry("column", "count"))
+                        )
+                )
+                .item(
+                    matchesMap().entry("name", "_approximation_certified(count)")
+                        .entry("type", "boolean")
+                        .entry(
+                            "_meta",
+                            matchesMap().entry("approximation", matchesMap().entry("type", "certified").entry("column", "count"))
+                        )
+                ),
+            matchesList().item(matchesList().item(10).item(matchesList().item(10).item(10)).item(true))
+        );
     }
 
     protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
@@ -2106,7 +2165,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return request;
     }
 
-    private static String attachBody(RequestObjectBuilder requestObject, Request request) throws IOException {
+    public static String attachBody(RequestObjectBuilder requestObject, Request request) throws IOException {
         String mediaType = requestObject.contentType().mediaTypeWithoutParameters();
         try (ByteArrayOutputStream bos = (ByteArrayOutputStream) requestObject.getOutputStream()) {
             request.setEntity(new NByteArrayEntity(bos.toByteArray(), ContentType.getByMimeType(mediaType)));

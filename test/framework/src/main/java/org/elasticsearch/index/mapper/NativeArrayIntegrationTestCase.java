@@ -9,11 +9,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.MultiDocValues;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -21,13 +24,19 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -35,6 +44,7 @@ import java.util.Set;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -80,6 +90,8 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             for (int j = 0; j < malformed.length; j++) {
                 malformed[j] = getMalformedValue();
             }
+            // Binary doc values sort malformed values by their encoded BytesRef representation
+            Arrays.sort(malformed, encodedBytesRefComparator());
 
             var expectedDocument = jsonBuilder().startObject();
             var inputDocument = jsonBuilder().startObject();
@@ -129,7 +141,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         mapping.field("ignore_malformed", true).endObject().endObject().endObject();
         var indexService = createIndex(
             "test-index",
-            Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
+            Settings.builder()
+                .put("index.mapping.source.mode", "synthetic")
+                .put("index.mapping.synthetic_source_keep", "arrays")
+                .put("index.use_time_series_doc_values_format", true)
+                .build(),
             mapping
         );
         for (int i = 0; i < inputDocuments.size(); i++) {
@@ -179,7 +195,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
         var indexService = createIndex(
             "test-index",
-            Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
+            Settings.builder()
+                .put("index.mapping.source.mode", "synthetic")
+                .put("index.mapping.synthetic_source_keep", "arrays")
+                .put("index.use_time_series_doc_values_format", true)
+                .build(),
             mapping
         );
 
@@ -226,9 +246,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
         try (var searcher = indexService.getShard(0).acquireSearcher(getTestName())) {
             var reader = searcher.getDirectoryReader();
-            var document = reader.storedFields().document(0);
-            Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
-            assertThat(storedFieldNames, contains(IgnoredSourceFieldMapper.NAME));
+            var ignoredSourceDV = MultiDocValues.getBinaryValues(reader, IgnoredSourceFieldMapper.NAME);
             assertThat(FieldInfos.getMergedFieldInfos(reader).fieldInfo("parent.field.offsets"), nullValue());
         }
     }
@@ -256,14 +274,10 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         verifySyntheticArray(arrays, arrays, mapping, expectedStoredFields);
     }
 
-    private XContentBuilder arrayToSource(Object[] array) throws IOException {
+    private XContentBuilder arrayToSource(Object obj) throws IOException {
         var source = jsonBuilder().startObject();
-        if (array != null) {
-            source.startArray("field");
-            for (Object arrayValue : array) {
-                source.value(arrayValue);
-            }
-            source.endArray();
+        if (obj != null) {
+            source.field("field", obj);
         } else {
             source.field("field").nullValue();
         }
@@ -272,7 +286,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
     protected void verifySyntheticArray(
         Object[][] inputArrays,
-        Object[][] expectedArrays,
+        Object[] expectedArrays,
         XContentBuilder mapping,
         String... expectedStoredFields
     ) throws IOException {
@@ -280,7 +294,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
         var indexService = createIndex(
             "test-index",
-            Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
+            Settings.builder()
+                .put("index.mapping.source.mode", "synthetic")
+                .put("index.mapping.synthetic_source_keep", "arrays")
+                .put("index.use_time_series_doc_values_format", true)
+                .build(),
             mapping
         );
         for (int i = 0; i < inputArrays.length; i++) {
@@ -313,7 +331,9 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
                 assertThat(storedFieldNames, contains(expectedStoredFields));
             }
-            var fieldInfo = FieldInfos.getMergedFieldInfos(reader).fieldInfo("field.offsets");
+            var fieldInfos = getFieldInfos(reader);
+            var fieldInfo = fieldInfos.fieldInfo("field.offsets");
+            assertThat(fieldInfo, notNullValue());
             assertThat(fieldInfo.getDocValuesType(), equalTo(DocValuesType.SORTED));
         }
     }
@@ -328,7 +348,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         mapping.endObject().endObject().endObject().endObject().endObject();
         var indexService = createIndex(
             "test-index",
-            Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
+            Settings.builder()
+                .put("index.mapping.source.mode", "synthetic")
+                .put("index.mapping.synthetic_source_keep", "arrays")
+                .put("index.use_time_series_doc_values_format", true)
+                .build(),
             mapping
         );
         for (int i = 0; i < documents.size(); i++) {
@@ -366,9 +390,8 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             var reader = searcher.getDirectoryReader();
             for (int i = 0; i < documents.size(); i++) {
                 var document = reader.storedFields().document(i);
-                // Verify that there is ignored source because of leaf array being wrapped by object array:
                 List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
-                assertThat(storedFieldNames, contains("_id", IgnoredSourceFieldMapper.NAME));
+                assertThat(storedFieldNames, hasItem("_id"));
 
                 // Verify that there is no offset field:
                 LeafReader leafReader = reader.leaves().get(0).reader();
@@ -394,7 +417,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
         var indexService = createIndex(
             "test-index",
-            Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
+            Settings.builder()
+                .put("index.mapping.source.mode", "synthetic")
+                .put("index.mapping.synthetic_source_keep", "arrays")
+                .put("index.use_time_series_doc_values_format", true)
+                .build(),
             mapping
         );
         for (int i = 0; i < documents.size(); i++) {
@@ -432,9 +459,47 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
                 assertThat(storedFieldNames, contains("_id"));
             }
-            var fieldInfo = FieldInfos.getMergedFieldInfos(reader).fieldInfo("object.field.offsets");
+            var fieldInfos = getFieldInfos(reader);
+            var fieldInfo = fieldInfos.fieldInfo("object.field.offsets");
+            assertThat(fieldInfo, notNullValue());
             assertThat(fieldInfo.getDocValuesType(), equalTo(DocValuesType.SORTED));
         }
     }
 
+    private FieldInfos getFieldInfos(DirectoryReader reader) {
+        var fieldInfos = FieldInfos.getMergedFieldInfos(reader);
+        for (FieldInfo fieldInfo : fieldInfos) {
+            logger.info("field name: {}, {}", fieldInfo.name, fieldInfo.attributes());
+        }
+        return fieldInfos;
+    }
+
+    /**
+     * Returns a comparator that orders objects by their {@link XContentDataHelper} encoded {@code BytesRef} representation.
+     * This matches the sort order used by binary doc values for malformed values.
+     */
+    private static Comparator<Object> encodedBytesRefComparator() {
+        return (a, b) -> {
+            try {
+                return encodeToBytesRef(a).compareTo(encodeToBytesRef(b));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        };
+    }
+
+    private static BytesRef encodeToBytesRef(Object value) throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject().field("v", value).endObject();
+        try (
+            var parser = JsonXContent.jsonXContent.createParser(
+                XContentParserConfiguration.EMPTY,
+                BytesReference.bytes(builder).streamInput()
+            )
+        ) {
+            parser.nextToken(); // START_OBJECT
+            parser.nextToken(); // FIELD_NAME
+            parser.nextToken(); // value token
+            return XContentDataHelper.encodeToken(parser);
+        }
+    }
 }

@@ -65,7 +65,19 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
-
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
+          manual:
+            allowed: true
+            permit_on_passed: false
+            reason: "Retry with smart test selection if desired"
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-fips-matrix-bwc"
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.fips.enabled=true v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
@@ -82,7 +94,86 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
-
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
+          manual:
+            allowed: true
+            permit_on_passed: false
+            reason: "Retry with smart test selection if desired"
+  - group: java-fips-140-3-matrix
+    steps:
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-fips-140-3-matrix"
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.fips.enabled=true -Dtests.fips.mode=140-3 $$GRADLE_TASK
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - openjdk21
+            GRADLE_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - checkPart4
+              - checkPart5
+              - checkPart6
+              - checkRestCompat
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
+          manual:
+            allowed: true
+            permit_on_passed: false
+            reason: "Retry with smart test selection if desired"
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-fips-140-3-matrix-bwc"
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.fips.enabled=true -Dtests.fips.mode=140-3 v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - openjdk21
+            BWC_VERSION: $BWC_LIST
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
+          BWC_VERSION: "{{matrix.BWC_VERSION}}"
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
+          manual:
+            allowed: true
+            permit_on_passed: false
+            reason: "Retry with smart test selection if desired"
   - group: java-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-matrix"
@@ -92,8 +183,8 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-              - openjdk23
-              - openjdk24
+              - openjdk25
+              - openjdk26
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -118,7 +209,8 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-              - openjdk23
+              - openjdk25
+              - openjdk26
             BWC_VERSION: $BWC_LIST
         agents:
           provider: gcp
@@ -132,6 +224,15 @@ steps:
   - label: release-tests
     command: .buildkite/scripts/release-tests.sh
     timeout_in_minutes: 360
+    retry:
+      automatic:
+        - exit_status: "-1"
+          limit: 3
+          signal_reason: none
+        - signal_reason: agent_stop
+          limit: 3
+        - exit_status: "1"
+          limit: 1
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
@@ -161,7 +262,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       - label: third-party / azure
@@ -176,7 +278,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       - label: third-party / gcs
@@ -191,7 +294,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       - label: third-party / geoip
@@ -201,7 +305,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       - label: third-party / s3
@@ -216,7 +321,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       - label: third-party / ms-graph
@@ -228,7 +334,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
   - group: lucene-compat
@@ -261,7 +368,8 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
-      machineType: n2-standard-8
+      machineType: n4-standard-8
+      diskType: hyperdisk-balanced
       buildDirectory: /dev/shm/bk
     if: build.branch =~ /^(main|\d+\.\d+|\d+\.x)$$/
 
@@ -271,7 +379,8 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
-      machineType: n2-standard-2
+      machineType: n4-standard-2
+      diskType: hyperdisk-balanced
 
   - label: check-branch-protection-rules
     command: .buildkite/scripts/branch-protection.sh

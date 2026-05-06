@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.IOUtils;
@@ -40,6 +41,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 
 /**
@@ -113,12 +115,27 @@ public final class FrozenEngine extends ReadOnlyEngine {
             }
 
             @Override
+            protected DirectoryReader doOpenIfChanged(ExecutorService executorService) {
+                return null;
+            }
+
+            @Override
             protected DirectoryReader doOpenIfChanged(IndexCommit commit) {
                 return null;
             }
 
             @Override
+            protected DirectoryReader doOpenIfChanged(IndexCommit commit, ExecutorService executorService) {
+                return null;
+            }
+
+            @Override
             protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) {
+                return null;
+            }
+
+            @Override
+            protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes, ExecutorService executorService) {
                 return null;
             }
 
@@ -211,7 +228,11 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @Override
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+    public SearcherSupplier acquireSearcherSupplier(
+        Function<Searcher, Searcher> wrapper,
+        SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary
+    ) throws EngineException {
         final Store store = this.store;
         store.incRef();
         return new SearcherSupplier(wrapper) {

@@ -9,15 +9,20 @@
 
 package org.elasticsearch.nativeaccess;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
+import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.not;
 
@@ -34,19 +39,26 @@ public abstract class VectorSimilarityFunctionsTests extends ESTestCase {
 
     protected static Arena arena;
 
+    protected final VectorSimilarityFunctions.Function function;
     protected final int size;
     protected final Optional<VectorSimilarityFunctions> vectorSimilarityFunctions;
 
-    protected static Iterable<Object[]> parametersFactory() {
+    @ParametersFactory
+    public static Iterable<Object[]> parametersFactory() {
         var dims1 = Arrays.stream(new int[] { 1, 2, 4, 6, 8, 12, 13, 16, 25, 31, 32, 33, 64, 100, 128, 207, 256, 300, 512, 702, 768 });
         var dims2 = Arrays.stream(new int[] { 1000, 1023, 1024, 1025, 2047, 2048, 2049, 4095, 4096, 4097 });
-        return () -> IntStream.concat(dims1, dims2).boxed().map(i -> new Object[] { i }).iterator();
+        return () -> IntStream.concat(dims1, dims2)
+            .boxed()
+            .flatMap(i -> Stream.of(VectorSimilarityFunctions.Function.values()).map(f -> new Object[] { f, i }))
+            .iterator();
     }
 
-    protected VectorSimilarityFunctionsTests(int size) {
-        logger.info(platformMsg());
+    protected VectorSimilarityFunctionsTests(VectorSimilarityFunctions.Function function, int size) {
+        this.function = function;
         this.size = size;
         vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions();
+
+        logger.info(platformMsg());
     }
 
     public static void setup() {
@@ -95,5 +107,36 @@ public abstract class VectorSimilarityFunctionsTests extends ESTestCase {
     // Support for passing on-heap arrays/segments to native
     protected static boolean supportsHeapSegments() {
         return Runtime.version().feature() >= 22;
+    }
+
+    protected static RuntimeException rethrow(Throwable t) {
+        if (t instanceof Error err) {
+            throw err;
+        }
+        return t instanceof RuntimeException re ? re : new RuntimeException(t);
+    }
+
+    protected static float[] randomFloatArray(int length) {
+        float[] fa = new float[length];
+        for (int i = 0; i < length; i++) {
+            fa[i] = randomFloat();
+        }
+        return fa;
+    }
+
+    protected static void assertScoresEquals(float[] expectedScores, MemorySegment expectedScoresSeg) {
+        assertScoresEquals(expectedScores, expectedScoresSeg, 0f);
+    }
+
+    protected static void assertScoresEquals(float[] expectedScores, MemorySegment expectedScoresSeg, float delta) {
+        assert expectedScores.length == (expectedScoresSeg.byteSize() / Float.BYTES);
+        for (int i = 0; i < expectedScores.length; i++) {
+            assertEquals(
+                "Difference at offset " + i,
+                expectedScores[i],
+                expectedScoresSeg.get(JAVA_FLOAT_UNALIGNED, (long) i * Float.BYTES),
+                delta
+            );
+        }
     }
 }

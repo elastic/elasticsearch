@@ -283,6 +283,15 @@ public class RoutingNode implements Iterable<ShardRouting> {
         }
     }
 
+    public int numberOfStartedShardsForIndex(final Index index) {
+        final Set<ShardRouting> shardRoutings = shardsByIndex.get(index);
+        if (shardRoutings == null) {
+            return 0;
+        } else {
+            return Math.toIntExact(shardRoutings.stream().filter(shard -> shard.started()).count());
+        }
+    }
+
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
         sb.append("-----node_id[").append(nodeId).append("][").append(node == null ? "X" : "V").append("]\n");
@@ -310,6 +319,13 @@ public class RoutingNode implements Iterable<ShardRouting> {
         sb.append(shards.size());
         sb.append(" assigned shards])");
         return sb.toString();
+    }
+
+    /**
+     * @return {@link DiscoveryNode#getShortNodeDescription()} if available, or just "{nodeId}" otherwise
+     */
+    public String getShortNodeDescription() {
+        return node != null ? node.getShortNodeDescription() : nodeId;
     }
 
     private static final ShardRouting[] EMPTY_SHARD_ROUTING_ARRAY = new ShardRouting[0];

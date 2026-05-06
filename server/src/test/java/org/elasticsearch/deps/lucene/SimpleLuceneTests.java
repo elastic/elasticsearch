@@ -26,7 +26,6 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
@@ -36,6 +35,7 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -58,7 +58,7 @@ public class SimpleLuceneTests extends ESTestCase {
             }
             try (IndexReader reader = DirectoryReader.open(indexWriter)) {
                 IndexSearcher searcher = newSearcher(reader);
-                TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("str", SortField.Type.STRING)));
+                TopFieldDocs docs = searcher.search(Queries.ALL_DOCS_INSTANCE, 10, new Sort(new SortField("str", SortField.Type.STRING)));
                 for (int i = 0; i < 10; i++) {
                     FieldDoc fieldDoc = (FieldDoc) docs.scoreDocs[i];
                     assertThat(

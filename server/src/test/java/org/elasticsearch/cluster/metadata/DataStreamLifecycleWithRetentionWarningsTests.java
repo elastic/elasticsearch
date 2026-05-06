@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycleTests.randomDownsamplingRounds;
+import static org.elasticsearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 import static org.hamcrest.Matchers.containsString;
@@ -250,6 +251,8 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
         when(indicesService.createIndex(any(), any(), eq(false))).thenReturn(indexService);
         when(indexService.index()).thenReturn(new Index(randomAlphaOfLength(10), randomUUID()));
         ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, BUILT_IN_CLUSTER_SETTINGS));
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             Settings.EMPTY,
             clusterService,

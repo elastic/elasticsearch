@@ -24,22 +24,31 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 
 import java.util.BitSet;
@@ -47,11 +56,28 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Predicate;
 
+/**
+ * ESQL "features" returned by the usage API. This <strong>mostly</strong> tracks
+ * new commands. If you add something here you <strong>must</strong> add it to the
+ * tests in {@code 60_usage.yml} then run them with:
+ * {@snippet lang=shell :
+ * ./gradlew -p x-pack/plugin/esql/qa/server/single-node/ yamlRestTest \
+ *     -Dtests.method='*60*'
+ * }
+ * and
+ * {@snippet lang=shell :
+ * ./gradlew -p x-pack/plugin/esql/qa/server/single-node/ yamlRestTest \
+ *     -Dbuild.snapshot=false -Dtests.jvm.argline=-Dbuild.snapshot=false \
+ *     -Dlicense.key="x-pack/license-tools/src/test/resources/public.key" \
+ *     -Dtests.method='*60*'
+ * }
+ */
 public enum FeatureMetric {
     DISSECT(Dissect.class::isInstance),
     EVAL(Eval.class::isInstance),
     GROK(Grok.class::isInstance),
     LIMIT(plan -> false), // the limit is checked in Analyzer.gatherPreAnalysisMetrics, because it has a more complex and general check
+    LIMIT_BY(LimitBy.class::isInstance),
     SORT(OrderBy.class::isInstance),
     // the STATS is checked in Analyzer.gatherPreAnalysisMetrics, because it can also be part of an INLINE STATS command
     STATS(plan -> false),
@@ -63,6 +89,7 @@ public enum FeatureMetric {
     ROW(Row.class::isInstance),
     FROM(x -> x instanceof EsRelation relation && relation.indexMode() != IndexMode.TIME_SERIES),
     TS(x -> x instanceof EsRelation relation && relation.indexMode() == IndexMode.TIME_SERIES),
+    EXTERNAL(plan -> plan instanceof org.elasticsearch.xpack.esql.plan.logical.ExternalRelation),
     DROP(Drop.class::isInstance),
     KEEP(Keep.class::isInstance),
     RENAME(Rename.class::isInstance),
@@ -77,18 +104,27 @@ public enum FeatureMetric {
     FUSE(Fuse.class::isInstance),
     COMPLETION(Completion.class::isInstance),
     SAMPLE(Sample.class::isInstance),
-    SUBQUERY(Subquery.class::isInstance);
+    SUBQUERY(Subquery.class::isInstance),
+    VIEW(plan -> false), // Views are counted in EsqlSession.gatherViewMetrics, not via plan traversal
+    MMR(MMR.class::isInstance),
+    PROMQL(PromqlCommand.class::isInstance),
+    URI_PARTS(UriParts.class::isInstance),
+    METRICS_INFO(MetricsInfo.class::isInstance),
+    REGISTERED_DOMAIN(RegisteredDomain.class::isInstance),
+    TS_INFO(TsInfo.class::isInstance),
+    USER_AGENT(UserAgent.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry
      */
     private static final List<Class<? extends LogicalPlan>> excluded = List.of(
         UnresolvedRelation.class,
-        EsqlProject.class,
+        UnresolvedExternalRelation.class,
         Project.class,
         Limit.class, // LIMIT is managed in another way, see above
         FuseScoreEval.class,
-        Aggregate.class // STATS is managed in another way, see above
+        Aggregate.class, // STATS is managed in another way, see above
+        LocalRelation.class // produced as a short-circuit for empty index patterns (e.g. PROMQL on missing index)
     );
 
     private Predicate<LogicalPlan> planCheck;

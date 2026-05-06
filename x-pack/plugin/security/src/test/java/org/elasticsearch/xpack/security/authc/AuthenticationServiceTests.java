@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -194,6 +196,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     private InetSocketAddress remoteAddress;
     private OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
     private String concreteSecurityIndexName;
+    private MockBytesRefRecycler bytesRefRecycler;
 
     @Before
     @SuppressForbidden(reason = "Allow accessing localhost")
@@ -344,6 +347,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             MeterRegistry.NOOP,
             mock(FeatureService.class)
         );
+        bytesRefRecycler = new MockBytesRefRecycler();
         tokenService = new TokenService(
             settings,
             Clock.systemUTC(),
@@ -352,7 +356,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             securityContext,
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
         serviceAccountService = mock(ServiceAccountService.class);
         doAnswer(invocationOnMock -> {
@@ -393,10 +398,15 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     @After
-    public void shutdownThreadpool() throws InterruptedException {
+    public void shutdownThreadpool() {
         if (threadPool != null) {
             terminate(threadPool);
         }
+    }
+
+    @After
+    public void cleanupMocks() {
+        Releasables.closeExpectNoException(bytesRefRecycler);
     }
 
     public void testTokenFirstMissingSecondFound() throws Exception {
@@ -2574,7 +2584,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         return this.securityIndex.new IndexState(
             Metadata.DEFAULT_PROJECT_ID, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), true, true, true, true, true,
-            null, null, null, null, concreteSecurityIndexName, indexStatus, IndexMetadata.State.OPEN, "my_uuid", Set.of()
+            null, false, null, null, null, concreteSecurityIndexName, indexStatus, IndexMetadata.State.OPEN, "my_uuid", Set.of()
         );
     }
 

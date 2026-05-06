@@ -428,7 +428,7 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         // not yet flushed to lucene ie. it's part of this current maps object
         final boolean isNotTrackedByCurrentMaps = versionValue.time < maps.getMinDeleteTimestamp();
         final boolean isNotTrackedByArchive = versionValue.time < archive.getMinDeleteTimestamp();
-        return isTooOld && isSafeToPrune && isNotTrackedByCurrentMaps & isNotTrackedByArchive;
+        return isTooOld && isSafeToPrune && isNotTrackedByCurrentMaps && isNotTrackedByArchive;
     }
 
     /**
@@ -536,6 +536,10 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
      */
     Releasable acquireLock(BytesRef uid) {
         return keyedLock.acquire(uid);
+    }
+
+    Releasable tryAcquireLock(BytesRef uid) {
+        return keyedLock.tryAcquire(uid);
     }
 
     boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {

@@ -1,0 +1,48 @@
+load
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+;
+
+@timestamp:date          | attributes:flattened                                        | resource.attributes:flattened
+2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"",""type"":""beats""}"        | "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
+;
+
+sort
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| SORT @timestamp ASC
+| LIMIT 2
+;
+
+@timestamp:date          | attributes:flattened                                                                                          | resource.attributes:flattened
+2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"",""type"":""beats""}"                                                          | "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
+2020-01-01T00:07:43.000Z | "{""event.module"":""nginx"",""input.type"":""log"",""nginx.error.connection_id"":""184896""}"                   | "{""agent.id"":""3ac5081d-9275-4cde-a2a8-a00b794a20f4"",""agent.type"":""filebeat"",""host.ip"":[""10.224.0.170"",""fe80::4001:aff:fee0:aa""],""host.name"":""devops-ci-master-blue.c.elastic-ci-prod.internal""}"
+;
+
+rename
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| RENAME attributes AS attrs
+| KEEP @timestamp, attrs
+;
+
+@timestamp:date          | attrs:flattened
+2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"",""type"":""beats""}"
+;
+
+drop
+required_capability: flattened_datatype
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| DROP attributes
+;
+
+@timestamp:date          | resource.attributes:flattened
+2020-01-01T00:02:48.461Z | "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
+;

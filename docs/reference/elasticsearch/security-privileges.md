@@ -34,10 +34,14 @@ When creating roles, refer to this page for a complete list of available privile
 :   All cluster administration operations, like snapshotting, node shutdown/restart, settings update, rerouting, or managing users and roles.
 
 `cancel_task`
-:   Privileges to cancel tasks and delete async searches. See [delete async search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-async-search-submit) API for more informations.
+:   Privileges to cancel tasks and delete async searches. See [delete async search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-async-search-submit) API for more information.
 
 `create_snapshot` {applies_to}`serverless: unavailable`
 :   Privileges to create snapshots for existing repositories. Can also list and view details on existing repositories and snapshots.
+
+
+`delegate_pki` {applies_to}`serverless: unavailable`
+:   Privileges to delegate PKI authentication. Enables the use of the [delegate PKI authentication API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-delegate-pki) and to invalidate tokens.
 
 
 `cross_cluster_replication` {applies_to}`serverless: unavailable`
@@ -60,6 +64,10 @@ When creating roles, refer to this page for a complete list of available privile
 :   Privileges to create {{es}} API keys on behalf of other users.
 
 
+`clone_api_key` {applies_to}`stack: ga 9.4+` {applies_to}`serverless: unavailable`
+:   Privileges to clone an API key. Creates a new API key with the same permissions as an existing key, with a new name, ID, and optional expiration and metadata.
+
+
 `manage`
 :   Builds on `monitor` and adds cluster operations that change values in the cluster. This includes snapshotting, updating settings, and rerouting. It also includes obtaining snapshot and restore status. This privilege does not include the ability to manage security.
 
@@ -77,6 +85,12 @@ When creating roles, refer to this page for a complete list of available privile
 :   All operations related to managing autoscaling policies.
 
 
+`manage_behavioral_analytics` {applies_to}`serverless: unavailable`
+:   All operations related to managing behavioral analytics collections, including creating, listing, and deleting collections.
+
+`manage_connector`
+:   All operations related to managing [connectors](/reference/search-connectors/index.md) and sync jobs, including creating, reading, updating, and deleting connector configurations, managing sync jobs, and updating connector settings such as filtering, scheduling, and pipelines. Does not grant access to connector secrets.
+
 `manage_ccr` {applies_to}`serverless: unavailable`
 :   All {{ccr}} operations related to managing follower indices and auto-follow patterns. It also includes the authority to grant the privileges necessary to manage follower indices and auto-follow patterns. This privilege is necessary only on clusters that contain follower indices.
 
@@ -85,7 +99,7 @@ When creating roles, refer to this page for a complete list of available privile
 :   Use `manage_transform` instead. {{es}} version 7.5 and older used `manage_data_frame_transforms` in operations related to managing {{transforms}}.
 
 
-`manage_data_stream_global_retention` {applies_to}`stack: deprecated 8.16`
+`manage_data_stream_global_retention` {applies_to}`serverless: unavailable` {applies_to}`stack: deprecated 8.16`
 :   This privilege has no effect.
 
 `manage_enrich`
@@ -125,6 +139,9 @@ When creating roles, refer to this page for a complete list of available privile
 `manage_pipeline`
 :   All operations on ingest pipelines.
 
+`manage_project_routing` {applies_to}`stack: unavailable` {applies_to}`serverless: preview`
+:   All read and write operations on [cross-project search](docs-content://explore-analyze/cross-project-search.md) project routing. Builds on `read_project_routing` by adding the ability to create and delete named project routing expressions.
+
 `manage_rollup` {applies_to}`serverless: unavailable`
 :   All rollup operations, including creating, starting, stopping and deleting rollup jobs.
 
@@ -161,6 +178,9 @@ When creating roles, refer to this page for a complete list of available privile
 `manage_transform`
 :   All operations related to managing {{transforms}}.
 
+`manage_user_profile` {applies_to}`serverless: unavailable`
+:   All operations on user profiles.
+
 `manage_watcher` {applies_to}`serverless: unavailable`
 :   All watcher operations, such as putting watches, executing, activate or acknowledging.
 
@@ -174,6 +194,9 @@ When creating roles, refer to this page for a complete list of available privile
 
 `monitor_data_stream_global_retention` {applies_to}`stack: unavailable, deprecated 8.16`
 :   This privilege has no effect.
+
+`monitor_connector`
+:   Read-only access to [connector](/reference/search-connectors/index.md) and sync job operations, including viewing connector configurations and sync job details.
 
 `monitor_enrich`
 :   All read-only operations related to managing and executing enrich policies.
@@ -210,9 +233,15 @@ When creating roles, refer to this page for a complete list of available privile
 :   All read-only watcher operations, such as getting a watch and watcher stats.
 
 
+`post_behavioral_analytics_event` {applies_to}`serverless: unavailable`
+:   Privilege to post events to a behavioral analytics collection.
+
 `read_ccr` {applies_to}`serverless: unavailable`
 :   All read-only {{ccr}} operations, such as getting information about indices and metadata for leader indices in the cluster. It also includes the authority to check whether users have the appropriate privileges to follow leader indices. This privilege is necessary only on clusters that contain leader indices.
 
+
+`read_fleet_secrets` {applies_to}`serverless: unavailable`
+:   Read-only access to Fleet secrets.
 
 `read_ilm` {applies_to}`serverless: unavailable`
 :   All read-only {{Ilm}} operations, such as getting policies and checking the status of {Ilm}
@@ -220,6 +249,9 @@ When creating roles, refer to this page for a complete list of available privile
 
 `read_pipeline`
 :   Read-only access to ingest pipeline (get, simulate).
+
+`read_project_routing` {applies_to}`stack: unavailable` {applies_to}`serverless: preview`
+:   Read-only access to [cross-project search](docs-content://explore-analyze/cross-project-search.md) project routing, including viewing project routing expressions and project metadata. Include `read_project_routing` for custom roles with the `read` index privilege to ensure users have access to the project picker in {{kib}}.
 
 `read_slm` {applies_to}`serverless: unavailable` {applies_to}`stack: deprecated 8.15`
 :   All read-only {{slm-init}} actions, such as getting policies and checking the {{slm-init}} status. It also grants the permission to get the {{Ilm}} status, using the [ILM get status API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-get-status).
@@ -232,6 +264,12 @@ When creating roles, refer to this page for a complete list of available privile
 `transport_client` {applies_to}`serverless: unavailable`
 :   All privileges necessary for a transport client to connect. Required by the remote cluster to enable [{{ccs}}](docs-content://deploy-manage/remote-clusters/remote-clusters-self-managed.md).
 
+
+`write_connector_secrets` {applies_to}`serverless: unavailable`
+:   Privilege to create, update, and delete connector secrets.
+
+`write_fleet_secrets` {applies_to}`serverless: unavailable`
+:   Privilege to create and delete Fleet secrets.
 
 
 ## Indices privileges [privileges-list-indices]
@@ -275,7 +313,7 @@ When creating roles, refer to this page for a complete list of available privile
     :::
 
 
-`create_index` {applies_to}`serverless: unavailable`
+`create_index`
 :   Privilege to create an index or data stream. A create index request may contain aliases to be added to the index once created. In that case the request requires the `manage` privilege as well, on both the index and the aliases names.
 
 `cross_cluster_replication` {applies_to}`serverless: unavailable`

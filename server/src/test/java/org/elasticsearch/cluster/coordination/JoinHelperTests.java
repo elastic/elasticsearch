@@ -28,6 +28,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -77,7 +78,7 @@ public class JoinHelperTests extends ESTestCase {
         );
         JoinHelper joinHelper = new JoinHelper(
             null,
-            new MasterService(Settings.EMPTY, clusterSettings, threadPool, taskManger),
+            new MasterService(Settings.EMPTY, clusterSettings, threadPool, taskManger, MeterRegistry.NOOP),
             new NoOpClusterApplier(),
             transportService,
             () -> 0L,
@@ -176,6 +177,19 @@ public class JoinHelperTests extends ESTestCase {
         if (mightSucceed) {
             // successful requests hold the connections open until the cluster state is applied
             joinHelper.onClusterStateApplied();
+        } else {
+            final var elapsedTime = randomBoolean() ? TimeValue.ZERO : TimeValue.timeValueMillis(between(0, 100000));
+            deterministicTaskQueue.runTasksUpToTimeInOrder(deterministicTaskQueue.getCurrentTimeMillis() + elapsedTime.millis());
+            MockLog.assertThatLogger(
+                joinHelper::logLastFailedJoinAttempt,
+                JoinHelper.class,
+                new MockLog.SeenEventExpectation(
+                    "failed to join message",
+                    JoinHelper.class.getCanonicalName(),
+                    Level.WARN,
+                    "last failed join attempt was " + elapsedTime + " ago, failed to join *"
+                )
+            );
         }
         assertFalse(transportService.nodeConnected(node1));
         assertFalse(transportService.nodeConnected(node2));
@@ -244,7 +258,7 @@ public class JoinHelperTests extends ESTestCase {
         AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(UNHEALTHY, "unhealthy-info"));
         JoinHelper joinHelper = new JoinHelper(
             null,
-            new MasterService(Settings.EMPTY, clusterSettings, threadPool, taskManger),
+            new MasterService(Settings.EMPTY, clusterSettings, threadPool, taskManger, MeterRegistry.NOOP),
             new NoOpClusterApplier(),
             transportService,
             () -> 0L,
@@ -320,7 +334,7 @@ public class JoinHelperTests extends ESTestCase {
         );
         JoinHelper joinHelper = new JoinHelper(
             null,
-            new MasterService(Settings.EMPTY, clusterSettings, threadPool, taskManger),
+            new MasterService(Settings.EMPTY, clusterSettings, threadPool, taskManger, MeterRegistry.NOOP),
             new NoOpClusterApplier(),
             transportService,
             () -> 1L,

@@ -98,11 +98,9 @@ public class ES818BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat
     static final String VECTOR_DATA_EXTENSION = "veb";
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
 
-    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
-        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
-    );
+    static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(FlatVectorScorerUtil.getLucene99FlatVectorsScorer());
 
-    private static final ES818BinaryFlatVectorsScorer scorer = new ES818BinaryFlatVectorsScorer(
+    static final ES818BinaryFlatVectorsScorer scorer = new ES818BinaryFlatVectorsScorer(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 
@@ -118,7 +116,7 @@ public class ES818BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES818BinaryQuantizedVectorsWriter(scorer, rawVectorFormat.fieldsWriter(state), state);
+        throw new UnsupportedOperationException();
     }
 
     @Override

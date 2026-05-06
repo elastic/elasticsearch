@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,11 +33,11 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractUri;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.PROJECT_ID;
 
@@ -57,22 +56,22 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
 
     public static IbmWatsonxEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
         String model = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String projectId = extractRequiredString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var url = extractUri(map, URL, validationException);
         String apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        Integer maxInputTokens = extractOptionalPositiveInteger(
+        var maxInputTokens = extractOptionalPositiveInteger(
             map,
             MAX_INPUT_TOKENS,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        SimilarityMeasure similarityMeasure = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var similarityMeasure = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
@@ -80,9 +79,7 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new IbmWatsonxEmbeddingsServiceSettings(
             model,
@@ -90,16 +87,10 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
             url,
             apiVersion,
             maxInputTokens,
-            dims,
+            dimensions,
             similarityMeasure,
             rateLimitSettings
         );
-    }
-
-    public static URI extractUri(Map<String, Object> map, String fieldName, ValidationException validationException) {
-        String parsedUrl = extractRequiredString(map, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        return convertToUri(parsedUrl, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
     }
 
     private final String modelId;
@@ -112,7 +103,7 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
 
     private final RateLimitSettings rateLimitSettings;
 
-    private final Integer dims;
+    private final Integer dimensions;
 
     private final Integer maxInputTokens;
 
@@ -124,7 +115,7 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
         URI uri,
         String apiVersion,
         @Nullable Integer maxInputTokens,
-        @Nullable Integer dims,
+        @Nullable Integer dimensions,
         @Nullable SimilarityMeasure similarity,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
@@ -133,7 +124,7 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
         this.url = uri;
         this.apiVersion = apiVersion;
         this.maxInputTokens = maxInputTokens;
-        this.dims = dims;
+        this.dimensions = dimensions;
         this.similarity = similarity;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
@@ -144,7 +135,7 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
         this.url = createUri(in.readString());
         this.apiVersion = in.readString();
         this.maxInputTokens = in.readOptionalVInt();
-        this.dims = in.readOptionalVInt();
+        this.dimensions = in.readOptionalVInt();
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.rateLimitSettings = new RateLimitSettings(in);
     }
@@ -177,7 +168,7 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
 
     @Override
     public Integer dimensions() {
-        return dims;
+        return dimensions;
     }
 
     @Override
@@ -207,7 +198,7 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_16_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -217,9 +208,41 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
         out.writeString(url.toString());
         out.writeString(apiVersion);
         out.writeOptionalVInt(maxInputTokens);
-        out.writeOptionalVInt(dims);
+        out.writeOptionalVInt(dimensions);
         out.writeOptionalEnum(similarity);
         rateLimitSettings.writeTo(out);
+    }
+
+    @Override
+    public IbmWatsonxEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            IbmWatsonxService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new IbmWatsonxEmbeddingsServiceSettings(
+            this.modelId,
+            this.projectId,
+            this.url,
+            this.apiVersion,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            this.dimensions,
+            this.similarity,
+            extractedRateLimitSettings
+        );
     }
 
     @Override
@@ -233,8 +256,8 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
 
-        if (dims != null) {
-            builder.field(DIMENSIONS, dims);
+        if (dimensions != null) {
+            builder.field(DIMENSIONS, dimensions);
         }
 
         if (similarity != null) {
@@ -255,13 +278,13 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
             && Objects.equals(url, that.url)
             && Objects.equals(apiVersion, that.apiVersion)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings)
-            && Objects.equals(dims, that.dims)
+            && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
-            && similarity == that.similarity;
+            && Objects.equals(similarity, that.similarity);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, projectId, url, apiVersion, rateLimitSettings, dims, maxInputTokens, similarity);
+        return Objects.hash(modelId, projectId, url, apiVersion, rateLimitSettings, dimensions, maxInputTokens, similarity);
     }
 }

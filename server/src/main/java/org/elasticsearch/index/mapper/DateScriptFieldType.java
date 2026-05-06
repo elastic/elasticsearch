@@ -22,6 +22,7 @@ import org.elasticsearch.index.fielddata.DateScriptFieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
+import org.elasticsearch.index.mapper.blockloader.script.DateScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.DateFieldScript;
@@ -194,7 +195,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         if (fallbackSyntheticSourceBlockLoader != null) {
             return fallbackSyntheticSourceBlockLoader;
         }
-        return new DateScriptBlockDocValuesReader.DateScriptBlockLoader(leafFactory(blContext.lookup()));
+        return new DateScriptBlockDocValuesReader.DateScriptBlockLoader(leafFactory(blContext.lookup()), blContext.scriptByteSize());
     }
 
     private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
@@ -314,7 +315,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
-            return Queries.newMatchAllQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
         return DateFieldType.handleNow(context, now -> {
             Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());

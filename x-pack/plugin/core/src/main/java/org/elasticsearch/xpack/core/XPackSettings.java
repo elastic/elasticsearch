@@ -118,6 +118,13 @@ public class XPackSettings {
         Setting.Property.NodeScope
     );
 
+    /** Setting for enabling or disabling Prometheus Data ingestion and query support. Defaults to true. */
+    public static final Setting<Boolean> PROMETHEUS_ENABLED = Setting.boolSetting(
+        "xpack.prometheus.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
     /** Setting for enabling or disabling enterprise search. Defaults to true. */
     public static final Setting<Boolean> ENTERPRISE_SEARCH_ENABLED = Setting.boolSetting(
         "xpack.ent_search.enabled",

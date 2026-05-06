@@ -16,8 +16,8 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -53,6 +54,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
         "StGeotile",
         StGeotile::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StGeotile.class).ternary(StGeotile::new).name("st_geotile");
 
     /**
      * When checking tiles with bounds, we need to check if the tile is valid (intersects with the bounds).
@@ -112,16 +114,21 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     @FunctionInfo(
         returnType = "geotile",
         preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
         description = """
             Calculates the `geotile` of the supplied geo_point at the specified precision.
-            The result is long encoded. Use [TO_STRING](#esql-to_string) to convert the result to a string,
-            [TO_LONG](#esql-to_long) to convert it to a `long`, or [TO_GEOSHAPE](#esql-to_geoshape) to calculate
-            the `geo_shape` bounding geometry.
+            The result is long encoded.
+            Use [`TO_STRING`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_string.md)
+            to convert the result to a string,
+            [`TO_LONG`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_long.md)
+            to convert it to a `long`, or
+            [`TO_GEOSHAPE`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_geoshape.md)
+            to calculate the `geo_shape` bounding geometry.
 
             These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
             and the [`geotile_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md).""",
-        examples = @Example(file = "spatial-grid", tag = "st_geotile-grid")
+        examples = @Example(file = "spatial-grid", tag = "st_geotile-grid"),
+        depthOffset = 1  // So this appears as a subsection of spatial grid functions
     )
     public StGeotile(
         Source source,
@@ -134,8 +141,9 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
             Expression of type `integer`. If `null`, the function returns `null`.
             Valid values are between [0 and 29](https://wiki.openstreetmap.org/wiki/Zoom_levels).""") Expression precision,
         @Param(name = "bounds", type = { "geo_shape" }, description = """
-            Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`.
-            Use [`ST_ENVELOPE`](#esql-st_envelope) if the `geo_shape` is of any other type.""", optional = true) Expression bounds
+            Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`. Use
+            [`ST_ENVELOPE`](/reference/query-languages/esql/functions-operators/spatial-functions/st_envelope.md)
+            if the `geo_shape` is of any other type.""", optional = true) Expression bounds
     ) {
         this(source, field, precision, bounds, false);
     }
@@ -151,7 +159,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     @Override
     public SpatialGridFunction withDocValues(boolean useDocValues) {
         // Only update the docValues flags if the field is found in the attributes
-        boolean docValues = this.spatialDocsValues || useDocValues;
+        boolean docValues = this.spatialDocValues || useDocValues;
         return new StGeotile(source(), spatialField, parameter, bounds, docValues);
     }
 
@@ -176,7 +184,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (parameter().foldable() == false) {
             throw new IllegalArgumentException("precision must be foldable");
         }
@@ -187,7 +195,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
             GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
             int precision = (int) parameter.fold(toEvaluator.foldCtx());
             GeoTileBoundedGrid.Factory bounds = new GeoTileBoundedGrid.Factory(precision, bbox);
-            return spatialDocsValues
+            return spatialDocValues
                 ? new StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
                     source(),
                     toEvaluator.apply(spatialField()),
@@ -196,7 +204,7 @@ public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
                 : new StGeotileFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds::get);
         } else {
             int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
-            return spatialDocsValues
+            return spatialDocValues
                 ? new StGeotileFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
                 : new StGeotileFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
         }

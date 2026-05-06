@@ -18,6 +18,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +30,8 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -35,7 +39,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -62,6 +68,7 @@ import java.time.Clock;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
@@ -76,6 +83,7 @@ import static org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfi
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransformIndexerTests extends ESTestCase {
 
@@ -103,6 +111,8 @@ public class TransformIndexerTests extends ESTestCase {
 
         private BlockingDeque<Exception> searchExceptions = new LinkedBlockingDeque<>();
         private BlockingDeque<Runnable> runBeforeOnFinish = new LinkedBlockingDeque<>();
+        private final AtomicReference<SearchRequest> capturedInitialProgressRequest = new AtomicReference<>();
+        private final ConcurrentLinkedDeque<String> capturedProjectIds = new ConcurrentLinkedDeque<>();
 
         // how many loops to execute until reporting done
         private int numberOfLoops;
@@ -153,7 +163,12 @@ public class TransformIndexerTests extends ESTestCase {
 
         @Override
         void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
+            capturedInitialProgressRequest.set(request);
             responseListener.onResponse(ONE_HIT_SEARCH_RESPONSE);
+        }
+
+        public SearchRequest getCapturedInitialProgressRequest() {
+            return capturedInitialProgressRequest.get();
         }
 
         @Override
@@ -198,6 +213,7 @@ public class TransformIndexerTests extends ESTestCase {
 
         @Override
         protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
+            capturedProjectIds.add(String.valueOf(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER)));
             if (searchLatch != null) {
                 try {
                     searchLatch.await();
@@ -214,10 +230,15 @@ public class TransformIndexerTests extends ESTestCase {
 
         @Override
         protected void doNextBulk(BulkRequest request, ActionListener<BulkResponse> nextPhase) {
+            capturedProjectIds.add(String.valueOf(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER)));
             if (doProcessLatch != null) {
                 doProcessLatch.countDown();
             }
             threadPool.generic().execute(() -> nextPhase.onResponse(new BulkResponse(new BulkItemResponse[0], 100)));
+        }
+
+        public ConcurrentLinkedDeque<String> getCapturedProjectIds() {
+            return capturedProjectIds;
         }
 
         @Override
@@ -401,6 +422,63 @@ public class TransformIndexerTests extends ESTestCase {
             assertEquals(0L, indexer.getStats().getNumDeletedDocuments());
             assertEquals(0L, indexer.getStats().getDeleteTime());
         }
+    }
+
+    public void testInitialProgressSearchIncludesRuntimeMappings() throws Exception {
+        // Arrange: create a config with runtime_mappings
+        Map<String, Object> runtimeMappings = Map.of(
+            "total_price_with_tax",
+            Map.of("type", "double", "script", Map.of("source", "emit(1.0)"))
+        );
+        SourceConfig sourceWithRuntimeMappings = new SourceConfig(
+            new String[] { "source_index" },
+            QueryConfig.matchAll(),
+            runtimeMappings,
+            null
+        );
+        TransformConfig config = new TransformConfig(
+            randomAlphaOfLength(10),
+            sourceWithRuntimeMappings,
+            randomDestConfig(),
+            null,
+            new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)),
+            null,
+            randomPivotConfig(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STARTED);
+        TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+        final MockedTransformIndexer indexer = createMockIndexer(
+            1,
+            config,
+            state,
+            null,
+            threadPool,
+            auditor,
+            new TransformIndexerStats(),
+            context
+        );
+
+        // Act: start the indexer, which triggers initial progress search
+        indexer.start();
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertBusy(() -> assertEquals(1L, indexer.getLastCheckpoint().getCheckpoint()), 5, TimeUnit.SECONDS);
+
+        // Assert: the initial progress search request should include runtime_mappings
+        SearchRequest capturedRequest = indexer.getCapturedInitialProgressRequest();
+        assertNotNull("Expected an initial progress search request to have been captured", capturedRequest);
+        assertEquals(
+            "Initial progress search should include runtime_mappings from the source config",
+            runtimeMappings,
+            capturedRequest.source().runtimeMappings()
+        );
     }
 
     /**
@@ -654,6 +732,153 @@ public class TransformIndexerTests extends ESTestCase {
         assertEquals(configuredMaxPageSearchSize, context.getPageSize());
     }
 
+    public void testMaybeTriggerAsyncJobSetsProjectId() throws Exception {
+        TransformConfig config = new TransformConfig(
+            randomAlphaOfLength(10),
+            randomSourceConfig(),
+            randomDestConfig(),
+            null,
+            new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)),
+            null,
+            randomPivotConfig(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        ProjectId projectId = ProjectId.fromId("test-project-123");
+        TransformContext context = new TransformContext(
+            TransformTaskState.STARTED,
+            "",
+            0,
+            null,
+            mock(TransformContext.Listener.class),
+            projectId
+        );
+
+        MockedTransformIndexer indexer = createMockIndexerWithMultipleProjects(
+            1,
+            config,
+            new AtomicReference<>(IndexerState.STARTED),
+            new TransformIndexerStats(),
+            context
+        );
+
+        // Verify no project ID in thread context before trigger
+        assertNull(threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
+
+        indexer.start();
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+
+        // Verify the project ID does NOT leak to the calling thread (scheduler thread)
+        assertNull(
+            "Project ID should not leak to the scheduler thread context",
+            threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER)
+        );
+
+        // Wait for the indexer to complete its run so doNextSearch/doNextBulk have executed
+        assertBusy(() -> assertEquals(1L, indexer.getLastCheckpoint().getCheckpoint()), 5, TimeUnit.SECONDS);
+
+        // Verify the project ID was visible in the thread context during doNextSearch and doNextBulk
+        assertFalse("Expected at least one captured project ID from doNextSearch/doNextBulk", indexer.getCapturedProjectIds().isEmpty());
+        for (String captured : indexer.getCapturedProjectIds()) {
+            assertEquals("Project ID should propagate to indexer outbound calls", projectId.id(), captured);
+        }
+    }
+
+    public void testMaybeTriggerAsyncJobDoesNotOverwriteExistingProjectId() {
+        TransformConfig config = new TransformConfig(
+            randomAlphaOfLength(10),
+            randomSourceConfig(),
+            randomDestConfig(),
+            null,
+            new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)),
+            null,
+            randomPivotConfig(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        ProjectId contextProjectId = ProjectId.fromId("context-project");
+        TransformContext context = new TransformContext(
+            TransformTaskState.STARTED,
+            "",
+            0,
+            null,
+            mock(TransformContext.Listener.class),
+            contextProjectId
+        );
+
+        MockedTransformIndexer indexer = createMockIndexerWithMultipleProjects(
+            1,
+            config,
+            new AtomicReference<>(IndexerState.STARTED),
+            new TransformIndexerStats(),
+            context
+        );
+
+        // Pre-set a different project ID on the thread context (simulating a transport action trigger)
+        String existingProjectId = "existing-project";
+        threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, existingProjectId);
+
+        indexer.start();
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+
+        // Verify the existing project ID was NOT overwritten
+        assertEquals(
+            "Existing project ID should not be overwritten",
+            existingProjectId,
+            threadPool.getThreadContext().getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER)
+        );
+    }
+
+    private MockedTransformIndexer createMockIndexerWithMultipleProjects(
+        int numberOfLoops,
+        TransformConfig config,
+        AtomicReference<IndexerState> state,
+        TransformIndexerStats jobStats,
+        TransformContext context
+    ) {
+        CheckpointProvider checkpointProvider = new MockTimebasedCheckpointProvider(config);
+        transformConfigManager.putTransformConfiguration(config, ActionListener.noop());
+        ProjectResolver multiProjectResolver = mock(ProjectResolver.class);
+        when(multiProjectResolver.supportsMultipleProjects()).thenReturn(true);
+        TransformServices transformServices = new TransformServices(
+            transformConfigManager,
+            mock(TransformCheckpointService.class),
+            auditor,
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
+            mock(TransformNode.class),
+            mock(CrossProjectModeDecider.class),
+            projectId -> false,
+            multiProjectResolver
+        );
+
+        MockedTransformIndexer indexer = new MockedTransformIndexer(
+            numberOfLoops,
+            threadPool,
+            transformServices,
+            checkpointProvider,
+            config,
+            state,
+            null,
+            jobStats,
+            context
+        );
+
+        indexer.initialize();
+        return indexer;
+    }
+
     private MockedTransformIndexer createMockIndexer(
         int numberOfLoops,
         TransformConfig config,
@@ -671,7 +896,10 @@ public class TransformIndexerTests extends ESTestCase {
             mock(TransformCheckpointService.class),
             transformAuditor,
             new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
-            mock(TransformNode.class)
+            mock(TransformNode.class),
+            mock(CrossProjectModeDecider.class),
+            projectId -> false,
+            mock(ProjectResolver.class)
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(

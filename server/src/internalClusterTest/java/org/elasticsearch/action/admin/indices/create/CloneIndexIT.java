@@ -41,7 +41,7 @@ public class CloneIndexIT extends ESIntegTestCase {
     }
 
     public void testCreateCloneIndex() {
-        IndexVersion version = IndexVersionUtils.randomCompatibleWriteVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleWriteVersion();
         int numPrimaryShards = randomIntBetween(1, 5);
         prepareCreate("source").setSettings(
             Settings.builder().put(indexSettings()).put("number_of_shards", numPrimaryShards).put("index.version.created", version)
@@ -157,11 +157,7 @@ public class CloneIndexIT extends ESIntegTestCase {
             indexSettings(between(1, 5), 0).put("index.mode", "logsdb")
                 .put(
                     "index.version.created",
-                    IndexVersionUtils.randomVersionBetween(
-                        random(),
-                        IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY,
-                        IndexVersion.current()
-                    )
+                    IndexVersionUtils.randomVersionBetween(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY, IndexVersion.current())
                 )
         ).setMapping("@timestamp", "type=date", "host.name", "type=keyword").get();
         updateIndexSettings(Settings.builder().put("index.blocks.write", true), "source");
@@ -174,11 +170,7 @@ public class CloneIndexIT extends ESIntegTestCase {
                 Settings.builder()
                     .put(
                         "index.version.created",
-                        IndexVersionUtils.randomVersionBetween(
-                            random(),
-                            IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY,
-                            IndexVersion.current()
-                        )
+                        IndexVersionUtils.randomVersionBetween(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY, IndexVersion.current())
                     )
                     .put("index.recovery.use_synthetic_source", true)
                     .put("index.mode", "logsdb")

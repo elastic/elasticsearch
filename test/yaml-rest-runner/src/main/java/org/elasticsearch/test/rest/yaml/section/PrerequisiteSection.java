@@ -53,6 +53,7 @@ public class PrerequisiteSection {
 
     static class PrerequisiteSectionBuilder {
         String skipReason = null;
+        boolean skipOnAllNodes = false;
         String skipVersionRange = null;
         List<String> skipOperatingSystems = new ArrayList<>();
         List<KnownIssue> skipKnownIssues = new ArrayList<>();
@@ -86,6 +87,11 @@ public class PrerequisiteSection {
 
         public PrerequisiteSectionBuilder setSkipReason(String skipReason) {
             this.skipReason = skipReason;
+            return this;
+        }
+
+        public PrerequisiteSectionBuilder setSkipAllNodes(boolean skipAllNodes) {
+            this.skipOnAllNodes = skipAllNodes;
             return this;
         }
 
@@ -195,7 +201,8 @@ public class PrerequisiteSection {
                     skipReason,
                     List.of(Prerequisites.FALSE),
                     requiresReason,
-                    requiredYamlRunnerFeatures
+                    requiredYamlRunnerFeatures,
+                    skipOnAllNodes
                 );
             }
             if (Strings.hasLength(skipAwaitsFix)) {
@@ -205,7 +212,8 @@ public class PrerequisiteSection {
                     skipReason,
                     emptyList(),
                     requiresReason,
-                    requiredYamlRunnerFeatures
+                    requiredYamlRunnerFeatures,
+                    skipOnAllNodes
                 );
             }
 
@@ -231,7 +239,7 @@ public class PrerequisiteSection {
                 skipCriteriaList.add(Prerequisites.skipOnOsList(skipOperatingSystems));
             }
             if (skipClusterFeatures.isEmpty() == false) {
-                skipCriteriaList.add(Prerequisites.skipOnClusterFeatures(skipClusterFeatures));
+                skipCriteriaList.add(Prerequisites.skipOnClusterFeatures(skipClusterFeatures, skipOnAllNodes));
             }
             if (skipCapabilities.isEmpty() == false) {
                 skipCriteriaList.add(Prerequisites.skipCapabilities(skipCapabilities));
@@ -239,7 +247,14 @@ public class PrerequisiteSection {
             if (skipKnownIssues.isEmpty() == false) {
                 skipCriteriaList.add(Prerequisites.skipOnKnownIssue(skipKnownIssues));
             }
-            return new PrerequisiteSection(skipCriteriaList, skipReason, requiresCriteriaList, requiresReason, requiredYamlRunnerFeatures);
+            return new PrerequisiteSection(
+                skipCriteriaList,
+                skipReason,
+                requiresCriteriaList,
+                requiresReason,
+                requiredYamlRunnerFeatures,
+                skipOnAllNodes
+            );
         }
     }
 
@@ -309,6 +324,7 @@ public class PrerequisiteSection {
                     case "os" -> parseString(parser, builder::skipIfOs);
                     case "cluster_features" -> parseString(parser, builder::skipIfClusterFeature);
                     case "awaits_fix" -> parseString(parser, builder::skipIfAwaitsFix);
+                    case "all_nodes" -> parseBoolean(parser, builder::setSkipAllNodes);
                     default -> false;
                 };
             } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
@@ -348,6 +364,11 @@ public class PrerequisiteSection {
 
     private static boolean parseString(XContentParser parser, Consumer<String> consumer) throws IOException {
         consumer.accept(parser.text());
+        return true;
+    }
+
+    private static boolean parseBoolean(XContentParser parser, Consumer<Boolean> consumer) throws IOException {
+        consumer.accept(parser.booleanValue());
         return true;
     }
 
@@ -443,6 +464,7 @@ public class PrerequisiteSection {
     private final List<String> yamlRunnerFeatures;
     final String skipReason;
     final String requireReason;
+    final boolean skipOnAllNodes;
 
     private PrerequisiteSection() {
         this.skipCriteriaList = emptyList();
@@ -450,6 +472,7 @@ public class PrerequisiteSection {
         this.yamlRunnerFeatures = emptyList();
         this.skipReason = null;
         this.requireReason = null;
+        this.skipOnAllNodes = false;
     }
 
     PrerequisiteSection(
@@ -457,13 +480,15 @@ public class PrerequisiteSection {
         String skipReason,
         List<Predicate<ClientYamlTestExecutionContext>> requiresCriteriaList,
         String requireReason,
-        List<String> yamlRunnerFeatures
+        List<String> yamlRunnerFeatures,
+        boolean skipOnAllNodes
     ) {
         this.skipCriteriaList = skipCriteriaList;
         this.requiresCriteriaList = requiresCriteriaList;
         this.yamlRunnerFeatures = yamlRunnerFeatures;
         this.skipReason = skipReason;
         this.requireReason = requireReason;
+        this.skipOnAllNodes = skipOnAllNodes;
     }
 
     public boolean hasYamlRunnerFeature(String feature) {

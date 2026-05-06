@@ -18,8 +18,8 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
@@ -41,7 +42,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
@@ -68,6 +69,9 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         "MvContains",
         MvContains::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvContains.class)
+        .binary(MvContains::new)
+        .name("mv_contains");
 
     @FunctionInfo(
         returnType = "boolean",
@@ -102,7 +106,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression superset,
         @Param(
             name = "subset",
@@ -125,7 +129,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression subset
     ) {
         super(source, superset, subset);
@@ -146,12 +150,12 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble(left(), sourceText(), FIRST);
+        TypeResolution resolution = isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(left(), sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
         if (left().dataType() == DataType.NULL) {
-            return isRepresentableExceptCountersDenseVectorAndAggregateMetricDouble(right(), sourceText(), SECOND);
+            return isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(right(), sourceText(), SECOND);
         }
         return isType(right(), t -> t.noText() == left().dataType().noText(), sourceText(), SECOND, left().dataType().noText().typeName());
     }
@@ -187,7 +191,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         var subsetType = PlannerUtils.toElementType(right().dataType());
 
         if (subsetType == ElementType.NULL) {
-            return EvalOperator.CONSTANT_TRUE_FACTORY;
+            return ConstantEvaluators.CONSTANT_TRUE_FACTORY;
         }
 
         if (supersetType != ElementType.NULL && supersetType != subsetType) {

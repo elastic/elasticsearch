@@ -160,6 +160,30 @@ public class TransformUpdateIT extends TransformRestTestCase {
         deleteTransform(transformId);
     }
 
+    public void testUpdateProjectRoutingFails() throws Exception {
+        var transformId = "test_update_project_routing";
+        var destIndex = transformId + "-dest";
+
+        // Create the transform
+        createContinuousPivotReviewsTransform(transformId, destIndex, null, "1h");
+
+        // Update the transform's settings
+        var exception = assertThrows(ResponseException.class, () -> updateTransform(transformId, Strings.format("""
+            {
+              "source": {
+                "index": "%s",
+                "project_routing": "_alias:_origin"
+              }
+            }""", REVIEWS_INDEX_NAME)));
+        assertThat(
+            exception.getMessage(),
+            containsString("Cross-project calls are not supported, but project_routing was requested: _alias:_origin")
+        );
+
+        stopTransform(transformId, true);
+        deleteTransform(transformId);
+    }
+
     public void testConcurrentUpdates() throws Exception {
         String transformId = "test_concurrent_updates";
         String destIndex = transformId + "-dest";
@@ -340,6 +364,11 @@ public class TransformUpdateIT extends TransformRestTestCase {
             Map<?, ?> transformStatsAsMap = getTransformStateAndStats(transformIdCloned);
             assertThat(XContentMapValues.extractValue("stats.documents_indexed", transformStatsAsMap), equalTo(27));
         }, 15, TimeUnit.SECONDS);
+
+        stopTransform(transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1, true, false);
+        stopTransform(transformIdCloned, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1, true, false);
+        deleteTransform(transformId);
+        deleteTransform(transformIdCloned);
     }
 
     private void deleteUser(String user) throws IOException {

@@ -1,0 +1,111 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.diskbbq;
+
+import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.elasticsearch.Build;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.LicensedFeature;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
+
+import java.util.concurrent.ExecutorService;
+
+public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProviderPlugin {
+
+    public static final LicensedFeature.Momentary DISK_BBQ_FEATURE = LicensedFeature.momentary(
+        "vector-search",
+        "bbq_disk",
+        License.OperationMode.ENTERPRISE
+    );
+
+    private final boolean statelessNode;
+
+    public DiskBBQPlugin(Settings settings) {
+        this.statelessNode = DiscoveryNode.isStateless(settings);
+    }
+
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
+
+    @Override
+    public VectorsFormatProvider getVectorsFormatProvider() {
+        return new VectorsFormatProvider() {
+            @Override
+            public boolean isVectorIndexTypeAllowed(IndexVersion indexVersionCreated, DenseVectorFieldMapper.VectorIndexType indexType) {
+                return indexType != DenseVectorFieldMapper.VectorIndexType.BBQ_DISK
+                    || indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT) == false
+                    || (statelessNode && DISK_BBQ_FEATURE.check(getLicenseState()));
+            }
+
+            @Override
+            public KnnVectorsFormat getKnnVectorsFormat(
+                IndexSettings indexSettings,
+                DenseVectorFieldMapper.DenseVectorIndexOptions options,
+                DenseVectorFieldMapper.VectorSimilarity similarity,
+                DenseVectorFieldMapper.ElementType elementType,
+                ExecutorService mergingExecutorService,
+                int maxMergingWorkers
+            ) {
+                if (options instanceof DenseVectorFieldMapper.BBQIVFIndexOptions diskbbq) {
+                    if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT)
+                        && DISK_BBQ_FEATURE.check(getLicenseState()) == false) {
+                        throw LicenseUtils.newComplianceException(DISK_BBQ_FEATURE.getName());
+                    }
+                    int clusterSize = diskbbq.getClusterSize();
+                    boolean onDiskRescore = diskbbq.isOnDiskRescore();
+                    boolean doPrecondition = diskbbq.doPrecondition();
+                    int flatIndexThreshold = diskbbq.getFlatIndexThreshold();
+                    if (Build.current().isSnapshot()) {
+                        return new ESNextDiskBBQVectorsFormat(
+                            ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) diskbbq.getBits()),
+                            clusterSize,
+                            ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                            elementType,
+                            onDiskRescore,
+                            mergingExecutorService,
+                            maxMergingWorkers,
+                            doPrecondition,
+                            ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                            flatIndexThreshold,
+                            null
+                        );
+                    }
+                    return new ES940DiskBBQVectorsFormat(
+                        ES940DiskBBQVectorsFormat.QuantEncoding.fromBits((byte) diskbbq.getBits()),
+                        clusterSize,
+                        ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                        elementType,
+                        onDiskRescore,
+                        mergingExecutorService,
+                        maxMergingWorkers,
+                        doPrecondition,
+                        ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                        flatIndexThreshold
+                    );
+                }
+                return null;
+            }
+        };
+    }
+
+}

@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStr
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -64,7 +65,6 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -186,7 +186,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             EMPTY_NODE_ALLOCATION_STATS,
             TEST_ONLY_EXPLAINER,
             DesiredBalanceMetrics.NOOP,
-            AllocationBalancingRoundMetrics.NOOP
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
         );
         assertValidStats(desiredBalanceShardsAllocator.getStats());
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator(allocateUnassigned));
@@ -316,10 +317,11 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             EMPTY_NODE_ALLOCATION_STATS,
             TEST_ONLY_EXPLAINER,
             DesiredBalanceMetrics.NOOP,
-            AllocationBalancingRoundMetrics.NOOP
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
         );
         var allocationService = new AllocationService(
-            new AllocationDeciders(List.of()),
+            AllocationDeciders.EMPTY,
             createGatewayAllocator(
                 (shardRouting, allocation, unassignedAllocationHandler) -> unassignedAllocationHandler.removeAndIgnore(
                     UnassignedInfo.AllocationStatus.NO_ATTEMPT,
@@ -436,7 +438,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             reconcileAction,
             EMPTY_NODE_ALLOCATION_STATS,
             DesiredBalanceMetrics.NOOP,
-            AllocationBalancingRoundMetrics.NOOP
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
         );
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
         allocationServiceRef.set(allocationService);
@@ -565,7 +568,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             reconcileAction,
             EMPTY_NODE_ALLOCATION_STATS,
             DesiredBalanceMetrics.NOOP,
-            AllocationBalancingRoundMetrics.NOOP
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
         );
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
         allocationServiceRef.set(allocationService);
@@ -670,7 +674,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             reconcileAction,
             EMPTY_NODE_ALLOCATION_STATS,
             DesiredBalanceMetrics.NOOP,
-            AllocationBalancingRoundMetrics.NOOP
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
         );
 
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
@@ -764,7 +769,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             EMPTY_NODE_ALLOCATION_STATS,
             DesiredBalanceMetrics.NOOP,
-            AllocationBalancingRoundMetrics.NOOP
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
         );
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());
@@ -875,7 +881,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 .executeWithRoutingAllocation(reconcilerClusterState, "reconcile-desired-balance", rerouteStrategy),
             EMPTY_NODE_ALLOCATION_STATS,
             DesiredBalanceMetrics.NOOP,
-            AllocationBalancingRoundMetrics.NOOP
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
         ) {
             @Override
             protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
@@ -904,7 +911,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         );
 
         var service = new AllocationService(
-            new AllocationDeciders(List.of()),
+            AllocationDeciders.EMPTY,
             createGatewayAllocator(),
             desiredBalanceShardsAllocator,
             clusterInfoRef::get,
@@ -1081,7 +1088,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             EMPTY_NODE_ALLOCATION_STATS,
             DesiredBalanceMetrics.NOOP,
-            AllocationBalancingRoundMetrics.NOOP
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
         );
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());
@@ -1137,7 +1145,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             EMPTY_NODE_ALLOCATION_STATS,
             DesiredBalanceMetrics.NOOP,
-            AllocationBalancingRoundMetrics.NOOP
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
         ) {
             @Override
             public void resetDesiredBalance() {
@@ -1234,7 +1243,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             (clusterState, rerouteStrategy) -> null,
             EMPTY_NODE_ALLOCATION_STATS,
             DesiredBalanceMetrics.NOOP,
-            AllocationBalancingRoundMetrics.NOOP
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
         ) {
 
             private ActionListener<Void> lastListener;
@@ -1260,16 +1270,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         assertThat(desiredBalanceShardsAllocator.getDesiredBalance(), sameInstance(DesiredBalance.NOT_MASTER));
         try {
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
-            desiredBalanceShardsAllocator.allocate(
-                new RoutingAllocation(
-                    new AllocationDeciders(Collections.emptyList()),
-                    clusterService.state(),
-                    null,
-                    null,
-                    randomNonNegativeLong()
-                ),
-                future
-            );
+            desiredBalanceShardsAllocator.allocate(TestRoutingAllocationFactory.forClusterState(clusterService.state()).mutable(), future);
             safeGet(future);
             assertThat(desiredBalanceShardsAllocator.getStats().computationSubmitted(), equalTo(1L));
             assertThat(desiredBalanceShardsAllocator.getStats().computationExecuted(), equalTo(1L));
@@ -1290,7 +1291,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         GatewayAllocator gatewayAllocator
     ) {
         return new AllocationService(
-            new AllocationDeciders(List.of()),
+            AllocationDeciders.EMPTY,
             gatewayAllocator,
             desiredBalanceShardsAllocator,
             () -> ClusterInfo.EMPTY,

@@ -68,8 +68,8 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) {
-        // Nothing to do
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("index", b -> b.field("index", false));
     }
 
     @Override
@@ -223,5 +223,10 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

@@ -14,28 +14,39 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 
 /**
- * A dense Vector of single values.
+ * A dense Vector of single values. This is effectively a kind of {@link Block} so it
+ * is reference counted in the same way.
+ *
+ * <p>
+ *     The usual way to read a block looks like:
+ * </p>
+ * <pre>{@code
+ * for (int p = 0; p < block.getPositionCount(); p++) {
+ *     // Do stuff with single valued data
+ *     int v = block.getInt(p);
+ * }
+ * }</pre>
  */
 public interface Vector extends Accountable, RefCounted, Releasable {
 
     /**
-     * {@return Returns a new Block containing this vector.}
+     * {@return a new Block containing this vector}
      */
     Block asBlock();
 
     /**
-     * The number of positions in this vector.
-     *
-     * @return the number of positions
+     * {@return the number of positions (rows) in this vector}
+     * See class javadoc for the usual way to iterate these positions.
      */
     int getPositionCount();
 
     /**
      * Creates a new vector that only exposes the positions provided. Materialization of the selected positions is avoided.
+     * @param mayContainDuplicates may the positions array contain duplicate positions?
      * @param positions the positions to retain
      * @return a filtered vector
      */
-    Vector filter(int... positions);
+    Vector filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Build a {@link Block} the same values as this {@link Vector}, but replacing
@@ -78,6 +89,13 @@ public interface Vector extends Accountable, RefCounted, Releasable {
     ElementType elementType();
 
     /**
+     * {@return the maximum byte size of any single value in this vector}
+     * For fixed-width types this is a constant. For {@code BytesRef}, this
+     * scans all values quickly.
+     */
+    int valueMaxByteSize();
+
+    /**
      * {@return true iff this vector is a constant vector - returns the same constant value for every position}
      */
     boolean isConstant();
@@ -93,6 +111,18 @@ public interface Vector extends Accountable, RefCounted, Releasable {
      * not thread safe and doesn't support simultaneous access by more than one thread.
      */
     void allowPassingToDifferentDriver();
+
+    /**
+     * Return a subset of this {@link Vector} from position {@code beginInclusive} to
+     * position {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     * <p>
+     *     NOTE: Implementations will not try to optimize zero length slices
+     *     as we expect them to be rare.
+     * </p>
+     */
+    Vector slice(int beginInclusive, int endExclusive);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

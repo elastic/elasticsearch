@@ -1,3 +1,8 @@
+setup:
+  - requires:
+      cluster_features: [ "data_stream.mappings_api" ]
+      reason: feature under test must be present
+
 ---
 "Test time_series data stream":
   - do:
@@ -39,6 +44,7 @@
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
 
   - do:
       indices.put_data_stream_mappings:
@@ -78,6 +84,7 @@
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings.properties.name.type: "keyword" }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
   - set: { data_streams.0.indices.0.index_name: oldIndexName }
   - set: { data_streams.0.indices.1.index_name: newIndexName }
 
@@ -141,6 +148,7 @@
   - match: { data_streams.0.name: my-component-only-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
 
   - do:
       indices.put_data_stream_mappings:
@@ -202,6 +210,7 @@
   - match: { data_streams.0.effective_mappings: null }
   - set: { data_streams.0.indices.0.index_name: oldIndexName }
   - set: { data_streams.0.indices.1.index_name: newIndexName }
+  - match: { data_streams.0.index_mode: time_series }
 
   - do:
       indices.get_mapping:
@@ -269,6 +278,7 @@
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
 
   - do:
       indices.put_index_template:
@@ -297,6 +307,7 @@
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
 
   - do:
       indices.rollover:
@@ -320,6 +331,7 @@
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings: { } }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: standard }
   - set: { data_streams.0.indices.0.index_name: oldIndexName }
   - set: { data_streams.0.indices.1.index_name: newIndexName }
 
@@ -380,6 +392,7 @@
   - match: { data_streams.0.name: test-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
 
   - do:
       indices.rollover:
@@ -403,6 +416,7 @@
   - match: { data_streams.0.name: test-data-stream-1 }
   - match: { data_streams.0.mappings: { } }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
   - set: { data_streams.0.indices.0.index_name: oldIndexName }
   - set: { data_streams.0.indices.1.index_name: newIndexName }
 
@@ -449,6 +463,7 @@
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
 
   - do:
       indices.put_index_template:
@@ -477,6 +492,7 @@
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
 
   - do:
       indices.rollover:
@@ -500,6 +516,7 @@
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings: { } }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: standard }
   - set: { data_streams.0.indices.0.index_name: oldIndexName }
   - set: { data_streams.0.indices.1.index_name: newIndexName }
 
@@ -561,6 +578,7 @@
   - match: { data_streams.0.name: test-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
 
   - do:
       indices.rollover:
@@ -584,5 +602,6 @@
   - match: { data_streams.0.name: test-data-stream-1 }
   - match: { data_streams.0.mappings: { } }
   - match: { data_streams.0.effective_mappings: null }
+  - match: { data_streams.0.index_mode: time_series }
   - set: { data_streams.0.indices.0.index_name: oldIndexName }
   - set: { data_streams.0.indices.1.index_name: newIndexName }

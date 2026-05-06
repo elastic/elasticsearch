@@ -48,18 +48,22 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
@@ -89,16 +93,20 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         COUNTER_LONG,
         COUNTER_INTEGER,
         COUNTER_DOUBLE,
+        FLATTENED,
         OBJECT,
         SOURCE,
         DATE_PERIOD,
         TIME_DURATION,
         DOC_DATA_TYPE,
         TSID_DATA_TYPE,
-        PARTIAL_AGG,
         AGGREGATE_METRIC_DOUBLE,
         EXPONENTIAL_HISTOGRAM,
-        DENSE_VECTOR };
+        TDIGEST,
+        HISTOGRAM,
+        DENSE_VECTOR,
+        DATE_RANGE,
+        PARTIAL_AGG };
 
     private final JoinConfig config;
     private List<Attribute> lazyOutput;
@@ -344,6 +352,12 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     private static boolean comparableTypes(Attribute left, Attribute right) {
         DataType leftType = left.dataType();
         DataType rightType = right.dataType();
+        if (leftType == NULL) {
+            // A field can have NULL type when UNMAPPED_FIELDS="NULLIFY" resolves a missing field to null.
+            // Only the left side needs checking: lookup indices are excluded from nullification (see ResolveUnmapped#nullify),
+            // and for INLINE STATS the right side's grouping key inherits its type from the left.
+            return true;
+        }
         if (leftType.isNumeric() && rightType.isNumeric()) {
             // Allow byte, short, integer, long, half_float, scaled_float, float and double to join against each other
             return commonType(leftType, rightType) != null;

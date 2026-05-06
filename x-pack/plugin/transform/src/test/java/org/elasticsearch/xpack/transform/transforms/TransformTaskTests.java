@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -24,8 +26,12 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -35,6 +41,11 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
+import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
+import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction;
+import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
+import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -58,6 +69,7 @@ import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigMana
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.mockito.verification.VerificationMode;
 
 import java.time.Clock;
@@ -90,6 +102,13 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class TransformTaskTests extends ESTestCase {
+
+    @BeforeClass
+    public static void registerTaskExecutor() {
+        PersistentTasksExecutor<?> mockExecutor = mock(PersistentTasksExecutor.class);
+        when(mockExecutor.getTaskName()).thenReturn(TransformField.TASK_NAME);
+        new PersistentTasksExecutorRegistry(Collections.singletonList(mockExecutor));
+    }
 
     private TestThreadPool threadPool;
     private Client client;
@@ -205,7 +224,10 @@ public class TransformTaskTests extends ESTestCase {
             transformsCheckpointService,
             auditor,
             new TransformScheduler(clock, threadPool, Settings.EMPTY, TimeValue.ZERO),
-            mock(TransformNode.class)
+            mock(TransformNode.class),
+            mock(CrossProjectModeDecider.class),
+            projectId -> false,
+            mock(ProjectResolver.class)
         );
     }
 
@@ -319,7 +341,7 @@ public class TransformTaskTests extends ESTestCase {
         var transformTask = new TransformTask(
             42,
             "some_type",
-            "some_action",
+            TransformField.TASK_NAME + "[c]",
             TaskId.EMPTY_TASK_ID,
             createTransformTaskParams(transformConfig.getId()),
             transformState,
@@ -611,6 +633,43 @@ public class TransformTaskTests extends ESTestCase {
         assertFalse(transformTask.getContext().isWaitingForIndexToUnblock());
     }
 
+    public void testMatch() {
+        String transformId = randomAlphaOfLengthBetween(1, 10);
+        TransformTask matchingTask = createTransformTask(
+            TransformConfigTests.randomTransformConfigWithoutHeaders(transformId),
+            MockTransformAuditor.createMockAuditor()
+        );
+        TransformTask nonMatchingTask = createTransformTask(
+            TransformConfigTests.randomTransformConfigWithoutHeaders("different-" + transformId),
+            MockTransformAuditor.createMockAuditor()
+        );
+        Task nonTransformTask = new Task(123, "some_type", "some_action", "data_frame_" + transformId, null, null);
+
+        assertTrue(matchingTask.match(transformId));
+        assertFalse(nonMatchingTask.match("not-" + transformId));
+
+        GetTransformStatsAction.Request getRequest = new GetTransformStatsAction.Request(transformId, null, randomBoolean());
+        assertTrue(getRequest.match(matchingTask));
+        assertFalse(getRequest.match(nonMatchingTask));
+        assertFalse(getRequest.match(nonTransformTask));
+
+        ScheduleNowTransformAction.Request scheduleRequest = new ScheduleNowTransformAction.Request(transformId, TimeValue.ONE_MINUTE);
+        assertTrue(scheduleRequest.match(matchingTask));
+        assertFalse(scheduleRequest.match(nonMatchingTask));
+        assertFalse(scheduleRequest.match(nonTransformTask));
+
+        StopTransformAction.Request stopRequest = new StopTransformAction.Request(transformId, false, false, null, false, false);
+        stopRequest.setExpandedIds(Collections.singleton(transformId));
+        assertTrue(stopRequest.match(matchingTask));
+        assertFalse(stopRequest.match(nonMatchingTask));
+        assertFalse(stopRequest.match(nonTransformTask));
+
+        UpdateTransformAction.Request updateRequest = new UpdateTransformAction.Request(null, transformId, randomBoolean(), null);
+        assertTrue(updateRequest.match(matchingTask));
+        assertFalse(updateRequest.match(nonMatchingTask));
+        assertFalse(updateRequest.match(nonTransformTask));
+    }
+
     private TransformConfig randomConfigForDestIndex(String indexName) {
         var pivotOrLatest = randomBoolean();
         return TransformConfigTests.randomTransformConfigWithoutHeaders(
@@ -759,6 +818,41 @@ public class TransformTaskTests extends ESTestCase {
 
         verify(indexer, indexerVerificationMode).maybeTriggerAsyncJob(anyLong());
         verifyNoInteractions(auditor, threadPool);
+    }
+
+    public void testContextProjectIdDefaultsToDefaultWhenNoHeader() {
+        var transformTask = new TransformTask(
+            42,
+            "some_type",
+            "some_action",
+            TaskId.EMPTY_TASK_ID,
+            createTransformTaskParams("transform-1"),
+            null,
+            new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+            MockTransformAuditor.createMockAuditor(),
+            mock(ThreadPool.class),
+            Collections.emptyMap(),
+            mockTransformNode()
+        );
+        assertThat(transformTask.getContext().projectId(), is(equalTo(ProjectId.DEFAULT)));
+    }
+
+    public void testContextProjectIdReadsFromHeader() {
+        var projectId = ProjectId.fromId("myproject123");
+        var transformTask = new TransformTask(
+            42,
+            "some_type",
+            "some_action",
+            TaskId.EMPTY_TASK_ID,
+            createTransformTaskParams("transform-1"),
+            null,
+            new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+            MockTransformAuditor.createMockAuditor(),
+            mock(ThreadPool.class),
+            Collections.singletonMap(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id()),
+            mockTransformNode()
+        );
+        assertThat(transformTask.getContext().projectId(), is(equalTo(projectId)));
     }
 
     private static TransformTaskParams createTransformTaskParams(String transformId) {

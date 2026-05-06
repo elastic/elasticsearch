@@ -21,7 +21,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -70,7 +69,7 @@ public abstract class AbstractBaseReindexRestHandler<
         }
         final var responseListener = new SubscribableListener<BulkByScrollResponse>();
         final var task = client.executeLocally(action, internal, responseListener);
-        responseListener.addListener(new LoggingTaskListener<>(task));
+        responseListener.addListener(new LoggingReindexTaskListener(task));
         return sendTask(client.getLocalNodeId(), task);
     }
 

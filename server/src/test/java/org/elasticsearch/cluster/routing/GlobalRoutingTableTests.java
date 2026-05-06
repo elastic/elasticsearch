@@ -295,8 +295,6 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
 
         final RoutingNodes mutate = routingNodes.mutableCopy();
         final DiscoveryNode targetNode = randomFrom(clusterState.nodes().getNodes().values());
-        final RoutingChangesObserver emptyObserver = new RoutingChangesObserver() {
-        };
 
         final int unassigned = mutate.unassigned().size();
         var unassignedItr = mutate.unassigned().iterator();
@@ -306,7 +304,7 @@ public class GlobalRoutingTableTests extends AbstractWireSerializingTestCase<Glo
             if (shard.index().getName().equals("test-a")) {
                 // "test-a" only exists in project 1, so we know which project routing table should change
                 // (and which one should stay the same)
-                unassignedItr.initialize(targetNode.getId(), null, 0L, emptyObserver);
+                unassignedItr.initialize(targetNode.getId(), null, 0L, RoutingChangesObserver.NOOP);
                 break;
             }
         }

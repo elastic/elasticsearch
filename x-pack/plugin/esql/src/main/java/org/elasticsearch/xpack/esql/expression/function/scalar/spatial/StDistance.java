@@ -18,19 +18,19 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -52,6 +52,9 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
         "StDistance",
         StDistance::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StDistance.class)
+        .binary(StDistance::new)
+        .name("st_distance");
 
     // public for test access with reflection
     public static final DistanceCalculator GEO = new GeoDistanceCalculator();
@@ -229,7 +232,8 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
             Computes the distance between two points.
             For cartesian geometries, this is the pythagorean distance in the same units as the original coordinates.
             For geographic geometries, this is the circular distance along the great circle in meters.""",
-        examples = @Example(file = "spatial", tag = "st_distance-airports")
+        examples = @Example(file = "spatial", tag = "st_distance-airports"),
+        depthOffset = 1  // So this appears as a subsection of geospatial predicates
     )
     public StDistance(
         Source source,
@@ -282,21 +286,19 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
-        var leftGeom = makeGeometryFromLiteral(ctx, left());
-        var rightGeom = makeGeometryFromLiteral(ctx, right());
+    protected Object fold(Geometry leftGeom, Geometry rightGeom) {
         return (crsType() == SpatialCrsType.GEO) ? GEO.distance(leftGeom, rightGeom) : CARTESIAN.distance(leftGeom, rightGeom);
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (right().foldable()) {
             return toEvaluator(toEvaluator, left(), makeGeometryFromLiteral(toEvaluator.foldCtx(), right()), leftDocValues);
         } else if (left().foldable()) {
             return toEvaluator(toEvaluator, right(), makeGeometryFromLiteral(toEvaluator.foldCtx(), left()), rightDocValues);
         } else {
-            EvalOperator.ExpressionEvaluator.Factory leftE = toEvaluator.apply(left());
-            EvalOperator.ExpressionEvaluator.Factory rightE = toEvaluator.apply(right());
+            ExpressionEvaluator.Factory leftE = toEvaluator.apply(left());
+            ExpressionEvaluator.Factory rightE = toEvaluator.apply(right());
             if (crsType() == SpatialCrsType.GEO) {
                 if (leftDocValues) {
                     return new StDistanceGeoPointDocValuesAndSourceEvaluator.Factory(source(), leftE, rightE);
@@ -318,12 +320,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
         throw EsqlIllegalArgumentException.illegalDataType(crsType().name());
     }
 
-    private EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        ToEvaluator toEvaluator,
-        Expression field,
-        Geometry geometry,
-        boolean docValues
-    ) {
+    private ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator, Expression field, Geometry geometry, boolean docValues) {
         if (geometry instanceof Point point) {
             return toEvaluator(toEvaluator, field, point, docValues);
         } else {
@@ -331,13 +328,8 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
         }
     }
 
-    private EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        ToEvaluator toEvaluator,
-        Expression field,
-        Point point,
-        boolean docValues
-    ) {
-        EvalOperator.ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field);
+    private ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator, Expression field, Point point, boolean docValues) {
+        ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field);
         if (crsType() == SpatialCrsType.GEO) {
             if (docValues) {
                 return new StDistanceGeoPointDocValuesAndConstantEvaluator.Factory(source(), fieldEvaluator, point);

@@ -11,12 +11,14 @@ package org.elasticsearch.datastreams.lifecycle.rest;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.admin.indices.RestPutComponentTemplateAction;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -30,8 +32,10 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
 
-    private static final String SUPPORTS_DOWNSAMPLING_METHOD = "dlm.downsampling_method";
-    private static final Set<String> CAPABILITIES = Set.of(SUPPORTS_DOWNSAMPLING_METHOD);
+    private static final Set<String> CAPABILITIES = Set.of(
+        RestPutComponentTemplateAction.SUPPORTS_DOWNSAMPLING_METHOD,
+        DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() ? RestPutComponentTemplateAction.SUPPORTS_FROZEN_AFTER : ""
+    );
 
     @Override
     public String getName() {
@@ -46,17 +50,12 @@ public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            PutDataStreamLifecycleAction.Request putLifecycleRequest = PutDataStreamLifecycleAction.Request.parseRequest(
-                parser,
-                (dataRetention, enabled, downsamplingRounds, downsamplingMethod) -> new PutDataStreamLifecycleAction.Request(
-                    getMasterNodeTimeout(request),
-                    getAckTimeout(request),
-                    Strings.splitStringByCommaToArray(request.param("name")),
-                    dataRetention,
-                    enabled,
-                    downsamplingRounds,
-                    downsamplingMethod
-                )
+            final var lifecycle = DataStreamLifecycle.dataLifecycleFromXContent(parser);
+            PutDataStreamLifecycleAction.Request putLifecycleRequest = new PutDataStreamLifecycleAction.Request(
+                getMasterNodeTimeout(request),
+                getAckTimeout(request),
+                Strings.splitStringByCommaToArray(request.param("name")),
+                lifecycle
             );
             putLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, putLifecycleRequest.indicesOptions()));
             return channel -> client.execute(

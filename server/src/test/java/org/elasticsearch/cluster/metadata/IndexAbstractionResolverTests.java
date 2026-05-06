@@ -221,6 +221,17 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         assertThat(isIndexVisible("data-stream1", null), is(true));
         assertThat(isIndexVisible("data-stream1", "data"), is(true));
         assertThat(isIndexVisible("data-stream1", "failures"), is(true));
+
+        assertFalse(
+            IndexAbstractionResolver.isIndexVisibleUnderConcreteAccess(
+                "data-stream1",
+                null,
+                IndicesOptions.DEFAULT,
+                projectMetadata,
+                indexNameExpressionResolver,
+                false
+            )
+        );
     }
 
     public void testIsNetNewSystemIndexVisible() {
@@ -266,14 +277,8 @@ public class IndexAbstractionResolverTests extends ESTestCase {
 
         // these indices options are for the GET _data_streams case
         final IndicesOptions noHiddenNoAliases = IndicesOptions.builder()
-            .wildcardOptions(
-                IndicesOptions.WildcardOptions.builder()
-                    .matchOpen(true)
-                    .matchClosed(true)
-                    .includeHidden(false)
-                    .resolveAliases(false)
-                    .build()
-            )
+            .wildcardOptions(IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(true).includeHidden(false).build())
+            .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false).build())
             .build();
 
         {
@@ -379,7 +384,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
     }
 
     private boolean isIndexVisible(String index, String selector, IndicesOptions indicesOptions) {
-        return IndexAbstractionResolver.isIndexVisible(
+        return IndexAbstractionResolver.isIndexVisibleUnderWildcardAccess(
             "*",
             selector,
             index,

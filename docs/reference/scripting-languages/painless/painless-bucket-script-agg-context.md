@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-bucket-script-agg-context.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
@@ -28,50 +31,38 @@ The standard [Painless API](https://www.elastic.co/guide/en/elasticsearch/painle
 
 ## Example [_example]
 
-To run this example, first follow the steps in [context examples](/reference/scripting-languages/painless/painless-context-examples.md).
+To run the example, first [install the eCommerce sample data](/reference/scripting-languages/painless/painless-context-examples.md#painless-sample-data-install).
 
-The painless context in a `bucket_script` aggregation provides a `params` map. This map contains both user-specified custom values, as well as the values from other aggregations specified in the `buckets_path` property.
+The following request is useful for identifying high-value markets by comparing average order values across countries. It groups orders by country and calculates metrics for each country, including `total_revenue` and `order_count`, then uses a bucket script to compute `revenue_per_order` for performance analysis.
 
-This example takes the values from a min and max aggregation, calculates the difference, and adds the user-specified base_cost to the result:
-
-```painless
-(params.max - params.min) + params.base_cost
-```
-
-Note that the values are extracted from the `params` map. In context, the aggregation looks like this:
-
-```console
-GET /seats/_search
+```json
+GET kibana_sample_data_ecommerce/_search
 {
   "size": 0,
   "aggs": {
-    "theatres": {
+    "countries": {
       "terms": {
-        "field": "theatre",
-        "size": 10
+        "field": "geoip.country_iso_code"
       },
       "aggs": {
-        "min_cost": {
-          "min": {
-            "field": "cost"
+        "total_revenue": {
+          "sum": {
+            "field": "taxful_total_price"
           }
         },
-        "max_cost": {
-          "max": {
-            "field": "cost"
+        "order_count": {
+          "value_count": {
+            "field": "order_id"
           }
         },
-        "spread_plus_base": {
+        "revenue_per_order": {
           "bucket_script": {
-            "buckets_path": { <1>
-              "min": "min_cost",
-              "max": "max_cost"
+            "buckets_path": {
+              "revenue": "total_revenue",
+              "orders": "order_count"
             },
             "script": {
-              "params": {
-                "base_cost": 5 <2>
-              },
-              "source": "(params.max - params.min) + params.base_cost"
+              "source": "params.revenue / params.orders"
             }
           }
         }
@@ -80,10 +71,3 @@ GET /seats/_search
   }
 }
 ```
-% TEST[setup:seats]
-
-1. The `buckets_path` points to two aggregations (`min_cost`, `max_cost`) and adds `min`/`max` variables to the `params` map
-2. The user-specified `base_cost` is also added to the script’s `params` map
-
-
-

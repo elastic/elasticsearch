@@ -14,6 +14,7 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.internal.spi.LoggerFactory;
@@ -89,13 +90,19 @@ public abstract class Command implements Closeable {
         LoggerFactory loggerFactory = LoggerFactory.provider();
         if (options.has(silentOption)) {
             terminal.setVerbosity(Terminal.Verbosity.SILENT);
-            loggerFactory.setRootLevel(Level.OFF);
+            if (loggerFactory != null) {
+                loggerFactory.setRootLevel(Level.OFF);
+            }
         } else if (options.has(verboseOption)) {
             terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
-            loggerFactory.setRootLevel(Level.DEBUG);
+            if (loggerFactory != null) {
+                loggerFactory.setRootLevel(Level.DEBUG);
+            }
         } else {
             terminal.setVerbosity(Terminal.Verbosity.NORMAL);
-            loggerFactory.setRootLevel(Level.INFO);
+            if (loggerFactory != null) {
+                loggerFactory.setRootLevel(Level.INFO);
+            }
         }
 
         execute(terminal, options, processInfo);

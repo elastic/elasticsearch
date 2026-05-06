@@ -136,18 +136,6 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
-     * Maximum size allowed for copy without multipart.
-     * Objects larger than this will be copied using multipart copy. S3 enforces a minimum multipart size of 5 MiB and a maximum
-     * non-multipart copy size of 5 GiB. The default is to use the maximum allowable size in order to minimize request count.
-     */
-    static final Setting<ByteSizeValue> MAX_COPY_SIZE_BEFORE_MULTIPART = Setting.byteSizeSetting(
-        "max_copy_size_before_multipart",
-        MAX_FILE_SIZE,
-        MIN_PART_SIZE_USING_MULTIPART,
-        MAX_FILE_SIZE
-    );
-
-    /**
      * Big files can be broken down into chunks during snapshotting if needed. Defaults to 5tb.
      */
     static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
@@ -249,7 +237,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         Setting.Property.Dynamic
     );
 
-    static final Setting<Boolean> UNSAFELY_INCOMPATIBLE_WITH_S3_WRITES = Setting.boolSetting(
+    static final Setting<Boolean> UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES = Setting.boolSetting(
         "unsafely_incompatible_with_s3_conditional_writes",
         false
     );
@@ -261,8 +249,6 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final ByteSizeValue bufferSize;
 
     private final ByteSizeValue chunkSize;
-
-    private final ByteSizeValue maxCopySizeBeforeMultipart;
 
     private final boolean serverSideEncryption;
 
@@ -279,7 +265,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     /**
      * Some storage claims S3-compatibility despite failing to support the {@code If-Match} and {@code If-None-Match} functionality
      * properly. We allow to disable the use of this functionality, making all writes unconditional, using the
-     * {@link #UNSAFELY_INCOMPATIBLE_WITH_S3_WRITES} setting.
+     * {@link #UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES} setting.
      */
     private final boolean supportsConditionalWrites;
 
@@ -342,8 +328,6 @@ class S3Repository extends MeteredBlobStoreRepository {
             );
         }
 
-        this.maxCopySizeBeforeMultipart = MAX_COPY_SIZE_BEFORE_MULTIPART.get(metadata.settings());
-
         this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
 
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
@@ -359,7 +343,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
 
         coolDown = COOLDOWN_PERIOD.get(metadata.settings());
-        supportsConditionalWrites = UNSAFELY_INCOMPATIBLE_WITH_S3_WRITES.get(metadata.settings()) == Boolean.FALSE;
+        supportsConditionalWrites = UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.get(metadata.settings()) == Boolean.FALSE;
 
         if (supportsConditionalWrites == false) {
             logger.warn(
@@ -368,19 +352,17 @@ class S3Repository extends MeteredBlobStoreRepository {
                     this warning, upgrade your storage to a system that is fully compatible with AWS S3 and then remove the [{}] \
                     repository setting; for more information, see [{}]""",
                 metadata.name(),
-                UNSAFELY_INCOMPATIBLE_WITH_S3_WRITES.getKey(),
+                UNSAFELY_INCOMPATIBLE_WITH_S3_CONDITIONAL_WRITES.getKey(),
                 ReferenceDocs.S3_COMPATIBLE_REPOSITORIES
             );
         }
 
         logger.debug(
-            "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], "
-                + "max_copy_size_before_multipart [{}], cannedACL [{}], storageClass [{}]",
+            "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
             bucket,
             chunkSize,
             serverSideEncryption,
             bufferSize,
-            maxCopySizeBeforeMultipart,
             cannedACL,
             storageClass
         );
@@ -507,7 +489,6 @@ class S3Repository extends MeteredBlobStoreRepository {
             bucket,
             serverSideEncryption,
             bufferSize,
-            maxCopySizeBeforeMultipart,
             cannedACL,
             storageClass,
             supportsConditionalWrites,

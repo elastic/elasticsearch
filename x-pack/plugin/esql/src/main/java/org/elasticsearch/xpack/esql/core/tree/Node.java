@@ -1,0 +1,520 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.esql.core.tree;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.util.Holder;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+
+import static java.util.Collections.emptyList;
+
+/**
+ * Immutable tree structure.
+ * The traversal is done depth-first, pre-order (first the node then its children), that is seeks up and then goes down.
+ * Alternative method for post-order (children first, then node) is also offered, that is seeks down and then goes up.
+ *
+ * Allows transformation which returns the same tree (if no change has been performed) or a new tree otherwise.
+ *
+ * While it tries as much as possible to use functional Java, due to lack of parallelism,
+ * the use of streams and iterators is not really useful and brings too much baggage which
+ * might be used incorrectly.
+ *
+ * @param <T> node type
+ */
+public abstract class Node<T extends Node<T>> implements NamedWriteable {
+    /**
+     * Maximum number of properties rendered by {@link #toString}.
+     */
+    private static final int TO_STRING_MAX_PROP = 10;
+    /**
+     * Maximum number of characters per line rendered by {@link #toString}.
+     */
+    public static final int TO_STRING_MAX_WIDTH = 110;
+    /**
+     * Maximum number of lines rendered by {@link #toString}.
+     */
+    public static final int TO_STRING_MAX_LINES = 25;
+
+    private final Source source;
+    private final List<T> children;
+
+    public Node(Source source, List<T> children) {
+        this.source = (source != null ? source : Source.EMPTY);
+        if (containsNull(children)) {
+            throw new QlIllegalArgumentException("Null children are not allowed");
+        }
+        this.children = children;
+    }
+
+    public Source source() {
+        return source;
+    }
+
+    public Location sourceLocation() {
+        return source.source();
+    }
+
+    public String sourceText() {
+        return source.text();
+    }
+
+    public final List<T> children() {
+        return children;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void forEachDown(Consumer<? super T> action) {
+        action.accept((T) this);
+        // please do not refactor it to a for-each loop to avoid
+        // allocating iterator that performs concurrent modification checks and extra stack frames
+        for (int c = 0, size = children.size(); c < size; c++) {
+            children.get(c).forEachDown(action);
+        }
+    }
+
+    /**
+     * Same as forEachDown, but can end the traverse early, by setting the boolean argument in the action.
+     */
+    public boolean forEachDownMayReturnEarly(BiConsumer<? super T, Holder<Boolean>> action) {
+        var breakEarly = new Holder<>(false);
+        forEachDownMayReturnEarly(action, breakEarly);
+        return breakEarly.get();
+    }
+
+    @SuppressWarnings("unchecked")
+    void forEachDownMayReturnEarly(BiConsumer<? super T, Holder<Boolean>> action, Holder<Boolean> breakEarly) {
+        action.accept((T) this, breakEarly);
+        if (breakEarly.get()) {
+            // Early return.
+            return;
+        }
+        // please do not refactor it to a for-each loop to avoid
+        // allocating iterator that performs concurrent modification checks and extra stack frames
+        for (int c = 0, size = children.size(); c < size; c++) {
+            children.get(c).forEachDownMayReturnEarly(action, breakEarly);
+            if (breakEarly.get()) {
+                // Early return.
+                return;
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public <E extends T> void forEachDown(Class<E> typeToken, Consumer<? super E> action) {
+        forEachDown(t -> {
+            if (typeToken.isInstance(t)) {
+                action.accept((E) t);
+            }
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void forEachUp(Consumer<? super T> action) {
+        // please do not refactor it to a for-each loop to avoid
+        // allocating iterator that performs concurrent modification checks and extra stack frames
+        for (int c = 0, size = children.size(); c < size; c++) {
+            children.get(c).forEachUp(action);
+        }
+        action.accept((T) this);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <E extends T> void forEachUp(Class<E> typeToken, Consumer<? super E> action) {
+        forEachUp(t -> {
+            if (typeToken.isInstance(t)) {
+                action.accept((E) t);
+            }
+        });
+    }
+
+    public <E> void forEachPropertyOnly(Class<E> typeToken, Consumer<? super E> rule) {
+        forEachProperty(typeToken, rule);
+    }
+
+    public <E> void forEachPropertyDown(Class<E> typeToken, Consumer<? super E> rule) {
+        forEachDown(e -> e.forEachProperty(typeToken, rule));
+    }
+
+    public <E> void forEachPropertyUp(Class<E> typeToken, Consumer<? super E> rule) {
+        forEachUp(e -> e.forEachProperty(typeToken, rule));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected <E> void forEachProperty(Class<E> typeToken, Consumer<? super E> rule) {
+        for (Object prop : info().properties()) {
+            // skip children (only properties are interesting)
+            if (prop != children && typeToken.isInstance(prop) && children.contains(prop) == false) {
+                rule.accept((E) prop);
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public boolean anyMatch(Predicate<? super T> predicate) {
+        boolean result = predicate.test((T) this);
+        if (result == false) {
+            for (T child : children) {
+                if (child.anyMatch(predicate)) {
+                    return true;
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Traverse the plan tree from the current node to the leaves, checking the given
+     * predicate.  This function will short circuit and return early if it is able to.
+     *
+     * @param predicate condition to check against all nodes
+     * @return true iff the given predicate is true for all nodes
+     */
+    public boolean allMatch(Predicate<? super T> predicate) {
+        return anyMatch(Predicate.not(predicate)) == false;
+    }
+
+    public List<T> collect(Predicate<? super T> predicate) {
+        List<T> l = new ArrayList<>();
+        forEachDown(n -> {
+            if (predicate.test(n)) {
+                l.add(n);
+            }
+        });
+        return l.isEmpty() ? emptyList() : l;
+    }
+
+    public <E extends T> List<E> collect(Class<E> typeToken) {
+        return collect(typeToken, n -> true);
+    }
+
+    public <E extends T> List<E> collect(Class<E> typeToken, Predicate<? super E> predicate) {
+        List<E> l = new ArrayList<>();
+        forEachDown(n -> {
+            if (typeToken.isInstance(n)) {
+                E e = typeToken.cast(n);
+                if (predicate.test(e)) {
+                    l.add(e);
+                }
+            }
+        });
+        return l.isEmpty() ? emptyList() : l;
+    }
+
+    public List<T> collectLeaves() {
+        return collect(n -> n.children().isEmpty());
+    }
+
+    // parse the list in pre-order and on match, skip the child/branch and move on to the next child/branch
+    public List<T> collectFirstChildren(Predicate<? super T> predicate) {
+        List<T> matches = new ArrayList<>();
+        doCollectFirst(predicate, matches);
+        return matches;
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void doCollectFirst(Predicate<? super T> predicate, List<T> matches) {
+        T t = (T) this;
+        if (predicate.test(t)) {
+            matches.add(t);
+        } else {
+            for (T child : children()) {
+                child.doCollectFirst(predicate, matches);
+            }
+        }
+    }
+
+    // TODO: maybe add a flatMap (need to double check the Stream bit)
+
+    //
+    // Transform methods
+    //
+
+    //
+    // transform the node itself and its children
+    //
+
+    @SuppressWarnings("unchecked")
+    public T transformDown(Function<? super T, ? extends T> rule) {
+        T root = rule.apply((T) this);
+        Node<T> node = this.equals(root) ? this : root;
+        return node.transformChildren(child -> child.transformDown(rule));
+    }
+
+    @SuppressWarnings("unchecked")
+    public T transformDownSkipBranch(BiFunction<? super T, Holder<Boolean>, ? extends T> rule) {
+        Holder<Boolean> skipBranch = new Holder<>(Boolean.FALSE);
+        return transformDownSkipBranch(skipBranch, rule);
+    }
+
+    @SuppressWarnings("unchecked")
+    T transformDownSkipBranch(Holder<Boolean> skipBranch, BiFunction<? super T, Holder<Boolean>, ? extends T> rule) {
+        T root = rule.apply((T) this, skipBranch);
+        Node<T> node = this.equals(root) ? this : root;
+        if (skipBranch.get()) {
+            skipBranch.set(false);
+            return (T) node;
+        }
+        return node.transformChildren(child -> child.transformDownSkipBranch(skipBranch, rule));
+    }
+
+    @SuppressWarnings("unchecked")
+    public <E extends T> T transformDown(Class<E> typeToken, Function<E, ? extends T> rule) {
+        return transformDown((t) -> (typeToken.isInstance(t) ? rule.apply((E) t) : t));
+    }
+
+    @SuppressWarnings("unchecked")
+    public <E extends T> T transformDown(Predicate<Node<?>> nodePredicate, Function<E, ? extends T> rule) {
+        return transformDown((t) -> (nodePredicate.test(t) ? rule.apply((E) t) : t));
+    }
+
+    /**
+     * Asynchronous variant of {@link #transformDown(Function)} that allows the transformation rule to perform
+     * async I/O operations (e.g., transport actions) without blocking the caller thread.
+     * <p>
+     * Children are transformed sequentially, not concurrently, one after another in order.
+     * This method is intended for cases where async I/O is needed during transformation, not for parallel
+     * processing.
+     */
+    @SuppressWarnings("unchecked")
+    public void transformDown(BiConsumer<? super T, ActionListener<T>> rule, ActionListener<T> listener) {
+        rule.accept((T) this, listener.delegateFailureAndWrap((originalListener, root) -> {
+            Node<T> node = this.equals(root) ? this : root;
+            node.transformChildren((child, childListener) -> child.transformDown(rule, childListener), originalListener);
+        }));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void transformChildren(BiConsumer<T, ActionListener<T>> traversalOperation, ActionListener<T> listener) {
+        if (children.isEmpty()) {
+            listener.onResponse((T) this);
+            return;
+        }
+
+        final Holder<List<T>> updatedChildren = new Holder<>();
+        SubscribableListener<Void> chain = SubscribableListener.newForked(l -> l.onResponse(null));
+        for (int i = 0; i < children.size(); i++) {
+            var index = i;
+            var child = children.get(index);
+            chain = chain.andThen(originalListener -> {
+                traversalOperation.accept(child, originalListener.delegateFailureAndWrap((o, maybeTransformed) -> {
+                    if (maybeTransformed.equals(child) == false) {
+                        if (updatedChildren.get() == null) {
+                            updatedChildren.set(new ArrayList<>(children));
+                        }
+                        updatedChildren.get().set(index, maybeTransformed);
+                    }
+                    o.onResponse(null);
+                }));
+            });
+        }
+        chain.andThenApply(ignored -> updatedChildren.get() == null ? (T) this : replaceChildrenSameSize(updatedChildren.get()))
+            .addListener(listener);
+    }
+
+    @SuppressWarnings("unchecked")
+    public T transformUp(Function<? super T, ? extends T> rule) {
+        T transformed = transformChildren(child -> child.transformUp(rule));
+        T node = this.equals(transformed) ? (T) this : transformed;
+        return rule.apply(node);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <E extends T> T transformUp(Class<E> typeToken, Function<E, ? extends T> rule) {
+        return transformUp((t) -> (typeToken.isInstance(t) ? rule.apply((E) t) : t));
+    }
+
+    @SuppressWarnings("unchecked")
+    public <E extends T> T transformUp(Predicate<Node<?>> nodePredicate, Function<E, ? extends T> rule) {
+        return transformUp((t) -> (nodePredicate.test(t) ? rule.apply((E) t) : t));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected <R extends Function<? super T, ? extends T>> T transformChildren(Function<T, ? extends T> traversalOperation) {
+        boolean childrenChanged = false;
+
+        // Avoid creating a new array of children if no change is needed.
+        // And when it happens, look at using replacement to minimize the amount of method invocations.
+        List<T> transformedChildren = null;
+
+        for (int i = 0, s = children.size(); i < s; i++) {
+            T child = children.get(i);
+            T next = traversalOperation.apply(child);
+            if (child.equals(next) == false) {
+                // lazy copy + replacement in place
+                if (childrenChanged == false) {
+                    childrenChanged = true;
+                    transformedChildren = new ArrayList<>(children);
+                }
+                transformedChildren.set(i, next);
+            }
+        }
+
+        return (childrenChanged ? replaceChildrenSameSize(transformedChildren) : (T) this);
+    }
+
+    public final T replaceChildrenSameSize(List<T> newChildren) {
+        if (newChildren.size() != children.size()) {
+            throw new QlIllegalArgumentException(
+                "Expected the same number of children [" + children.size() + "], but received [" + newChildren.size() + "]"
+            );
+        }
+        return replaceChildren(newChildren);
+    }
+
+    public abstract T replaceChildren(List<T> newChildren);
+
+    //
+    // transform the node properties and use the tree only for navigation
+    //
+
+    public <E> T transformPropertiesOnly(Class<E> typeToken, Function<? super E, ? extends E> rule) {
+        return transformNodeProps(typeToken, rule);
+    }
+
+    public <E> T transformPropertiesDown(Class<E> typeToken, Function<? super E, ? extends E> rule) {
+        return transformDown(t -> t.transformNodeProps(typeToken, rule));
+    }
+
+    public <E> T transformPropertiesUp(Class<E> typeToken, Function<? super E, ? extends E> rule) {
+        return transformUp(t -> t.transformNodeProps(typeToken, rule));
+    }
+
+    /**
+     * Transform this node's properties.
+     * <p>
+     * This always returns something of the same type as the current
+     * node but since {@link Node} doesn't have a {@code SelfT} parameter
+     * we return the closest thing we do have: {@code T}, which is the
+     * root of the hierarchy for this node.
+     */
+    protected final <E> T transformNodeProps(Class<E> typeToken, Function<? super E, ? extends E> rule) {
+        return info().transform(rule, typeToken);
+    }
+
+    /**
+     * Normally, you want to use one of the static {@code create} methods to implement this.
+     * <p>
+     * For {@code QueryPlan}s, it is very important that
+     * the properties contain all of the expressions and references relevant to this node, and
+     * that all the properties are used in the provided constructor; otherwise query plan
+     * transformations like
+     * {@code QueryPlan#transformExpressionsOnly(Function)}
+     * will not have an effect.
+     */
+    protected abstract NodeInfo<? extends T> info();
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(children);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        Node<?> other = (Node<?>) obj;
+        return Objects.equals(children(), other.children());
+    }
+
+    public String nodeName() {
+        return getClass().getSimpleName();
+    }
+
+    /**
+     * The values of all the properties that are important
+     * to this {@link Node}.
+     */
+    public List<Object> nodeProperties() {
+        return info().properties();
+    }
+
+    /**
+     * Configuration for rendering the string representation.
+     */
+    public enum NodeStringFormat {
+        /** No list truncation, no line breaks due to string width. */
+        FULL(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE),
+        /** List truncation, line breaks, and limited number of lines. */
+        LIMITED(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH, TO_STRING_MAX_LINES);
+
+        final int maxProperties;
+        final int maxWidth;
+        final int maxLines;
+
+        NodeStringFormat(int maxProperties, int maxWidth, int maxLines) {
+            this.maxProperties = maxProperties;
+            this.maxWidth = maxWidth;
+            this.maxLines = maxLines;
+        }
+    }
+
+    /**
+     * Render this {@link Node} to a {@link String} with the
+     * {@link NodeStringFormat#LIMITED limited} format. This does not include
+     * this node's {@link #children()}.
+     */
+    public final String nodeString() {
+        StringBuilder sb = new StringBuilder();
+        nodeString(sb, NodeStringFormat.LIMITED);
+        return sb.toString();
+    }
+
+    /**
+     * Append this {@link Node}'s string representation to {@code sb}. This
+     * does not include this node's {@link #children()}.
+     * @param sb target for the string
+     * @param format configuration for rendering the string representation
+     */
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName());
+        sb.append("[");
+        propertiesToString(sb, true, format);
+        sb.append("]");
+    }
+
+    @Override
+    public String toString() {
+        return toString(NodeStringFormat.LIMITED);
+    }
+
+    public String toString(NodeStringFormat format) {
+        return new NodeToString(format).treeString(this, 0).toString();
+    }
+
+    protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format) {
+        new NodePropertiesToString(sb, format, this, skipIfChild).propertiesToString();
+    }
+
+    private <U> boolean containsNull(List<U> us) {
+        // Use custom implementation because some implementations of `List.contains` (e.g. ImmutableCollections$AbstractImmutableList)
+        // throw
+        // a NPE if any of the elements is null.
+        for (U u : us) {
+            if (u == null) {
+                return true;
+            }
+        }
+        return false;
+    }
+}

@@ -51,7 +51,7 @@ public class QualifierTests extends AbstractStatementParserTests {
 
         String query = "ROW x = 1 | LOOKUP JOIN lu_idx AS qualified ON x | WHERE [qualified].[field]";
 
-        LogicalPlan plan = statement(query);
+        LogicalPlan plan = query(query);
         Filter filter = as(plan, Filter.class);
         LookupJoin join = as(filter.child(), LookupJoin.class);
         Row row = as(join.left(), Row.class);
@@ -477,32 +477,32 @@ public class QualifierTests extends AbstractStatementParserTests {
         );
 
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "RERANK score = \"query\" ON [qualified].[field]",
+            sourceQuery + "RERANK score = \"statement\" ON [qualified].[field]",
             "qualified",
             "field",
             1,
-            sourceQuery + "RERANK score = \"query\" ON qualified.field"
+            sourceQuery + "RERANK score = \"statement\" ON qualified.field"
         );
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "RERANK score = \"query\" ON [qualified].[field], [qualified].[`field`]",
+            sourceQuery + "RERANK score = \"statement\" ON [qualified].[field], [qualified].[`field`]",
             "qualified",
             "field",
             2,
-            sourceQuery + "RERANK score = \"query\" ON qualified.field, qualified.`field`"
+            sourceQuery + "RERANK score = \"statement\" ON qualified.field, qualified.`field`"
         );
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "RERANK score = \"query\" ON field, [qualified ].[ field], other_field",
+            sourceQuery + "RERANK score = \"statement\" ON field, [qualified ].[ field], other_field",
             "qualified",
             "field",
             1,
-            sourceQuery + "RERANK score = \"query\" ON field, qualified.field, other_field"
+            sourceQuery + "RERANK score = \"statement\" ON field, qualified.field, other_field"
         );
         assertQualifiedAttributeInExpressions(
-            sourceQuery + "RERANK score = \"query\" ON [qualified].[field] WITH {\"inference_id\": \"foo\"}",
+            sourceQuery + "RERANK score = \"statement\" ON [qualified].[field] WITH {\"inference_id\": \"foo\"}",
             "qualified",
             "field",
             1,
-            sourceQuery + "RERANK score = \"query\" ON qualified.field WITH {\"inference_id\": \"foo\"}"
+            sourceQuery + "RERANK score = \"statement\" ON qualified.field WITH {\"inference_id\": \"foo\"}"
         );
 
         assertQualifiedAttributeInExpressions(
@@ -648,7 +648,7 @@ public class QualifierTests extends AbstractStatementParserTests {
         );
 
         expectError(
-            sourceQuery + "RERANK [qualified].[field] = \"query\" ON foo",
+            sourceQuery + "RERANK [qualified].[field] = \"statement\" ON foo",
             "Qualified names are not supported in field definitions, found [[qualified].[field]]"
         );
 
@@ -842,7 +842,7 @@ public class QualifierTests extends AbstractStatementParserTests {
     /**
      * Assert that there is as many {@link UnresolvedAttribute}s with the given fully qualified name as expected. Then, turn all the
      * matching fully qualified {@link UnresolvedAttribute}s into unqualified attributes by removing the qualifier and prefixing the plain
-     * name with it to check if we end up with the same plan as from the reference query.
+     * name with it to check if we end up with the same plan as from the reference statement.
      * <p>
      * Example: {@code ... | WHERE [qualified].[name] > 10} should yield the same plan as {@code ... | WHERE qualified.name > 10} after
      * flattening the qualifiers into the plain name.
@@ -879,7 +879,7 @@ public class QualifierTests extends AbstractStatementParserTests {
         String referenceQuery,
         Function<Expression, Expression> normalizeExpressions
     ) {
-        LogicalPlan plan = statement(query);
+        LogicalPlan plan = query(query);
         Holder<Integer> count = new Holder<>(0);
 
         plan.forEachExpressionDown(UnresolvedAttribute.class, expr -> {
@@ -893,7 +893,7 @@ public class QualifierTests extends AbstractStatementParserTests {
 
         LogicalPlan planWithStrippedQualifiers = plan.transformExpressionsDown(Expression.class, normalizeExpressions);
 
-        LogicalPlan referencePlan = statement(referenceQuery).transformExpressionsDown(Expression.class, normalizeExpressions);
+        LogicalPlan referencePlan = query(referenceQuery).transformExpressionsDown(Expression.class, normalizeExpressions);
 
         assertEqualsIgnoringIds(referencePlan, planWithStrippedQualifiers);
     }
@@ -911,8 +911,8 @@ public class QualifierTests extends AbstractStatementParserTests {
     }
 
     private void assertStatementsEqual(String query1, String query2) {
-        LogicalPlan plan1 = statement(query1);
-        LogicalPlan plan2 = statement(query2);
+        LogicalPlan plan1 = query(query1);
+        LogicalPlan plan2 = query(query2);
         assertEqualsIgnoringIds(plan1, plan2);
     }
 }

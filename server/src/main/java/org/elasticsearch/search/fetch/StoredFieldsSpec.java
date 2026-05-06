@@ -77,17 +77,7 @@ public record StoredFieldsSpec(
             mergedFields = new HashSet<>(this.requiredStoredFields);
             mergedFields.addAll(other.requiredStoredFields);
         }
-        Set<String> mergedSourcePaths;
-        if (this.sourcePaths.isEmpty() == false && other.sourcePaths.isEmpty() == false) {
-            mergedSourcePaths = new HashSet<>(this.sourcePaths);
-            mergedSourcePaths.addAll(other.sourcePaths);
-        } else if (this.sourcePaths.isEmpty() == false) {
-            mergedSourcePaths = this.sourcePaths;
-        } else if (other.sourcePaths.isEmpty() == false) {
-            mergedSourcePaths = other.sourcePaths;
-        } else {
-            mergedSourcePaths = Set.of();
-        }
+        Set<String> mergedSourcePaths = mergeSourcePaths(other);
         IgnoredSourceFormat mergedFormat;
         if (this.ignoredSourceFormat == IgnoredSourceFormat.NO_IGNORED_SOURCE) {
             mergedFormat = other.ignoredSourceFormat;
@@ -114,13 +104,49 @@ public record StoredFieldsSpec(
         );
     }
 
+    /**
+     * Returns the unique source paths that should be loaded from source. Other source paths may be filtered out.
+     * If an empty set is returned, then all source paths need to be loaded.
+     */
+    private Set<String> mergeSourcePaths(StoredFieldsSpec other) {
+        Set<String> mergedSourcePaths;
+        if (this.sourcePaths.isEmpty() == false && other.sourcePaths.isEmpty() == false) {
+            mergedSourcePaths = new HashSet<>(this.sourcePaths);
+            mergedSourcePaths.addAll(other.sourcePaths);
+        } else if (this.sourcePaths.isEmpty() == false) {
+            if (other.requiresSource) {
+                mergedSourcePaths = Set.of();
+            } else {
+                mergedSourcePaths = this.sourcePaths;
+            }
+        } else if (other.sourcePaths.isEmpty() == false) {
+            if (this.requiresSource) {
+                mergedSourcePaths = Set.of();
+            } else {
+                mergedSourcePaths = other.sourcePaths;
+            }
+        } else {
+            mergedSourcePaths = Set.of();
+        }
+        return mergedSourcePaths;
+    }
+
+    /**
+     * Returns the set of stored fields that must be fetched.
+     */
     public Set<String> requiredStoredFields() {
-        if (sourcePaths.isEmpty() || ignoredSourceFormat == IgnoredSourceFormat.NO_IGNORED_SOURCE) {
+        // if ignored source format doesn't warrant stored fields, then don't include ignored source
+        if (sourcePaths.isEmpty()
+            || ignoredSourceFormat == IgnoredSourceFormat.NO_IGNORED_SOURCE
+            || ignoredSourceFormat == IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
             return requiredStoredFields;
         }
+
+        // otherwise, include ignored source in the result
         if (requiredStoredFields.isEmpty()) {
             return Set.of(IgnoredSourceFieldMapper.NAME);
         }
+
         Set<String> mergedFields = new HashSet<>(requiredStoredFields);
         mergedFields.add(IgnoredSourceFieldMapper.NAME);
         return mergedFields;

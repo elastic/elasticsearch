@@ -10,7 +10,6 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -88,7 +87,7 @@ public record IngestStats(
                 : Metadata.DEFAULT_PROJECT_ID;
             var pipelineId = in.readString();
             var pipelineStat = readStats(in);
-            var byteStat = in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? readByteStats(in) : ByteStats.IDENTITY;
+            var byteStat = readByteStats(in);
             pipelineStats.add(new PipelineStat(projectId, pipelineId, pipelineStat, byteStat));
             int processorsSize = in.readVInt();
             var processorStatsPerPipeline = new ArrayList<ProcessorStat>(processorsSize);
@@ -117,9 +116,7 @@ public record IngestStats(
             }
             out.writeString(pipelineStat.pipelineId());
             pipelineStat.stats().writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                pipelineStat.byteStats().writeTo(out);
-            }
+            pipelineStat.byteStats().writeTo(out);
             List<ProcessorStat> processorStatsForPipeline = processorStats.getOrDefault(pipelineStat.projectId(), Map.of())
                 .get(pipelineStat.pipelineId());
             if (processorStatsForPipeline == null) {

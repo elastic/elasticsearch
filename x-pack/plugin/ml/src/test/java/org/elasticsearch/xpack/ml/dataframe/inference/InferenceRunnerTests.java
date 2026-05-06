@@ -102,7 +102,8 @@ public class InferenceRunnerTests extends ESTestCase {
 
         var testDocsIterator = mock(TestDocsIterator.class);
         when(testDocsIterator.hasNext()).thenReturn(true, false);
-        when(testDocsIterator.next()).thenReturn(buildSearchHits(List.of(Map.of("key", 1), Map.of("key", 2))));
+        Deque<SearchHit> testHits = buildSearchHits(List.of(Map.of("key", 1), Map.of("key", 2)));
+        when(testDocsIterator.next()).thenReturn(testHits);
         when(testDocsIterator.getTotalHits()).thenReturn(2L);
         var config = ClassificationConfig.EMPTY_PARAMS;
 
@@ -118,6 +119,7 @@ public class InferenceRunnerTests extends ESTestCase {
         }).when(modelLoadingService).getModelForInternalInference(anyString(), any());
 
         run(createInferenceRunner(extractedFields, testDocsIterator)).assertSuccess();
+        testHits.forEach(SearchHit::decRef);
 
         var argumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
 
@@ -137,6 +139,8 @@ public class InferenceRunnerTests extends ESTestCase {
             doc2Source.get("test_results_field"),
             equalTo(Map.of("predicted_value", "bar", "prediction_probability", 0.5, "prediction_score", .7, "is_training", false))
         );
+
+        verify(testDocsIterator).releaseRetainedSearchHits();
     }
 
     public void testInferTestDocs_GivenCancelWasCalled() {
@@ -150,19 +154,16 @@ public class InferenceRunnerTests extends ESTestCase {
         inferenceRunner.cancel();
         run(inferenceRunner).assertSuccess();
 
+        // Cancel before run(): run() returns immediately and never opens the test iterator.
         Mockito.verifyNoMoreInteractions(localModel, resultsPersisterService);
         assertThat(progressTracker.getInferenceProgressPercent(), equalTo(0));
     }
 
     private static Deque<SearchHit> buildSearchHits(List<Map<String, Object>> vals) {
-        return vals.stream().map(InferenceRunnerTests::fromMap).map(reference -> {
-            var pooled = SearchResponseUtils.searchHitFromMap(Map.of("_source", reference));
-            try {
-                return pooled.asUnpooled();
-            } finally {
-                pooled.decRef();
-            }
-        }).collect(Collectors.toCollection(ArrayDeque::new));
+        return vals.stream()
+            .map(InferenceRunnerTests::fromMap)
+            .map(reference -> SearchResponseUtils.searchHitFromMap(Map.of("_source", reference)))
+            .collect(Collectors.toCollection(ArrayDeque::new));
     }
 
     private static BytesReference fromMap(Map<String, Object> map) {
@@ -249,11 +250,14 @@ public class InferenceRunnerTests extends ESTestCase {
         when(threadpool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(threadpool);
 
-        Supplier<SearchResponse> withHits = () -> SearchResponseUtils.response(
-            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
-        )
-            .aggregations(InternalAggregations.from(List.of(new Max(DestinationIndex.INCREMENTAL_ID, 1, DocValueFormat.RAW, Map.of()))))
-            .build();
+        Supplier<SearchResponse> withHits = () -> {
+            var pooledHits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f);
+            SearchResponse built = SearchResponseUtils.response(pooledHits)
+                .aggregations(InternalAggregations.from(List.of(new Max(DestinationIndex.INCREMENTAL_ID, 1, DocValueFormat.RAW, Map.of()))))
+                .build();
+            pooledHits.decRef();
+            return built;
+        };
         Supplier<SearchResponse> withNoHits = () -> SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
 
         when(client.search(any())).thenReturn(response(withHits)).thenReturn(response(withNoHits));

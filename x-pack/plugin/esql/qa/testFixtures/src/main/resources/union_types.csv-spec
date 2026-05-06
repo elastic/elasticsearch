@@ -1588,21 +1588,6 @@ foo:long | client_ip:ip
  8268153 | 172.21.3.15
 ;
 
-
-multiIndexIndirectUseOfUnionTypesInLookup-Ignore
-required_capability: union_types
-required_capability: lookup_v4
-FROM sample_data, sample_data_ts_long
-| SORT client_ip ASC
-| LIMIT 1
-| EVAL int = (event_duration - 1232380)::integer
-| LOOKUP_🐔 int_number_names ON int
-;
-
-@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | int:integer | name:keyword
-           null        | 172.21.0.5   |             1232382 | Disconnected    |           2 | two
-;
-
 multiIndexIndirectUseOfUnionTypesInMvExpand
 required_capability: union_types
 FROM sample_data, sample_data_ts_long
@@ -2547,4 +2532,26 @@ true               | 1990-06-01T00:00:00.000Z
 true               | 1990-08-01T00:00:00.000Z
 true               | 1990-09-01T00:00:00.000Z
 true               | 1990-12-01T00:00:00.000Z
+;
+
+unionTypesResolvePastProjections
+required_capability: union_types
+required_capability: casting_operator
+required_capability: union_types_resolve_past_projections
+
+FROM apps, apps_short
+| KEEP id, name
+| MV_EXPAND name
+| EVAL id = id::integer
+| KEEP id, name
+| SORT id ASC, name ASC
+| LIMIT 5
+;
+
+id:integer  | name:keyword
+1           | aaaaa
+1           | aaaaa
+2           | bbbbb
+2           | bbbbb
+3           | ccccc
 ;

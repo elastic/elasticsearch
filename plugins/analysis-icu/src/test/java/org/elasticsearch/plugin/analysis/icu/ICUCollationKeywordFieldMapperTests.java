@@ -20,6 +20,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -60,6 +61,24 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("numeric", b -> b.field("numeric", true));
         checker.registerConflictCheck("variable_top", b -> b.field("variable_top", ":"));
         checker.registerConflictCheck("hiragana_quaternary_mode", b -> b.field("hiragana_quaternary_mode", true));
+        checker.registerConflictCheck("language", b -> b.field("language", "tr"));
+        checker.registerConflictCheck("country", b -> b.field("country", "US"));
+        checker.registerConflictCheck("variant", b -> b.field("variant", "traditional"));
+        checker.registerConflictCheck("rules", b -> b.field("rules", "&a<b"));
+        checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
+        checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerConflictCheck("index_options", b -> b.field("index_options", "freqs"));
+        checker.registerUpdateCheck("ignore_above", b -> b.field("ignore_above", 5), m -> {});
+        checker.registerConflictCheck("norms", b -> b.field("norms", true));
+        checker.registerUpdateCheck("norms", b -> {
+            minimalMapping(b);
+            b.field("norms", true);
+        }, b -> {
+            minimalMapping(b);
+            b.field("norms", false);
+        }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
     }
 
     @Override
@@ -140,6 +159,20 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         assertEquals(1, fields.size());
         assertEquals(IndexOptions.NONE, fields.get(0).fieldType().indexOptions());
         assertEquals(DocValuesType.SORTED_SET, fields.get(0).fieldType().docValuesType());
+    }
+
+    public void testHighCardinality() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", FIELD_TYPE).startObject("doc_values").field("cardinality", "high").endObject())
+        );
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals(IndexOptions.DOCS, fields.get(0).fieldType().indexOptions());
+        assertEquals(DocValuesType.NONE, fields.get(0).fieldType().docValuesType());
+        assertEquals(IndexOptions.NONE, fields.get(1).fieldType().indexOptions());
+        assertEquals(DocValuesType.BINARY, fields.get(1).fieldType().docValuesType());
     }
 
     public void testDisableDocValues() throws IOException {
@@ -322,5 +355,10 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

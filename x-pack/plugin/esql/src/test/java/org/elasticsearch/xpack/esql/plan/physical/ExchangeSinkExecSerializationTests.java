@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -86,8 +87,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1019093b - remove unused fields from FieldAttribute #127854
          *  1026343b - added time series field type to EsField  #129649
          *  1033593b - added qualifier back to FieldAttribute #132925
+         *  1033595b - added split indices to EsRelation #138396
          */
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1033593));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1033595));
     }
 
     /**
@@ -108,8 +110,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1964273b - remove unused fields from FieldAttribute #127854
          *  1971523b - added time series field type to EsField  #129649
          *  1986023b - added qualifier back to FieldAttribute #132925
+         *  1986025b - added split indices to EsRelation #138396
          */
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1986023));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1986025));
     }
 
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
@@ -132,13 +135,14 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  43402881b - remove unused fields from FieldAttribute #127854
          *  43665025b - added time series field type to EsField  #129649
          *  43927169b - added qualifier back to FieldAttribute #132925
+         *  43927171b - added split indices to EsRelation #138396
          */
 
         int depth = 6;
         int childrenPerLevel = 8;
 
         EsIndex index = deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(43927169L));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(43927171L));
     }
 
     /**
@@ -156,13 +160,14 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  350b - remove unused fields from FieldAttribute #127854
          *  351b - added time series field type to EsField  #129649
          *  352b - added qualifier back to FieldAttribute #132925
+         *  354b - added split indices to EsRelation #138396
          */
 
         int depth = 6;
         int childrenPerLevel = 9;
 
         EsIndex index = deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(352), false);
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(354), false);
     }
 
     /**
@@ -172,17 +177,19 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      */
     public void testIndexPatternTargetingMultipleIndices() throws IOException {
         /*
-         * History: 4996b - initial
+         * History:
+         * 4996b - initial
+         * 4998b - added split indices to EsRelation #138396
          */
 
-        var index = new EsIndex(
+        var index = EsIndexGenerator.esIndex(
             "index*",
             Map.of(),
             IntStream.range(0, 100)
                 .mapToObj(i -> "partial-.ds-index-service-logs-2025.01.01-000" + i)
                 .collect(toMap(Function.identity(), i -> IndexMode.STANDARD))
         );
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(4996));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(4998));
     }
 
     /**
@@ -210,7 +217,15 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
     private void testSerializePlanWithIndex(EsIndex index, ByteSizeValue expected, boolean keepAllFields) throws IOException {
         List<Attribute> allAttributes = Analyzer.mappingAsAttributes(randomSource(), index.mapping());
         List<Attribute> keepAttributes = keepAllFields || allAttributes.isEmpty() ? allAttributes : List.of(allAttributes.getFirst());
-        EsRelation relation = new EsRelation(randomSource(), index.name(), IndexMode.STANDARD, index.indexNameWithModes(), keepAttributes);
+        EsRelation relation = new EsRelation(
+            randomSource(),
+            index.name(),
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            index.indexNameWithModes(),
+            keepAttributes
+        );
         Limit limit = new Limit(randomSource(), new Literal(randomSource(), 10, DataType.INTEGER), relation);
         Project project = new Project(randomSource(), limit, limit.output());
         FragmentExec fragmentExec = new FragmentExec(project);
@@ -272,14 +287,13 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
         Map<String, IndexMode> concrete = new TreeMap<>();
         keywordIndices.forEach(index -> concrete.put(index, randomFrom(IndexMode.values())));
         textIndices.forEach(index -> concrete.put(index, randomFrom(IndexMode.values())));
-        return new EsIndex("name", fields, concrete);
+        return EsIndexGenerator.esIndex("name", fields, concrete);
     }
 
     private static EsIndex deeplyNestedIndex(int depth, int childrenPerLevel) {
         String rootFieldName = "root";
         Map<String, EsField> fields = Map.of(rootFieldName, fieldWithRecursiveChildren(depth, childrenPerLevel, rootFieldName));
-
-        return new EsIndex("deeply-nested", fields);
+        return EsIndexGenerator.esIndex("deeply-nested", fields);
     }
 
     private static EsField fieldWithRecursiveChildren(int depth, int childrenPerLevel, String name) {

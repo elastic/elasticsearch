@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
@@ -32,7 +34,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -76,6 +77,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Logger logger;
     private final NamedWriteableRegistry namedWriteableRegistry;
     protected final SearchTransportService searchTransportService;
+    protected final BigArrays bigArrays;
     private final Executor executor;
     private final ActionListener<SearchResponse> listener;
     protected final SearchRequest request;
@@ -105,6 +107,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final TransportVersion mintransportVersion;
     protected final SearchResponseMetrics searchResponseMetrics;
     protected final Map<String, Object> searchRequestAttributes;
+    private final boolean isPitRelocationEnabled;
     protected long phaseStartTimeInNanos;
 
     // protected for tests
@@ -116,6 +119,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         Logger logger,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchTransportService searchTransportService,
+        BigArrays bigArrays,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         Map<String, AliasFilter> aliasFilter,
         Map<String, Float> concreteIndexBoosts,
@@ -123,6 +127,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchRequest request,
         ActionListener<SearchResponse> listener,
         List<SearchShardIterator> shardsIts,
+        Map<String, Integer> skippedByClusterAlias,
         SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
@@ -130,24 +135,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int maxConcurrentRequestsPerNode,
         SearchResponse.Clusters clusters,
         SearchResponseMetrics searchResponseMetrics,
-        Map<String, Object> searchRequestAttributes
+        Map<String, Object> searchRequestAttributes,
+        boolean pitRelocationEnabled
     ) {
         super(name);
         this.namedWriteableRegistry = namedWriteableRegistry;
-        final List<SearchShardIterator> iterators = new ArrayList<>();
-        int skipped = 0;
-        for (final SearchShardIterator iterator : shardsIts) {
-            if (iterator.skip()) {
-                skipped++;
-            } else {
-                iterators.add(iterator);
-            }
-        }
-        this.skippedCount = skipped;
-        this.shardsIts = iterators;
-        outstandingShards = new AtomicInteger(iterators.size());
-        successfulOps = new AtomicInteger(skipped);
-        this.shardIterators = iterators.toArray(new SearchShardIterator[0]);
+        this.skippedCount = CollectionUtils.sumIntValues(skippedByClusterAlias);
+        this.shardsIts = shardsIts;
+        outstandingShards = new AtomicInteger(shardsIts.size());
+        successfulOps = new AtomicInteger(this.skippedCount);
+        this.shardIterators = shardsIts.toArray(new SearchShardIterator[0]);
         // we later compute the shard index based on the natural order of the shards
         // that participate in the search request. This means that this number is
         // consistent between two requests that target the same shards.
@@ -158,6 +155,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.timeProvider = timeProvider;
         this.logger = logger;
         this.searchTransportService = searchTransportService;
+        this.bigArrays = bigArrays;
         this.executor = executor;
         this.request = request;
         this.task = task;
@@ -175,24 +173,19 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.clusters = clusters;
         this.searchResponseMetrics = searchResponseMetrics;
         this.searchRequestAttributes = searchRequestAttributes;
+        this.isPitRelocationEnabled = pitRelocationEnabled;
     }
 
     protected void notifyListShards(
         SearchProgressListener progressListener,
         SearchResponse.Clusters clusters,
         SearchRequest searchRequest,
-        List<SearchShardIterator> allIterators
+        Map<String, Integer> skippedByClusterAlias
     ) {
-        final List<SearchShard> skipped = new ArrayList<>(allIterators.size() - shardsIts.size());
-        for (SearchShardIterator iter : allIterators) {
-            if (iter.skip()) {
-                skipped.add(new SearchShard(iter.getClusterAlias(), iter.shardId()));
-            }
-        }
         var sourceBuilder = searchRequest.source();
         progressListener.notifyListShards(
             SearchProgressListener.buildSearchShardsFromIter(this.shardsIts),
-            skipped,
+            skippedByClusterAlias,
             clusters,
             sourceBuilder == null || sourceBuilder.size() > 0,
             timeProvider
@@ -536,7 +529,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * Returns the total number of shards to the current search across all indices
      */
     public final int getNumShards() {
-        return results.getNumShards();
+        return results.getNumShards() + skippedCount;
     }
 
     /**
@@ -599,7 +592,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             buildTookInMillis(),
             failures,
             clusters,
-            searchContextId
+            searchContextId,
+            request.source(),
+            request.indices()
         );
     }
 
@@ -621,7 +616,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 buildSearchResponse(
                     internalSearchResponse,
                     failures,
-                    request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null,
+                    request.scroll() != null
+                        ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler(), getNumShards() > 1)
+                        : null,
                     buildSearchContextId(failures)
                 )
             );
@@ -632,7 +629,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchSourceBuilder source = request.source();
         // only (re-)build a search context id if we are running a long-lived point-in-time request
         if (source != null && source.pointInTimeBuilder() != null && source.pointInTimeBuilder().singleSession() == false) {
-            if (SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
+            if (isPitRelocationEnabled) {
                 // we want to change node ids in the PIT id if any shards and its PIT context have moved
                 return maybeReEncodeNodeIds(
                     source.pointInTimeBuilder(),
@@ -825,7 +822,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             shardIt.getClusterAlias(),
             shardIt.getSearchContextId(),
             shardIt.getSearchContextKeepAlive(),
-            shardIt.getReshardSplitShardCountSummary()
+            shardIt.getSplitShardCountSummary()
         );
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather

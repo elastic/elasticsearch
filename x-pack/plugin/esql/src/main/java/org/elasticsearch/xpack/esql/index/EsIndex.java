@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -16,31 +18,27 @@ public record EsIndex(
     String name,
     Map<String, EsField> mapping, // keyed by field names
     Map<String, IndexMode> indexNameWithModes,
-    Set<String> partiallyUnmappedFields
+    Map<String, List<String>> originalIndices, // keyed by cluster alias
+    Map<String, List<String>> concreteIndices, // keyed by cluster alias
+    Map<String, Set<String>> fieldToUnmappedIndices // keyed by field name; Set<String> are concrete index names.
 ) {
 
     public EsIndex {
         assert name != null;
         assert mapping != null;
-        assert partiallyUnmappedFields != null;
-    }
-
-    public EsIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
-        this(name, mapping, indexNameWithModes, Set.of());
-    }
-
-    /**
-     * Intended for tests. Returns an index with an empty index mode map.
-     */
-    public EsIndex(String name, Map<String, EsField> mapping) {
-        this(name, mapping, Map.of(), Set.of());
+        assert fieldToUnmappedIndices != null;
+        assert fieldToUnmappedIndices.values().stream().noneMatch(Set::isEmpty);
     }
 
     public boolean isPartiallyUnmappedField(String fieldName) {
-        return partiallyUnmappedFields.contains(fieldName);
+        return fieldToUnmappedIndices.containsKey(fieldName);
     }
 
-    public Set<String> concreteIndices() {
+    public Set<String> getUnmappedIndices(String fieldName) {
+        return fieldToUnmappedIndices.getOrDefault(fieldName, Collections.emptySet());
+    }
+
+    public Set<String> concreteQualifiedIndices() {
         return indexNameWithModes.keySet();
     }
 

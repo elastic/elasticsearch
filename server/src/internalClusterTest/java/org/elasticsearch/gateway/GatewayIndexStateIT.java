@@ -421,7 +421,9 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertEquals(IndexMetadata.State.CLOSE, masterIndexMetadata.getState());
 
         String archivedSettingKey = "archived.index.similarity.BM25.type";
+        String brokenSettingKey = "index.similarity.BM25.type";
         assertTrue(masterIndexMetadata.getSettings().hasValue(archivedSettingKey));
+        assertFalse(masterIndexMetadata.getSettings().hasValue(brokenSettingKey));
 
         // verify archived setting is synchronized across all nodes (only meaningful when there is more than one node)
         if (internalCluster().size() > 1) {
@@ -433,6 +435,10 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                     "Archived setting " + archivedSettingKey + " should be synchronized on node " + nodeName,
                     masterArchivedValue,
                     nodeIndexMetadata.getSettings().get(archivedSettingKey)
+                );
+                assertFalse(
+                    "Broken setting " + brokenSettingKey + " should be removed on node " + nodeName,
+                    nodeIndexMetadata.getSettings().hasValue(brokenSettingKey)
                 );
             }
         }

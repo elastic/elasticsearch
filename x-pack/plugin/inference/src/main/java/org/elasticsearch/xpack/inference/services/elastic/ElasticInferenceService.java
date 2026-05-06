@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.Elasti
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModelCreator;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.EnumSet;
@@ -443,12 +444,20 @@ public class ElasticInferenceService extends SenderService<ElasticInferenceServi
             .build();
     }
 
+    /**
+     * EIS only supports Jina reranker models, so the same value from {@link JinaAIService#rerankerWindowSize(String)} is used.
+     * <p>
+     * The {@code jina-reranker-m0} model <a href="https://jina.ai/models/jina-reranker-m0">has a 10,000 token input length</a>, which is
+     * the smallest of the non-deprecated Jina reranker models, so that value is used here.
+     * <p>
+     * Using 1 token = 0.75 words as a rough estimate, we get 7500 words. Allowing for some headroom, we set the window size to 7000 words
+     * @param modelId The model ID
+     * @return the max input size for the model, in words
+     */
     @Override
     public int rerankerWindowSize(String modelId) {
-        // Jina AI rerank models, which are the only ones currently supported via the Elastic service, have an 8000 token
-        // input length https://jina.ai/models/jina-reranker-v2-base-multilingual
-        // Using 1 token = 0.75 words as a rough estimate, we get 6000 words
-        // allowing for some headroom, we set the window size below 6000 words
-        return 5500;
+        // Using 1 token = 0.75 words as a rough estimate, we get 7500 words
+        // allowing for some headroom, we set the window size below 7000 words
+        return 7000;
     }
 }

@@ -1595,19 +1595,18 @@ public class EsqlCapabilities {
         DECAY_FUNCTION_PARAMETER_CONVERSION,
 
         /**
-<<<<<<< decay-unsigned-long
          * Support DECAY with unsigned_long parameters for {@code DECAY}.
          */
         DECAY_FUNCTION_UNSIGNED_LONG,
-=======
+
+        /**
          * Fix latitude/longitude ordering of the in geo-point {@code DECAY}.
          * Previously the origin was serialized as "lon,lat" before being parsed by
          * {@code GeoUtils.parseGeoPoint}, which expects "lat,lon", effectively swapping the
          * origin's coordinates and producing incorrect distances whenever {@code lat != lon}.
          */
         DECAY_GEO_POINT_ORIGIN_LAT_LON_FIX,
->>>>>>> main
-
+        
         /**
          * Support correct counting of skipped shards.
          */

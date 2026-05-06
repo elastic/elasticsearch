@@ -25,7 +25,7 @@ decay_result:double
 ;
 
 intLinearMixedNumericTypes1
-required_capability: decay_function_unsigned_long
+required_capability: decay_function_parameter_conversion
 
 ROW value = 5
 | EVAL decay_result = decay(value, 10::double, 10::long, {"offset": 0, "decay": 0.5, "type": "linear"}) 
@@ -200,7 +200,7 @@ decay_result:double
 ;
 
 doubleLinearMixedNumericTypes1
-required_capability: decay_function_unsigned_long
+required_capability: decay_function_parameter_conversion
 
 ROW value = 5.0
 | EVAL decay_result = decay(value, 10.0::int, 10.0::long, {"offset": 0.0, "decay": 0.5, "type": "linear"}) 

@@ -11,13 +11,19 @@ package org.elasticsearch.ingest.attachment;
 
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -31,6 +37,8 @@ import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocumen
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -54,7 +62,10 @@ public class AttachmentProcessorTests extends ESTestCase {
             false,
             null,
             null,
-            false
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            ""
         );
     }
 
@@ -109,7 +120,10 @@ public class AttachmentProcessorTests extends ESTestCase {
             false,
             null,
             null,
-            false
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            ""
         );
 
         Map<String, Object> attachmentData = parseDocument("htmlWithEmptyDateMeta.html", processor);
@@ -366,7 +380,10 @@ public class AttachmentProcessorTests extends ESTestCase {
             true,
             null,
             null,
-            false
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            ""
         );
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
@@ -385,7 +402,10 @@ public class AttachmentProcessorTests extends ESTestCase {
             true,
             null,
             null,
-            false
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            ""
         );
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
@@ -407,7 +427,10 @@ public class AttachmentProcessorTests extends ESTestCase {
             false,
             null,
             null,
-            false
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            ""
         );
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] is null, cannot parse."));
@@ -426,7 +449,10 @@ public class AttachmentProcessorTests extends ESTestCase {
             false,
             null,
             null,
-            false
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            ""
         );
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [source_field] not present as part of path [source_field]"));
@@ -473,7 +499,10 @@ public class AttachmentProcessorTests extends ESTestCase {
             false,
             null,
             null,
-            false
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            ""
         );
 
         Map<String, Object> attachmentData = parseDocument("text-in-english.txt", processor);
@@ -494,7 +523,10 @@ public class AttachmentProcessorTests extends ESTestCase {
             false,
             "max_length",
             null,
-            false
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            ""
         );
 
         attachmentData = parseDocument("text-in-english.txt", processor);
@@ -534,7 +566,10 @@ public class AttachmentProcessorTests extends ESTestCase {
             false,
             null,
             "resource_name",
-            false
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            ""
         );
 
         Map<String, Object> attachmentData = parseDocument(
@@ -588,7 +623,10 @@ public class AttachmentProcessorTests extends ESTestCase {
                 false,
                 null,
                 null,
-                true
+                true,
+                -1,
+                new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+                ""
             );
             Map<String, Object> document = new HashMap<>();
             document.put("source_field", getAsBinaryOrBase64("text-in-english.txt"));
@@ -596,6 +634,232 @@ public class AttachmentProcessorTests extends ESTestCase {
             processor.execute(ingestDocument);
             assertThat(ingestDocument.hasField("source_field"), is(false));
         }
+    }
+
+    public void testMaxFieldBytesViolated() {
+        processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            EnumSet.of(AttachmentProcessor.Property.CONTENT),
+            10000,
+            false,
+            null,
+            null,
+            true,
+            randomIntBetween(1, 4),
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            ""
+        );
+        ElasticsearchParseException ex = expectThrows(
+            ElasticsearchParseException.class,
+            () -> parseDocument("text-in-english.txt", processor)
+        );
+        assertThat(ex.getMessage(), containsString("exceeding the maximum allowed"));
+        assertThat(ex.getMessage(), containsString("source_field"));
+    }
+
+    public void testMaxAttachmentFieldSizeEnforcedOnBase64BeforeDecode() {
+        processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            EnumSet.of(AttachmentProcessor.Property.CONTENT),
+            10000,
+            false,
+            null,
+            null,
+            true,
+            100,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            ""
+        );
+        // Each "QQ==" is four bytes and decodes to two bytes; raw field size exceeds the cap while decoded size stays modest.
+        String largeBase64 = "QQ==".repeat(50);
+        assertThat(largeBase64.length(), greaterThan(100));
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", largeBase64);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class, () -> processor.execute(ingestDocument));
+        assertThat(ex.getMessage(), containsString("attachment field size"));
+        assertThat(ex.getMessage(), containsString("exceeding the maximum allowed"));
+        assertThat(ex.getMessage(), containsString("source_field"));
+    }
+
+    public void testMaxFieldBytesNotViolated() throws Exception {
+        processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            EnumSet.of(AttachmentProcessor.Property.CONTENT),
+            10000,
+            false,
+            null,
+            null,
+            true,
+            randomIntBetween(100000, 200000),
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            ""
+        );
+        final var attachmentData = parseDocument("text-in-english.txt", processor);
+        assertNotNull(attachmentData);
+    }
+
+    public void testMaxFieldBytesVariousConfigurations() throws Exception {
+        final int bytes = randomIntBetween(-1, 10);
+        processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            EnumSet.of(AttachmentProcessor.Property.CONTENT),
+            100000000,
+            false,
+            null,
+            null,
+            true,
+            bytes,
+            // If bytes are set, it shouldn't matter whether the node has a max attachment size configured
+            bytes < 0
+                ? new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE)
+                : new RelativeByteSizeValue(ByteSizeValue.ofBytes(randomIntBetween(-1, 100))),
+            ""
+        );
+
+        if (bytes < 0) {
+            // No exception should be thrown
+            assertThat(parseRandomStringAttachmentAndGetTargetField(randomIntBetween(1, 100), processor), notNullValue());
+        } else if (bytes == 0) {
+            // Exception should always be thrown
+            ElasticsearchParseException ex = expectThrows(
+                ElasticsearchParseException.class,
+                () -> parseRandomStringAttachmentAndGetTargetField(randomIntBetween(1, 1000), processor)
+            );
+            assertThat(ex.getMessage(), containsString("exceeding the maximum allowed"));
+        } else {
+            // Exception should not be thrown for smaller documents
+            assertThat(parseRandomStringAttachmentAndGetTargetField(randomIntBetween(0, bytes - 1), processor), notNullValue());
+            // Exception should be thrown for larger documents
+            ElasticsearchParseException ex = expectThrows(
+                ElasticsearchParseException.class,
+                () -> parseRandomStringAttachmentAndGetTargetField(bytes + randomIntBetween(1, 10), processor)
+            );
+            assertThat(ex.getMessage(), containsString("exceeding the maximum allowed"));
+        }
+    }
+
+    public void testNodeMaxFieldSizeVariousConfigurations() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "source_field");
+        config.put("target_field", "target_field");
+        config.put("remove_binary", true);
+        if (randomBoolean()) {
+            // Absolute bytes
+            final int bytes = randomIntBetween(-1, 10);
+            final var expectedRelativeByteSizeValue = new RelativeByteSizeValue(ByteSizeValue.ofBytes(bytes));
+            final var testFactory = new AttachmentProcessor.Factory(
+                Settings.builder().put("ingest.attachment.max_field_size", bytes + "b").build()
+            );
+            AttachmentProcessor processor = testFactory.create(null, "t", null, config, null);
+            assertThat(processor.getMaxFieldBytesFromProcessor(), equalTo(-1));
+            assertThat(processor.getMaxFieldSizeFromNode().getAbsolute(), equalTo(expectedRelativeByteSizeValue.getAbsolute()));
+            if (bytes < 0) {
+                // No exception should be thrown
+                assertThat(parseRandomStringAttachmentAndGetTargetField(randomIntBetween(1, 100), processor), notNullValue());
+            } else if (bytes == 0) {
+                // Exception should always be thrown
+                ElasticsearchParseException ex = expectThrows(
+                    ElasticsearchParseException.class,
+                    () -> parseRandomStringAttachmentAndGetTargetField(randomIntBetween(1, 1000), processor)
+                );
+                assertThat(ex.getMessage(), containsString("exceeding the maximum allowed"));
+            } else {
+                // Exception should not be thrown for smaller documents
+                assertThat(parseRandomStringAttachmentAndGetTargetField(randomIntBetween(0, bytes - 1), processor), notNullValue());
+                // Exception should be thrown for larger documents
+                ElasticsearchParseException ex = expectThrows(
+                    ElasticsearchParseException.class,
+                    () -> parseRandomStringAttachmentAndGetTargetField(bytes + randomIntBetween(1, 10), processor)
+                );
+                assertThat(ex.getMessage(), containsString("exceeding the maximum allowed"));
+            }
+        } else {
+            // Ratio
+            long percent = randomLongBetween(0L, 2L);
+            final var expectedRelativeByteSizeValue = new RelativeByteSizeValue(new RatioValue(percent * 1.0));
+            final var testFactory = new AttachmentProcessor.Factory(
+                Settings.builder().put("ingest.attachment.max_field_size", percent + "%").build()
+            );
+            AttachmentProcessor processor = testFactory.create(null, "t", null, config, null);
+            assertThat(processor.getMaxFieldBytesFromProcessor(), equalTo(-1));
+            assertThat(
+                processor.getMaxFieldSizeFromNode().getRatio().getAsPercent(),
+                equalTo(expectedRelativeByteSizeValue.getRatio().getAsPercent())
+            );
+            long heapMaxBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
+            assertThat(heapMaxBytes, greaterThan(0L));
+            if (percent == 0L) {
+                // Exception should always be thrown
+                ElasticsearchParseException ex = expectThrows(
+                    ElasticsearchParseException.class,
+                    () -> parseRandomStringAttachmentAndGetTargetField(randomIntBetween(1, 1000), processor)
+                );
+                assertThat(ex.getMessage(), containsString("exceeding the maximum allowed"));
+            } else {
+                long maxAttachmentBytes = heapMaxBytes * percent / 100L;
+                int maxAttachmentBytesAsInt = Math.toIntExact(Math.min(maxAttachmentBytes, Integer.MAX_VALUE));
+                // Exception should not be thrown for smaller documents
+                assertThat(
+                    parseRandomStringAttachmentAndGetTargetField(randomIntBetween(0, maxAttachmentBytesAsInt / 2), processor),
+                    notNullValue()
+                );
+                if (maxAttachmentBytes < Integer.MAX_VALUE) {
+                    // Exception should be thrown for larger documents
+                    int attachmentBytes = Math.toIntExact(Math.min(Integer.MAX_VALUE, maxAttachmentBytes + randomLongBetween(100, 1000)));
+                    ElasticsearchParseException ex = expectThrows(
+                        ElasticsearchParseException.class,
+                        () -> parseRandomStringAttachmentAndGetTargetField(attachmentBytes, processor)
+                    );
+                    assertThat(ex.getMessage(), containsString("exceeding the maximum allowed"));
+                }
+            }
+        }
+    }
+
+    public void testNodeMaxFieldSizeViolationUsesCustomMessageWhenConfigured() throws Exception {
+        String customMessage = "custom";
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "source_field");
+        config.put("target_field", "target_field");
+        config.put("remove_binary", true);
+        AttachmentProcessor processor = new AttachmentProcessor.Factory(
+            Settings.builder()
+                .put(AttachmentProcessor.MAX_FIELD_SIZE_SETTING.getKey(), "1b")
+                .put(AttachmentProcessor.MAX_FIELD_SIZE_MESSAGE_SUFFIX_SETTING.getKey(), customMessage)
+                .build()
+        ).create(null, "t", null, config, null);
+
+        ElasticsearchParseException ex = expectThrows(
+            ElasticsearchParseException.class,
+            () -> parseRandomStringAttachmentAndGetTargetField(2, processor)
+        );
+        assertThat(
+            ex.getMessage(),
+            equalTo("field [source_field] has an attachment field size of [2] bytes exceeding the maximum allowed input size custom")
+        );
+    }
+
+    private static Object parseRandomStringAttachmentAndGetTargetField(int bytes, Processor processor) throws Exception {
+        assertThat(bytes, greaterThanOrEqualTo(0));
+        String str = randomAlphanumericOfLength(bytes);
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", str.getBytes(StandardCharsets.US_ASCII));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+        return ingestDocument.getSourceAndMetadata().get("target_field");
     }
 
     private Object getAsBinaryOrBase64(String filename) throws Exception {

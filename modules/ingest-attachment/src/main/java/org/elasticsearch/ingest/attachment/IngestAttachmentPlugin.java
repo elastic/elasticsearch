@@ -9,16 +9,25 @@
 
 package org.elasticsearch.ingest.attachment;
 
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 
+import java.util.List;
 import java.util.Map;
 
 public class IngestAttachmentPlugin extends Plugin implements IngestPlugin {
 
     @Override
-    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Map.of(AttachmentProcessor.TYPE, new AttachmentProcessor.Factory());
+    public List<Setting<?>> getSettings() {
+        return List.of(AttachmentProcessor.MAX_FIELD_SIZE_SETTING, AttachmentProcessor.MAX_FIELD_SIZE_MESSAGE_SUFFIX_SETTING);
     }
+
+    @Override
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        return Map.of(AttachmentProcessor.TYPE, new AttachmentProcessor.Factory(parameters.env.settings()));
+
+    }
+
 }

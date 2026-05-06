@@ -10,6 +10,8 @@
 package org.elasticsearch.ingest.attachment;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -28,7 +30,7 @@ import static org.hamcrest.core.Is.is;
 
 public class AttachmentProcessorFactoryTests extends ESTestCase {
 
-    private AttachmentProcessor.Factory factory = new AttachmentProcessor.Factory();
+    private final AttachmentProcessor.Factory factory = new AttachmentProcessor.Factory(Settings.EMPTY);
 
     public void testBuildDefaults() throws Exception {
         Map<String, Object> config = new HashMap<>();
@@ -176,4 +178,22 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
         assertTrue(processor.isRemoveBinary());
     }
+
+    public void testMaxFieldBytesInvalid() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("remove_binary", true);
+        config.put("max_field_bytes", randomFrom("not-a-number", String.valueOf(randomLongBetween(-10L, -2L))));
+        expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "t", null, config, null));
+    }
+
+    public void testMaxFieldBytesMissing() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("remove_binary", true);
+        AttachmentProcessor processor = factory.create(null, "t", null, config, null);
+        assertThat(processor.getMaxFieldBytesFromProcessor(), equalTo(-1));
+        assertThat(processor.getMaxFieldSizeFromNode().getAbsolute(), equalTo(ByteSizeValue.MINUS_ONE));
+    }
+
 }

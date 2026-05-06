@@ -11,6 +11,8 @@ The attachment processor lets Elasticsearch extract file attachments in common f
 
 The source field must be a base64 encoded binary. If you do not want to incur the overhead of converting back and forth between base64, you can use the CBOR format instead of JSON and specify the field as a bytes array instead of a string representation. The processor will skip the base64 decoding then.
 
+The processor parameter `max_field_bytes` and the node setting `ingest.attachment.max_field_size` limit the raw attachment field size (length of a base64 encoded string field, or length in bytes of a CBOR binary field), enforced before base64 decoding.
+
 ## Using the attachment processor in a pipeline [using-attachment]
 
 $$$attachment-options$$$
@@ -21,6 +23,7 @@ $$$attachment-options$$$
 | `target_field` | no | attachment | The field that will hold the attachment information |
 | `indexed_chars` | no | 100000 | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit. |
 | `indexed_chars_field` | no | `null` | Field name from which you can overwrite the number of chars being used for extraction. See `indexed_chars`. |
+| `max_field_bytes` | no | `-1` | Maximum allowed size of the attachment `field` value in bytes: length of a string (in case of base64 in JSON) or `byte[]` length for binary (for example CBOR). Checked before base64 decoding. If `-1`, there is no per-processor limit unless the node setting `ingest.attachment.max_field_size` is set (which then applies the same way). |
 | `properties` | no | all properties |  Array of properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language` |
 | `ignore_missing` | no | `false` | If `true` and `field` does not exist, the processor quietly exits without modifying the document |
 | `remove_binary` | encouraged | `false` | If `true`, the binary `field` will be removed from the document. This option is not required, but setting it explicitly is encouraged, and omitting it will result in a warning. |

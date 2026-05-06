@@ -41,7 +41,7 @@ public final class ReorderLimitProjectAndOrderBy extends OptimizerRules.Optimize
                 // Make sure all of the references OrderBy uses are included in the Project, because there could be re-aliasing there
             } else if (plan instanceof Project proj
                 && plan.child() instanceof OrderBy orderBy
-                && Expressions.references(orderBy.expressions()).subsetOf(proj.child().outputSet())) {
+                && Expressions.references(orderBy.expressions()).subsetOf(proj.outputSet())) {
                     return orderBy.replaceChild(proj.replaceChild(orderBy.child()));
                 }
 

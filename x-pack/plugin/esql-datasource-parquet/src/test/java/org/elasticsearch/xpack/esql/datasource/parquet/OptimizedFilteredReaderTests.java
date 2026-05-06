@@ -315,6 +315,48 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
     }
 
     /**
+     * Trivially-passes guard: a multi-column projection with a filter that the row-group stats
+     * prove every row satisfies. The optimized reader should bypass late-materialization filter
+     * evaluation entirely for every row group and still produce results identical to the
+     * baseline. Exercises the {@link TriviallyPassesChecker} integration.
+     */
+    public void testPushedExpressionsTriviallyPassingFilterParity() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(INT32)
+            .named("id")
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .named("trivial_pass_test");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < TOTAL_ROWS; i++) {
+                groups.add(factory.newGroup().append("id", i).append("name", "row_" + i));
+            }
+            return groups;
+        });
+
+        // id ranges [0, TOTAL_ROWS): the filter `id >= 0 AND id < TOTAL_ROWS` is trivially
+        // satisfied by every row group's stats. With `name` also in the projection (a non-predicate
+        // column), late materialization is enabled; the trivially-passes guard should kick in and
+        // bypass per-row filter evaluation.
+        FilterPredicate filterCompat = FilterApi.and(
+            FilterApi.gtEq(FilterApi.intColumn("id"), 0),
+            FilterApi.lt(FilterApi.intColumn("id"), TOTAL_ROWS)
+        );
+        Expression esqlFilter = new org.elasticsearch.xpack.esql.expression.predicate.logical.And(
+            Source.EMPTY,
+            new GreaterThanOrEqual(Source.EMPTY, intAttr("id"), intLit(0), null),
+            new LessThan(Source.EMPTY, intAttr("id"), intLit(TOTAL_ROWS), null)
+        );
+
+        List<Page> baselinePages = readWithFilter(parquetData, filterCompat, false);
+        List<Page> pushedPages = readWithPushedExpressions(parquetData, esqlFilter);
+        assertPagesEqual(baselinePages, pushedPages);
+    }
+
+    /**
      * NOT(Eq) via PushedExpressions: verifies the RowRanges path returns all rows that
      * the baseline returns — i.e. NOT does not drop rows from mixed pages.
      */

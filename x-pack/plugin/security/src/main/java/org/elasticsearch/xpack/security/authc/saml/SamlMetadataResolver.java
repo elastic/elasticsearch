@@ -19,12 +19,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -45,9 +45,13 @@ import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.transport.Transports.assertNotTransportThread;
@@ -65,9 +69,9 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
  * the cache without blocking on OpenSAML's metadata resolver lock. The constructing
  * thread may run the initial {@link #updateCachedDescriptor()} during {@link #create}.
  * The cache is updated from the resolver periodically (every 60s); the resolver itself
- * is not forced to refresh on that schedule. For HTTP metadata, OpenSAML's resolver
- * refreshes on its own min/max delay; for file metadata, the file watcher calls
- * {@code resolver.refresh()} on change.
+ * is not forced to refresh on that schedule.
+ * For HTTP metadata, OpenSAML's resolver refreshes on its own min/max delay.
+ * For file metadata, Elasticsearch's {@link FileWatcher} is used to monitor for changes.
  */
 final class SamlMetadataResolver implements Releasable, Supplier<EntityDescriptor> {
 
@@ -88,7 +92,7 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
     private final LogThrottle nullCacheWarnThrottle;
     private final LogThrottle refreshFailureLogThrottle;
 
-    private volatile Scheduler.Cancellable refreshTask;
+    private final Collection<Releasable> childReleasables;
 
     private SamlMetadataResolver(
         AbstractReloadingMetadataResolver resolver,
@@ -105,7 +109,10 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         this.unresolvedDescriptor = new UnresolvedEntity(entityId, sourceLocation);
         this.nullCacheWarnThrottle = new LogThrottle(threadPool, LOGGING_PERIOD);
         this.refreshFailureLogThrottle = new LogThrottle(threadPool, LOGGING_PERIOD);
+        this.childReleasables = new ArrayList<>();
     }
+
+    private record MetadataParseResult(AbstractReloadingMetadataResolver resolver, boolean failOnError, @Nullable Releasable releasable) {}
 
     /**
      * Create a SAML metadata resolver, perform an initial resolve to populate the cache,
@@ -121,28 +128,56 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         if (metadataPath.startsWith("http://")) {
             throw new IllegalArgumentException("The [http] protocol is not supported as it is insecure. Use [https] instead");
         }
-        final Tuple<AbstractReloadingMetadataResolver, Boolean> tuple;
+
+        final AtomicReference<SamlMetadataResolver> resolverReference = new AtomicReference<>();
+        final MetadataParseResult parseResult;
+        boolean forceRefresh = false;
         if (metadataPath.startsWith("https://")) {
-            tuple = parseHttpMetadata(metadataPath, config, sslService);
+            parseResult = parseHttpMetadata(metadataPath, config, sslService);
         } else {
-            tuple = parseFileSystemMetadata(metadataPath, config, watcherService);
+            final Consumer<Path> onFileChanged = path -> {
+                final SamlMetadataResolver m = resolverReference.get();
+                if (m != null) {
+                    m.asyncUpdateCachedDescriptor();
+                }
+            };
+            parseResult = parseFileSystemMetadata(metadataPath, config, watcherService, onFileChanged);
+            /* There's a potential race condition between when the OpenSAML file resolver reads the metadata for the first time
+             * and when we actively start monitoring the file for changes.
+             * If the file is changed in that time we either don't notice, or we discard the event. To avoid that we force
+             * a refresh of the metadata after everything is wired up. For a single file read, this is cheap and safe.
+             */
+            forceRefresh = true;
         }
-        final AbstractReloadingMetadataResolver resolver = tuple.v1();
-        final boolean failOnError = tuple.v2();
 
         final String entityId = SamlRealm.require(config, SamlRealmSettings.IDP_ENTITY_ID);
-        final SamlMetadataResolver metadataResolver = new SamlMetadataResolver(resolver, entityId, metadataPath, failOnError, threadPool);
+        final SamlMetadataResolver metadataResolver = new SamlMetadataResolver(
+            parseResult.resolver,
+            entityId,
+            metadataPath,
+            parseResult.failOnError,
+            threadPool
+        );
+        resolverReference.set(metadataResolver);
 
         // Initial resolve to populate cache (resolver already loaded during init, no need to refresh again)
         metadataResolver.updateCachedDescriptor();
 
         // Start periodic refresh
-        metadataResolver.refreshTask = threadPool.scheduleWithFixedDelay(
+        final var refreshTask = threadPool.scheduleWithFixedDelay(
             metadataResolver::periodicMetadataRefresh,
             REFRESH_INTERVAL,
             threadPool.generic()
         );
+        metadataResolver.addChildReleasable(refreshTask::cancel);
+        if (parseResult.releasable != null) {
+            metadataResolver.addChildReleasable(parseResult.releasable);
+        }
 
+        if (forceRefresh) {
+            metadataResolver.forceRefresh();
+            metadataResolver.updateCachedDescriptor();
+        }
         return metadataResolver;
     }
 
@@ -185,7 +220,7 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
     private void periodicMetadataRefresh() {
         if (inProgress.compareAndSet(false, true)) {
             try {
-                tryUpdateCachedDescriptor();
+                tryUpdateCachedDescriptor(false);
             } catch (Exception e) {
                 inProgress.compareAndSet(true, false);
                 logger.debug(() -> "SAML metadata periodic refresh failed for [" + entityId + "]", e);
@@ -199,19 +234,43 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
     void asyncUpdateCachedDescriptor() {
         if (inProgress.compareAndSet(false, true)) {
             try {
-                threadPool.executor(ThreadPool.Names.GENERIC).submit(this::tryUpdateCachedDescriptor);
+                threadPool.executor(ThreadPool.Names.GENERIC).submit(() -> tryUpdateCachedDescriptor(true));
             } catch (Exception e) {
                 inProgress.compareAndSet(true, false);
-                logger.debug(() -> "SAML metadata refresh failed for [" + entityId + "]", e);
+                logger.debug(() -> "SAML metadata refresh from [" + this.sourceLocation + "] failed for [" + entityId + "]", e);
             }
+        }
+    }
+
+    /**
+     * Forcibly refresh the metadata from the underlying resolver.
+     * Happens synchronously on the calling thread.
+     * This only refreshes the metadata, it <strong>does not</strong> update the cached entity,
+     *   the caller must also call {@link #updateCachedDescriptor()} if that if needed.
+     */
+    private void forceRefresh() {
+        try {
+            resolver.refresh();
+        } catch (Exception e) {
+            logger.debug(
+                () -> Strings.format(
+                    "SAML metadata unconditional file resync: refresh from [%s] for entity [%s] failed; continuing with cache update",
+                    sourceLocation,
+                    entityId
+                ),
+                e
+            );
         }
     }
 
     /**
      * Runs on the generic pool. Syncs the cache from the resolver and clears inProgress when done.
      */
-    private void tryUpdateCachedDescriptor() {
+    private void tryUpdateCachedDescriptor(boolean refresh) {
         try {
+            if (refresh) {
+                forceRefresh();
+            }
             updateCachedDescriptor();
         } finally {
             if (inProgress.compareAndSet(true, false) == false) {
@@ -284,17 +343,16 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
 
     @Override
     public void close() {
-        if (refreshTask != null) {
-            refreshTask.cancel();
-        }
+        Releasables.close(childReleasables);
         resolver.destroy();
     }
 
-    private static Tuple<AbstractReloadingMetadataResolver, Boolean> parseHttpMetadata(
-        String metadataUrl,
-        RealmConfig config,
-        SSLService sslService
-    ) throws ResolverException, ComponentInitializationException {
+    private void addChildReleasable(Releasable releasable) {
+        this.childReleasables.add(releasable);
+    }
+
+    private static SamlMetadataResolver.MetadataParseResult parseHttpMetadata(String metadataUrl, RealmConfig config, SSLService sslService)
+        throws ResolverException, ComponentInitializationException {
         HttpClientBuilder builder = HttpClientBuilder.create();
         final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
         final SslProfile sslProfile = sslService.profile(sslKey);
@@ -334,7 +392,7 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
 
         initialiseResolver(resolver, config);
 
-        return new Tuple<>(resolver, failOnError);
+        return new MetadataParseResult(resolver, failOnError, null);
     }
 
     /**
@@ -354,11 +412,13 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
     }
 
     @SuppressForbidden(reason = "uses toFile")
-    private static Tuple<AbstractReloadingMetadataResolver, Boolean> parseFileSystemMetadata(
+    private static MetadataParseResult parseFileSystemMetadata(
         String metadataPath,
         RealmConfig config,
-        ResourceWatcherService watcherService
+        ResourceWatcherService watcherService,
+        Consumer<Path> onFileChange
     ) throws ResolverException, ComponentInitializationException, IOException {
+        Objects.requireNonNull(onFileChange);
 
         final Path path = config.env().configDir().resolve(metadataPath);
         final FilesystemMetadataResolver resolver = new SamlFilesystemMetadataResolver(path.toFile());
@@ -384,7 +444,7 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
         resolver.setMaxRefreshDelay(oneDayMs);
         initialiseResolver(resolver, config);
 
-        FileWatcher watcher = new EntitledFileWatcher(path);
+        final FileWatcher watcher = new EntitledFileWatcher(path);
         watcher.addListener(new FileChangesListener() {
             @Override
             public void onFileCreated(Path file) {
@@ -398,23 +458,12 @@ final class SamlMetadataResolver implements Releasable, Supplier<EntityDescripto
 
             @Override
             public void onFileChanged(Path file) {
-                try {
-                    resolver.refresh();
-                } catch (Exception e) {
-                    logger.warn(
-                        () -> Strings.format(
-                            "An error occurred while reloading SAML metadata file [%s] for SAML realm [%s]",
-                            file,
-                            config.name()
-                        ),
-                        e
-                    );
-                }
+                onFileChange.accept(file);
             }
         });
-        watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
+        var handle = watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
 
-        return new Tuple<>(resolver, true);
+        return new MetadataParseResult(resolver, true, handle::stop);
     }
 
     @SuppressForbidden(reason = "uses toFile")

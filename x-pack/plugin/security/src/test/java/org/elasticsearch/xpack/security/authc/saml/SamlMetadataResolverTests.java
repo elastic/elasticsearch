@@ -73,7 +73,7 @@ public class SamlMetadataResolverTests extends SamlTestCase {
     public void testReadIdpMetadataFromFile() throws Exception {
         final Path path = getDataPath("idp1.xml");
         Tuple<RealmConfig, SSLService> config = buildConfig(path.toString());
-        final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
+        final ResourceWatcherService watcherService = mockResourceWatcherService();
         try (SamlMetadataResolver resolver = SamlMetadataResolver.create(config.v1(), config.v2(), watcherService, threadPool)) {
             assertIdp1MetadataParsedCorrectly(resolver.get());
         }

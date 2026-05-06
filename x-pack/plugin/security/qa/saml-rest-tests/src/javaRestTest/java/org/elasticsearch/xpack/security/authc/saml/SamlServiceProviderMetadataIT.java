@@ -36,7 +36,7 @@ public class SamlServiceProviderMetadataIT extends SamlRestTestCase {
     public static TestRule ruleChain = SamlRestTestCase.buildRuleChain(false);
 
     public void testAuthenticationWhenMetadataIsUnreliable() throws Exception {
-        // initially, metadata in unavailable for all realms
+        // initially, metadata is unavailable for all realms
 
         final String username = randomAlphaOfLengthBetween(4, 12);
         for (int realmNumber : shuffledList(List.of(1, 2, 3))) {
@@ -45,7 +45,7 @@ public class SamlServiceProviderMetadataIT extends SamlRestTestCase {
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), is(401));
 
             // Make metadata available. The next auth will probably fail because the background thread hasn't tried to refresh yet.
-            // But when that auth fails, it will trigger a background refresh of the metadata, which will then meet that future auth
+            // But when that auth fails, it will trigger a background refresh of the metadata, which will then mean that future auth
             // attempts succeed (maybe not immediately, but within a short period of time).
             makeMetadataAvailable(realmNumber);
             assertBusy(() -> {

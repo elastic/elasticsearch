@@ -23,7 +23,7 @@ public final class LogThrottle {
     private volatile long lastAcquireMs = -1;
 
     /**
-     * Constructor a new instance using {@link ThreadPool#relativeTimeInMillis()} as the time source
+     * Constructs a new instance using {@link ThreadPool#relativeTimeInMillis()} as the time source
      * and {@link TimeValue#millis()} as the period.
      */
     public LogThrottle(ThreadPool threadPool, TimeValue period) {
@@ -39,6 +39,10 @@ public final class LogThrottle {
      * @return {@code true} if the configured period has elapsed since the last {@code true} return
      *         (or if this is the first time the method has been called);
      *         updates the internal timestamp when returning {@code true}.
+     *         <p>
+     *         This method is <strong>not</strong> thread safe; concurrent {@code acquire} calls may
+     *         both observe the window as elapsed, or have other races. Use a single-caller
+     *         pattern or external synchronization if a hard guarantee is required.
      */
     public boolean acquire() {
         final long now = relativeTimeInMillis.getAsLong();

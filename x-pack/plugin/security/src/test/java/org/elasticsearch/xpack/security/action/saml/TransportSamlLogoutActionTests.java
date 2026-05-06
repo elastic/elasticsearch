@@ -43,7 +43,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
@@ -260,7 +259,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             realmConfig,
             threadPool,
             mock(SSLService.class),
-            mock(ResourceWatcherService.class),
+            mockResourceWatcherService(),
             mock(UserRoleMapper.class),
             SingleSamlSpConfiguration.create(realmConfig)
         );

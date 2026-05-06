@@ -1,5 +1,0 @@
-pr: 140189
-summary: Store fallback match only text fields in binary doc values
-area: Logs
-type: enhancement
-issues: []

@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -1487,9 +1488,12 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 """, Arrays.toString(firstEmbedding), Arrays.toString(secondEmbedding));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
+            // Inputs containing non-text, and multiple items per content object
             var inputs = List.of(
-                new InferenceStringGroup("first_input"),
-                new InferenceStringGroup(new InferenceString(IMAGE, BASE64, TEST_DATA_URI))
+                new InferenceStringGroup("first_text_input"),
+                new InferenceStringGroup(
+                    List.of(new InferenceString(IMAGE, BASE64, TEST_DATA_URI), new InferenceString(DataType.TEXT, "second_text_input"))
+                )
             );
 
             var inputType = randomFrom(InputType.INGEST, InputType.SEARCH);

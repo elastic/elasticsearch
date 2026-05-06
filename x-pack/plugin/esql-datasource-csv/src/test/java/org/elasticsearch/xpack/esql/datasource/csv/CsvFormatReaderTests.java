@@ -1590,6 +1590,41 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testTsvWithConfigHeaderRowFalseKeepsTabDelimiter() throws IOException {
+        String tsv = "a\tb\tc\n1\t2\t3\n";
+        StorageObject object = createStorageObject(tsv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv"))
+            .withConfig(Map.of("header_row", false));
+
+        List<Attribute> schema = reader.schema(object);
+        assertEquals(3, schema.size());
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(3, page.getBlockCount());
+        }
+    }
+
+    public void testCsvWithConfigHeaderRowFalseKeepsCommaDelimiter() throws IOException {
+        String csv = "10,20\n30,40\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
+
+        List<Attribute> schema = reader.schema(object);
+        assertEquals(2, schema.size());
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(2, page.getBlockCount());
+            assertEquals(10, ((IntBlock) page.getBlock(0)).getInt(0));
+            assertEquals(30, ((IntBlock) page.getBlock(0)).getInt(1));
+        }
+    }
+
     public void testWithConfigMultipleOptions() throws IOException {
         String csv = "id:long;name:keyword\n1;N/A\n2;Bob\n";
         StorageObject object = createStorageObject(csv);
@@ -2956,6 +2991,46 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(DataType.BOOLEAN, schema.get(6).dataType());
     }
 
+    public void testTsvFirstRowWithDatetimeFallsToInferenceNotTypedSchema() throws IOException {
+        String tsv = "2021-01-01T00:00:00Z\t42\n2021-01-01T00:00:01Z\t43\n";
+        StorageObject object = createStorageObject(tsv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("delimiter", "\t", "header_row", false)
+        );
+
+        List<Attribute> schema = reader.schema(object);
+        assertEquals(2, schema.size());
+        assertEquals("col0", schema.get(0).name());
+        assertEquals("col1", schema.get(1).name());
+        assertEquals(DataType.DATETIME, schema.get(0).dataType());
+        assertEquals(DataType.INTEGER, schema.get(1).dataType());
+    }
+
+    public void testHeaderlessTsvWithDatetimeColonsDoesNotThrow() throws IOException {
+        String tsv = """
+            9110818468285196899\t1\tHello\t2013-07-14 20:38:47\t15900
+            1234567890\t0\tWorld\t2013-07-15 10:47:34\t15901
+            """;
+        StorageObject object = createStorageObject(tsv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("delimiter", "\t", "header_row", false)
+        );
+
+        List<Attribute> schema = reader.schema(object);
+
+        assertEquals(5, schema.size());
+        assertEquals("col0", schema.get(0).name());
+        assertEquals("col1", schema.get(1).name());
+        assertEquals("col2", schema.get(2).name());
+        assertEquals("col3", schema.get(3).name());
+        assertEquals("col4", schema.get(4).name());
+        assertEquals(DataType.LONG, schema.get(0).dataType());
+        assertEquals(DataType.INTEGER, schema.get(1).dataType());
+        assertEquals(DataType.KEYWORD, schema.get(2).dataType());
+        assertEquals(DataType.DATETIME, schema.get(3).dataType());
+        assertEquals(DataType.INTEGER, schema.get(4).dataType());
+    }
+
     public void testHeaderlessSchemaUsesCustomPrefix() throws IOException {
         String csv = "1,2\n3,4\n";
         StorageObject object = createStorageObject(csv);
@@ -3415,9 +3490,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
-    public void testEmptyProjectionAppliesColumnCountValidation() throws IOException {
-        // Even on the COUNT(*) fast path, structural row errors (extra columns) must still
-        // be routed through the error policy.
+    public void testEmptyProjectionSkipsExtraColumnRows() throws IOException {
+        // COUNT(*) still applies column-width validation; extra-column rows are routed through onRowError.
         String csv = """
             id:long,name:keyword
             1,Alice
@@ -3442,8 +3516,34 @@ public class CsvFormatReaderTests extends ESTestCase {
                 totalRows += page.getPositionCount();
                 page.releaseBlocks();
             }
-            // The malformed extra-column row must be skipped, leaving 2 valid rows.
             assertEquals(2, totalRows);
+        }
+    }
+
+    public void testHeaderlessEmptyProjectionSkipsWiderRowsWhenSchemaIsUnderSampled() throws IOException {
+        // Force schema inference to see only the first two rows (2 columns each), then include a wider row.
+        // The wider row exceeds the inferred schema width and is rejected via onRowError.
+        String csv = "1,Alice\n2,Bob\n3,Charlie,extra\n4,Dina\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "schema_sample_size", 2)
+        );
+        ErrorPolicy lenient = new ErrorPolicy(10, true);
+
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                object,
+                FormatReadContext.builder().projectedColumns(List.of()).batchSize(10).errorPolicy(lenient).build()
+            )
+        ) {
+            int totalRows = 0;
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                assertEquals(0, page.getBlockCount());
+                totalRows += page.getPositionCount();
+                page.releaseBlocks();
+            }
+            assertEquals(3, totalRows);
         }
     }
 

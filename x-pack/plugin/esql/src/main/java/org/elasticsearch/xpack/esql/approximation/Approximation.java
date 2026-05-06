@@ -519,14 +519,15 @@ public class Approximation {
         logger.debug("total number of source rows: [{}] rows", sourceRowCount);
         this.sourceRowCount.set(sourceRowCount);
         // At least `sampleRowCount` source rows must be sampled.
+        // When there are too few, process all of them without sampling.
         if (sourceRowCount <= sampleRowCount) {
             // If there are few source rows, run the original query.
             nextSubPlanSampleProbability = null;
             return 1.0;
         }
-        minSampleProbability.set((double) sampleRowCount / sourceRowCount);
+        double sampleProbability = (double) sampleRowCount / sourceRowCount;
+        minSampleProbability.set(sampleProbability);
 
-        double sampleProbability = Math.min(1.0, (double) sampleRowCount / sourceRowCount);
         if (sampleProbability >= maxSampleProbability) {
             // If the sample probability is large, we can directly run the original query without sampling.
             logger.debug("using original plan (too few source rows)");

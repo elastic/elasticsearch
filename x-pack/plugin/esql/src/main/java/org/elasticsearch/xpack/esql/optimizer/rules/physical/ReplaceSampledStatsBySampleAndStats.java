@@ -106,6 +106,7 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
                 aggregates = correctAggregates(plan, sampleCorrections);
                 break;
             case INTERMEDIATE, FINAL:
+                // fall through
             case null:
                 throw new IllegalStateException("Unexpected aggregator mode: " + plan.getMode());
         }

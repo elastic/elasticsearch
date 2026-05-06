@@ -34,9 +34,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocVal
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeDocValuesExtraction;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
-import org.elasticsearch.xpack.esql.rule.Rule;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**

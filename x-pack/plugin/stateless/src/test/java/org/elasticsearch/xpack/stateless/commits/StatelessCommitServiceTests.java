@@ -1016,7 +1016,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .map(commit -> staleCommit(shardId, commit))
                 .filter(commit -> commit.primaryTermAndGeneration().generation() != firstCommit.getGeneration())
                 .collect(Collectors.toSet());
-            assertThat(deletedCommits, equalTo(expectedDeletedCommits));
+            // respondWithUsedCommitsToUploadNotify completes the uploaded-commit-notification listener synchronously, but the
+            // overall in-use-commits processing (and therefore the stale-commit deletions) can complete asynchronously. See
+            // StatelessCommitNotificationPublisher#sendNewUploadedCommitNotificationAndFetchInUseCommits.
+            assertBusy(() -> assertThat(deletedCommits, equalTo(expectedDeletedCommits)));
         }
     }
 

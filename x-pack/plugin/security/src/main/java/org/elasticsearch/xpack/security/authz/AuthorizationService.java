@@ -44,6 +44,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -613,6 +614,21 @@ public class AuthorizationService {
             final TargetProjects existing = crossProjectCandidate.getResolvedTargetProjects();
             if (existing != null) {
                 // see https://github.com/elastic/elasticsearch/issues/135799 and ES-4376
+                if (Assertions.ENABLED) {
+                    final TargetProjects reResolved = projectRoutingResolver.resolve(
+                        crossProjectCandidate.getProjectRouting(),
+                        projectMetadata,
+                        authorizedProjects
+                    );
+                    assert existing.equals(reResolved)
+                        : "previously-recorded resolvedTargetProjects ["
+                            + existing
+                            + "] does not match re-resolved value ["
+                            + reResolved
+                            + "] for ["
+                            + crossProjectCandidate.getClass().getName()
+                            + "]";
+                }
                 return existing;
             }
             final TargetProjects targetProjects = projectRoutingResolver.resolve(

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
@@ -61,7 +62,12 @@ public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan,
             // Apply the replacement inside Filter, Eval, Row and LimitBy (groupings).
             // TODO: also allow aggregates once aggs on constants are supported.
             // C.f. https://github.com/elastic/elasticsearch/issues/100634
-            if (p instanceof Filter || p instanceof Eval || p instanceof Row || p instanceof LimitBy || p instanceof MMR) {
+            if (p instanceof Filter
+                || p instanceof Eval
+                || p instanceof Row
+                || p instanceof LimitBy
+                || p instanceof MMR
+                || p instanceof ChangePoint) {
                 p = p.transformExpressionsOnly(ReferenceAttribute.class, r -> builder.build().resolve(r, r));
             }
             return p;

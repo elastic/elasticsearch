@@ -136,17 +136,41 @@ public class ViewResolver {
         BiFunction<String, String, LogicalPlan> parser,
         ActionListener<ViewResolutionResult> listener
     ) {
+        replaceViews(plan, parser, false, listener);
+    }
+
+    /**
+     * Replaces views in the logical plan with their subqueries recursively.
+     * <p>
+     * When {@code linkedProjectsInScope} is true, any concrete reference to a local view will fail with a
+     * {@link VerificationException} — the resolver cannot safely inline a local view body when other projects
+     * may own a view of the same name. Users opt out by setting {@code project_routing="_alias:_origin"}.
+     */
+    public void replaceViews(
+        LogicalPlan plan,
+        BiFunction<String, String, LogicalPlan> parser,
+        boolean linkedProjectsInScope,
+        ActionListener<ViewResolutionResult> listener
+    ) {
         Map<String, String> viewQueries = new HashMap<>();
         if (viewsFeatureEnabled() == false || getMetadata().views().isEmpty()) {
             listener.onResponse(new ViewResolutionResult(plan, viewQueries));
             return;
         }
-        replaceViews(plan, parser, new LinkedHashSet<>(), viewQueries, 0, listener.delegateFailureAndWrap((l, rewritten) -> {
-            LogicalPlan postProcessed = rewriteUnionAllsWithNamedSubqueries(rewritten);
-            postProcessed = compactNestedViewUnionAlls(postProcessed);
-            postProcessed = postProcessed.transformDown(NamedSubquery.class, UnaryPlan::child);
-            listener.onResponse(new ViewResolutionResult(postProcessed, viewQueries));
-        }));
+        replaceViews(
+            plan,
+            parser,
+            new LinkedHashSet<>(),
+            viewQueries,
+            0,
+            linkedProjectsInScope,
+            listener.delegateFailureAndWrap((l, rewritten) -> {
+                LogicalPlan postProcessed = rewriteUnionAllsWithNamedSubqueries(rewritten);
+                postProcessed = compactNestedViewUnionAlls(postProcessed);
+                postProcessed = postProcessed.transformDown(NamedSubquery.class, UnaryPlan::child);
+                listener.onResponse(new ViewResolutionResult(postProcessed, viewQueries));
+            })
+        );
     }
 
     private void replaceViews(
@@ -155,6 +179,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
         int depth,
+        boolean linkedProjectsInScope,
         ActionListener<LogicalPlan> listener
     ) {
         LinkedHashSet<String> seenInner = new LinkedHashSet<>(seenViews);
@@ -181,11 +206,19 @@ public class ViewResolver {
                     return;
                 }
                 case Fork fork -> {
-                    replaceViewsFork(fork, parser, seenInner, viewQueries, depth, planListener.delegateFailureAndWrap((l, result) -> {
-                        plan.forEachDown(resolvedPlans::add);
-                        result.forEachDown(resolvedPlans::add);
-                        l.onResponse(result);
-                    }));
+                    replaceViewsFork(
+                        fork,
+                        parser,
+                        seenInner,
+                        viewQueries,
+                        depth,
+                        linkedProjectsInScope,
+                        planListener.delegateFailureAndWrap((l, result) -> {
+                            plan.forEachDown(resolvedPlans::add);
+                            result.forEachDown(resolvedPlans::add);
+                            l.onResponse(result);
+                        })
+                    );
                     return;
                 }
                 case UnresolvedRelation ur -> {
@@ -196,6 +229,7 @@ public class ViewResolver {
                         seenWildcards,
                         viewQueries,
                         depth,
+                        linkedProjectsInScope,
                         planListener.delegateFailureAndWrap((l, result) -> {
                             plan.forEachDown(resolvedPlans::add);
                             // Also mark the resolved result subtree so transformDown does not
@@ -219,6 +253,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
         int depth,
+        boolean linkedProjectsInScope,
         ActionListener<LogicalPlan> listener
     ) {
         var currentSubplans = fork.children();
@@ -233,6 +268,7 @@ public class ViewResolver {
                     seenViews,
                     viewQueries,
                     depth + 1,
+                    linkedProjectsInScope,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
                         if (newPlan instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
                             newPlan = named;
@@ -266,6 +302,7 @@ public class ViewResolver {
         HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
         int depth,
+        boolean linkedProjectsInScope,
         ActionListener<LogicalPlan> listener
     ) {
         // Avoid re-resolving wildcards preserved for non-view matches in subsequent transformDown visits.
@@ -301,6 +338,27 @@ public class ViewResolver {
                 return;
             }
 
+            // Loud-fail when CPS routing puts linked projects in scope and a concrete view reference resolved
+            // locally. We can't safely inline a local view body without first checking whether a same-named
+            // view exists on a linked project — that would be a silent-divergence bug. Users opt out by
+            // setting project_routing="_alias:_origin" to query origin only.
+            if (linkedProjectsInScope) {
+                List<String> concreteViewMatches = concreteViewReferences(patterns, response.views());
+                if (concreteViewMatches.isEmpty() == false) {
+                    listener.onFailure(
+                        new VerificationException(
+                            "ES|QL view resolution does not yet support cross-project queries. "
+                                + "Concrete reference to view "
+                                + concreteViewMatches
+                                + " cannot be resolved when linked projects are in scope. "
+                                + "Set project_routing=\"_alias:_origin\" to query origin only, "
+                                + "or remove the view reference."
+                        )
+                    );
+                    return;
+                }
+            }
+
             final HashMap<String, ViewPlan> resolvedViews = new HashMap<>();
             final LinkedHashSet<String> ancestorViews = new LinkedHashSet<>(seenViews);
             SubscribableListener<Void> chain = SubscribableListener.newForked(l2 -> l2.onResponse(null));
@@ -315,6 +373,7 @@ public class ViewResolver {
                         branchSeenViews,
                         viewQueries,
                         depth + 1,
+                        linkedProjectsInScope,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             String selector = viewSelectors.get(view.name());
                             LogicalPlan body = selector == null ? fullyResolved : applySelectorToLeaves(fullyResolved, selector);
@@ -429,6 +488,22 @@ public class ViewResolver {
         }
 
         return result;
+    }
+
+    /**
+     * Returns the names of any concrete (non-wildcard, non-exclusion) patterns that resolved to
+     * a view in the response. Used by the loud-fail check under CPS to determine whether the
+     * user wrote {@code FROM v1} (or similar) and the resolver found a local view for it.
+     */
+    private static List<String> concreteViewReferences(String[] patterns, View[] resolvedViews) {
+        Set<String> resolvedNames = Arrays.stream(resolvedViews).map(View::getName).collect(java.util.stream.Collectors.toSet());
+        List<String> matches = new ArrayList<>();
+        for (String p : patterns) {
+            if (patternIsExclusion(p) == false && Regex.isSimpleMatchPattern(p) == false && resolvedNames.contains(p)) {
+                matches.add(p);
+            }
+        }
+        return matches;
     }
 
     /**

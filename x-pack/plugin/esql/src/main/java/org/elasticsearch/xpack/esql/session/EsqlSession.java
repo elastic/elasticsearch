@@ -260,6 +260,12 @@ public class EsqlSession {
         parsingProfile.stop();
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
+        // CPS routing puts linked projects in scope unless the user explicitly restricts to origin.
+        // When linked projects are in scope, the views resolver loud-fails on concrete view references
+        // because we cannot yet ask each linked project whether it owns a same-named view.
+        String routing = projectRouting(request, statement);
+        boolean linkedProjectsInScope = crossProjectModeDecider.crossProjectEnabled()
+            && (routing == null || routing.equals("_alias:_origin") == false);
         viewResolver.replaceViews(
             statement.plan(),
             (query, viewName) -> parser.parseView(
@@ -269,6 +275,7 @@ public class EsqlSession {
                 inferenceService.inferenceSettings(),
                 viewName
             ).plan(),
+            linkedProjectsInScope,
             listener.delegateFailureAndWrap((l, viewResolution) -> {
                 viewResolutionProfile.stop();
                 analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l);

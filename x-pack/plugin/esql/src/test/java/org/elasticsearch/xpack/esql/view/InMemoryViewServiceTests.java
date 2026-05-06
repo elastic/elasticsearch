@@ -1919,6 +1919,14 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         return future.actionGet().plan();
     }
 
+    private LogicalPlan replaceViewsWithLinkedProjectsInScope(LogicalPlan plan) {
+        var cpsDecider = new CrossProjectModeDecider(Settings.builder().put("serverless.cross_project.enabled", true).build());
+        InMemoryViewResolver cpsResolver = viewService.getViewResolver(cpsDecider);
+        PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
+        cpsResolver.replaceViews(plan, this::parse, true, future);
+        return future.actionGet().plan();
+    }
+
     private void addIndex(String name) {
         viewService.addIndex(projectId, name);
     }
@@ -2246,6 +2254,44 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("FROM shared-*");
         // Wildcard should expand to: view body + alias name passed through.
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, shared-*")));
+    }
+
+    // Group G6 — loud-fail when linked projects are in scope and a concrete view resolves locally.
+    // Stepping stone toward proper cross-project view resolution; converts silent-divergence into
+    // an explicit error.
+
+    public void testLinkedProjectsInScope_ConcreteViewThrows() {
+        addView("v1", "FROM emp1");
+        LogicalPlan plan = query("FROM v1");
+        VerificationException e = expectThrows(VerificationException.class, () -> replaceViewsWithLinkedProjectsInScope(plan));
+        assertThat(e.getMessage(), containsString("does not yet support cross-project queries"));
+        assertThat(e.getMessage(), containsString("v1"));
+        assertThat(e.getMessage(), containsString("project_routing=\"_alias:_origin\""));
+    }
+
+    public void testLinkedProjectsInScope_WildcardViewDoesNotThrow() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        LogicalPlan plan = query("FROM view*");
+        // Wildcards are preserved alongside resolved views; no loud-fail.
+        assertThat(replaceViewsWithLinkedProjectsInScope(plan), matchesPlan(query("FROM emp1, emp2, view*")));
+    }
+
+    public void testLinkedProjectsInScope_ExcludedViewDoesNotThrow() {
+        addView("view1", "FROM emp1");
+        addView("view2", "FROM emp2");
+        LogicalPlan plan = query("FROM view*, -view1");
+        // The user explicitly excludes view1; the exclusion propagates to fan-out, no loud-fail.
+        assertThat(replaceViewsWithLinkedProjectsInScope(plan), matchesPlan(query("FROM emp2, view*, -view1")));
+    }
+
+    public void testLinkedProjectsInScope_NestedViewBodyConcreteRefThrows() {
+        addView("inner", "FROM emp1");
+        addView("outer", "FROM inner");
+        LogicalPlan plan = query("FROM outer");
+        // The body's concrete reference to inner triggers the loud-fail when linked projects are in scope.
+        VerificationException e = expectThrows(VerificationException.class, () -> replaceViewsWithLinkedProjectsInScope(plan));
+        assertThat(e.getMessage(), containsString("does not yet support cross-project queries"));
     }
 
     public void testDeleteMultipleViews() {

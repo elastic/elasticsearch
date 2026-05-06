@@ -10,8 +10,9 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.datasources.FileSplit;
-import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
+import org.elasticsearch.xpack.esql.datasources.MergedSplitStats;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
@@ -21,14 +22,13 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Shared helpers for aggregate pushdown rules ({@link PushStatsToExternalSource} and
  * {@link PushAggregatesToExternalSource}) that extract an {@link ExternalSourceExec}
  * from the plan tree and resolve filtered metadata using {@link SplitFilterClassifier}.
  */
-final class ExternalSourceAggregatePushdown {
+public final class ExternalSourceAggregatePushdown {
 
     private ExternalSourceAggregatePushdown() {}
 
@@ -38,6 +38,17 @@ final class ExternalSourceAggregatePushdown {
      * the filter condition from any intermediate {@code FilterExec}.
      */
     record ExternalSourceInfo(ExternalSourceExec externalExec, AttributeMap<Attribute> aliasReplacedBy, Expression filterCondition) {}
+
+    /**
+     * Light-weight projection of {@link #extractExternalSource(PhysicalPlan)} that returns just the
+     * {@link ExternalSourceExec} (or {@code null}) for callers that don't need the alias map or filter
+     * condition. Cross-package callers (the planner, other optimizer rules) use this so they share the
+     * same set of recognized wrapper shapes — adding a new shape here automatically propagates.
+     */
+    public static ExternalSourceExec findExternalSource(PhysicalPlan child) {
+        ExternalSourceInfo info = extractExternalSource(child);
+        return info == null ? null : info.externalExec();
+    }
 
     /**
      * Extracts the ExternalSourceExec and optional filter/alias information from the plan
@@ -78,46 +89,48 @@ final class ExternalSourceAggregatePushdown {
     }
 
     /**
-     * Resolves effective metadata for splits filtered by the given condition. Evaluates
+     * Resolves effective stats for splits filtered by the given condition. Evaluates
      * the filter against per-split statistics, classifying each split as MATCH, MISS, or
      * AMBIGUOUS. Returns merged statistics from MATCH-only splits, or null if any split
      * is AMBIGUOUS or classification fails.
      * <p>
      * When a single split is present and has its own statistics, those are preferred over
      * file-level metadata to avoid misclassification when split stats differ from the whole.
+     * <p>
+     * Uses {@link ExternalSplit#splitStats()} on each split, which handles both
+     * {@link org.elasticsearch.xpack.esql.datasources.FileSplit} and
+     * {@link org.elasticsearch.xpack.esql.datasources.CoalescedSplit} transparently.
      */
-    static Map<String, Object> resolveFilteredMetadata(ExternalSourceExec externalExec, Expression filterCondition) {
+    static org.elasticsearch.xpack.esql.datasources.spi.SplitStats resolveFilteredStats(
+        ExternalSourceExec externalExec,
+        Expression filterCondition
+    ) {
         List<? extends ExternalSplit> splits = externalExec.splits();
 
         if (splits.isEmpty() || splits.size() == 1) {
-            Map<String, Object> metadata = null;
-            if (splits.size() == 1
-                && splits.getFirst() instanceof FileSplit fs
-                && fs.statistics() != null
-                && fs.statistics().isEmpty() == false) {
-                metadata = fs.statistics();
+            org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = null;
+            if (splits.size() == 1) {
+                stats = splits.getFirst().splitStats();
             }
-            if (metadata == null) {
-                metadata = externalExec.sourceMetadata();
+            if (stats == null) {
+                stats = SplitStats.of(externalExec.sourceMetadata());
             }
-            if (metadata == null || metadata.isEmpty()) {
+            if (stats == null) {
                 return null;
             }
-            SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyExpression(filterCondition, metadata);
+            SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyExpression(filterCondition, stats);
             return switch (result) {
-                case MATCH -> metadata;
-                case MISS -> emptyStatsMetadata();
+                case MATCH -> stats;
+                case MISS -> SplitStats.EMPTY;
                 case AMBIGUOUS -> null;
             };
         }
 
-        List<Map<String, Object>> matchedStats = new ArrayList<>();
-        for (ExternalSplit split : splits) {
-            if (split instanceof FileSplit == false) {
-                return null;
-            }
-            Map<String, Object> stats = ((FileSplit) split).statistics();
-            if (stats == null || stats.isEmpty()) {
+        List<ExternalSplit> flatSplits = CoalescedSplit.flatten(splits);
+        List<org.elasticsearch.xpack.esql.datasources.spi.SplitStats> matchedStats = new ArrayList<>();
+        for (ExternalSplit split : flatSplits) {
+            org.elasticsearch.xpack.esql.datasources.spi.SplitStats stats = split.splitStats();
+            if (stats == null) {
                 return null;
             }
             SplitFilterClassifier.SplitMatch result = SplitFilterClassifier.classifyExpression(filterCondition, stats);
@@ -132,12 +145,8 @@ final class ExternalSourceAggregatePushdown {
         }
 
         if (matchedStats.isEmpty()) {
-            return emptyStatsMetadata();
+            return SplitStats.EMPTY;
         }
-        return SourceStatisticsSerializer.mergeStatistics(matchedStats);
-    }
-
-    static Map<String, Object> emptyStatsMetadata() {
-        return Map.of(SourceStatisticsSerializer.STATS_ROW_COUNT, 0L);
+        return new MergedSplitStats(matchedStats);
     }
 }

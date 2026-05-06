@@ -13,7 +13,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ final class ValuesWithOffsetsDocValuesLoader implements SourceLoader.SyntheticFi
     }
 
     static ValuesWithOffsetsDocValuesLoader binaryLoader(
-        MultiValuedSortedBinaryDocValues valueDocValues,
+        SortedBinaryDocValues valueDocValues,
         SortedDocValues offsetDocValues,
         Function<BytesRef, BytesRef> converter
     ) {
@@ -104,8 +104,8 @@ final class ValuesWithOffsetsDocValuesLoader implements SourceLoader.SyntheticFi
         }
     }
 
-    private record MultivaluedBinarySortedValuesSource(MultiValuedSortedBinaryDocValues valueDocValues) implements SortedValuesSource {
-        private MultivaluedBinarySortedValuesSource(MultiValuedSortedBinaryDocValues valueDocValues) {
+    private record MultivaluedBinarySortedValuesSource(SortedBinaryDocValues valueDocValues) implements SortedValuesSource {
+        private MultivaluedBinarySortedValuesSource(SortedBinaryDocValues valueDocValues) {
             this.valueDocValues = Objects.requireNonNull(valueDocValues);
         }
 

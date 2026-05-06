@@ -1,5 +1,5 @@
 * Dense vector functions
-% * [`EMBEDDING`](../../functions-operators/dense-vector-functions/embedding.md) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+  * [`EMBEDDING`](../../functions-operators/dense-vector-functions/embedding.md) {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
   * [`KNN`](../../functions-operators/dense-vector-functions/knn.md) {applies_to}`stack: preview 9.2` {applies_to}`stack: ga 9.4`
   * [`TEXT_EMBEDDING`](../../functions-operators/dense-vector-functions/text_embedding.md) {applies_to}`stack: preview 9.3` {applies_to}`stack: ga 9.4`
 * Vector similarity functions

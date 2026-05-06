@@ -1630,7 +1630,9 @@ true
 ;
 
 // https://github.com/elastic/elasticsearch/issues/146364
-likeSingleCharOnIndexWithMinusWhere-Ignore
+likeSingleCharOnIndexWithMinusWhere
+required_capability: fix_starts_with_ends_with_pushdown_on_index
+required_capability: fix_index_like_question_mark_wildcard
 
 FROM k8s-downsampled METADATA _index
 | WHERE _index LIKE "k8s?downsampled"

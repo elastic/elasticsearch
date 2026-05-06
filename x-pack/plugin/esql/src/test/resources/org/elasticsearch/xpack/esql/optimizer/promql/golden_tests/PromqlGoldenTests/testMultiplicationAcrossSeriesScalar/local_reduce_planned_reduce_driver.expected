@@ -1,0 +1,3 @@
+ExchangeSinkExec[[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#2, $$LASTOVERTIME_$1$values{r}#3],false]
+\_TimeSeriesAggregateExec[[_tsid{m}#0, step{r}#1],[LASTOVERTIME(network.total_bytes_in{f}#4,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#5) AS LASTOVERTIME_$1#6, step{r}#1 AS step#1],INTERMEDIATE,[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#7, $$LASTOVERTIME_$1$values{r}#8],16,BUCKET(@timestamp{f}#5,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#5,PT1H[TIME_DURATION]),false]
+  \_ExchangeSourceExec[[_tsid{m}#0, step{r}#1, $$LASTOVERTIME_$0$timestamps{r}#2, $$LASTOVERTIME_$1$values{r}#3],false]

@@ -51,6 +51,10 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
     private final SearchRequest firstSearchRequest;
     private final AtomicReference<PointInTimeBuilder> pitBuilder;
 
+    // Keep-alive duration requested with the search currently in flight
+    private final AtomicReference<TimeValue> currentKeepAlive = new AtomicReference<>();
+    private final SearchContextKeepaliveDeadline keepaliveDeadline;
+
     public ClientPitPaginatedHitSource(
         Logger logger,
         BackoffPolicy backoffPolicy,
@@ -59,11 +63,13 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
         Consumer<AsyncResponse> onResponse,
         Consumer<Exception> fail,
         ParentTaskAssigningClient client,
-        SearchRequest firstSearchRequest
+        SearchRequest firstSearchRequest,
+        SearchContextKeepaliveDeadline keepaliveDeadline
     ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.client = client;
         this.firstSearchRequest = firstSearchRequest;
+        this.keepaliveDeadline = keepaliveDeadline;
         SearchSourceBuilder source = firstSearchRequest.source();
         PointInTimeBuilder initialPit = source == null ? null : source.pointInTimeBuilder();
         if (initialPit == null) {
@@ -79,6 +85,11 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
             "executing initial local PIT search against {}",
             () -> isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices()
         );
+        PointInTimeBuilder pit = pitBuilder.get();
+        TimeValue keepAlive = pit != null ? pit.getKeepAlive() : null;
+        if (keepAlive != null) {
+            currentKeepAlive.set(keepAlive);
+        }
         client.search(firstSearchRequest, wrapListener(searchListener));
     }
 
@@ -98,10 +109,12 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
 
     @Override
     protected void doNextPitSearch(Object[] searchAfter, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
-        SearchSourceBuilder source = firstSearchRequest.source()
-            .shallowCopy()
-            .searchAfter(searchAfter)
-            .pointInTimeBuilder(extendPitKeepAlive(pitBuilder.get(), extraKeepAlive));
+        PointInTimeBuilder extended = extendPitKeepAlive(pitBuilder.get(), extraKeepAlive);
+        TimeValue effectiveKeepAlive = extended.getKeepAlive();
+        if (effectiveKeepAlive != null) {
+            currentKeepAlive.set(effectiveKeepAlive);
+        }
+        SearchSourceBuilder source = firstSearchRequest.source().shallowCopy().searchAfter(searchAfter).pointInTimeBuilder(extended);
         SearchRequest nextRequest = new SearchRequest(firstSearchRequest).source(source);
         client.search(nextRequest, wrapListener(searchListener));
     }
@@ -125,6 +138,10 @@ public class ClientPitPaginatedHitSource extends PitPaginatedHitSource {
                             currentPit != null ? currentPit.getKeepAlive() : null
                         )
                     );
+                }
+                TimeValue keepAlive = currentKeepAlive.getAndSet(null);
+                if (keepAlive != null) {
+                    keepaliveDeadline.recordSuccessfulExtension(keepAlive);
                 }
                 searchListener.onResponse(wrapSearchResponse(searchResponse));
             }

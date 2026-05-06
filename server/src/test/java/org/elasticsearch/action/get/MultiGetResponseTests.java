@@ -11,6 +11,7 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.get.GetResultTests;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
@@ -41,7 +42,12 @@ public class MultiGetResponseTests extends ESTestCase {
         for (int runs = 0; runs < 20; runs++) {
             MultiGetResponse expected = createTestInstance();
             XContentType xContentType = randomFrom(XContentType.values());
-            BytesReference shuffled = toShuffledXContent(expected, xContentType, ToXContent.EMPTY_PARAMS, false);
+            BytesReference shuffled = toShuffledXContent(
+                ChunkedToXContent.wrapAsToXContent(expected),
+                xContentType,
+                ToXContent.EMPTY_PARAMS,
+                false
+            );
             MultiGetResponse parsed;
             try (XContentParser parser = createParser(XContentFactory.xContent(xContentType), shuffled)) {
                 parsed = parseInstance(parser);

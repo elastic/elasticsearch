@@ -69,7 +69,7 @@ public final class InferenceStringGroup implements Writeable, ToXContentObject {
         if (this.inferenceStrings.isEmpty()) {
             throw new IllegalArgumentException("InferenceStringGroup constructor argument cannot be an empty list");
         }
-        containsNonTextEntry = inferenceStrings.stream().anyMatch(s -> s.isText() == false);
+        containsNonTextEntry = inferenceStrings.stream().anyMatch(InferenceString::isNonText);
     }
 
     public InferenceStringGroup(StreamInput in) throws IOException {

@@ -188,6 +188,44 @@ public final class S3StorageObject implements StorageObject {
 
     private void fetchMetadata() throws IOException {
         try {
+            // Suffix range: bytes=-1 returns the last byte + Content-Range with total size.
+            // Avoids a separate HEAD request for file size discovery.
+            GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=-1").build();
+            try (var response = s3Client.getObject(request)) {
+                // Drain the 1-byte body so the HTTP connection returns to the pool
+                // instead of being aborted on close.
+                response.readAllBytes();
+                GetObjectResponse metadata = response.response();
+                cachedExists = true;
+                cachedLastModified = metadata.lastModified();
+                Long total = ContentRangeParser.parseTotalLength(metadata.contentRange());
+                if (total != null) {
+                    cachedLength = total;
+                    return;
+                }
+            }
+            // Content-Range missing (unexpected for S3) — fall back to HEAD for length
+            fetchMetadataViaHead();
+        } catch (NoSuchKeyException e) {
+            setNotFound();
+        } catch (S3Exception e) {
+            if (e.statusCode() == 416) {
+                // 416 Range Not Satisfiable: object exists but is empty (0 bytes)
+                cachedExists = true;
+                cachedLength = 0L;
+            } else if (e.statusCode() == 403) {
+                // GET denied — try the existing bytes=0-0 fallback which extracts
+                // size from Content-Range; HEAD uses the same s3:GetObject permission
+                // so would also be denied.
+                fetchMetadataViaRangeGet();
+            } else {
+                fetchMetadataViaHead();
+            }
+        }
+    }
+
+    private void fetchMetadataViaHead() throws IOException {
+        try {
             HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucket).key(key).build();
             HeadObjectResponse response = s3Client.headObject(request);
 

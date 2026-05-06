@@ -12,6 +12,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.profiles.ProfileFile;
 import software.amazon.awssdk.regions.Region;
@@ -98,6 +99,11 @@ public final class S3StorageProvider implements StorageProvider {
             c.defaultProfileFile(emptyProfileFile);
             c.defaultProfileFileSupplier(() -> emptyProfileFile);
         });
+
+        // Disable optional response checksum validation. The SDK default (WHEN_SUPPORTED) wraps
+        // every GetObject response in a checksum-validating stream, adding ~6-7% CPU overhead.
+        // TLS already provides in-transit integrity; this matches what other engines do.
+        builder.responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
 
         AwsCredentialsProvider credentialsProvider;
         if (config != null && config.isAnonymous()) {

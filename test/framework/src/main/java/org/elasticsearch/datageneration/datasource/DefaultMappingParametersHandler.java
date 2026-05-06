@@ -85,13 +85,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
     private Supplier<Map<String, Object>> keywordMapping(DataSourceRequest.LeafMappingParametersGenerator request) {
         return () -> {
-            var mapping = new HashMap<String, Object>();
-            mapping.put("store", ESTestCase.randomBoolean());
-            mapping.put("index", ESTestCase.randomBoolean());
-
-            if (ESTestCase.randomBoolean()) {
-                mapping.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, randomFrom("none", "arrays", "all"));
-            }
+            var mapping = commonMappingParameters();
 
             mapping.put("doc_values", extendedDocValuesParams());
 

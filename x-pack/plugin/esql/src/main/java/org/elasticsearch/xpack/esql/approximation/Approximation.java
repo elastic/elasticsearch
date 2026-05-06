@@ -18,6 +18,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -134,7 +135,7 @@ import java.util.Set;
  */
 public class Approximation {
 
-    public record QueryProperties(boolean hasGrouping, boolean canDecreaseRowCount, boolean canIncreaseRowCount) {}
+    public record QueryProperties(boolean hasGrouping, boolean canDecreaseRowCount) {}
 
     /**
      * These processing commands are fully supported.
@@ -173,7 +174,7 @@ public class Approximation {
         if (EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled()) {
             SUPPORTED_COMMANDS_BUILDER.add(Join.class);
         }
-        if (EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS.isEnabled()) {
+        if (EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled()) {
             SUPPORTED_COMMANDS_BUILDER.add(InlineJoin.class);
             SUPPORTED_COMMANDS_BUILDER.add(StubRelation.class);  // temporary node
         }
@@ -217,14 +218,6 @@ public class Approximation {
         Project.class,
         RegexExtract.class,
         Rerank.class
-    );
-
-    /**
-     * These commands never increase the number of all rows, making it easier to predict the number of output rows.
-     */
-    private static final Set<Class<? extends LogicalPlan>> ROW_NON_INCREASING_COMMANDS = Sets.union(
-        Set.of(Filter.class, Limit.class, Sample.class, TopN.class, LimitBy.class, TopNBy.class),
-        ROW_PRESERVING_COMMANDS
     );
 
     /**
@@ -328,11 +321,12 @@ public class Approximation {
     private final LogicalPlan logicalPlan;
     private final QueryProperties queryProperties;
     private final int sampleRowCount;
-    private final double sampleProbabilityThreshold;
+    private final double maxSampleProbability;
 
     private Double nextSubPlanSampleProbability;
     private int subPlanIterationCount;
     private final SetOnce<Long> sourceRowCount;
+    private final SetOnce<Double> minSampleProbability;
 
     public Approximation(LogicalPlan logicalPlan, ApproximationSettings settings) {
         this.queryProperties = verifyPlanOrThrow(logicalPlan);
@@ -352,11 +346,12 @@ public class Approximation {
         } else {
             sampleRowCount = DEFAULT_ROW_COUNT_WITHOUT_GROUPING;
         }
-        sampleProbabilityThreshold = settings.confidenceLevel() == null ? 1.0 : SAMPLE_PROBABILITY_THRESHOLD;
+        maxSampleProbability = settings.confidenceLevel() == null ? 1.0 : SAMPLE_PROBABILITY_THRESHOLD;
 
         nextSubPlanSampleProbability = null;
         subPlanIterationCount = 0;
         sourceRowCount = new SetOnce<>();
+        minSampleProbability = new SetOnce<>();
     }
 
     /**
@@ -399,7 +394,6 @@ public class Approximation {
 
         Holder<Boolean> encounteredStats = new Holder<>(false);
         Holder<Boolean> hasGrouping = new Holder<>();
-        Holder<Boolean> canIncreaseRowCount = new Holder<>(false);
         Holder<Boolean> canDecreaseRowCount = new Holder<>(false);
 
         logicalPlan.forEachUp(plan -> {
@@ -441,9 +435,6 @@ public class Approximation {
                     if (ROW_NON_DECREASING_COMMANDS.contains(plan.getClass()) == false) {
                         canDecreaseRowCount.set(true);
                     }
-                    if (ROW_NON_INCREASING_COMMANDS.contains(plan.getClass()) == false) {
-                        canIncreaseRowCount.set(true);
-                    }
                 }
             } else {
                 // Multiple STATS commands are not supported.
@@ -457,7 +448,7 @@ public class Approximation {
             }
         });
 
-        return new QueryProperties(hasGrouping.get(), canDecreaseRowCount.get(), canIncreaseRowCount.get());
+        return new QueryProperties(hasGrouping.get(), canDecreaseRowCount.get());
     }
 
     /**
@@ -499,7 +490,7 @@ public class Approximation {
             Source.EMPTY,
             leaf,
             List.of(),
-            List.of(new Alias(Source.EMPTY, "$source_count", COUNT_ALL_ROWS_EXACT))
+            List.of(new Alias(Source.EMPTY, Attribute.rawTemporaryName("source_count"), COUNT_ALL_ROWS_EXACT))
         );
         sourceCountPlan.setOptimized();
         return sourceCountPlan;
@@ -527,19 +518,22 @@ public class Approximation {
     private Double processSourceCount(long sourceRowCount) {
         logger.debug("total number of source rows: [{}] rows", sourceRowCount);
         this.sourceRowCount.set(sourceRowCount);
-        if (sourceRowCount == 0) {
-            // If there are no rows, run the original query.
+        // At least `sampleRowCount` source rows must be sampled.
+        // When there are too few, process all of them without sampling.
+        if (sourceRowCount <= sampleRowCount) {
+            // If there are few source rows, run the original query.
             nextSubPlanSampleProbability = null;
             return 1.0;
         }
-        double sampleProbability = Math.min(1.0, (double) sampleRowCount / sourceRowCount);
-        if (queryProperties.canIncreaseRowCount == false && sampleProbability >= sampleProbabilityThreshold) {
-            // If the query cannot increase the number of rows, and the sample probability is large,
-            // we can directly run the original query without sampling.
-            logger.debug("using original plan (too few rows)");
+        double sampleProbability = (double) sampleRowCount / sourceRowCount;
+        minSampleProbability.set(sampleProbability);
+
+        if (sampleProbability >= maxSampleProbability) {
+            // If the sample probability is large, we can directly run the original query without sampling.
+            logger.debug("using original plan (too few source rows)");
             nextSubPlanSampleProbability = null;
             return 1.0;
-        } else if (queryProperties.canIncreaseRowCount == false && queryProperties.canDecreaseRowCount == false) {
+        } else if (queryProperties.canDecreaseRowCount == false) {
             // If the query preserves all rows, we can directly approximate with the sample probability.
             nextSubPlanSampleProbability = null;
             return sampleProbability;
@@ -565,13 +559,12 @@ public class Approximation {
                 if (plan instanceof Aggregate aggregate) {
                     // The STATS function should be replaced by a STATS COUNT(*).
                     encounteredStats.set(true);
+                    String aggName = Attribute.rawTemporaryName("count", Double.toString(sampleProbability));
                     if (sampleProbability == 1.0) {
-                        List<NamedExpression> aggregations = List.of(new Alias(Source.EMPTY, "$count_p=1", COUNT_ALL_ROWS_EXACT));
+                        List<NamedExpression> aggregations = List.of(new Alias(Source.EMPTY, aggName, COUNT_ALL_ROWS_EXACT));
                         plan = new Aggregate(Source.EMPTY, aggregate.child(), List.of(), aggregations);
                     } else {
-                        List<NamedExpression> aggregations = List.of(
-                            new Alias(Source.EMPTY, "$count_p=" + sampleProbability, COUNT_ALL_ROWS_APPROXIMATE)
-                        );
+                        List<NamedExpression> aggregations = List.of(new Alias(Source.EMPTY, aggName, COUNT_ALL_ROWS_APPROXIMATE));
                         plan = new SampledAggregate(
                             Source.EMPTY,
                             aggregate.child(),
@@ -650,7 +643,8 @@ public class Approximation {
         rowCount = Math.round(sampleProbability * rowCount);
         logger.debug("estimated number of rows reaching STATS (p=[{}]): [{}] rows", sampleProbability, rowCount);
         double newSampleProbability = Math.min(1.0, sampleProbability * sampleRowCount / Math.max(1, rowCount));
-        if (newSampleProbability >= sampleProbabilityThreshold) {
+        newSampleProbability = Math.max(newSampleProbability, minSampleProbability.get());
+        if (newSampleProbability >= maxSampleProbability) {
             // If the new sample probability is large, run the original query.
             logger.debug("using original plan (too few rows)");
             nextSubPlanSampleProbability = null;

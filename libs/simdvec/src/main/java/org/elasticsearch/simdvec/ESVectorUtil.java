@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.nio.ShortBuffer;
 import java.util.Objects;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
@@ -73,6 +74,14 @@ public class ESVectorUtil {
         int vectorLengthInBytes
     ) throws IOException {
         return ESVectorizationProvider.getInstance().newES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
+    }
+
+    public static void bFloat16ToFloat(ShortBuffer bfloats, float[] floats) {
+        IMPL.bFloat16ToFloat(bfloats, floats);
+    }
+
+    public static void floatToBFloat16(float[] floats, ShortBuffer bfloats) {
+        IMPL.floatToBFloat16(floats, bfloats);
     }
 
     public static float dotProduct(float[] a, float[] b) {

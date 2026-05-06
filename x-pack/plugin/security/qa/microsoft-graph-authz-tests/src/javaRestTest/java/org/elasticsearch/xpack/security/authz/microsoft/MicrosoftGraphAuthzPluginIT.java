@@ -96,12 +96,6 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
         ? RuleChain.outerRule(graphFixture).around(trustStore).around(cluster)
         : RuleChain.outerRule(cluster);
 
-    /*
-     * The primary realm is JWT (rather than e.g. SAML) so that the authentication path used by testConcurrentAuthentication does not
-     * exercise the JDK XML catalog resolver, which has a thread-safety bug (see https://bugs.openjdk.org/browse/JDK-8370379) that
-     * caused that test to fail intermittently. The realm under test (microsoft_graph1) is still exercised on every concurrent
-     * request via authorization_realms / lookup_user.
-     */
     private static final String JWT_ISSUER = "test-issuer";
     private static final String JWT_AUDIENCE = "test-audience";
     private static final String JWT_HMAC_PASSPHRASE = "test-HMAC/secret passphrase-value-microsoft-graph-authz";

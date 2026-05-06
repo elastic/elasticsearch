@@ -83,6 +83,8 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     private static ExecutorService executorService;
     protected Map<String, HttpHandler> handlers;
 
+    protected boolean applyErroneousHttpHandler = randomBoolean();
+
     private static final Logger log = LogManager.getLogger(ESMockAPIBasedRepositoryIntegTestCase.class);
 
     @BeforeClass
@@ -118,7 +120,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     @Before
     public void setUpHttpServer() {
         handlers = new HashMap<>(createHttpHandlers());
-        handlers.replaceAll((k, h) -> wrap(randomBoolean() ? createErroneousHttpHandler(h) : h, logger));
+        handlers.replaceAll((k, h) -> wrap(applyErroneousHttpHandler ? createErroneousHttpHandler(h) : h, logger));
         handlers.forEach(httpServer::createContext);
     }
 

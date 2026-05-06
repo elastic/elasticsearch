@@ -61,7 +61,6 @@ import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTes
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.junit.After;
 import org.threeten.bp.Duration;
 
 import java.io.IOException;
@@ -311,24 +310,27 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         final BlobContainer container = repository.blobStore().blobContainer(repository.basePath());
 
         try {
-            // No retry logics for non list operations.
-            expectThrows(StorageException.class, () -> container.listBlobs(BlobStoreTestUtil.randomFiniteRetryingPurpose()));
+            // ErroneousHttpHandler is not always applied.
+            if (super.applyErroneousHttpHandler) {
+                // No retry logics for non list operations.
+                expectThrows(StorageException.class, () -> container.listBlobs(BlobStoreTestUtil.randomFiniteRetryingPurpose()));
 
-            expectThrows(
-                StorageException.class,
-                () -> container.listBlobsByPrefix(BlobStoreTestUtil.randomFiniteRetryingPurpose(), randomIdentifier())
-            );
+                expectThrows(
+                    StorageException.class,
+                    () -> container.listBlobsByPrefix(BlobStoreTestUtil.randomFiniteRetryingPurpose(), randomIdentifier())
+                );
 
-            expectThrows(StorageException.class, () -> container.listBlobs(BlobStoreTestUtil.randomFiniteRetryingPurpose()));
-            tenaciousRecordingMeterRegistry.getRecorder().resetCalls();
-            container.children(OperationPurpose.INDICES);
+                expectThrows(StorageException.class, () -> container.listBlobs(BlobStoreTestUtil.randomFiniteRetryingPurpose()));
+                tenaciousRecordingMeterRegistry.getRecorder().resetCalls();
+                container.children(OperationPurpose.INDICES);
 
-            tenaciousRecordingMeterRegistry.getRecorder().collect();
-            assertThat(getMeasurements(tenaciousRecordingMeterRegistry), greaterThanOrEqualTo(requiredAttempts - 4));
-            assertThat(getAttributes(tenaciousRecordingMeterRegistry).size(), equalTo(3));
-            assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("repo_type"), equalTo("gcs"));
-            assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("operation"), equalTo("ListObjects"));
-            assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("purpose"), equalTo(OperationPurpose.INDICES.getKey()));
+                tenaciousRecordingMeterRegistry.getRecorder().collect();
+                assertThat(getMeasurements(tenaciousRecordingMeterRegistry), greaterThanOrEqualTo(requiredAttempts - 4));
+                assertThat(getAttributes(tenaciousRecordingMeterRegistry).size(), equalTo(3));
+                assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("repo_type"), equalTo("gcs"));
+                assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("operation"), equalTo("ListObjects"));
+                assertThat(getAttributes(tenaciousRecordingMeterRegistry).get("purpose"), equalTo(OperationPurpose.INDICES.getKey()));
+            }
         } finally {
             testTenaciousRetries.set(false);
             container.delete(randomPurpose());

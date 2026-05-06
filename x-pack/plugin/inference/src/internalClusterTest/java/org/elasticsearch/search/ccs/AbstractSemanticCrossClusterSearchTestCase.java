@@ -7,6 +7,7 @@
 
 package org.elasticsearch.search.ccs;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse;
@@ -244,8 +245,9 @@ public abstract class AbstractSemanticCrossClusterSearchTestCase extends Abstrac
             ExecutionException.class,
             () -> assertResponse(client().search(searchRequest), response -> {})
         );
-        assertThat(executionException.getCause(), instanceOf(expectedExceptionClass));
-        assertThat(executionException.getCause().getMessage(), containsString(expectedMessage));
+        Throwable cause = ExceptionsHelper.unwrapCause(executionException.getCause());
+        assertThat(cause, instanceOf(expectedExceptionClass));
+        assertThat(cause.getMessage(), containsString(expectedMessage));
     }
 
     protected static MinimalServiceSettings sparseEmbeddingServiceSettings() {

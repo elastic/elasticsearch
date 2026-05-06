@@ -247,8 +247,12 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
             case QVB_EMBEDDING -> switch (failingFieldType) {
                 case "dense_vector" -> "[inference_id] must be specified";
                 case "semantic_text" -> embeddingInput != null && embeddingInput.containsNonTextEntry()
-                    ? "Non-text input is not supported for [text_embedding]"
-                    : "Multiple text inputs are not supported for [text_embedding]";
+                    ? "Non-text input is not supported for [text_embedding] inference endpoints for inference_id ["
+                        + TEXT_EMBEDDING_INFERENCE_ID
+                        + "]"
+                    : "Multiple text inputs are not supported for [text_embedding] inference endpoints for inference_id ["
+                        + TEXT_EMBEDDING_INFERENCE_ID
+                        + "]";
                 default -> throw new IllegalArgumentException("unexpected failing field type: " + failingFieldType);
             };
             default -> throw new IllegalArgumentException("no error expected for qvb type: " + qvbType);

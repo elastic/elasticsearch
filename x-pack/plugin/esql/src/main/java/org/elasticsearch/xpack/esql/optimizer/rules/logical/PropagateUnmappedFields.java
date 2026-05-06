@@ -52,9 +52,9 @@ public class PropagateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
                     : Stream.empty()
             )
             .collect(Collectors.toUnmodifiableSet());
-        // Only propagate PUK fields that are not already in the relation's output, so we preserve the existing order.
-        // Partially-mapped keyword fields are already wrapped as PUKs by the index resolver; this rule just merges in
-        // PUKs introduced elsewhere (e.g., by INSIST on a field that is not in the index).
+        // Partially-mapped keyword fields are already in the EsRelation output as
+        // PUKs (via IndexResolver.wrapPartiallyUnmappedField); this rule only adds
+        // PUKs introduced by INSIST on a field that is not in the index.
         List<Attribute> missing = unmappedFields.stream()
             .flatMap(
                 attr -> attr instanceof FieldAttribute fa && existingPuks.contains(fa.fieldName().string()) == false

@@ -31,6 +31,8 @@ final class ES819TSDBDocValuesConsumer extends AbstractTSDBDocValuesConsumer {
         final String dataExtension,
         final String metaCodec,
         final String metaExtension,
+        final String skipCodec,
+        final String skipExtension,
         final TSDBDocValuesFormatConfig formatConfig,
         final DocOffsetsCodec.Encoder docOffsetsEncoder,
         final SortedFieldObserverFactory sortedFieldObserverFactory
@@ -42,6 +44,8 @@ final class ES819TSDBDocValuesConsumer extends AbstractTSDBDocValuesConsumer {
             dataExtension,
             metaCodec,
             metaExtension,
+            skipCodec,
+            skipExtension,
             formatConfig,
             docOffsetsEncoder,
             sortedFieldObserverFactory,

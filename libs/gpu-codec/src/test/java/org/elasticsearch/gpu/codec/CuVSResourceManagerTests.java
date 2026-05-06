@@ -225,6 +225,13 @@ public class CuVSResourceManagerTests extends ESTestCase {
         mgr.shutdown();
     }
 
+    public void testEstimateNNDescentMemoryOverflow() {
+        int numVectors = 500_000;
+        int dims = 1024;
+        long result = CuVSResourceManager.estimateNNDescentMemory(numVectors, dims, CuVSMatrix.DataType.FLOAT);
+        assertThat(result, equalTo(4_096_000_000L));
+    }
+
     private static CagraIndexParams createNnDescentParams() {
         return new CagraIndexParams.Builder().withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
             .withNNDescentNumIterations(5)

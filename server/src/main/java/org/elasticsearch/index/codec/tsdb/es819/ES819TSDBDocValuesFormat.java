@@ -52,6 +52,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     static final String DATA_EXTENSION = "dvd";
     static final String META_CODEC = "ES819TSDBDocValuesMetadata";
     static final String META_EXTENSION = "dvm";
+    static final String SKIP_CODEC = "ES819TSDBDocValuesSkip";
+    static final String SKIP_EXTENSION = "dvs";
 
     static final int TERMS_DICT_BLOCK_LZ4_SHIFT = 6;
     static final int TERMS_DICT_BLOCK_LZ4_SIZE = 1 << TERMS_DICT_BLOCK_LZ4_SHIFT;
@@ -303,6 +305,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
             DATA_EXTENSION,
             META_CODEC,
             META_EXTENSION,
+            SKIP_CODEC,
+            SKIP_EXTENSION,
             formatConfig,
             docOffsetsCodec.getEncoder(),
             formatConfig.writePrefixPartitions()
@@ -321,6 +325,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
             DATA_EXTENSION,
             META_CODEC,
             META_EXTENSION,
+            SKIP_CODEC,
+            SKIP_EXTENSION,
             formatConfig,
             docOffsetsCodec.getDecoder()
         );

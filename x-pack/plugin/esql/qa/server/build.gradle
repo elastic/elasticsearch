@@ -13,6 +13,8 @@ configurations {
   parquetFixtureGenerator
   // NdJsonFixtureGenerator: x-content JSON output + CSV parsing only (no Hadoop).
   ndjsonFixtureGenerator
+  // TsvFixtureGenerator: CSV → TSV for external-format QA (no Hadoop).
+  tsvFixtureGenerator
 }
 
 sourceSets {
@@ -24,6 +26,9 @@ sourceSets {
   }
   ndjsonFixtureGenerator {
     compileClasspath += configurations.ndjsonFixtureGenerator
+  }
+  tsvFixtureGenerator {
+    compileClasspath += configurations.tsvFixtureGenerator
   }
 }
 
@@ -81,4 +86,7 @@ dependencies {
 
   ndjsonFixtureGenerator project(':libs:x-content')
   ndjsonFixtureGenerator project(xpackModule('esql-datasource-csv'))
+
+  tsvFixtureGenerator project(':libs:core')
+  tsvFixtureGenerator project(xpackModule('esql-datasource-csv'))
 }

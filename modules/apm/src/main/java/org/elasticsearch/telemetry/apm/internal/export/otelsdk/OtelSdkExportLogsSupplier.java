@@ -19,14 +19,23 @@ import io.opentelemetry.sdk.resources.Resource;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
 
 /**
- * Builds an {@link SdkLoggerProvider} that exports log records via OTLP/HTTP and installs
- * it into the log4j {@link OpenTelemetryAppender}, so events emitted to log4j (e.g. audit
- * events from {@code LoggingAuditTrail}) are also delivered as OTLP log records.
+ * Builds an {@link SdkLoggerProvider} that exports log records via OTLP/HTTP, then installs
+ * it into the log4j {@link OpenTelemetryAppender} and programmatically attaches that appender
+ * to the {@code LoggingAuditTrail} logger so audit events flow out via OTLP.
+ *
+ * <p>The appender is attached programmatically rather than via {@code log4j2.properties} because
+ * log4j2 config files are parsed at JVM startup, before plugin/module classloaders are available;
+ * the {@code OpenTelemetryAppender} plugin class is not on the boot classloader, so log4j cannot
+ * resolve it from a config file. Doing it programmatically here means the appender is created
+ * after this module's classloader is in scope, sidestepping the discovery issue.
  *
  * <p>POC scope: HTTP transport only, no mTLS, default {@link BatchLogRecordProcessor} settings.
  */
@@ -34,17 +43,23 @@ public class OtelSdkExportLogsSupplier implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(OtelSdkExportLogsSupplier.class);
 
+    /** Logger name that {@code LoggingAuditTrail} (in :x-pack:plugin:security) uses. */
+    private static final String AUDIT_LOGGER_NAME = "org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail";
+
+    private static final String OTEL_APPENDER_NAME = "audit_otel";
+
     private final Settings settings;
     private volatile OpenTelemetrySdk sdk;
     private volatile SdkLoggerProvider loggerProvider;
+    private volatile OpenTelemetryAppender attachedAppender;
 
     public OtelSdkExportLogsSupplier(Settings settings) {
         this.settings = settings;
     }
 
     /**
-     * Build the {@link SdkLoggerProvider} and install it into the log4j {@link OpenTelemetryAppender}.
-     * No-op if {@code telemetry.otel.logs.enabled} is false.
+     * Build the {@link SdkLoggerProvider}, install it into {@link OpenTelemetryAppender}, and
+     * attach a freshly-built appender to the audit logger. No-op if the feature is disabled.
      */
     public synchronized void install() {
         if (sdk != null) {
@@ -74,17 +89,55 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         OpenTelemetrySdk built = OpenTelemetrySdk.builder().setLoggerProvider(provider).build();
         OpenTelemetryAppender.install(built);
 
+        LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        Configuration config = ctx.getConfiguration();
+        LoggerConfig auditLoggerConfig = config.getLoggerConfig(AUDIT_LOGGER_NAME);
+        if (AUDIT_LOGGER_NAME.equals(auditLoggerConfig.getName()) == false) {
+            // No exact LoggerConfig for the audit logger (e.g. audit logging disabled). Bail.
+            provider.close();
+            logger.warn("Audit logger config not found; skipping OTel logs install");
+            return;
+        }
+        OpenTelemetryAppender appender = OpenTelemetryAppender.builder().setName(OTEL_APPENDER_NAME).build();
+        appender.start();
+        config.addAppender(appender);
+        auditLoggerConfig.addAppender(appender, null, null);
+        ctx.updateLoggers();
+
         this.loggerProvider = provider;
         this.sdk = built;
+        this.attachedAppender = appender;
         logger.info("OTel SDK logs export installed; endpoint={}", endpoint);
     }
 
     @Override
     public synchronized void close() {
-        if (loggerProvider != null) {
-            loggerProvider.close();
-            loggerProvider = null;
+        detachAppender();
+        try (SdkLoggerProvider lp = loggerProvider) {
+            // try-with-resources handles lp.close() and surfaces any exception
         }
+        loggerProvider = null;
         sdk = null;
+    }
+
+    /** Remove the OTel appender from the audit logger and stop it. Not AutoCloseable, so done by hand. */
+    private void detachAppender() {
+        if (attachedAppender == null) {
+            return;
+        }
+        OpenTelemetryAppender appender = attachedAppender;
+        attachedAppender = null;
+        try {
+            LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+            Configuration config = ctx.getConfiguration();
+            LoggerConfig auditLoggerConfig = config.getLoggerConfig(AUDIT_LOGGER_NAME);
+            if (AUDIT_LOGGER_NAME.equals(auditLoggerConfig.getName())) {
+                auditLoggerConfig.removeAppender(OTEL_APPENDER_NAME);
+            }
+            ctx.updateLoggers();
+            appender.stop();
+        } catch (Exception e) {
+            logger.warn("Error detaching OTel appender during close", e);
+        }
     }
 }

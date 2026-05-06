@@ -211,6 +211,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String OPAQUE_ID_FIELD_NAME = "opaque_id";
     public static final String TRACE_ID_FIELD_NAME = "trace.id";
     public static final String X_FORWARDED_FOR_FIELD_NAME = "x_forwarded_for";
+    public static final String PROJECT_ID_FIELD_NAME = "project.id";
     // the fields below are used exclusively for "security_config_change" type of events, and show the configuration
     // object taking effect; it could be creating a new, or updating an existing configuration
     // if our (REST) APIs (at least the security APIs) would make the distinction between creating a *new* resource using the POST
@@ -1658,6 +1659,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             setThreadContextField(threadContext, AuditTrail.X_FORWARDED_FOR_HEADER, X_FORWARDED_FOR_FIELD_NAME);
             setThreadContextField(threadContext, Task.X_OPAQUE_ID_HTTP_HEADER, OPAQUE_ID_FIELD_NAME);
             setThreadContextField(threadContext, Task.TRACE_ID, TRACE_ID_FIELD_NAME);
+            setThreadContextField(threadContext, Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, PROJECT_ID_FIELD_NAME);
             return this;
         }
 

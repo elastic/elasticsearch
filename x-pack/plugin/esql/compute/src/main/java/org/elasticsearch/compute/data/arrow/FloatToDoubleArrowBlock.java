@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data.arrow;
 
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.complex.ListVector;
@@ -31,6 +32,10 @@ public final class FloatToDoubleArrowBlock {
             return ofList(listVector, blockFactory);
         }
         Float4Vector floatVector = (Float4Vector) vector;
+        Block constant = tryConstant(floatVector, blockFactory);
+        if (constant != null) {
+            return constant;
+        }
         int rowCount = floatVector.getValueCount();
         try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
             for (int i = 0; i < rowCount; i++) {
@@ -42,6 +47,31 @@ public final class FloatToDoubleArrowBlock {
             }
             return builder.build();
         }
+    }
+
+    /**
+     * Returns a constant double block when the float vector is fully present and all values
+     * are identical (raw-bit comparison preserves NaN semantics), a constant-null block when
+     * all values are null, or {@code null} when the caller should fall through to the
+     * copy-and-widen path.
+     */
+    private static Block tryConstant(Float4Vector floatVector, BlockFactory blockFactory) {
+        int rowCount = floatVector.getValueCount();
+        if (rowCount == 0) {
+            return null;
+        }
+        if (floatVector.getNullCount() == rowCount) {
+            return blockFactory.newConstantNullBlock(rowCount);
+        }
+        if (floatVector.getNullCount() != 0) {
+            return null;
+        }
+        ArrowBuf valueBuffer = floatVector.getDataBuffer();
+        if (ArrowBufConstantDetection.isUniform(valueBuffer, rowCount, Float.BYTES) == false) {
+            return null;
+        }
+        double value = Float.intBitsToFloat(valueBuffer.getInt(0));
+        return blockFactory.newConstantDoubleBlockWith(value, rowCount);
     }
 
     private static Block ofList(ListVector listVector, BlockFactory blockFactory) {

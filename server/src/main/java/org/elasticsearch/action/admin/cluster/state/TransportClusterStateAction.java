@@ -11,8 +11,10 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.client.internal.Client;
@@ -46,11 +48,13 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -180,8 +184,17 @@ public class TransportClusterStateAction extends TransportLocalClusterStateActio
             new AwaitClusterStateVersionAppliedRequest(state.version(), request.waitForTimeout(), dataNodes),
             listener.delegateFailureAndWrap((l, response) -> {
                 if (response.hasActualFailures()) {
-                    l.onFailure(response.actualFailures().get(0));
-                } else if (cancellableTask.notifyIfCancelled(l) == false) {
+                    final List<FailedNodeException> nonConnectFailures = response.actualFailures()
+                        .stream()
+                        .filter(f -> ExceptionsHelper.unwrap(f, ConnectTransportException.class) == null)
+                        .toList();
+                    if (nonConnectFailures.isEmpty() == false) {
+                        l.onFailure(nonConnectFailures.getFirst());
+                        return;
+                    }
+                    logger.debug("Some nodes disconnected while awaiting async cluster state application: {}", response.actualFailures());
+                }
+                if (cancellableTask.notifyIfCancelled(l) == false) {
                     executor.execute(ActionRunnable.supply(l, () -> buildResponse(request, state)));
                 }
             })

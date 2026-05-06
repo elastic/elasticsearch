@@ -24,8 +24,6 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.Lifecycle;
@@ -594,7 +592,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         ) {
             final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
             final Consumer<Exception> retryOnMappingException = exception -> {
-                // in very rare cases a translog replay from primary is processed before a mapping update on this node
+                // In very rare cases a translog replay from primary is processed before a mapping update on this node
                 // which causes local mapping changes since the mapping (clusterstate) might not have arrived on this node.
                 logger.debug("delaying recovery due to missing mapping changes", exception);
                 // we do not need to use a timeout here since the entire recovery mechanism has an inactivity protection (it will be
@@ -602,11 +600,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
-                            try (RecoveryRef recoveryRef = getRecoveryRef(request.recoveryId(), request.shardId())) {
-                                performTranslogOps(request, l, recoveryRef.target());
-                            }
-                        }));
+                        clusterService.getClusterApplierService().awaitAllAsyncAppliers(ActionListener.wrap(ignored -> {
+                            threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
+                                try (RecoveryRef recoveryRef = getRecoveryRef(request.recoveryId(), request.shardId())) {
+                                    performTranslogOps(request, l, recoveryRef.target());
+                                }
+                            }));
+                        }, listener::onFailure));
                     }
 
                     @Override
@@ -623,10 +623,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     }
                 });
             };
-            ClusterState state = clusterService.state();
-            final ProjectMetadata project = state.metadata().projectFor(request.shardId().getIndex());
-            final IndexMetadata indexMetadata = project.index(request.shardId().getIndex());
-            final long mappingVersionOnTarget = indexMetadata != null ? indexMetadata.getMappingVersion() : 0L;
+            final var mapperService = recoveryTarget.indexShard().mapperService();
+            final long mappingVersionOnTarget = mapperService != null ? mapperService.mappingVersion() : 0L;
             recoveryTarget.indexTranslogOperations(
                 request.operations(),
                 request.totalTranslogOps(),

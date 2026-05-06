@@ -142,9 +142,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromLeftSide}
   issue: https://github.com/elastic/elasticsearch/issues/145904
-- class: org.elasticsearch.xpack.security.failurestore.FailureStoreSecurityRestIT
-  method: testWatcher
-  issue: https://github.com/elastic/elasticsearch/issues/145928
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcWarningsIT
   method: testSingleDeprecationWarning
   issue: https://github.com/elastic/elasticsearch/issues/145933

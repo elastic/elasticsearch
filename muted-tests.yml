@@ -142,9 +142,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromLeftSide}
   issue: https://github.com/elastic/elasticsearch/issues/145904
-- class: org.elasticsearch.xpack.security.failurestore.FailureStoreSecurityRestIT
-  method: testWatcher
-  issue: https://github.com/elastic/elasticsearch/issues/145928
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcWarningsIT
   method: testSingleDeprecationWarning
   issue: https://github.com/elastic/elasticsearch/issues/145933
@@ -205,9 +202,6 @@ tests:
 - class: org.elasticsearch.reindex.ReindexBasicTests
   method: testReindexFailsWhenSourceIndexIsClosed
   issue: https://github.com/elastic/elasticsearch/issues/146466
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testReindexFailsWhenPitRelocationFails
-  issue: https://github.com/elastic/elasticsearch/issues/146650
 - class: org.elasticsearch.lucene.FullClusterRestartSystemIndexCompatibilityIT
   method: testAsyncSearchIndexMigration {p0=9.5.0}
   issue: https://github.com/elastic/elasticsearch/issues/146848

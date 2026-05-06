@@ -145,6 +145,29 @@ count:long | avg:double | sum:long | _approximation_confidence_interval(count):l
 ;
 
 
+Exact stats on large row data
+required_capability: approximation_v7
+required_capability: approximation_fix_min_source_row_count
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+ROW a1 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    a2 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    a3 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    a4 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    a5 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    a6 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    a7 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    a8 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+| MV_EXPAND a1 | MV_EXPAND a2 | MV_EXPAND a3 | MV_EXPAND a4 | MV_EXPAND a5 | MV_EXPAND a6 | MV_EXPAND a7 | MV_EXPAND a8
+| STATS SUM(a1)
+;
+
+SUM(a1):long    |  _approximation_confidence_interval(SUM(a1)):long | _approximation_certified(SUM(a1)):boolean
+550000000       | [550000000,550000000]                             | true
+;
+
+
 Multiple total counts
 required_capability: approximation_v7
 request_stored: skip
@@ -315,6 +338,21 @@ FROM many_numbers
 
 sv:double
 [1,440..490]
+;
+
+
+Approximate stats with dependent constant variable
+required_capability: approximation_v7
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+    | STATS avg = AVG(sv)
+    | EVAL zero = 0 * avg
+;
+
+avg:double | zero:double | _approximation_confidence_interval(avg):double | _approximation_certified(avg):boolean | _approximation_confidence_interval(zero):double | _approximation_certified(zero):boolean
+440..490   | 0           | [440..490,440..490]                            | {any}                                 | [0,0]                                           | true
 ;
 
 
@@ -682,7 +720,7 @@ avg:double | original_language_name:keyword | language_name:keyword | _approxima
 
 Inline stats
 required_capability: approximation_v7
-required_capability: approximation_inline_stats
+required_capability: approximation_inline_stats_v2
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -704,7 +742,7 @@ sv:integer | AVG(sv):double | _approximation_confidence_interval(AVG(sv)):double
 
 Inline stats and where
 required_capability: approximation_v7
-required_capability: approximation_inline_stats
+required_capability: approximation_inline_stats_v2
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -727,7 +765,7 @@ sv:integer | SUM(sv):long        | _approximation_confidence_interval(SUM(sv)):l
 
 Inline stats by
 required_capability: approximation_v7
-required_capability: approximation_inline_stats
+required_capability: approximation_inline_stats_v2
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -747,7 +785,7 @@ COUNT():long | AVG(sv):double         | sv:integer |_approximation_confidence_in
 
 Inline stats by and lookup join
 required_capability: approximation_v7
-required_capability: approximation_inline_stats
+required_capability: approximation_inline_stats_v2
 required_capability: approximation_lookup_join
 request_stored: skip
 
@@ -765,6 +803,48 @@ FROM many_numbers
 SUM(sv):long   | sv:integer | language_code:integer | language_name:keyword | _approximation_confidence_interval(SUM(sv)):long | _approximation_certified(SUM(sv)):boolean
 70000..1400000 | 699        | 4                     | German                | [70000..1400000,70000..1400000]                  | {any}
 70000..1400000 | 699        | 4                     | German                | [70000..1400000,70000..1400000]                  | {any}
+;
+
+
+Exact inline stats by multivalued field
+required_capability: approximation_v7
+required_capability: approximation_inline_stats_v2
+request_stored: skip
+
+SET approximation=true\;
+ROW x=[1,2,3]
+    | MV_EXPAND x
+    | EVAL y=CASE(x==1, 42, [1,2])
+    | INLINE STATS sum=y*SUM(x) BY y
+    | SORT x
+;
+
+x:integer | sum:long | y:integer | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean
+1         | 42       | 42        | [42, 42]                                     | true
+2         | [5, 10]  | [1, 2]    | null                                         | null
+3         | [5, 10]  | [1, 2]    | null                                         | null
+;
+
+
+Approximate inline stats by multivalued field
+required_capability: approximation_v7
+required_capability: approximation_inline_stats_v2
+request_stored: skip
+
+SET approximation={"rows": 10000}\;
+FROM many_numbers
+    | KEEP mv
+    | EVAL key = MV_SLICE(mv, 5, 7)
+    | INLINE STATS sum=SUM(mv) BY key
+    | DROP mv
+    | SORT MV_SLICE(key,0) DESC, MV_SLICE(key,1) DESC, MV_SLICE(key,2) DESC
+    | LIMIT 3
+;
+
+sum:long                                                  | key:integer        | _approximation_confidence_interval(sum):long | _approximation_certified(sum):boolean
+[5000000..40000000, 5000000..40000000, 5000000..40000000] | [1716, 1853, 1944] | null                                         | null
+[5000000..40000000, 5000000..40000000, 5000000..40000000] | [1716, 1853, 1937] | null                                         | null
+[5000000..40000000, 5000000..40000000, 5000000..40000000] | [1716, 1852, 1979] | null                                         | null
 ;
 
 

@@ -11,6 +11,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -37,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.indexSettings;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
@@ -51,7 +51,10 @@ public class InMemoryViewService extends ViewService implements Closeable {
 
     private final ThreadPool threadPool;
     private ViewMetadata viewMetadata;
-    private final List<String> indices = new ArrayList<>();
+    private final List<IndexEntry> indices = new ArrayList<>();
+    private final Map<String, List<String>> aliases = new HashMap<>();
+
+    private record IndexEntry(String name, boolean hidden, IndexMetadata.State state) {}
 
     private static final Set<Setting<?>> ALL_SETTINGS;
     static {
@@ -97,7 +100,11 @@ public class InMemoryViewService extends ViewService implements Closeable {
 
     @Override
     protected Map<String, IndexAbstraction> getIndicesLookup(ProjectMetadata projectMetadata) {
-        return viewMetadata.views().values().stream().collect(Collectors.toMap(IndexAbstraction::getName, v -> v));
+        Map<String, IndexAbstraction> lookup = new HashMap<>();
+        ProjectMetadata pm = clusterService.state().metadata().getProject(ProjectId.DEFAULT);
+        lookup.putAll(pm.getIndicesLookup());
+        viewMetadata.views().values().forEach(v -> lookup.put(v.getName(), v));
+        return lookup;
     }
 
     @Override
@@ -108,14 +115,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
             Map<String, View> existingViews = new HashMap<>(viewMetadata.views());
             existingViews.put(request.view().name(), request.view());
             viewMetadata = new ViewMetadata(existingViews);
-            var projectBuilder = ProjectMetadata.builder(projectId).putCustom(ViewMetadata.TYPE, viewMetadata);
-            indices.forEach(
-                index -> projectBuilder.put(IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0)))
-            );
-            ClusterServiceUtils.setState(
-                clusterService,
-                new ClusterState.Builder(clusterService.state()).putProjectMetadata(projectBuilder).build()
-            );
+            applyClusterState(projectId);
             listener.onResponse(AcknowledgedResponse.TRUE);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -123,9 +123,43 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     public void addIndex(ProjectId projectId, String name) {
+        indices.add(new IndexEntry(name, false, IndexMetadata.State.OPEN));
+        applyClusterState(projectId);
+    }
+
+    public void addHiddenIndex(ProjectId projectId, String name) {
+        indices.add(new IndexEntry(name, true, IndexMetadata.State.OPEN));
+        applyClusterState(projectId);
+    }
+
+    public void addClosedIndex(ProjectId projectId, String name) {
+        indices.add(new IndexEntry(name, false, IndexMetadata.State.CLOSE));
+        applyClusterState(projectId);
+    }
+
+    public void addAlias(ProjectId projectId, String aliasName, String... targets) {
+        aliases.computeIfAbsent(aliasName, k -> new ArrayList<>());
+        for (String t : targets) {
+            aliases.get(aliasName).add(t);
+        }
+        applyClusterState(projectId);
+    }
+
+    private void applyClusterState(ProjectId projectId) {
         var projectBuilder = ProjectMetadata.builder(projectId).putCustom(ViewMetadata.TYPE, viewMetadata);
-        indices.add(name);
-        indices.forEach(index -> projectBuilder.put(IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0))));
+        for (IndexEntry e : indices) {
+            Settings.Builder s = indexSettings(IndexVersion.current(), 1, 0);
+            if (e.hidden()) {
+                s.put(IndexMetadata.SETTING_INDEX_HIDDEN, true);
+            }
+            IndexMetadata.Builder mb = IndexMetadata.builder(e.name()).settings(s).state(e.state());
+            for (Map.Entry<String, List<String>> alias : aliases.entrySet()) {
+                if (alias.getValue().contains(e.name())) {
+                    mb.putAlias(AliasMetadata.builder(alias.getKey()).build());
+                }
+            }
+            projectBuilder.put(mb);
+        }
         ClusterServiceUtils.setState(
             clusterService,
             new ClusterState.Builder(clusterService.state()).putProjectMetadata(projectBuilder).build()
@@ -169,6 +203,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
     void clearAllViewsAndIndices() {
         viewMetadata = ViewMetadata.EMPTY;
         indices.clear();
+        aliases.clear();
     }
 
     public InMemoryViewResolver getViewResolver() {

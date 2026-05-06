@@ -2183,6 +2183,41 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2")));
     }
 
+    // Group G5 — fixture-extended cells: hidden index, closed index, aliases interact with view bodies.
+
+    public void testViewBodyWildcardSkipsHiddenIndex() {
+        viewService.addHiddenIndex(projectId, "logs-hidden");
+        viewService.addIndex(projectId, "logs-visible");
+        addView("v", "FROM logs-*");
+        LogicalPlan plan = query("FROM v");
+        // View body's wildcard goes through the resolver; expand_wildcards default does not include hidden.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM logs-*")));
+    }
+
+    public void testViewBodyReferencesAlias() {
+        viewService.addIndex(projectId, "real-index");
+        viewService.addAlias(projectId, "alias-name", "real-index");
+        addView("v", "FROM alias-name");
+        LogicalPlan plan = query("FROM v");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM alias-name")));
+    }
+
+    public void testOuterRefAliasInsteadOfView() {
+        viewService.addIndex(projectId, "real-index");
+        viewService.addAlias(projectId, "shared-name", "real-index");
+        addView("other-view", "FROM emp1");
+        LogicalPlan plan = query("FROM shared-name");
+        // Alias takes precedence in the abstraction lookup over a view of same name (none here).
+        assertThat(replaceViews(plan), matchesPlan(query("FROM shared-name")));
+    }
+
+    public void testViewBodyReferencesClosedIndex() {
+        viewService.addClosedIndex(projectId, "closed-idx");
+        addView("v", "FROM closed-idx");
+        LogicalPlan plan = query("FROM v");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM closed-idx")));
+    }
+
     public void testDeleteMultipleViews() {
         addView("view1", "FROM emp");
         addView("view2", "FROM emp");

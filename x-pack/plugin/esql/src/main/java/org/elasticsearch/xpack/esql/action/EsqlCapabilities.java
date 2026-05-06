@@ -1606,7 +1606,7 @@ public class EsqlCapabilities {
          * origin's coordinates and producing incorrect distances whenever {@code lat != lon}.
          */
         DECAY_GEO_POINT_ORIGIN_LAT_LON_FIX,
-        
+
         /**
          * Support correct counting of skipped shards.
          */

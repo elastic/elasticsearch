@@ -720,8 +720,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         }
 
         if (isTimeDuration(offset.dataType()) == false) {
-            //return convertNumericParam(offset.fold(foldCtx), offset.dataType(), valueDataType);
-            return offset.fold(foldCtx);
+            return convertNumericParam(offset.fold(foldCtx), offset.dataType(), valueDataType);
         }
 
         if (isDateNanos(valueDataType)) {

@@ -143,10 +143,8 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
             logger.warn("Failed to clear default repository setting during cleanup", e);
         }
         try {
-            client().execute(
-                DeleteDataStreamAction.INSTANCE,
-                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME)
-            ).actionGet();
+            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME))
+                .actionGet();
         } catch (Exception e) {
             logger.warn("Failed to delete data stream during cleanup", e);
         }

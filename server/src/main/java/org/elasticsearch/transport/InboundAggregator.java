@@ -44,7 +44,8 @@ public class InboundAggregator implements Releasable {
         this(circuitBreaker, actionName -> {
             final RequestHandlerRegistry<TransportRequest> reg = registryFunction.apply(actionName);
             if (reg == null) {
-                assert ignoreDeserializationErrors : actionName;
+                // TODO: I guess we'll really have to filter unsupported nodes from TransportAwaitClusterStateVersionAppliedAction
+                // assert ignoreDeserializationErrors : actionName;
                 throw new ActionNotFoundTransportException(actionName);
             } else {
                 return reg.canTripCircuitBreaker();

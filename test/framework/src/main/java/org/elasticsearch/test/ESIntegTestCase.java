@@ -2019,6 +2019,19 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return ClusterServiceUtils.newStateFullyAppliedListener(client(), internalCluster().getInstances(ClusterService.class).iterator());
     }
 
+    /// Waits for async `IndicesClusterStateService` application to complete on the specified nodes only.
+    ///
+    /// Use this overload when some cluster nodes are disrupted or stopped and should be excluded from the wait.
+    protected static SubscribableListener<Void> newStateFullyAppliedListener(String... nodeNames) {
+        if (isInternalCluster() == false) {
+            return SubscribableListener.nullSuccess();
+        }
+        return ClusterServiceUtils.newStateFullyAppliedListener(
+            client(),
+            Arrays.stream(nodeNames).map(n -> internalCluster().getInstance(ClusterService.class, n)).iterator()
+        );
+    }
+
     protected static IndexRequestBuilder prepareIndex(String index) {
         return client().prepareIndex(index);
     }

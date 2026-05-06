@@ -10,6 +10,7 @@ package org.elasticsearch.test;
 
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.AwaitClusterStateVersionAppliedRequest;
 import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
@@ -45,6 +46,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -383,15 +385,18 @@ public class ClusterServiceUtils {
     /**
      * Creates a {@link SubscribableListener} which will be completed once all nodes have applied the latest-applied state observed when
      * this method was called.
+     *
+     * Each passed {@link ClusterService} contributes only its local node as a target. Nodes that disconnect while the request is in
+     * flight are skipped. All other failures cause the listener to fail.
      */
     public static SubscribableListener<Void> newStateFullyAppliedListener(Client client, Iterator<ClusterService> clusterServices) {
         return SubscribableListener.newForked(l -> {
             final Set<DiscoveryNode> nodes = new HashSet<>();
             long latestAppliedVersion = Long.MIN_VALUE;
             while (clusterServices.hasNext()) {
-                final var state = clusterServices.next().state();
-                latestAppliedVersion = Math.max(latestAppliedVersion, state.version());
-                nodes.addAll(state.nodes().getAllNodes());
+                final var clusterService = clusterServices.next();
+                latestAppliedVersion = Math.max(latestAppliedVersion, clusterService.state().version());
+                nodes.add(clusterService.localNode());
             }
             client.execute(
                 TransportAwaitClusterStateVersionAppliedAction.TYPE,
@@ -402,10 +407,20 @@ public class ClusterServiceUtils {
                 ),
                 l.map(response -> {
                     if (response.hasActualFailures()) {
+                        final var nonConnectionFailures = response.actualFailures()
+                            .stream()
+                            .filter(f -> ExceptionsHelper.unwrap(f, ConnectTransportException.class) == null)
+                            .toList();
                         for (var failure : response.actualFailures()) {
-                            logger.error("state-fully-applied listener failed", failure);
+                            if (nonConnectionFailures.contains(failure)) {
+                                logger.warn("peer node disconnected while waiting for state-fully-applied listener", failure);
+                            } else {
+                                logger.error("state-fully-applied listener failed", failure);
+                            }
                         }
-                        fail("state-fully-applied listener failed");
+                        if (nonConnectionFailures.isEmpty() == false) {
+                            fail("state-fully-applied listener failed");
+                        }
                     }
                     return null;
                 })

@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -54,6 +55,8 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     private boolean includeEmptyFields = true;
     @Nullable
     private ResolvedIndexExpressions resolvedIndexExpressions = null;
+    @Nullable
+    private transient TargetProjects resolvedTargetProjects = null;
     /**
      * Controls whether the field caps response should always include the list of indices
      * where a field is defined. This flag is only used locally on the coordinating node,
@@ -269,6 +272,17 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     @Nullable
     public ResolvedIndexExpressions getResolvedIndexExpressions() {
         return resolvedIndexExpressions;
+    }
+
+    @Override
+    public void setResolvedTargetProjects(TargetProjects targetProjects) {
+        this.resolvedTargetProjects = targetProjects;
+    }
+
+    @Override
+    @Nullable
+    public TargetProjects getResolvedTargetProjects() {
+        return resolvedTargetProjects;
     }
 
     public void projectRouting(@Nullable String projectRouting) {

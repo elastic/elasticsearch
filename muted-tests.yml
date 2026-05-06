@@ -142,9 +142,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromLeftSide}
   issue: https://github.com/elastic/elasticsearch/issues/145904
-- class: org.elasticsearch.xpack.security.failurestore.FailureStoreSecurityRestIT
-  method: testWatcher
-  issue: https://github.com/elastic/elasticsearch/issues/145928
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcWarningsIT
   method: testSingleDeprecationWarning
   issue: https://github.com/elastic/elasticsearch/issues/145933
@@ -205,9 +202,6 @@ tests:
 - class: org.elasticsearch.reindex.ReindexBasicTests
   method: testReindexFailsWhenSourceIndexIsClosed
   issue: https://github.com/elastic/elasticsearch/issues/146466
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testReindexFailsWhenPitRelocationFails
-  issue: https://github.com/elastic/elasticsearch/issues/146650
 - class: org.elasticsearch.lucene.FullClusterRestartSystemIndexCompatibilityIT
   method: testAsyncSearchIndexMigration {p0=9.5.0}
   issue: https://github.com/elastic/elasticsearch/issues/146848
@@ -250,12 +244,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/145728
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/250_high_cardinality_keyword/Test mv_min}
-  issue: https://github.com/elastic/elasticsearch/issues/147379
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/250_high_cardinality_keyword/Test avg length}
-  issue: https://github.com/elastic/elasticsearch/issues/147380
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskRelocatesOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/147449
@@ -404,9 +392,6 @@ tests:
 - class: org.elasticsearch.backwards.RareTermsIT
   method: testSingleValuedString
   issue: https://github.com/elastic/elasticsearch/issues/147853
-- class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
-  method: testGenerationalFileBlobReferenceIsRetainedCorrectly
-  issue: https://github.com/elastic/elasticsearch/issues/147858
 - class: org.elasticsearch.search.internal.CancellableBulkScorerTests
   method: testIntervalGrowsGeometrically
   issue: https://github.com/elastic/elasticsearch/issues/147872
@@ -434,9 +419,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.single_node.RestSqlIT
   method: testNextPageText
   issue: https://github.com/elastic/elasticsearch/issues/147950
-- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
-  method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
-  issue: https://github.com/elastic/elasticsearch/issues/147972
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testDataStreamStatsActionBroadcastedToSearchNodesOnly
   issue: https://github.com/elastic/elasticsearch/issues/147973
@@ -476,9 +458,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.store.input.CachedBlobContainerIndexInputTests
   method: testRandomReads
   issue: https://github.com/elastic/elasticsearch/issues/148163
-- class: org.elasticsearch.xpack.stateless.recovery.SearchShardRelocationIT
-  method: testUnpromotableRelocationHandoffFailsIfTargetAllocationIdChanges
-  issue: https://github.com/elastic/elasticsearch/issues/147957
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/148175
@@ -533,12 +512,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148339
-- class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
-  method: testReindexRelocatesWhenCoordinatorShutsDown
-  issue: https://github.com/elastic/elasticsearch/issues/148373
 - class: org.elasticsearch.xpack.esql.analysis.VerifierTests
   method: testFlattenedSorting
   issue: https://github.com/elastic/elasticsearch/issues/148374
 - class: org.elasticsearch.index.mapper.DateRangeDocValuesLoaderTests
   method: testEmptyRangesAppendsNull
   issue: https://github.com/elastic/elasticsearch/issues/148378
+- class: org.elasticsearch.xpack.inference.rest.BaseInferenceActionTests
+  method: testResolveTimeoutForTaskType_NonNullTimeout_ReturnsTimeout
+  issue: https://github.com/elastic/elasticsearch/issues/148396

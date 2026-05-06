@@ -49,6 +49,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     @Override
     public synchronized void start(Collection<Watch> jobs) {
         logger.info("starting scheduler");
+        watches.get().clear();
         jobs.forEach((watch) -> watches.get().put(watch.id(), watch));
         paused.set(false);
     }

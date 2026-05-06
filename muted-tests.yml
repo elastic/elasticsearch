@@ -244,12 +244,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/145728
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/250_high_cardinality_keyword/Test mv_min}
-  issue: https://github.com/elastic/elasticsearch/issues/147379
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/250_high_cardinality_keyword/Test avg length}
-  issue: https://github.com/elastic/elasticsearch/issues/147380
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskRelocatesOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/147449
@@ -518,9 +512,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148339
-- class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
-  method: testReindexRelocatesWhenCoordinatorShutsDown
-  issue: https://github.com/elastic/elasticsearch/issues/148373
 - class: org.elasticsearch.xpack.esql.analysis.VerifierTests
   method: testFlattenedSorting
   issue: https://github.com/elastic/elasticsearch/issues/148374

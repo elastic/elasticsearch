@@ -8,6 +8,10 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.filter2.predicate.Operators;
@@ -23,11 +27,14 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -46,8 +53,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -69,9 +78,75 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
  * Using ESQL's epoch millis directly against non-millis statistics would cause incorrect
  * row group skipping — a correctness issue, not just suboptimal performance.
  */
-record ParquetPushedExpressions(List<Expression> expressions) {
+final class ParquetPushedExpressions {
+
+    private static final Logger logger = LogManager.getLogger(ParquetPushedExpressions.class);
 
     static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
+
+    private final List<Expression> expressions;
+    /**
+     * Cache of compiled {@link CompiledWildcard} forms per {@link WildcardLike} expression.
+     * Building a {@link ByteRunAutomaton} from a wildcard pattern (in particular the determinize
+     * step in {@link org.apache.lucene.util.automaton.Operations#determinize}) is non-trivial —
+     * well into tens of microseconds for moderately complex patterns — and the same expression
+     * instance is reused across every batch of every row group. {@link IdentityHashMap} is
+     * intentional: ESQL shares expression nodes by reference, so identity is the correct equality.
+     * The {@link CompiledWildcard#FAILED} sentinel marks expressions that could not be compiled
+     * (e.g. too complex to determinize) so we do not retry on every batch.
+     *
+     * <p>Synchronized via the cache field as the lock object. The same
+     * {@link ParquetPushedExpressions} instance is shared by every iterator created from a
+     * {@link ParquetFormatReader}, and iterators for different files may run on different driver
+     * threads. The lock is held only across the cache lookup and (on miss) the automaton build —
+     * one build per pattern per query — so contention is negligible compared to the per-batch
+     * automaton run, which executes outside the lock against the immutable {@link ByteRunAutomaton}.
+     */
+    private final IdentityHashMap<WildcardLike, CompiledWildcard> automatonCache = new IdentityHashMap<>();
+
+    /**
+     * Compiled form of a {@link WildcardLike}: the runnable matcher and a flag indicating that the
+     * source automaton accepts every input. The flag is computed against the case-aware automaton
+     * (the same one passed to {@link ByteRunAutomaton}), so the {@link #matchesAll} fast path in
+     * {@link #evaluateWildcardLike} is consistent with the runtime case-sensitivity setting — it
+     * does not silently fall through to the per-row loop just because the pattern's internal
+     * case-insensitive cache disagrees with the requested flag.
+     *
+     * <p>{@code matcher} is {@code null} when the pattern failed to determinize; the caller treats
+     * that as "fall back to FilterExec" (return {@code null} from evaluateWildcardLike).
+     */
+    private record CompiledWildcard(ByteRunAutomaton matcher, boolean matchesAll) {
+        static final CompiledWildcard FAILED = new CompiledWildcard(null, false);
+    }
+
+    ParquetPushedExpressions(List<Expression> expressions) {
+        this.expressions = expressions;
+    }
+
+    List<Expression> expressions() {
+        return expressions;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o instanceof ParquetPushedExpressions other) {
+            return Objects.equals(expressions, other.expressions);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(expressions);
+    }
+
+    @Override
+    public String toString() {
+        return "ParquetPushedExpressions[expressions=" + expressions + "]";
+    }
 
     /**
      * Translates the held expressions to a combined Parquet {@link FilterPredicate} using
@@ -172,6 +247,10 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             }
             return lower;
         }
+        // WildcardLike has no native Parquet FilterPredicate translation: Parquet only supports
+        // ordered comparisons, equality, and IN. The pattern is evaluated during late materialization
+        // by evaluateWildcardLike. A future enhancement could derive a prefix range from
+        // WildcardPattern#extractPrefix to enable row-group skipping for patterns like "https*google*".
         return null;
     }
 
@@ -412,6 +491,8 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             collectColumnNames(not.field(), names);
         } else if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne) {
             names.add(ne.name());
+        } else if (expr instanceof WildcardLike wl && wl.field() instanceof NamedExpression ne) {
+            names.add(ne.name());
         }
     }
 
@@ -439,6 +520,7 @@ record ParquetPushedExpressions(List<Expression> expressions) {
         return reusable;
     }
 
+    // Note: not static — uses the per-instance automaton cache in evaluateWildcardLike.
     private WordMask evaluateExpression(Expression expr, Map<String, Block> blocks, int rowCount) {
         if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne && bc.right().foldable()) {
             Block block = blocks.get(ne.name());
@@ -526,6 +608,13 @@ record ParquetPushedExpressions(List<Expression> expressions) {
                 return null;
             }
             return evaluateStartsWith(sw, block, rowCount);
+        }
+        if (expr instanceof WildcardLike wl && wl.field() instanceof NamedExpression ne) {
+            Block block = blocks.get(ne.name());
+            if (block == null) {
+                return null;
+            }
+            return evaluateWildcardLike(wl, block, rowCount);
         }
         return null;
     }
@@ -808,6 +897,146 @@ record ParquetPushedExpressions(List<Expression> expressions) {
             }
         }
         return true;
+    }
+
+    /**
+     * Evaluates a {@link WildcardLike} predicate against a block of values, returning a survivor mask.
+     *
+     * <p>The implementation follows the same shape as {@link #evaluateStartsWith}: a dictionary
+     * short-circuit for {@link OrdinalBytesRefBlock}s with {@code rowCount >= 2 * dictSize}, and a
+     * scalar per-row fallback for plain {@link BytesRefBlock}s. The big win for high-volume scans
+     * (e.g. {@code URL LIKE "*google*"} on web-traffic logs) comes from the dictionary path, which
+     * collapses {@code O(rowCount)} automaton runs into {@code O(dictionarySize)} runs plus a
+     * per-row int lookup.
+     *
+     * <p><b>Null and {@code NOT} semantics.</b> The mask is two-valued: a row's bit is set when
+     * the value is non-null and the automaton accepts its bytes. Nulls map to bit {@code 0}, the
+     * same convention as {@link #evaluateStartsWith} and the standard runtime
+     * {@link org.elasticsearch.xpack.esql.expression.function.scalar.string.AutomataMatch#process}
+     * (which returns {@code false} for null input). When the caller composes with
+     * {@link org.elasticsearch.xpack.esql.expression.predicate.logical.Not}, {@link WordMask#negate}
+     * flips every bit including those for null rows, so {@code NOT (col LIKE p)} would mark nulls
+     * as survivors here. That diverges from SQL three-valued logic, which says
+     * {@code NOT (NULL LIKE p)} is unknown and should be filtered out. <b>Correctness depends on
+     * the FilterExec re-check that always remains downstream of late-mat</b> — see
+     * {@link ParquetFilterPushdownSupport#canPush} which only ever returns
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport.Pushability#RECHECK},
+     * and {@link ParquetFilterPushdownSupport#pushFilters} which keeps every original conjunct in
+     * the remainder. If a future change ever drops that re-check, this method's null handling for
+     * the {@code Not}-wrapped case must be tightened (e.g. by emitting a separate "definitely
+     * null" mask and AND-ing it out after negation).
+     *
+     * <p>Returns {@code null} when the block is neither an {@link OrdinalBytesRefBlock} on the
+     * dense path nor a {@link BytesRefBlock} (e.g. a constant-null block) — the conservative
+     * "all rows survive" sentinel that {@link #evaluateFilter} treats as a no-op for this
+     * predicate. Returns {@code null} also when the pattern is unusable (failed to determinize),
+     * matching the safety-net role of the FilterExec re-check.
+     */
+    private WordMask evaluateWildcardLike(WildcardLike wl, Block block, int rowCount) {
+        CompiledWildcard compiled = automatonFor(wl);
+        if (compiled.matcher == null) {
+            // Pattern was too complex to determinize. Late-mat can't filter; rely on FilterExec.
+            return null;
+        }
+        // Fast path: pattern accepts every input. Skip the per-row automaton run. matchesAll is
+        // computed at compile time against the case-aware automaton in automatonFor(), so it is
+        // consistent with wl.caseInsensitive(). Nulls are still excluded — SQL's NULL LIKE *
+        // evaluates to unknown, treated here as "no match" for parity with the scalar path.
+        if (compiled.matchesAll) {
+            return maskNonNullRows(block, rowCount);
+        }
+        ByteRunAutomaton runner = compiled.matcher;
+        if (block instanceof OrdinalBytesRefBlock obb && shouldShortCircuitOnDictionary(obb)) {
+            WordMask mask = new WordMask();
+            mask.reset(rowCount);
+            boolean[] dictMatches = matchingDictionaryEntries(
+                obb.getDictionaryVector(),
+                entry -> runner.run(entry.bytes, entry.offset, entry.length)
+            );
+            applyDictionaryMatches(obb, dictMatches, mask, rowCount);
+            return mask;
+        }
+        if (block instanceof BytesRefBlock bb) {
+            WordMask mask = new WordMask();
+            mask.reset(rowCount);
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i) == false) {
+                    BytesRef val = bb.getBytesRef(i, scratch);
+                    if (runner.run(val.bytes, val.offset, val.length)) {
+                        mask.set(i);
+                    }
+                }
+            }
+            return mask;
+        }
+        return null;
+    }
+
+    /**
+     * Returns a mask with one bit set per non-null position. Used as the {@code matchesAll()}
+     * shortcut in {@link #evaluateWildcardLike} — {@code LIKE "*"} accepts every value but, by
+     * SQL three-valued-logic semantics, still rejects nulls.
+     */
+    private static WordMask maskNonNullRows(Block block, int rowCount) {
+        WordMask mask = new WordMask();
+        if (block.mayHaveNulls() == false) {
+            mask.setAll(rowCount);
+            return mask;
+        }
+        mask.reset(rowCount);
+        for (int i = 0; i < rowCount; i++) {
+            if (block.isNull(i) == false) {
+                mask.set(i);
+            }
+        }
+        return mask;
+    }
+
+    /**
+     * Returns the compiled form of the given {@link WildcardLike}, building it once on first use
+     * and caching it on the per-query {@link #automatonCache}. Returns {@link CompiledWildcard#FAILED}
+     * when the pattern cannot be determinized (logged once at debug); the caller treats that as
+     * "fall back to FilterExec".
+     *
+     * <p>Note on byte-vs-character semantics: {@link
+     * org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern#createAutomaton}
+     * returns a UTF-32 (character-level) automaton on both paths — case-sensitive via
+     * {@link org.apache.lucene.search.WildcardQuery#toAutomaton}, case-insensitive via
+     * {@link org.apache.lucene.util.automaton.RegExp}. Both therefore need the implicit
+     * UTF-32→UTF-8 conversion that the single-argument
+     * {@link ByteRunAutomaton#ByteRunAutomaton(Automaton)} constructor performs internally; the
+     * {@code (Automaton, true)} two-arg form would skip that conversion and silently produce
+     * incorrect matches for any non-ASCII byte. This mirrors
+     * {@code StringScriptFieldWildcardQuery} in {@code org.elasticsearch.search.runtime}, which
+     * uses the same single-arg constructor for the same reason.
+     *
+     * <p>{@code matchesAll} is computed against the case-aware automaton — the same one passed to
+     * {@link ByteRunAutomaton} — so the {@link #evaluateWildcardLike} fast path stays in sync with
+     * {@link WildcardLike#caseInsensitive()}.
+     */
+    private CompiledWildcard automatonFor(WildcardLike wl) {
+        synchronized (automatonCache) {
+            CompiledWildcard cached = automatonCache.get(wl);
+            if (cached != null) {
+                return cached;
+            }
+            CompiledWildcard compiled;
+            try {
+                Automaton automaton = wl.pattern().createAutomaton(wl.caseInsensitive());
+                boolean matchesAll = Operations.isTotal(automaton);
+                compiled = new CompiledWildcard(new ByteRunAutomaton(automaton), matchesAll);
+            } catch (IllegalArgumentException | TooComplexToDeterminizeException e) {
+                logger.debug(
+                    "Cannot push WildcardLike pattern [{}] to Parquet late materialization, falling back to FilterExec",
+                    wl.pattern().pattern(),
+                    e
+                );
+                compiled = CompiledWildcard.FAILED;
+            }
+            automatonCache.put(wl, compiled);
+            return compiled;
+        }
     }
 
     /**

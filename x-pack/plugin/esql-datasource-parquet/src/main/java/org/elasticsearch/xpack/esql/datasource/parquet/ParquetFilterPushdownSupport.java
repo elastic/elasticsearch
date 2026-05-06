@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownPredicates;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -141,6 +142,14 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
         }
         if (expr instanceof StartsWith sw) {
             return PushdownPredicates.isStartsWith(sw, dt -> dt == DataType.KEYWORD) && literalValueOf(sw.prefix()) != null;
+        }
+        if (expr instanceof WildcardLike wl) {
+            // Parquet has no native LIKE support; this pushdown evaluates the pattern during late
+            // materialization (see ParquetPushedExpressions#evaluateWildcardLike) so the reader can
+            // skip decoding projection columns for non-matching rows. Only KEYWORD-typed fields with
+            // a non-null pattern qualify; the dictionary short-circuit collapses the per-row automaton
+            // run to one run per dictionary entry.
+            return wl.field() instanceof NamedExpression ne && ne.dataType() == DataType.KEYWORD && wl.pattern() != null;
         }
         return false;
     }

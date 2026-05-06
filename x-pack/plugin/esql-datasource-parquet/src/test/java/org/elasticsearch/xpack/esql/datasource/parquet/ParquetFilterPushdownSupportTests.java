@@ -13,10 +13,12 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -676,6 +678,79 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
 
         assertTrue(result.hasPushedFilter());
         assertEquals(1, result.remainder().size());
+    }
+
+    // --- WildcardLike (LIKE) tests ---
+
+    public void testWildcardLikeKeywordPushed() {
+        Attribute col = attr("url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*google*"));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertThat(result.pushedFilter(), instanceOf(ParquetPushedExpressions.class));
+        // RECHECK semantics: the original filter must remain in the remainder for FilterExec to
+        // re-apply per-row. Removing it would break correctness if an automaton fails to determinize
+        // at runtime and silently falls back to "all rows pass".
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testWildcardLikeCaseInsensitivePushed() {
+        Attribute col = attr("url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*Google*"), true);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+    }
+
+    public void testWildcardLikeNonKeywordNotPushed() {
+        Attribute col = attr("loc", DataType.GEO_POINT);
+        Expression filter = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*"));
+
+        assertFalse(ParquetFilterPushdownSupport.canConvert(filter));
+    }
+
+    public void testWildcardLikeMatchAllPattern() {
+        // LIKE "*" is still convertible — evaluation has a fast path that returns all non-null rows
+        // without invoking the automaton runner.
+        Attribute col = attr("name", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*"));
+
+        assertTrue(ParquetFilterPushdownSupport.canConvert(filter));
+    }
+
+    public void testWildcardLikeCanPushReturnsRecheck() {
+        Attribute col = attr("url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*google*"));
+
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(filter));
+    }
+
+    public void testWildcardLikeCombinedWithEquals() {
+        Attribute url = attr("url", DataType.KEYWORD);
+        Attribute searchPhrase = attr("searchPhrase", DataType.KEYWORD);
+        Expression like = new WildcardLike(Source.EMPTY, url, new WildcardPattern("*google*"));
+        Expression neq = new NotEquals(Source.EMPTY, searchPhrase, keywordLit(""), null);
+        Expression filter = new And(Source.EMPTY, like, neq);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testWildcardLikeNegatedPushed() {
+        // NOT (URL LIKE "*google*") goes through the Not branch of canConvert, which delegates
+        // to the inner expression. The same negation logic exists in evaluateExpression.
+        Attribute col = attr("url", DataType.KEYWORD);
+        Expression like = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*google*"));
+        Expression filter = new Not(Source.EMPTY, like);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
     }
 
     // --- helpers ---

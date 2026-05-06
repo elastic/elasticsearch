@@ -233,11 +233,26 @@ export function generateBatchCommand(batch: ClassifiedTest[]): string {
       return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${batch[0].gradleProject}:yamlRestTest --rerun`;
     }
     case "yamlRestTestSuite": {
-      const tasks = [...new Set(batch.map((t) => `${t.gradleProject}:yamlRestTest`))]
-        .map((task) => `${task} --rerun`)
+      // `tests.rest.suite` is a JVM system property, not a Gradle task option,
+      // so a single value would apply to every yamlRestTest task in the
+      // invocation. ESClientYamlSuiteTestCase recognises a per-task scoped
+      // variant `tests.rest.suite.<task path>` so each task can receive only
+      // the suites that exist on its classpath.
+      const byTask = new Map<string, string[]>();
+      for (const t of batch) {
+        const task = `${t.gradleProject}:yamlRestTest`;
+        const paths = byTask.get(task);
+        if (paths) {
+          paths.push(t.suitePath!);
+        } else {
+          byTask.set(task, [t.suitePath!]);
+        }
+      }
+      const tasks = [...byTask.keys()].map((task) => `${task} --rerun`).join(" ");
+      const suiteProps = [...byTask.entries()]
+        .map(([task, paths]) => `-Dtests.rest.suite.${task}=${paths.join(",")}`)
         .join(" ");
-      const suitePaths = batch.map((t) => t.suitePath).join(",");
-      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${tasks} -Dtests.rest.suite=${suitePaths}`;
+      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${tasks} ${suiteProps}`;
     }
   }
 }

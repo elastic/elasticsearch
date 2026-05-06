@@ -124,18 +124,18 @@ public class TestBlock implements BlockLoader.Block {
                     }
 
                     @Override
-                    public BlockLoader.SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException {
+                    public BlockLoader.SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int[] offsets) {
                         for (int i = 0; i < offsets.length - 1; i++) {
-                            BytesRef ref = new BytesRef(bytes, (int) offsets[i], (int) (offsets[i + 1] - offsets[i]));
+                            BytesRef ref = new BytesRef(bytes, offsets[i], offsets[i + 1] - offsets[i]);
                             add(BytesRef.deepCopyOf(ref));
                         }
                         return this;
                     }
 
                     @Override
-                    public BlockLoader.SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long bytesRefLengths) throws IOException {
+                    public BlockLoader.SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int bytesRefLengths) {
                         for (int i = 0; i < count; i++) {
-                            BytesRef ref = new BytesRef(bytes, (int) (i * bytesRefLengths), (int) bytesRefLengths);
+                            BytesRef ref = new BytesRef(bytes, (int) (i * bytesRefLengths), bytesRefLengths);
                             add(BytesRef.deepCopyOf(ref));
                         }
                         return this;
@@ -995,14 +995,21 @@ public class TestBlock implements BlockLoader.Block {
             assert fromBlock.size() == toBlock.size();
             var values = new ArrayList<>(fromBlock.size());
             for (int i = 0; i < fromBlock.size(); i++) {
-                values.add(List.of(fromBlock.values.get(i), toBlock.values.get(i)));
+                Object f = fromBlock.values.get(i);
+                if (f == null) {
+                    values.add(null);
+                } else {
+                    values.add(List.of(f, toBlock.values.get(i)));
+                }
             }
             return new TestBlock(values);
         }
 
         @Override
         public BlockLoader.Builder appendNull() {
-            throw new UnsupportedOperationException();
+            from.appendNull();
+            to.appendNull();
+            return this;
         }
 
         @Override

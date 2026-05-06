@@ -13,7 +13,7 @@
 * [`PERCENTILE`](../../functions-operators/aggregation-functions/percentile.md)
 * [`PRESENT`](../../functions-operators/aggregation-functions/present.md) {applies_to}`stack: ga 9.2`
 * [`SAMPLE`](../../functions-operators/aggregation-functions/sample.md) {applies_to}`stack: ga 9.1`
-* [`SPARKLINE`](../../functions-operators/aggregation-functions/sparkline.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
+* [`SPARKLINE`](../../functions-operators/aggregation-functions/sparkline.md) {applies_to}`stack: preview 9.5` {applies_to}`serverless: preview`
 * [`ST_CENTROID_AGG`](../../functions-operators/aggregation-functions/st_centroid_agg.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`ST_EXTENT_AGG`](../../functions-operators/aggregation-functions/st_extent_agg.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`STD_DEV`](../../functions-operators/aggregation-functions/std_dev.md)

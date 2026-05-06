@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.parquet.io.SeekableInputStream;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -17,6 +20,8 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
 
 /**
  * Adapter that wraps a StorageObject to implement Parquet's InputFile interface.
@@ -30,11 +35,29 @@ import java.util.NavigableMap;
  * </ul>
  */
 public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputFile {
+    private static final Logger logger = LogManager.getLogger(ParquetStorageObjectAdapter.class);
 
     private final StorageObject storageObject;
     private final long length;
+    private final FooterByteCache.Key cacheKey;
     private final int windowSize;
-    private volatile NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> prefetchedChunks;
+
+    /**
+     * Optional pre-warmed cache installed before {@code RowGroupFilter} runs. When set, reads
+     * whose byte ranges fall inside a pre-fetched chunk are served from memory, bypassing the
+     * synchronous range-GET path of the sliding window. This is used to coalesce dictionary
+     * page and bloom filter reads for predicate columns into a single batched async fetch
+     * instead of issuing one synchronous S3 GET per row group.
+     *
+     * <p>Installed and cleared via {@link #installPreWarmedChunks}. Each
+     * {@link WindowedSeekableInputStream} re-reads this {@code volatile} field on every cache-miss
+     * fetch, so an install or clear takes effect immediately even for streams that were already
+     * open when the install happened — which matters because parquet-mr opens the file's
+     * {@code SeekableInputStream} during {@code ParquetFileReader.open}, before the caller has had
+     * a chance to install the cache. The map itself is expected to be unmodifiable (see
+     * {@link PreloadedRowGroupMetadata#preWarmedChunks()}).
+     */
+    private volatile NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks;
 
     /** Default window size (4MB) for the sliding range cache. */
     static final int DEFAULT_WINDOW_SIZE = 4 * 1024 * 1024;
@@ -72,19 +95,11 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path() + "]", e);
         }
+        this.cacheKey = FooterByteCache.Key.keyFor(storageObject, this.length);
     }
 
-    /**
-     * Installs prefetched column chunk data that existing streams will consult before issuing I/O.
-     * Thread-safe: uses volatile write; streams read this field on every {@code fetchWindowAt} call
-     * so data installed after the stream was opened is still visible.
-     */
-    void installPrefetchedData(NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks) {
-        this.prefetchedChunks = chunks;
-    }
-
-    void clearPrefetchedData() {
-        this.prefetchedChunks = null;
+    static void clearFooterCacheForTests() {
+        FooterByteCache.getInstance().invalidateAll();
     }
 
     @Override
@@ -94,7 +109,31 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
     @Override
     public SeekableInputStream newStream() throws IOException {
-        return new WindowedSeekableInputStream(storageObject, length, windowSize, this);
+        // Pass a supplier that re-reads the volatile field on every miss-path lookup. Streams
+        // opened before {@link #installPreWarmedChunks} (notably the one parquet-mr opens at
+        // {@code ParquetFileReader.open}) must still observe a later install, otherwise the
+        // pre-warm optimization would be silently bypassed.
+        return new WindowedSeekableInputStream(storageObject, cacheKey, length, windowSize, this::currentPreWarmedChunks);
+    }
+
+    private NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> currentPreWarmedChunks() {
+        return preWarmedChunks;
+    }
+
+    /**
+     * Installs a pre-warmed cache of byte ranges that subsequent {@link WindowedSeekableInputStream}
+     * reads will consult before falling back to range-GET I/O. Intended for one-shot use during
+     * {@code computeSurvivingRowGroups()}: the caller batches dictionary/bloom byte ranges via
+     * {@link CoalescedRangeReader} and installs the result here, so parquet-mr's per-row-group
+     * dictionary and bloom reads are served from memory instead of issuing N synchronous GETs.
+     *
+     * <p>Already-open streams observe the new map immediately on their next cache-miss fetch
+     * because they re-read the {@code volatile} field through a supplier. Pass {@code null} or
+     * an empty map to disable. Safe to call from a different thread than {@link #newStream()}
+     * thanks to the {@code volatile} field, though typical usage is single-threaded.
+     */
+    void installPreWarmedChunks(NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks) {
+        this.preWarmedChunks = (chunks == null || chunks.isEmpty()) ? null : chunks;
     }
 
     /**
@@ -115,22 +154,38 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         private static final int STREAM_READ_CHUNK_SIZE = 256 * 1024;
 
         private final StorageObject storageObject;
+        private final FooterByteCache.Key cacheKey;
         private final long length;
         private final int windowSize;
         private final byte[] window;
-        private final ParquetStorageObjectAdapter adapter;
+
+        /**
+         * Supplier that returns the adapter's current pre-warmed chunks map (or {@code null}).
+         * Re-read on every miss-path lookup so installs/clears that happen <em>after</em> this
+         * stream was created take effect immediately. This is essential because parquet-mr opens
+         * its single file stream during file open, before the caller has had a chance to install
+         * the pre-warm map. The cost is one volatile read per cache-miss.
+         */
+        private final Supplier<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> preWarmedChunksSupplier;
 
         private long windowStart;
         private int windowLength;
         private long position;
         private boolean closed;
 
-        WindowedSeekableInputStream(StorageObject storageObject, long length, int windowSize, ParquetStorageObjectAdapter adapter) {
+        WindowedSeekableInputStream(
+            StorageObject storageObject,
+            FooterByteCache.Key cacheKey,
+            long length,
+            int windowSize,
+            Supplier<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> preWarmedChunksSupplier
+        ) {
             this.storageObject = storageObject;
+            this.cacheKey = cacheKey;
             this.length = length;
             this.windowSize = windowSize;
             this.window = new byte[windowSize];
-            this.adapter = adapter;
+            this.preWarmedChunksSupplier = preWarmedChunksSupplier;
             this.windowStart = -1;
             this.windowLength = 0;
             this.position = 0;
@@ -172,8 +227,25 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 return;
             }
 
-            if (tryFillFromPrefetched(pos, (int) toRead)) {
+            if (fillFromPreWarmedChunk(pos, (int) toRead)) {
                 return;
+            }
+
+            FooterByteCache tailCache = FooterByteCache.getInstance();
+            if (fillFromTailCache(tailCache, pos, (int) toRead)) {
+                return;
+            }
+
+            boolean isTailRead = pos + toRead == length;
+            if (isTailRead && toRead <= tailCache.maxEntryBytes()) {
+                try {
+                    byte[] tailBytes = tailCache.getOrLoad(cacheKey, k -> readTailBytes(pos, (int) toRead));
+                    if (tailBytes.length > 0 && fillFromCachedTail(tailBytes, pos, (int) toRead)) {
+                        return;
+                    }
+                } catch (ExecutionException e) {
+                    logger.debug("footer cache load failed; retrying direct I/O", e.getCause());
+                }
             }
 
             windowStart = -1;
@@ -198,19 +270,52 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 windowStart = pos;
                 windowLength = totalRead;
             }
+
+            if (windowLength > 0 && windowStart + windowLength == length) {
+                byte[] tailBytes = new byte[windowLength];
+                System.arraycopy(window, 0, tailBytes, 0, windowLength);
+                tailCache.put(cacheKey, tailBytes);
+            }
+        }
+
+        private byte[] readTailBytes(long pos, int toRead) throws IOException {
+            byte[] buf = new byte[toRead];
+            try (InputStream in = storageObject.newStream(pos, toRead)) {
+                int totalRead = 0;
+                while (totalRead < toRead) {
+                    int chunk = Math.min(STREAM_READ_CHUNK_SIZE, toRead - totalRead);
+                    int n = in.read(buf, totalRead, chunk);
+                    if (n < 0) {
+                        break;
+                    }
+                    totalRead += n;
+                }
+                if (totalRead <= 0) {
+                    return new byte[0];
+                }
+                if (totalRead == toRead) {
+                    return buf;
+                }
+                byte[] result = new byte[totalRead];
+                System.arraycopy(buf, 0, result, 0, totalRead);
+                return result;
+            }
+        }
+
+        private boolean fillFromTailCache(FooterByteCache tailCache, long pos, int toRead) {
+            byte[] cached = tailCache.get(cacheKey);
+            return cached != null && fillFromCachedTail(cached, pos, toRead);
         }
 
         /**
-         * Tries to fill the window from prefetched column chunk data. Finds the chunk whose
-         * range contains the requested position and copies as many bytes as available into the
-         * window buffer. Allows partial fills — the prefetched chunk does not need to cover
-         * the full window size, just the start position.
-         *
-         * @return true if at least some data was filled from prefetched data
+         * Promotes a pre-warmed chunk into the window buffer when the request offset falls inside
+         * one. Copies up to {@code toRead} bytes from the chunk into the window so subsequent
+         * {@link #read(byte[], int, int)} calls observe the same window-based code path. Returns
+         * {@code false} when no chunk covers the position; callers must then perform real I/O.
          */
-        private boolean tryFillFromPrefetched(long pos, int toRead) {
-            NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = adapter.prefetchedChunks;
-            if (chunks == null || chunks.isEmpty()) {
+        private boolean fillFromPreWarmedChunk(long pos, int toRead) {
+            NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = preWarmedChunksSupplier.get();
+            if (chunks == null) {
                 return false;
             }
             Map.Entry<Long, ColumnChunkPrefetcher.PrefetchedChunk> entry = chunks.floorEntry(pos);
@@ -218,20 +323,47 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 return false;
             }
             ColumnChunkPrefetcher.PrefetchedChunk chunk = entry.getValue();
-            if (pos < chunk.offset() || pos >= chunk.offset() + chunk.length()) {
+            long chunkEnd = chunk.offset() + chunk.length();
+            if (pos >= chunkEnd) {
                 return false;
             }
-            int offsetInChunk = (int) (pos - chunk.offset());
-            ByteBuffer src = chunk.data().duplicate();
-            src.position(offsetInChunk);
-            int available = src.remaining();
-            int toCopy = Math.min(toRead, available);
+            long availableInChunk = chunkEnd - pos;
+            int copyLen = (int) Math.min(toRead, availableInChunk);
+
+            // Defensive: chunk lengths in CoalescedRangeReader are int-bounded, so the offset
+            // within the chunk must also fit. Falling back to range I/O on overflow is safer
+            // than silently truncating the cast.
+            int offsetInChunk;
+            try {
+                offsetInChunk = Math.toIntExact(pos - chunk.offset());
+            } catch (ArithmeticException e) {
+                return false;
+            }
+
+            // Invalidate before mutating — partial copies must never leave a half-populated window
+            // visible if a later step throws. Copying from a heap ByteBuffer slice is allocation-free.
             windowStart = -1;
             windowLength = 0;
-            src.get(window, 0, toCopy);
+            ByteBuffer src = chunk.data().duplicate();
+            src.position(src.position() + offsetInChunk);
+            src.get(window, 0, copyLen);
             windowStart = pos;
-            windowLength = toCopy;
+            windowLength = copyLen;
             return true;
+        }
+
+        private boolean fillFromCachedTail(byte[] cached, long pos, int toRead) {
+            long cachedStart = length - cached.length;
+            if (pos >= cachedStart && pos + toRead <= length) {
+                int from = (int) (pos - cachedStart);
+                windowStart = -1;
+                windowLength = 0;
+                System.arraycopy(cached, from, window, 0, toRead);
+                windowStart = pos;
+                windowLength = toRead;
+                return true;
+            }
+            return false;
         }
 
         private void ensureWindow() throws IOException {

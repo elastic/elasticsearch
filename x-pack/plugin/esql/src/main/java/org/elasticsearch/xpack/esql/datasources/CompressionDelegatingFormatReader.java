@@ -87,6 +87,14 @@ final class CompressionDelegatingFormatReader implements FormatReader {
         return configured == inner ? this : new CompressionDelegatingFormatReader(configured, codec);
     }
 
+    FormatReader unwrap() {
+        return inner;
+    }
+
+    DecompressionCodec codec() {
+        return codec;
+    }
+
     @Override
     public void close() throws IOException {
         inner.close();

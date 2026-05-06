@@ -39,15 +39,19 @@ import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.NavigableMap;
 import java.util.Random;
-import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ParquetStorageObjectAdapterTests extends ESTestCase {
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
+    }
 
     public void testNullStorageObjectThrowsException() {
         QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class, () -> new ParquetStorageObjectAdapter(null));
@@ -577,7 +581,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             stream.seek(tailStart);
             stream.readFully(second);
         }
-        assertEquals(2, rangeReadCount[0]);
+        // Second tail read is served from the JVM-wide FooterByteCache — no additional range read
+        assertEquals(1, rangeReadCount[0]);
         assertArrayEquals(first, second);
     }
 
@@ -833,136 +838,6 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
                 return StoragePath.of("memory://test.parquet");
             }
         };
-    }
-
-    public void testPrefetchedDataServedFromMemory() throws IOException {
-        byte[] data = new byte[2048];
-        randomBytes(data);
-        AtomicInteger rangeStreamOpens = new AtomicInteger();
-        StorageObject tracked = new StorageObject() {
-            @Override
-            public InputStream newStream() {
-                return new ByteArrayInputStream(data);
-            }
-
-            @Override
-            public InputStream newStream(long position, long length) {
-                rangeStreamOpens.incrementAndGet();
-                return new ByteArrayInputStream(data, (int) position, (int) length);
-            }
-
-            @Override
-            public long length() {
-                return data.length;
-            }
-
-            @Override
-            public Instant lastModified() {
-                return Instant.now();
-            }
-
-            @Override
-            public boolean exists() {
-                return true;
-            }
-
-            @Override
-            public StoragePath path() {
-                return StoragePath.of("memory://prefetch-test.parquet");
-            }
-        };
-
-        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(tracked);
-        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new TreeMap<>();
-        int chunkLen = data.length - 100;
-        ByteBuffer prefetchedBuf = ByteBuffer.wrap(data, 100, chunkLen);
-        chunks.put(100L, new ColumnChunkPrefetcher.PrefetchedChunk(100, chunkLen, prefetchedBuf.slice()));
-        adapter.installPrefetchedData(chunks);
-
-        rangeStreamOpens.set(0);
-        try (SeekableInputStream stream = adapter.newStream()) {
-            stream.seek(100);
-            byte[] result = new byte[100];
-            stream.readFully(result);
-            for (int i = 0; i < result.length; i++) {
-                assertEquals(data[100 + i], result[i]);
-            }
-        }
-        assertEquals(0, rangeStreamOpens.get());
-    }
-
-    public void testPrefetchedDataFallbackOnMiss() throws IOException {
-        byte[] data = new byte[2048];
-        randomBytes(data);
-        StorageObject storage = createRangeReadStorageObject(data);
-        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage);
-
-        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new TreeMap<>();
-        ByteBuffer prefetchedBuf = ByteBuffer.wrap(data, 100, 200);
-        chunks.put(100L, new ColumnChunkPrefetcher.PrefetchedChunk(100, 200, prefetchedBuf.slice()));
-        adapter.installPrefetchedData(chunks);
-
-        try (SeekableInputStream stream = adapter.newStream()) {
-            stream.seek(500);
-            byte[] result = new byte[100];
-            stream.readFully(result);
-            for (int i = 0; i < result.length; i++) {
-                assertEquals(data[500 + i], result[i]);
-            }
-        }
-    }
-
-    public void testClearPrefetchedData() throws IOException {
-        byte[] data = new byte[2048];
-        randomBytes(data);
-        AtomicInteger rangeStreamOpens = new AtomicInteger();
-        StorageObject tracked = new StorageObject() {
-            @Override
-            public InputStream newStream() {
-                return new ByteArrayInputStream(data);
-            }
-
-            @Override
-            public InputStream newStream(long position, long length) {
-                rangeStreamOpens.incrementAndGet();
-                return new ByteArrayInputStream(data, (int) position, (int) length);
-            }
-
-            @Override
-            public long length() {
-                return data.length;
-            }
-
-            @Override
-            public Instant lastModified() {
-                return Instant.now();
-            }
-
-            @Override
-            public boolean exists() {
-                return true;
-            }
-
-            @Override
-            public StoragePath path() {
-                return StoragePath.of("memory://clear-test.parquet");
-            }
-        };
-
-        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(tracked);
-        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new TreeMap<>();
-        ByteBuffer buf = ByteBuffer.wrap(data, 100, 500);
-        chunks.put(100L, new ColumnChunkPrefetcher.PrefetchedChunk(100, 500, buf.slice()));
-        adapter.installPrefetchedData(chunks);
-        adapter.clearPrefetchedData();
-
-        rangeStreamOpens.set(0);
-        try (SeekableInputStream stream = adapter.newStream()) {
-            stream.seek(100);
-            byte[] result = new byte[100];
-            stream.readFully(result);
-        }
-        assertTrue(rangeStreamOpens.get() > 0);
     }
 
     public void testNoPrefetchedDataDoesNotAffectBaseline() throws IOException {
@@ -1250,7 +1125,8 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             s.readFully(w);
             assertArrayEquals(expected, w);
         }
-        assertEquals("Second adapter should issue its own tail range read", 2, rangeReadCount[0]);
+        // Both adapters share the same (path, length) cache key, so the second read is a cache hit
+        assertEquals("FooterByteCache coalesces reads for same path+length", 1, rangeReadCount[0]);
     }
 
     /**
@@ -1337,7 +1213,9 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
         if (failure != null) {
             throw failure;
         }
-        assertEquals("Each of 8 concurrent tail reads should open its own range stream", 8, rangeReadCount.get());
+        // FooterByteCache provides thundering-herd protection: concurrent tail reads for the same
+        // (path, length) coalesce into a single I/O via Cache.computeIfAbsent
+        assertEquals("FooterByteCache should coalesce concurrent tail reads into one range read", 1, rangeReadCount.get());
     }
 
     /**
@@ -1494,6 +1372,220 @@ public class ParquetStorageObjectAdapterTests extends ESTestCase {
             }
         }
         return out.toByteArray();
+    }
+
+    // --- Pre-warmed chunk cache tests ---
+
+    /**
+     * Reads that fall entirely inside a pre-warmed chunk must be served from memory; the
+     * StorageObject must observe zero range GETs for those bytes.
+     */
+    public void testPreWarmedChunkServesReadFromMemory() throws IOException {
+        byte[] data = new byte[1024];
+        randomBytes(data);
+        AtomicInteger rangeReadCount = new AtomicInteger();
+        StorageObject storage = createCountingRangeReadStorageObject(data, rangeReadCount);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage);
+
+        // Pre-warm the [200, 400) range.
+        java.util.NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new java.util.TreeMap<>();
+        ByteBuffer warm = ByteBuffer.wrap(data, 200, 200).slice();
+        chunks.put(200L, new ColumnChunkPrefetcher.PrefetchedChunk(200L, 200L, warm));
+        adapter.installPreWarmedChunks(chunks);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.seek(200);
+            byte[] result = new byte[200];
+            stream.readFully(result);
+            for (int i = 0; i < 200; i++) {
+                assertEquals("Mismatch at " + i, data[200 + i], result[i]);
+            }
+        }
+        assertEquals("Pre-warmed read must not issue any range GETs", 0, rangeReadCount.get());
+    }
+
+    /**
+     * When a position falls outside any pre-warmed chunk, the stream must fall back to the normal
+     * range read path so correctness is preserved even with a pre-warm cache installed.
+     */
+    public void testReadOutsidePreWarmedChunkFallsBackToIO() throws IOException {
+        byte[] data = new byte[2048];
+        randomBytes(data);
+        AtomicInteger rangeReadCount = new AtomicInteger();
+        StorageObject storage = createCountingRangeReadStorageObject(data, rangeReadCount);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage);
+
+        // Pre-warm the [100, 200) range only.
+        java.util.NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new java.util.TreeMap<>();
+        ByteBuffer warm = ByteBuffer.wrap(data, 100, 100).slice();
+        chunks.put(100L, new ColumnChunkPrefetcher.PrefetchedChunk(100L, 100L, warm));
+        adapter.installPreWarmedChunks(chunks);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            // Read inside pre-warm.
+            stream.seek(120);
+            byte[] inside = new byte[40];
+            stream.readFully(inside);
+            for (int i = 0; i < 40; i++) {
+                assertEquals(data[120 + i], inside[i]);
+            }
+            // Read outside pre-warm — must hit storage.
+            stream.seek(1500);
+            byte[] outside = new byte[100];
+            stream.readFully(outside);
+            for (int i = 0; i < 100; i++) {
+                assertEquals(data[1500 + i], outside[i]);
+            }
+        }
+        assertEquals("Read outside the pre-warmed range must trigger a single range GET", 1, rangeReadCount.get());
+    }
+
+    /**
+     * Already-open streams must observe a pre-warm install that happens after their construction.
+     * This matches the production wiring: parquet-mr opens the file's {@code SeekableInputStream}
+     * during {@code ParquetFileReader.open}, before the caller has had a chance to install the
+     * pre-warm map; without this property the optimization would be silently bypassed.
+     */
+    public void testInstallAfterStreamOpenAffectsAlreadyOpenStream() throws IOException {
+        byte[] data = new byte[1024];
+        randomBytes(data);
+        AtomicInteger rangeReadCount = new AtomicInteger();
+        StorageObject storage = createCountingRangeReadStorageObject(data, rangeReadCount);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            // Install the pre-warm map AFTER the stream was opened — same shape as production.
+            java.util.NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new java.util.TreeMap<>();
+            ByteBuffer warm = ByteBuffer.wrap(data, 0, 256).slice();
+            chunks.put(0L, new ColumnChunkPrefetcher.PrefetchedChunk(0L, 256L, warm));
+            adapter.installPreWarmedChunks(chunks);
+
+            byte[] result = new byte[256];
+            stream.readFully(result);
+            for (int i = 0; i < 256; i++) {
+                assertEquals(data[i], result[i]);
+            }
+        }
+        assertEquals("Already-open stream must observe the post-construction install", 0, rangeReadCount.get());
+    }
+
+    /**
+     * A clear that happens after the open stream consumed the pre-warmed bytes must still allow
+     * subsequent reads to hit storage when needed. This guards the production sequence of
+     * install → row-group filter → clear.
+     */
+    public void testClearAfterUseFallsBackToStorage() throws IOException {
+        byte[] data = new byte[2048];
+        randomBytes(data);
+        AtomicInteger rangeReadCount = new AtomicInteger();
+        StorageObject storage = createCountingRangeReadStorageObject(data, rangeReadCount);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage);
+
+        java.util.NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new java.util.TreeMap<>();
+        ByteBuffer warm = ByteBuffer.wrap(data, 0, 256).slice();
+        chunks.put(0L, new ColumnChunkPrefetcher.PrefetchedChunk(0L, 256L, warm));
+        adapter.installPreWarmedChunks(chunks);
+
+        try (SeekableInputStream stream = adapter.newStream()) {
+            byte[] warmBuf = new byte[256];
+            stream.readFully(warmBuf);
+            assertEquals(0, rangeReadCount.get());
+
+            adapter.installPreWarmedChunks(null);
+
+            stream.seek(1024);
+            byte[] coldBuf = new byte[256];
+            stream.readFully(coldBuf);
+            for (int i = 0; i < 256; i++) {
+                assertEquals(data[1024 + i], coldBuf[i]);
+            }
+            assertEquals("After clearing, reads outside the (now-detached) cache must hit storage", 1, rangeReadCount.get());
+        }
+    }
+
+    /**
+     * Streams created after an install observe the new map; streams created after a clear go
+     * straight to the storage backend.
+     */
+    public void testInstallNullDisablesPreWarmForNewStreams() throws IOException {
+        byte[] data = new byte[1024];
+        randomBytes(data);
+        AtomicInteger rangeReadCount = new AtomicInteger();
+        StorageObject storage = createCountingRangeReadStorageObject(data, rangeReadCount);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage);
+
+        java.util.NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = new java.util.TreeMap<>();
+        ByteBuffer warm = ByteBuffer.wrap(data, 0, 256).slice();
+        chunks.put(0L, new ColumnChunkPrefetcher.PrefetchedChunk(0L, 256L, warm));
+        adapter.installPreWarmedChunks(chunks);
+        adapter.installPreWarmedChunks(null);
+
+        byte[] result = new byte[256];
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.readFully(result);
+            for (int i = 0; i < 256; i++) {
+                assertEquals(data[i], result[i]);
+            }
+        }
+        assertEquals("Stream created after clear must use real I/O", 1, rangeReadCount.get());
+    }
+
+    /**
+     * Empty maps are treated identically to {@code null}: the cache is left disabled. This
+     * matches the production wiring where {@link PreloadedRowGroupMetadata} returns an empty map
+     * when no predicate columns were supplied.
+     */
+    public void testInstallEmptyMapTreatedAsCleared() throws IOException {
+        byte[] data = new byte[256];
+        randomBytes(data);
+        AtomicInteger rangeReadCount = new AtomicInteger();
+        StorageObject storage = createCountingRangeReadStorageObject(data, rangeReadCount);
+        ParquetStorageObjectAdapter adapter = new ParquetStorageObjectAdapter(storage);
+
+        adapter.installPreWarmedChunks(new java.util.TreeMap<>());
+
+        byte[] result = new byte[256];
+        try (SeekableInputStream stream = adapter.newStream()) {
+            stream.readFully(result);
+        }
+        assertEquals("Empty map must not enable the pre-warm fast path", 1, rangeReadCount.get());
+    }
+
+    private StorageObject createCountingRangeReadStorageObject(byte[] data, AtomicInteger counter) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException("Full GET not supported in counting harness");
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                counter.incrementAndGet();
+                int pos = (int) position;
+                int len = (int) Math.min(length, data.length - position);
+                return new ByteArrayInputStream(data, pos, len);
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.ofEpochMilli(0);
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://prewarm-test.parquet");
+            }
+        };
     }
 
     private static OutputFile createOutputFile(ByteArrayOutputStream out) {

@@ -570,7 +570,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         assertThat(
             e.getMessage(),
             equalTo(
-                "Cannot send non-text or multiple inputs to a remote cluster that does not support it. "
+                "Cannot send non-text or multiple inputs to remote cluster [remote-cluster] that does not support it. "
                     + "Please update the remote cluster to at least "
                     + GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV.toReleaseVersion()
             )

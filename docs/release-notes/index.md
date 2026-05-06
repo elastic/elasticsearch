@@ -185,16 +185,17 @@ The average was selected because in most cases it is a more representative signa
 operations such as `max`, `min`, `sum`, `avg`, and `count` will be supported natively by the respective sub-fields.
 
 For example, the following query is now supported where `network.eth0.tx` is a an `aggregate_metric_double`:
-```text
-  FROM k8s-downsampled
-  | STATS max = max(network.eth0.tx), std_dev = STD_DEV(network.eth0.tx) by pod
-  | sort pod
-
-  max:double | std_dev:double | pod:keyword
-  1060.0     | 275.6970067    | one
-  824.0      | 184.1213952    | three
-  1419.0     | 356.9865993    | two
+```esql
+FROM k8s-downsampled
+| STATS max = max(network.eth0.tx), std_dev = STD_DEV(network.eth0.tx) by pod
+| sort pod
 ```
+Response:
+
+max:double | std_dev:double | pod:keyword
+1060.0     | 275.6970067    | one
+824.0      | 184.1213952    | three
+1419.0     | 356.9865993    | two
 ::::
 
 ### Features and enhancements [elasticsearch-9.4.0-features-enhancements]

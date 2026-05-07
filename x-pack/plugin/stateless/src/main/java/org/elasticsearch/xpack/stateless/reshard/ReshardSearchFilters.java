@@ -72,6 +72,8 @@ public class ReshardSearchFilters {
         assert currentIndexMetadata.getNumberOfShards() >= relocatedReshardingMetadata.shardCountAfter();
         if (currentIndexMetadata.getNumberOfShards() > relocatedReshardingMetadata.shardCountAfter()) {
             builder = builder.reshardRemoveShards(relocatedReshardingMetadata.shardCountAfter());
+        } else if (currentIndexMetadata.getNumberOfShards() < relocatedReshardingMetadata.shardCountAfter()) {
+            throw new IllegalStateException("Number of shards decreased over time");
         }
 
         return builder.reshardingMetadata(relocatedReshardingMetadata).build();

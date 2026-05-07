@@ -374,7 +374,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isTsOutputChangedError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isForkWithSortBranchBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isForkWithSortBranchBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isForkTopNIndexOutOfBoundsBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isForkOptimizedIncorrectlyBug(ctx.normalizedErrorMessage, ctx.query), };
 
     private static boolean isAllowedFailure(FailureContext ctx) {
         if (ctx == null || ctx.errorMessage == null) {
@@ -777,12 +779,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return trimmed.startsWith("TS ");
     }
 
+    /**
+     * Matches the FORK pipeline command (a {@code |} followed by the FORK keyword)
+     */
+    private static final Pattern FORK_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*FORK\\b");
+
     // https://github.com/elastic/elasticsearch/issues/147603
     static boolean isUnsupportedTypeAfterForkError(String errorMessage, String query) {
         if (query == null || UNSUPPORTED_TYPE_AFTER_FORK_PATTERN.matcher(errorMessage).matches() == false) {
             return false;
         }
-        return query.toUpperCase(Locale.ROOT).contains("FORK");
+        return FORK_COMMAND_PATTERN.matcher(query).find();
     }
 
     private static final Pattern OPTIMIZED_INCORRECTLY_ORDERBY_PATTERN = Pattern.compile(
@@ -810,8 +817,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      *       {@code BytesRefArrayBlock} cast to {@code IntBlock}) downstream of the FORK
      *       — see <a href="https://github.com/elastic/elasticsearch/issues/148386">#148386</a></li>
      * </ul>
-     * Gated on the query containing a FORK command with at least one branch that uses SORT, to
-     * avoid masking unrelated regressions.
      */
     static boolean isForkWithSortBranchBug(String errorMessage, String query) {
         if (errorMessage == null || query == null) {
@@ -822,6 +827,42 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return FORK_WITH_SORT_BRANCH_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern ARRAY_INDEX_OUT_OF_BOUNDS_PATTERN = Pattern.compile(
+        ".*array_index_out_of_bounds_exception.*Index \\d+ out of bounds for length \\d+.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/148475
+     */
+    static boolean isForkTopNIndexOutOfBoundsBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (ARRAY_INDEX_OUT_OF_BOUNDS_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return FORK_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern OPTIMIZED_INCORRECTLY_PATTERN = Pattern.compile(
+        ".*optimized incorrectly due to missing references.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/138231
+     */
+    static boolean isForkOptimizedIncorrectlyBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return FORK_COMMAND_PATTERN.matcher(query).find();
     }
 
     @Override

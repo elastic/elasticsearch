@@ -34,11 +34,15 @@ public final class PitReaderContext extends ReaderContext {
     @Override
     public boolean isExpired() {
         if (isRelocating()) {
-            // Only for PIT contexts that are relocating away. We don't want to close immediately to
-            // prevent running searches from failing. Refcounting via #markAsUsed protects against this
-            // while search phases are running, but we also need to protect against closing too soon during
-            // phase transitions. The grace period is long enough to allow for search phase transitions
-            // of running searches before they complete.
+            if (hasOutstandingRefs()) {
+                return false; // there are outstanding users so can't expire
+            }
+
+            // Otherwise we don't want to wait for keepalive since we are relocated.
+            // However, we don't want to close immediately to prevent running searches from failing.
+            // Refcounting via #markAsUsed protects against this while search phases are running,
+            // but we also need to protect against closing too soon during phase transitions.
+            // The grace period is long enough to allow for search phase transitions of running searches before they complete.
             return nowInMillis() - relocatedTimestampMs > CONTEXT_RELOCATION_GRACE_TIME_MS;
         }
 

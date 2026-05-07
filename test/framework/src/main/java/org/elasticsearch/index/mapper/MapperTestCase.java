@@ -2187,4 +2187,72 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             assertThat(mapperService.fieldType("field").indexType(), equalTo(IndexType.skippers()));
         }
     }
+
+    /**
+     * Whether this mapper exposes the {@code doc_values.multi_value} sub-parameter. Override and return {@code true} for mappers that
+     * participate in single-value enforcement; also override {@link #expectedSingleValuedDocValuesType()} to declare the Lucene doc-values
+     * type produced when {@code multi_value=false}.
+     */
+    protected boolean supportsMultiValueParameter() {
+        return false;
+    }
+
+    /**
+     * The Lucene {@link DocValuesType} produced for a single-valued field (i.e. {@code multi_value=false}). Override when
+     * {@link #supportsMultiValueParameter()} returns {@code true}.
+     */
+    protected DocValuesType expectedSingleValuedDocValuesType() {
+        throw new UnsupportedOperationException(
+            "Override expectedSingleValuedDocValuesType() when supportsMultiValueParameter() returns true"
+        );
+    }
+
+    public void testMultiValueFalseAcceptsSingleValue() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+        assertEquals(1, doc.rootDoc().getFields("field").stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count());
+    }
+
+    public void testMultiValueFalseRejectsArray() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+        }));
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
+            () -> mapper.parse(source(b -> b.array("field", getSampleValueForDocument(), getSampleValueForDocument())))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
+        );
+    }
+
+    public void testMultiValueFalseUsesSingleValuedDocValues() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        assumeTrue("supports doc_values multi_value parameter", supportsMultiValueParameter());
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("doc_values").field("multi_value", false).endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertFalse("expected at least one indexable field for [field]", fields.isEmpty());
+        boolean hasDocValuesField = false;
+        for (IndexableField f : fields) {
+            DocValuesType dvType = f.fieldType().docValuesType();
+            if (dvType != DocValuesType.NONE) {
+                hasDocValuesField = true;
+                assertEquals("multi_value=false must use single-valued doc values type", expectedSingleValuedDocValuesType(), dvType);
+            }
+        }
+        assertTrue("expected a doc values field for [field]", hasDocValuesField);
+    }
 }

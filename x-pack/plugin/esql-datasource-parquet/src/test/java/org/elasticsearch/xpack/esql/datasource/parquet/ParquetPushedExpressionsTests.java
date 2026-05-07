@@ -19,8 +19,10 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -332,6 +334,91 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     public void testPredicateColumnNamesEmpty() {
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of());
         assertEquals(Set.of(), pushed.predicateColumnNames());
+    }
+
+    // --- hasYesConjunctOutsideFilterPredicate tests ---
+    //
+    // Important: these tests exist because the Pushability.YES promotion of WildcardLike (commit
+    // that added testWildcardLikeKeywordPushedAsYes etc.) introduced a latent bug where the
+    // OptimizedParquetColumnIterator's trivially-passes shortcut would silently bypass late-mat
+    // for row groups whose stats prove the (non-LIKE) FilterPredicate, leaking rows that don't
+    // match the LIKE conjunct (FilterExec was dropped for it). The fix relies on this method
+    // returning true exactly when there is a YES conjunct outside the FilterPredicate. DO NOT
+    // weaken these tests — they are the unit-level guard for the integration regression test
+    // OptimizedFilteredReaderTests.testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak.
+
+    public void testHasYesConjunctOutsideFilterPredicateLikeAlone() {
+        // Bare LIKE: YES, doesn't translate. Helper must return true.
+        MessageType schema = Types.buildMessage()
+            .required(org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("schema");
+        Expression like = new WildcardLike(Source.EMPTY, attr("url", DataType.KEYWORD), new WildcardPattern("*google*"));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(like));
+        assertTrue("bare LIKE is YES-eligible and untranslatable", pushed.hasYesConjunctOutsideFilterPredicate(schema));
+    }
+
+    public void testHasYesConjunctOutsideFilterPredicateLikeAndEquals() {
+        // The exact realistic shape that caused the trivially-passes leak: LIKE (YES, untranslatable)
+        // AND-d with a comparator (RECHECK, translatable). Helper must return true.
+        MessageType schema = Types.buildMessage()
+            .required(org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .required(INT64)
+            .named("status")
+            .named("schema");
+        Expression like = new WildcardLike(Source.EMPTY, attr("url", DataType.KEYWORD), new WildcardPattern("*google*"));
+        Expression statusEq = new Equals(Source.EMPTY, attr("status", DataType.LONG), lit(200L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(like, statusEq));
+        assertTrue("YES LIKE is silently absent from the FilterPredicate", pushed.hasYesConjunctOutsideFilterPredicate(schema));
+    }
+
+    public void testHasYesConjunctOutsideFilterPredicateAllTranslatable() {
+        // Only translatable comparators: helper must return false so the trivially-passes
+        // shortcut still fires for the common single-conjunct/all-comparator case.
+        MessageType schema = Types.buildMessage().required(INT64).named("status").named("schema");
+        Expression statusEq = new Equals(Source.EMPTY, attr("status", DataType.LONG), lit(200L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(statusEq));
+        assertFalse(
+            "all-translatable filters must still benefit from the trivially-passes shortcut",
+            pushed.hasYesConjunctOutsideFilterPredicate(schema)
+        );
+    }
+
+    public void testHasYesConjunctOutsideFilterPredicateRecheckOnlyUntranslatable() {
+        // INT96 datetime: canConvert=true but translateExpression returns null. Pushability is
+        // RECHECK (not YES) because isFullyEvaluable returns false for non-LIKE comparators —
+        // FilterExec re-applies it. The shortcut is therefore safe to take, so the helper must
+        // return false. This is the case where translatability alone would over-reject.
+        MessageType schema = Types.buildMessage().required(INT96).named("ts").named("schema");
+        Expression tsEq = new Equals(Source.EMPTY, attr("ts", DataType.DATETIME), lit(1700000000000L, DataType.DATETIME), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(tsEq));
+        assertFalse(
+            "RECHECK conjuncts that fail to translate are still safe under the shortcut " + "(FilterExec catches the over-inclusion)",
+            pushed.hasYesConjunctOutsideFilterPredicate(schema)
+        );
+    }
+
+    public void testHasYesConjunctOutsideFilterPredicateNotLike() {
+        // Not(WildcardLike) is YES-eligible per isFullyEvaluable and untranslatable. Same trap as
+        // bare LIKE: FilterExec is dropped, late-mat must run.
+        MessageType schema = Types.buildMessage()
+            .required(org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("schema");
+        Expression like = new WildcardLike(Source.EMPTY, attr("url", DataType.KEYWORD), new WildcardPattern("*google*"));
+        Expression notLike = new Not(Source.EMPTY, like);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(notLike));
+        assertTrue("Not(LIKE) is YES-eligible and untranslatable", pushed.hasYesConjunctOutsideFilterPredicate(schema));
+    }
+
+    public void testHasYesConjunctOutsideFilterPredicateEmpty() {
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of());
+        MessageType schema = Types.buildMessage().required(INT64).named("status").named("schema");
+        assertFalse("empty expression list has no YES conjuncts", pushed.hasYesConjunctOutsideFilterPredicate(schema));
     }
 
     // --- helpers ---

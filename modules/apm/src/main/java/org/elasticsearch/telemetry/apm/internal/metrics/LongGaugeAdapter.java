@@ -41,8 +41,10 @@ public class LongGaugeAdapter extends AbstractInstrument<ObservableLongGauge> im
 
     @Override
     public void close() {
-        getInstrument().close();
+        // deregister this instrument first and close the underlying one second: this avoids the setProvider() method being called in the
+        // meantime and creating a new OTel instrument that'd leak out
         deregisterFunc.accept(this);
+        getInstrument().close();
     }
 
     private static class Builder extends AbstractInstrument.Builder<ObservableLongGauge> {

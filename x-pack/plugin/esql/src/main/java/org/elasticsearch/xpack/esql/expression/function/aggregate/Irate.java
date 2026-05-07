@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
@@ -15,6 +16,7 @@ import org.elasticsearch.compute.aggregation.IrateIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.IrateLongAggregatorFunctionSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -40,8 +42,12 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Irate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TemporalityAware {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Irate", Irate::readFrom);
+public class Irate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TemporalityAware, TransportVersionAware {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "Irate_v2",
+        Irate::readFrom
+    );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Irate.class)
         .ternary(Irate::createWithImplicitTemporality)
         .name("irate");
@@ -51,6 +57,8 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
         .description("Calculates the per-second instant rate of increase based on the last two data points.")
         .example("irate(http_requests_total[5m])")
         .name("irate");
+
+    private static final TransportVersion IRATE_V2 = TransportVersion.fromName("esql_irate_v2");
 
     private final Expression timestamp;
     private final Expression temporality;
@@ -194,6 +202,15 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     public Irate withTemporality(Expression newTemporality) {
-        return new Irate(source(), field(), filter(), window(), timestamp, newTemporality);
+        return new Irate(source(), field(), filter(), window(), timestamp(), newTemporality);
+    }
+
+    @Override
+    public Expression forTransportVersion(TransportVersion minTransportVersion) {
+        if (minTransportVersion.supports(IRATE_V2) == false) {
+            // For older nodes in the cluster / CCS we need to fallback to the legacy implementation for compatibility
+            return new LegacyIrate(source(), field(), filter(), window(), timestamp(), temporality());
+        }
+        return this;
     }
 }

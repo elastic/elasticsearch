@@ -137,6 +137,7 @@ import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
+import org.elasticsearch.xpack.stateless.recovery.RelocationHandoffMetrics;
 import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
@@ -368,6 +369,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING);
             res.add(SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING);
+            res.add(SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING);
             res.add(SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING);
             res.add(SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING);
@@ -494,7 +496,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         testStatelessPlugin.statelessCommitService,
                         mock(IndexShardCacheWarmer.class),
                         testStatelessPlugin.hollowShardsService,
-                        HollowShardsMetrics.NOOP
+                        HollowShardsMetrics.NOOP,
+                        RelocationHandoffMetrics.NOOP
                     ),
                     StatelessUnpromotableRelocationAction.TYPE,
                     new TransportStatelessUnpromotableRelocationAction(
@@ -821,7 +824,13 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             );
             clusterService.addListener(snapshotsCommitService);
             this.closedShardService = new ClosedShardService();
-            this.translogReplicator = new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService);
+            this.translogReplicator = new TranslogReplicator(
+                threadPool,
+                settings,
+                objectStoreService,
+                consistencyService,
+                projectResolver.supportsMultipleProjects()
+            );
 
             hollowShardsService = mock(HollowShardsService.class);
             // Let hollowShardsService pass on mutable operation check

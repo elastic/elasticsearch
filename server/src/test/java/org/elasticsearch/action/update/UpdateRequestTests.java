@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -570,26 +571,32 @@ public class UpdateRequestTests extends ESTestCase {
         GetResult getResult = new GetResult("test", "1", UNASSIGNED_SEQ_NO, 0, 0, false, null, null, null);
         IndexRequest indexRequest = new IndexRequest("test").id("1");
 
-        // There is no routing and parent because the document doesn't exist
-        assertNull(UpdateHelper.calculateRouting(getResult, null));
+        // There is no routing anywhere
+        assertNull(UpdateHelper.calculateRouting(getResult, null, null));
 
-        // There is no routing and parent the indexing request
-        assertNull(UpdateHelper.calculateRouting(getResult, indexRequest));
+        // No routing on the inner doc request, no routing fallback
+        assertNull(UpdateHelper.calculateRouting(getResult, indexRequest, null));
 
-        // Doc exists but has no source or fields
+        // Doc exists but has no source or fields, no routing anywhere
         getResult = new GetResult("test", "1", 0, 1, 0, true, null, null, null);
+        assertNull(UpdateHelper.calculateRouting(getResult, indexRequest, null));
 
-        // There is no routing and parent on either request
-        assertNull(UpdateHelper.calculateRouting(getResult, indexRequest));
+        // Routing available only via the update request (e.g. _routing stored as doc values)
+        assertThat(UpdateHelper.calculateRouting(getResult, indexRequest, "routing1"), equalTo("routing1"));
 
         Map<String, DocumentField> fields = new HashMap<>();
         fields.put("_routing", new DocumentField("_routing", Collections.singletonList("routing1")));
 
-        // Doc exists and has the parent and routing fields
+        // Doc exists and has the routing stored field — stored field wins over request routing
         getResult = new GetResult("test", "1", 0, 1, 0, true, null, fields, null);
+        assertThat(UpdateHelper.calculateRouting(getResult, indexRequest, null), equalTo("routing1"));
+        assertThat(UpdateHelper.calculateRouting(getResult, indexRequest, "other"), equalTo("routing1"));
 
         // Use the get result parent and routing
-        assertThat(UpdateHelper.calculateRouting(getResult, indexRequest), equalTo("routing1"));
+        assertThat(UpdateHelper.calculateRouting(getResult, indexRequest, null), equalTo("routing1"));
+        // Inner doc request routing takes highest priority
+        IndexRequest routedIndexRequest = new IndexRequest("test").id("1").routing("doc-routing");
+        assertThat(UpdateHelper.calculateRouting(getResult, routedIndexRequest, "request-routing"), equalTo("doc-routing"));
     }
 
     public void testNoopDetection() throws Exception {
@@ -601,13 +608,13 @@ public class UpdateRequestTests extends ESTestCase {
             request = new UpdateRequest("test", "1").fromXContent(parser);
         }
         UpdateHelper updateHelper = new UpdateHelper(mock(ScriptService.class));
-        UpdateHelper.Result result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, true);
+        UpdateHelper.Result result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, true, false);
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
 
         // Try again, with detectNoop turned off
-        result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, false);
+        result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, false, false);
         assertThat(result.action(), instanceOf(IndexRequest.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
         assertThat(result.updatedSourceAsMap().get("body").toString(), equalTo("foo"));
@@ -615,7 +622,7 @@ public class UpdateRequestTests extends ESTestCase {
         try (var parser = createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"bar\"}}"))) {
             // Change the request to be a different doc
             request = new UpdateRequest("test", "1").fromXContent(parser);
-            result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, true);
+            result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, true, false);
 
             assertThat(result.action(), instanceOf(IndexRequest.class));
             assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
@@ -634,7 +641,8 @@ public class UpdateRequestTests extends ESTestCase {
             indexShard,
             request,
             getResult,
-            ESTestCase::randomNonNegativeLong
+            ESTestCase::randomNonNegativeLong,
+            false
         );
 
         assertThat(result.action(), instanceOf(IndexRequest.class));
@@ -644,7 +652,7 @@ public class UpdateRequestTests extends ESTestCase {
         // Now where the script changes the op to "delete"
         request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = 'delete'"));
 
-        result = updateHelper.prepareUpdateScriptRequest(indexShard, request, getResult, ESTestCase::randomNonNegativeLong);
+        result = updateHelper.prepareUpdateScriptRequest(indexShard, request, getResult, ESTestCase::randomNonNegativeLong, false);
 
         assertThat(result.action(), instanceOf(DeleteRequest.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.DELETED));
@@ -657,10 +665,49 @@ public class UpdateRequestTests extends ESTestCase {
             request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = 'bad'"));
         }
 
-        result = updateHelper.prepareUpdateScriptRequest(indexShard, request, getResult, ESTestCase::randomNonNegativeLong);
+        result = updateHelper.prepareUpdateScriptRequest(indexShard, request, getResult, ESTestCase::randomNonNegativeLong, false);
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
+    }
+
+    public void testRoutingFromSlicePropagatesToGeneratedWriteRequests() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IndexShard indexShard = createMockIndexShard(new ShardId("test", "", 0));
+        GetResult getResult = new GetResult("test", "1", 0, 1, 0, true, new BytesArray("{\"body\": \"bar\"}"), null, null);
+
+        UpdateRequest mergeRequest;
+        try (var parser = createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"foo\"}}"))) {
+            mergeRequest = new UpdateRequest("test", "1").fromXContent(parser);
+        }
+        mergeRequest.routing("s1").setRoutingFromSlice(true);
+        UpdateHelper.Result mergeResult = updateHelper.prepareUpdateIndexRequest(indexShard, mergeRequest, getResult, false, true);
+        IndexRequest mergedIndexRequest = (IndexRequest) mergeResult.action();
+        assertTrue(mergedIndexRequest.isRoutingFromSlice());
+
+        UpdateRequest scriptedIndexRequest = new UpdateRequest("test", "1").script(mockInlineScript("ctx._source.body = \"foo\""));
+        scriptedIndexRequest.routing("s1").setRoutingFromSlice(true);
+        UpdateHelper.Result scriptedIndexResult = updateHelper.prepareUpdateScriptRequest(
+            indexShard,
+            scriptedIndexRequest,
+            getResult,
+            ESTestCase::randomNonNegativeLong,
+            true
+        );
+        assertThat(scriptedIndexResult.action(), instanceOf(IndexRequest.class));
+        assertTrue(((IndexRequest) scriptedIndexResult.action()).isRoutingFromSlice());
+
+        UpdateRequest scriptedDeleteRequest = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = 'delete'"));
+        scriptedDeleteRequest.routing("s1").setRoutingFromSlice(true);
+        UpdateHelper.Result scriptedDeleteResult = updateHelper.prepareUpdateScriptRequest(
+            indexShard,
+            scriptedDeleteRequest,
+            getResult,
+            ESTestCase::randomNonNegativeLong,
+            true
+        );
+        assertThat(scriptedDeleteResult.action(), instanceOf(DeleteRequest.class));
+        assertTrue(((DeleteRequest) scriptedDeleteResult.action()).isRoutingFromSlice());
     }
 
     public void testToString() throws IOException {

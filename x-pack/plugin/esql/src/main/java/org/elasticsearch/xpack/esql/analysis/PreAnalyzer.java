@@ -36,7 +36,7 @@ public class PreAnalyzer {
         Map<IndexPattern, IndexMode> indexes,
         List<Enrich> enriches,
         List<IndexPattern> lookupIndices,
-        Set<IndexPattern> viewShadows,  // CPS only lenient patterns from local views that could match remote indices
+        Set<IndexPattern> lenientLinkedIndices,  // CPS only, patterns from local view names that could match remote indices
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,

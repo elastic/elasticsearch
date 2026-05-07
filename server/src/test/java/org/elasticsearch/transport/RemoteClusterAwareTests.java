@@ -121,6 +121,36 @@ public class RemoteClusterAwareTests extends ESTestCase {
         assertThat(groupedIndices.get("cluster2"), containsInAnyOrder("*", "index*", "index1", "-noindex"));
     }
 
+    public void testGroupClusterIndicesRemoteIndexExclusionSugar() {
+        RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
+        Set<String> remoteClusterNames = Set.of("cluster1", "cluster2", "some-cluster3");
+
+        Map<String, List<String>> groupedIndicesWithNegativeClusterPrefix = remoteClusterAware.groupClusterIndices(
+            remoteClusterNames,
+            new String[] { "cluster1:*", "cluster2:*", "-cluster1:foo*", "-cluster2:bar" }
+        );
+        Map<String, List<String>> groupedIndicesWithNegativeIndexPrefix = remoteClusterAware.groupClusterIndices(
+            remoteClusterNames,
+            new String[] { "cluster1:*", "cluster2:*", "cluster1:-foo*", "cluster2:-bar" }
+        );
+
+        assertThat(groupedIndicesWithNegativeClusterPrefix, equalTo(groupedIndicesWithNegativeIndexPrefix));
+        assertThat(groupedIndicesWithNegativeClusterPrefix.get("cluster1"), containsInAnyOrder("*", "-foo*"));
+        assertThat(groupedIndicesWithNegativeClusterPrefix.get("cluster2"), containsInAnyOrder("*", "-bar"));
+
+        Map<String, List<String>> groupedIndicesWithOnlyExclusion = remoteClusterAware.groupClusterIndices(
+            remoteClusterNames,
+            new String[] { "-cluster1:logs" }
+        );
+        assertThat(groupedIndicesWithOnlyExclusion.get("cluster1"), containsInAnyOrder("-logs"));
+
+        Map<String, List<String>> groupedIndicesExclusionBeforeInclusion = remoteClusterAware.groupClusterIndices(
+            remoteClusterNames,
+            new String[] { "-cluster1:logs", "cluster1:*" }
+        );
+        assertThat(groupedIndicesExclusionBeforeInclusion.get("cluster1"), containsInAnyOrder("-logs", "*"));
+    }
+
     private static <T extends Throwable> void mustThrowException(String[] requestIndices, Class<T> expectedType, String expectedMessage) {
         RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
         Set<String> remoteClusterNames = Set.of("cluster1", "cluster2", "some-cluster3");
@@ -136,14 +166,8 @@ public class RemoteClusterAwareTests extends ESTestCase {
 
         mustThrowException(new String[] { ":foo" }, IllegalArgumentException.class, "is invalid because the remote part is empty");
         mustThrowException(new String[] { "notacluster:foo" }, NoSuchRemoteClusterException.class, "no such remote cluster");
-        // Cluster wildcard exclusion requires :*
         mustThrowException(
-            new String[] { "*:*", "-cluster*:index1" },
-            IllegalArgumentException.class,
-            "To exclude a cluster you must specify the '*' wildcard"
-        );
-        mustThrowException(
-            new String[] { "*:*", "-cluster2:index1" },
+            new String[] { "*:*", "-cluster2:-index1" },
             IllegalArgumentException.class,
             "To exclude a cluster you must specify the '*' wildcard"
         );

@@ -152,6 +152,9 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
      * remote1, remote2, remote3, and this index expression is provided: blogs,rem*:blogs,-rem*1:*. That would successfully
      * remove remote1 from the list of clusters to be included.
      *
+     * This method also supports excluding indices on remote clusters by using {@code -cluster:index} as syntactic sugar
+     * for {@code cluster:-index}. For example, {@code -remote:foo*} is equivalent to {@code remote:-foo*}.
+     *
      * @param remoteClusterNames the remote cluster names. If a clusterAlias is preceded by a minus sign that cluster will be excluded.
      * @param requestIndices the indices in the search request to filter
      *
@@ -178,25 +181,30 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                 );
                 if (isNegative) {
                     Tuple<String, String> indexAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexName);
-                    indexName = indexAndSelector.v1();
+                    String indexPart = indexAndSelector.v1();
                     String selectorString = indexAndSelector.v2();
-                    if (indexName.equals("*") == false) {
+                    if (indexPart.equals("*")) {
+                        if (selectorString != null) {
+                            throw new IllegalArgumentException(
+                                Strings.format(
+                                    "To exclude a cluster you must not specify the a selector, but found selector: [%s]",
+                                    selectorString
+                                )
+                            );
+                        }
+                        clustersToRemove.addAll(clusters);
+                    } else if (indexPart.startsWith("-")) {
                         throw new IllegalArgumentException(
                             Strings.format(
                                 "To exclude a cluster you must specify the '*' wildcard for the index expression, but found: [%s]",
-                                indexName
+                                indexPart
                             )
                         );
+                    } else {
+                        for (String clusterName : clusters) {
+                            perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add("-" + indexName);
+                        }
                     }
-                    if (selectorString != null) {
-                        throw new IllegalArgumentException(
-                            Strings.format(
-                                "To exclude a cluster you must not specify the a selector, but found selector: [%s]",
-                                selectorString
-                            )
-                        );
-                    }
-                    clustersToRemove.addAll(clusters);
                 } else {
                     for (String clusterName : clusters) {
                         perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add(indexName);

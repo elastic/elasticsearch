@@ -413,6 +413,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM remote:view*")));
     }
 
+    public void testCCSRemoteExclusionExpressionNotResolvedAsView() {
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM remote:view*,-remote:view1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM remote:view*,-remote:view1")));
+    }
+
     public void testReplaceViewPlans() {
         addView("view1", "FROM emp | WHERE emp.age > 30");
         addView("view2", "FROM view1 | WHERE emp.age < 40");

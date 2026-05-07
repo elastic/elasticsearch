@@ -141,6 +141,8 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
         private final Int4Corrections.SingleCorrection correction;
         private final Int4Corrections.BulkCorrection bulkCorrection;
         private byte[] scratch;
+        private final AddressesScratch addrsScratch = new AddressesScratch();
+        private final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
         ScorerImpl(
             IndexInput input,
@@ -216,15 +218,21 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
                 return Float.NEGATIVE_INFINITY;
             }
             if (SUPPORTS_HEAP_SEGMENTS) {
-                long[] offsets = new long[numNodes];
+                long[] offsets = offsetsScratch.get(numNodes);
                 for (int i = 0; i < numNodes; i++) {
                     offsets[i] = (long) ordinals[i] * vectorPitch;
                 }
-                boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, packedDims, numNodes, addrs -> {
-                    dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, MemorySegment.ofArray(scores));
-                });
+                MemorySegment scoresSeg = MemorySegment.ofArray(scores);
+                boolean resolved = IndexInputUtils.withSliceAddresses(
+                    input,
+                    offsets,
+                    packedDims,
+                    numNodes,
+                    addrsScratch::get,
+                    addrs -> dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, scoresSeg)
+                );
                 if (resolved) {
-                    return applyCorrectionsBulk(MemorySegment.ofArray(scores), MemorySegment.ofArray(ordinals), numNodes, query);
+                    return applyCorrectionsBulk(scoresSeg, MemorySegment.ofArray(ordinals), numNodes, query);
                 }
             }
 

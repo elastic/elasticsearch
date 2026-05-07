@@ -102,6 +102,12 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
     @Override
     BooleanBlock expand();
 
+    /**
+     * The maximum size in bytes of any single value stored in this block, or {@code 0} if there are no values.
+     * Always {@code Byte.BYTES} since all boolean values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
+
     static BooleanBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {

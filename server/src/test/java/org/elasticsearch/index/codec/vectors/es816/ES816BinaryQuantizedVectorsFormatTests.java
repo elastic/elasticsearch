@@ -40,11 +40,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.CheckJoinIndex;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
@@ -54,7 +51,7 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
-import org.elasticsearch.index.codec.vectors.BaseQuantizedKnnVectorsFormatTestCase;
+import org.elasticsearch.index.codec.vectors.BaseFlatQuantizedKnnVectorsFormatTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -68,7 +65,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
-public class ES816BinaryQuantizedVectorsFormatTests extends BaseQuantizedKnnVectorsFormatTestCase {
+public class ES816BinaryQuantizedVectorsFormatTests extends BaseFlatQuantizedKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.loadLog4jPlugins();
@@ -139,37 +136,6 @@ public class ES816BinaryQuantizedVectorsFormatTests extends BaseQuantizedKnnVect
         }
     }
 
-    public void testSearch() throws Exception {
-        String fieldName = "field";
-        int numVectors = random().nextInt(99, 500);
-        int dims = random().nextInt(4, 65);
-        float[] vector = randomVector(dims);
-        VectorSimilarityFunction similarityFunction = randomSimilarity();
-        KnnFloatVectorField knnField = new KnnFloatVectorField(fieldName, vector, similarityFunction);
-        IndexWriterConfig iwc = newIndexWriterConfig();
-        try (Directory dir = newDirectory()) {
-            try (IndexWriter w = new IndexWriter(dir, iwc)) {
-                for (int i = 0; i < numVectors; i++) {
-                    Document doc = new Document();
-                    knnField.setVectorValue(randomVector(dims));
-                    doc.add(knnField);
-                    w.addDocument(doc);
-                }
-                w.commit();
-
-                try (IndexReader reader = DirectoryReader.open(w)) {
-                    IndexSearcher searcher = new IndexSearcher(reader);
-                    final int k = random().nextInt(5, 50);
-                    float[] queryVector = randomVector(dims);
-                    Query q = new KnnFloatVectorQuery(fieldName, queryVector, k);
-                    TopDocs collectedDocs = searcher.search(q, k);
-                    assertEquals(k, collectedDocs.totalHits.value());
-                    assertEquals(TotalHits.Relation.EQUAL_TO, collectedDocs.totalHits.relation());
-                }
-            }
-        }
-    }
-
     public void testToString() {
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
@@ -183,16 +149,6 @@ public class ES816BinaryQuantizedVectorsFormatTests extends BaseQuantizedKnnVect
         var defaultScorer = format(Locale.ROOT, expectedPattern, "DefaultFlatVectorScorer");
         var memSegScorer = format(Locale.ROOT, expectedPattern, "Lucene99MemorySegmentFlatVectorsScorer");
         assertThat(customCodec.knnVectorsFormat().toString(), is(oneOf(defaultScorer, memSegScorer)));
-    }
-
-    @Override
-    public void testRandomWithUpdatesAndGraph() {
-        // graph not supported
-    }
-
-    @Override
-    public void testSearchWithVisitedLimit() {
-        // visited limit is not respected, as it is brute force search
     }
 
     public void testQuantizedVectorsWriteAndRead() throws IOException {

@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.crossproject.TargetProjects;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,6 +36,8 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
     private ResolvedIndexExpressions resolvedIndexExpressions;
+    @Nullable
+    private transient TargetProjects resolvedTargetProjects;
 
     public ClusterSearchShardsRequest(TimeValue masterNodeTimeout, String... indices) {
         super(masterNodeTimeout);
@@ -144,5 +147,16 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
     @Override
     public ResolvedIndexExpressions getResolvedIndexExpressions() {
         return resolvedIndexExpressions;
+    }
+
+    @Override
+    public void setResolvedTargetProjects(TargetProjects targetProjects) {
+        this.resolvedTargetProjects = targetProjects;
+    }
+
+    @Override
+    @Nullable
+    public TargetProjects getResolvedTargetProjects() {
+        return resolvedTargetProjects;
     }
 }

@@ -80,6 +80,11 @@ public final class BooleanArrowBufBlock extends AbstractArrowBufBlock<BooleanVec
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Byte.BYTES;
+    }
+
+    @Override
     public ToMask toMask() {
         if (getPositionCount() == 0) {
             return new ToMask(blockFactory().newConstantBooleanVector(false, 0), false);

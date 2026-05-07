@@ -11,14 +11,21 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class FetchSourceContextTests extends AbstractXContentSerializingTestCase<FetchSourceContext> {
     @Override
@@ -66,6 +73,31 @@ public class FetchSourceContextTests extends AbstractXContentSerializingTestCase
             );
             default -> throw new AssertionError("cannot reach");
         };
+    }
+
+    public void testParseFromRestRequestDefaultsExcludeInferenceFieldsToExcludeVectors() {
+        // _source_exclude_vectors=false must also rehydrate inference fields, matching fromXContent() behavior
+        // and the documented contract on FetchSourceContext (see #146425).
+        FetchSourceContext context = parseRestRequestWithExcludeVectors("false");
+        assertThat(context.fetchSource(), is(true));
+        assertThat(context.excludeVectors(), equalTo(false));
+        assertThat(context.excludeInferenceFields(), equalTo(false));
+
+        context = parseRestRequestWithExcludeVectors("true");
+        assertThat(context.excludeVectors(), equalTo(true));
+        assertThat(context.excludeInferenceFields(), equalTo(true));
+    }
+
+    public void testParseFromRestRequestReturnsNullWhenNoSourceParams() {
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).build();
+        assertThat(FetchSourceContext.parseFromRestRequest(request), nullValue());
+    }
+
+    private FetchSourceContext parseRestRequestWithExcludeVectors(String value) {
+        Map<String, String> params = new HashMap<>();
+        params.put("_source_exclude_vectors", value);
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
+        return FetchSourceContext.parseFromRestRequest(request);
     }
 
     public void testFromXContentException() throws IOException {

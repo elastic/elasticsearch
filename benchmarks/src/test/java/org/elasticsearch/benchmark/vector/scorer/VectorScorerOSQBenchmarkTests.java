@@ -12,10 +12,13 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
+import java.io.IOException;
+import java.util.List;
 import java.util.Random;
 
 @TestLogging(
@@ -47,39 +50,33 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
     }
 
     public void testSingle() throws Exception {
-        for (int i = 0; i < REPETITIONS; i++) {
-            var seed = randomLong();
-
-            var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, int4Encoding, similarityFunction);
-
-            float[] expected = null;
-            for (var impl : VectorScorerOSQBenchmark.VectorImplementation.values()) {
-                VectorScorerOSQBenchmark bench = new VectorScorerOSQBenchmark();
-                bench.implementation = impl;
-                bench.dims = dims;
-                bench.bits = bits;
-                bench.directoryType = directoryType;
-                bench.int4Encoding = int4Encoding;
-                bench.similarityFunction = similarityFunction;
-                bench.setup(data);
-
-                try {
-                    float[] result = bench.controlScoreIndividual();
-                    // just check against the first one - they should all be identical to each other
-                    if (expected == null) {
-                        expected = result;
-                        continue;
-                    }
-                    assertArrayEqualsPercent(impl.toString(), expected, result, deltaPercent, DEFAULT_DELTA);
-                } finally {
-                    bench.teardown();
-                    IOUtils.rm(bench.tempDir);
-                }
-            }
-        }
+        runBenchmarks(List.of(VectorScorerOSQBenchmark::score));
     }
 
     public void testBulk() throws Exception {
+        runBenchmarks(List.of(VectorScorerOSQBenchmark::bulkScore));
+    }
+
+    public void testFilteredSingle() throws Exception {
+        runBenchmarks(List.of(VectorScorerOSQBenchmark::filteredScoreBulkOne, VectorScorerOSQBenchmark::filteredScoreIndividuallyOne));
+    }
+
+    public void testFilteredDense() throws Exception {
+        runBenchmarks(List.of(VectorScorerOSQBenchmark::filteredScoreBulkDense, VectorScorerOSQBenchmark::filteredScoreIndividuallyDense));
+    }
+
+    public void testFilteredSparse() throws Exception {
+        runBenchmarks(
+            List.of(VectorScorerOSQBenchmark::filteredScoreBulkSparse, VectorScorerOSQBenchmark::filteredScoreIndividuallySparse)
+        );
+    }
+
+    /**
+     * Runs the given benchmark methods across all {@link VectorScorerOSQBenchmark.VectorImplementation}s on the same input data and
+     * asserts that every produced score array matches the first one within tolerance. This validates both cross-implementation
+     * consistency and, when more than one method is supplied, equivalence between alternative scoring paths (e.g. bulk vs individual).
+     */
+    private void runBenchmarks(List<CheckedFunction<VectorScorerOSQBenchmark, float[], IOException>> benchmarkMethods) throws Exception {
         for (int i = 0; i < REPETITIONS; i++) {
             var seed = randomLong();
 
@@ -97,13 +94,15 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
                 bench.setup(data);
 
                 try {
-                    float[] result = bench.scoreBulk();
-                    // just check against the first one - they should all be identical to each other
-                    if (expected == null) {
-                        expected = result;
-                        continue;
+                    for (var benchmarkMethod : benchmarkMethods) {
+                        float[] result = benchmarkMethod.apply(bench);
+                        // just check against the first one - they should all be identical to each other
+                        if (expected == null) {
+                            expected = result;
+                            continue;
+                        }
+                        assertArrayEqualsPercent(impl.toString(), expected, result, deltaPercent, DEFAULT_DELTA);
                     }
-                    assertArrayEqualsPercent(impl.toString(), expected, result, deltaPercent, DEFAULT_DELTA);
                 } finally {
                     bench.teardown();
                     IOUtils.rm(bench.tempDir);

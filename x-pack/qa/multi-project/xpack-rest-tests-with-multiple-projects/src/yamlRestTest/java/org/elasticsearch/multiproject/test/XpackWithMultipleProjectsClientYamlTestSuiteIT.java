@@ -18,8 +18,12 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.test.rest.yaml.section.DoSection;
+import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.ClassRule;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 @TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
@@ -55,13 +59,118 @@ public class XpackWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProj
         })
         .build();
 
+    /**
+     * Per-yaml-file count of tests not yet completed in this JVM. When the count for a file
+     * hits zero, the next test must be from a different file, so we let the framework wipe.
+     */
+    private static final Map<String, Integer> remainingPerFile = new HashMap<>();
+
+    /** Yaml file whose setup state is currently warm in the cluster, or null if cluster was wiped. */
+    private static String warmFile = null;
+
     public XpackWithMultipleProjectsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        Iterable<Object[]> base = ESClientYamlSuiteTestCase.createParameters();
+        remainingPerFile.clear();
+        for (Object[] p : base) {
+            ClientYamlTestCandidate c = (ClientYamlTestCandidate) p[0];
+            remainingPerFile.merge(c.getSuitePath(), 1, Integer::sum);
+        }
+        warmFile = null;
+        return base;
+    }
+
+    /**
+     * Skip the YAML setup section if the cluster is already warm with this file's setup state.
+     * In that case, the body is allowed to run reads against the warm state. {@link
+     * #shouldRunDeferredSetup} will fire a deferred wipe + setup before any write op.
+     */
+    @Override
+    protected boolean skipSetupSections() {
+        return getTestCandidate().getSuitePath().equals(warmFile);
+    }
+
+    /**
+     * Skip the YAML teardown when more tests remain in the same file (state is preserved for them).
+     */
+    @Override
+    protected boolean skipTeardownSections() {
+        Integer remaining = remainingPerFile.get(getTestCandidate().getSuitePath());
+        return remaining != null && remaining > 1;
+    }
+
+    /**
+     * Preserve cluster state when more tests remain in the same file. Also bookkeeps the warm-file
+     * marker and decrements the per-file remaining count (this method is the natural after-test hook
+     * — it runs in the framework's @After cleanUpCluster).
+     */
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        String currentFile = getTestCandidate().getSuitePath();
+        Integer remaining = remainingPerFile.get(currentFile);
+        boolean preserve = remaining != null && remaining > 1;
+        if (preserve) {
+            warmFile = currentFile;
+        } else {
+            warmFile = null;
+        }
+        if (remaining != null) {
+            if (remaining <= 1) {
+                remainingPerFile.remove(currentFile);
+            } else {
+                remainingPerFile.put(currentFile, remaining - 1);
+            }
+        }
+        return preserve;
+    }
+
+    /**
+     * When setup was skipped (state shared with previous same-file test), trigger a deferred
+     * wipe + setup just before the first write in the body. Pure-read bodies never trigger it.
+     */
+    @Override
+    protected boolean shouldRunDeferredSetup(ExecutableSection section) {
+        return section instanceof DoSection doSection && isWriteOp(doSection.getApiCallSection().getApi());
+    }
+
+    @Override
+    protected void runDeferredCleanupAndSetup() {
+        // Wipe so the leftover state from the previous same-file test (its setup + body residue)
+        // doesn't conflict with this test's setup/body.
+        try {
+            wipeCluster();
+        } catch (Exception e) {
+            throw new AssertionError("failed to wipe cluster before deferred setup", e);
+        }
+        warmFile = null;
+        // Now run this test's YAML setup against the clean cluster.
+        super.runDeferredCleanupAndSetup();
+    }
+
+    /** Heuristic: API name prefixes that mutate cluster state. */
+    private static boolean isWriteOp(String api) {
+        if (api == null) return false;
+        // index/update/delete docs
+        if (api.equals("index") || api.equals("bulk") || api.equals("create") || api.equals("update") || api.equals("delete")) {
+            return true;
+        }
+        // any *.put_*, *.create*, *.update*, *.delete*, *.invalidate*, *.bulk_* operation
+        int dot = api.indexOf('.');
+        String suffix = dot >= 0 ? api.substring(dot + 1) : api;
+        return suffix.startsWith("put_")
+            || suffix.startsWith("create")
+            || suffix.startsWith("update")
+            || suffix.startsWith("delete")
+            || suffix.startsWith("invalidate")
+            || suffix.startsWith("bulk_")
+            || suffix.startsWith("post_")
+            || suffix.equals("refresh")
+            || suffix.equals("flush")
+            || suffix.equals("forcemerge");
     }
 
     @Override

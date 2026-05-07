@@ -954,7 +954,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertOK(restClient.performRequest(request));
     }
 
-    private void wipeCluster() throws Exception {
+    protected void wipeCluster() throws Exception {
         waitForClusterUpdates();
 
         // Cleanup rollup before deleting indices. A rollup job might have bulks in-flight,
@@ -2998,7 +2998,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     @After
     public final void assertEmptyProjects() throws Exception {
-        if (projectsConfigured == false) {
+        if (projectsConfigured == false || preserveClusterUponCompletion()) {
             return;
         }
         assertEmptyProject(Metadata.DEFAULT_PROJECT_ID.id());

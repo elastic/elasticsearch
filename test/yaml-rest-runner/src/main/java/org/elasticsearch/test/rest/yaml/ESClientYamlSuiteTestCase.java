@@ -485,12 +485,14 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             inFipsJvm() && testCandidate.getTestSection().getPrerequisiteSection().hasYamlRunnerFeature("fips_140")
         );
 
+        boolean setupRan = false;
         if (skipSetupSections() == false && testCandidate.getSetupSection().isEmpty() == false) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
             for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
                 executeSection(executableSection);
             }
             logger.debug("end setup test [{}]", testCandidate.getTestPath());
+            setupRan = true;
         }
 
         restTestExecutionContext.clear();
@@ -499,6 +501,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
         try {
             for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
+                if (setupRan == false && shouldRunDeferredSetup(executableSection)) {
+                    logger.debug("running deferred setup before write op in test [{}]", testCandidate.getTestPath());
+                    runDeferredCleanupAndSetup();
+                    setupRan = true;
+                }
                 executeSection(executableSection);
             }
             errorCollector.verify();
@@ -522,11 +529,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             );
             throw e;
         } finally {
-            logger.debug("start teardown test [{}]", testCandidate.getTestPath());
-            for (ExecutableSection doSection : testCandidate.getTeardownSection().getDoSections()) {
-                executeSection(doSection);
+            if (skipTeardownSections() == false) {
+                logger.debug("start teardown test [{}]", testCandidate.getTestPath());
+                for (ExecutableSection doSection : testCandidate.getTeardownSection().getDoSections()) {
+                    executeSection(doSection);
+                }
+                logger.debug("end teardown test [{}]", testCandidate.getTestPath());
             }
-            logger.debug("end teardown test [{}]", testCandidate.getTestPath());
         }
     }
 
@@ -555,6 +564,36 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     protected boolean skipSetupSections() {
         return false;
+    }
+
+    /**
+     * Subclasses can override to skip running the YAML teardown section (e.g. when sharing
+     * setup state across consecutive tests in the same yaml file).
+     */
+    protected boolean skipTeardownSections() {
+        return false;
+    }
+
+    /**
+     * Called before each body section when {@link #skipSetupSections()} returned {@code true}.
+     * If this returns {@code true}, {@link #runDeferredCleanupAndSetup()} is invoked before the
+     * given section executes — allowing subclasses to lazily wipe and rerun the YAML setup just
+     * before the first write in the body, while letting earlier read-only sections proceed
+     * against shared state from a previous test.
+     */
+    protected boolean shouldRunDeferredSetup(ExecutableSection section) {
+        return false;
+    }
+
+    /**
+     * Run the deferred cleanup of any previous test plus the current test's YAML setup section.
+     * Subclasses should perform whatever wipe is needed and then run the setup. Default
+     * implementation runs the YAML setup section against the current execution context.
+     */
+    protected void runDeferredCleanupAndSetup() {
+        for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
+            executeSection(executableSection);
+        }
     }
 
     protected boolean randomizeContentType() {

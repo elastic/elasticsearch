@@ -1504,9 +1504,43 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final RangeMissingHandler writer,
             String resourceDescription
         ) throws Exception {
+            final PlainActionFuture<Integer> future = new PlainActionFuture<>();
+            final long absentBytes = populate(rangeToWrite, rangeToRead, reader, writer, resourceDescription, future);
+            if (future.isDone() == false && absentBytes > 0) {
+                return recordWait(absentBytes, future);
+            }
+            return future.get();
+        }
+
+        /**
+         * Asynchronous, listener-based primitive that backs {@link #populateAndRead}. Ensures {@code rangeToWrite}
+         * is populated in the cache (downloading missing sub-ranges via {@code writer} on the I/O executor) and
+         * invokes {@code reader} per region when its sub-range of {@code rangeToRead} becomes available. The
+         * {@code listener} is completed with the total number of bytes that the {@code reader} reported.
+         * <p>
+         * Returns as soon as the per-region work has been dispatched. Sync callers should use
+         * {@link #populateAndRead}; fire-and-forget callers (e.g. an {@code madvise(WILLNEED)}-style prefetch that
+         * just calls {@link SharedBytes.IO#prefetch(long, long)} from the {@code reader}) pass a no-op / logging
+         * listener.
+         *
+         * @return a snapshot of how many bytes inside {@code rangeToRead} were still missing from the cache at
+         *         dispatch time. Used by the sync wrapper to drive {@link #recordWait}; async callers can ignore.
+         */
+        public long populate(
+            final ByteRange rangeToWrite,
+            final ByteRange rangeToRead,
+            final RangeAvailableHandler reader,
+            final RangeMissingHandler writer,
+            String resourceDescription,
+            ActionListener<Integer> listener
+        ) {
             // some cache files can grow after being created, so rangeToWrite can be larger than the initial {@code length}
             assert rangeToWrite.start() >= 0 : rangeToWrite;
             assert assertOffsetsWithinFileLength(rangeToRead.start(), rangeToRead.length(), length);
+            if (rangeToRead.isEmpty()) {
+                listener.onResponse(0);
+                return 0L;
+            }
             // We are interested in the total time that the system spends when fetching a result (including time spent queuing), so we start
             // our measurement here.
             final long startTime = relativeTimeInNanosSupplier.getAsLong();
@@ -1548,78 +1582,30 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     );
                 }
             };
-            if (rangeToRead.isEmpty()) {
-                // nothing to read, skip
-                return 0;
-            }
             final int startRegion = getRegion(rangeToWrite.start());
             final int endRegion = getEndingRegion(rangeToWrite.end());
             if (startRegion == endRegion) {
-                return readSingleRegion(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion);
+                return readSingleRegion(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion, listener);
             }
-            return readMultiRegions(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion, endRegion);
+            return readMultiRegions(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion, endRegion, listener);
         }
 
-        /**
-         * Asynchronous, fire-and-forget method for fetching and calling madvise WILLNEED.
-         * <p>
-         * This method returns as soon as the per-region work has been dispatched.
-         */
-        public void populateAndPrefetch(final ByteRange rangeToWrite, final RangeMissingHandler writer) {
-            assert rangeToWrite.start() >= 0 : rangeToWrite;
-            if (rangeToWrite.isEmpty()) {
-                return;
-            }
-            final int startRegion = getRegion(rangeToWrite.start());
-            final int endRegion = getEndingRegion(rangeToWrite.end());
-            for (int r = startRegion; r <= endRegion; r++) {
-                final int region = r;
-                final ByteRange subRange = mapSubRangeToRegion(rangeToWrite, region);
-                if (subRange.isEmpty()) {
-                    continue;
-                }
-                final CacheFileRegion<KeyType> fileRegion;
-                try {
-                    fileRegion = get(cacheKey, length, region);
-                } catch (AlreadyClosedException e) {
-                    logger.debug(() -> Strings.format("cache region [%d] for [%s] already closed, skipping prefetch", region, cacheKey), e);
-                    continue;
-                }
-                final long regionStart = getRegionStart(region);
-                final RangeAvailableHandler prefetchRangeAvailableHandler = (channel, channelPos, relativePos, len) -> {
-                    channel.prefetch(channelPos, len);
-                    return len;
-                };
-
-                fileRegion.populateAndRead(
-                    subRange,
-                    subRange,
-                    prefetchRangeAvailableHandler,
-                    writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
-                    ioExecutor,
-                    ActionListener.wrap(
-                        bytesRead -> {
-                            // TODO monitoring
-                        },
-                        // TODO monitoring
-                        e -> logger.debug(
-                            () -> Strings.format("failed to prefetch [%s] in region [%d] for [%s]", subRange, region, cacheKey),
-                            e
-                        )
-                    )
-                );
-            }
-        }
-
-        private int readSingleRegion(
+        private long readSingleRegion(
             ByteRange rangeToWrite,
             ByteRange rangeToRead,
             RangeAvailableHandler reader,
             RangeMissingHandler writer,
-            int region
-        ) throws InterruptedException, ExecutionException {
-            final PlainActionFuture<Integer> readFuture = new PlainActionFuture<>();
-            final CacheFileRegion<KeyType> fileRegion = get(cacheKey, length, region);
+            int region,
+            ActionListener<Integer> listener
+        ) {
+            final CacheFileRegion<KeyType> fileRegion;
+            try {
+                fileRegion = get(cacheKey, length, region);
+            } catch (Exception e) {
+                assert e instanceof AlreadyClosedException : e;
+                listener.onFailure(e);
+                return 0L;
+            }
             final long regionStart = getRegionStart(region);
             ByteRange regionRangeToRead = mapSubRangeToRegion(rangeToRead, region);
             fileRegion.populateAndRead(
@@ -1628,36 +1614,30 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
                 metricRecordingWriter(writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))),
                 ioExecutor,
-                readFuture
+                listener
             );
-            if (readFuture.isDone() == false) {
-                long bytes = fileRegion.tracker.getAbsentBytesWithin(regionRangeToRead);
-                if (bytes > 0) {
-                    return recordWait(bytes, readFuture);
-                }
-            }
-            return readFuture.get();
+            return fileRegion.tracker.getAbsentBytesWithin(regionRangeToRead);
         }
 
-        private int readMultiRegions(
+        private long readMultiRegions(
             ByteRange rangeToWrite,
             ByteRange rangeToRead,
             RangeAvailableHandler reader,
             RangeMissingHandler writer,
             int startRegion,
-            int endRegion
-        ) throws InterruptedException, ExecutionException {
-            final PlainActionFuture<Void> readsComplete = new PlainActionFuture<>();
+            int endRegion,
+            ActionListener<Integer> listener
+        ) {
             final AtomicInteger bytesRead = new AtomicInteger();
-            List<CacheFileRegion<KeyType>> regions = new ArrayList<>(endRegion - startRegion);
-            try (var listeners = new RefCountingListener(1, readsComplete)) {
+            final List<CacheFileRegion<KeyType>> regions = new ArrayList<>(endRegion - startRegion);
+            try (var listeners = new RefCountingListener(1, listener.map(v -> bytesRead.get()))) {
                 for (int region = startRegion; region <= endRegion; region++) {
                     final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
                     if (subRangeToRead.isEmpty()) {
                         // nothing to read, skip
                         continue;
                     }
-                    ActionListener<Integer> listener = listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j)));
+                    ActionListener<Integer> regionListener = listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j)));
                     try {
                         final CacheFileRegion<KeyType> fileRegion = get(cacheKey, length, region);
                         regions.add(fileRegion);
@@ -1670,29 +1650,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                 writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))
                             ),
                             ioExecutor,
-                            listener
+                            regionListener
                         );
                     } catch (Exception e) {
                         assert e instanceof AlreadyClosedException : e;
-                        listener.onFailure(e);
+                        regionListener.onFailure(e);
                     }
                 }
             }
-            if (readsComplete.isDone() == false) {
-                long bytes = regions.stream()
-                    .mapToLong(
-                        fileRegion -> fileRegion.tracker.getAbsentBytesWithin(
-                            mapSubRangeToRegion(rangeToRead, fileRegion.regionKey.region())
-                        )
-                    )
-                    .sum();
-                if (bytes > 0) {
-                    recordWait(bytes, readsComplete);
-                }
-
-            }
-            readsComplete.get();
-            return bytesRead.get();
+            return regions.stream()
+                .mapToLong(fr -> fr.tracker.getAbsentBytesWithin(mapSubRangeToRegion(rangeToRead, fr.regionKey.region())))
+                .sum();
         }
 
         /**

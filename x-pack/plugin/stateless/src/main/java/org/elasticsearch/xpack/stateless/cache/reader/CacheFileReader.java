@@ -111,13 +111,29 @@ public class CacheFileReader {
             blobCacheMetrics.recordPrefetch(PrefetchResult.AlreadyCached);
             return true;
         }
-        if (cacheService != null) {
-            cacheService.asyncPrefetch(
-                cacheFile.getCacheKey(),
-                cacheFile.getLength(),
-                offset,
-                length,
-                cacheBlobReader,
+        if (cacheService != null && cacheService.hasSearchRole()) {
+            final long blobLength = cacheFile.getLength();
+            final long remainingFileLength = blobLength - offset;
+            final int intLength = length < Integer.MAX_VALUE ? Math.toIntExact(length) : Integer.MAX_VALUE;
+            final ByteRange rangeToPrefetch = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
+            // IndexingShardCacheBlobReader.getRangeInputStream forbids running on SHARD_READ_THREAD_POOL because
+            // it issues a transport call and completes the listener on a different pool.
+            final String readerExecutorName = cacheBlobReader.executorName();
+            cacheFile.populate(rangeToPrefetch, rangeToPrefetch, (channel, channelPos, relativePos, len) -> {
+                channel.prefetch(channelPos, len);
+                return len;
+            },
+                new SequentialRangeMissingHandler(
+                    "lucene-prefetch",
+                    cacheFile.getCacheKey().fileName(),
+                    rangeToPrefetch,
+                    cacheBlobReader,
+                    () -> writeBuffer.get().clear(),
+                    bytesCopied -> {},
+                    readerExecutorName,
+                    StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                ),
+                "",
                 ActionListener.wrap(v -> {
                     blobCacheMetrics.recordPrefetch(PrefetchResult.Fetched);
                 }, e -> {

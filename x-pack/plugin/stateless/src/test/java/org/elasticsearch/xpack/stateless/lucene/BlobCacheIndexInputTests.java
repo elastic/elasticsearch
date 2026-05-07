@@ -1462,7 +1462,11 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         when(cacheFile.getLength()).thenReturn(fileLength);
 
         final CacheBlobReader cacheBlobReader = mock(CacheBlobReader.class);
+        when(cacheBlobReader.getRange(anyLong(), anyInt(), anyLong())).thenAnswer(
+            inv -> ByteRange.of(inv.getArgument(0), (long) inv.getArgument(0) + (int) inv.getArgument(1))
+        );
         final StatelessSharedBlobCacheService mockCacheService = mock(StatelessSharedBlobCacheService.class);
+        when(mockCacheService.hasSearchRole()).thenReturn(true);
 
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
@@ -1488,16 +1492,17 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
         indexInput.prefetch(offset, length);
 
-        verify(mockCacheService).asyncPrefetch(
-            eq(cacheKey),
-            eq(fileLength),
-            eq(offset),
-            eq(length),
-            eq(cacheBlobReader),
+        final ByteRange expectedRange = ByteRange.of(offset, offset + length);
+        verify(cacheFile).populate(
+            eq(expectedRange),
+            eq(expectedRange),
+            any(SharedBlobCacheService.RangeAvailableHandler.class),
+            any(SequentialRangeMissingHandler.class),
+            anyString(),
             any(ActionListener.class)
         );
 
-        // No outcome metric is recorded yet because the async listener has not been completed by the (mocked) service.
+        // No outcome metric is recorded yet because the listener has not been completed by the (mocked) populate call.
         assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
         assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 0);
         assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 0);
@@ -1514,14 +1519,17 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         when(cacheFile.getLength()).thenReturn(fileLength);
 
         final CacheBlobReader cacheBlobReader = mock(CacheBlobReader.class);
+        when(cacheBlobReader.getRange(anyLong(), anyInt(), anyLong())).thenAnswer(
+            inv -> ByteRange.of(inv.getArgument(0), (long) inv.getArgument(0) + (int) inv.getArgument(1))
+        );
         final StatelessSharedBlobCacheService mockCacheService = mock(StatelessSharedBlobCacheService.class);
+        when(mockCacheService.hasSearchRole()).thenReturn(true);
         // Synchronously complete the listener with success.
         doAnswer(invocation -> {
-            ActionListener<Void> listener = invocation.getArgument(5);
-            listener.onResponse(null);
-            return null;
-        }).when(mockCacheService)
-            .asyncPrefetch(any(), anyLong(), anyLong(), anyLong(), any(CacheBlobReader.class), any(ActionListener.class));
+            ActionListener<Integer> listener = invocation.getArgument(5);
+            listener.onResponse(0);
+            return 0L;
+        }).when(cacheFile).populate(any(), any(), any(), any(), anyString(), any(ActionListener.class));
 
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
@@ -1563,14 +1571,17 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         when(cacheFile.getLength()).thenReturn(fileLength);
 
         final CacheBlobReader cacheBlobReader = mock(CacheBlobReader.class);
+        when(cacheBlobReader.getRange(anyLong(), anyInt(), anyLong())).thenAnswer(
+            inv -> ByteRange.of(inv.getArgument(0), (long) inv.getArgument(0) + (int) inv.getArgument(1))
+        );
         final StatelessSharedBlobCacheService mockCacheService = mock(StatelessSharedBlobCacheService.class);
-        // Synchronously fail the listener to exercise the AsyncFailed branch without a real thread pool.
+        when(mockCacheService.hasSearchRole()).thenReturn(true);
+        // Synchronously fail the listener to exercise the Failed branch without a real thread pool.
         doAnswer(invocation -> {
-            ActionListener<Void> listener = invocation.getArgument(5);
+            ActionListener<Integer> listener = invocation.getArgument(5);
             listener.onFailure(new IOException("emulate issue while prefetching"));
-            return null;
-        }).when(mockCacheService)
-            .asyncPrefetch(any(), anyLong(), anyLong(), anyLong(), any(CacheBlobReader.class), any(ActionListener.class));
+            return 0L;
+        }).when(cacheFile).populate(any(), any(), any(), any(), anyString(), any(ActionListener.class));
 
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);

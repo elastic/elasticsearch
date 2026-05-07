@@ -24,7 +24,7 @@ import java.util.function.Supplier;
  * @param fullyQualifiedIndexName the index name with any remote index information added
  * @param lookupSupplier          a supplier for a SearchLookup to be used by runtime scripts
  * @param sourcePathsLookup       a function to get source paths for a specific field
- * @param idFieldDataEnabled      a supplier that can be used to check whether loading field data from _id field's inverted index is allowed.
+ * @param idFieldDataEnabled      a supplier that can be used to check whether loading field data from _id field's inverted index is allowed
  * @param fielddataOperation      the operation used to determine data structures to generate fielddata from
  */
 public record FieldDataContext(

@@ -285,6 +285,119 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     }
 
     // ---------------------------------------------------------------------------------------
+    // Silent-drop / NOT-translation regression cases.
+    //
+    // These cases pin down the family of bugs where translateExpression silently drops an
+    // untranslatable sub-expression (today: WildcardLike) under a logical connector and the
+    // resulting FilterPredicate becomes STRICTER than the true ESQL expression. A stricter
+    // pushed predicate is a correctness bug for our reader because we use the predicate for
+    // row-group and page (column-index) pruning — pruned rows can't be recovered downstream
+    // by FilterExec, so a stricter prune silently loses matching rows.
+    //
+    // The shapes below were not all reachable from the randomized harness with realistic
+    // budgets; surfacing the NOT(AND(LIKE, X)) bug took ~17 default-seed iterations on
+    // average (see commit 360b065 / the CI investigation). Pinning each shape as a fixed
+    // case makes the regression impossible to miss on a single local test run, complementing
+    // the randomized coverage that explores the long tail.
+    //
+    // DO NOT WEAKEN OR REMOVE these tests. They are the deterministic guard for
+    // ParquetPushedExpressions.translateExpression's "exactly translatable" contract —
+    // if you change that method (or the isExactlyTranslatable helper, or the canConvert /
+    // isFullyEvaluable classifications), these must keep passing. Changes that "simplify"
+    // the Not branch by removing the isExactlyTranslatable guard MUST be measured against
+    // these tests; a green randomized run is not sufficient evidence of correctness.
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Regression: {@code NOT(AND(LIKE, X))} where {@code LIKE} is YES-eligible but does not
+     * translate to a {@link FilterPredicate} and {@code X} does. Without the
+     * {@code isExactlyTranslatable} guard in
+     * {@link ParquetPushedExpressions#translateExpression}, the {@code AND} arm silently
+     * dropped the LIKE and produced just {@code translate(X)}; the outer {@code NOT} then
+     * negated that, yielding a predicate {@code NOT(X)} that is STRICTER than the true
+     * {@code NOT(AND(LIKE, X)) = NOT(LIKE) OR NOT(X)} (because the latter accepts every
+     * row where LIKE doesn't match, regardless of {@code X}). The reader would then prune
+     * row groups whose stats prove {@code X} for every row, even though those groups may
+     * contain rows that don't match LIKE — silent under-inclusion.
+     *
+     * <p>This is the exact production bug fixed in commit {@code 360b065} ("guard Not
+     * translation against silent drops"), found by {@link #testRandomizedFilterTrees} on
+     * the ~17th default-seed iteration. Pinning it deterministically here means a single
+     * local run catches a regression — no need to re-roll seeds.
+     */
+    public void testNotAndLikeXIsNotStricterThanTruth() throws IOException {
+        // X = (id < ROW_COUNT / 2). Combined with our dataset (id is 0..ROW_COUNT-1
+        // contiguous), this produces a row-group-stats-trivial conjunct on the SINGLE_BIG_GROUP
+        // layout (false for every row in upper half) and a partial-prune conjunct elsewhere —
+        // so the bug surfaces across multiple layouts, not just one.
+        runDifferential(not(and(like(URL, "*google*"), lt(ID, (long) (ROW_COUNT / 2), DataType.LONG))));
+    }
+
+    /**
+     * Symmetric to {@link #testNotAndLikeXIsNotStricterThanTruth}: {@code NOT(OR(LIKE, X))}.
+     * Under {@code OR}, an arm that fails to translate is dropped entirely (the conservative
+     * "all arms or nothing" rule), so {@code OR(LIKE, X)} would translate to just
+     * {@code translate(X)}, and the outer {@code NOT} would yield {@code NOT(X)}, again
+     * STRICTER than the truth {@code NOT(OR(LIKE, X)) = NOT(LIKE) AND NOT(X)} (which is at
+     * least as restrictive as both). The {@code isExactlyTranslatable} guard refuses to
+     * push the {@code Not} when its child contains a silent-drop, so this lands as
+     * "no FilterPredicate" and pruning relies on other conjuncts only.
+     */
+    public void testNotOrLikeXIsNotStricterThanTruth() throws IOException {
+        runDifferential(not(or(like(URL, "*google*"), lt(ID, (long) (ROW_COUNT / 2), DataType.LONG))));
+    }
+
+    /**
+     * {@code NOT(NOT(LIKE))} should be equivalent to {@code LIKE}. The inner NOT alone is
+     * YES-eligible (special-cased to handle TVL nulls in {@code evaluateNotWildcardLike}),
+     * the outer NOT wraps a non-translatable child (the inner NOT itself doesn't translate,
+     * since {@code WildcardLike} doesn't translate), so the outer should refuse to push.
+     * No silent drop, no stricter predicate.
+     */
+    public void testNotNotLikeRoundTrip() throws IOException {
+        runDifferential(not(not(like(URL, "*google*"))));
+    }
+
+    /**
+     * Sanity check that {@code isExactlyTranslatable} is not over-conservative:
+     * {@code NOT(AND(X, Y))} with both arms translatable should still translate. If this
+     * test starts failing, the guard has become too strict — it should only refuse to push
+     * when an arm under {@code AND} or {@code OR} is silently dropped, not when every arm
+     * translates exactly.
+     */
+    public void testNotAndTwoTranslatableConjunctsStillPushes() throws IOException {
+        runDifferential(not(and(eq(STATUS, 200L, DataType.LONG), lt(ID, 50L, DataType.LONG))));
+    }
+
+    /**
+     * {@code AND(LIKE, NOT(X))} — LIKE outside the NOT, NOT around an exactly-translatable
+     * conjunct. The LIKE pushes as YES (no FilterPredicate, but YES); the {@code NOT(X)}
+     * pushes as RECHECK with a real FilterPredicate. The two combine cleanly: no silent
+     * drop because each conjunct is handled independently by {@code pushFilters} (the planner
+     * splits top-level AND into a list of conjuncts, see
+     * {@code ParquetFilterPushdownSupportTests#testWildcardLikeAsSeparateConjunctWithEqualsRecheckedOnly}).
+     * Asserts the per-conjunct path doesn't fall into the same silent-drop trap as the
+     * AND-wrapped case.
+     */
+    public void testAndOfLikeAndNotTranslatable() throws IOException {
+        runDifferential(and(like(URL, "*google*"), not(eq(STATUS, 404L, DataType.LONG))));
+    }
+
+    /**
+     * Deeper nesting: {@code NOT(AND(OR(LIKE1, LIKE2), X))} — both arms of the inner OR are
+     * silent-drops, so the OR collapses to nothing under translation; the AND then collapses
+     * to just {@code X}; the outer NOT becomes {@code NOT(X)}, STRICTER than the truth.
+     * The guard must catch this transitively, not just one level deep. Without the guard,
+     * this is the same shape of bug as
+     * {@link #testNotAndLikeXIsNotStricterThanTruth} but harder to surface randomly because
+     * it requires three levels of nesting in the right configuration.
+     */
+    public void testNotAndOrLikeLikeXTransitiveSilentDrop() throws IOException {
+        Expression filter = not(and(or(like(URL, "*google*"), like(URL, "*github*")), lt(ID, (long) (ROW_COUNT / 2), DataType.LONG)));
+        runDifferential(filter);
+    }
+
+    // ---------------------------------------------------------------------------------------
     // Randomized cases — random expression trees per layout.
     // ---------------------------------------------------------------------------------------
 

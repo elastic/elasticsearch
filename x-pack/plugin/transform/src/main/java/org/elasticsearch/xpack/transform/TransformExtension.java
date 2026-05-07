@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.cloud.InternalCloudApiKeyService;
 
 public interface TransformExtension {
@@ -30,6 +31,6 @@ public interface TransformExtension {
     }
 
     default InternalCloudApiKeyService getCloudApiKeyService() {
-        return InternalCloudApiKeyService.getInstance();
+        return CloudCredentialsExtension.getInstance().internalCloudApiKeyService();
     }
 }

@@ -25,22 +25,8 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * Persistence envelope for a cloud-managed (UIAM) credential.
- * <p>
- * Wraps the public {@code id} of the granted Cloud API key together with the opaque
- * {@link CloudCredential} the caller will inject at execution time. The {@code id} is required at
- * the upcoming revocation API; the {@link CloudCredential} carries the secret bytes themselves.
- * <p>
- * The initial PR ships the simplest possible shape so we can unblock ML quickly. Everything sits
- * behind the cross-project search feature flag, which means on-disk and wire formats are not yet
- * contractual: the encryption follow-up (see {@code 05-encrypted-credential-storage-design.md})
- * is free to evolve the schema in lockstep with introducing the {@link
- * org.elasticsearch.xpack.core.crypto.EncryptedData} carrier (e.g. by adding a {@code version}
- * discriminator and an {@code encrypted} field). The XContent parser is therefore declared
- * lenient so that older readers tolerate fields added by the encryption follow-up without a
- * coordinated read-path migration.
- *
- * @see CloudCredential
+ * Persistence envelope for a cloud-managed (UIAM) credential, pairing the public key {@code id}
+ * with the opaque {@link CloudCredential}.
  */
 public final class PersistedCloudCredential implements Writeable, ToXContentObject, Releasable {
 
@@ -49,7 +35,7 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
 
     private static final ConstructingObjectParser<PersistedCloudCredential, Void> PARSER = new ConstructingObjectParser<>(
         "persisted_cloud_credential",
-        true, // lenient — tolerate unknown fields for forward-compat with the encryption follow-up
+        true,
         args -> new PersistedCloudCredential((String) args[0], (CloudCredential) args[1])
     );
 
@@ -93,8 +79,6 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID_FIELD.getPreferredName(), id);
-        // CloudCredential.value() chars are JSON-safe printable text by impl convention (serverless: base64 ASCII).
-        // We emit them as a raw string field; XContent JSON-escapes if needed. No additional encoding here.
         builder.field(VALUE_FIELD.getPreferredName(), credential.value().toString());
         return builder.endObject();
     }

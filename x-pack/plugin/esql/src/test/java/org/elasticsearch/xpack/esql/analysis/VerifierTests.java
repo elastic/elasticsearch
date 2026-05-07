@@ -81,6 +81,21 @@ public class VerifierTests extends ESTestCase {
 
     private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
     private final List<String> DATE_PERIODS = List.of("day", "week", "month", "year");
+    private final List<DataType> SORTABLE_TYPES = List.of(
+        BOOLEAN,
+        DOUBLE,
+        DATE_NANOS,
+        DATETIME,
+        INTEGER,
+        IP,
+        KEYWORD,
+        LONG,
+        UNSIGNED_LONG,
+        VERSION
+    );
+    private final List<DataType> UNSORTABLE_TYPES = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()
+        ? List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX)
+        : List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE);
 
     public void testIncompatibleTypesInMathOperation() {
         defaultAnalyzer().error(
@@ -829,7 +844,7 @@ public class VerifierTests extends ESTestCase {
             .error(
                 "FROM decades | LIMIT 1 BY date_range",
                 equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V3.isEnabled()
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V4.isEnabled()
                         ? "1:27: cannot group by on [date_range] type for grouping [date_range]"
                         : "1:27: Cannot use field [date_range] with unsupported type [date_range]"
                 )
@@ -858,7 +873,7 @@ public class VerifierTests extends ESTestCase {
             .error(
                 "FROM decades | STATS count(*) BY date_range",
                 equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V3.isEnabled()
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V4.isEnabled()
                         ? "1:34: cannot group by on [date_range] type for grouping [date_range]"
                         : "1:34: Cannot use field [date_range] with unsupported type [date_range]"
                 )
@@ -2741,16 +2756,18 @@ public class VerifierTests extends ESTestCase {
         airports.error("FROM airports | CHANGE_POINT scalerank", equalTo("1:17: Unknown column [@timestamp]"));
     }
 
-    public void testChangePoint_keySortable() {
+    public void testChangePointByUnknownColumn() {
+        assumeTrue("change_point_by must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_BY.isEnabled());
+        var airports = analyzer().addAirports().stripErrorPrefix(true);
+        airports.error("FROM airports | CHANGE_POINT scalerank ON scalerank BY blahblah", equalTo("1:56: Unknown column [blahblah]"));
+    }
+
+    public void testChangePointKeySortable() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
-        List<DataType> sortableTypes = List.of(BOOLEAN, DOUBLE, DATE_NANOS, DATETIME, INTEGER, IP, KEYWORD, LONG, UNSIGNED_LONG, VERSION);
-        List<DataType> unsortableTypes = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()
-            ? List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX)
-            : List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE);
-        for (DataType type : sortableTypes) {
+        for (DataType type : SORTABLE_TYPES) {
             defaultAnalyzer().query(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type));
         }
-        for (DataType type : unsortableTypes) {
+        for (DataType type : UNSORTABLE_TYPES) {
             defaultAnalyzer().error(
                 Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type),
                 equalTo("2:26: CHANGE_POINT only supports sortable keys, found expression [key] type [" + type + "]")
@@ -2758,7 +2775,20 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testChangePoint_valueNumeric() {
+    public void testChangePointByGroupingSortable() {
+        assumeTrue("change_point_by must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_BY.isEnabled());
+        for (DataType type : SORTABLE_TYPES) {
+            defaultAnalyzer().query(Strings.format("ROW key=0, value=0, grp=NULL::%s\n | CHANGE_POINT value ON key BY grp", type));
+        }
+        for (DataType type : UNSORTABLE_TYPES) {
+            defaultAnalyzer().error(
+                Strings.format("ROW key=0, value=0, grp=NULL::%s\n | CHANGE_POINT value ON key BY grp", type),
+                equalTo("2:33: CHANGE_POINT grouping only supports sortable values, found expression [grp] type [" + type + "]")
+            );
+        }
+    }
+
+    public void testChangePointValueNumeric() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
         List<DataType> numericTypes = List.of(DOUBLE, INTEGER, LONG, UNSIGNED_LONG);
         List<DataType> nonNumericTypes = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()

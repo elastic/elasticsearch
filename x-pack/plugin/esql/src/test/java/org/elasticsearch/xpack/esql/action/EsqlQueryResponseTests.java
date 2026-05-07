@@ -11,8 +11,12 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -21,6 +25,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -79,6 +84,7 @@ import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.ZoneId;
@@ -678,6 +684,61 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
          }
          */
         return numClusters * 4 + 1;
+    }
+
+    public void testDeserializeReleasesAlreadyReadPagesOnFailure() throws IOException {
+        int pageCount = between(10, 20);
+        List<ColumnInfoImpl> columns = randomList(1, 10, this::nonNullRandomColumnInfo);
+        List<Page> pages = randomList(pageCount, pageCount, () -> randomPage(columns));
+        BytesReference wireBytes;
+        EsqlExecutionInfo info = createExecutionInfo();
+        try (
+            var response = new EsqlQueryResponse(columns, pages, 0L, 0L, null, false, null, false, false, ZoneOffset.UTC, 0, 0, info);
+            var out = new BytesStreamOutput()
+        ) {
+            out.setTransportVersion(TransportVersion.current());
+            response.writeTo(out);
+            wireBytes = out.bytes();
+        }
+
+        long pagesHeapBytes = pages.stream().mapToLong(Page::ramBytesUsedByBlocks).sum();
+        BlockFactory receiverFactory = newReceiverBlockFactory(ByteSizeValue.ofBytes(pagesHeapBytes / 2));
+        try (BlockStreamInput in = receiverStream(wireBytes, receiverFactory)) {
+            expectThrows(CircuitBreakingException.class, () -> EsqlQueryResponse.deserialize(in));
+        }
+
+        assertThat("All memory should be released", receiverFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    private ColumnInfoImpl nonNullRandomColumnInfo() {
+        return randomValueOtherThanMany(c -> c.type() == DataType.UNSUPPORTED || c.type() == DataType.NULL, this::randomColumnInfo);
+    }
+
+    public void testDeserializeReleasesPagesOnTrailingReadFailure() throws IOException {
+        BytesReference wireBytes;
+        try (EsqlQueryResponse response = randomResponse(false, null); BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            response.writeTo(out);
+            wireBytes = out.bytes();
+        }
+
+        BytesReference truncated = wireBytes.slice(0, wireBytes.length() - 1);
+        BlockFactory receiverFactory = newReceiverBlockFactory(ByteSizeValue.ofMb(4));
+        try (BlockStreamInput in = receiverStream(truncated, receiverFactory)) {
+            expectThrows(EOFException.class, () -> EsqlQueryResponse.deserialize(in));
+        }
+        assertThat("All memory should be released", receiverFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    private BlockFactory newReceiverBlockFactory(ByteSizeValue limit) {
+        return BlockFactory.builder(new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, limit).withCircuitBreaking()).build();
+    }
+
+    private BlockStreamInput receiverStream(BytesReference bytes, BlockFactory factory) throws IOException {
+        StreamInput delegate = new NamedWriteableAwareStreamInput(bytes.streamInput(), getNamedWriteableRegistry());
+        BlockStreamInput in = new BlockStreamInput(delegate, factory);
+        in.setTransportVersion(TransportVersion.current());
+        return in;
     }
 
     public void testChunkResponseSizeColumnar() {

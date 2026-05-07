@@ -131,4 +131,35 @@ public class IcebergParsingTests extends AbstractStatementParserTests {
 
         assertNotNull(iceberg.tablePath());
     }
+
+    /**
+     * A naive Windows local path embedded as {@code "file://C:\\dir\\file"} fails to parse because
+     * the QUOTED_STRING grammar treats {@code \\} as an escape introducer (see
+     * x-pack/plugin/esql/src/main/antlr/lexer/Expression.g4: ESCAPE_SEQUENCE only allows
+     * {@code \\t \\n \\r \\" \\\\}). Tests must produce {@code file:///C:/...} URIs, e.g. via
+     * {@code StoragePath.fileUri(Path)}, so EXTERNAL queries are parser-safe across OSes.
+     */
+    public void testExternalCommandRejectsBackslashesInUri() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        ParsingException pe = expectThrows(ParsingException.class, () -> query("EXTERNAL \"file://C:\\build\\data.parquet\""));
+        assertThat(pe.getMessage(), containsString("token recognition error"));
+    }
+
+    /**
+     * Forward-slash {@code file:///C:/...} URIs (the form {@code StoragePath.fileUri(Path)} produces
+     * on Windows) parse cleanly, ensuring the EXTERNAL command works on Windows when callers use the
+     * helper instead of {@code Path.toAbsolutePath().toString()}.
+     */
+    public void testExternalCommandAcceptsWindowsFileUri() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        String uri = "file:///C:/build/data.parquet";
+        var plan = query("EXTERNAL \"" + uri + "\"");
+
+        assertThat(plan, instanceOf(UnresolvedExternalRelation.class));
+        UnresolvedExternalRelation external = as(plan, UnresolvedExternalRelation.class);
+        Literal pathLiteral = as(external.tablePath(), Literal.class);
+        assertThat(BytesRefs.toString(pathLiteral.value()), equalTo(uri));
+    }
 }

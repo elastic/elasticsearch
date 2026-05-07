@@ -22,6 +22,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.ByteArrayOutputStream;
@@ -76,7 +77,7 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
         int totalRows = 300;
         Path parquetFile = writeParquetFile(totalRows, 100);
         try {
-            String query = "EXTERNAL \"file://" + parquetFile.toAbsolutePath() + "\" | STATS c = COUNT(*)";
+            String query = "EXTERNAL \"" + StoragePath.fileUri(parquetFile) + "\" | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);
             request.profile(true);
@@ -103,7 +104,7 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
         int totalRows = 50;
         Path parquetFile = writeParquetFile(totalRows, totalRows + 1);
         try {
-            String query = "EXTERNAL \"file://" + parquetFile.toAbsolutePath() + "\" | STATS c = COUNT(*)";
+            String query = "EXTERNAL \"" + StoragePath.fileUri(parquetFile) + "\" | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);
             request.profile(true);
@@ -126,7 +127,7 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
         // rowGroupSize=50 bytes forces ~20 row groups for 1000 rows
         Path parquetFile = writeParquetFile(totalRows, 50);
         try {
-            String query = "EXTERNAL \"file://" + parquetFile.toAbsolutePath() + "\" | STATS c = COUNT(*)";
+            String query = "EXTERNAL \"" + StoragePath.fileUri(parquetFile) + "\" | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);
             request.profile(true);
@@ -149,8 +150,8 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
         int totalRows = 500;
         Path parquetFile = writeParquetFile(totalRows, 80);
         try {
-            String query = "EXTERNAL \"file://"
-                + parquetFile.toAbsolutePath()
+            String query = "EXTERNAL \""
+                + StoragePath.fileUri(parquetFile)
                 + "\" WITH { \"external_distribution\": \"coordinator_only\" } | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);

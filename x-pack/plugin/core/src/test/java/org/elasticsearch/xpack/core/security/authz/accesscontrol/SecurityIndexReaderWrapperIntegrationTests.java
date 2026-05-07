@@ -526,6 +526,6 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
-        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, List.of(), randomFrom(IndexMode.availableModes()));
+        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, List.of(), randomFrom(IndexMode.values()));
     }
 }

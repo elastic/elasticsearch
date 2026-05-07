@@ -7,22 +7,33 @@
 
 package org.elasticsearch.xpack.esql.generator;
 
+import java.util.Set;
+
 /**
  * Context threaded through the random query generator.
  */
 public final class GenerationContext {
 
     private final int subqueryDepth;
+    private final Set<GenerativeFeature> features;
 
-    private GenerationContext(int subqueryDepth) {
+    private GenerationContext(int subqueryDepth, Set<GenerativeFeature> features) {
         this.subqueryDepth = subqueryDepth;
+        this.features = features;
     }
 
     /**
-     * Root context for a top-level query.
+     * Root context for a top-level query with no opt-in features. Used by the main generative suite.
      */
     public static GenerationContext root() {
-        return new GenerationContext(0);
+        return root(Set.of());
+    }
+
+    /**
+     * Root context for a top-level query with the given opt-in features.
+     */
+    public static GenerationContext root(Set<GenerativeFeature> features) {
+        return new GenerationContext(0, features);
     }
 
     /**
@@ -41,9 +52,16 @@ public final class GenerationContext {
     }
 
     /**
+     * Returns {@code true} if the given feature is enabled in this context.
+     */
+    public boolean isFeatureEnabled(GenerativeFeature feature) {
+        return features.contains(feature);
+    }
+
+    /**
      * Returns a copy of this context with the given subquery nesting depth.
      */
     public GenerationContext withSubqueryDepth(int subqueryDepth) {
-        return new GenerationContext(subqueryDepth);
+        return new GenerationContext(subqueryDepth, features);
     }
 }

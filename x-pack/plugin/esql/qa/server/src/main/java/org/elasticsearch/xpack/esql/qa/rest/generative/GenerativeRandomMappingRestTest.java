@@ -12,7 +12,6 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
-import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
 import org.elasticsearch.xpack.esql.generator.RandomMappingGenerator;
 import org.elasticsearch.xpack.esql.generator.RandomMappingGenerator.GeneratedIndex;
@@ -156,7 +155,7 @@ public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest
                 QueryExecuted previousResult;
             };
             try {
-                EsqlQueryGenerator.generatePipeline(RM_MAX_DEPTH, sourceCommand(), schema, exec, false, this, GenerationContext.root());
+                EsqlQueryGenerator.generatePipeline(RM_MAX_DEPTH, sourceCommand(), schema, exec, false, this, rootGenerationContext());
             } catch (AssertionError ae) {
                 // Thrown by checkPipelineResults/checkPipelineException via fail();
                 // augment with full reproduction context.

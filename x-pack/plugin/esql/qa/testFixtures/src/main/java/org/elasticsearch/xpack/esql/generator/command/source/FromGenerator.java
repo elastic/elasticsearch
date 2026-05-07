@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
+import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.SubqueryGenerator;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
@@ -113,7 +114,11 @@ public class FromGenerator implements CommandGenerator {
                 result.append(",");
             }
             // No nested subqueries: ESQL rejects UnionAll under UnionAll ("Nested subqueries are not supported").
-            if (context.isWithinASubquery() == false && randomDouble() < SUBQUERY_PROBABILITY) {
+            // Subqueries are opt-in via GenerativeFeature.SUBQUERIES so the main generative suite can remain
+            // subquery-free; only GenerativeSubqueryRestTest enables them.
+            if (context.isFeatureEnabled(GenerativeFeature.SUBQUERIES)
+                && context.isWithinASubquery() == false
+                && randomDouble() < SUBQUERY_PROBABILITY) {
                 SubqueryGenerator.SubqueryResult sub = SubqueryGenerator.build(context, schema, executor);
                 if (sub != null) {
                     result.append(sub.queryText());

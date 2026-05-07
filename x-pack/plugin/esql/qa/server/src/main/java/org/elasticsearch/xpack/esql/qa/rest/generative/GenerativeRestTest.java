@@ -41,6 +41,7 @@ import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,6 +52,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
@@ -140,13 +142,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Output has changed from \\[.*\\] to \\[.*_doc.*\\]", // https://github.com/elastic/elasticsearch/issues/146856
 
         // TopNOperator type mismatch in ValueExtractor
-        "Expected \\[.*\\] but was \\[.*\\].*ValueExtractor", // https://github.com/elastic/elasticsearch/issues/146850
-
-        // Mixing a subquery with plain index patterns in a multi-source FROM can surface fields whose types
-        // differ across branches. Plain FROM a, b would resolve these via union types, but the subquery-aware
-        // resolution (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION) rejects
-        // them outright. The generator has no cheap way to predict these cross-branch collisions.
-        "has conflicting data types in subqueries"
+        "Expected \\[.*\\] but was \\[.*\\].*ValueExtractor" // https://github.com/elastic/elasticsearch/issues/146850
     );
 
     /**
@@ -295,7 +291,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     exec,
                     requiresTimeSeries(),
                     this,
-                    GenerationContext.root()
+                    rootGenerationContext()
                 );
             } catch (Exception e) {
                 // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
@@ -336,6 +332,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     protected CommandGenerator sourceCommand() {
         return EsqlQueryGenerator.sourceCommand();
+    }
+
+    /**
+     * Returns the root {@link GenerationContext} for a single iteration of the test loop.
+     * Subclasses can override to opt into features, by adding new fields there and checking them in the generators.
+     */
+    protected GenerationContext rootGenerationContext() {
+        return GenerationContext.root();
     }
 
     protected CommandGenerator.ValidationResult checkPipelineResults(
@@ -390,11 +394,20 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isTsOutputChangedError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query), };
 
-    private static boolean isAllowedFailure(FailureContext ctx) {
+    /**
+     * Hook for subclasses that opt into a {@link org.elasticsearch.xpack.esql.generator.GenerativeFeature feature}
+     * to contribute extra error-message patterns that the feature is allowed to surface.
+     * Returned strings are wrapped to {@code .*<pattern>.*} and OR-ed with the base {@link #ALLOWED_ERRORS}.
+     */
+    protected Set<String> getAllowedErrors() {
+        return Set.of();
+    }
+
+    private boolean isAllowedFailure(FailureContext ctx) {
         if (ctx == null || ctx.errorMessage == null) {
             return false;
         }
-        for (AllowedFailureRule rule : ALLOWED_FAILURE_RULES) {
+        for (AllowedFailureRule rule : allowedFailureRules()) {
             if (rule.matches(ctx)) {
                 return true;
             }
@@ -402,7 +415,25 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return false;
     }
 
-    protected static CommandGenerator.ValidationResult checkResults(
+    private List<AllowedFailureRule> allowedFailureRules;
+
+    /**
+     * Lazily merges {@link #ALLOWED_FAILURE_RULES} with the patterns supplied by {@link #getAllowedErrors()},
+     * each wrapped as a rule that matches against the normalized error message.
+     */
+    private List<AllowedFailureRule> allowedFailureRules() {
+        if (allowedFailureRules == null) {
+            allowedFailureRules = Stream.concat(
+                Arrays.stream(ALLOWED_FAILURE_RULES),
+                getAllowedErrors().stream()
+                    .map(s -> Pattern.compile(".*" + s + ".*", Pattern.DOTALL))
+                    .<AllowedFailureRule>map(p -> ctx -> p.matcher(ctx.normalizedErrorMessage).matches())
+            ).toList();
+        }
+        return allowedFailureRules;
+    }
+
+    protected CommandGenerator.ValidationResult checkResults(
         List<CommandGenerator.CommandDescription> previousCommands,
         CommandGenerator commandGenerator,
         CommandGenerator.CommandDescription commandDescription,
@@ -422,7 +453,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return outputValidation;
     }
 
-    protected static void failOnUnexpectedValidationError(
+    protected void failOnUnexpectedValidationError(
         CommandGenerator.ValidationResult outputValidation,
         QueryExecuted result,
         List<CommandGenerator.CommandDescription> previousCommands,

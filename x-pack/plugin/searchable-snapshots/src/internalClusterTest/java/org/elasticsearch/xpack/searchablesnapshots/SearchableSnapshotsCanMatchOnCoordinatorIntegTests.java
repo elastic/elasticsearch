@@ -771,9 +771,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         // When the columnar feature flag is enabled, randomly exercise COLUMNAR_LOGSDB; fall back to LOGSDB otherwise.
         // assumeTrue cannot be used here because the cluster is started before the test body runs, and a mid-test skip
         // leaves the cluster in a state where @After cleanup cannot obtain a client.
-        IndexMode mode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean()
-            ? IndexMode.COLUMNAR_LOGSDB
-            : IndexMode.LOGSDB;
+        IndexMode mode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean() ? IndexMode.COLUMNAR_LOGSDB : IndexMode.LOGSDB;
         testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(mode);
     }
 

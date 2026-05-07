@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.reshard;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.replication.StaleRequestException;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -24,6 +26,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -38,9 +41,11 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.STATE_MACHINE_RETRY_DELAY;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptionBaseIT {
     public void testMixedOperationsDuringSplit() throws Exception {
@@ -104,9 +109,11 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
         }
     }
 
+    private record IndexedDocument(String fieldValue, @Nullable String routing) {}
+
     private class NoDisruptionExecutor implements PerThreadOperationExecutor {
-        private final HashMap<String, String> indexed = new HashMap<>();
-        private final HashMap<String, String> indexedAndRefreshed = new HashMap<>();
+        private final HashMap<String, IndexedDocument> indexed = new HashMap<>();
+        private final HashMap<String, IndexedDocument> indexedAndRefreshed = new HashMap<>();
 
         private String indexName;
         private String coordinatorNode;
@@ -143,7 +150,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                             // Everything we've indexed and refreshed should be present.
                             // Other threads are working too so there will be more but shouldn't be less.
                             var fieldValue = fieldValueInHits.get(entry.getKey());
-                            assertEquals(entry.getValue(), fieldValue);
+                            assertEquals(entry.getValue().fieldValue(), fieldValue);
                         }
                     });
                 }
@@ -154,10 +161,10 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                         String fieldValue = randomUnicodeOfCodepointLengthBetween(1, 25);
 
                         String documentId = "document" + id;
-                        indexed.put(documentId, fieldValue);
+                        String routing = randomBoolean() ? null : randomAlphaOfLength(5);
+                        indexed.put(documentId, new IndexedDocument(fieldValue, routing));
                         id += 1;
-
-                        var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue);
+                        var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue, routing);
                         var indexResponse = indexRequest.get();
                         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
                     } else {
@@ -168,10 +175,11 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                             String fieldValue = randomUnicodeOfCodepointLengthBetween(1, 25);
 
                             String documentId = "document" + id;
-                            indexed.put(documentId, fieldValue);
+                            String routing = randomBoolean() ? null : randomAlphaOfLength(5);
+                            indexed.put(documentId, new IndexedDocument(fieldValue, routing));
                             id += 1;
 
-                            var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue);
+                            var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue, routing);
                             bulkRequest.add(indexRequest);
                         }
                         var bulkResponse = bulkRequest.get();
@@ -187,14 +195,110 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                         }
                     }
                 }
+                case GET -> {
+                    String documentId = randomDocumentId();
+                    if (documentId == null) {
+                        return;
+                    }
+                    boolean refreshed = indexedAndRefreshed.containsKey(documentId);
+                    IndexedDocument document = refreshed ? indexedAndRefreshed.get(documentId) : indexed.get(documentId);
+
+                    boolean realTime = randomBoolean();
+                    var response = client(coordinatorNode).prepareGet(indexName, documentId)
+                        .setRealtime(realTime)
+                        .setRouting(document.routing())
+                        .execute()
+                        .actionGet();
+                    if (realTime || refreshed) {
+                        assertTrue(response.isExists());
+                    }
+                    if (response.isExists()) {
+                        assertEquals(document.fieldValue(), response.getSourceAsMap().get("field"));
+                    }
+                }
+                case MULTIGET -> {
+                    boolean realTime = randomBoolean();
+                    var multiget = client(coordinatorNode).prepareMultiGet().setRealtime(realTime);
+                    int numDocs = randomIntBetween(1, 5);
+
+                    record ExpectedDocument(IndexedDocument document, boolean refreshed) {}
+                    List<ExpectedDocument> documents = new ArrayList<>(numDocs);
+                    for (int i = 0; i < numDocs; i++) {
+                        String documentId = randomDocumentId();
+                        if (documentId == null) {
+                            return;
+                        }
+                        boolean refreshed = indexedAndRefreshed.containsKey(documentId);
+                        IndexedDocument document = refreshed ? indexedAndRefreshed.get(documentId) : indexed.get(documentId);
+
+                        var get = new MultiGetRequest.Item(indexName, documentId).routing(document.routing());
+                        multiget.add(get);
+                        documents.add(new ExpectedDocument(document, refreshed));
+                    }
+
+                    var responses = multiget.execute().actionGet().getResponses();
+                    for (int i = 0; i < numDocs; i++) {
+                        var response = responses[i];
+                        if (response.isFailed()) {
+                            var failure = response.getFailure().getFailure();
+                            assertThat(failure, instanceOf(StaleRequestException.class));
+                            // Rethrow to retry in executeOperations
+                            throw (StaleRequestException) failure;
+                        } else {
+                            ExpectedDocument document = documents.get(i);
+                            if (realTime || document.refreshed) {
+                                assertTrue(response.getResponse().isExists());
+                            }
+                            if (response.getResponse().isExists()) {
+                                assertEquals(document.document.fieldValue(), response.getResponse().getSourceAsMap().get("field"));
+                            }
+                        }
+                    }
+                }
+                case TERM_VECTOR -> {
+                    String documentId = randomDocumentId();
+                    if (documentId == null) {
+                        return;
+                    }
+                    boolean refreshed = indexedAndRefreshed.containsKey(documentId);
+                    IndexedDocument document = refreshed ? indexedAndRefreshed.get(documentId) : indexed.get(documentId);
+
+                    boolean realTime = randomBoolean();
+                    var response = client(coordinatorNode).prepareTermVectors(indexName, documentId)
+                        .setRealtime(realTime)
+                        .setRouting(document.routing())
+                        .execute()
+                        .actionGet();
+                    if (realTime || refreshed) {
+                        assertTrue(response.isExists());
+                    }
+                    if (response.isExists()) {
+                        try {
+                            assertEquals(1, response.getFields().size());
+                            assertEquals("field", response.getFields().iterator().next());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+                default -> throw new IllegalStateException("Unexpected value: " + operation);
             }
+        }
+
+        private String randomDocumentId() {
+            int numIndexed = indexed.size() + indexedAndRefreshed.size();
+            if (numIndexed == 0) {
+                return null;
+            }
+            boolean refreshed = randomInt(numIndexed - 1) >= indexed.size();
+            return refreshed ? randomFrom(indexedAndRefreshed.keySet()) : randomFrom(indexed.keySet());
         }
     }
 
     private class UnderDisruptionExecutor implements PerThreadOperationExecutor {
-        private final HashMap<String, String> allIndexedDocuments = new HashMap<>();
-        private final HashMap<String, String> indexedSinceLastRefresh = new HashMap<>();
-        private final HashMap<String, String> indexedAndRefreshed = new HashMap<>();
+        private final HashMap<String, IndexedDocument> allIndexedDocuments = new HashMap<>();
+        private final HashMap<String, IndexedDocument> indexedSinceLastRefresh = new HashMap<>();
+        private final HashMap<String, IndexedDocument> indexedAndRefreshed = new HashMap<>();
 
         private String indexName;
         private String coordinatorNode;
@@ -248,16 +352,16 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                             // refreshed in the strict definition (there were no fully successful refreshes but may have been partial ones).
                             // So we check both refreshed and indexed documents.
                             for (var entry : fieldValueInHits.entrySet()) {
-                                var fieldValue = Optional.ofNullable(indexedAndRefreshed.get(entry.getKey()))
+                                var document = Optional.ofNullable(indexedAndRefreshed.get(entry.getKey()))
                                     .or(() -> Optional.ofNullable(allIndexedDocuments.get(entry.getKey())));
                                 String message = String.format(
                                     Locale.ROOT,
                                     "Expected to see document with field value %s but got %s",
-                                    fieldValue,
+                                    document,
                                     entry.getKey()
                                 );
-                                assertTrue(message, fieldValue.isPresent());
-                                assertEquals(message, entry.getValue(), fieldValue.get());
+                                assertTrue(message, document.isPresent());
+                                assertEquals(message, entry.getValue(), document.get().fieldValue());
                             }
                         } finally {
                             searchResponse.decRef();
@@ -275,11 +379,13 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                         String fieldValue = randomUnicodeOfCodepointLengthBetween(1, 25);
 
                         String documentId = "document" + currentId;
+                        String routing = randomBoolean() ? null : randomAlphaOfLength(5);
+                        var document = new IndexedDocument(fieldValue, routing);
                         currentId += 1;
-                        allIndexedDocuments.put(documentId, fieldValue);
-                        indexedSinceLastRefresh.put(documentId, fieldValue);
+                        allIndexedDocuments.put(documentId, document);
+                        indexedSinceLastRefresh.put(documentId, document);
 
-                        var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue);
+                        var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue, routing);
                         try {
                             DocWriteResponse response = indexRequest.execute().actionGet();
                             assertTrue(
@@ -305,14 +411,16 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                             String fieldValue = randomUnicodeOfCodepointLengthBetween(1, 25);
 
                             String documentId = "document" + currentId;
+                            String routing = randomBoolean() ? null : randomAlphaOfLength(5);
+                            var document = new IndexedDocument(fieldValue, routing);
                             currentId += 1;
                             // Bulk requests can partially fail due to a node restart or something else after the data is already
                             // in the translog.
                             // Such writes will be successful and so have to assume all writes can succeed.
-                            allIndexedDocuments.put(documentId, fieldValue);
-                            indexedSinceLastRefresh.put(documentId, fieldValue);
+                            allIndexedDocuments.put(documentId, document);
+                            indexedSinceLastRefresh.put(documentId, document);
 
-                            var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue);
+                            var indexRequest = createIndexRequest(coordinatorNode, indexName, documentId, fieldValue, routing);
                             bulkRequest.add(indexRequest);
                         }
 
@@ -324,6 +432,91 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                         }
                     }
                 }
+                case GET -> {
+                    if (allIndexedDocuments.isEmpty()) {
+                        return;
+                    }
+                    var entry = randomFrom(allIndexedDocuments.entrySet());
+                    String documentId = entry.getKey();
+                    IndexedDocument document = entry.getValue();
+
+                    boolean realTime = randomBoolean();
+                    try {
+                        var response = client(coordinatorNode).prepareGet(indexName, documentId)
+                            .setRealtime(realTime)
+                            .setRouting(document.routing())
+                            .execute()
+                            .actionGet();
+                        // Shard may be unavailable during disruption
+                        if (response.isExists()) {
+                            assertEquals(document.fieldValue(), response.getSourceAsMap().get("field"));
+                        }
+                    } catch (ElasticsearchException e) {
+                        // Shard unavailable during disruption
+                    }
+                }
+                case MULTIGET -> {
+                    if (allIndexedDocuments.isEmpty()) {
+                        return;
+                    }
+                    boolean realTime = randomBoolean();
+                    var multiget = client(coordinatorNode).prepareMultiGet().setRealtime(realTime);
+                    int numDocs = randomIntBetween(1, 5);
+
+                    List<IndexedDocument> documents = new ArrayList<>(numDocs);
+                    for (int i = 0; i < numDocs; i++) {
+                        var entry = randomFrom(allIndexedDocuments.entrySet());
+                        String documentId = entry.getKey();
+                        IndexedDocument document = entry.getValue();
+
+                        var get = new MultiGetRequest.Item(indexName, documentId).routing(document.routing());
+                        multiget.add(get);
+                        documents.add(document);
+                    }
+
+                    var responses = multiget.execute().actionGet().getResponses();
+                    for (int i = 0; i < numDocs; i++) {
+                        var response = responses[i];
+                        IndexedDocument document = documents.get(i);
+                        if (response.isFailed() && response.getFailure().getFailure() instanceof StaleRequestException sre) {
+                            // Rethrow to retry in executeOperations
+                            throw sre;
+                        }
+                        // Shard may be unavailable during disruption
+                        if (response.isFailed() == false && response.getResponse().isExists()) {
+                            assertEquals(document.fieldValue(), response.getResponse().getSourceAsMap().get("field"));
+                        }
+                    }
+                }
+                case TERM_VECTOR -> {
+                    if (allIndexedDocuments.isEmpty()) {
+                        return;
+                    }
+                    var entry = randomFrom(allIndexedDocuments.entrySet());
+                    String documentId = entry.getKey();
+                    IndexedDocument document = entry.getValue();
+
+                    boolean realTime = randomBoolean();
+                    try {
+                        var response = client(coordinatorNode).prepareTermVectors(indexName, documentId)
+                            .setRealtime(realTime)
+                            .setRouting(document.routing())
+                            .execute()
+                            .actionGet();
+                        // Shard may be unavailable during disruption
+                        if (response.isExists()) {
+                            try {
+                                assertEquals(1, response.getFields().size());
+                                assertEquals("field", response.getFields().iterator().next());
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    } catch (ElasticsearchException e) {
+                        // Shard may be unavailable during disruption
+                    }
+                }
+                default -> throw new IllegalStateException("Unexpected value: " + operation);
             }
         }
     }
@@ -351,13 +544,17 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
         ensureStableCluster(clusterSize, masterNode);
 
         String indexName = randomIndexName();
-        createIndex(
-            indexName,
-            indexSettings(shards, 1)
-                // Due to all the disruption we can hit the default maximum of 5.
-                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), 100)
-                .build()
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                indexSettings(shards, 1)
+                    // Due to all the disruption we can hit the default maximum of 5.
+                    .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), 100)
+                    .build()
+            ).setMapping("""
+                {"properties":{"field":{"type": "text","term_vector":"yes","analyzer":"keyword"}}}
+                """)
         );
+
         Index index = resolveIndex(indexName);
         ensureGreen(indexName);
 
@@ -452,42 +649,59 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
         }
     }
 
-    private IndexRequestBuilder createIndexRequest(String coordinatorNode, String indexName, String documentId, String fieldValue) {
+    private IndexRequestBuilder createIndexRequest(
+        String coordinatorNode,
+        String indexName,
+        String documentId,
+        String fieldValue,
+        @Nullable String routing
+    ) {
         var indexRequest = client(coordinatorNode).prepareIndex(indexName);
         indexRequest.setId(documentId);
         indexRequest.setSource(Map.of("field", fieldValue));
-
-        if (randomBoolean()) {
-            indexRequest.setRouting(randomAlphaOfLength(5));
-        }
-
+        indexRequest.setRouting(routing);
         return indexRequest;
     }
 
-    // Generates a list of random operations with some basic logic to make it somewhat realistic.
+    private record WeightedOperation(Operation operation, int weight) {}
+
+    private static final List<WeightedOperation> OPERATIONS = List.of(
+        new WeightedOperation(Operation.INDEX, 55),
+        new WeightedOperation(Operation.REFRESH, 10),
+        new WeightedOperation(Operation.SEARCH, 20),
+        new WeightedOperation(Operation.GET, 5),
+        new WeightedOperation(Operation.MULTIGET, 5),
+        new WeightedOperation(Operation.TERM_VECTOR, 5)
+    );
+    private static final int ROLL_SIZE = OPERATIONS.stream().mapToInt(WeightedOperation::weight).sum();
+    static {
+        assertEquals(100, ROLL_SIZE);
+    }
+
     private List<Operation> randomOperations(int size) {
         var result = new ArrayList<Operation>(size);
 
         for (int i = 0; i < size; i++) {
-            int roll = randomIntBetween(0, 100);
-            // Steady state of indexing.
-            if (roll < 60) {
-                result.add(Operation.INDEX);
-            } else if (roll < 70) {
-                // 10% percent refresh
-                result.add(Operation.REFRESH);
-            } else {
-                // 30% search
-                result.add(Operation.SEARCH);
+            int roll = randomIntBetween(0, ROLL_SIZE - 1);
+            for (WeightedOperation operation : OPERATIONS) {
+                if (roll < operation.weight) {
+                    result.add(operation.operation);
+                    break;
+                }
+                roll -= operation.weight;
             }
         }
 
+        assertEquals(size, result.size());
         return result;
     }
 
     enum Operation {
         INDEX,
         REFRESH,
-        SEARCH
+        SEARCH,
+        GET,
+        MULTIGET,
+        TERM_VECTOR
     }
 }

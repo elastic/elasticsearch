@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
@@ -97,7 +99,7 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
 
         assertThat(firstServiceSettings, equalTo(secondServiceSettings));
         assertThat(firstTaskSettings, equalTo(secondTaskSettings));
-        assertThat(request.getBodyTaskType(), sameInstance(request.getBodyTaskType()));
+        assertThat(request.getBodyTaskType(), is(nullValue()));
     }
 
     public void testParseContent_DeepCopiesNestedMaps() {
@@ -160,6 +162,14 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
         assertThat(request.getServiceSettings(), is(nullValue()));
         assertThat(request.getTaskSettings(), is(nullValue()));
         assertThat(request.getBodyTaskType(), is(TaskType.TEXT_EMBEDDING));
+    }
+
+    public void testParseContent_EmptyBody_ThrowsBadRequest() {
+        var request = requestWithBody("{}");
+
+        var exception = expectThrows(ElasticsearchStatusException.class, request::getServiceSettings);
+        assertThat(exception.getMessage(), is("Request body is empty"));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
     }
 
     private static UpdateInferenceModelAction.Request requestWithBody(String body) {

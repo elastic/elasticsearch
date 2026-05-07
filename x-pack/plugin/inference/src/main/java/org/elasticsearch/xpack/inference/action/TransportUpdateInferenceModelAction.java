@@ -250,10 +250,10 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     /**
      * Combines the existing model secrets with the new secrets to create a new model secrets
      * @param existingParsedModel the Model representing a third-party service endpoint
-     * @param newSettingsMap new secrets to update
+     * @param newSettingsMap new secrets to update, or {@code null} to leave unchanged
      * @return a new object representing the updated model secrets
      */
-    ModelSecrets combineExistingSecretsWithNewSecrets(Model existingParsedModel, Map<String, Object> newSettingsMap) {
+    ModelSecrets combineExistingSecretsWithNewSecrets(Model existingParsedModel, @Nullable Map<String, Object> newSettingsMap) {
         SecretSettings existingSecretSettings = existingParsedModel.getSecretSettings();
         SecretSettings mergedSecretSettings = existingSecretSettings;
 

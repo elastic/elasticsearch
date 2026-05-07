@@ -230,7 +230,7 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
                     } else {
                         throw new ElasticsearchStatusException(
                             "Failed to parse [task_type] in update request [{}]",
-                            RestStatus.INTERNAL_SERVER_ERROR,
+                            RestStatus.BAD_REQUEST,
                             unvalidatedMap.toString()
                         );
                     }
@@ -274,7 +274,7 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
                         } else {
                             throw new ElasticsearchStatusException(
                                 "Failed to parse update request [{}]",
-                                RestStatus.INTERNAL_SERVER_ERROR,
+                                RestStatus.BAD_REQUEST,
                                 sourceMap.toString()
                             );
                         }

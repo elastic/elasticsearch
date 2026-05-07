@@ -372,12 +372,12 @@ public class FileSplitProviderTests extends ESTestCase {
 
     // -- sub-file splitting --
 
-    public void testLargeCsvFileIsSplitIntoChunks() {
+    public void testLargeNdjsonFileIsSplitIntoChunks() {
         long targetSize = 1000;
         FileSplitProvider splitter = new FileSplitProvider(targetSize);
 
-        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/big.csv"), 3500, Instant.EPOCH);
-        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.csv");
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/big.ndjson"), 3500, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson");
 
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = splitter.discoverSplits(ctx);
@@ -450,10 +450,10 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(0, ((FileSplit) splits.get(0)).offset());
     }
 
-    public void testDefaultProviderSplitsLargeTextFile() {
+    public void testDefaultProviderSplitsLargeNdjsonFile() {
         long fileSize = 500 * 1024 * 1024L; // 500 MB
-        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/huge.csv"), fileSize, Instant.EPOCH);
-        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.csv");
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/huge.ndjson"), fileSize, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson");
 
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
@@ -478,8 +478,8 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     public void testTargetSplitSizeConfigOverride() {
-        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.csv"), 3000, Instant.EPOCH);
-        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.csv");
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.ndjson"), 3000, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson");
 
         Map<String, Object> config = Map.of(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE, "1kb");
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, config, PartitionMetadata.EMPTY, List.of());
@@ -523,8 +523,8 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     public void testTargetSplitSizeInvalidValue() {
-        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.csv"), 3000, Instant.EPOCH);
-        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.csv");
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.ndjson"), 3000, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson");
 
         Map<String, Object> config = Map.of(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE, "not_a_number");
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, config, PartitionMetadata.EMPTY, List.of());
@@ -532,8 +532,8 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     public void testTargetSplitSizeUnitlessIsRejected() {
-        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.csv"), 3000, Instant.EPOCH);
-        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.csv");
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.ndjson"), 3000, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson");
 
         Map<String, Object> config = Map.of(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE, "1024");
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, config, PartitionMetadata.EMPTY, List.of());
@@ -541,8 +541,8 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     public void testTargetSplitSizeZeroIsRejected() {
-        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.csv"), 3000, Instant.EPOCH);
-        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.csv");
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.ndjson"), 3000, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson");
 
         Map<String, Object> config = Map.of(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE, "0b");
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, config, PartitionMetadata.EMPTY, List.of());
@@ -553,8 +553,8 @@ public class FileSplitProviderTests extends ESTestCase {
         long targetSize = 1000;
         FileSplitProvider splitter = new FileSplitProvider(targetSize);
 
-        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/exact.csv"), targetSize, Instant.EPOCH);
-        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.csv");
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/exact.ndjson"), targetSize, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson");
 
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = splitter.discoverSplits(ctx);
@@ -580,8 +580,8 @@ public class FileSplitProviderTests extends ESTestCase {
     }
 
     public void testIsSplittableFormat() {
-        assertTrue(FileSplitProvider.isSplittableFormat(".csv"));
-        assertTrue(FileSplitProvider.isSplittableFormat(".tsv"));
+        assertFalse(FileSplitProvider.isSplittableFormat(".csv"));
+        assertFalse(FileSplitProvider.isSplittableFormat(".tsv"));
         assertTrue(FileSplitProvider.isSplittableFormat(".ndjson"));
         assertTrue(FileSplitProvider.isSplittableFormat(".jsonl"));
         assertTrue(FileSplitProvider.isSplittableFormat(".txt"));

@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 148290
-summary: Add ES|QL `FieldExtract` function for flattened type
-type: feature

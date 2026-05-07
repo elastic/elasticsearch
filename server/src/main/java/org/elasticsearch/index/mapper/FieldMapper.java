@@ -1381,12 +1381,12 @@ public abstract class FieldMapper extends Mapper {
             IndexSettings indexSettings,
             Supplier<Boolean> isDimension
         ) {
-            return Parameter.boolParam(
-                "index",
-                false,
-                initializer,
-                () -> useTimeSeriesDocValuesSkippers(indexSettings, isDimension.get()) == false
-            );
+            return Parameter.boolParam("index", false, initializer, () -> {
+                if (indexSettings.isIndexDisabledByDefault()) {
+                    return false;
+                }
+                return useTimeSeriesDocValuesSkippers(indexSettings, isDimension.get()) == false;
+            });
         }
 
         public static boolean useTimeSeriesDocValuesSkippers(IndexSettings indexSettings, boolean isDimension) {

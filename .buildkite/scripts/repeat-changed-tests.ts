@@ -438,9 +438,7 @@ export function generateBatchCommand(batch: ClassifiedTest[]): string {
     case "yamlRestTestCase": {
       // Each parameterized case is addressed by the full `<FQCN>.test {yaml=...}`
       // form, so multiple cases can be batched into one gradle invocation and
-      // share agent and cluster setup. MutedTestPlugin sets
-      // `failOnNoMatchingTests = false` in CI, making cross-project batching
-      // safe even when a filter matches nothing in some of the selected tasks.
+      // share agent and cluster setup.
       const tasks = tasksWithFilters(batch, "yamlRestTest", (t) => `--tests "${t.fqcn}.${t.yamlTest}"`, "--rerun");
       return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${tasks}`;
     }

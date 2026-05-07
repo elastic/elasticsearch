@@ -359,7 +359,7 @@ public class FixtureUtils {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 String name = file.getFileName().toString();
-                if (name.endsWith(".csv") || name.endsWith(".ndjson")) {
+                if (name.endsWith(".csv") || name.endsWith(".ndjson") || name.endsWith(".tsv")) {
                     byte[] content = Files.readAllBytes(file);
                     Path parent = file.getParent();
                     for (String suffix : COMPRESSED_EXTENSIONS) {

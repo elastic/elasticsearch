@@ -318,7 +318,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             .findFirst()
             .orElseThrow();
 
-        reindex().source("source").destination("dest_auto").setSlices(AbstractBulkBySearchRequest.AUTO_SLICES).get();
+        reindex().source("source").destination("dest_auto").setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES).get();
 
         assertBusy(() -> {
             testTelemetryPlugin.collect();

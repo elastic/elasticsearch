@@ -13,7 +13,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
-public class DeleteByQueryRequestBuilder extends AbstractBulkBySearchRequestBuilder<DeleteByQueryRequest, DeleteByQueryRequestBuilder> {
+public class DeleteByQueryRequestBuilder extends AbstractBulkByPaginatedSearchRequestBuilder<DeleteByQueryRequest, DeleteByQueryRequestBuilder> {
 
     private Boolean abortOnVersionConflict;
 

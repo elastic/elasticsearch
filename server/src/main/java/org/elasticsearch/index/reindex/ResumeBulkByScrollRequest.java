@@ -21,25 +21,25 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-/// Wraps an [AbstractBulkBySearchRequest] that is being resumed (e.g. as part of relocating a long-running reindex/update-by-query/
+/// Wraps an [AbstractBulkByPaginatedSearchRequest] that is being resumed (e.g. as part of relocating a long-running reindex/update-by-query/
 /// delete-by-query task to another node). Implements [CompositeIndicesRequest] so that security treats the resumed reindex request
 /// like the original [ReindexRequest].
 public class ResumeBulkByScrollRequest extends ActionRequest implements CompositeIndicesRequest {
 
-    private final AbstractBulkBySearchRequest<?> delegate;
+    private final AbstractBulkByPaginatedSearchRequest<?> delegate;
 
-    public ResumeBulkByScrollRequest(AbstractBulkBySearchRequest<?> delegate) {
+    public ResumeBulkByScrollRequest(AbstractBulkByPaginatedSearchRequest<?> delegate) {
         super();
         this.delegate = Objects.requireNonNull(delegate, "delegate request cannot be null");
     }
 
-    public ResumeBulkByScrollRequest(StreamInput in, Writeable.Reader<? extends AbstractBulkBySearchRequest<?>> delegateReader)
+    public ResumeBulkByScrollRequest(StreamInput in, Writeable.Reader<? extends AbstractBulkByPaginatedSearchRequest<?>> delegateReader)
         throws IOException {
         super(in);
         this.delegate = delegateReader.read(in);
     }
 
-    public AbstractBulkBySearchRequest<?> getDelegate() {
+    public AbstractBulkByPaginatedSearchRequest<?> getDelegate() {
         return delegate;
     }
 

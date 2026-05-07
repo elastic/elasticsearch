@@ -49,7 +49,7 @@ import static org.junit.Assert.assertArrayEquals;
 /**
  * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.
  */
-public class ReindexRequestTests extends AbstractBulkBySearchRequestTestCase<ReindexRequest> {
+public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTestCase<ReindexRequest> {
 
     private final BytesReference matchAll = new BytesArray("{ \"foo\" : \"bar\" }");
 
@@ -215,7 +215,7 @@ public class ReindexRequestTests extends AbstractBulkBySearchRequestTestCase<Rei
             )
         );
         // Enable automatic slicing with an automatically chosen number of slices (like setting the slices URL parameter to "auto"):
-        reindex.setSlices(AbstractBulkBySearchRequest.AUTO_SLICES);
+        reindex.setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
         ActionRequestValidationException e = reindex.validate();
         assertEquals(
             "Validation Failed: 1: reindex from remote sources doesn't support slices > 1 but was [" + reindex.getSlices() + "];",

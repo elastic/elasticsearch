@@ -19,12 +19,12 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
-import static org.elasticsearch.index.reindex.AbstractBulkBySearchRequest.DEFAULT_SCROLL_SIZE;
-import static org.elasticsearch.index.reindex.AbstractBulkBySearchRequest.DEFAULT_SCROLL_TIMEOUT;
+import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_SIZE;
+import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_TIMEOUT;
 
-public abstract class AbstractBulkBySearchRequestBuilder<
-    Request extends AbstractBulkBySearchRequest<Request>,
-    Self extends AbstractBulkBySearchRequestBuilder<Request, Self>> extends ActionRequestLazyBuilder<Request, BulkByScrollResponse> {
+public abstract class AbstractBulkByPaginatedSearchRequestBuilder<
+    Request extends AbstractBulkByPaginatedSearchRequest<Request>,
+    Self extends AbstractBulkByPaginatedSearchRequestBuilder<Request, Self>> extends ActionRequestLazyBuilder<Request, BulkByScrollResponse> {
     private final SearchRequestBuilder source;
     private Integer maxDocs;
     private Boolean abortOnVersionConflict;
@@ -37,7 +37,7 @@ public abstract class AbstractBulkBySearchRequestBuilder<
     private Boolean shouldStoreResult;
     private Integer slices;
 
-    protected AbstractBulkBySearchRequestBuilder(
+    protected AbstractBulkByPaginatedSearchRequestBuilder(
         ElasticsearchClient client,
         ActionType<BulkByScrollResponse> action,
         SearchRequestBuilder source

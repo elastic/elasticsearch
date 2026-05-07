@@ -259,6 +259,22 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
 
     }
 
+    public void testForkBucketColumnHasNoMetadata() {
+        client().prepareIndex("dates")
+            .setSource("date", "1985-07-09T00:00:00.000Z")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM dates
+            | FORK ( STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month) )
+                   ( STATS c=COUNT(*) BY bucket=BUCKET(date, 1 year) )
+            | KEEP bucket
+            """))) {
+            assertThat(findColumn(response, "bucket").meta(), nullValue());
+        }
+    }
+
     public void testInlineStatsBucketColumnMetadata() {
         client().prepareIndex("dates")
             .setSource("date", "1985-07-09T00:00:00.000Z")

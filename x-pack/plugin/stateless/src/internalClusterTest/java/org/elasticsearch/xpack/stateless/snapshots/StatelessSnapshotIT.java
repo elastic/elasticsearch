@@ -748,7 +748,7 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         assertBusy(() -> assertFalse(snapshotsCommitService.hasTrackingForShard(shardId0)));
     }
 
-    public void testStaleNodePausedNotificationDoesNotCorruptCommitOnNewNode() throws Exception {
+    public void testStaleNodePausedNotificationDoesNotAffectCommitOnNewNode() throws Exception {
         final var settings = Settings.builder()
             .put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), StatelessSnapshotEnabledStatus.ENABLED)
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)

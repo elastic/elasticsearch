@@ -272,6 +272,7 @@ public class CsvIT extends ESTestCase {
                 .filter(w -> w.startsWith("No limit defined, adding default limit of") == false)
                 .toList();
             testCase.assertWarnings(false).assertWarnings(warnings, null);
+            CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, response.documentsFound());
         } catch (Throwable t) {
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;

@@ -377,7 +377,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isForkWithSortBranchBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkTopNIndexOutOfBoundsBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkOptimizedIncorrectlyBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isRenameMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isRenameMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isLimitByMvExpandBug(ctx.normalizedErrorMessage, ctx.query), };
 
     private static boolean isAllowedFailure(FailureContext ctx) {
         if (ctx == null || ctx.errorMessage == null) {
@@ -885,6 +886,26 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return RENAME_COMMAND_PATTERN.matcher(query).find()
             && MV_EXPAND_COMMAND_PATTERN.matcher(query).find()
             && FUNCTION_GENERATING_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern OPTIMIZED_INCORRECTLY_LIMITBY_PATTERN = Pattern.compile(
+        ".*Plan \\[LimitBy\\[.*optimized incorrectly due to missing references.*",
+        Pattern.DOTALL
+    );
+
+    private static final Pattern LIMIT_BY_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*LIMIT\\s+\\S+\\s+BY\\b");
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/148513
+     */
+    static boolean isLimitByMvExpandBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_LIMITBY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return MV_EXPAND_COMMAND_PATTERN.matcher(query).find() && LIMIT_BY_COMMAND_PATTERN.matcher(query).find();
     }
 
     @Override

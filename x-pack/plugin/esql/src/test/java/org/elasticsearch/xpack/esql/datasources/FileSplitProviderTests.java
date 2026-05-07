@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -46,7 +47,9 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -54,7 +57,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -372,7 +377,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
     // -- sub-file splitting --
 
-    public void testLargeNdjsonFileIsSplitIntoChunks() {
+    public void testLargeNdjsonFileIsNotByteSplitEvenWithSmallProviderTarget() {
         long targetSize = 1000;
         FileSplitProvider splitter = new FileSplitProvider(targetSize);
 
@@ -382,30 +387,10 @@ public class FileSplitProviderTests extends ESTestCase {
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = splitter.discoverSplits(ctx);
 
-        assertEquals(4, splits.size());
-        FileSplit s0 = (FileSplit) splits.get(0);
-        assertEquals(0, s0.offset());
-        assertEquals(1000, s0.length());
-        assertEquals("true", s0.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-        assertNull(s0.config().get(FileSplitProvider.LAST_SPLIT_KEY));
-
-        FileSplit s1 = (FileSplit) splits.get(1);
-        assertEquals(1000, s1.offset());
-        assertEquals(1000, s1.length());
-        assertNull(s1.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-        assertNull(s1.config().get(FileSplitProvider.LAST_SPLIT_KEY));
-
-        FileSplit s2 = (FileSplit) splits.get(2);
-        assertEquals(2000, s2.offset());
-        assertEquals(1000, s2.length());
-        assertNull(s2.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-        assertNull(s2.config().get(FileSplitProvider.LAST_SPLIT_KEY));
-
-        FileSplit s3 = (FileSplit) splits.get(3);
-        assertEquals(3000, s3.offset());
-        assertEquals(500, s3.length());
-        assertNull(s3.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-        assertEquals("true", s3.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+        assertEquals(1, splits.size());
+        FileSplit whole = (FileSplit) splits.get(0);
+        assertEquals(0, whole.offset());
+        assertEquals(3500, whole.length());
     }
 
     public void testSmallFileIsNotSplit() {
@@ -450,31 +435,92 @@ public class FileSplitProviderTests extends ESTestCase {
         assertEquals(0, ((FileSplit) splits.get(0)).offset());
     }
 
-    public void testDefaultProviderSplitsLargeNdjsonFile() {
-        long fileSize = 500 * 1024 * 1024L; // 500 MB
+    public void testDefaultProviderDoesNotByteRangeSplitLargeNdjson() {
+        long fileSize = 500 * 1024 * 1024L; // 500 MB — above default split threshold
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/huge.ndjson"), fileSize, Instant.EPOCH);
         FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson");
 
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
-        // 500 MB / 64 MB default = 7.8125 → 8 splits
-        assertEquals(8, splits.size());
+        assertEquals(
+            "Without format registry and storage, NDJSON cannot discover newline boundaries and stays one split per file",
+            1,
+            splits.size()
+        );
+        FileSplit whole = (FileSplit) splits.get(0);
+        assertEquals(0, whole.offset());
+        assertEquals(fileSize, whole.length());
+        assertNull(whole.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+        assertNull(whole.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+    }
 
-        long totalBytes = 0;
-        for (ExternalSplit split : splits) {
-            totalBytes += ((FileSplit) split).length();
+    public void testNewlineAlignedNdjsonMacroSplitsAreDisjointAndMarked() throws IOException {
+        SegmentableFormatReader mockReader = mock(SegmentableFormatReader.class);
+        when(mockReader.minimumSegmentSize()).thenReturn(1024L);
+        when(mockReader.findNextRecordBoundary(any())).thenAnswer(invocation -> {
+            InputStream in = invocation.getArgument(0);
+            long consumed = 0;
+            int b;
+            while ((b = in.read()) >= 0) {
+                consumed++;
+                if (b == '\n') {
+                    return consumed;
+                }
+            }
+            return -1L;
+        });
+
+        String line = "abcdefgh\n";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 4000; i++) {
+            sb.append(line);
         }
-        assertEquals(fileSize, totalBytes);
+        byte[] payload = sb.toString().getBytes(StandardCharsets.UTF_8);
+        long fileLength = payload.length;
 
-        FileSplit first = (FileSplit) splits.get(0);
-        assertEquals(0, first.offset());
-        assertEquals("true", first.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-        assertNull(first.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+        FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
+        formatRegistry.registerLazy("ndjson-macro-test", (s, bf) -> mockReader, Settings.EMPTY, null);
+        formatRegistry.registerExtension(".ndjson", "ndjson-macro-test");
+        formatRegistry.byName("ndjson-macro-test");
 
-        FileSplit last = (FileSplit) splits.get(splits.size() - 1);
-        assertNull(last.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-        assertEquals("true", last.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+        StorageProviderRegistry storageRegistry = createPayloadStorageRegistry(payload);
+
+        long stride = 3000;
+        FileSplitProvider splitter = new FileSplitProvider(
+            stride,
+            new DecompressionCodecRegistry(),
+            storageRegistry,
+            formatRegistry,
+            Settings.EMPTY
+        );
+
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/lines.ndjson"), fileLength, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson");
+
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
+        List<ExternalSplit> splits = splitter.discoverSplits(ctx);
+
+        assertTrue("Expected multiple newline-aligned macro splits", splits.size() > 1);
+        long expectedOffset = 0;
+        for (int i = 0; i < splits.size(); i++) {
+            FileSplit fs = (FileSplit) splits.get(i);
+            assertEquals("true", fs.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+            assertEquals(expectedOffset, fs.offset());
+            expectedOffset += fs.length();
+            if (i == 0) {
+                assertEquals("true", fs.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+            } else {
+                assertNull(fs.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+            }
+            if (i == splits.size() - 1) {
+                assertEquals("true", fs.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+            } else {
+                assertNull(fs.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+            }
+        }
+        assertEquals(fileLength, expectedOffset);
+        verify(mockReader, atLeastOnce()).findNextRecordBoundary(any());
     }
 
     public void testTargetSplitSizeConfigOverride() {
@@ -485,19 +531,8 @@ public class FileSplitProviderTests extends ESTestCase {
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, config, PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
-        assertEquals(3, splits.size());
-        long totalBytes = 0;
-        for (ExternalSplit split : splits) {
-            totalBytes += ((FileSplit) split).length();
-        }
-        assertEquals(3000, totalBytes);
-
-        assertEquals("true", ((FileSplit) splits.get(0)).config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-        assertNull(((FileSplit) splits.get(0)).config().get(FileSplitProvider.LAST_SPLIT_KEY));
-        assertNull(((FileSplit) splits.get(1)).config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-        assertNull(((FileSplit) splits.get(1)).config().get(FileSplitProvider.LAST_SPLIT_KEY));
-        assertNull(((FileSplit) splits.get(2)).config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-        assertEquals("true", ((FileSplit) splits.get(2)).config().get(FileSplitProvider.LAST_SPLIT_KEY));
+        assertEquals(1, splits.size());
+        assertEquals(3000, ((FileSplit) splits.get(0)).length());
     }
 
     public void testTargetSplitSizeConfigOverrideMb() {
@@ -505,21 +540,12 @@ public class FileSplitProviderTests extends ESTestCase {
         StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/data.ndjson"), fileSize, Instant.EPOCH);
         FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson");
 
-        // Use 32mb (half the 64MB default) to verify the override actually changes behavior
         Map<String, Object> config = Map.of(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE, "32mb");
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, config, PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = provider.discoverSplits(ctx);
 
-        // 300MB / 32MB ≈ 9.375 → 10 splits (vs 5 with the 64MB default)
-        assertEquals(10, splits.size());
-        assertEquals("true", ((FileSplit) splits.get(0)).config().get(FileSplitProvider.FIRST_SPLIT_KEY));
-        assertEquals("true", ((FileSplit) splits.get(9)).config().get(FileSplitProvider.LAST_SPLIT_KEY));
-
-        long totalBytes = 0;
-        for (ExternalSplit split : splits) {
-            totalBytes += ((FileSplit) split).length();
-        }
-        assertEquals(fileSize, totalBytes);
+        assertEquals(1, splits.size());
+        assertEquals(fileSize, ((FileSplit) splits.get(0)).length());
     }
 
     public void testTargetSplitSizeInvalidValue() {
@@ -577,17 +603,6 @@ public class FileSplitProviderTests extends ESTestCase {
         FileSplit fs = (FileSplit) splits.get(0);
         assertEquals(0, fs.offset());
         assertEquals(fileSize, fs.length());
-    }
-
-    public void testIsSplittableFormat() {
-        assertFalse(FileSplitProvider.isSplittableFormat(".csv"));
-        assertFalse(FileSplitProvider.isSplittableFormat(".tsv"));
-        assertTrue(FileSplitProvider.isSplittableFormat(".ndjson"));
-        assertTrue(FileSplitProvider.isSplittableFormat(".jsonl"));
-        assertTrue(FileSplitProvider.isSplittableFormat(".txt"));
-        assertFalse(FileSplitProvider.isSplittableFormat(".parquet"));
-        assertFalse(FileSplitProvider.isSplittableFormat(".avro"));
-        assertFalse(FileSplitProvider.isSplittableFormat(null));
     }
 
     public void testFileSplitSizeMatchesOriginal() {
@@ -858,6 +873,92 @@ public class FileSplitProviderTests extends ESTestCase {
                     @Override
                     public long length() {
                         return length;
+                    }
+
+                    @Override
+                    public Instant lastModified() {
+                        return lastModified;
+                    }
+
+                    @Override
+                    public boolean exists() {
+                        return true;
+                    }
+
+                    @Override
+                    public StoragePath path() {
+                        return path;
+                    }
+                };
+            }
+
+            @Override
+            public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+                return new StorageIterator() {
+                    @Override
+                    public boolean hasNext() {
+                        return false;
+                    }
+
+                    @Override
+                    public StorageEntry next() {
+                        throw new java.util.NoSuchElementException();
+                    }
+
+                    @Override
+                    public void close() {}
+                };
+            }
+
+            @Override
+            public boolean exists(StoragePath path) {
+                return true;
+            }
+
+            @Override
+            public List<String> supportedSchemes() {
+                return List.of("s3");
+            }
+
+            @Override
+            public void close() {}
+        });
+        return registry;
+    }
+
+    /** S3 mock that serves {@code payload} for range reads (newline boundary scanning during split discovery). */
+    private static StorageProviderRegistry createPayloadStorageRegistry(byte[] payload) {
+        StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY);
+        registry.registerFactory("s3", settings -> new StorageProvider() {
+            @Override
+            public StorageObject newObject(StoragePath path) {
+                return newObject(path, payload.length);
+            }
+
+            @Override
+            public StorageObject newObject(StoragePath path, long length) {
+                return newObject(path, length, Instant.EPOCH);
+            }
+
+            @Override
+            public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+                assertEquals(payload.length, length);
+                return new StorageObject() {
+                    @Override
+                    public InputStream newStream() {
+                        return new ByteArrayInputStream(payload);
+                    }
+
+                    @Override
+                    public InputStream newStream(long position, long len) {
+                        int p = Math.toIntExact(position);
+                        int l = Math.toIntExact(len);
+                        return new ByteArrayInputStream(payload, p, l);
+                    }
+
+                    @Override
+                    public long length() {
+                        return payload.length;
                     }
 
                     @Override

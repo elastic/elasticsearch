@@ -9,10 +9,12 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.gradle.api.DefaultTask;
+import org.gradle.api.tasks.UntrackedTask;
 
 import java.util.Collection;
 import java.util.HashSet;
 
+@UntrackedTask(because = "When we wanna run a cluster, we wanna run a cluster.")
 public abstract class DefaultTestClustersTask extends DefaultTask implements TestClustersAware {
 
     private Collection<ElasticsearchCluster> clusters = new HashSet<>();

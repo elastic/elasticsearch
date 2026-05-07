@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -77,7 +78,20 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
-        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((RangeFieldMapper) m).coerce()));
+        checker.registerUpdateCheck("coerce", b -> b.field("coerce", false), m -> assertFalse(((RangeFieldMapper) m).coerce()));
+        if (rangeType() == RangeType.DATE) {
+            checker.registerConflictCheck("locale", b -> b.field("locale", "en_gb"));
+            checker.registerConflictCheck("format", fieldMapping(b -> {
+                b.field("type", "date_range");
+                b.field("format", DATE_FORMAT);
+            }), fieldMapping(b -> {
+                b.field("type", "date_range");
+                b.field("format", "epoch_millis");
+            }));
+        } else {
+            checker.registerIgnoredParameter("locale");
+            checker.registerIgnoredParameter("format");
+        }
     }
 
     private String getFromField() {
@@ -125,7 +139,8 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         assertFalse(pointField.fieldType().stored());
     }
 
-    public final void testNotIndexed() throws Exception {
+    @Override
+    public final void testNotIndexed() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("index", false);
@@ -133,6 +148,7 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(this::rangeSource));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.size());
+        assertEquals(IndexOptions.NONE, fields.get(0).fieldType().indexOptions());
     }
 
     public final void testNoDocValues() throws Exception {

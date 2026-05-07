@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.LookupQueryVectorBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.queries.GenericQueryVectorBuilder;
@@ -56,6 +57,52 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         }
     }
 
+    // TODO is this what we want to test?
+    public void testKnnQueryLookupCcsMinimizeRoundTripsTrue() throws Exception {
+        knnQueryBaseTestCases(true);
+        // Verify lookup query vector builder works across clusters for mixed semantic/dense mappings.
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                MIXED_TYPE_FIELD_2,
+                new LookupQueryVectorBuilder(getDocId(MIXED_TYPE_FIELD_1), LOCAL_INDEX_NAME, MIXED_TYPE_FIELD_1, null),
+                10,
+                100,
+                10f,
+                null
+            ),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
+            ),
+            null,
+            null
+        );
+    }
+
+    // TODO is this what we want to test?
+    public void testKnnQueryLookupCcsMinimizeRoundTripsFalse() throws Exception {
+        knnQueryBaseTestCases(false);
+        // Verify lookup query vector builder works across clusters for mixed semantic/dense mappings.
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                MIXED_TYPE_FIELD_2,
+                new LookupQueryVectorBuilder(getDocId(MIXED_TYPE_FIELD_1), LOCAL_INDEX_NAME, MIXED_TYPE_FIELD_1, null),
+                10,
+                100,
+                10f,
+                null
+            ),
+            QUERY_INDICES,
+            List.of(
+                new SearchResult("", LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2)),
+                new SearchResult(REMOTE_CLUSTER, REMOTE_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))
+            ),
+            null,
+            null
+        );
+    }
+
     public void testKnnQueryWithCcsMinimizeRoundTripsTrue() throws Exception {
         knnQueryBaseTestCases(true);
 
@@ -66,7 +113,7 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             List.of(new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))),
             new ClusterFailure(
                 SearchResponse.Cluster.Status.SKIPPED,
-                Set.of(new FailureCause(IllegalArgumentException.class, "[model_id] must not be null."))
+                Set.of(new FailureCause(IllegalArgumentException.class, "[model_id] must be specified"))
             ),
             null
         );
@@ -89,14 +136,14 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, new TextEmbeddingQueryVectorBuilder(null, "c"), 10, 100, 10f, null),
             QUERY_INDICES,
             IllegalArgumentException.class,
-            "[model_id] must not be null.",
+            "[model_id] must be specified",
             s -> s.setCcsMinimizeRoundtrips(false)
         );
         assertSearchFailure(
             new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2, new TextEmbeddingQueryVectorBuilder(null, "c"), 10, 100, 10f, null),
             List.of(FULLY_QUALIFIED_REMOTE_INDEX_NAME),
             IllegalArgumentException.class,
-            "[model_id] must not be null.",
+            "[model_id] must be specified",
             s -> s.setCcsMinimizeRoundtrips(false)
         );
     }

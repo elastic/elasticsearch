@@ -25,6 +25,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -55,7 +56,10 @@ import static org.elasticsearch.index.VersionType.INTERNAL;
  * of reasons, not least of which that scripts are allowed to change the destination request in drastic ways, including changing the index
  * to which documents are written.
  */
-public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest> implements CompositeIndicesRequest, ToXContentObject {
+public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<ReindexRequest>
+    implements
+        CompositeIndicesRequest,
+        ToXContentObject {
     /**
      * Prototype for index requests.
      */
@@ -91,7 +95,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = super.validate();
-        if (getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) {
+        // When using PIT, indices are intentionally empty; the PIT defines the index context
+        boolean usingPit = getSearchRequest().source() != null && getSearchRequest().source().pointInTimeBuilder() != null;
+        if ((getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) && usingPit == false) {
             e = addValidationError("use _all if you really want to copy from all existing indexes", e);
         }
         if (getSearchRequest().source().fetchSource() != null && getSearchRequest().source().fetchSource().fetchSource() == false) {
@@ -155,6 +161,32 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             this.getSearchRequest().indices(sourceIndices);
         }
         return this;
+    }
+
+    /**
+     * After opening a point-in-time, mutates this request's {@link SearchRequest} to use that PIT for pagination.
+     * <p>
+     * This method:
+     * <ol>
+     *     <li>Sets the PIT on the search source</li>
+     *     <li>Clears the scroll since PIT and scroll are mutually exclusive</li>
+     *     <li>Copies the current {@link SearchRequest#indices()} to {@link #setSourceIndicesForDescription} so the
+     *     task descriptions remain correct</li>
+     *     <li>Clears indices on the search request (the PIT defines index context)</li>
+     *     <li>Clears project routing since it is fixed at open-PIT time</li>
+     * </ol>
+     *
+     * @param pitId      encoded PIT identifier from {@code open_point_in_time}
+     * @param keepAlive  keep-alive for the PIT on the search request
+     */
+    public void convertSearchRequestToUsePit(BytesReference pitId, TimeValue keepAlive) {
+        SearchRequest searchRequest = getSearchRequest();
+        String[] indices = searchRequest.indices();
+        searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(keepAlive));
+        searchRequest.scroll(null);
+        setSourceIndicesForDescription(indices);
+        searchRequest.indices(Strings.EMPTY_ARRAY);
+        searchRequest.clearProjectRouting();
     }
 
     /**
@@ -263,9 +295,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     @Override
-    public ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
-        ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask, totalSlices);
+    public ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
+        ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask, totalSlices, activeSlices);
         sliced.setRemoteInfo(remoteInfo);
+        sliced.setEligibleForRelocationOnShutdown(isEligibleForRelocationOnShutdown());
         return sliced;
     }
 
@@ -353,7 +386,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                     parser.contentType()
                 )
             ) {
-                request.getSearchRequest().source().parseXContent(innerParser, false, context);
+                request.getSearchRequest().source().parseXContent(request.getSearchRequest(), innerParser, false, context);
             }
         };
 

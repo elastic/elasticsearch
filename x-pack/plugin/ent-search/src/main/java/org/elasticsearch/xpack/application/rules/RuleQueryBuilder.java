@@ -21,8 +21,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -56,7 +56,7 @@ import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.MAX
  * This iteration will determine if a query should have pinned documents and if so,
  * modify the query accordingly to pin those documents.
  */
-public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
+public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
 
     public static final ParseField NAME = new ParseField("rule", "rule_query");
 
@@ -275,7 +275,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         ).queryName(this.queryName);
     }
 
-    private QueryBuilder buildExcludedDocsQuery(List<SpecifiedDocument> identifiedExcludedDocs) {
+    QueryBuilder buildExcludedDocsQuery(List<SpecifiedDocument> identifiedExcludedDocs) {
         QueryBuilder excludedDocsQueryBuilder;
         if (identifiedExcludedDocs.stream().allMatch(item -> item.index() == null)) {
             // Easy case - just add an ids query
@@ -291,7 +291,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                     excludeQueryBuilder.must(QueryBuilders.termQuery(IndexFieldMapper.NAME, item.index()));
                 }
                 return excludeQueryBuilder;
-            }).forEach(excludeQueryBuilder -> ((BoolQueryBuilder) excludedDocsQueryBuilder).must(excludeQueryBuilder));
+            }).forEach(excludeQueryBuilder -> ((BoolQueryBuilder) excludedDocsQueryBuilder).should(excludeQueryBuilder));
         }
         return excludedDocsQueryBuilder;
     }

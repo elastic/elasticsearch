@@ -11,9 +11,11 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -39,7 +41,7 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        blockFactory = new BlockFactory(new NoopCircuitBreaker("test"), BigArrays.NON_RECYCLING_INSTANCE);
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
     }
 
     public void testDelegatesMetadataAndRead() throws IOException {
@@ -70,7 +72,7 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
             }
 
             @Override
-            public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+            public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
                 return emptyIterator();
             }
 
@@ -102,6 +104,29 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
     public void testNullCodecThrows() {
         FormatReader inner = new CapturingFormatReader();
         expectThrows(QlIllegalArgumentException.class, () -> new CompressionDelegatingFormatReader(inner, null));
+    }
+
+    public void testUnwrapReturnsInnerReader() {
+        FormatReader inner = new CapturingFormatReader();
+        DecompressionCodec codec = mockCodec();
+        CompressionDelegatingFormatReader delegating = new CompressionDelegatingFormatReader(inner, codec);
+
+        assertSame(inner, delegating.unwrap());
+        assertSame(codec, delegating.codec());
+    }
+
+    public void testUnwrapPreservedThroughWithConfig() {
+        FormatReader inner = new CapturingFormatReader();
+        DecompressionCodec codec = mockCodec();
+        CompressionDelegatingFormatReader delegating = new CompressionDelegatingFormatReader(inner, codec);
+
+        FormatReader configured = delegating.withConfig(java.util.Map.of());
+        assertSame(delegating, configured);
+
+        if (configured instanceof CompressionDelegatingFormatReader cdr) {
+            assertSame(inner, cdr.unwrap());
+            assertSame(codec, cdr.codec());
+        }
     }
 
     private static byte[] gzip(byte[] input) throws IOException {
@@ -162,7 +187,7 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
             readCalled = true;
             try (InputStream stream = object.newStream()) {
                 stream.readAllBytes();

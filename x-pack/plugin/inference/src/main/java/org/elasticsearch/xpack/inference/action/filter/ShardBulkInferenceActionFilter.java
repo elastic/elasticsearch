@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceString;
@@ -82,7 +83,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.inference.telemetry.InferenceStats.serviceAndResponseAttributes;
+import static org.elasticsearch.inference.telemetry.InferenceStats.INFERENCE_SOURCE_ATTRIBUTE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunksLegacy;
 
@@ -113,6 +114,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         Setting.Property.OperatorDynamic
     );
 
+    private static final String SEMANTIC_TEXT_INFERENCE_SOURCE = "semantic_text_bulk";
     private static final Object EXPLICIT_NULL = new Object();
     private static final ChunkedInference EMPTY_CHUNKED_INFERENCE = new EmptyChunkedInference();
 
@@ -337,16 +339,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 ActionListener<UnparsedModel> modelLoadingListener = ActionListener.wrap(unparsedModel -> {
                     var service = inferenceServiceRegistry.getService(unparsedModel.service());
                     if (service.isEmpty() == false) {
-                        var provider = new InferenceProvider(
-                            service.get(),
-                            service.get()
-                                .parsePersistedConfigWithSecrets(
-                                    inferenceId,
-                                    unparsedModel.taskType(),
-                                    unparsedModel.settings(),
-                                    unparsedModel.secrets()
-                                )
-                        );
+                        var provider = new InferenceProvider(service.get(), service.get().parsePersistedConfig(unparsedModel));
                         executeChunkedInferenceAsync(inferenceId, provider, requests, onFinish);
                     } else {
                         try (onFinish) {
@@ -407,7 +400,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             final List<ChunkInferenceInput> inputs = requests.stream()
                 .map(
                     r -> new ChunkInferenceInput(
-                        new InferenceStringGroup(singletonList(new InferenceString(InferenceString.DataType.TEXT, r.input))),
+                        new InferenceStringGroup(singletonList(new InferenceString(DataType.TEXT, r.input))),
                         r.chunkingSettings
                     )
                 )
@@ -491,10 +484,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         }
 
         private void recordRequestCountMetrics(Model model, int incrementBy, Throwable throwable) {
-            Map<String, Object> requestCountAttributes = new HashMap<>();
-            requestCountAttributes.putAll(serviceAndResponseAttributes(model, throwable));
-            requestCountAttributes.put("inference_source", "semantic_text_bulk");
-            inferenceStats.requestCount().incrementBy(incrementBy, requestCountAttributes);
+            inferenceStats.requestCount()
+                .withModel(model)
+                .withThrowable(throwable)
+                .withAttribute(INFERENCE_SOURCE_ATTRIBUTE, SEMANTIC_TEXT_INFERENCE_SOURCE)
+                .incrementBy(incrementBy);
         }
 
         /**

@@ -99,6 +99,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -127,6 +128,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.NestedDocuments;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
@@ -202,6 +204,7 @@ import static org.mockito.Mockito.when;
 public abstract class AggregatorTestCase extends ESTestCase {
     private NamedWriteableRegistry namedWriteableRegistry;
     private final List<Releasable> releasables = new ArrayList<>();
+    private final List<SearchHits> topHitsToRelease = new ArrayList<>();
     protected ValuesSourceRegistry valuesSourceRegistry;
     private AnalysisModule analysisModule;
 
@@ -399,17 +402,20 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     indexSettings,
                     context.lookupSupplier(),
                     context.sourcePathsLookup(),
+                    () -> false,
                     context.fielddataOperation()
                 )
             ).build(new IndexFieldDataCache.None(), breakerService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIdFieldDataEnabled()).thenReturn(() -> false);
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
             0,
             -1,
             indexSettings,
             bitsetFilterCache,
             fieldDataBuilder,
-            null,
+            mapperService,
             mappingLookup,
             null,
             getMockScriptService(),
@@ -735,7 +741,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         getMockScriptService(),
                         () -> false,
                         builder,
-                        b -> {}
+                        b -> {},
+                        topHitsToRelease
                     );
                     AggregatorCollectorManager aggregatorCollectorManager = new AggregatorCollectorManager(
                         aggregatorSupplier,
@@ -759,7 +766,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 getMockScriptService(),
                 () -> false,
                 builder,
-                b -> {}
+                b -> {},
+                topHitsToRelease
             );
             internalAggs = new ArrayList<>(internalAggs.subList(r, toReduceSize));
             internalAggs.add(InternalAggregations.topLevelReduce(toReduce, reduceContext));
@@ -811,7 +819,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             getMockScriptService(),
             () -> cancelled,
             builder,
-            reduceBucketConsumer
+            reduceBucketConsumer,
+            topHitsToRelease
         );
 
         @SuppressWarnings("unchecked")
@@ -989,7 +998,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     getMockScriptService(),
                     () -> false,
                     builder,
-                    new MultiBucketConsumer(context.maxBuckets(), context.breaker())
+                    new MultiBucketConsumer(context.maxBuckets(), context.breaker()),
+                    topHitsToRelease
                 )
             );
             @SuppressWarnings("unchecked") // We'll get a cast error in the test if we're wrong here and that is ok
@@ -1412,7 +1422,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 ScriptCompiler.NONE,
                 null,
                 indexSettings,
-                null,
                 query -> {
                     throw new UnsupportedOperationException();
                 },
@@ -1436,6 +1445,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
     public void cleanupReleasables() {
         Releasables.close(releasables);
         releasables.clear();
+        for (SearchHits h : topHitsToRelease) {
+            h.decRef();
+        }
+        topHitsToRelease.clear();
         threadPoolExecutor.shutdown();
         terminate(threadPool);
     }

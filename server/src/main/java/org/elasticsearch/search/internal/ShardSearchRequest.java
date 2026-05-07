@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -55,6 +56,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction.CHUNKED_FETCH_PHASE;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
 
 /**
@@ -87,6 +89,8 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
     private final TimeValue keepAlive;
 
     private final TransportVersion channelVersion;
+
+    private DiscoveryNode coordinatingNode;
 
     /**
      * Should this request force {@link SourceLoader.Synthetic synthetic source}?
@@ -188,13 +192,13 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         return waitForCheckpoint;
     }
 
-    // Used by ValidateQueryAction, ExplainAction, FieldCaps, TermsEnumAction, lookup join in ESQL
+    // Used by ValidateQueryAction, FieldCaps, TermsEnumAction
     public ShardSearchRequest(ShardId shardId, long nowInMillis, AliasFilter aliasFilter) {
         // TODO fix SplitShardCountSummary
         this(shardId, nowInMillis, aliasFilter, null, SplitShardCountSummary.UNSET);
     }
 
-    // Used by ESQL and field_caps API
+    // Used by ESQL, field_caps API, TransportExplainAction
     public ShardSearchRequest(
         ShardId shardId,
         long nowInMillis,
@@ -326,6 +330,10 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         }
 
         originalIndices = OriginalIndices.readOriginalIndices(in);
+
+        if (in.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
+            coordinatingNode = in.readOptionalWriteable(DiscoveryNode::new);
+        }
     }
 
     @Override
@@ -333,6 +341,10 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         super.writeTo(out);
         innerWriteTo(out, false);
         OriginalIndices.writeOriginalIndices(originalIndices, out);
+
+        if (out.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {
+            out.writeOptionalWriteable(coordinatingNode);
+        }
     }
 
     protected final void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
@@ -664,4 +676,13 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
     public boolean isForceSyntheticSource() {
         return forceSyntheticSource;
     }
+
+    public void setCoordinatingNode(DiscoveryNode node) {
+        this.coordinatingNode = node;
+    }
+
+    public DiscoveryNode getCoordinatingNode() {
+        return coordinatingNode;
+    }
+
 }

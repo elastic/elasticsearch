@@ -76,4 +76,24 @@ public class BlockLoaderStoredFieldsFromLeafLoader implements BlockLoader.Stored
     public boolean loaded() {
         return loaderDocId == docId;
     }
+
+    /**
+     * Returns the raw byte size of the last loaded _source. This is useful for estimating
+     * the untracked memory overhead from source parsing (parsed Java Strings occupy
+     * approximately 2x the raw byte size due to UTF-16 encoding).
+     */
+    public long lastSourceBytesSize() {
+        return source != null && source.internalSourceRef() != null ? source.internalSourceRef().length() : 0;
+    }
+
+    /**
+     * Releases the cached parsed source to allow immediate garbage collection of
+     * large String objects created during source parsing. For a 5MB text field,
+     * the parsed Java String is ~10MB (UTF-16). Releasing it eagerly prevents
+     * accumulation of untracked memory that can cause OOM.
+     */
+    public void releaseParsedSource() {
+        source = null;
+        sourceDocId = -1;
+    }
 }

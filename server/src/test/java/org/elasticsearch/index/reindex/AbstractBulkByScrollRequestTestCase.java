@@ -39,14 +39,18 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         if (randomBoolean()) {
             original.setMaxDocs(between(0, Integer.MAX_VALUE));
         }
+        if (randomBoolean()) {
+            original.setSourceIndicesForDescription(new String[] { "idx1", "idx2" });
+        }
 
         // it's not important how many slices there are, we just need a number for forSlice
         int actualSlices = between(2, 1000);
+        int activeSlices = between(1, actualSlices);
         original.setSlices(randomBoolean() ? actualSlices : AbstractBulkByScrollRequest.AUTO_SLICES);
 
         TaskId slicingTask = new TaskId(randomAlphaOfLength(5), randomLong());
         SearchRequest sliceRequest = new SearchRequest();
-        R forSliced = original.forSlice(slicingTask, sliceRequest, actualSlices);
+        R forSliced = original.forSlice(slicingTask, sliceRequest, actualSlices, activeSlices);
         assertEquals(original.isAbortOnVersionConflict(), forSliced.isAbortOnVersionConflict());
         assertEquals(original.isRefresh(), forSliced.isRefresh());
         assertEquals(original.getTimeout(), forSliced.getTimeout());
@@ -56,19 +60,24 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         assertEquals("only the parent task should store results", false, forSliced.getShouldStoreResult());
         assertEquals("slice requests always have a single worker", 1, forSliced.getSlices());
         assertEquals(
-            "requests_per_second is split between all workers",
-            original.getRequestsPerSecond() / actualSlices,
+            "requests_per_second is split between active slices",
+            original.getRequestsPerSecond() / activeSlices,
             forSliced.getRequestsPerSecond(),
             Float.MIN_NORMAL
         );
         assertEquals(
-            "max_docs is split evenly between all workers",
+            "max_docs is split evenly between all slices",
             original.getMaxDocs() == AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES
                 ? AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES
                 : original.getMaxDocs() / actualSlices,
             forSliced.getMaxDocs()
         );
         assertEquals(slicingTask, forSliced.getParentTask());
+        assertArrayEquals(
+            "sourceIndicesForDescription should be copied to slice",
+            original.getSourceIndicesForDescription(),
+            forSliced.getSourceIndicesForDescription()
+        );
 
         extraForSliceAssertions(original, forSliced);
     }

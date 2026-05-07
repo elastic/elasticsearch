@@ -33,7 +33,7 @@ public class ReindexClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("lang-painless")
         .module("parent-join")
         .module("rest-root")
-        .setting("reindex.remote.whitelist", "127.0.0.1:*")
+        .setting("reindex.remote.whitelist", "127.0.0.1:*,[::1]:*")
         .build();
 
     @Override

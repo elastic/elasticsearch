@@ -29,21 +29,21 @@ import java.util.Objects;
 import static org.elasticsearch.inference.completion.ContentObject.ContentObjectType.FILE;
 import static org.elasticsearch.inference.completion.ContentObject.ContentObjectType.IMAGE_URL;
 import static org.elasticsearch.inference.completion.ContentObject.ContentObjectType.TEXT;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.CONTENT_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.DETAIL_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.FILENAME_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.FILE_DATA_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.FILE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.FILE_ID_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.IMAGE_URL_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TEXT_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.TYPE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.URL_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.extractOptionalFieldOfType;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.extractRequiredFieldOfType;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.getUnrecognizedTypeException;
-import static org.elasticsearch.inference.completion.UnifiedCompletionRequestUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CONTENT_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.DETAIL_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FILENAME_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FILE_DATA_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FILE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.FILE_ID_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.IMAGE_URL_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEXT_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.URL_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.extractOptionalFieldOfType;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.extractRequiredFieldOfType;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.getUnrecognizedTypeException;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.throwIfNotEmptyMap;
 
 public abstract sealed class ContentObject implements NamedWriteable, ToXContent permits ContentObject.ContentObjectText,
     ContentObject.ContentObjectImage, ContentObject.ContentObjectFile {
@@ -122,7 +122,7 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
         }
 
         public String toString() {
-            return fileFields + ":" + type;
+            return type + ":" + fileFields;
         }
 
         @Override
@@ -244,7 +244,7 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
         }
 
         public String toString() {
-            return imageUrl + ":" + type;
+            return type + ":" + imageUrl;
         }
 
         @Override
@@ -311,8 +311,6 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
                 LOW,
                 HIGH;
 
-                private static final String URL_FIELD = "url";
-
                 @Override
                 public String toString() {
                     return name().toLowerCase(Locale.ROOT);
@@ -357,7 +355,7 @@ public abstract sealed class ContentObject implements NamedWriteable, ToXContent
         }
 
         public String toString() {
-            return text + ":" + type;
+            return type + ":" + text;
         }
 
         @Override

@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
@@ -41,7 +42,8 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
         XContentBuilder builder,
         DataPointGroupingContext.DataPointGroup dataPointGroup,
         Map<String, String> dynamicTemplates,
-        Map<String, Map<String, String>> dynamicTemplateParams
+        Map<String, Map<String, String>> dynamicTemplateParams,
+        IndexVersion indexVersion
     ) throws IOException {
         List<DataPoint> dataPoints = dataPointGroup.dataPoints();
         builder.startObject();
@@ -49,6 +51,9 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
         if (dataPointGroup.getStartTimestampUnixNano() != 0) {
             builder.field("start_timestamp", TimeUnit.NANOSECONDS.toMillis(dataPointGroup.getStartTimestampUnixNano()));
         }
+        // Metrics intentionally skip merging paired *.geo.location.lat/.lon into a [lon, lat] array:
+        // The *.geo.location dynamic template doesn't apply to metrics because geo_point isn't a supported dimension type.
+        // That would mean the merged value would land as a plain [lon, lat] array with no guaranteed element order.
         buildResource(dataPointGroup.resource(), dataPointGroup.resourceSchemaUrl(), builder);
         buildDataStream(builder, dataPointGroup.targetIndex());
         buildScope(builder, dataPointGroup.scope(), dataPointGroup.scopeSchemaUrl());
@@ -86,7 +91,7 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
         builder.endObject();
         TsidBuilder tsidBuilder = dataPointGroup.tsidBuilder();
         tsidBuilder.addStringDimension("_metric_names_hash", metricNamesHash);
-        return tsidBuilder.buildTsid();
+        return tsidBuilder.buildTsid(indexVersion);
     }
 
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
@@ -66,7 +67,7 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    protected void upgradeNode(int n) throws IOException {
+    protected void clusterRollingUpgrade(CheckedConsumer<Integer, Exception> onNodeUpgradeComplete) throws IOException {
         closeClients();
 
         var serverlessBwcStackVersion = System.getProperty("tests.serverless.bwc_stack_version");
@@ -74,9 +75,17 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         var newClusterVersion = System.getProperty("tests.new_cluster_version");
         logger.info("serverlessBwcStackVersion={}, bwcTag={}, newClusterVersion={}", serverlessBwcStackVersion, bwcTag, newClusterVersion);
 
+        int[] count = new int[1];
         var upgradeVersion = newClusterVersion != null ? Version.fromString(newClusterVersion) : Version.CURRENT;
-        logger.info("Upgrading node {} to version {}", n, upgradeVersion);
-        getCluster().upgradeNodeToVersion(n, upgradeVersion);
+        getCluster().upgradeToVersion(upgradeVersion, () -> {
+            try {
+                initClient();
+                onNodeUpgradeComplete.accept(count[0]++);
+                closeClients();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
         initClient();
     }
 

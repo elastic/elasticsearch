@@ -14,8 +14,10 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,9 +35,10 @@ public class PreAnalyzer {
         List<IndexPattern> lookupIndices,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
+        boolean hasTimeSeriesAggregation,
         List<String> icebergPaths
     ) {
-        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), false, false, List.of());
+        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), false, false, false, List.of());
     }
 
     public PreAnalysis preAnalyze(LogicalPlan plan) {
@@ -66,15 +69,19 @@ public class PreAnalyzer {
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 
-        // Collect external source paths from UnresolvedExternalRelation nodes
+        // External source paths. Every tablePath is a non-null Literal post-parsing; non-Literal here
+        // is a precondition violation and throws.
         List<String> icebergPaths = new ArrayList<>();
         plan.forEachUp(UnresolvedExternalRelation.class, p -> {
-            // Extract string path from the tablePath expression
-            // For now, we only support literal string paths (parameters will be resolved later)
             if (p.tablePath() instanceof Literal literal && literal.value() != null) {
-                // Use BytesRefs.toString() which handles both BytesRef and String
                 String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
                 icebergPaths.add(path);
+            } else {
+                throw new IllegalStateException(
+                    "UnresolvedExternalRelation tablePath is not a non-null Literal: ["
+                        + (p.tablePath() == null ? "null" : p.tablePath().sourceText())
+                        + "]"
+                );
             }
         });
 
@@ -113,6 +120,10 @@ public class PreAnalyzer {
             }
         }));
 
+        Holder<Boolean> hasTimeSeriesAggregation = new Holder<>(false);
+        plan.forEachUp(TimeSeriesAggregate.class, p -> hasTimeSeriesAggregation.set(true));
+        plan.forEachUp(PromqlCommand.class, p -> hasTimeSeriesAggregation.set(true));
+
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
@@ -122,6 +133,7 @@ public class PreAnalyzer {
             lookupIndices,
             useAggregateMetricDoubleWhenNotSupported.get(),
             useDenseVectorWhenNotSupported.get(),
+            hasTimeSeriesAggregation.get(),
             icebergPaths
         );
     }

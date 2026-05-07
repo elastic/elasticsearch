@@ -149,14 +149,21 @@ public class PatternTextFieldType extends TextFamilyFieldType {
     }
 
     private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider() {
-        return context -> {
-            var docValues = PatternTextFallbackDocValues.from(context, PatternTextFieldType.this);
-            return docId -> {
-                if (docValues != null && docValues.advanceExact(docId)) {
-                    return List.of(docValues.binaryValue().utf8ToString());
+        return context -> new CheckedIntFunction<>() {
+            boolean initialized;
+            BinaryDocValues binaryDocValues;
+
+            @Override
+            public List<Object> apply(int docId) throws IOException {
+                if (initialized == false) {
+                    binaryDocValues = PatternTextFallbackDocValues.from(context, PatternTextFieldType.this);
+                    initialized = true;
+                }
+                if (binaryDocValues != null && binaryDocValues.advanceExact(docId)) {
+                    return List.of(binaryDocValues.binaryValue().utf8ToString());
                 }
                 return List.of();
-            };
+            }
         };
     }
 

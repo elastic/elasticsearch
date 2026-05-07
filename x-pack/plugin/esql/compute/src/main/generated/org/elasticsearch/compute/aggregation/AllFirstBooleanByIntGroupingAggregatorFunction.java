@@ -36,16 +36,11 @@ public final class AllFirstBooleanByIntGroupingAggregatorFunction implements Gro
 
   private final DriverContext driverContext;
 
-  public AllFirstBooleanByIntGroupingAggregatorFunction(List<Integer> channels,
-      AllFirstBooleanByIntAggregator.GroupingState state, DriverContext driverContext) {
-    this.channels = channels;
-    this.state = state;
-    this.driverContext = driverContext;
-  }
-
-  public static AllFirstBooleanByIntGroupingAggregatorFunction create(List<Integer> channels,
+  AllFirstBooleanByIntGroupingAggregatorFunction(List<Integer> channels,
       DriverContext driverContext) {
-    return new AllFirstBooleanByIntGroupingAggregatorFunction(channels, AllFirstBooleanByIntAggregator.initGrouping(driverContext), driverContext);
+    this.channels = channels;
+    this.state = AllFirstBooleanByIntAggregator.initGrouping(driverContext);
+    this.driverContext = driverContext;
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -203,9 +198,19 @@ public final class AllFirstBooleanByIntGroupingAggregatorFunction implements Gro
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, BooleanBlock valuesBlock,
       IntBlock timestampsBlock) {
     if (valuesBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
     if (timestampsBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
   }
@@ -216,14 +221,24 @@ public final class AllFirstBooleanByIntGroupingAggregatorFunction implements Gro
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected, driverContext);
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+      IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+    return this::evaluateIntermediate;
+  }
+
+  private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
+    state.toIntermediate(blocks, offset, selectedInPage, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+  public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = AllFirstBooleanByIntAggregator.evaluateFinal(state, selected, ctx);
+    return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
+  }
+
+  private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = AllFirstBooleanByIntAggregator.evaluateFinal(state, selectedInPage, ctx);
   }
 
   @Override

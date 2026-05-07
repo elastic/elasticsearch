@@ -52,6 +52,7 @@ public interface ConfigurationAware extends ConfigurationFunction {
         0,
         0,
         null,
+        null,
         Map.of()
     );
 

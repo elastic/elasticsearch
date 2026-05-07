@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -46,13 +47,10 @@ public class CopySign extends EsqlScalarFunction {
 
     public static final String NAME = "copy_sign";
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, NAME, CopySign::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CopySign.class).binary(CopySign::new).name("copy_sign");
 
     private interface CopySignFactoryProvider {
-        EvalOperator.ExpressionEvaluator.Factory create(
-            Source source,
-            EvalOperator.ExpressionEvaluator.Factory magnitude,
-            EvalOperator.ExpressionEvaluator.Factory sign
-        );
+        ExpressionEvaluator.Factory create(Source source, ExpressionEvaluator.Factory magnitude, ExpressionEvaluator.Factory sign);
     }
 
     private static final Map<DataType, CopySignFactoryProvider> FACTORY_PROVIDERS = Map.ofEntries(
@@ -164,7 +162,7 @@ public class CopySign extends EsqlScalarFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var dataType = dataType();
         if (FACTORY_PROVIDERS.containsKey(dataType) == false) {
             throw new EsqlIllegalArgumentException("Unsupported data type [{}] for function [{}]", dataType(), NAME);

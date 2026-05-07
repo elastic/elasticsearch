@@ -32,10 +32,10 @@ public class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBloc
     }
 
     @Override
-    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         TrackingBinaryDocValues dv = TrackingBinaryDocValues.get(breaker, context, fieldName);
         if (dv == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         return new DateRangeDocValuesReader(dv);
     }
@@ -70,34 +70,34 @@ public class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBloc
                     if (doc < lastDoc) {
                         throw new IllegalStateException("docs within same block must be in order");
                     }
+                    lastDoc = doc;
+                    this.docId = doc;
                     if (false == docValues.docValues().advanceExact(doc)) {
                         builder.appendNull();
                     } else {
                         BytesRef ref = docValues.docValues().binaryValue();
                         var ranges = BinaryRangeUtil.decodeLongRanges(ref);
-                        for (var range : ranges) {
-                            lastDoc = doc;
-                            this.docId = doc;
+                        if (ranges.isEmpty()) {
+                            builder.appendNull();
+                        } else if (ranges.size() == 1) {
+                            var range = ranges.get(0);
+                            // While the index stores ranges with fully-inclusive bounds [from, to], in ESQL we always
+                            // represent and use date ranges as half-open [from, to), so we add 1 to the upper bound here.
                             builder.from().appendLong((long) range.getFrom());
-                            builder.to().appendLong((long) range.getTo());
+                            builder.to().appendLong((long) range.getTo() + 1);
+                        } else {
+                            builder.from().beginPositionEntry();
+                            builder.to().beginPositionEntry();
+                            for (var range : ranges) {
+                                builder.from().appendLong((long) range.getFrom());
+                                builder.to().appendLong((long) range.getTo() + 1);
+                            }
+                            builder.from().endPositionEntry();
+                            builder.to().endPositionEntry();
                         }
                     }
                 }
                 return builder.build();
-            }
-        }
-
-        @Override
-        public void read(int doc, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-            var blockBuilder = (BlockLoader.LongRangeBuilder) builder;
-            this.docId = doc;
-            if (false == docValues.docValues().advanceExact(doc)) {
-                blockBuilder.appendNull();
-            } else {
-                var range = BinaryRangeUtil.decodeLongRanges(docValues.docValues().binaryValue());
-                assert range.size() == 1 : "stored fields should only have a single range";
-                blockBuilder.from().appendLong((long) range.getFirst().getFrom());
-                blockBuilder.to().appendLong((long) range.getFirst().getTo());
             }
         }
 

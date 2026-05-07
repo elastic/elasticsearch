@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -70,6 +71,9 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToS
 
 public class ToString extends AbstractConvertFunction implements EvaluatorMapper, ConfigurationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToString", ToString::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToString.class)
+        .unaryConfig(ToString::new)
+        .name("to_string", "to_str");
 
     private static final Map<DataType, BuildFactory> STATIC_EVALUATORS = Map.ofEntries(
         Map.entry(KEYWORD, (source, fieldEval) -> fieldEval),

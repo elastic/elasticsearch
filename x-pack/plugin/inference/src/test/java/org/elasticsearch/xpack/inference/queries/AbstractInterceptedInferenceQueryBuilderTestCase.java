@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryRewriteContextTestUtils;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -59,6 +60,7 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,6 +78,7 @@ import static org.elasticsearch.xpack.inference.queries.InterceptedInferenceQuer
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_SEARCH_CCS_SUPPORT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -102,11 +105,22 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         DenseVectorFieldMapper.ElementType.FLOAT
     );
 
+    protected static final String EMBEDDING_INFERENCE_ID = "embedding-inference-id";
+    protected static final MinimalServiceSettings EMBEDDING_INFERENCE_ID_SETTINGS = new MinimalServiceSettings(
+        null,
+        TaskType.EMBEDDING,
+        256,
+        SimilarityMeasure.COSINE,
+        DenseVectorFieldMapper.ElementType.FLOAT
+    );
+
     private static final Map<String, MinimalServiceSettings> INFERENCE_ENDPOINT_MAP = Map.of(
         SPARSE_INFERENCE_ID,
         SPARSE_INFERENCE_ID_SETTINGS,
         DENSE_INFERENCE_ID,
-        DENSE_INFERENCE_ID_SETTINGS
+        DENSE_INFERENCE_ID_SETTINGS,
+        EMBEDDING_INFERENCE_ID,
+        EMBEDDING_INFERENCE_ID_SETTINGS
     );
 
     private static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = TransportVersion.fromName("new_semantic_query_interceptors");
@@ -527,6 +541,15 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         Map<String, String> semanticTextFields,
         Map<String, Map<String, Object>> nonInferenceFields
     ) throws IOException {
+        return createIndexMetadataContext(indexName, semanticTextFields, nonInferenceFields, SemanticTextFieldMapper.CONTENT_TYPE);
+    }
+
+    protected QueryRewriteContext createIndexMetadataContext(
+        String indexName,
+        Map<String, String> semanticFields,
+        Map<String, Map<String, Object>> nonInferenceFields,
+        String semanticFieldContentType
+    ) throws IOException {
         Client client = new NoOpClient(threadPool);
 
         Index index = new Index(indexName, randomAlphaOfLength(10));
@@ -542,7 +565,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         try (XContentBuilder mappings = XContentFactory.jsonBuilder()) {
             mappings.startObject().startObject("_doc").startObject("properties");
 
-            for (var entry : semanticTextFields.entrySet()) {
+            for (var entry : semanticFields.entrySet()) {
                 String fieldName = entry.getKey();
                 String inferenceId = entry.getValue();
                 MinimalServiceSettings modelSettings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
@@ -551,7 +574,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
                 }
 
                 mappings.startObject(fieldName);
-                mappings.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
+                mappings.field("type", semanticFieldContentType);
                 mappings.field("inference_id", inferenceId);
                 mappings.field("model_settings", modelSettings);
                 mappings.endObject();
@@ -669,9 +692,9 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         assertCoordinatorNodeRewriteOnNonInferenceField(originalSerializedQuery, serializedQuery);
     }
 
-    protected static QueryBuilder rewriteAndFetch(QueryBuilder queryBuilder, QueryRewriteContext queryRewriteContext) {
-        PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
-        Rewriteable.rewriteAndFetch(queryBuilder, queryRewriteContext, future);
+    protected static <T extends Rewriteable<T>> T rewriteAndFetch(T rewritable, QueryRewriteContext queryRewriteContext) {
+        PlainActionFuture<T> future = new PlainActionFuture<>();
+        Rewriteable.rewriteAndFetch(rewritable, queryRewriteContext, future);
         return future.actionGet();
     }
 
@@ -696,6 +719,24 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         }
 
         return result;
+    }
+
+    protected static QueryRewriteContext instrumentQueryRewriteContext(
+        QueryRewriteContext queryRewriteContext,
+        Answer<?> executeAsyncActionsAnswer
+    ) {
+        QueryRewriteContext instrumented = spy(queryRewriteContext);
+        doAnswer(executeAsyncActionsAnswer).when(instrumented).executeAsyncActions(any());
+        return instrumented;
+    }
+
+    protected static Answer<?> assertSingleUniqueAsyncAction(QueryRewriteContext queryRewriteContext) {
+        return invocation -> {
+            var uniqueAsyncActions = QueryRewriteContextTestUtils.getUniqueAsyncActions(queryRewriteContext);
+            assertThat(uniqueAsyncActions.size(), equalTo(1));
+            uniqueAsyncActions.forEach((k, v) -> assertThat(v.size(), equalTo(1)));
+            return invocation.callRealMethod();
+        };
     }
 
     private static ModelRegistry createModelRegistry(ThreadPool threadPool) {

@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTaskWatchdog;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.support.ReshardingActionHelper;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.client.internal.Client;
@@ -62,10 +63,11 @@ import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
-import org.elasticsearch.cluster.routing.allocation.ShardWriteLoadDistributionMetrics;
+import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadMetrics;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -93,6 +95,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
@@ -102,6 +105,7 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.health.HealthPeriodicLogger;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.metadata.HealthMetadataService;
@@ -109,7 +113,9 @@ import org.elasticsearch.health.node.DiskHealthIndicatorService;
 import org.elasticsearch.health.node.HealthInfoCache;
 import org.elasticsearch.health.node.LocalHealthMonitor;
 import org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
+import org.elasticsearch.health.node.selection.HealthNodeTaskParams;
 import org.elasticsearch.health.node.tracker.DiskHealthTracker;
 import org.elasticsearch.health.node.tracker.FileSettingsHealthTracker;
 import org.elasticsearch.health.node.tracker.HealthTracker;
@@ -151,7 +157,6 @@ import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.injection.guice.Key;
 import org.elasticsearch.injection.guice.Module;
@@ -161,8 +166,10 @@ import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.metrics.IndicesMetrics;
 import org.elasticsearch.monitor.metrics.NodeMetrics;
+import org.elasticsearch.monitor.metrics.SystemMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.node.internal.TerminationHandlerProvider;
+import org.elasticsearch.persistent.PersistentTaskLifecycleManager;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
@@ -190,6 +197,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
+import org.elasticsearch.plugins.UserAgentParserRegistryProvider;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentParsingProviderPlugin;
 import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
@@ -217,6 +225,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.CachingSnapshotAndShardByStateMetricsService;
@@ -246,6 +255,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -625,7 +635,8 @@ class NodeConstruction {
                 searchModule.getNamedXContents().stream(),
                 pluginsService.flatMap(Plugin::getNamedXContent),
                 ClusterModule.getNamedXWriteables().stream(),
-                HealthNodeTaskExecutor.getNamedXContentParsers().stream()
+                HealthNodeTaskExecutor.getNamedXContentParsers().stream(),
+                IndexBalanceMetricsTaskExecutor.getNamedXContentParsers().stream()
             ).flatMap(Function.identity()).toList()
         );
         modules.add(b -> {
@@ -745,11 +756,11 @@ class NodeConstruction {
 
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
-        SamplingService samplingService = SamplingService.create(scriptService, clusterService, settings);
-        modules.bindToInstance(SamplingService.class, samplingService);
-        clusterService.addListener(samplingService);
-
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
+        MatcherWatchdog matcherWatchdog = IngestService.createGrokThreadWatchdog(environment, threadPool);
+        UserAgentParserRegistry userAgentParserRegistry = getSinglePlugin(UserAgentParserRegistryProvider.class).map(
+            p -> p.createRegistry(environment)
+        ).orElse(UserAgentParserRegistry.NOOP);
         final IngestService ingestService = new IngestService(
             clusterService,
             threadPool,
@@ -758,11 +769,11 @@ class NodeConstruction {
             analysisRegistry,
             pluginsService.filterPlugins(IngestPlugin.class).toList(),
             client,
-            IngestService.createGrokThreadWatchdog(environment, threadPool),
+            matcherWatchdog,
+            userAgentParserRegistry,
             failureStoreMetrics,
             projectResolver,
-            featureService,
-            samplingService
+            featureService
         );
 
         SystemIndices systemIndices = createSystemIndices(settings);
@@ -817,7 +828,7 @@ class NodeConstruction {
             threadPool,
             systemIndices,
             projectResolver,
-            getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings()),
+            getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings(), clusterInfoService),
             telemetryProvider
         );
         modules.add(clusterModule);
@@ -847,9 +858,7 @@ class NodeConstruction {
             )::onNewInfo
         );
 
-        clusterInfoService.addListener(
-            new ShardWriteLoadDistributionMetrics(telemetryProvider.getMeterRegistry(), clusterService)::onNewInfo
-        );
+        clusterInfoService.addListener(new WriteLoadMetrics(telemetryProvider.getMeterRegistry(), clusterService)::onNewInfo);
 
         IndicesModule indicesModule = new IndicesModule(
             pluginsService.filterPlugins(MapperPlugin.class).toList(),
@@ -1016,6 +1025,13 @@ class NodeConstruction {
             }
         };
 
+        final CrossProjectModeDecider crossProjectModeDecider = new CrossProjectModeDecider(settings);
+
+        final var persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
+        final var taskLifecycleManager = new PersistentTaskLifecycleManager(persistentTasksService, clusterService);
+
+        final DataStreamLifecycleErrorStore dlmErrorStore = new DataStreamLifecycleErrorStore(threadPool::absoluteTimeInMillis);
+
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
             clusterService,
@@ -1043,7 +1059,10 @@ class NodeConstruction {
             indexingLimits,
             linkedProjectConfigService,
             projectRoutingResolver,
-            remoteTransportClient
+            remoteTransportClient,
+            crossProjectModeDecider,
+            taskLifecycleManager,
+            dlmErrorStore
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {
@@ -1084,14 +1103,13 @@ class NodeConstruction {
 
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
         modules.bindToInstance(ResponseCollectorService.class, responseCollectorService);
+        modules.bindToInstance(CrossProjectModeDecider.class, crossProjectModeDecider);
 
         var reservedStateHandlerProviders = pluginsService.loadServiceProviders(ReservedStateHandlerProvider.class);
 
         ActionModule actionModule = new ActionModule(
             environment,
             clusterModule.getIndexNameExpressionResolver(),
-            namedWriteableRegistry,
-            settingsModule.getIndexScopedSettings(),
             settingsModule.getClusterSettings(),
             settingsModule.getSettingsFilter(),
             threadPool,
@@ -1107,6 +1125,7 @@ class NodeConstruction {
             buildReservedProjectStateHandlers(reservedStateHandlerProviders, metadataIndexTemplateService),
             pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
             incrementalBulkService,
+            crossProjectModeDecider,
             projectResolver
         );
         modules.add(actionModule);
@@ -1165,6 +1184,7 @@ class NodeConstruction {
             telemetryProvider,
             nodeEnvironment.nodeId(),
             linkedProjectConfigService,
+            crossProjectModeDecider,
             projectResolver
         );
         transportServiceRef.set(transportService);
@@ -1264,7 +1284,15 @@ class NodeConstruction {
 
         final TimeValue metricsInterval = settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10));
         final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService, metricsInterval);
-        final IndicesMetrics indicesMetrics = new IndicesMetrics(telemetryProvider.getMeterRegistry(), indicesService, metricsInterval);
+        final IndicesMetrics indicesMetrics = new IndicesMetrics(
+            telemetryProvider.getMeterRegistry(),
+            indicesService,
+            metricsInterval,
+            clusterService,
+            systemIndices
+        );
+        boolean emitOTelMetrics = settings.getAsBoolean("telemetry.otel.metrics.enabled", false);
+        final SystemMetrics systemMetrics = new SystemMetrics(telemetryProvider.getMeterRegistry(), emitOTelMetrics);
 
         OnlinePrewarmingService onlinePrewarmingService = pluginsService.loadSingletonServiceProvider(
             OnlinePrewarmingServiceProvider.class,
@@ -1283,6 +1311,7 @@ class NodeConstruction {
             telemetryProvider.getTracer(),
             onlinePrewarmingService
         );
+        searchTransportService.setSearchService(searchService);
 
         final SearchTaskWatchdog searchTaskWatchdog = new SearchTaskWatchdog(
             settingsModule.getClusterSettings(),
@@ -1292,7 +1321,17 @@ class NodeConstruction {
 
         final var shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, transportService, terminationHandler);
 
-        modules.add(loadPersistentTasksService(settingsModule, clusterService, threadPool, clusterModule.getIndexNameExpressionResolver()));
+        modules.add(
+            loadPersistentTasks(
+                settingsModule,
+                clusterService,
+                threadPool,
+                clusterModule.getIndexNameExpressionResolver(),
+                persistentTasksService,
+                taskLifecycleManager,
+                telemetryProvider.getMeterRegistry()
+            )
+        );
 
         modules.add(
             loadPluginShutdownService(clusterService),
@@ -1348,11 +1387,14 @@ class NodeConstruction {
             () -> Log4jWriter.PROVIDER
         );
 
+        ReshardingActionHelper reshardingActionHelper = new ReshardingActionHelper(clusterService, projectResolver, threadPool);
+
         modules.add(b -> {
             b.bind(NodeService.class).toInstance(nodeService);
             b.bind(BigArrays.class).toInstance(bigArrays);
             b.bind(PageCacheRecycler.class).toInstance(pageCacheRecycler);
             b.bind(IngestService.class).toInstance(ingestService);
+            b.bind(UserAgentParserRegistry.class).toInstance(userAgentParserRegistry);
             b.bind(IndexingPressure.class).toInstance(indexingLimits);
             b.bind(IncrementalBulkService.class).toInstance(incrementalBulkService);
             b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
@@ -1370,6 +1412,7 @@ class NodeConstruction {
             b.bind(TransportService.class).toInstance(transportService);
             b.bind(NodeMetrics.class).toInstance(nodeMetrics);
             b.bind(IndicesMetrics.class).toInstance(indicesMetrics);
+            b.bind(SystemMetrics.class).toInstance(systemMetrics);
             b.bind(NetworkService.class).toInstance(networkService);
             b.bind(IndexMetadataVerifier.class).toInstance(indexMetadataVerifier);
             b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
@@ -1393,6 +1436,8 @@ class NodeConstruction {
             b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
             b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
             b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
+            b.bind(DataStreamLifecycleErrorStore.class).toInstance(dlmErrorStore);
+            b.bind(ReshardingActionHelper.class).toInstance(reshardingActionHelper);
         });
 
         if (ReadinessService.enabled(environment)) {
@@ -1684,9 +1729,17 @@ class NodeConstruction {
         return getSinglePlugin(recoveryPlannerServices, RecoveryPlannerService.class).orElseGet(PeerOnlyRecoveryPlannerService::new);
     }
 
-    private WriteLoadForecaster getWriteLoadForecaster(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
+    private WriteLoadForecaster getWriteLoadForecaster(
+        ThreadPool threadPool,
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ClusterInfoService clusterInfoService
+    ) {
         var writeLoadForecasters = pluginsService.filterPlugins(ClusterPlugin.class)
-            .flatMap(clusterPlugin -> clusterPlugin.createWriteLoadForecasters(threadPool, settings, clusterSettings).stream());
+            .flatMap(
+                clusterPlugin -> clusterPlugin.createWriteLoadForecasters(threadPool, settings, clusterSettings, clusterInfoService)
+                    .stream()
+            );
 
         WriteLoadForecaster forecaster = getSinglePlugin(writeLoadForecasters, WriteLoadForecaster.class).orElse(
             WriteLoadForecaster.DEFAULT
@@ -1796,20 +1849,31 @@ class NodeConstruction {
         return module;
     }
 
-    private Module loadPersistentTasksService(
+    private Module loadPersistentTasks(
         SettingsModule settingsModule,
         ClusterService clusterService,
         ThreadPool threadPool,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        PersistentTasksService persistentTasksService,
+        PersistentTaskLifecycleManager persistentTaskLifecycleManager,
+        MeterRegistry meterRegistry
     ) {
-        PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
-        HealthNodeTaskExecutor healthNodeTaskExecutor = HealthNodeTaskExecutor.create(
-            clusterService,
-            persistentTasksService,
-            settingsModule.getSettings(),
-            clusterService.getClusterSettings()
+        HealthNodeTaskExecutor healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService);
+        persistentTaskLifecycleManager.registerClusterTask(
+            HealthNode.TASK_NAME,
+            HealthNodeTaskExecutor.ENABLED_SETTING,
+            () -> HealthNodeTaskParams.INSTANCE
         );
-        Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(healthNodeTaskExecutor);
+        IndexBalanceMetricsTaskExecutor indexBalanceMetricsTaskExecutor = new IndexBalanceMetricsTaskExecutor(
+            clusterService,
+            meterRegistry
+        );
+        persistentTaskLifecycleManager.registerClusterTask(
+            IndexBalanceMetricsTaskExecutor.TASK_NAME,
+            IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_ENABLED_SETTING,
+            () -> IndexBalanceMetricsTaskExecutor.TaskParams.INSTANCE
+        );
+        Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(healthNodeTaskExecutor, indexBalanceMetricsTaskExecutor);
 
         Stream<PersistentTasksExecutor<?>> pluginTaskExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
             .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, settingsModule, indexNameExpressionResolver))
@@ -1828,6 +1892,7 @@ class NodeConstruction {
 
         return b -> {
             b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
+            b.bind(PersistentTaskLifecycleManager.class).toInstance(persistentTaskLifecycleManager);
             b.bind(HealthNodeTaskExecutor.class).toInstance(healthNodeTaskExecutor);
             b.bind(PersistentTasksExecutorRegistry.class).toInstance(registry);
             b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);

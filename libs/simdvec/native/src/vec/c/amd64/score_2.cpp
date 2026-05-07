@@ -14,17 +14,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <math.h>
 #include <limits>
-
-// Force the preprocessor to pick up AVX-512 intrinsics, and the compiler to emit AVX-512 code
-#ifdef __clang__
-#pragma clang attribute push(__attribute__((target("arch=icelake-client"))), apply_to=function)
-#elif __GNUC__
-#pragma GCC push_options
-#pragma GCC target ("arch=icelake-client")
-#endif
 
 #include "vec.h"
 #include "vec_common.h"
@@ -126,22 +116,16 @@ EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk_2(
             queryBitScale,
             indexBitScale,
             centroidDp,
-            *(c.lowerIntervals + i),
-            *(c.upperIntervals + i),
-            *(c.targetComponentSums + i),
-            *(c.additionalCorrections + i),
-            *(scores + i)
+            c.lowerIntervals[i],
+            c.upperIntervals[i],
+            c.targetComponentSums[i],
+            c.additionalCorrections[i],
+            scores[i]
         );
-        *(scores + i) = score;
-        maxScore = fmax(maxScore, score);
+        scores[i] = score;
+        maxScore = __builtin_fmaxf(maxScore, score);
     }
 
     return maxScore;
 }
-
-#ifdef __clang__
-#pragma clang attribute pop
-#elif __GNUC__
-#pragma GCC pop_options
-#endif
 

@@ -45,7 +45,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -101,13 +100,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
-        }
-
-        @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -141,6 +135,17 @@ public enum IndexMode {
                 if (false == Objects.equals(unsupported.getDefault(settingsWithIndexMode), settings.get(unsupported))) {
                     throw new IllegalArgumentException(error(unsupported));
                 }
+            }
+            if (Boolean.TRUE.equals(settings.get(IndexSettings.SLICE_ENABLED))) {
+                throw new IllegalArgumentException(
+                    "The setting ["
+                        + IndexSettings.SLICE_ENABLED.getKey()
+                        + "] cannot be used with ["
+                        + IndexSettings.MODE.getKey()
+                        + "="
+                        + IndexMode.TIME_SERIES.getName()
+                        + "]."
+                );
             }
             Setting<List<String>> routingPath = IndexMetadata.INDEX_ROUTING_PATH;
             if (isEmpty(settings, routingPath) && isEmpty(settings, IndexMetadata.INDEX_DIMENSIONS)) {
@@ -202,13 +207,7 @@ public enum IndexMode {
             return TimeSeriesRoutingHashFieldMapper.INSTANCE;
         }
 
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return TsidExtractingIdFieldMapper.INSTANCE;
-        }
-
-        @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            // We don't support field data on TSDB's _id
+        public IdFieldMapper idFieldMapperForReindex() {
             return TsidExtractingIdFieldMapper.INSTANCE;
         }
 
@@ -283,13 +282,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
-        }
-
-        @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -391,13 +385,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
-        }
-
-        @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -482,6 +471,7 @@ public enum IndexMode {
                 IndexMetadata.INDEX_ROUTING_PATH,
                 IndexMetadata.INDEX_DIMENSIONS,
                 IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
+                IndexSettings.SLICE_ENABLED,
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME
             ),
@@ -523,15 +513,10 @@ public enum IndexMode {
     public abstract CompressedXContent getDefaultMapping(IndexSettings indexSettings);
 
     /**
-     * Build the {@link FieldMapper} for {@code _id}.
+     * Get the singleton {@link FieldMapper} for reindex to correctly reindex the id into the destination index.
+     * It can never support field data.
      */
-    public abstract IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled);
-
-    /**
-     * Get the singleton {@link FieldMapper} for {@code _id}. It can never support
-     * field data.
-     */
-    public abstract IdFieldMapper idFieldMapperWithoutFieldData();
+    public abstract IdFieldMapper idFieldMapperForReindex();
 
     /**
      * @return the time range based on the provided index metadata and index mode implementation.

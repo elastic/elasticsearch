@@ -12,12 +12,14 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -1026,5 +1028,39 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         Mapping update = parseDynamicUpdate(parsedDocument.dynamicMappingsUpdate());
         assertNotNull(update);
         assertThat(((FieldMapper) update.getRoot().getMapper("mapsToString")).fieldType().typeName(), equalTo("text"));
+    }
+
+    /**
+     * DocumentParserContext.getDynamicMapper should return a cached mapper on subsequent calls
+     * for the same field, rather than creating a new builder each time.
+     */
+    public void testGetDynamicMapperCachesResult() {
+        SourceToParse source = new SourceToParse("1", new BytesArray("{}"), XContentType.JSON);
+        TestDocumentParserContext context = new TestDocumentParserContext(MappingLookup.EMPTY, source);
+        Mapper first = context.getDynamicMapper("items");
+        Mapper second = context.getDynamicMapper("items");
+        assertSame(first, second);
+        assertThat(context.getDynamicMappers("items"), hasSize(1));
+    }
+
+    /**
+     * Calling createDynamicFieldFromValue for the same leaf field path multiple times (as happens
+     * when parsing an array of objects) should register only one builder, not one per array element.
+     */
+    public void testDynamicLeafFieldNotDuplicatedForArrayElements() throws Exception {
+        BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startArray().value(42).value(43).endArray());
+        SourceToParse source = new SourceToParse("1", bytes, XContentType.JSON);
+        XContentParser parser = createParser(XContentFactory.xContent(XContentType.JSON), bytes);
+        parser.nextToken(); // START_ARRAY
+        parser.nextToken(); // first VALUE_NUMBER
+
+        TestDocumentParserContext context = new TestDocumentParserContext(MappingLookup.EMPTY, source, parser);
+        context.path().add("items");
+
+        DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(context, "id");
+        parser.nextToken(); // second VALUE_NUMBER
+        DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(context, "id");
+
+        assertThat(context.getDynamicMappers("items.id"), hasSize(1));
     }
 }

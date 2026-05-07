@@ -48,7 +48,7 @@ public abstract class AbstractInferenceServiceParameterizedModelCreationTests ex
     ) {}
 
     private record ModelCreatorParams(
-        SenderService service,
+        SenderService<?> service,
         Utils.ModelConfigAndSecrets modelConfigAndSecrets,
         TestConfiguration testConfiguration
     ) {}
@@ -139,7 +139,7 @@ public abstract class AbstractInferenceServiceParameterizedModelCreationTests ex
                         testConfiguration -> new Utils.ModelConfigAndSecrets(
                             testConfiguration.commonConfig()
                                 .createModelConfigurations(testConfiguration.commonConfig().unsupportedTaskType()),
-                            testConfiguration.commonConfig().createModelSecrets()
+                            testConfiguration.commonConfig().createModelSecrets(ConfigurationParseContext.REQUEST)
                         ),
                         getModelCreator(),
                         // We expect failure, so the expected task type is irrelevant
@@ -160,7 +160,7 @@ public abstract class AbstractInferenceServiceParameterizedModelCreationTests ex
     ) {
         return testConfiguration -> new Utils.ModelConfigAndSecrets(
             testConfiguration.commonConfig().createModelConfigurations(completion),
-            testConfiguration.commonConfig().createModelSecrets()
+            testConfiguration.commonConfig().createModelSecrets(ConfigurationParseContext.REQUEST)
         );
     }
 
@@ -183,13 +183,13 @@ public abstract class AbstractInferenceServiceParameterizedModelCreationTests ex
         }
     }
 
-    private void assertSuccessfulModelCreation(SenderService service, Utils.ModelConfigAndSecrets persistedConfig) {
+    private void assertSuccessfulModelCreation(SenderService<?> service, Utils.ModelConfigAndSecrets persistedConfig) {
         var model = testCase.modelCreator.buildModel(new ModelCreatorParams(service, persistedConfig, testConfiguration));
 
         testConfiguration.commonConfig().assertModel(model, testCase.expectedTaskType, true, ConfigurationParseContext.PERSISTENT);
     }
 
-    private void assertFailedModelCreation(SenderService service, Utils.ModelConfigAndSecrets modelConfigAndSecrets) {
+    private void assertFailedModelCreation(SenderService<?> service, Utils.ModelConfigAndSecrets modelConfigAndSecrets) {
         var exception = expectThrows(
             ElasticsearchStatusException.class,
             () -> testCase.modelCreator.buildModel(new ModelCreatorParams(service, modelConfigAndSecrets, testConfiguration))

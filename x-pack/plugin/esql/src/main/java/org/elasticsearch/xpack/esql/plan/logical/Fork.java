@@ -30,7 +30,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
-import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributes;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributesPreservingIds;
 
 /**
  * A Fork is a n-ary {@code Plan} where each child is a sub plan, e.g.
@@ -44,11 +44,20 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
     public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children);
-        if (children.size() > MAX_BRANCHES) {
+        if (exceedsMaxBranches(children.size())) {
             throw new IllegalArgumentException("FORK supports up to " + MAX_BRANCHES + " branches, got: " + children.size());
         }
 
         this.output = output;
+    }
+
+    /**
+     * Branch-count predicate shared by {@link Fork}'s constructor and any caller that wants to fail
+     * earlier with a more user-facing message. Returns {@code true} if {@code count} would exceed the
+     * branch cap. Centralizes the comparison so the cap can move in one place.
+     */
+    public static boolean exceedsMaxBranches(int count) {
+        return count > MAX_BRANCHES;
     }
 
     @Override
@@ -104,10 +113,12 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         return new Fork(source(), subPlans, output);
     }
 
-    public Fork withSubPlans(List<LogicalPlan> subPlans) {
-        // We don't want to keep the same attributes that are outputted by the FORK branches.
-        // Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
-        return replaceSubPlansAndOutput(subPlans, toReferenceAttributes(outputUnion(subPlans)));
+    public Fork refreshOutput() {
+        return new Fork(source(), children(), refreshedOutput());
+    }
+
+    protected List<Attribute> refreshedOutput() {
+        return toReferenceAttributesPreservingIds(outputUnion(children()), this.output());
     }
 
     @Override

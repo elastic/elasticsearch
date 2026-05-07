@@ -18,10 +18,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Factory for Arrow Flight connectors.
@@ -67,11 +69,17 @@ class FlightConnectorFactory implements ConnectorFactory {
 
     @Override
     public Connector open(Map<String, Object> config) {
-        String endpoint = (String) config.get("endpoint");
+        // Use Objects.toString — direct (String) cast would CCE on SecureString / non-String values.
+        String endpoint = Objects.toString(config.get("endpoint"), null);
         if (endpoint == null) {
             throw new IllegalArgumentException("Flight connector requires 'endpoint' in config");
         }
         return new FlightConnector(endpoint);
+    }
+
+    @Override
+    public SplitProvider splitProvider() {
+        return new FlightSplitProvider();
     }
 
     private static String extractTarget(URI uri) {

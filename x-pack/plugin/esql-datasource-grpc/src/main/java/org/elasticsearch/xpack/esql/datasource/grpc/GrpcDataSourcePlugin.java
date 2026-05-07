@@ -7,19 +7,33 @@
 
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Registers the Arrow Flight connector for ESQL.
+ * Registers the Arrow Flight connector and storage SPI for ESQL.
  * Handles {@code flight://} and {@code grpc://} URIs for columnar data streaming via gRPC.
  */
 public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
+
+    @Override
+    public Set<String> supportedSchemes() {
+        return Set.of("flight", "grpc");
+    }
+
+    @Override
+    public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+        StorageProviderFactory factory = s -> new FlightStorageProvider();
+        return Map.of("flight", factory, "grpc", factory);
+    }
 
     @Override
     public Set<String> supportedConnectorSchemes() {
@@ -29,5 +43,10 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
     @Override
     public Map<String, ConnectorFactory> connectors(Settings settings) {
         return Map.of("flight", new FlightConnectorFactory());
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(FlightSplit.ENTRY);
     }
 }

@@ -1427,6 +1427,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
         final CacheBlobReader cacheBlobReader = mock(CacheBlobReader.class);
         final long primaryTerm = randomNonNegativeLong();
         final long fileLength = randomLongBetween(200, 10_000);
+        when(cacheFile.getLength()).thenReturn(fileLength);
         final CacheFileReader cacheFileReader = new CacheFileReader(
             cacheFile,
             cacheBlobReader,
@@ -1627,6 +1628,7 @@ public class BlobCacheIndexInputTests extends ESIndexInputTestCase {
 
         final CacheBlobReader cacheBlobReader = mock(CacheBlobReader.class);
         final long fileLength = randomLongBetween(200, 10_000);
+        when(cacheFile.getLength()).thenReturn(fileLength);
 
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);

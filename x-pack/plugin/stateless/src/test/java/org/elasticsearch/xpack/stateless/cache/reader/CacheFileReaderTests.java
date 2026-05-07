@@ -39,11 +39,6 @@ import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.cr
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-/**
- * Tests for {@link CacheFileReader#tryPrefetch} which delegates to
- * {@link SharedBlobCacheService.CacheFile#populate} with a {@code RangeAvailableHandler} that issues
- * an {@code madvise(WILLNEED)}-style hint via {@link SharedBytes.IO#prefetch}.
- */
 public class CacheFileReaderTests extends ESTestCase {
 
     private static final int REGION_PAGES = 10;
@@ -64,10 +59,6 @@ public class CacheFileReaderTests extends ESTestCase {
         assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
     }
 
-    /**
-     * On an indexing node {@link CacheFileReader#tryPrefetch} must short-circuit: the slow path is gated by
-     * {@link StatelessSharedBlobCacheService#hasSearchRole()} so neither the blob reader nor the cache is touched.
-     */
     public void testTryPrefetchOnIndexingNodeIsNoOp() throws Exception {
         Settings settings = nodeSettings("index");
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
@@ -99,13 +90,6 @@ public class CacheFileReaderTests extends ESTestCase {
         }
     }
 
-    /**
-     * On a search node {@link CacheFileReader#tryPrefetch} populates the cache via {@link SharedBlobCacheService.CacheFile#populate}.
-     * Because stateless wires the cache service's {@code ioExecutor} to {@link EsExecutors#DIRECT_EXECUTOR_SERVICE} and the
-     * {@link ObjectStoreCacheBlobReader} below also runs on a direct executor, the populate completes synchronously, so a second
-     * {@code tryPrefetch} for the same range hits the fast path. That fast path calls {@link SharedBytes.IO#prefetch}, exercising
-     * the {@code madvise(WILLNEED)} hint that the populate-based prefetch was introduced for.
-     */
     public void testTryPrefetchOnSearchNodeFetchesAndPrefetches() throws Exception {
         Settings settings = nodeSettings("search");
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
@@ -142,10 +126,6 @@ public class CacheFileReaderTests extends ESTestCase {
         }
     }
 
-    /**
-     * When the underlying blob store fetch fails the listener receives the failure and the {@code Failed} prefetch outcome is
-     * recorded (no exception is propagated to the caller).
-     */
     public void testTryPrefetchRecordsFailure() throws Exception {
         Settings settings = nodeSettings("search");
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
@@ -181,6 +161,138 @@ public class CacheFileReaderTests extends ESTestCase {
             assertFalse(cacheFileReader.tryPrefetch(0L, blob.length));
             assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 1);
             assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 0);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
+        }
+    }
+
+    public void testTryPrefetchWithOversizedFileLength() throws Exception {
+        Settings settings = nodeSettings("search");
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+
+        try (
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService service = newCacheService(env, settings, threadPool)
+        ) {
+            String fileName = "prefetch-oversized-length";
+            byte[] blob = randomByteArrayOfLength(BLOB_LENGTH);
+            FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), 1L, fileName);
+            AtomicInteger fetchCount = new AtomicInteger();
+            CacheBlobReader reader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), fetchCount);
+            CacheFileReader cacheFileReader = new CacheFileReader(
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                reader,
+                createBlobFileRanges(1L, 0L, 0, blob.length),
+                metrics,
+                System::currentTimeMillis,
+                service.hasSearchRole()
+            );
+
+            long oversizedLength = (long) blob.length * 1024L;
+            assertFalse(
+                "oversized prefetch must not hit the fast path on the first call",
+                cacheFileReader.tryPrefetch(0L, oversizedLength)
+            );
+            assertThat("oversized prefetch must still trigger a fetch from the blob store", fetchCount.get(), greaterThan(0));
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 1);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 0);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
+        }
+    }
+
+    public void testTryPrefetchPastEOF() throws Exception {
+        Settings settings = nodeSettings("search");
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+
+        try (
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService service = newCacheService(env, settings, threadPool)
+        ) {
+            String fileName = "prefetch-past-eof";
+            byte[] blob = randomByteArrayOfLength(BLOB_LENGTH);
+            FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), 1L, fileName);
+            AtomicInteger fetchCount = new AtomicInteger();
+            CacheBlobReader reader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), fetchCount);
+            CacheFileReader cacheFileReader = new CacheFileReader(
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                reader,
+                createBlobFileRanges(1L, 0L, 0, blob.length),
+                metrics,
+                System::currentTimeMillis,
+                service.hasSearchRole()
+            );
+
+            long offsetAtOrPastEof = randomBoolean() ? blob.length : blob.length + randomLongBetween(1L, 1024L);
+            assertFalse(cacheFileReader.tryPrefetch(offsetAtOrPastEof, randomLongBetween(1L, 1024L)));
+            assertThat("no fetch should be triggered when the offset is past EOF", fetchCount.get(), equalTo(0));
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 0);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 0);
+        }
+    }
+
+    public void testTryPrefetchNonPositiveLength() throws Exception {
+        Settings settings = nodeSettings("search");
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+
+        try (
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService service = newCacheService(env, settings, threadPool)
+        ) {
+            String fileName = "prefetch-zero-length";
+            byte[] blob = randomByteArrayOfLength(BLOB_LENGTH);
+            FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), 1L, fileName);
+            AtomicInteger fetchCount = new AtomicInteger();
+            CacheBlobReader reader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), fetchCount);
+            CacheFileReader cacheFileReader = new CacheFileReader(
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                reader,
+                createBlobFileRanges(1L, 0L, 0, blob.length),
+                metrics,
+                System::currentTimeMillis,
+                service.hasSearchRole()
+            );
+
+            long nonPositiveLength = randomBoolean() ? 0L : -randomLongBetween(1L, 1024L);
+            assertFalse(cacheFileReader.tryPrefetch(0L, nonPositiveLength));
+            assertThat("no fetch should be triggered when length is non-positive", fetchCount.get(), equalTo(0));
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 0);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 0);
+        }
+    }
+
+    public void testTryPrefetchOversizedLengthIsLimited() throws Exception {
+        Settings settings = nodeSettings("search");
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
+
+        try (
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            StatelessSharedBlobCacheService service = newCacheService(env, settings, threadPool)
+        ) {
+            String fileName = "prefetch-midfile-oversized";
+            byte[] blob = randomByteArrayOfLength(BLOB_LENGTH);
+            FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), 1L, fileName);
+            AtomicInteger fetchCount = new AtomicInteger();
+            CacheBlobReader reader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), fetchCount);
+            CacheFileReader cacheFileReader = new CacheFileReader(
+                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
+                reader,
+                createBlobFileRanges(1L, 0L, 0, blob.length),
+                metrics,
+                System::currentTimeMillis,
+                service.hasSearchRole()
+            );
+
+            long midFileOffset = randomLongBetween(1L, blob.length - 1);
+            long oversizedLength = (blob.length - midFileOffset) + randomLongBetween(1L, blob.length);
+            assertFalse(cacheFileReader.tryPrefetch(midFileOffset, oversizedLength));
+            assertThat(fetchCount.get(), greaterThan(0));
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 1);
+            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 0);
             assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
         }
     }

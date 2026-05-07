@@ -105,26 +105,23 @@ public class CacheFileReader {
      * @throws IOException if an I/O error occurs
      */
     public final boolean tryPrefetch(long offset, long length) throws IOException {
-        if (cacheFile.tryPrefetch(offset, length)) {
+        final long blobLength = cacheFile.getLength();
+        // return when there is nothing to prefetch
+        if (offset < 0 || offset >= blobLength || length <= 0) {
+            return false;
+        }
+        final long remainingFileLength = blobLength - offset;
+        final long clampedLength = Math.min(length, remainingFileLength);
+        if (cacheFile.tryPrefetch(offset, clampedLength)) {
             blobCacheMetrics.recordPrefetch(PrefetchResult.AlreadyCached);
             return true;
         }
         if (hasSearchRole) {
-            final long blobLength = cacheFile.getLength();
-            // bail early when there is nothing to prefetch
-            if (offset >= blobLength || length <= 0) {
-                return false;
-            }
-            final long remainingFileLength = blobLength - offset;
-            final long clampedLength = Math.min(length, remainingFileLength);
             final int intLength = clampedLength < Integer.MAX_VALUE ? Math.toIntExact(clampedLength) : Integer.MAX_VALUE;
             // same ranges cannot be passed to populate, as write range may extend beyond actually file length,
             // however read range must stay within file length
             final ByteRange rangeToWrite = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
             final ByteRange rangeToRead = ByteRange.of(offset, offset + clampedLength);
-            // IndexingShardCacheBlobReader.getRangeInputStream forbids running on SHARD_READ_THREAD_POOL because
-            // it issues a transport call and completes the listener on a different pool.
-            final String readerExecutorName = cacheBlobReader.executorName();
             cacheFile.populate(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
                 channel.prefetch(channelPos, len);
                 return len;
@@ -136,7 +133,9 @@ public class CacheFileReader {
                     cacheBlobReader,
                     () -> writeBuffer.get().clear(),
                     bytesCopied -> {},
-                    readerExecutorName,
+                    // IndexingShardCacheBlobReader.getRangeInputStream forbids running on SHARD_READ_THREAD_POOL because
+                    // it issues a transport call and completes the listener on a different pool.
+                    cacheBlobReader.executorName(),
                     StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                 ),
                 "",

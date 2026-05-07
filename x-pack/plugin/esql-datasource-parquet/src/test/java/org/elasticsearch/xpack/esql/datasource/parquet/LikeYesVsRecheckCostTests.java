@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -61,7 +62,11 @@ import java.util.Random;
  */
 public class LikeYesVsRecheckCostTests extends ESTestCase {
 
-    private static final boolean PERF_ENABLED = Boolean.parseBoolean(System.getProperty("tests.perf", "false"));
+    // Use Elasticsearch's Booleans helper instead of java.lang.Boolean#parseBoolean — the
+    // latter is forbidden by the project's forbiddenApis policy because it silently accepts
+    // anything that isn't "true" as false (no input validation), which has historically
+    // masked typos in system properties.
+    private static final boolean PERF_ENABLED = Booleans.parseBoolean(System.getProperty("tests.perf"), false);
 
     /**
      * Mid-sized block matching what the parquet reader actually emits per page chunk.

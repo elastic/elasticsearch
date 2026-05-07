@@ -35,8 +35,6 @@ import static org.elasticsearch.test.fixtures.testcontainers.DockerAvailability.
 
 /**
  * Boots a two-node Elasticsearch cluster against the locally built {@code elasticsearch:test} Docker image.
- * Replaces the previous {@code docker-compose.yml}-based fixture so the suite can be wired via a JUnit
- * rule rather than the legacy {@code elasticsearch.test.fixtures} Gradle plugin.
  */
 public class DockerElasticsearchCluster implements TestRule {
 
@@ -46,25 +44,13 @@ public class DockerElasticsearchCluster implements TestRule {
     private static final String NODE_2 = "elasticsearch-default-2";
     private static final int HTTP_PORT = 9200;
 
-    // Review item 10: single source of truth for the superuser credentials. These are propagated to each
-    // container via ES_TEST_USER/ES_TEST_PASS env vars so docker-test-entrypoint.sh creates a matching user;
-    // DockerYmlTestSuiteIT reads them from here too, so renaming either constant updates everything.
     public static final String USER = "x_pack_rest_user";
     public static final String PASS = "x-pack-test-password";
 
-    // Review item 2: container references must remain visible to test methods that call getHttpAddresses(),
-    // but they are constructed lazily inside apply() so that nothing is allocated when Docker is unavailable
-    // (which would otherwise leak a temp directory and a docker network on assumption failure).
-    // Review item 5: we type these as DockerEnvironmentAwareTestContainer to gain Slf4jLogConsumer streaming
-    // (so failed runs surface node logs in the test report) and ensureContainerFullyStopped() on shutdown,
-    // matching the convention used by every other Testcontainer fixture in the repo.
     private DockerEnvironmentAwareTestContainer node1;
     private DockerEnvironmentAwareTestContainer node2;
 
     private DockerEnvironmentAwareTestContainer createNode(Network network, Path repoDir, String nodeName, String otherNodeName) {
-        // Review nice-to-have: env vars grouped via Map.ofEntries so the security/TLS block is visually
-        // distinct from the cluster-identity and disk-watermark blocks; the entries-list also reads as a
-        // configuration table rather than a 25-line withEnv() chain.
         Map<String, String> env = Map.ofEntries(
             // cluster identity & discovery
             Map.entry("node.name", nodeName),
@@ -105,14 +91,10 @@ public class DockerElasticsearchCluster implements TestRule {
             Map.entry("action.destructive_requires_name", "false"),
             Map.entry("cluster.deprecation_indexing.enabled", "false"),
 
-            // Review item 10: superuser credentials read by docker-test-entrypoint.sh; defined once on
-            // DockerElasticsearchCluster so the IT and the script see the same values.
             Map.entry("ES_TEST_USER", USER),
             Map.entry("ES_TEST_PASS", PASS)
         );
 
-        // Review item 5: anonymous subclass is required because DockerEnvironmentAwareTestContainer is abstract.
-        // The image name resolves immediately (CompletableFuture.completedFuture) — there is no async pull.
         return new DockerEnvironmentAwareTestContainer(CompletableFuture.completedFuture(IMAGE)) {}.withNetwork(network)
             .withNetworkAliases(nodeName)
             .withEnv(env)
@@ -132,7 +114,7 @@ public class DockerElasticsearchCluster implements TestRule {
     }
 
     public String getHttpAddresses() {
-        // Review item 2/QA #5: fail loudly if a caller (e.g. an overridden getTestRestCluster()) reads addresses
+        // Fail loudly if a caller (e.g. an overridden getTestRestCluster()) reads addresses
         // before the @ClassRule has started the containers, instead of returning a misleading "null:0,null:0".
         if (node1 == null || node2 == null) {
             throw new IllegalStateException("Cluster has not been started; getHttpAddresses() called outside @ClassRule scope");
@@ -145,10 +127,9 @@ public class DockerElasticsearchCluster implements TestRule {
         return new Statement() {
             @Override
             public void evaluate() throws Throwable {
-                // Review item 1: use assumeDockerIsAvailable() (not a plain Assume.assumeTrue) so that the rule
+                // Use assumeDockerIsAvailable() (not a plain Assume.assumeTrue) so that the rule
                 // also applies the dockerOnLinuxExclusions list and asserts hard on CI when probing fails.
                 // Calling it BEFORE allocating the temp dir avoids leaking the dir on assumption failure
-                // (review item 2).
                 assumeDockerIsAvailable();
                 Path repoDir = Files.createTempDirectory("es-docker-repo");
                 try {
@@ -157,9 +138,6 @@ public class DockerElasticsearchCluster implements TestRule {
                     Network network = Network.newNetwork();
                     node1 = createNode(network, repoDir, NODE_1, NODE_2);
                     node2 = createNode(network, repoDir, NODE_2, NODE_1);
-                    // Review item 2: reuse Junit4NetworkRule for the network's lifecycle instead of
-                    // duplicating its close-in-finally logic inline. asRule() handles each container's
-                    // start/stop. Order: network -> node1 -> node2 -> base.
                     RuleChain.outerRule(Junit4NetworkRule.from(network))
                         .around(asRule(node1))
                         .around(asRule(node2))
@@ -185,7 +163,7 @@ public class DockerElasticsearchCluster implements TestRule {
                 return FileVisitResult.CONTINUE;
             }
 
-            // Review item 4: do not abort the entire walk on a single file failure. Docker bind-mount
+            // Do not abort the entire walk on a single file failure. Docker bind-mount
             // releases are asynchronous, so a file may briefly be unreadable right after the container
             // stops; aborting here would leak the rest of the tree under /tmp.
             @Override

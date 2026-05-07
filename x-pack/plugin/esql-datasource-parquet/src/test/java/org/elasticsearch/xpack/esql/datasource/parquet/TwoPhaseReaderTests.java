@@ -193,6 +193,80 @@ public class TwoPhaseReaderTests extends ESTestCase {
         assertThat("expected all rows when there's no late-mat opportunity", total, equalTo(100));
     }
 
+    /**
+     * High predicate-byte-ratio shape on native-async storage: predicate column dominates projected
+     * bytes (the q22-on-ClickBench shape). After removing the file-level byte-ratio gate, late
+     * materialization must still filter rows; the iterator's own 0.4 two-phase gate correctly keeps
+     * the more expensive two-phase prefetch off, but the cheap late-mat decode-skip remains in
+     * effect. The byte-traffic cross-check against a non-async {@link CountingStorageObject} pins
+     * "two-phase did not engage" on the async run — the ratio between the two reads stays close to
+     * 1, instead of the order-of-magnitude saving two-phase would produce on this 2.5%-selective
+     * filter.
+     */
+    public void testLateMatFiresButTwoPhaseStaysOffWhenPredicateColumnDominates() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("wide_pred")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("narrow_proj")
+            .named("test_schema");
+
+        // 40-char padding + 200 rows lands inside parquet-mr's default row-group/page sizing in a
+        // shape that emits a single row group, so the late-mat filter sees the whole batch. Larger
+        // padding or row counts can shift the page layout enough to hide the regression.
+        int rowCount = 200;
+        String padding = "x".repeat(40);
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+            Group g = factory.newGroup();
+            g.add("wide_pred", padding + "_pred_" + String.format(java.util.Locale.ROOT, "%03d", i));
+            g.add("narrow_proj", (long) i);
+            return g;
+        });
+
+        ReferenceAttribute predAttr = new ReferenceAttribute(Source.EMPTY, "wide_pred", DataType.KEYWORD);
+        // Lex > "padding_pred_194": survivors are i in {195..199}, 5 of 200 rows (~2.5% selective).
+        org.apache.lucene.util.BytesRef threshold = new org.apache.lucene.util.BytesRef(padding + "_pred_194");
+        Expression filter = new GreaterThan(Source.EMPTY, predAttr, new Literal(Source.EMPTY, threshold, DataType.KEYWORD), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        CountingStorageObject asyncObj = new CountingStorageObject(parquetData, true);
+        List<Page> asyncPages = readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), asyncObj);
+
+        int asyncRows = asyncPages.stream().mapToInt(Page::getPositionCount).sum();
+        assertThat("late-mat must fire and retain only matching rows", asyncRows, equalTo(5));
+
+        // Sanity-check the surviving row IDs (195..199) — guards against a wrong-column or
+        // wrong-comparator regression slipping through under the 5-row count assertion alone.
+        Set<Long> survivors = new HashSet<>();
+        for (Page p : asyncPages) {
+            LongBlock proj = p.getBlock(1);
+            for (int i = 0; i < proj.getPositionCount(); i++) {
+                if (proj.isNull(i) == false) {
+                    survivors.add(proj.getLong(i));
+                }
+            }
+        }
+        assertEquals("expected tail rows 195..199 to survive", Set.of(195L, 196L, 197L, 198L, 199L), survivors);
+
+        // Cross-check on byte traffic: a non-async storage object cannot use two-phase, so its byte
+        // count is the late-mat-without-two-phase baseline. If two-phase had engaged on the async
+        // path, async bytes would be a small fraction of sync bytes (the projection column would be
+        // skipped for ~97.5% of rows). We assert async is at least 75% of sync — generous bound that
+        // fails clearly if two-phase ever engages here, while tolerating small async/sync wrapper
+        // overhead asymmetries.
+        CountingStorageObject syncObj = new CountingStorageObject(parquetData, false);
+        readAllPages(new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed), syncObj).forEach(Page::releaseBlocks);
+
+        long async = asyncObj.totalBytesRead.get();
+        long sync = syncObj.totalBytesRead.get();
+        assertTrue(
+            "two-phase must stay off at high predicate-byte ratio (async=" + async + ", sync=" + sync + ")",
+            async >= (sync * 3) / 4
+        );
+    }
+
     public void testTwoPhaseHandlesAllFilteredOutRowGroup() throws Exception {
         // A small file where a selective filter removes every row; verifies the all-filtered
         // path returns no rows and does not leave the iterator hung on a stale state.

@@ -612,7 +612,7 @@ public class KnnSearcher {
                             new ComputeNNByteTask(
                                 idx,
                                 params.topK(),
-                                queries.nextByteVector(),
+                                queries.nextByteVector().vector(),
                                 nn,
                                 reader,
                                 combinedFilter,
@@ -624,7 +624,7 @@ public class KnnSearcher {
                             new ComputeNNFloatTask(
                                 idx,
                                 params.topK(),
-                                queries.nextFloatVector(),
+                                queries.nextFloatVector().vector(),
                                 nn,
                                 reader,
                                 combinedFilter,
@@ -822,7 +822,7 @@ public class KnnSearcher {
             List<Callable<Void>> tasks = new ArrayList<>();
             IndexVectorReader queryReader = dataGenerator.queries();
             for (int i = 0; i < numQueryVectors; i++) {
-                float[] queryVector = queryReader.nextFloatVector();
+                float[] queryVector = queryReader.nextFloatVector().vector();
                 tasks.add(new ComputeNNFloatTask(i, topK, queryVector, result, reader, filterQuery, similarityFunction));
             }
             ForkJoinPool.commonPool().invokeAll(tasks);
@@ -836,7 +836,7 @@ public class KnnSearcher {
             List<Callable<Void>> tasks = new ArrayList<>();
             IndexVectorReader queryReader = dataGenerator.queries();
             for (int i = 0; i < numQueryVectors; i++) {
-                byte[] queryVector = queryReader.nextByteVector();
+                byte[] queryVector = queryReader.nextByteVector().vector();
                 tasks.add(new ComputeNNByteTask(i, topK, queryVector, result, reader, filterQuery, similarityFunction));
             }
             ForkJoinPool.commonPool().invokeAll(tasks);

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
 
 /**
  * REST handler for the Prometheus {@code GET /api/v1/query_range} endpoint.
@@ -56,7 +57,7 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
         String start = getRequiredParam(request, START_PARAM);
         String end = getRequiredParam(request, END_PARAM);
         String step = getRequiredParam(request, PrometheusQueryResponseListener.STEP_PARAM);
-        String index = request.param(INDEX_PARAM, "*");
+        String index = request.param(INDEX_PARAM, DEFAULT_PROMQL_INDEX_PATTERN);
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
         EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(query, index, start, end, step);

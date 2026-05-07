@@ -2173,7 +2173,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
     @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(5500));
+        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(7000));
     }
 
     private static void assertEmbeddingModelSettings(

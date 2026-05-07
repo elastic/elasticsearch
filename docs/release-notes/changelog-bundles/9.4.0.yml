@@ -1,7 +1,74 @@
 version: 9.4.0
-released: false
-generated: 2026-05-01T17:34:24.086006175Z
+released: true
+generated: 2026-05-07T08:05:07.854633905Z
 changelogs:
+  - pr: 2841
+    summary: Better messaging regarding OOM process termination
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2846
+    summary: Report the actual memory usage of the autodetect process
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2848
+    summary: Improve adherence to memory limits for the bucket gatherer
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2851
+    summary: Restrict file system access for pytorch models
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2863
+    summary: Update the PyTorch library to version 2.7.1
+    area: Machine Learning
+    type: upgrade
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2889
+    summary: Downgrade log severity for a batch of recoverable errors
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2894
+    summary: Better error handling regarding quantiles state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 2895
+    summary: Better handling of invalid JSON state documents
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3008
+    summary: Harden pytorch_inference with TorchScript model graph validation
+    area: Machine Learning
+    type: enhancement
+    issues:
+      - 2890
+    source_repo: elastic/ml-cpp
+  - pr: 3015
+    summary: Add EuroBERT and Jina v5 ops to graph validation allowlist
+    area: Machine Learning
+    type: enhancement
+    issues: []
+    source_repo: elastic/ml-cpp
+  - pr: 3017
+    summary: Fix flaky CIoManagerTest/testFileIoGood test
+    area: Machine Learning
+    type: bug
+    issues: []
+    source_repo: elastic/ml-cpp
   - pr: 128868
     summary: Correctly ignore system indices when validating dot-prefixed indices
     area: Indices APIs
@@ -483,7 +550,7 @@ changelogs:
     type: enhancement
     issues: []
   - pr: 140555
-summary: "ES|QL [TEXT_EMBEDDING function](/reference/query-languages/esql/functions-operators/dense-vector-functions/text_embedding.md) is GA"
+    summary: "ES|QL [TEXT_EMBEDDING function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-text_embedding) is GA"
     area: ES|QL
     type: enhancement
     issues: []

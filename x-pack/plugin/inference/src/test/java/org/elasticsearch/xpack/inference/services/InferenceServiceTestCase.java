@@ -11,6 +11,7 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 
 import java.io.IOException;
 
@@ -21,7 +22,7 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
     public void testRerankersImplementRerankInterface() throws IOException {
         try (InferenceService inferenceService = createInferenceService()) {
             boolean implementsReranking = inferenceService instanceof RerankingInferenceService;
-            boolean hasRerankTaskType = inferenceService.supportedTaskTypes().contains(TaskType.RERANK);
+            boolean hasRerankTaskType = supportsRerank(inferenceService);
             if (implementsReranking != hasRerankTaskType) {
                 fail(
                     "Reranking inference services should implement RerankingInferenceService and support the RERANK task type. "
@@ -35,6 +36,15 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
                         + "]"
                 );
             }
+        }
+    }
+
+    // This method is necessary because ElasticInferenceService.supportedTaskTypes() throws
+    private static boolean supportsRerank(InferenceService inferenceService) {
+        if (inferenceService instanceof ElasticInferenceService) {
+            return ElasticInferenceService.IMPLEMENTED_TASK_TYPES.contains(TaskType.RERANK);
+        } else {
+            return inferenceService.supportedTaskTypes().contains(TaskType.RERANK);
         }
     }
 

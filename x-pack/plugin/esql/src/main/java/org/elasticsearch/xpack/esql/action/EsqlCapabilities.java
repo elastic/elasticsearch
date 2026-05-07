@@ -1595,6 +1595,14 @@ public class EsqlCapabilities {
         DECAY_FUNCTION_PARAMETER_CONVERSION,
 
         /**
+         * Fix latitude/longitude ordering of the in geo-point {@code DECAY}.
+         * Previously the origin was serialized as "lon,lat" before being parsed by
+         * {@code GeoUtils.parseGeoPoint}, which expects "lat,lon", effectively swapping the
+         * origin's coordinates and producing incorrect distances whenever {@code lat != lon}.
+         */
+        DECAY_GEO_POINT_ORIGIN_LAT_LON_FIX,
+
+        /**
          * Support correct counting of skipped shards.
          */
         CORRECT_SKIPPED_SHARDS_COUNT,
@@ -1807,9 +1815,10 @@ public class EsqlCapabilities {
 
         /**
          * Support for the DATE_RANGE field type, RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX.
-         * V3: DATE_RANGE fields with {@code doc_values: false} now return null instead of throwing an exception.
+         * V4: RANGE_MIN, RANGE_MAX and RANGE_WITHIN now warn and return null on multi-valued input instead of
+         * silently aggregating across values
          */
-        DATE_RANGE_FIELD_TYPE_V3(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V4(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -2523,6 +2532,11 @@ public class EsqlCapabilities {
          */
         MMR_FOLDABLE_QUERY_VECTOR_FIX,
 
+        /**
+         * Support the BY grouping clause in CHANGE_POINT to detect change points independently per group.
+         */
+        CHANGE_POINT_BY(Build.current().isSnapshot()),
+
         FIX_DIV_ERROR_MESSAGE,
 
         /**
@@ -2639,7 +2653,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with INLINE STATS
          */
-        APPROXIMATION_INLINE_STATS(Build.current().isSnapshot()),
+        APPROXIMATION_INLINE_STATS_V2(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL year() function.
@@ -2678,6 +2692,12 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/146364">ES|QL: _index LIKE with ? #146364</a>
          */
         FIX_INDEX_LIKE_QUESTION_MARK_WILDCARD,
+
+        /**
+         * Fix query approximation for queries with few source rows, that are expanded
+         * (e.g. by MV_EXPAND) into many rows reaching the STATS command.
+         */
+        APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

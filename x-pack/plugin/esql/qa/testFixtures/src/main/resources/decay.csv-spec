@@ -277,6 +277,39 @@ decay_result:double
 0.606876005579706
 ;
 
+geoPointLinearSameOriginAndValue
+required_capability: decay_geo_point_origin_lat_lon_fix
+
+ROW value = TO_GEOPOINT("POINT(20 50)")
+| EVAL decay_result = decay(value, TO_GEOPOINT("POINT(20 50)"), "200km", {"offset": "0km", "decay": 0.5, "type": "linear"})
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+geoPointExpSameOriginAndValue
+required_capability: decay_geo_point_origin_lat_lon_fix
+
+ROW value = TO_GEOPOINT("POINT(20 50)")
+| EVAL decay_result = decay(value, TO_GEOPOINT("POINT(20 50)"), "200km", {"offset": "0km", "decay": 0.5, "type": "exp"})
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+geoPointGaussSameOriginAndValue
+required_capability: decay_geo_point_origin_lat_lon_fix
+
+ROW value = TO_GEOPOINT("POINT(20 50)")
+| EVAL decay_result = decay(value, TO_GEOPOINT("POINT(20 50)"), "200km", {"offset": "0km", "decay": 0.5, "type": "gauss"})
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
 datetimeLinear1
 required_capability: decay_function
 

@@ -702,7 +702,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 state.lastFileContext = rangeCtx.fileContext();
             } else {
                 StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
-                pages = openWithParallelism(fileReader, obj, cols, errorPolicy);
+                boolean recordAlignedMacro = FileSplitProvider.isRecordAlignedMacroSplit(fileSplit);
+                pages = openWithParallelism(fileReader, obj, cols, errorPolicy, recordAlignedMacro);
                 if (pages == null) {
                     boolean firstSplit = fileSplit.offset() == 0
                         || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
@@ -714,6 +715,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .errorPolicy(errorPolicy)
                         .firstSplit(firstSplit)
                         .lastSplit(lastSplit)
+                        .recordAligned(recordAlignedMacro)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
@@ -745,7 +747,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages = null;
         try {
             StorageObject obj = storageProvider.newObject(files.path(fileIndex));
-            pages = openWithParallelism(formatReader, obj, cols, errorPolicy);
+            pages = openWithParallelism(formatReader, obj, cols, errorPolicy, false);
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
                 FormatReadContext ctx = FormatReadContext.builder()
@@ -805,7 +807,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     ) {
         ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         executor.execute(ActionRunnable.run(failureListener, () -> {
-            CloseableIterator<Page> pages = openWithParallelism(formatReader, storageObject, projectedColumns, errorPolicy);
+            CloseableIterator<Page> pages = openWithParallelism(formatReader, storageObject, projectedColumns, errorPolicy, false);
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(projectedColumns)
@@ -991,8 +993,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED;
     }
 
-    CloseableIterator<Page> openWithParallelism(FormatReader reader, StorageObject obj, List<String> cols, ErrorPolicy policy)
-        throws IOException {
+    CloseableIterator<Page> openWithParallelism(
+        FormatReader reader,
+        StorageObject obj,
+        List<String> cols,
+        ErrorPolicy policy,
+        boolean recordAlignedMacroSplit
+    ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
         }
@@ -1003,7 +1010,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             }
             case SEGMENTABLE_UNCOMPRESSED -> {
                 SegmentableFormatReader seg = resolveSegmentableReader(reader);
-                return ParallelParsingCoordinator.parallelRead(seg, obj, cols, batchSize, parsingParallelism, executor, policy);
+                return ParallelParsingCoordinator.parallelRead(
+                    seg,
+                    obj,
+                    cols,
+                    batchSize,
+                    parsingParallelism,
+                    executor,
+                    policy,
+                    recordAlignedMacroSplit
+                );
             }
             case STREAM_ONLY_COMPRESSED -> {
                 CompressionDelegatingFormatReader cdr = (CompressionDelegatingFormatReader) reader;

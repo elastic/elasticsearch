@@ -349,11 +349,14 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
      *     <li>{@code result.valueCount()} will be exactly {@code a.valueCount() - b.valueCount()}</li>
      *     <li>{@code result.sum()} will be exactly {@code a.sum() - b.count()}</li>
      *     <li>{@code result.min()} and {@code result.max()} will be sane values (e.g. not outside the min/max values of the inputs)</li>
-     *     <li>Each bucket in the result will correspond to input buckets where the count for a was greater than the count of b</li>
+     *     <li>Each bucket in the result will correspond to input buckets where the count for {@code a} was greater than the count of {@code b}</li>
      * </ul>
      *
      * @param a the base histogram to subtract from
      * @param b the histogram to be subtracted
+     *
+     * @return true if the histograms were actually cumulative and the result is the exact difference, false
+     * if the histograms were not cumulative and the result only provides the weaker guarantees explained above
      */
     public boolean setToDifference(ExponentialHistogram a, ExponentialHistogram b) {
         if (result != null) {

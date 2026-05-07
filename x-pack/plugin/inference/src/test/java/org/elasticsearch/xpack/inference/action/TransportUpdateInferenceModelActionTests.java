@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.Goog
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
 import java.util.List;
@@ -69,6 +68,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -575,16 +575,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             SERVICE_NAME_VALUE
         );
 
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Map<String, Object>> serviceSettingsCaptor = ArgumentCaptor.forClass(Map.class);
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Map<String, Object>> taskSettingsCaptor = ArgumentCaptor.forClass(Map.class);
-
-        verify(originalServiceSettings).updateServiceSettings(serviceSettingsCaptor.capture());
-        assertThat(serviceSettingsCaptor.getValue(), sameInstance(newServiceSettingsMap));
-
-        verify(originalTaskSettings).updatedTaskSettings(taskSettingsCaptor.capture());
-        assertThat(taskSettingsCaptor.getValue(), sameInstance(newTaskSettingsMap));
+        verify(originalServiceSettings).updateServiceSettings(same(newServiceSettingsMap));
+        verify(originalTaskSettings).updatedTaskSettings(same(newTaskSettingsMap));
 
         assertThat(resultModelConfigurations.getServiceSettings(), sameInstance(updatedServiceSettings));
         assertThat(resultModelConfigurations.getTaskSettings(), sameInstance(updatedTaskSettings));
@@ -634,11 +626,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var modelSecrets = action.combineExistingSecretsWithNewSecrets(model, newSecretsMap);
 
         assertThat(modelSecrets.getSecretSettings(), sameInstance(updatedSecretSettings));
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
-        verify(originalSecretSettings).newSecretSettings(captor.capture());
-        assertThat(captor.getValue(), sameInstance(newSecretsMap));
+        verify(originalSecretSettings).newSecretSettings(same(newSecretsMap));
     }
 
     private static Model createMockedModel(

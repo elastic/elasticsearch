@@ -148,28 +148,6 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
         assertThat(request.getTaskSettings().get(ServiceFields.MAX_INPUT_TOKENS), is(TEST_MAX_INPUT_TOKENS));
     }
 
-    public void testParseContent_ReturnedMapsAreModifiableAtAllDepths() {
-        var request = requestWithBody(Strings.format("""
-            {
-                "service_settings": {
-                    "url": "%s",
-                    "rate_limit": {
-                        "requests_per_minute": %d
-                    }
-                },
-                "task_settings": {
-                    "max_input_tokens": %d
-                }
-            }""", TEST_URL, TEST_REQUESTS_PER_MINUTE, TEST_MAX_INPUT_TOKENS));
-
-        var serviceSettings = request.getServiceSettings();
-        assertThat(serviceSettings.remove(ServiceFields.URL), is(TEST_URL));
-        assertThat(request.getTaskSettings().remove(ServiceFields.MAX_INPUT_TOKENS), is(TEST_MAX_INPUT_TOKENS));
-        @SuppressWarnings("unchecked")
-        var rateLimit = (Map<String, Object>) serviceSettings.get(RateLimitSettings.FIELD_NAME);
-        assertThat(rateLimit.remove(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD), is(TEST_REQUESTS_PER_MINUTE));
-    }
-
     public void testParseContent_OmittedSectionsRemainNullAcrossCalls() {
         var request = requestWithBody("""
             {

@@ -74,6 +74,7 @@ public class PromqlCommand extends UnaryPlan
     public static final String SCRAPE_INTERVAL = "scrape_interval";
     public static final String RANGE = "range";
     public static final String INDEX = "index";
+    public static final String DEFAULT_PROMQL_INDEX_PATTERN = "metrics-*";
     public static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, BUCKETS, SCRAPE_INTERVAL, INDEX);
 
     // TODO make configurable via lookback_delta parameter and (cluster?) setting

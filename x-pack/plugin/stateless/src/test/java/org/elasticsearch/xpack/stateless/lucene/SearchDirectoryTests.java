@@ -383,10 +383,10 @@ public class SearchDirectoryTests extends ESTestCase {
                         searchDirectory.shardId,
                         blobLocations,
                         List.of(
-                            randomAlphaOfLength(10),
-                            randomAlphaOfLength(10),
-                            randomAlphaOfLength(10),
-                            randomAlphaOfLength(10),
+                            randomNonSiFileName(),
+                            randomNonSiFileName(),
+                            randomNonSiFileName(),
+                            randomNonSiFileName(),
                             // last file is the segment info so the last location should be returned
                             randomAlphaOfLength(10) + LuceneFilesExtensions.SI.getExtension()
                         )
@@ -414,10 +414,10 @@ public class SearchDirectoryTests extends ESTestCase {
                             blobLocations,
                             List.of(
                                 randomAlphaOfLength(10) + LuceneFilesExtensions.SI.getExtension(),
-                                randomAlphaOfLength(10),
-                                randomAlphaOfLength(10),
-                                randomAlphaOfLength(10),
-                                randomAlphaOfLength(10)
+                                randomNonSiFileName(),
+                                randomNonSiFileName(),
+                                randomNonSiFileName(),
+                                randomNonSiFileName()
                             )
                         )
                     );
@@ -429,6 +429,11 @@ public class SearchDirectoryTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    private String randomNonSiFileName() {
+        String siExtension = LuceneFilesExtensions.SI.getExtension();
+        return randomValueOtherThanMany(name -> name.endsWith(siExtension), () -> randomAlphaOfLength(10));
     }
 
     public void testUpdateCommitWithReplicatedContent() throws IOException {

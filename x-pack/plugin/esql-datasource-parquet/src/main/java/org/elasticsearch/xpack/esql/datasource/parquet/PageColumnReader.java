@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
@@ -36,8 +37,9 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
+import java.util.List;
 
 /**
  * Page-level batch column reader that bypasses {@code ColumnReadStoreImpl} and works directly
@@ -45,7 +47,7 @@ import java.util.BitSet;
  * <ol>
  *   <li>Reads data pages from the {@link PageReader}</li>
  *   <li>Splits V1/V2 pages into def-level and value streams</li>
- *   <li>Bulk-decodes def levels via {@link DefinitionLevelDecoder} → null {@link BitSet}</li>
+ *   <li>Bulk-decodes def levels via {@link DefinitionLevelDecoder} → null {@link WordMask}</li>
  *   <li>Bulk-decodes values via {@link PlainValueDecoder} or {@link DictionaryValueDecoder}</li>
  *   <li>Assembles into ESQL {@link Block}s</li>
  * </ol>
@@ -60,19 +62,32 @@ import java.util.BitSet;
  * <p>For dictionary-encoded BINARY/UTF8 columns, {@code readBytesBatch} takes an ordinal
  * fast path that emits an {@link OrdinalBytesRefBlock} so downstream {@code BlockHash} can
  * hash only the {@code k} dictionary entries instead of the {@code N} row values. The
- * dictionary {@code BytesRefVector} is rebuilt per batch (deep-copying the bytes via
- * {@link BytesRefArray#append}) so each emitted block fully owns its memory and is safe to
- * outlive the {@link PageColumnReader} or its row group — pages can be buffered and
- * consumed asynchronously by a different driver thread without aliasing into Parquet-side
- * state. UUID-typed columns skip the ordinal path because their values need per-row byte
- * formatting that would have to be applied to dictionary entries instead.
+ * dictionary bytes are deep-copied into a {@link BytesRefArray} once per chunk and that
+ * array is shared across every batch in the chunk via its atomic ref-count
+ * ({@link BytesRefArray} extends {@code AbstractRefCounted}). Each emitted batch creates a
+ * fresh {@code BytesRefArrayVector} wrapper that holds one ref to the shared array; the
+ * wrapper itself is single-driver-owned (its non-thread-safe ref counter is never shared)
+ * and decRefs the shared array when the block is closed. This decoupling lets pages be
+ * buffered and consumed asynchronously by a different driver thread (see
+ * {@code AsyncExternalSourceOperatorFactory} which calls
+ * {@code page.allowPassingToDifferentDriver()}) without racing the producer's per-batch
+ * ref-count updates against the consumer's close. UUID-typed columns skip the ordinal path
+ * because their values need per-row byte formatting that would have to be applied to
+ * dictionary entries instead.
+ *
+ * <p>The cached {@link BytesRefArray} is released when this reader's chunk changes
+ * (currently never — chunk is fixed for the reader's lifetime, so this is defensive) or
+ * when the reader is {@link #close() closed}. Closing is driven by
+ * {@code OptimizedParquetColumnIterator}, which closes any previous readers when it
+ * advances row groups (in {@code initColumnReaders}) and when the iterator itself is
+ * closed.
  *
  * <p>If a non-dictionary page is encountered mid-batch (rare in practice — Parquet writers
  * keep encoding consistent across all data pages of a column chunk), the partial ordinal
  * batch is resolved through the dictionary and the remainder is read via the materialized
  * binary path.
  */
-final class PageColumnReader {
+final class PageColumnReader implements Releasable {
 
     private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.allocate(0).asReadOnlyBuffer();
     private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
@@ -87,6 +102,16 @@ final class PageColumnReader {
 
     private Dictionary dictionary;
     private boolean dictionaryLoaded;
+
+    /**
+     * Cached deep-copy of the current dictionary's entries as a ref-counted {@link BytesRefArray}.
+     * Built lazily on the first ordinal batch of the chunk and reused (via {@code incRef}) for every
+     * subsequent batch. A defensive {@link #cachedDictArraySource} reference guards against the
+     * (currently impossible) case of the underlying {@link Dictionary} changing within a single
+     * reader's lifetime — if it does, the old cache is released and rebuilt.
+     */
+    private BytesRefArray cachedDictArray;
+    private Dictionary cachedDictArraySource;
 
     private final DefinitionLevelDecoder defDecoder = new DefinitionLevelDecoder();
     private final PlainValueDecoder plainDecoder = new PlainValueDecoder();
@@ -185,7 +210,135 @@ final class PageColumnReader {
             return blockFactory.newConstantNullBlock(0);
         }
         Block full = readBatch(maxRows, blockFactory);
-        return filterBlock(full, survivorPositions, survivorCount, blockFactory);
+        try {
+            // filterBlock closes `full` on success; on the `source.filter(...)` allocation
+            // failure it does NOT, so we explicitly release the source here to avoid leaking
+            // the full-batch block (and its breaker reservation) back up to the caller, which
+            // never saw the reference.
+            return filterBlock(full, survivorPositions, survivorCount, blockFactory);
+        } catch (RuntimeException e) {
+            Releasables.closeExpectNoException(full);
+            throw e;
+        }
+    }
+
+    /**
+     * Reads only the rows at the given positions within a batch of {@code sourceRows} total
+     * rows, interleaving {@link #skipRows} and {@link #readBatch} calls. Produces exactly
+     * {@code survivorCount} output rows. Unlike {@link #readBatchFiltered}, this method is
+     * safe when the reader has {@link RowRanges} that cause page skipping in
+     * {@link #loadNextPage()}, because every skip/read call advances the reader's cursor
+     * in the same sequential order as a plain read — no post-read coordinate translation
+     * is needed.
+     *
+     * @param sourceRows        total rows in the source batch (defines the coordinate space)
+     * @param blockFactory      factory for block construction
+     * @param survivorPositions ascending positions of rows to read (in {@code [0, sourceRows)})
+     * @param survivorCount     number of valid entries in {@code survivorPositions}
+     * @return a block with exactly {@code survivorCount} positions
+     */
+    Block readBatchSparse(int sourceRows, BlockFactory blockFactory, int[] survivorPositions, int survivorCount) {
+        assert survivorCount <= sourceRows : "survivorCount [" + survivorCount + "] > sourceRows [" + sourceRows + "]";
+        assert survivorCount <= survivorPositions.length
+            : "survivorCount [" + survivorCount + "] > array length [" + survivorPositions.length + "]";
+        assert survivorCount == 0 || survivorPositions[survivorCount - 1] < sourceRows
+            : "survivor position ["
+                + (survivorCount > 0 ? survivorPositions[survivorCount - 1] : -1)
+                + "] >= sourceRows ["
+                + sourceRows
+                + "]";
+
+        if (survivorCount == 0) {
+            skipRows(sourceRows);
+            return blockFactory.newConstantNullBlock(0);
+        }
+        if (survivorCount == sourceRows) {
+            return readBatch(sourceRows, blockFactory);
+        }
+
+        // Fast path: all survivors are contiguous — single skip/read/skip, no chunk list.
+        if (survivorPositions[survivorCount - 1] - survivorPositions[0] == survivorCount - 1) {
+            int leadingGap = survivorPositions[0];
+            if (leadingGap > 0) {
+                skipRows(leadingGap);
+            }
+            Block result = readBatch(survivorCount, blockFactory);
+            int trailing = sourceRows - survivorPositions[survivorCount - 1] - 1;
+            if (trailing > 0) {
+                skipRows(trailing);
+            }
+            return result;
+        }
+
+        // General path: decompose survivorPositions into (skip, read) runs of contiguous
+        // positions. Each run produces a small Block via readBatch; chunks are combined
+        // at the end.
+        List<Block> chunks = new ArrayList<>();
+        int cursor = 0;
+        int runStart = 0;
+
+        try {
+            while (runStart < survivorCount) {
+                int pos = survivorPositions[runStart];
+                int gap = pos - cursor;
+                if (gap > 0) {
+                    skipRows(gap);
+                    cursor += gap;
+                }
+
+                // Find the end of the contiguous run
+                int runEnd = runStart + 1;
+                while (runEnd < survivorCount && survivorPositions[runEnd] == survivorPositions[runEnd - 1] + 1) {
+                    runEnd++;
+                }
+                int runLength = runEnd - runStart;
+
+                chunks.add(readBatch(runLength, blockFactory));
+                cursor += runLength;
+                runStart = runEnd;
+            }
+
+            // Skip any trailing rows after the last survivor
+            int trailing = sourceRows - cursor;
+            if (trailing > 0) {
+                skipRows(trailing);
+            }
+
+            if (chunks.size() == 1) {
+                return chunks.get(0);
+            }
+            return combineBlocks(chunks, survivorCount, blockFactory);
+        } catch (RuntimeException e) {
+            for (Block chunk : chunks) {
+                Releasables.closeExpectNoException(chunk);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Concatenates multiple blocks produced by the sparse-read loop into a single block
+     * by copying values from each chunk sequentially via a {@link Block.Builder}.
+     * Closes the source chunks after copying.
+     */
+    private static Block combineBlocks(List<Block> chunks, int totalPositions, BlockFactory blockFactory) {
+        int actualTotal = 0;
+        for (Block b : chunks) {
+            actualTotal += b.getPositionCount();
+        }
+        assert actualTotal == totalPositions : "chunk total " + actualTotal + " != expected " + totalPositions;
+
+        Block first = chunks.get(0);
+        try (Block.Builder builder = first.elementType().newBlockBuilder(totalPositions, blockFactory)) {
+            for (Block chunk : chunks) {
+                builder.copyFrom(chunk, 0, chunk.getPositionCount());
+            }
+            Block result = builder.build();
+            for (Block chunk : chunks) {
+                Releasables.closeExpectNoException(chunk);
+            }
+            return result;
+        }
     }
 
     private void loadDictionaryIfNeeded() {
@@ -298,9 +451,9 @@ final class PageColumnReader {
 
     private void initDecoders() {
         if (maxDefLevel > 0 && currentDefLevelBytes != null) {
-            defDecoder.init(currentDefLevelBytes, currentPageValueCount, maxDefLevel, currentPageIsV1);
+            defDecoder.init(currentDefLevelBytes, maxDefLevel, currentPageIsV1);
         } else {
-            defDecoder.init(EMPTY_BYTE_BUFFER.duplicate(), currentPageValueCount, 0, false);
+            defDecoder.init(EMPTY_BYTE_BUFFER.duplicate(), 0, false);
         }
 
         if (currentEncoding.usesDictionary()) {
@@ -1112,20 +1265,63 @@ final class PageColumnReader {
     }
 
     private BytesRefVector buildDictionaryVector(BytesRef[] entries, BlockFactory blockFactory) {
+        BytesRefArray array = ensureCachedDictArray(entries, blockFactory);
+        // newBytesRefArrayVector takes ownership of one ref of the array: its closeInternal calls
+        // values.close() -> decRef(). The class Javadoc on BytesRefArrayVector that says it "does
+        // not take ownership" is misleading on the refcount side and applies only to the
+        // breaker accounting (which the factory adjusts here). To keep our cached ref alive
+        // across batches, incRef before handing the array to the wrapper.
+        array.incRef();
+        boolean success = false;
+        try {
+            BytesRefVector vector = blockFactory.newBytesRefArrayVector(array, entries.length);
+            success = true;
+            return vector;
+        } finally {
+            if (success == false) {
+                array.decRef();
+            }
+        }
+    }
+
+    private BytesRefArray ensureCachedDictArray(BytesRef[] entries, BlockFactory blockFactory) {
+        if (cachedDictArray != null && cachedDictArraySource == dictionary) {
+            return cachedDictArray;
+        }
+        // First call for this reader, or — and this should never happen given parquet-mr keeps
+        // one Dictionary per chunk and a PageColumnReader reads exactly one chunk — the
+        // Dictionary identity changed mid-reader. Assert in dev/test builds so a violated
+        // invariant fails loudly; rebuild rather than reuse a stale cache in production.
+        assert cachedDictArray == null : "PageColumnReader saw a Dictionary identity change mid-chunk; reader should have been replaced";
+        releaseCachedDictArray();
         BytesRefArray array = new BytesRefArray(entries.length, blockFactory.bigArrays());
         boolean success = false;
         try {
             for (BytesRef entry : entries) {
                 array.append(entry);
             }
-            BytesRefVector vector = blockFactory.newBytesRefArrayVector(array, entries.length);
+            cachedDictArray = array;
+            cachedDictArraySource = dictionary;
             success = true;
-            return vector;
+            return array;
         } finally {
             if (success == false) {
                 array.close();
             }
         }
+    }
+
+    private void releaseCachedDictArray() {
+        if (cachedDictArray != null) {
+            cachedDictArray.decRef();
+            cachedDictArray = null;
+            cachedDictArraySource = null;
+        }
+    }
+
+    @Override
+    public void close() {
+        releaseCachedDictArray();
     }
 
     private Block finishMaterializedFallback(int[] ordinals, WordMask nulls, int produced, int remaining, BlockFactory blockFactory) {

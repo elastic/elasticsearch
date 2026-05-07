@@ -520,6 +520,77 @@ tasks.named("test").configure {
 
 }
 
+/**
+ * Discovers all non-abstract subclasses of {@code GoldenTestCase} reachable from the test
+ * source set's compiled output. Uses reflection over an isolated {@link URLClassLoader}; classes
+ * are loaded with {@code initialize=false} so static initializers do not run.
+ */
+def findGoldenTestClasses = { FileCollection runtimeClasspath, FileCollection classesDirs ->
+  def names = []
+  classesDirs.each { File dir ->
+    if (dir.exists() == false) {
+      return
+    }
+    fileTree(dir).matching { include "**/*.class" }.each { File f ->
+      def rel = dir.toPath().relativize(f.toPath()).toString()
+      def name = rel.replace(File.separatorChar, '.' as char).replaceAll(/\.class$/, '')
+      if (name.endsWith('package-info') || name.endsWith('module-info') || name.contains('$')) {
+        return
+      }
+      names << name
+    }
+  }
+
+  def urls = runtimeClasspath.files.collect { it.toURI().toURL() } as URL[]
+  def cl = new URLClassLoader(urls, ClassLoader.systemClassLoader)
+  try {
+    def base = cl.loadClass("org.elasticsearch.xpack.esql.optimizer.GoldenTestCase")
+    return names.findAll { String n ->
+      try {
+        def c = Class.forName(n, false, cl)
+        return base.isAssignableFrom(c) && java.lang.reflect.Modifier.isAbstract(c.modifiers) == false
+      } catch (Throwable ignored) {
+        return false
+      }
+    }.sort()
+  } finally {
+    cl.close()
+  }
+}
+
+tasks.register("goldenTest") {
+  description = "Runs all GoldenTestCase tests. Pass -Dgolden.overwrite to update golden files."
+  group = "verification"
+  dependsOn tasks.named("test")
+}
+
+gradle.taskGraph.whenReady { graph ->
+  def goldenTask = tasks.findByName("goldenTest")
+  if (goldenTask == null || graph.hasTask(goldenTask) == false) {
+    return
+  }
+  def testTask = tasks.named("test").get()
+  def runtimeClasspath = sourceSets.test.runtimeClasspath
+  def classesDirs = sourceSets.test.output.classesDirs
+  testTask.outputs.upToDateWhen { false }
+  testTask.testLogging {
+    events = ["started", "passed", "skipped", "failed"]
+    exceptionFormat = "full"
+    showStandardStreams = false
+  }
+  testTask.doFirst {
+    def goldenTests = findGoldenTestClasses(runtimeClasspath, classesDirs)
+    if (goldenTests.isEmpty()) {
+      throw new GradleException("No GoldenTestCase subclasses found in ${project.path} test output.")
+    }
+    logger.lifecycle("goldenTest: discovered ${goldenTests.size()} golden test classes")
+    goldenTests.each { logger.lifecycle("  $it") }
+    filter {
+      goldenTests.each { includeTestsMatching it }
+    }
+  }
+}
+
 tasks.register("analyzePromqlQueries", JavaExec) {
   mainClass = 'org.elasticsearch.xpack.esql.optimizer.promql.PromqlCoverageAnalyzer'
   classpath = sourceSets.test.runtimeClasspath

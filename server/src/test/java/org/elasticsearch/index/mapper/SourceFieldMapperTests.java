@@ -281,6 +281,22 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         assertEquals("{}", mapper.sourceMapper().toString());
     }
 
+    public void testSyntheticSourceWithColumnarIndexMode() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        XContentBuilder mapping = fieldMapping(b -> { b.field("type", "keyword"); });
+        DocumentMapper mapper = createColumnarModeDocumentMapper(mapping);
+        assertTrue(mapper.sourceMapper().isSynthetic());
+        assertEquals("{}", mapper.sourceMapper().toString());
+    }
+
+    public void testSyntheticSourceWithColumnarLogsdbIndexMode() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        XContentBuilder mapping = fieldMapping(b -> { b.field("type", "keyword"); });
+        DocumentMapper mapper = createColumnarLogsdbModeDocumentMapper(mapping);
+        assertTrue(mapper.sourceMapper().isSynthetic());
+        assertEquals("{}", mapper.sourceMapper().toString());
+    }
+
     public void testSupportsNonDefaultParameterValues() throws IOException {
         Settings settings = Settings.builder().put(SourceFieldMapper.LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, false).build();
         {
@@ -550,6 +566,72 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         }
     }
 
+    public void testRecoverySourceWithColumnar() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+            DocumentMapper docMapper = mapperService.documentMapper();
+            ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
+            assertNotNull(doc.rootDoc().getField("_recovery_source_size"));
+            assertThat(doc.rootDoc().getField("_recovery_source_size").numericValue(), equalTo(27L));
+        }
+        {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                .build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+            DocumentMapper docMapper = mapperService.documentMapper();
+            ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
+            assertNotNull(doc.rootDoc().getField("_recovery_source_size"));
+            assertThat(doc.rootDoc().getField("_recovery_source_size").numericValue(), equalTo(27L));
+        }
+        {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+                .put(INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+                .build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+            DocumentMapper docMapper = mapperService.documentMapper();
+            ParsedDocument doc = docMapper.parse(source(b -> b.field("@timestamp", "2012-02-13")));
+            assertNull(doc.rootDoc().getField("_recovery_source"));
+        }
+    }
+
+    public void testRecoverySourceWithColumnarLogsdb() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName()).build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+            DocumentMapper docMapper = mapperService.documentMapper();
+            ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
+            assertNotNull(doc.rootDoc().getField("_recovery_source_size"));
+            assertThat(doc.rootDoc().getField("_recovery_source_size").numericValue(), equalTo(27L));
+        }
+        {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName())
+                .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                .build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+            DocumentMapper docMapper = mapperService.documentMapper();
+            ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
+            assertNotNull(doc.rootDoc().getField("_recovery_source_size"));
+            assertThat(doc.rootDoc().getField("_recovery_source_size").numericValue(), equalTo(27L));
+        }
+        {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName())
+                .put(INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
+                .build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+            DocumentMapper docMapper = mapperService.documentMapper();
+            ParsedDocument doc = docMapper.parse(source(b -> b.field("@timestamp", "2012-02-13")));
+            assertNull(doc.rootDoc().getField("_recovery_source"));
+        }
+    }
+
     public void testStandardIndexModeWithSourceModeSetting() throws IOException {
         // Test for IndexMode.STANDARD
         {
@@ -612,6 +694,73 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 .build();
             var ex = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mappings));
             assertEquals("Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode", ex.getMessage());
+        }
+
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            // Test for IndexMode.COLUMNAR
+            {
+                final XContentBuilder mappings = topMapping(b -> {});
+                final Settings settings = Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name())
+                    .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                    .build();
+                final MapperService mapperService = createMapperService(settings, mappings);
+                DocumentMapper docMapper = mapperService.documentMapper();
+                assertTrue(docMapper.sourceMapper().isSynthetic());
+            }
+            {
+                final XContentBuilder mappings = topMapping(b -> {});
+                final Settings settings = Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name())
+                    .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+                    .build();
+                final MapperService mapperService = createMapperService(settings, mappings);
+                final DocumentMapper docMapper = mapperService.documentMapper();
+                assertTrue(docMapper.sourceMapper().isStored());
+            }
+            {
+                final XContentBuilder mappings = topMapping(b -> {});
+                final Settings settings = Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name())
+                    .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
+                    .build();
+                var ex = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mappings));
+                assertEquals("Failed to parse mapping: _source can not be disabled in index using [columnar] index mode", ex.getMessage());
+            }
+
+            // Test for IndexMode.COLUMNAR_LOGSDB
+            {
+                final XContentBuilder mappings = topMapping(b -> {});
+                final Settings settings = Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.name())
+                    .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                    .build();
+                final MapperService mapperService = createMapperService(settings, mappings);
+                DocumentMapper docMapper = mapperService.documentMapper();
+                assertTrue(docMapper.sourceMapper().isSynthetic());
+            }
+            {
+                final XContentBuilder mappings = topMapping(b -> {});
+                final Settings settings = Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.name())
+                    .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+                    .build();
+                final MapperService mapperService = createMapperService(settings, mappings);
+                final DocumentMapper docMapper = mapperService.documentMapper();
+                assertTrue(docMapper.sourceMapper().isStored());
+            }
+            {
+                final XContentBuilder mappings = topMapping(b -> {});
+                final Settings settings = Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.name())
+                    .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
+                    .build();
+                var ex = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mappings));
+                assertEquals(
+                    "Failed to parse mapping: _source can not be disabled in index using [columnar_logsdb] index mode",
+                    ex.getMessage()
+                );
+            }
         }
 
         // Test for IndexMode.TIME_SERIES

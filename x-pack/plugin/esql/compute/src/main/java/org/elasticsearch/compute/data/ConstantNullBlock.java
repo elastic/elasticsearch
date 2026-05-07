@@ -88,6 +88,11 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return 0;
+    }
+
+    @Override
     public ConstantNullBlock filter(boolean mayContainDuplicates, int... positions) {
         return (ConstantNullBlock) blockFactory().newConstantNullBlock(positions.length);
     }
@@ -336,6 +341,12 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public TDigestHolder getTDigestHolder(int valueIndex, TDigestHolder scratch) {
+        assert false : "null block";
+        throw new UnsupportedOperationException("null block");
+    }
+
+    @Override
+    public LongRangeBlockBuilder.LongRange getLongRange(int valueIndex, LongRangeBlockBuilder.LongRange scratch) {
         assert false : "null block";
         throw new UnsupportedOperationException("null block");
     }

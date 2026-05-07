@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 import java.util.function.Function;
 
@@ -29,8 +29,8 @@ public class OpenAiChatCompletionResponseHandler extends OpenAiResponseHandler {
     }
 
     @Override
-    protected RetryException buildExceptionHandling429(Request request, HttpResult result) {
+    protected RetryException buildExceptionHandling429(OutboundRequest outboundRequest, HttpResult result) {
         // We don't retry, if the chat completion input is too large
-        return new RetryException(false, buildError(RATE_LIMIT, request, result));
+        return new RetryException(false, buildError(RATE_LIMIT, outboundRequest, result));
     }
 }

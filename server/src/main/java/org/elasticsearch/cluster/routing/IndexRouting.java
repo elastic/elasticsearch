@@ -246,7 +246,8 @@ public abstract class IndexRouting {
         }
 
         private static boolean shouldUseTimeBasedId(final IndexMode indexMode, final IndexVersion creationVersion) {
-            return indexMode == IndexMode.LOGSDB && isNewIndexVersion(creationVersion);
+            return (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.COLUMNAR_LOGSDB || indexMode == IndexMode.COLUMNAR)
+                && isNewIndexVersion(creationVersion);
         }
 
         private static boolean isNewIndexVersion(final IndexVersion creationVersion) {
@@ -387,7 +388,9 @@ public abstract class IndexRouting {
             this.trackTimeSeriesRoutingHash = indexMode == IndexMode.TIME_SERIES
                 && metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
             this.useTimeSeriesSyntheticId = metadata.useTimeSeriesSyntheticId();
-            addIdWithRoutingHash = indexMode == IndexMode.LOGSDB;
+            addIdWithRoutingHash = (indexMode == IndexMode.LOGSDB
+                || indexMode == IndexMode.COLUMNAR_LOGSDB
+                || indexMode == IndexMode.COLUMNAR);
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, Set.copyOf(includePaths), null, true);
         }
 
@@ -427,6 +430,15 @@ public abstract class IndexRouting {
         }
 
         protected abstract int hashSource(IndexRequest indexRequest);
+
+        /**
+         * Returns true if dimension fields on this index should write to {@link org.elasticsearch.index.mapper.RoutingFields}
+         * during document mapping. Returns false for {@link ForIndexDimensions}, which builds the tsid during routing
+         * on the coordinating node and attaches it to the index request, so the data node does not need to re-extract dimensions.
+         */
+        public boolean extractDimensionsWhileMapping() {
+            return true;
+        }
 
         private static int defaultOnEmpty() {
             throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
@@ -587,6 +599,11 @@ public abstract class IndexRouting {
                     indexRequest.tsid(tsid);
                 }
                 return hash(tsid);
+            }
+
+            @Override
+            public boolean extractDimensionsWhileMapping() {
+                return false;
             }
 
             public BytesRef buildTsid(XContentType sourceType, BytesReference source) {

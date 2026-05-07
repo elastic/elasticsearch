@@ -437,6 +437,46 @@ public class EsqlQueryRequestTests extends ESTestCase {
         );
     }
 
+    public void testEmptyListNamedParamIsRejected() throws IOException {
+        // Empty lists as named parameters are rejected. See https://github.com/elastic/elasticsearch/issues/147448:
+        // they used to produce an NPE downstream because their inferred DataType was null.
+        String query = randomAlphaOfLengthBetween(1, 100);
+        String paramsString = """
+            "params":[ {"_n1": []}, {"_n2": {"value": []}} ]""";
+        String json = String.format(Locale.ROOT, """
+            {
+                %s,
+                "query": "%s"
+            }""", paramsString, query);
+
+        Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Empty lists are not allowed as named parameter values. Got parameter [_n1] with value [[]]")
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Empty lists are not allowed as named parameter values. Got parameter [_n2] with value [[]]")
+        );
+    }
+
+    public void testEmptyListUnnamedParamIsAccepted() throws IOException {
+        // Empty positional parameters are still accepted (they are treated as null downstream); the quickfix for
+        // https://github.com/elastic/elasticsearch/issues/147448 only targets named parameters.
+        String query = randomAlphaOfLengthBetween(1, 100);
+        String json = String.format(Locale.ROOT, """
+            {
+                "params": [ [] ],
+                "query": "%s"
+            }""", query);
+
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        assertThat(request.params().size(), is(1));
+        QueryParam param = request.params().get(1);
+        assertEquals(List.of(), param.value());
+        assertEquals(NULL, param.type());
+    }
+
     public void testInvalidParamsString() {
         String query = randomAlphaOfLengthBetween(1, 100);
         String json1 = String.format(Locale.ROOT, """

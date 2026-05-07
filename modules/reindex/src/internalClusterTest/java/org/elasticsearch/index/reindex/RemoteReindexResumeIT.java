@@ -142,6 +142,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
             .setDestIndex(destIndex)
             .setSourceBatchSize(batchSize)
             .setRefresh(true)
+            .setRequestsPerSecond(randomStats.getRequestsPerSecond())
             .setRemoteInfo(
                 new RemoteInfo(
                     "http",
@@ -214,6 +215,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
                 .setDestIndex(destIndex)
                 .setSourceBatchSize(batchSize)
                 .setRefresh(true)
+                .setRequestsPerSecond(randomStats.getRequestsPerSecond())
                 .setRemoteInfo(
                     new RemoteInfo(
                         "http",
@@ -302,6 +304,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
                 .setDestIndex(destIndex)
                 .setSourceBatchSize(batchSize)
                 .setRefresh(true)
+                .setRequestsPerSecond(randomStats.getRequestsPerSecond())
                 .setRemoteInfo(
                     new RemoteInfo(
                         "http",

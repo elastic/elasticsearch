@@ -298,9 +298,106 @@ public class TwoPhaseReaderTests extends ESTestCase {
         assertThat("expect zero rows after impossible filter", total, equalTo(0));
     }
 
+    /**
+     * Regression test for the NPE in {@code nextTwoPhaseBatch} when projection {@link PageColumnReader}s
+     * with {@link RowRanges} skip entire pages, producing fewer rows than {@code readBatchFiltered}
+     * expects. This requires: small page size (many pages per row group), a sparse filter that
+     * eliminates whole pages but not entire row groups, and {@code nativeAsync=true} to activate
+     * two-phase I/O.
+     *
+     * Before the fix (readBatchSparse), this test crashes with:
+     * {@code NullPointerException: Cannot invoke "...BytesRefArray$LongOffsets.get(long)" because "this.longOffsets" is null}
+     */
+    public void testTwoPhaseSparseFilterWithPageSkipping() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("test_schema");
+
+        // 10_000 rows with a small page size (64 bytes) creates many pages per row group.
+        // id values 0..9999; the filter keeps only id < 20 (~0.2% selectivity), which
+        // leaves entire pages with no survivors, triggering page skipping in loadNextPage().
+        int rowCount = 10_000;
+        byte[] parquetData = buildParquetWithPageSize(schema, rowCount, 64, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+            Group g = factory.newGroup();
+            g.add("id", (long) i);
+            g.add("label", repeat('z', 128) + "_" + i);
+            return g;
+        });
+
+        int expectedSurvivors = 20;
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, (long) expectedSurvivors, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        // nativeAsync=true triggers the two-phase path
+        CountingStorageObject asyncObj = new CountingStorageObject(parquetData, true);
+        ParquetFormatReader asyncReader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        List<Page> twoPhasePages = readAllPages(asyncReader, asyncObj);
+
+        int twoPhaseRows = twoPhasePages.stream().mapToInt(Page::getPositionCount).sum();
+        assertThat("two-phase should produce exactly the survivors", twoPhaseRows, equalTo(expectedSurvivors));
+
+        Set<Long> ids = collectIds(twoPhasePages);
+        for (int i = 0; i < expectedSurvivors; i++) {
+            assertTrue("expected id " + i + " in result set", ids.contains((long) i));
+        }
+        assertThat("no extra ids", ids.size(), equalTo(expectedSurvivors));
+
+        // Cross-check against single-phase
+        CountingStorageObject syncObj = new CountingStorageObject(parquetData, false);
+        ParquetFormatReader syncReader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        List<Page> singlePhasePages = readAllPages(syncReader, syncObj);
+        int singlePhaseRows = singlePhasePages.stream().mapToInt(Page::getPositionCount).sum();
+        assertThat("single-phase and two-phase row counts must match", twoPhaseRows, equalTo(singlePhaseRows));
+    }
+
+    private byte[] buildParquetWithPageSize(
+        MessageType schema,
+        int rowCount,
+        int pageSize,
+        java.util.function.IntFunction<Group> rowFactory
+    ) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        OutputFile out = buildOutputFile(baos);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(out)
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withPageSize(pageSize)
+                .withConf(new PlainParquetConfiguration())
+                .build()
+        ) {
+            for (int i = 0; i < rowCount; i++) {
+                writer.write(rowFactory.apply(i));
+            }
+        }
+        return baos.toByteArray();
+    }
+
     private byte[] buildParquet(MessageType schema, int rowCount, java.util.function.IntFunction<Group> rowFactory) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        OutputFile out = new OutputFile() {
+        OutputFile out = buildOutputFile(baos);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(out)
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withConf(new PlainParquetConfiguration())
+                .build()
+        ) {
+            for (int i = 0; i < rowCount; i++) {
+                writer.write(rowFactory.apply(i));
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    private static OutputFile buildOutputFile(ByteArrayOutputStream baos) {
+        return new OutputFile() {
             @Override
             public PositionOutputStream create(long blockSizeHint) {
                 return new PositionOutputStream() {
@@ -340,18 +437,6 @@ public class TwoPhaseReaderTests extends ESTestCase {
                 return 0;
             }
         };
-        try (
-            ParquetWriter<Group> writer = ExampleParquetWriter.builder(out)
-                .withType(schema)
-                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
-                .withConf(new PlainParquetConfiguration())
-                .build()
-        ) {
-            for (int i = 0; i < rowCount; i++) {
-                writer.write(rowFactory.apply(i));
-            }
-        }
-        return baos.toByteArray();
     }
 
     private List<Page> readAllPages(ParquetFormatReader reader, StorageObject obj) throws IOException {

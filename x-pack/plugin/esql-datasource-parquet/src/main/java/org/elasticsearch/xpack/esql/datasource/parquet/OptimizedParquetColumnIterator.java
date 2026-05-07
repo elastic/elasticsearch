@@ -1412,7 +1412,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                         blocks[col] = fullBlock;
                     }
                 } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
-                    blocks[col] = pageColumnReaders[col].readBatchFiltered(sourceRows, blockFactory, survivorPositions, emitCount);
+                    blocks[col] = pageColumnReaders[col].readBatchSparse(sourceRows, blockFactory, survivorPositions, emitCount);
                 } else {
                     // Read the full source-rows block and immediately filter to survivors.
                     // We hand fullBlock to filterBlock which closes it on success; on failure

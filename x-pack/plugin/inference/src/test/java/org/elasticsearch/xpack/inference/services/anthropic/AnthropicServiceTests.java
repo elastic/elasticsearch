@@ -599,7 +599,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
                 {
                       "service": "anthropic",
                       "name": "Anthropic",
-                      "task_types": ["completion"],
+                      "task_types": ["completion", "chat_completion"],
                       "configurations": {
                           "api_key": {
                               "description": "API Key for the provider you're connecting to.",
@@ -608,7 +608,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
                               "sensitive": true,
                               "updatable": true,
                               "type": "str",
-                              "supported_task_types": ["completion"]
+                              "supported_task_types": ["completion", "chat_completion"]
                           },
                           "rate_limit.requests_per_minute": {
                               "description": "By default, the anthropic service sets the number of requests allowed per minute to 50.",
@@ -617,7 +617,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
                               "sensitive": false,
                               "updatable": false,
                               "type": "int",
-                              "supported_task_types": ["completion"]
+                              "supported_task_types": ["completion", "chat_completion"]
                           },
                           "model_id": {
                               "description": "The name of the model to use for the inference task.",
@@ -626,7 +626,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
                               "sensitive": false,
                               "updatable": false,
                               "type": "str",
-                              "supported_task_types": ["completion"]
+                              "supported_task_types": ["completion", "chat_completion"]
                           },
                         "max_tokens": {
                               "description": "The maximum number of tokens to generate before stopping.",
@@ -635,7 +635,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
                               "sensitive": false,
                               "updatable": false,
                               "type": "int",
-                              "supported_task_types": ["completion"]
+                              "supported_task_types": ["completion", "chat_completion"]
                           }
                       }
                   }
@@ -657,7 +657,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new AnthropicService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
     }
@@ -679,7 +679,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
     public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
         var modelConfigurations = new ModelConfigurations(
             INFERENCE_ENTITY_ID_VALUE,
-            TaskType.CHAT_COMPLETION,
+            TaskType.RERANK,
             AnthropicService.NAME,
             mock(ServiceSettings.class)
         );
@@ -690,7 +690,7 @@ public class AnthropicServiceTests extends InferenceServiceTestCase {
             );
             assertThat(
                 thrownException.getMessage(),
-                is(Strings.format("The [%s] service does not support task type [%s]", AnthropicService.NAME, TaskType.CHAT_COMPLETION))
+                is(Strings.format("The [%s] service does not support task type [%s]", AnthropicService.NAME, TaskType.RERANK))
             );
         }
     }

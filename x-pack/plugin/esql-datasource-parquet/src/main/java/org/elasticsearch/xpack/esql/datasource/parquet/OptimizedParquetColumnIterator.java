@@ -1323,45 +1323,62 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         int[] survivorPositions = state.currentSurvivorPositions();
         Block[] predicateBlocks = state.takeCurrentPredicateBlocks();
 
-        // Apply the row budget to survivor count: if the budget is smaller than the number of
-        // surviving rows in this batch, truncate predicate and projection blocks to the first
-        // {@code rowBudget} survivors and mark the iterator as exhausted after emission. We
-        // re-slice predicate blocks via {@link #sliceBlockHead} (cheap because they're already
-        // compacted) and pass {@code emitCount} to the projection read so it doesn't decode
-        // beyond the budget either.
+        // Ownership invariant for the rest of this method: every predicate Block lives in EXACTLY
+        // one of {predicateBlocks[col], blocks[col]} at any moment. We enforce this by nulling
+        // predicateBlocks[col] the instant we hand the reference off to blocks[col], so the catch
+        // below never double-closes a transferred Block — even when a downstream call (e.g.
+        // readColumnBlockWithAttribution) closes blocks itself before re-throwing.
+        //
+        // The earlier implementation copied the reference into blocks[col] and only nulled
+        // predicateBlocks[col] after the loop completed successfully. A mid-loop exception (e.g.
+        // CircuitBreakingException from a projection allocation) then triggered a double-release
+        // when the catch closed both arrays — observed as the production crash on q23 with a
+        // selective LIKE filter.
+        Block[] blocks = new Block[attributes.size()];
         int emitCount = survivorCount;
         boolean budgetExhaustsBatch = false;
-        if (rowBudget != FormatReader.NO_LIMIT && rowBudget < emitCount) {
-            // Truncate this batch to the remaining budget: keep the first `rowBudget` survivors.
-            // We rebuild a positions array for the slice when needed.
-            int newCount = rowBudget;
-            int[] truncated;
-            if (survivorPositions != null) {
-                truncated = Arrays.copyOf(survivorPositions, newCount);
-            } else {
-                // All rows in this batch survived; the projection reader will read sourceRows
-                // and we'll filter to the first newCount via a synthesized positions array.
-                truncated = new int[newCount];
-                for (int i = 0; i < newCount; i++) {
-                    truncated[i] = i;
-                }
-            }
-            survivorPositions = truncated;
-            // Compact predicate blocks down to the first newCount survivors.
-            for (int col = 0; col < columnInfos.length; col++) {
-                if (isPredicateColumn[col] && predicateBlocks[col] != null) {
-                    predicateBlocks[col] = sliceBlockHead(predicateBlocks[col], newCount);
-                }
-            }
-            emitCount = newCount;
-            budgetExhaustsBatch = true;
-        }
-
-        Block[] blocks = new Block[attributes.size()];
         try {
+            // Apply the row budget to survivor count: if the budget is smaller than the number of
+            // surviving rows in this batch, truncate predicate and projection blocks to the first
+            // {@code rowBudget} survivors and mark the iterator as exhausted after emission. We
+            // re-slice predicate blocks via {@link #sliceBlockHead} (cheap because they're already
+            // compacted) and pass {@code emitCount} to the projection read so it doesn't decode
+            // beyond the budget either. This must run inside the try so that a mid-iteration
+            // sliceBlockHead failure leaves cleanup to the catch rather than leaking the partially
+            // re-sliced predicate array.
+            if (rowBudget != FormatReader.NO_LIMIT && rowBudget < emitCount) {
+                int newCount = rowBudget;
+                int[] truncated;
+                if (survivorPositions != null) {
+                    truncated = Arrays.copyOf(survivorPositions, newCount);
+                } else {
+                    // All rows in this batch survived; the projection reader will read sourceRows
+                    // and we'll filter to the first newCount via a synthesized positions array.
+                    truncated = new int[newCount];
+                    for (int i = 0; i < newCount; i++) {
+                        truncated[i] = i;
+                    }
+                }
+                survivorPositions = truncated;
+                // sliceBlockHead either returns the same block (no slice needed) or closes the
+                // source on success. predicateBlocks[col] is reassigned to the result before any
+                // subsequent call so a failure on column N+1 leaves columns 0..N owned by
+                // predicateBlocks[] for the catch to release.
+                for (int col = 0; col < columnInfos.length; col++) {
+                    if (isPredicateColumn[col] && predicateBlocks[col] != null) {
+                        predicateBlocks[col] = sliceBlockHead(predicateBlocks[col], newCount);
+                    }
+                }
+                emitCount = newCount;
+                budgetExhaustsBatch = true;
+            }
+
             for (int col = 0; col < columnInfos.length; col++) {
                 if (isPredicateColumn[col]) {
+                    // Transfer ownership: hand the reference to blocks[] and clear the
+                    // predicateBlocks[] slot so the catch closes each Block at most once.
                     blocks[col] = predicateBlocks[col];
+                    predicateBlocks[col] = null;
                     continue;
                 }
                 ColumnInfo info = columnInfos[col];
@@ -1376,28 +1393,46 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                     continue;
                 }
                 if (survivorPositions == null) {
-                    // All sourceRows survived this batch.
-                    blocks[col] = readColumnBlockWithAttribution(col, info, sourceRows, blocks);
+                    // All sourceRows survived this batch. Use the no-cleanup variant: our catch
+                    // owns both blocks[] and predicateBlocks[], and letting the helper close
+                    // blocks here would double-close every previously-assigned slot (including
+                    // transferred predicate Blocks) — that's the production crash signature.
+                    Block fullBlock = readColumnBlockNoCleanup(col, info, sourceRows);
                     if (budgetExhaustsBatch) {
-                        blocks[col] = sliceBlockHead(blocks[col], emitCount);
+                        // sliceBlockHead returns the same block when sizes match (no slice), or
+                        // closes source on success. On failure we own fullBlock and must close it.
+                        try {
+                            blocks[col] = sliceBlockHead(fullBlock, emitCount);
+                        } catch (RuntimeException sliceEx) {
+                            Releasables.closeExpectNoException(fullBlock);
+                            throw sliceEx;
+                        }
+                    } else {
+                        blocks[col] = fullBlock;
                     }
                 } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
                     blocks[col] = pageColumnReaders[col].readBatchFiltered(sourceRows, blockFactory, survivorPositions, emitCount);
                 } else {
-                    Block fullBlock = readColumnBlockWithAttribution(col, info, sourceRows, blocks);
-                    blocks[col] = PageColumnReader.filterBlock(fullBlock, survivorPositions, emitCount, blockFactory);
-                }
-            }
-            // Predicate slot ownership has been transferred into blocks[]; clear references in
-            // predicateBlocks[] so the failure path below does not double-close them.
-            for (int col = 0; col < columnInfos.length; col++) {
-                if (isPredicateColumn[col]) {
-                    predicateBlocks[col] = null;
+                    // Read the full source-rows block and immediately filter to survivors.
+                    // We hand fullBlock to filterBlock which closes it on success; on failure
+                    // (e.g. a breaker trip during the new filtered allocation) filterBlock does
+                    // NOT close source, so we must close it explicitly to avoid a leak.
+                    Block fullBlock = readColumnBlockNoCleanup(col, info, sourceRows);
+                    try {
+                        blocks[col] = PageColumnReader.filterBlock(fullBlock, survivorPositions, emitCount, blockFactory);
+                    } catch (RuntimeException filterEx) {
+                        Releasables.closeExpectNoException(fullBlock);
+                        throw filterEx;
+                    }
                 }
             }
         } catch (CircuitBreakingException e) {
-            // Surface breaker failures unwrapped, matching nextStandard / nextWithLateMaterialization
-            // so upstream operators (LIMIT, exchange, breaker telemetry) classify them correctly.
+            // Invariant: blocks[] and predicateBlocks[] hold disjoint references at every point
+            // in the loop above (eager null-on-transfer for predicate slots; readColumnBlockNoCleanup
+            // for projection slots leaves blocks[] alone on failure). Closing both arrays here
+            // therefore releases each Block exactly once. Surface the breaker exception unwrapped
+            // to match the sibling iterator paths so upstream operators (LIMIT, exchange, breaker
+            // telemetry) classify it correctly.
             Releasables.closeExpectNoException(blocks);
             Releasables.closeExpectNoException(predicateBlocks);
             throw e;
@@ -1640,23 +1675,46 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             throw e;
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
-            Attribute attr = attributes.get(colIndex);
-            throw new ElasticsearchException(
-                "Failed to read Parquet column ["
-                    + attr.name()
-                    + "] (type "
-                    + attr.dataType()
-                    + ") at row group ["
-                    + (rowGroupOrdinal + 1)
-                    + "] page batch ["
-                    + pageBatchIndexInRowGroup
-                    + "] in file ["
-                    + fileLocation
-                    + "]: "
-                    + e.getMessage(),
-                e
-            );
+            throw wrapColumnReadException(colIndex, e);
         }
+    }
+
+    /**
+     * Variant of {@link #readColumnBlockWithAttribution} for callers that own their own
+     * cleanup loop and must not have {@code blocks} double-closed: the only failure-time work
+     * done here is exception attribution. Used by {@link #nextTwoPhaseBatch()} where the outer
+     * catch is the sole owner of {@code blocks[]} and {@code predicateBlocks[]} — letting the
+     * helper close {@code blocks} would double-close every slot already populated by previous
+     * loop iterations (including transferred predicate slots), which is exactly the production
+     * crash this method exists to avoid.
+     */
+    private Block readColumnBlockNoCleanup(int colIndex, ColumnInfo info, int rowsToRead) {
+        try {
+            return readColumnBlock(colIndex, info, rowsToRead);
+        } catch (CircuitBreakingException e) {
+            throw e;
+        } catch (Exception e) {
+            throw wrapColumnReadException(colIndex, e);
+        }
+    }
+
+    private ElasticsearchException wrapColumnReadException(int colIndex, Exception e) {
+        Attribute attr = attributes.get(colIndex);
+        return new ElasticsearchException(
+            "Failed to read Parquet column ["
+                + attr.name()
+                + "] (type "
+                + attr.dataType()
+                + ") at row group ["
+                + (rowGroupOrdinal + 1)
+                + "] page batch ["
+                + pageBatchIndexInRowGroup
+                + "] in file ["
+                + fileLocation
+                + "]: "
+                + e.getMessage(),
+            e
+        );
     }
 
     private Block readColumnBlock(int colIndex, ColumnInfo info, int rowsToRead) {

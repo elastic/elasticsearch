@@ -259,8 +259,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        boolean skipFirstLine = context.firstSplit() == false;
-        boolean trimLastPartialLine = context.lastSplit() == false;
+        // Mirror {@link org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader}: parallel byte-range
+        // splits from {@link org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator} set
+        // {@code recordAligned=true}, signalling segment boundaries already fall on {@code \n}. Do not drop the
+        // first complete row or trim a trailing partial row in that mode — doing so mis-handles aligned segments
+        // (skipped rows, or truncated JSON when trim interacts with bounded range streams).
+        boolean skipFirstLine = context.firstSplit() == false && context.recordAligned() == false;
+        boolean trimLastPartialLine = context.lastSplit() == false && context.recordAligned() == false;
         ErrorPolicy errorPolicy = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
         return new NdJsonPageIterator(
             object,

@@ -66,13 +66,14 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
             """, MODEL_ID, INPUT_VALUE, ROLE_VALUE));
     }
 
-    public void testSerializationFallsBackToTaskSettingsTemperatureAndTopP() throws IOException {
+    public void testSerializationFallsBackToTaskSettingsTemperatureTopPAndTopK() throws IOException {
         testSerialization(true, null, null, null, null, taskSettings(1024, 0.7, 0.9, 50), Strings.format("""
             {
                 "model": "%s",
                 "messages": [{"content": "%s", "role": "%s"}],
                 "temperature": 0.7,
                 "top_p": 0.9,
+                "top_k": 50,
                 "stream": true,
                 "max_tokens": 1024
             }
@@ -112,6 +113,19 @@ public class AnthropicUnifiedChatCompletionRequestEntityTests extends ESTestCase
                 "model": "%s",
                 "messages": [{"content": "%s", "role": "%s"}],
                 "tool_choice": {"type": "any"},
+                "stream": true,
+                "max_tokens": 1024
+            }
+            """, MODEL_ID, INPUT_VALUE, ROLE_VALUE));
+    }
+
+    public void testSerializationWithToolChoiceObjectToolTypeEmitsName() throws IOException {
+        var toolChoice = new ToolChoice.ToolChoiceObject("tool", new ToolChoice.ToolChoiceObject.FunctionField("get_price"));
+        testSerialization(true, null, null, null, List.of(), toolChoice, taskSettings(1024, null, null, null), Strings.format("""
+            {
+                "model": "%s",
+                "messages": [{"content": "%s", "role": "%s"}],
+                "tool_choice": {"type": "tool", "name": "get_price"},
                 "stream": true,
                 "max_tokens": 1024
             }

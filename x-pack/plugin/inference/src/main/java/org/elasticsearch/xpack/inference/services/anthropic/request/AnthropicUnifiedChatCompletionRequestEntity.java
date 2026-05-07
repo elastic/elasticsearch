@@ -46,6 +46,8 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
 
     private static final String STREAM_FIELD = "stream";
     private static final String INPUT_SCHEMA_FIELD = "input_schema";
+    private static final String TOP_K_FIELD = "top_k";
+    private static final String TOOL_CHOICE_TOOL_TYPE = "tool";
 
     private final UnifiedCompletionRequest unifiedRequest;
     private final boolean stream;
@@ -96,11 +98,19 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
             builder.field(TOP_P_FIELD, taskSettings.topP());
         }
 
+        if (taskSettings.topK() != null) {
+            builder.field(TOP_K_FIELD, taskSettings.topK());
+        }
+
         var toolChoice = unifiedRequest.toolChoice();
         if (toolChoice != null) {
             if (toolChoice instanceof ToolChoiceObject toolChoiceObject) {
                 builder.startObject(TOOL_CHOICE_FIELD);
                 builder.field(TYPE_FIELD, toolChoiceObject.type());
+                // For type "tool" Anthropic requires a `name` field identifying the specific tool to call.
+                if (TOOL_CHOICE_TOOL_TYPE.equals(toolChoiceObject.type()) && toolChoiceObject.function() != null) {
+                    builder.field(NAME_FIELD, toolChoiceObject.function().name());
+                }
                 builder.endObject();
             } else if (toolChoice instanceof ToolChoiceString) {
                 throw new ElasticsearchStatusException(

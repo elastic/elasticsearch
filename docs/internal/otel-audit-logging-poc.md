@@ -1,178 +1,163 @@
-# OTel audit log delivery — POC for ES-14356
+# OTel audit log delivery — POC writeup for ES-14356
 
 **Author:** Patrick Doyle
-**Status:** POC writeup, draft
-**Related:** [ES-14356](https://elasticco.atlassian.net/browse/ES-14356), [ES-13255](https://elasticco.atlassian.net/browse/ES-13255), [elasticsearch-team#2170](https://github.com/elastic/elasticsearch-team/issues/2170), [TDD: Shipping Logs to Elastic Cloud customers](https://docs.google.com/document/d/12IZxcX5uoFWvIhfff1I3DwRVMt8ab6tNkaIKs-Fx8Y8/edit?tab=t.0)
+**Status:** Draft for review
 
-This is a proof-of-concept, not a prototype. The goal is to surface every part of the work that is non-obvious or expensive, so we can produce a credible estimate. Where the POC stops short of working code, the section ends with a t-shirt size and reasoning.
+## 1. Goal
 
----
+Make Elasticsearch audit logs deliverable to serverless customers via OTLP. Today, audit logs are written to a per-cluster JSON file by `LoggingAuditTrail`; in self-hosted deployments, customers ship that file with Filebeat. Serverless has no Filebeat sidecar and no shared disk, so the file-based path doesn't apply. The cross-team plan is for emitting services (ES, Kibana, Control-Plane services) to send OTLP log records over the network to a per-cluster `otel-delivery-gateway`, which routes them to the customer's chosen destination project.
 
-## 1. Summary
+This POC validates that ES can emit OTLP audit logs end-to-end and surfaces the work that remains, so we can plan the real implementation deliberately.
 
-Architecture A (in-process OTel SDK shipping OTLP to a gateway) is feasible with the existing OTel SDK already pulled in by the `modules/apm/` module. The minimal "audit events leave ES via OTLP" path is small: a few hundred lines plus build-system updates. The expensive parts are not the wiring — they are (a) field mapping to OTel semconv, (b) mTLS to the gateway, and (c) emitting `project.id` for multi-project routing. None of these are research-grade unknowns; they are scoping unknowns.
+### Related material
 
-Headline estimate to land production-ready audit-log delivery for serverless: **~5–6 engineering weeks** of ES core/infra work, with a separate work track owned by ES Security for in-plugin filtering / suppression of internal actions.
+- [ES-14356](https://elasticco.atlassian.net/browse/ES-14356) — parent epic
+- [ES-13255](https://elasticco.atlassian.net/browse/ES-13255) — broader "ES logs over OTel" direction
+- [TDD: Shipping Logs to Elastic Cloud customers](https://docs.google.com/document/d/12IZxcX5uoFWvIhfff1I3DwRVMt8ab6tNkaIKs-Fx8Y8/edit)
+- [elasticsearch-team#2170](https://github.com/elastic/elasticsearch-team/issues/2170) — Tim Vernum's brain-dump of "audit logs in serverless" work areas
 
-## 2. Architectural choice
+## 2. What's working
 
-We picked **architecture A**: ES emits OTLP from the JVM via the OTel SDK to a per-cluster `otel-delivery-gateway`. The alternative, **architecture B**, would be to keep writing the existing `*_audit.json` rolling file and have a sidecar OTel collector with a `filelog` receiver tail it. Architecture B is operationally appealing — Ryan Ernst noted in private discussion that it survives ES-process death because the launcher can drain remaining file content the way it does for heap dumps — but the team that owns the gateway has scoped their pipeline assuming OTLP ingress from the application. Architecture A is what the Jira description and the gateway TDD assume; the POC validates that.
+End-to-end flow proven: `LoggingAuditTrail` → log4j → `OpenTelemetryAppender` (programmatically attached) → in-process `SdkLoggerProvider` with `BatchLogRecordProcessor` and `OtlpHttpLogRecordExporter` → `RecordingApmServer` test fixture, which parses the OTLP request and exposes received `LogRecord`s for assertion.
 
-Once architecture A has a credible estimate, the team can decide whether to revisit B.
+### Code changes
 
-## 3. What this POC built (working code)
-
-All code lives in the apm module unless noted.
-
-| File | Change |
+| Where | Change |
 |---|---|
-| `build-tools/src/main/java/org/elasticsearch/gradle/testclusters/MockApmServer.java` | Added `OtlpLogsHandler` for `/v1/logs` so the existing test fixture can receive OTLP log records (mirrors `OtlpMetricsHandler`). |
-| `modules/apm/build.gradle` | Promoted `opentelemetry-sdk-logs` from `runtimeOnly` to `implementation`; added `io.opentelemetry.instrumentation:opentelemetry-log4j-appender-2.17`. |
-| `modules/apm/.../export/otelsdk/OtelSdkSettings.java` | Added `telemetry.otel.logs.enabled` (boolean, default false) and `telemetry.otel.logs.endpoint` (string). |
-| `modules/apm/.../export/otelsdk/OtelSdkExportLogsSupplier.java` | New. Builds an `OpenTelemetrySdk` with `SdkLoggerProvider` + `BatchLogRecordProcessor` + `OtlpHttpLogRecordExporter`, then **programmatically** attaches an `OpenTelemetryAppender` to the audit logger via the log4j `Configuration` API (see §6.1). Idempotent. |
-| `modules/apm/.../APM.java` | `createComponents` constructs the supplier, calls `install()`, and registers it as a returned component so its lifecycle ends with the plugin's. |
-| `modules/apm/.../OtelSdkExportLogsSupplierTests.java` | Unit tests covering disabled-is-noop, missing-endpoint-throws, idempotent install, double-close, plus a direct SDK→exporter end-to-end via `InMemoryLogRecordExporter`. 7 tests, all passing. |
-| `modules/apm/src/main/plugin-metadata/entitlement-policy.yaml` | Added `manage_threads` entitlement for the `io.opentelemetry.sdk.logs` module — required because `BatchLogRecordProcessor` spawns a worker thread (see §6.5). |
-| `x-pack/plugin/core/src/main/config/log4j2.properties` | Added a `project.id` entry to the audit JSON pattern. (No `audit_otel` appender is declared here — see §6.1; that appender is attached programmatically.) |
-| `x-pack/plugin/security/.../LoggingAuditTrail.java` | Added `PROJECT_ID_FIELD_NAME = "project.id"` constant and one `setThreadContextField(...)` line in `LogEntryBuilder.withThreadContext(...)` so audit events stamp the project id from the `X-Elastic-Project-Id` header (see §4.1). |
-| `x-pack/plugin/security/.../LoggingAuditTrailTests.java` | `projectId(...)` helper; 31 call sites updated; randomised header injection in `setup()`. |
-| `gradle/verification-metadata.xml` | Auto-regenerated to add SHA-256 entries for the new `opentelemetry-log4j-appender-2.17` artifact (and any transitive deps). |
-| `test/external-modules/apm-integration/.../ReceivedTelemetry.java` | Added `ReceivedLog` record (timeUnixNano, severity, body, attributes, optional traceId). |
-| `test/external-modules/apm-integration/.../OtlpLogsParser.java` | New. Parses OTLP `ExportLogsServiceRequest` into `ReceivedLog`. |
-| `test/external-modules/apm-integration/.../RecordingApmServer.java` | Added `/v1/logs` route. |
-| `test/external-modules/apm-integration/.../OtelAuditLogsIT.java` | New. End-to-end IT: boots a security-enabled cluster with audit + OTel logs pointed at the recording server, hits `/_security/_authenticate`, asserts a `ReceivedLog` arrives. |
-| `test/external-modules/apm-integration/build.gradle` | `usesDefaultDistribution(...)` so the security-enabled test cluster gets x-pack. |
-| `server/src/main/java/.../telemetry/TelemetryProvider.java` | Added `attemptFlushLogs()` (default no-op). Symmetric with the existing `attemptFlushMetrics()` / `attemptFlushTraces()`. Needed both for tests *and* graceful shutdown so audit events emitted just before stop aren't dropped. |
-| `modules/apm/.../APMTelemetryProvider.java` | Implements `attemptFlushLogs()` by delegating to the supplier's new `forceFlush()` method. |
-| `test/external-modules/apm-integration/.../FlushTelemetryRestHandler.java` | Calls `attemptFlushLogs()` so `/_flush_telemetry` flushes all three signal types. |
+| `modules/apm/build.gradle` | Promoted `opentelemetry-sdk-logs` to `implementation`; added `opentelemetry-log4j-appender-2.17`. |
+| `modules/apm/.../export/otelsdk/OtelSdkSettings.java` | `telemetry.otel.logs.enabled`, `telemetry.otel.logs.endpoint`. |
+| `modules/apm/.../export/otelsdk/OtelSdkExportLogsSupplier.java` (new) | Builds the SDK and programmatically attaches an `OpenTelemetryAppender` to the audit logger's `LoggerConfig`. Idempotent. Exposes `forceFlush()`. |
+| `modules/apm/.../APM.java` | `createComponents` constructs the supplier, calls `install()`, registers the supplier in `APMTelemetryProvider`. |
+| `modules/apm/src/main/plugin-metadata/entitlement-policy.yaml` | `manage_threads` entitlement for `io.opentelemetry.sdk.logs` (the batch processor spawns a worker thread). |
+| `server/.../telemetry/TelemetryProvider.java` | `attemptFlushLogs()` (default no-op). Symmetric with the existing flush methods for metrics and traces. Useful both for tests and graceful shutdown. |
+| `modules/apm/.../APMTelemetryProvider.java` | Implements `attemptFlushLogs()` by delegating to the supplier. |
+| `x-pack/plugin/security/.../LoggingAuditTrail.java` | New `PROJECT_ID_FIELD_NAME` constant; one extra `setThreadContextField(...)` line in `LogEntryBuilder.withThreadContext(...)` reading from `Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER`. |
+| `x-pack/plugin/core/.../log4j2.properties` | Added `project.id` to the audit JSON pattern. (No OTel appender is declared here; see Appendix A.) |
+| `build-tools/.../testclusters/MockApmServer.java` | New `/v1/logs` handler. |
+| `test/external-modules/apm-integration/.../{ReceivedTelemetry,OtlpLogsParser,RecordingApmServer}.java` | `ReceivedLog` record, OTLP parser, `/v1/logs` route on the recording server. |
+| `test/external-modules/apm-integration/.../OtelAuditLogsIT.java` (new) | Boots a security-enabled cluster with audit + OTel logs, hits `/_security/_authenticate`, calls `/_flush_telemetry`, asserts a `ReceivedLog` arrives. |
+| `test/external-modules/apm-integration/.../FlushTelemetryRestHandler.java` | Calls `attemptFlushLogs()` so `/_flush_telemetry` flushes all three signals. |
+| `gradle/verification-metadata.xml` | Auto-regenerated for the new artifact. |
 
-### Verified by build
+### Tests passing
 
-- `:modules:apm:compileJava` / `:compileTestJava` — clean.
-- `:modules:apm:test --tests *OtelSdkExportLogsSupplierTests*` — 7/7 passing.
-- `:modules:apm:thirdPartyAudit` — clean.
-- `:x-pack:plugin:core:processResources :compileJava` — clean.
-- `:x-pack:plugin:security:test --tests *LoggingAuditTrailTests*` — 35/35 passing (covers the new `project.id` field).
-- `./gradlew run` end-to-end — ES boots cleanly with `xpack.security.audit.enabled=true` and `telemetry.otel.logs.enabled=true`; the supplier emits `OTel SDK logs export installed`, log4j parses the audit logger config without errors, ES reaches `[o.e.n.Node] started`.
-- **`:test:external-modules:test-apm-integration:javaRestTest --tests *OtelAuditLogsIT*` — passing.** Boots a security-enabled cluster, hits `/_security/_authenticate`, calls `/_flush_telemetry`, asserts a `ReceivedLog` arrives at `RecordingApmServer` with audit attributes (`event.action`, `event.type`, `user.name`, `project.id`, etc.) carried as OTLP attributes. This is the load-bearing end-to-end validation: log4j → `OpenTelemetryAppender` → `SdkLoggerProvider` → `OtlpHttpLogRecordExporter` → recording server.
+- `:modules:apm:test` — `OtelSdkExportLogsSupplierTests`: 7/7
+- `:x-pack:plugin:security:test` — `LoggingAuditTrailTests`: 35/35 (covers the new `project.id` field)
+- `:test:external-modules:test-apm-integration:javaRestTest` — `OtelAuditLogsIT`: end-to-end OTLP delivery
+- `:modules:apm:thirdPartyAudit`: clean
+- Manual `./gradlew run`: ES boots cleanly with audit + OTel logs settings; supplier emits `OTel SDK logs export installed`; node reaches `started`.
 
-## 4. What this POC investigated but did not build
+## 3. How this fits with the rest of ES's logging
 
-These are the items where doing the work would have eaten the whole day. The investigations below produce the estimate inputs.
+This is an **additive** OTLP path; it does not replace anything.
 
-### 4.1 `project.id` for multi-project routing — *implemented*
+- `LoggingAuditTrail` continues to emit a single `StringMapMessage` per audit event via `logger.info(AUDIT_MARKER, logEntry)`. log4j routes that event to its appenders.
+- The existing `audit_rolling` file appender (`<cluster>_audit.json`) is unchanged. Customers who already consume the file with Filebeat keep doing so.
+- The OTel appender is attached to the same audit logger by `OtelSdkExportLogsSupplier` at startup, after plugin classloaders are available. Audit events flow to both sinks.
+- Other ES log streams (server, deprecation, slowlog, ESQL, etc.) are **not** on this path. The Jira description and Ryan's stated scope keep this PoC narrowly to audit. Broader "ES logs via OTel" is tracked in ES-13255.
+- The OTel SDK lives in `modules/apm/`, the same module that already wires up metrics and traces SDKs in the same hand-wired style.
 
-The gateway routes each `LogRecord` based on a `project.id` resource/attribute. ES already carries the project context per request via the `X-Elastic-Project-Id` HTTP/transport header, materialised in `ThreadContext` as `Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER`.
+## 4. What remains
 
-`LoggingAuditTrail` already holds a `ThreadContext` and already extracts other request headers in `LogEntryBuilder.withThreadContext(...)`. Adding `project.id` was one extra `setThreadContextField(...)` call at the same site, plus a `PROJECT_ID_FIELD_NAME` constant, plus a `%map{project.id}` entry in the audit JSON pattern in `log4j2.properties`. No constructor change to `LoggingAuditTrail`, no `ProjectResolver` injection, no Security.java change — the header is already in `ThreadContext` by the time audit fires.
+This section is split into **decision points** (where there are real tradeoffs the team should weigh) and **known work** (items we know need doing once a decision is made).
 
-Tests: a header-randomisation line was added next to the existing `X_OPAQUE_ID` / `TRACE_ID` randomisation in `LoggingAuditTrailTests.setup()`, and a `projectId(...)` helper was added next to the existing `opaqueId(...)` / `traceId(...)` helpers. The 31 sites that call `opaqueId(...)` were updated to also call `projectId(...)`. All 35 LoggingAuditTrail tests pass.
+### 4.1 Decision points
 
-**Actual cost: ~30 minutes** for the wiring + test plumbing. (Original estimate was 1–2 hours, which assumed constructor injection of `ProjectResolver`; the simpler header-extraction path is shorter.)
+#### 4.1.1 Attribute-key shape
 
-### 4.2 OTel semconv field mapping
+The upstream `OpenTelemetryAppender` library hardcodes a `log4j.map_message.` prefix on every attribute that comes from a `StringMapMessage`. So today the PoC's records carry `log4j.map_message.event.action` etc. instead of bare `event.action`. The integration test asserts on the prefixed names with a comment noting it's PoC-only; production needs bare keys.
 
-The `audit_rolling` PatternLayout in `x-pack/plugin/core/src/main/config/log4j2.properties` (lines ~5–54) emits ~42 distinct field keys; values are constructed in `LogEntryBuilder` (around lines 1090+ in `LoggingAuditTrail.java`).
-
-The TDD requires us to emit OTel semconv keys with ECS as a fallback. Most ES audit fields already have direct semconv equivalents (`event.action`, `user.name`, `http.request.method`); some sit cleanly in ECS only (`authentication.type`, `user.roles`); and a few have no good answer:
-
-| Field | Difficulty | Notes |
+| Option | Pros | Cons |
 |---|---|---|
-| `timestamp` | Easy | String → `LogRecord.timeUnixNano` |
-| `event.action`, `user.name`, `request.method` | Easy | Direct semconv match |
-| `origin.address` | Easy-ish | Split into `client.address` (REST) vs `server.address` (transport) |
-| `authentication.type`, `user.roles` | Medium | ECS-only; emit as custom attributes |
-| `apikey.id`, `apikey.name` | Decision | No `apikey.*` namespace in semconv. Choose ECS-style or invent OTel-flavored nesting (`user.api_key.*`). |
-| `indices` (array) | Decision | OTel doesn't have a multi-database convention; emit as JSON array attribute |
-| `request.body` | Hard | Potentially large + PII; semconv discourages full bodies. Default-off today; need a redaction or sampling story before this can leave the cluster. |
-| `trace.id` | Decision | Already W3C-shaped. Goes in `LogRecord.traceId` for native span correlation, or stays a flat attribute. The first option is right but requires parsing/validation. |
-| `put` / `delete` / `change` / `create` / `invalidate` blobs | Hard | Nested arbitrary objects for `security_config_change` events. Decide between flatten-to-attributes vs opaque-JSON-string. Each approach has downstream querying implications. |
+| **Custom log4j appender (~50 LOC)** | Narrow scope. No incubator/extension deps. Aligned with where v3 of the upstream library is going (prefix off by default). Easy to extend with semconv translation later. | We own a small log4j component; reviewers may ask "why not use upstream?" |
+| **`v3_preview` wrapper (~15 LOC)** | Uses upstream library as designed. Smallest delta. | Pulls in `opentelemetry-api-incubator` (marked unstable) and `opentelemetry-sdk-extension-declarative-config`. Enables *all* v3-preview-gated behavior in OTel logs path, not just the prefix. |
+| **Switch the apm module to `AutoConfiguredOpenTelemetrySdk`** | Aligns ES with OTel's standard config story; system properties / YAML drive SDK behavior. Worth doing for reasons beyond this feature. | Substantial refactor; affects metrics and traces too. Bigger conversation than this epic. |
+| **`LogRecordProcessor` post-hoc rename (~30 LOC)** | Keeps upstream appender. Localised change. | Smell: the prefix is added by one stage and stripped by the next. Doesn't solve semconv translation, only the prefix. |
 
-The implementation lives in either an alternate `LogEntryBuilder` selected by setting, or a sidecar emitter that publishes a parallel OTLP record. Either way the code shape is straightforward; the cost is decisions and test coverage across all 13 audit event types.
+#### 4.1.2 Field mapping shape: semconv vs ECS vs custom
 
-**T-shirt: medium (~3–4 weeks).** Dominated by: (a) cross-team alignment on the long-tail fields, (b) PII review for `request.body`, (c) tests across all event categories.
+The TDD asks emitting services to use OTel semconv where it exists, ECS where it doesn't, and custom names as last resort. Most ES audit fields have a clean answer; some are genuinely ambiguous. The decision affects how downstream consumers query and join audit data.
 
-#### 4.2.1 Attribute-key shape — implementation options
+| Field group | Status |
+|---|---|
+| Direct semconv: `event.action`, `user.name`, `http.request.method`, timestamp | Clean. Mechanical translation. |
+| `origin.address` | Split into `client.address` (REST) vs `server.address` (transport). Easy once the convention is agreed. |
+| `authentication.type`, `user.roles` | ECS-only. Custom attributes. |
+| `apikey.id`, `apikey.name` | No `apikey.*` namespace in semconv. Choose ECS-style or invent OTel-flavored nesting. |
+| `indices` (array) | OTel has no multi-database convention. Custom array attribute. |
+| `trace.id` | Native: should go in `LogRecord.traceId` for span correlation, with parsing/validation. |
+| `request.body` | Hard. Potentially large + PII. Default-off today; needs a redaction or sampling story before it can leave the cluster. |
+| `put` / `delete` / `change` / `create` / `invalidate` blobs in `security_config_change` | Hard. Nested arbitrary objects. Choose between flatten-to-attributes vs opaque-JSON-string; each has querying implications. |
 
-The POC's IT currently asserts on prefixed keys (`log4j.map_message.event.action`) because that is what arrives today. The prefix is hardcoded by the upstream `opentelemetry-log4j-appender-2.17` library: `LogEventMapper` writes every `MapMessage` entry under `"log4j.map_message." + key`. Production needs bare keys (or semconv keys after §4.2 lands).
+#### 4.1.3 Where the SDK setup lives
 
-There is no off-the-shelf knob on the upstream library to drop the prefix today. The library has a `v3_preview` flag (read via `commonConfig.getBoolean("v3_preview", false)`) that does drop the prefix, but it is preview behavior, undocumented in the library README, and not currently enabled.
+Today `OtelSdkExportLogsSupplier` lives in `modules/apm/`, alongside the meter/tracer suppliers. The apm module's stated purpose is "ES's own observability" (metrics + traces back to Elastic). Customer-facing audit log delivery is conceptually different — it ships data the customer cares about, not telemetry about ES itself.
 
-Four implementation paths, all viable, each with trade-offs:
+Options:
 
-| Path | Code volume | New deps | Scope of behavior change | Notes |
-|---|---|---|---|---|
-| Custom log4j appender | ~50 LOC | none | Only attribute key shape | Subclass `AbstractAppender`, talk directly to OTel SDK via `OpenTelemetry.getLogsBridge()`. Drops the `OpenTelemetryAppender` library dependency. Aligned with where v3 of the upstream library is going (prefix off by default). |
-| `v3_preview` wrapper | ~15 LOC | `opentelemetry-sdk-extension-declarative-config`, `opentelemetry-api-incubator` | All v3-preview-gated changes in OTel logs path | Wrap our SDK as `ExtendedOpenTelemetry` whose `getInstrumentationConfig("common")` returns a `YamlDeclarativeConfigProperties.create(Map.of("v3_preview", true), loader)`. Uses upstream library as designed; relies on incubator (unstable) APIs. |
-| Switch to `AutoConfiguredOpenTelemetrySdk` | non-trivial refactor of `OtelSdkExportLogsSupplier` (and probably the meter/tracer suppliers too, for consistency) | `opentelemetry-sdk-extension-autoconfigure` | All auto-configure-driven config; v3-preview flips via system property | The closest thing to "config-driven SDK setup" that ES doesn't currently use. Worth considering for the apm module overall, not just for this feature. |
-| `LogRecordProcessor` rewriter | ~30 LOC | none | Strips `log4j.map_message.` prefix post-hoc; doesn't address semconv translation directly | Smell: prefixed keys are added by one stage and stripped by the next. Works but feels like cleanup-after-the-fact. |
+- Keep it in `modules/apm/`. Cheap, consistent with the metrics/tracer pattern, tolerable in the short term.
+- Carve out a new sibling module (e.g. `modules/customer-telemetry/`). Cleaner conceptual boundary; adds a module.
 
-Recommendation: pick within the §4.2 work item, not before. The custom appender is the lowest-risk path if the answer is "just get bare keys"; the AutoConfigured switch is worth a separate conversation about ES's overall OTel SDK setup.
+Worth deciding before the audit-log path grows further.
 
-A note on the OTel-Java config story: per the [OTel configuration spec](https://opentelemetry.io/docs/specs/otel/configuration/#programmatic), the SDK is required to expose a programmatic configuration interface. The Java implementation does — `YamlDeclarativeConfigProperties.create(Map, ComponentLoader)` — but it lives in a separate extension module, and the public `OpenTelemetrySdkBuilder` does not expose a `setConfigProvider(...)` method (it's package-private internally). So programmatic config is reachable, but not via the bare hand-wired SDK builder. This is friction worth knowing about beyond ES-14356.
+#### 4.1.4 `LoggingAuditTrail` constructor signature for `project.id`
 
-### 4.3 mTLS to the otel-delivery-gateway
+The PoC reads `X-Elastic-Project-Id` from `ThreadContext` directly inside `withThreadContext()`, which works because the header is always populated by the time audit events fire. A more orthodox approach injects `ProjectResolver` into the `LoggingAuditTrail` constructor. The `ProjectResolver` is the canonical accessor and handles edge cases (cross-cluster, internal actions with no project) more gracefully.
 
-The TDD specifies mTLS, with client certs distributed by Control-Plane. The POC speaks plaintext OTLP/HTTP to a local mock — production is different.
+Not urgent — the header path is correct for the common case — but it's the kind of thing a code reviewer will ask about.
 
-**Prior art in ES:**
-- `HttpExporter` (monitoring) at `x-pack/plugin/monitoring/.../HttpExporter.java` configures an `SSLIOSessionStrategy` from `xpack.monitoring.exporters.<name>.ssl.*` settings using ES's `SSLService` abstraction.
-- Watcher's `HttpClient` does the same via `xpack.http.ssl.*`.
-- Both use `PemKeyConfig` for filesystem-loaded cert/key material and `SSLConfigurationReloader` for hot-reload on rotation (cf. `x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/ssl/SSLConfigurationReloader.java`).
+### 4.2 Known work
 
-**Gap:** The OTel exporter (`OtlpHttpLogRecordExporter.builder()`) needs client TLS material. Recent OTel versions expose `setClientTls(byte[] privateKeyPem, byte[] certificatePem)` and `setTrustedCertificates(byte[] certificatePem)` — needs verifying at the OTel version we're on. If the version shipped here doesn't expose these, the fallback is to wrap the exporter's HTTP client (Apache HttpClient or OkHttp) — adds an integration layer.
+These don't need a design decision; they need engineering effort.
 
-**Cert delivery from Control-Plane:** Almost certainly a Kubernetes secret mounted at a known path. ES would point at filesystem paths via new settings (e.g. `telemetry.otel.logs.client.cert`, `.client.key`, `.trusted_certificates`) and watch for rotation via `FileWatcher`. The mount path is a Control-Plane design decision, not engineering effort on our side.
+- **Field mapping implementation.** Pick the §4.1.1 path, then translate audit fields to whichever shape §4.1.2 settles on, with tests across all 13 audit event types.
+- **`request.body` PII story.** Either omit by default (simplest), redact, or sample. Needs security review.
+- **mTLS to the gateway.** Production requires mTLS, with client certs distributed by Control-Plane (likely a Kubernetes secret mounted at a known path). Reuse pattern: `SSLService` + `PemKeyConfig` + `SSLConfigurationReloader` (used by the monitoring HTTP exporter and Watcher's HTTP client). Need to verify whether `OtlpHttpLogRecordExporter`'s builder exposes client TLS config in our OTel version, or whether we wrap its underlying HTTP client.
+- **Field stripping for serverless.** Cluster name, node ID, host name — fields the gateway TDD says shouldn't surface in customer-facing audit logs. Confirmed (in the cross-team thread Val Crettaz led) that this happens at the source, not at the gateway.
+- **Internal-action filtering.** Out of scope for this epic; Ankit Sethi is the owner. Some events (cluster-internal traffic, system-user actions, on-call/SRE operations) shouldn't reach customers. Tracked under elasticsearch-team#2170.
+- **gRPC transport.** TDD specifies OTLP/gRPC; PoC uses OTLP/HTTP because the in-repo example (`OTLPLogsIndexingRestIT`) uses HTTP and the dep footprint is smaller. Migrating is later, modest scope.
+- **Production-side integration test.** The PoC's IT uses HTTP and an in-process recording server. A test against a real `otel-delivery-gateway` (or a sufficiently faithful mock) would validate the wire-level interaction.
 
-**T-shirt: medium (~1 week).** Reuse of `SSLService` / `PemKeyConfig` / `SSLConfigurationReloader` is direct. Risk is whether the OTel HTTP client cooperates; if not, add ~2–3 days for a custom HTTP client adapter.
+## Appendix A — Options considered and rejected
 
-## 5. Out of scope (deferred or owned elsewhere)
+These are paths the PoC explored, where evidence pushed us elsewhere. Captured here so we don't relitigate.
 
-- **In-app buffering / retry / spill-to-disk.** The principle here is that telemetry reliability is the telemetry infrastructure's job, not the application's. ES will use the OTel SDK's default `BatchLogRecordProcessor` settings; if that proves insufficient, the gateway/MOTel can absorb retries. Tracked separately for metrics in [ES-14439](https://elasticco.atlassian.net/browse/ES-14439); we want the same outcome here.
-- **Internal-action filtering / suppression.** Tim Vernum's enumeration in elasticsearch-team#2170 calls out three classes of "internal" actions that should not be exposed to customers in serverless audit logs. Ankit Sethi (ES Security) is the owner of this work; we should not double up.
-- **Customer-configured redaction.** Confirmed by Val Crettaz to be out of scope: the UX is "enable in Cloud UI; jump to your Security project for the curated audit log view."
-- **gRPC transport.** TDD specifies OTLP/gRPC; POC uses OTLP/HTTP because (a) it's smaller in dep footprint, (b) the in-repo OTLP example (`OTLPLogsIndexingRestIT`) uses HTTP. Migrating to gRPC is later, modest scope.
-- **Stateful vs serverless gating.** The new appender is loadable everywhere and off by default. Settings remain inert in stateful clusters.
+### A.1 Architecture B: write to file, sidecar tails it
 
-## 6. Open issues / risks discovered during the POC
+Keep the existing rolling-file audit appender, deploy a sidecar OTel collector with a `filelog` receiver to tail the file and forward via OTLP. Operationally appealing — survives ES-process death since the launcher can drain remaining file content like a heap dump. Discussed with Ryan Ernst, who agreed this is the safer strategy in principle.
 
-1. **Log4j plugin discovery across classloaders.** *(Resolved — required programmatic appender attachment instead of `log4j2.properties` declaration.)* Initial implementation declared the OpenTelemetry appender in `x-pack/plugin/core/src/main/config/log4j2.properties`. Booting ES revealed that fails — the appender plugin class is in the apm module, but x-pack-core's `log4j2.properties` is parsed at JVM startup before plugin/module classloaders are set up. log4j errors observed:
-   ```
-   main ERROR Unable to locate plugin type for OpenTelemetry
-   main ERROR Unable to locate plugin for OpenTelemetry
-   main ERROR Unable to invoke factory method ... NullPointerException
-   main ERROR Unable to locate appender "audit_rolling" for logger config "..."  ← cascade
-   main ERROR Unable to locate appender "console" for logger config "root"        ← cascade
-   ```
-   The NPE cascaded across log4j config parsing and broke *all* appender registration, not just the OpenTelemetry one. Adding the dep to `:server` (so it's on the boot classpath) caused **jar hell** — `opentelemetry-context` is also pulled transitively by `:x-pack:plugin:esql-datasource-gcs` at a different version, and ES rejects cross-classpath duplicate classes at plugin-load time.
+Rejected because: the team that owns the gateway has scoped their pipeline assuming OTLP ingress from the application. Architecture A is what the Jira description and the gateway TDD assume. If the gateway team changes their mind, B becomes attractive again, but that's a cross-team conversation.
 
-   The working solution: don't declare the appender in `log4j2.properties` at all. Instead, in `OtelSdkExportLogsSupplier.install(...)`, programmatically build an `OpenTelemetryAppender` via its log4j builder, look up the audit logger's `LoggerConfig`, and attach. This runs after plugin classloaders are in scope, so the class is reachable. A second subtlety: pass the `OpenTelemetry` instance to the appender via `Builder.setOpenTelemetry(sdk)` rather than the static `OpenTelemetryAppender.install(sdk)` indirection — the latter only pushes the SDK to appenders that are already in the log4j config at install time, which makes ordering brittle. Verified by booting ES end-to-end and by `OtelAuditLogsIT` (see §3).
-2. **Third-party audit on the new appender JAR.** *(Resolved — clean.)* `:modules:apm:thirdPartyAudit` ran cleanly with the new dep added; no `ignoreViolations` or `ignoreMissingClasses` entries needed.
-3. **Bootstrap timing.** `OpenTelemetryAppender.install(sdk)` happens during `createComponents`, after log4j has parsed the properties file. Audit events emitted before that point would be silently dropped by the appender. In practice, audit events fire during request handling, well after plugin init — theoretical, but worth a note.
-4. **End-to-end assertion test.** Wired up via `RecordingApmServer` (under `:test:external-modules:test-apm-integration`) — a more capable test fixture than `MockApmServer`. Added `ReceivedLog` to the protocol-neutral `ReceivedTelemetry` hierarchy, an `OtlpLogsParser` for the OTLP protobuf, and a `/v1/logs` route on `RecordingApmServer`. New `OtelAuditLogsIT` boots a security-enabled cluster with audit + OTel logs, hits `/_security/_authenticate`, and asserts a `ReceivedLog` arrives. (Note: `MockApmServer` also got an `/v1/logs` handler in this POC, but the recording server is the right primitive for assertion-based tests since it queues records for inspection.)
-5. **Entitlement grant required.** *(Resolved.)* First test run failed with `NotEntitledException: component [apm], module [io.opentelemetry.sdk.logs], class [class io.opentelemetry.sdk.logs.export.BatchLogRecordProcessor], entitlement [manage_threads]`. The OTel logs SDK's batch processor spawns a worker thread, which the entitlement system blocks unless explicitly granted. Adding `io.opentelemetry.sdk.logs: [manage_threads]` to `entitlement-policy.yaml` resolved it. This is the kind of finding the POC was meant to surface — a "small" task that would have been a 30-minute mystery in a real PR cycle.
-6. **Dependency verification metadata.** *(Resolved.)* New artifact required `gradle/verification-metadata.xml` regeneration (`./gradlew --write-verification-metadata sha256 ...`). Mechanical, but worth knowing the cost upfront — the regen takes ~2 minutes and produces a sizeable diff.
+### A.2 Declaring `OpenTelemetryAppender` in `log4j2.properties`
 
-## 7. Composite estimate
+Initial implementation declared the OTel appender in `x-pack/plugin/core/src/main/config/log4j2.properties` like any other appender. ES boot failed:
 
-For ES-14356, audit-log delivery in serverless, ES core/infra side only:
+```
+main ERROR Unable to locate plugin type for OpenTelemetry
+main ERROR Unable to locate plugin for OpenTelemetry
+main ERROR Unable to invoke factory method ... NullPointerException
+main ERROR Unable to locate appender "audit_rolling" for logger config "..."  ← cascade
+main ERROR Unable to locate appender "console" for logger config "root"        ← cascade
+```
 
-| Work item | Estimate | Status |
-|---|---|---|
-| Land the POC code (deps, supplier, log4j wiring) cleanly with thirdPartyAudit + dependency-verification | 3–5 days | mostly done in POC; review polish remains |
-| `project.id` propagation into audit records | originally 1–2 hours | **done** in POC (~30 min, simpler than expected — header read from `ThreadContext`) |
-| OTel semconv field mapping across all 13 audit event types, including `request.body` PII story | 3–4 weeks | not started |
-| mTLS to the gateway, with cert hot-reload | ~1 week | not started |
-| Integration test against the recording APM server | 0.5 day | **done** in POC (`OtelAuditLogsIT`) |
-| Cross-team review (security, observability, gateway) | ~1 week of calendar time, mostly waiting | not started |
-| **Total ES core/infra effort (remaining)** | **~5–6 engineering weeks** | |
+The properties file is parsed at JVM startup, before plugin/module classloaders are set up; the appender plugin class is in the apm module's classloader and isn't reachable yet. The NPE that follows cascades and breaks **all** appender registration, not just the OpenTelemetry one — meaning audit logging would be silently broken.
 
-**Not included:** Ankit Sethi's filter/suppression work, gateway team work, MOTel project configuration, the cloud UI surface for enabling per-project audit shipping, or the Kibana-side analogue. Those are tracked separately.
+Working solution (implemented): attach the appender programmatically in `OtelSdkExportLogsSupplier.install(...)`, after the apm module is loaded. Build the appender via `OpenTelemetryAppender.builder().setOpenTelemetry(sdk).build()` (passing the SDK directly on the builder rather than via the static `install(...)` method, which has its own ordering subtleties), attach to the audit logger's `LoggerConfig`.
 
-This is a load-bearing estimate: if the field-mapping work turns out to need real semconv working-group input, that's the line that grows. Everything else is mechanical.
+### A.3 Putting the OTel deps in `:server`
 
-## 8. Loose ends to chase before merging anything
+Tried as a fix for A.2 — if the appender JAR is on `:server`'s classpath, log4j can resolve it at boot. ES then failed with **jar hell**: `opentelemetry-context` is also pulled transitively by `:x-pack:plugin:esql-datasource-gcs` at a different version, and ES rejects cross-classpath duplicate classes at plugin-load time. Unwound the `:server` change and kept everything in `modules/apm/`, going with the programmatic-attach path instead.
 
-- Verify the log4j-appender artifact's actual GAV at the OTel version in use, and confirm it doesn't pull a transitive that violates ES's third-party policy.
-- Decide whether to keep the SDK install in `modules/apm/` long-term or carve out a sibling module for "customer-visible telemetry" (the apm module is named after Elastic-internal observability; audit-log delivery is conceptually different). For the POC, keeping it in apm is cheaper.
-- Sketch the project_id wiring change (4.1) as a single follow-up PR so the eventual full implementation has a known landing pattern.
+### A.4 Direct OTel SDK call from `LoggingAuditTrail`
+
+Rather than going through log4j at all, have `LoggingAuditTrail.LogEntryBuilder` emit OTLP records directly via `OpenTelemetry.getLogsBridge()`. Considered — it's the most controlled shape and bypasses the whole appender library. Not pursued because the goal is for an appender (the natural log4j extension point) to handle the conversion. The custom-appender option in §4.1.1 captures the right shape without modifying `LoggingAuditTrail`.
+
+## Appendix B — Findings worth knowing about
+
+Things that surprised us; worth knowing for the implementation.
+
+- **`manage_threads` entitlement** is required for `io.opentelemetry.sdk.logs` because `BatchLogRecordProcessor` spawns a worker thread. First test run failed with `NotEntitledException` until added to `entitlement-policy.yaml`. The kind of finding that's a 30-minute mystery in a real PR cycle if you don't expect it.
+- **`gradle/verification-metadata.xml` regen** is required for any new third-party artifact. `./gradlew --write-verification-metadata sha256 ...` does it; takes ~2 minutes and produces a sizeable diff.
+- **Hand-wired OTel SDK and declarative config don't compose easily.** ES uses `OpenTelemetrySdk.builder()` (the bare SDK builder), which has no public way to set a `ConfigProvider`. As a result, instrumentation-config flags like `otel.instrumentation.common.v3-preview` — the upstream library's preview knob for dropping the `log4j.map_message.` prefix — can't be set through the public SDK API. They're settable via `AutoConfiguredOpenTelemetrySdk.builder().addPropertiesSupplier(...)` (auto-configure module) or by implementing `ExtendedOpenTelemetry` ourselves with a `YamlDeclarativeConfigProperties.create(Map, ComponentLoader)` (incubator + declarative-config extension modules). This is a real OTel-Java friction point that affects more than just this feature. The OTel configuration spec itself requires SDKs to expose programmatic config; the Java SDK does, but only outside the bare builder.
+- **The `OpenTelemetryAppender.install(sdk)` static method is order-dependent.** It pushes the SDK to *already-registered* `OpenTelemetryAppender` instances. Calling it before the appender is in the log4j config is a silent no-op for that appender. Using `Builder.setOpenTelemetry(sdk)` directly is more robust.
+- **Audit events use `StringMapMessage`, which is structured but bodyless.** The OTel appender library treats this as "no `LogRecord.body`, capture entries as attributes." With `setCaptureMapMessageAttributes(true)` this works but adds the prefix in §4.1.1.

@@ -526,7 +526,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchResponseActionListener = delegate;
             }
 
-            Optional<CrossProjectSearchMetrics> cpsMetrics = Optional.of(new CrossProjectSearchMetrics());
+            Optional<CrossProjectSearchMetrics> cpsMetrics = resolvesCrossProject
+                ? Optional.of(new CrossProjectSearchMetrics())
+                : Optional.empty();
 
             logger.info("CPS metrics: {}", cpsMetrics.get());
 

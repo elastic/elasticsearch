@@ -108,27 +108,32 @@ fls_user:
       field_security:
         grant: [ value ]
 
-# Reads all mapped fields from doc values, but field-level security disables access to stored _source on
-# index-no-source-fls. Has unrestricted read access to index-with-source-fls. Used to verify that
-# unmapped_fields="load" cannot leak values from _source when the user is denied _source, and that FLS
-# rules apply per-index in multi-index queries.
-fls_no_source_user:
+# Reads all mapped fields from doc values on index-partial-mapping, but field-level security disables
+# access to stored _source. Used (alone) to verify that unmapped_fields="load" cannot leak _source
+# values when the user is denied _source.
+fls_partial_no_source:
   cluster: []
   indices:
-    - names: [ 'index-no-source-fls' ]
+    - names: [ 'index-partial-mapping' ]
       privileges: [ 'read' ]
       field_security:
         grant: [ '*' ]
         except: [ '_source' ]
-    - names: [ 'index-with-source-fls' ]
+
+# Plain read access to index-full-mapping. Combined with fls_partial_no_source on the same user
+# (fls_per_index_access_user) to verify that FLS rules apply per-index in multi-index queries.
+read_full_mapping:
+  cluster: []
+  indices:
+    - names: [ 'index-full-mapping' ]
       privileges: [ 'read' ]
 
-# Like fls_no_source_user but additionally denies the mapped `value` field. Used to verify that with
+# Like fls_partial_no_source but additionally denies the mapped `value` field. Used to verify that with
 # both _source disabled and a mapped field denied, unmapped_fields="load" returns null for every column.
 fls_no_source_no_value_user:
   cluster: []
   indices:
-    - names: [ 'index-no-source-fls' ]
+    - names: [ 'index-partial-mapping' ]
       privileges: [ 'read' ]
       field_security:
         grant: [ '*' ]
@@ -139,7 +144,7 @@ fls_no_source_no_value_user:
 fls_deny_value_org_user:
   cluster: []
   indices:
-    - names: [ 'index-no-source-fls' ]
+    - names: [ 'index-partial-mapping' ]
       privileges: [ 'read' ]
       field_security:
         grant: [ '*' ]

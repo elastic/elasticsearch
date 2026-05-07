@@ -52,6 +52,9 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlSecurityIT extends ESRestTestCase {
+    private static final String INDEX_PARTIAL_MAPPING = "index-partial-mapping";
+    private static final String INDEX_FULL_MAPPING = "index-full-mapping";
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -65,7 +68,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
-        .user("fls_no_source_user", "x-pack-test-password", "fls_no_source_user", false)
+        .user("fls_partial_no_source_user", "x-pack-test-password", "fls_partial_no_source", false)
+        .user("fls_per_index_access_user", "x-pack-test-password", "fls_partial_no_source,read_full_mapping", false)
         .user("fls_no_source_no_value_user", "x-pack-test-password", "fls_no_source_no_value_user", false)
         .user("fls_deny_value_org_user", "x-pack-test-password", "fls_deny_value_org_user", false)
         .user("fls_user2", "x-pack-test-password", "fls_user2", false)
@@ -115,12 +119,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     /**
-     * Indexes a document into one of the {@code index-*-source-fls} indices with a mix of mapped and unmapped fields.
-     * {@code value} is mapped (double); {@code org} (keyword), {@code salary} (long), {@code hire_date} (date) and
-     * {@code ip_addr} (ip) are unmapped — they exist only in stored {@code _source}. The variety of source-only
-     * value types exercises the different source-loader / valuesource paths under {@code unmapped_fields="load"}.
+     * Indexes a document with the shared FLS-test shape into either {@link #INDEX_PARTIAL_MAPPING} (where most fields
+     * end up unmapped via {@code dynamic:false}) or {@link #INDEX_FULL_MAPPING} (where every field is mapped with its
+     * proper type). The variety of value types ({@code double}, {@code keyword}, {@code long}, {@code date}, {@code ip})
+     * exercises the different source-loader / valuesource paths under {@code unmapped_fields="load"}.
      */
-    private void indexNoSourceFlsDocument(String index, int id, double value, String org, long salary, String hireDate, String ipAddr)
+    private void indexFlsTestDocument(String index, int id, double value, String org, long salary, String hireDate, String ipAddr)
         throws IOException {
         Request indexDoc = new Request("PUT", index + "/_doc/" + id);
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
@@ -161,28 +165,28 @@ public class EsqlSecurityIT extends ESRestTestCase {
         refresh("indexpartial");
 
         /*
-         * `index-no-source-fls` uses dynamic:false so `org`, `salary`, `hire_date` and `ip_addr` exist only in
-         * stored _source. With fls_no_source_user (grant *, except _source) ES|QL cannot load those unmapped
-         * columns from _source. `index-with-source-fls` has the same JSON document shape but maps every field
-         * with its proper type — so a multi-index query with unmapped_fields="load" exercises the partially-
-         * mapped non-KEYWORD source-loader path (see #144228 and #144109) under FLS.
+         * INDEX_PARTIAL_MAPPING uses dynamic:false so `org`, `salary`, `hire_date` and `ip_addr` exist only in
+         * stored _source — they are unmapped. With fls_partial_no_source_user (grant *, except _source) ES|QL
+         * cannot load those unmapped columns from _source. INDEX_FULL_MAPPING has the same JSON document shape
+         * but maps every field with its proper type — so a multi-index query with unmapped_fields="load"
+         * exercises the partially-mapped non-KEYWORD source-loader path (see #144228 and #144109) under FLS.
          */
-        String mappingNoDynamicFields = """
+        String mappingPartial = """
             "dynamic":"false","properties":{"value": {"type": "double"}}
             """;
-        createIndex("index-no-source-fls", Settings.EMPTY, mappingNoDynamicFields);
-        indexNoSourceFlsDocument("index-no-source-fls", 1, 10.0, "sales", 100000L, "2024-01-01", "10.0.0.1");
-        indexNoSourceFlsDocument("index-no-source-fls", 2, 20.0, "engineering", 200000L, "2023-06-15", "10.0.0.2");
-        refresh("index-no-source-fls");
+        createIndex(INDEX_PARTIAL_MAPPING, Settings.EMPTY, mappingPartial);
+        indexFlsTestDocument(INDEX_PARTIAL_MAPPING, 1, 10.0, "sales", 100000L, "2024-01-01", "10.0.0.1");
+        indexFlsTestDocument(INDEX_PARTIAL_MAPPING, 2, 20.0, "engineering", 200000L, "2023-06-15", "10.0.0.2");
+        refresh(INDEX_PARTIAL_MAPPING);
 
-        String mappingAllFields = """
+        String mappingFull = """
             "properties":{"value":{"type":"double"},"org":{"type":"keyword"},"salary":{"type":"long"},\
             "hire_date":{"type":"date"},"ip_addr":{"type":"ip"}}
             """;
-        createIndex("index-with-source-fls", Settings.EMPTY, mappingAllFields);
-        indexNoSourceFlsDocument("index-with-source-fls", 1, 30.0, "marketing", 300000L, "2022-03-01", "10.0.0.3");
-        indexNoSourceFlsDocument("index-with-source-fls", 2, 40.0, "support", 400000L, "2021-11-20", "10.0.0.4");
-        refresh("index-with-source-fls");
+        createIndex(INDEX_FULL_MAPPING, Settings.EMPTY, mappingFull);
+        indexFlsTestDocument(INDEX_FULL_MAPPING, 1, 30.0, "marketing", 300000L, "2022-03-01", "10.0.0.3");
+        indexFlsTestDocument(INDEX_FULL_MAPPING, 2, 40.0, "support", 400000L, "2021-11-20", "10.0.0.4");
+        refresh(INDEX_FULL_MAPPING);
 
         createIndex("lookup-user1", lookupSettings, mapping);
         indexDocument("lookup-user1", 1, 12.0, "engineering");
@@ -910,8 +914,9 @@ public class EsqlSecurityIT extends ESRestTestCase {
             "Requires unmapped_fields=LOAD support",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
         );
-        String query = "SET unmapped_fields=\"load\"; FROM index-no-source-fls "
-            + "| KEEP value, org, salary, hire_date, ip_addr | SORT value | LIMIT 10";
+        String query = "SET unmapped_fields=\"load\"; FROM "
+            + INDEX_PARTIAL_MAPPING
+            + " | KEEP value, org, salary, hire_date, ip_addr | SORT value | LIMIT 10";
         List<MapMatcher> expectedColumns = List.of(
             matchesMap().entry("name", "value").entry("type", "double"),
             matchesMap().entry("name", "org").entry("type", "keyword"),
@@ -937,7 +942,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
         // _source denied: every unmapped column must be null even though the JSON contained the value;
         // the mapped `value` still loads from doc values.
-        Response noSourceResp = runESQLCommand("fls_no_source_user", query);
+        Response noSourceResp = runESQLCommand("fls_partial_no_source_user", query);
         assertOK(noSourceResp);
         assertMap(
             entityAsMap(noSourceResp),
@@ -979,7 +984,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             "Requires unmapped_fields=LOAD support",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
         );
-        String query = "SET unmapped_fields=\"load\"; FROM index-no-source-fls | KEEP value, org | SORT value | LIMIT 10";
+        String query = "SET unmapped_fields=\"load\"; FROM " + INDEX_PARTIAL_MAPPING + " | KEEP value, org | SORT value | LIMIT 10";
 
         Response adminResp = runESQLCommand("test-admin", query);
         assertOK(adminResp);
@@ -1014,20 +1019,23 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     /**
-     * Verifies that FLS rules apply per-index in multi-index queries: {@code fls_no_source_user} has
-     * {@code _source} denied on {@code index-no-source-fls} but unrestricted access to
-     * {@code index-with-source-fls}, so {@code org} must come back as {@code null} only for the rows
-     * from the source-denied index. {@code org} is unmapped on the first index and mapped as keyword
-     * on the second — i.e. partially-mapped keyword.
+     * Verifies that FLS rules apply per-index in multi-index queries: {@code fls_per_index_access_user}
+     * has {@code _source} denied on {@link #INDEX_PARTIAL_MAPPING} but unrestricted access to
+     * {@link #INDEX_FULL_MAPPING}, so {@code org} must come back as {@code null} only for the rows from
+     * the source-denied index. {@code org} is unmapped on the first index and mapped as keyword on the
+     * second — i.e. partially-mapped keyword.
      */
     public void testFieldLevelSecuritySourceDisabledMultiIndex() throws Exception {
         assumeTrue(
             "Requires unmapped_fields=LOAD support",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
         );
-        String query = "SET unmapped_fields=\"load\"; FROM index-no-source-fls, index-with-source-fls METADATA _index "
-            + "| KEEP _index, value, org | SORT value | LIMIT 10";
-        Response resp = runESQLCommand("fls_no_source_user", query);
+        String query = "SET unmapped_fields=\"load\"; FROM "
+            + INDEX_PARTIAL_MAPPING
+            + ", "
+            + INDEX_FULL_MAPPING
+            + " METADATA _index | KEEP _index, value, org | SORT value | LIMIT 10";
+        Response resp = runESQLCommand("fls_per_index_access_user", query);
         assertOK(resp);
         assertMap(
             entityAsMap(resp),
@@ -1043,10 +1051,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 .entry(
                     "values",
                     List.of(
-                        Arrays.asList("index-no-source-fls", 10.0, null),
-                        Arrays.asList("index-no-source-fls", 20.0, null),
-                        List.of("index-with-source-fls", 30.0, "marketing"),
-                        List.of("index-with-source-fls", 40.0, "support")
+                        Arrays.asList(INDEX_PARTIAL_MAPPING, 10.0, null),
+                        Arrays.asList(INDEX_PARTIAL_MAPPING, 20.0, null),
+                        List.of(INDEX_FULL_MAPPING, 30.0, "marketing"),
+                        List.of(INDEX_FULL_MAPPING, 40.0, "support")
                     )
                 )
         );
@@ -1055,19 +1063,22 @@ public class EsqlSecurityIT extends ESRestTestCase {
     /**
      * Multi-index variant where the partially-mapped fields are non-KEYWORD types ({@code long},
      * {@code date}, {@code ip}) — the regression surface called out in #144228 / #144109. The same
-     * fields are unmapped on {@code index-no-source-fls} (where {@code _source} is denied) and fully
-     * mapped on {@code index-with-source-fls}. With {@code unmapped_fields="load"}, the source-denied
-     * unmapped rows must not leak via the typed source-loader paths and must come back {@code null};
-     * the mapped rows continue to load from doc values.
+     * fields are unmapped on {@link #INDEX_PARTIAL_MAPPING} (where {@code _source} is denied) and
+     * fully mapped on {@link #INDEX_FULL_MAPPING}. With {@code unmapped_fields="load"}, the
+     * source-denied unmapped rows must not leak via the typed source-loader paths and must come back
+     * {@code null}; the mapped rows continue to load from doc values.
      */
     public void testFieldLevelSecuritySourceDisabledMultiIndexPartialMappingNonKeyword() throws Exception {
         assumeTrue(
             "Requires unmapped_fields=LOAD support",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
         );
-        String query = "SET unmapped_fields=\"load\"; FROM index-no-source-fls, index-with-source-fls METADATA _index "
-            + "| KEEP _index, value, salary, hire_date, ip_addr | SORT value | LIMIT 10";
-        Response resp = runESQLCommand("fls_no_source_user", query);
+        String query = "SET unmapped_fields=\"load\"; FROM "
+            + INDEX_PARTIAL_MAPPING
+            + ", "
+            + INDEX_FULL_MAPPING
+            + " METADATA _index | KEEP _index, value, salary, hire_date, ip_addr | SORT value | LIMIT 10";
+        Response resp = runESQLCommand("fls_per_index_access_user", query);
         assertOK(resp);
         assertMap(
             entityAsMap(resp),
@@ -1085,10 +1096,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 .entry(
                     "values",
                     List.of(
-                        Arrays.asList("index-no-source-fls", 10.0, null, null, null),
-                        Arrays.asList("index-no-source-fls", 20.0, null, null, null),
-                        List.of("index-with-source-fls", 30.0, 300000, "2022-03-01T00:00:00.000Z", "10.0.0.3"),
-                        List.of("index-with-source-fls", 40.0, 400000, "2021-11-20T00:00:00.000Z", "10.0.0.4")
+                        Arrays.asList(INDEX_PARTIAL_MAPPING, 10.0, null, null, null),
+                        Arrays.asList(INDEX_PARTIAL_MAPPING, 20.0, null, null, null),
+                        List.of(INDEX_FULL_MAPPING, 30.0, 300000, "2022-03-01T00:00:00.000Z", "10.0.0.3"),
+                        List.of(INDEX_FULL_MAPPING, 40.0, 400000, "2021-11-20T00:00:00.000Z", "10.0.0.4")
                     )
                 )
         );
@@ -1104,8 +1115,9 @@ public class EsqlSecurityIT extends ESRestTestCase {
             "Requires unmapped_fields=LOAD support",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
         );
-        String query = "SET unmapped_fields=\"load\"; FROM index-no-source-fls "
-            + "| EVAL salary = salary::long, hire_date = hire_date::date, ip_addr = ip_addr::ip "
+        String query = "SET unmapped_fields=\"load\"; FROM "
+            + INDEX_PARTIAL_MAPPING
+            + " | EVAL salary = salary::long, hire_date = hire_date::date, ip_addr = ip_addr::ip "
             + "| KEEP value, salary, hire_date, ip_addr | SORT value | LIMIT 10";
         List<MapMatcher> expectedColumns = List.of(
             matchesMap().entry("name", "value").entry("type", "double"),
@@ -1129,7 +1141,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 )
         );
 
-        Response restrictedResp = runESQLCommand("fls_no_source_user", query);
+        Response restrictedResp = runESQLCommand("fls_partial_no_source_user", query);
         assertOK(restrictedResp);
         assertMap(
             entityAsMap(restrictedResp),
@@ -1150,8 +1162,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.capabilityName()))
         );
         Response resp = runESQLCommand(
-            "fls_no_source_user",
-            "SET unmapped_fields=\"load\"; FROM index-no-source-fls | KEEP value | SORT value | LIMIT 10"
+            "fls_partial_no_source_user",
+            "SET unmapped_fields=\"load\"; FROM " + INDEX_PARTIAL_MAPPING + " | KEEP value | SORT value | LIMIT 10"
         );
         assertOK(resp);
         assertMap(

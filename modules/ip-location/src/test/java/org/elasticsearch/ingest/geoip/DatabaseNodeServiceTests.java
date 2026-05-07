@@ -850,17 +850,26 @@ public class DatabaseNodeServiceTests extends ESTestCase {
             // Produce a fresh SearchHit/SearchResponse per actionGet() call: SearchHit#getSourceAsMap asserts it is
             // only invoked once per hit instance, so sharing a single hit across multiple consumers (e.g. two
             // projects downloading the same database) trips that assertion. The underlying source bytes are
-            // immutable and safely reusable. Each fresh response starts at refcount=1 and is released by the
-            // production consumer (see DatabaseNodeService#retrieveDatabase), so it must not be added to
-            // {@link #toRelease}: decRef-ing it again from @After would fail with "already closed".
+            // immutable and safely reusable.
+            //
+            // Pooled (ref-counted) SearchHits/SearchHit semantics (since #147167): the response built from
+            // freshHits incref's its argument, so we drop our local ref via {@code freshHits.decRef()} to leave
+            // the response as the sole owner. The production consumer (see DatabaseNodeService#retrieveDatabase)
+            // then decRef's the response, which cascades through SearchHits.deallocate() and decRef's the inner
+            // SearchHit. The response must therefore not be added to {@link #toRelease}: decRef-ing it again from
+            // @After would fail with "already closed".
             final int chunkIdx = i;
             @SuppressWarnings("unchecked")
             ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);
             when(actionFuture.actionGet()).thenAnswer((Answer<SearchResponse>) invocation -> {
-                SearchHit freshHit = SearchHit.unpooled(chunkIdx);
+                SearchHit freshHit = new SearchHit(chunkIdx);
                 freshHit.sourceRef(new BytesArray(sourceBytes));
-                SearchHits freshHits = SearchHits.unpooled(new SearchHit[] { freshHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
-                return SearchResponseUtils.successfulResponse(freshHits);
+                SearchHits freshHits = new SearchHits(new SearchHit[] { freshHit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+                try {
+                    return SearchResponseUtils.successfulResponse(freshHits);
+                } finally {
+                    freshHits.decRef();
+                }
             });
             requestMap.put(databaseName + "_" + i, actionFuture);
         }

@@ -644,6 +644,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                 int order = 0;
                 MinimalServiceSettings serviceSettings = null;
+                Boolean allowObjectValues = null;
                 for (var sourceField : entry.getSourceFields()) {
                     if (hasInferenceResponseFailure(itemIndex)) {
                         break;
@@ -694,11 +695,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             break;
                         }
                         serviceSettings = serviceSettingsMap.get(inferenceId);
+                        allowObjectValues = indexVersion.onOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE)
+                            && serviceSettings.taskType() == TaskType.EMBEDDING
+                            && SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled();
                     }
 
-                    final boolean allowObjectValues = indexVersion.onOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE)
-                        && serviceSettings.taskType() == TaskType.EMBEDDING
-                        && SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled();
                     final List<?> values;
                     try {
                         values = allowObjectValues

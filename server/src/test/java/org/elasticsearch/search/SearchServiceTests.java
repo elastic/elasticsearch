@@ -90,12 +90,12 @@ import java.util.function.Predicate;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.search.SearchService.isExecutorQueuedBeyondPrewarmingFactor;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.elasticsearch.search.SearchService.wrapFailureListener;
 import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchServiceTests extends IndexShardTestCase {
 

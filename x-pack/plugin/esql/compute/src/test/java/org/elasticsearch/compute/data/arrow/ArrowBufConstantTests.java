@@ -71,8 +71,9 @@ public class ArrowBufConstantTests extends ESTestCase {
                 assertTrue(block.asVector() != null && block.asVector().isConstant());
                 IntBlock ib = (IntBlock) block;
                 assertEquals(4, ib.getPositionCount());
-                for (int i = 0; i < 4; i++)
+                for (int i = 0; i < 4; i++) {
                     assertEquals(42, ib.getInt(i));
+                }
             }
         }
     }
@@ -119,8 +120,9 @@ public class ArrowBufConstantTests extends ESTestCase {
     public void testDoubleConstant() {
         try (Float8Vector v = new Float8Vector("v", allocator)) {
             v.allocateNew(4);
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 4; i++) {
                 v.set(i, 3.14);
+            }
             v.setValueCount(4);
             try (Block block = DoubleArrowBufBlock.of(v, blockFactory)) {
                 DoubleBlock db = (DoubleBlock) block;
@@ -148,8 +150,9 @@ public class ArrowBufConstantTests extends ESTestCase {
     public void testFloat4Constant() {
         try (Float4Vector v = new Float4Vector("v", allocator)) {
             v.allocateNew(5);
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 5; i++) {
                 v.set(i, 1.5f);
+            }
             v.setValueCount(5);
             try (Block block = FloatToDoubleArrowBlock.of(v, blockFactory)) {
                 DoubleBlock db = (DoubleBlock) block;
@@ -178,8 +181,9 @@ public class ArrowBufConstantTests extends ESTestCase {
         try (Float2Vector v = new Float2Vector("v", allocator)) {
             v.allocateNew(4);
             short halfTwoPointFive = Float.floatToFloat16(2.5f);
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 4; i++) {
                 v.set(i, halfTwoPointFive);
+            }
             v.setValueCount(4);
             try (Block block = Float16ArrowBufBlock.of(v, blockFactory)) {
                 DoubleBlock db = (DoubleBlock) block;
@@ -194,8 +198,9 @@ public class ArrowBufConstantTests extends ESTestCase {
     public void testInt8Constant() {
         try (TinyIntVector v = new TinyIntVector("v", allocator)) {
             v.allocateNew(8);
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < 8; i++) {
                 v.set(i, (byte) -7);
+            }
             v.setValueCount(8);
             try (Block block = Int8ArrowBufBlock.of(v, blockFactory)) {
                 IntBlock ib = (IntBlock) block;
@@ -210,8 +215,9 @@ public class ArrowBufConstantTests extends ESTestCase {
     public void testInt16Constant() {
         try (SmallIntVector v = new SmallIntVector("v", allocator)) {
             v.allocateNew(4);
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 4; i++) {
                 v.set(i, (short) 4321);
+            }
             v.setValueCount(4);
             try (Block block = Int16ArrowBufBlock.of(v, blockFactory)) {
                 IntBlock ib = (IntBlock) block;
@@ -226,8 +232,9 @@ public class ArrowBufConstantTests extends ESTestCase {
     public void testUInt8Constant() {
         try (UInt1Vector v = new UInt1Vector("v", allocator)) {
             v.allocateNew(4);
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 4; i++) {
                 v.set(i, (byte) 0xFF);
+            }
             v.setValueCount(4);
             try (Block block = UInt8ArrowBufBlock.of(v, blockFactory)) {
                 IntBlock ib = (IntBlock) block;
@@ -242,8 +249,9 @@ public class ArrowBufConstantTests extends ESTestCase {
     public void testUInt16Constant() {
         try (UInt2Vector v = new UInt2Vector("v", allocator)) {
             v.allocateNew(3);
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 3; i++) {
                 v.set(i, '\u8001');
+            }
             v.setValueCount(3);
             try (Block block = UInt16ArrowBufBlock.of(v, blockFactory)) {
                 IntBlock ib = (IntBlock) block;
@@ -258,8 +266,9 @@ public class ArrowBufConstantTests extends ESTestCase {
     public void testUInt32Constant() {
         try (UInt4Vector v = new UInt4Vector("v", allocator)) {
             v.allocateNew(3);
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 3; i++) {
                 v.set(i, 0xFFFFFFFF);
+            }
             v.setValueCount(3);
             try (Block block = UInt32ArrowBufBlock.of(v, blockFactory)) {
                 LongBlock lb = (LongBlock) block;
@@ -306,8 +315,9 @@ public class ArrowBufConstantTests extends ESTestCase {
             )
         ) {
             v.allocateNew(3);
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 3; i++) {
                 v.set(i, 1700000000123L);
+            }
             v.setValueCount(3);
             try (Block block = LongArrowBufBlock.of(v, blockFactory)) {
                 LongBlock lb = (LongBlock) block;
@@ -322,8 +332,9 @@ public class ArrowBufConstantTests extends ESTestCase {
     public void testBitConstantTrue() {
         try (BitVector v = new BitVector("v", allocator)) {
             v.allocateNew(9);
-            for (int i = 0; i < 9; i++)
+            for (int i = 0; i < 9; i++) {
                 v.set(i, 1);
+            }
             v.setValueCount(9);
             try (Block block = BooleanArrowBufBlock.of(v, blockFactory)) {
                 BooleanBlock bb = (BooleanBlock) block;
@@ -337,8 +348,9 @@ public class ArrowBufConstantTests extends ESTestCase {
     public void testBitConstantFalse() {
         try (BitVector v = new BitVector("v", allocator)) {
             v.allocateNew(16);
-            for (int i = 0; i < 16; i++)
+            for (int i = 0; i < 16; i++) {
                 v.set(i, 0);
+            }
             v.setValueCount(16);
             try (Block block = BooleanArrowBufBlock.of(v, blockFactory)) {
                 BooleanBlock bb = (BooleanBlock) block;
@@ -370,8 +382,9 @@ public class ArrowBufConstantTests extends ESTestCase {
         try (VarCharVector v = new VarCharVector("v", allocator)) {
             v.allocateNew(4);
             byte[] bytes = "hello".getBytes();
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < 4; i++) {
                 v.setSafe(i, bytes);
+            }
             v.setValueCount(4);
             try (Block block = BytesRefArrowBufBlock.of(v, blockFactory)) {
                 BytesRefBlock bb = (BytesRefBlock) block;
@@ -413,8 +426,9 @@ public class ArrowBufConstantTests extends ESTestCase {
         try (VarBinaryVector v = new VarBinaryVector("v", allocator)) {
             v.allocateNew(3);
             byte[] bytes = new byte[] { 1, 2, 3, 4 };
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 3; i++) {
                 v.setSafe(i, bytes);
+            }
             v.setValueCount(3);
             try (Block block = BytesRefArrowBufBlock.of(v, blockFactory)) {
                 BytesRefBlock bb = (BytesRefBlock) block;
@@ -429,8 +443,9 @@ public class ArrowBufConstantTests extends ESTestCase {
         try (VarCharVector v = new VarCharVector("v", allocator)) {
             v.allocateNew(5);
             byte[] empty = new byte[0];
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 5; i++) {
                 v.setSafe(i, empty);
+            }
             v.setValueCount(5);
             try (Block block = BytesRefArrowBufBlock.of(v, blockFactory)) {
                 BytesRefBlock bb = (BytesRefBlock) block;
@@ -476,15 +491,17 @@ public class ArrowBufConstantTests extends ESTestCase {
 
     private static void fillInt(IntVector v, int[] values) {
         v.allocateNew(values.length);
-        for (int i = 0; i < values.length; i++)
+        for (int i = 0; i < values.length; i++) {
             v.set(i, values[i]);
+        }
         v.setValueCount(values.length);
     }
 
     private static void fillLong(BigIntVector v, long[] values) {
         v.allocateNew(values.length);
-        for (int i = 0; i < values.length; i++)
+        for (int i = 0; i < values.length; i++) {
             v.set(i, values[i]);
+        }
         v.setValueCount(values.length);
     }
 

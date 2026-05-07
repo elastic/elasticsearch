@@ -32,16 +32,18 @@ public class ArrowBufConstantDetectionTests extends ESTestCase {
 
     public void testIsUniformByteAllSame() {
         try (ArrowBuf buf = allocator.buffer(8)) {
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < 8; i++) {
                 buf.setByte(i, 7);
+            }
             assertTrue(ArrowBufConstantDetection.isUniform(buf, 8, Byte.BYTES));
         }
     }
 
     public void testIsUniformByteOneDiffers() {
         try (ArrowBuf buf = allocator.buffer(8)) {
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < 8; i++) {
                 buf.setByte(i, 7);
+            }
             buf.setByte(5, (byte) 8);
             assertFalse(ArrowBufConstantDetection.isUniform(buf, 8, Byte.BYTES));
         }
@@ -49,8 +51,9 @@ public class ArrowBufConstantDetectionTests extends ESTestCase {
 
     public void testIsUniformShort() {
         try (ArrowBuf buf = allocator.buffer(8L * Short.BYTES)) {
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < 8; i++) {
                 buf.setShort((long) i * Short.BYTES, 12345);
+            }
             assertTrue(ArrowBufConstantDetection.isUniform(buf, 8, Short.BYTES));
             buf.setShort(6L * Short.BYTES, (short) 9999);
             assertFalse(ArrowBufConstantDetection.isUniform(buf, 8, Short.BYTES));
@@ -59,8 +62,9 @@ public class ArrowBufConstantDetectionTests extends ESTestCase {
 
     public void testIsUniformInt() {
         try (ArrowBuf buf = allocator.buffer(16L * Integer.BYTES)) {
-            for (int i = 0; i < 16; i++)
+            for (int i = 0; i < 16; i++) {
                 buf.setInt((long) i * Integer.BYTES, 42);
+            }
             assertTrue(ArrowBufConstantDetection.isUniform(buf, 16, Integer.BYTES));
             buf.setInt(15L * Integer.BYTES, -1);
             assertFalse(ArrowBufConstantDetection.isUniform(buf, 16, Integer.BYTES));
@@ -69,8 +73,9 @@ public class ArrowBufConstantDetectionTests extends ESTestCase {
 
     public void testIsUniformLong() {
         try (ArrowBuf buf = allocator.buffer(8L * Long.BYTES)) {
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < 8; i++) {
                 buf.setLong((long) i * Long.BYTES, Long.MIN_VALUE);
+            }
             assertTrue(ArrowBufConstantDetection.isUniform(buf, 8, Long.BYTES));
             buf.setLong(0, 0L);
             assertFalse(ArrowBufConstantDetection.isUniform(buf, 8, Long.BYTES));

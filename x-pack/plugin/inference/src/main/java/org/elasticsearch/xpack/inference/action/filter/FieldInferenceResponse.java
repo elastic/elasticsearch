@@ -9,7 +9,11 @@ package org.elasticsearch.xpack.inference.action.filter;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 
+import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -52,6 +56,8 @@ abstract sealed class FieldInferenceResponse permits InferenceStringFieldInferen
     public Model model() {
         return model;
     }
+
+    public abstract List<SemanticTextField.Chunk> toChunks(boolean useLegacyFormat, XContentType contentType) throws IOException;
 
     @Override
     public boolean equals(Object o) {

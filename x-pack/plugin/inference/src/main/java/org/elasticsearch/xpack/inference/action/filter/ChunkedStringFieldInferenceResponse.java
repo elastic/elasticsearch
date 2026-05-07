@@ -10,7 +10,11 @@ package org.elasticsearch.xpack.inference.action.filter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 
+import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -50,6 +54,13 @@ final class ChunkedStringFieldInferenceResponse extends FieldInferenceResponse {
 
     public ChunkedInference chunkedResults() {
         return chunkedResults;
+    }
+
+    @Override
+    public List<SemanticTextField.Chunk> toChunks(boolean useLegacyFormat, XContentType contentType) throws IOException {
+        return useLegacyFormat
+            ? SemanticTextField.toSemanticTextFieldChunksLegacy(input, chunkedResults, contentType)
+            : SemanticTextField.toSemanticTextFieldChunks(offsetAdjustment, chunkedResults, contentType);
     }
 
     @Override

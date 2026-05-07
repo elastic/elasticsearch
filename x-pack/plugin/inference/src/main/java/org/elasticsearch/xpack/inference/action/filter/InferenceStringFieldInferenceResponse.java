@@ -10,8 +10,12 @@ package org.elasticsearch.xpack.inference.action.filter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 
+import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -42,6 +46,14 @@ final class InferenceStringFieldInferenceResponse extends FieldInferenceResponse
 
     public EmbeddingResults.Embedding<?> inferenceResults() {
         return inferenceResults;
+    }
+
+    @Override
+    public List<SemanticTextField.Chunk> toChunks(boolean useLegacyFormat, XContentType contentType) throws IOException {
+        if (useLegacyFormat) {
+            throw new IllegalStateException("Legacy semantic text format does not support non-text chunks for field [" + field() + "]");
+        }
+        return List.of(SemanticTextField.toSemanticFieldChunk(sourceFieldInputIndex, inferenceResults, contentType));
     }
 
     @Override

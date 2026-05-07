@@ -48,6 +48,23 @@ public class KnnQueryUtils {
         return totalVectors > 0 ? Math.min(1f, (float) filterCost / totalVectors) : 0f;
     }
 
+    /**
+     * Combines a pre-filter with an {@link ExcludeDocsQuery} over already-collected docs into a
+     * single filter for the augmented post-filter fallback. Returns {@code baseFilter} unchanged
+     * when {@code excludedDocs} is empty, and the bare {@link ExcludeDocsQuery} when
+     * {@code baseFilter} is null.
+     */
+    public static Query augmentFilter(Query baseFilter, int[] excludedDocs, IndexReader reader) {
+        if (excludedDocs == null || excludedDocs.length == 0) {
+            return baseFilter;
+        }
+        Query exclude = new ExcludeDocsQuery(excludedDocs, reader);
+        if (baseFilter == null) {
+            return exclude;
+        }
+        return new BooleanQuery.Builder().add(baseFilter, BooleanClause.Occur.FILTER).add(exclude, BooleanClause.Occur.FILTER).build();
+    }
+
     public static Weight createFilterWeight(IndexSearcher searcher, Query filter, String field) throws IOException {
         if (filter == null) {
             return null;

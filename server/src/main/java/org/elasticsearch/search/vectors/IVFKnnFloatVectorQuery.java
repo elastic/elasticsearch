@@ -315,8 +315,10 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         // Doc-level skip: previously-returned docs go through the AcceptDocs path via an
         // ExcludeDocsQuery filter (composed by createFilterWeight in AbstractIVFKnnVectorQuery.rewrite).
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
-        // Derive retry numCands from this query's k/numCands ratio so the IVF beam scales with retry K.
-        int retryNumCands = (int) Math.clamp(Math.ceil((double) remainingK * numCands / k), remainingK, NUM_CANDS_LIMIT);
+        // Keep the full beam from this query — scaling numCands down with remainingK collapses to a
+        // pathologically narrow beam when remainingK is tiny (e.g., 1 of 500), making it likely the
+        // retry's heap fills with docs that are already excluded or fail the post-hoc filter.
+        int retryNumCands = Math.clamp(numCands, remainingK, NUM_CANDS_LIMIT);
         // Widen the visit ratio by POST_FILTER_OVERSAMPLE_FLOOR so the retry explores more
         // posting-list coverage than round 0 (round 1 also starts skipping non-competitive
         // centroids, so the extra coverage lands on previously-unvisited clusters).
@@ -330,6 +332,24 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
             scaledVisitRatio,
             doPrecondition,
             skipCentroids
+        );
+    }
+
+    @Override
+    public Query createFallbackQuery(IndexReader reader, int[] excludedDocs, int remainingK) {
+        // Pre-filter the IVF graph traversal with the original filter, augmented with an
+        // ExcludeDocsQuery so already-collected docs are skipped via AcceptDocs.
+        Query newFilter = KnnQueryUtils.augmentFilter(this.filter, excludedDocs, reader);
+        int retryNumCands = Math.clamp(numCands, remainingK, NUM_CANDS_LIMIT);
+        return new IVFKnnFloatVectorQuery(
+            field,
+            originalQuery,
+            remainingK,
+            retryNumCands,
+            newFilter,
+            providedVisitRatio,
+            doPrecondition,
+            null
         );
     }
 }

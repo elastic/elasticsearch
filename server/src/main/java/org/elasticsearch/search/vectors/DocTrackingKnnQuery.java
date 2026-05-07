@@ -80,6 +80,13 @@ class DocTrackingKnnQuery<T extends Query & PostFilterableKnnQuery> extends Quer
     }
 
     @Override
+    public Query createFallbackQuery(IndexReader reader, int[] excludedDocs, int remainingK) {
+        // The augmented fallback is invoked on the outer inner query (which keeps the original
+        // filter), not on a post-filter delegate wrapper that drops it.
+        throw new IllegalStateException("[createFallbackQuery] should not be called directly on a DocTrackingKnnQuery");
+    }
+
+    @Override
     public int countTotalVectors(List<LeafReaderContext> leaves) throws IOException {
         return delegate.countTotalVectors(leaves);
     }

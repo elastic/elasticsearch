@@ -80,8 +80,10 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
     @Override
     public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
-        // Derive retry numCands from this query's k/numCands ratio so HNSW beam scales with retry K.
-        int retryNumCands = (int) Math.clamp(Math.ceil((double) remainingK * numCandsParam / kParam), remainingK, NUM_CANDS_LIMIT);
+        // Keep the full beam from this query — scaling numCands down with remainingK collapses to a
+        // pathologically narrow beam when remainingK is tiny (e.g., 1 of 500), making it likely the
+        // retry returns only docs that are already excluded or that fail the post-hoc filter.
+        int retryNumCands = Math.clamp(numCandsParam, remainingK, NUM_CANDS_LIMIT);
         return new ESKnnByteVectorQuery(
             field,
             getTargetCopy(),
@@ -91,6 +93,22 @@ public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements QueryPro
             searchStrategy,
             earlyTermination,
             seedDocs
+        );
+    }
+
+    @Override
+    public Query createFallbackQuery(IndexReader reader, int[] excludedDocs, int remainingK) {
+        Query newFilter = KnnQueryUtils.augmentFilter(getFilter(), excludedDocs, reader);
+        int retryNumCands = Math.clamp(numCandsParam, remainingK, NUM_CANDS_LIMIT);
+        return new ESKnnByteVectorQuery(
+            field,
+            getTargetCopy(),
+            remainingK,
+            retryNumCands,
+            newFilter,
+            searchStrategy,
+            earlyTermination,
+            null
         );
     }
 

@@ -32,15 +32,21 @@ import static org.elasticsearch.search.vectors.KnnQueryUtils.deduplicateByParent
 import static org.elasticsearch.search.vectors.KnnQueryUtils.mergeResults;
 
 /**
- * A query that wraps a {@link PostFilterableKnnQuery} and applies post-filtering with at most one
- * retry. When the initial post-filter search yields fewer than k results, a single retry runs
- * with a new innerQuery that avoids re-visiting previously seen results (doc IDs for HNSW,
- * centroid posting lists for IVF).
- * <p>
- * The retry asks for {@code k - scoreDocs.length} more candidates; each implementation handles
- * its own internal sizing (numCands, visit ratio) based on the round-0 query's state. The retry
- * also passes two distinct doc-id arrays: an exclusion set (all docs returned by round 0) and a
- * seed set (only filter-passing docs) — see {@link PostFilterableKnnQuery#createRetryQuery}.
+ * A query that wraps a {@link PostFilterableKnnQuery} and applies post-filtering with up to two
+ * additional rounds when the initial pass yields fewer than k results.
+ * <ol>
+ *   <li>Post-filter retry — re-runs the post-filter delegate while avoiding previously visited
+ *       results (doc IDs for HNSW, centroid posting lists for IVF). Asks for the remainder.
+ *       See {@link PostFilterableKnnQuery#createRetryQuery}.</li>
+ *   <li>Augmented pre-filter fallback — switches modes from post-filter to pre-filter, applying
+ *       the original filter combined with an {@code ExcludeDocsQuery} over the already-collected
+ *       docs and asking for the remaining {@code k - scoreDocs.length} only.
+ *       See {@link PostFilterableKnnQuery#createFallbackQuery}.</li>
+ * </ol>
+ * If both extra rounds still leave the merged result short of k, the partial result is returned
+ * as-is — the caller is expected to tolerate fewer than k hits when the filter genuinely admits
+ * fewer matching docs. Only when no post-filter results were ever produced (round 0 found
+ * nothing) does the outer rewrite fall through to the bare inner query.
  */
 public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
@@ -90,8 +96,9 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
                 return rewritten;
             }
         }
-        // we fallback to the original query either when the filter does not meet the necessary selectivity
-        // or when the retry round still hasn't been able to find any relevant results
+        // We fall back to the bare inner query either when the filter does not meet the
+        // necessary selectivity (no post-filter rounds ran at all) or when post-filtering
+        // produced zero results (so no docs were available to seed the augmented fallback).
         Query rewritten = ((Query) innerQuery).rewrite(searcher);
         this.totalVectorOps += innerQuery.totalVectorOps();
         return rewritten;
@@ -137,18 +144,50 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
             }
         }
 
+        // Augmented pre-filter fallback. When the post-filter rounds yielded some — but fewer
+        // than k — results, switch from post-filter to pre-filter mode: ask the inner query to
+        // search again with the original filter combined with an ExcludeDocsQuery over the docs
+        // we already collected, requesting only the remainder. The collected scoreDocs are kept
+        // and merged with the new ones rather than discarded.
+        if (scoreDocs.length < k && scoreDocs.length > 0) {
+            logger.debug(
+                "post-filter augmented fallback firing for field=[{}], k=[{}], selectivity=[{}], scoreDocs so far=[{}]",
+                field,
+                k,
+                selectivity,
+                scoreDocs.length
+            );
+            int remaining = k - scoreDocs.length;
+            int[] excludedDocs = sortedDocIds(scoreDocs);
+            Query fallback = innerQuery.createFallbackQuery(searcher.getIndexReader(), excludedDocs, remaining);
+            TopDocs fallbackDocs = searcher.search(fallback, remaining);
+            vectorOps += ((PostFilterableKnnQuery) fallback).totalVectorOps();
+            // No applyFilter() — the fallback already pre-filtered with the original filter.
+            ScoreDoc[] fallbackScoreDocs = fallbackDocs.scoreDocs;
+            if (parentsFilter != null) {
+                fallbackScoreDocs = deduplicateByParent(fallbackScoreDocs, searcher.getIndexReader(), parentsFilter);
+            }
+            scoreDocs = mergeResults(scoreDocs, fallbackScoreDocs);
+            if (parentsFilter != null) {
+                scoreDocs = deduplicateByParent(scoreDocs, searcher.getIndexReader(), parentsFilter);
+            }
+        }
+
         // Accumulate the post-filter attempt's vector ops regardless of outcome so the profile
-        // reflects the full cost — the caller adds the fallback inner query's own ops on top.
+        // reflects the full cost — the outer rewrite() adds the bare innerQuery's own ops on top
+        // only when we return null (zero-result case).
         this.totalVectorOps += vectorOps;
+        if (scoreDocs.length == 0) {
+            // No post-filter results at all — outer rewrite() falls back to the bare innerQuery.
+            return null;
+        }
         if (scoreDocs.length < k) {
             logger.warn(
-                "falling back to original knn query as post filtering retrieved only [{}] results, less than the desired [{}] results.",
+                "post filtering retrieved only [{}] results, less than the desired [{}] results; returning partial result.",
                 scoreDocs.length,
                 k
             );
-            return null;
-        }
-        if (k < scoreDocs.length) {
+        } else if (k < scoreDocs.length) {
             scoreDocs = Arrays.copyOf(scoreDocs, k);
         }
         return new KnnScoreDocQuery(scoreDocs, searcher.getIndexReader());

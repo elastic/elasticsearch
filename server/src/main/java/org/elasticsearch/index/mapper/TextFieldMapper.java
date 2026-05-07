@@ -115,7 +115,7 @@ public final class TextFieldMapper extends FieldMapper {
     public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
         false,
         DocValuesParameter.Values.Cardinality.HIGH,
-        DocValuesParameter.Values.MultiValue.ARRAYS
+        true
     );
 
     public static class Defaults {
@@ -264,7 +264,7 @@ public final class TextFieldMapper extends FieldMapper {
         private final Parameter<Boolean> norms;
         private final Parameter<Boolean> index;
 
-        final DocValuesParameter docValuesParameters = DocValuesParameter.arraysWithCardinality(
+        final DocValuesParameter docValuesParameters = DocValuesParameter.ofWithCardinality(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> ((TextFieldMapper) m).docValuesParameters
         );
@@ -1253,7 +1253,7 @@ public final class TextFieldMapper extends FieldMapper {
             // Check if we can load from doc values
             if (hasDocValues()) {
                 if (usesBinaryDocValues()) {
-                    if (docValuesParams != null && docValuesParams.multiValue().isSingleValued()) {
+                    if (docValuesParams != null && docValuesParams.multiValue() == false) {
                         return new BytesRefsFromBinaryBlockLoader(name());
                     }
                     return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
@@ -1667,7 +1667,7 @@ public final class TextFieldMapper extends FieldMapper {
 
     @Override
     protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue().isSingleValued();
+        return docValuesParameters.multiValue() == false;
     }
 
     @Override
@@ -2000,7 +2000,7 @@ public final class TextFieldMapper extends FieldMapper {
                     // text fields with doc_values may have all values stored in fallback fields; if every value exceeds MAX_TERM_LENGTH.
                     // In that case, there will be no doc values at all, but the "main" field is still going to be indexed. As a result,
                     // we can't use SortedSetDocValuesSyntheticFieldLoaderLayer since it uses DocValues.getSortedSet(), which will throw.
-                    // Check for both SORTED_SET (multi-valued) and SORTED (multi_value=no) doc values types.
+                    // Check for both SORTED_SET (multi-valued) and SORTED (multi_value=false) doc values types.
                     if (reader.getSortedSetDocValues(fieldName()) == null && reader.getSortedDocValues(fieldName()) == null) {
                         return null;
                     }

@@ -491,19 +491,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Resolves {@link ViewShadowRelation} nodes against {@link AnalyzerContext#lenientResolution()}.
+     * Resolves {@link ViewShadowRelation} nodes against {@link AnalyzerContext#optionalLinkedResolution()}.
      * <p>
      * Each {@code ViewShadowRelation} represents a "if a remote project has an index with this
      * view's name, treat it as if the user wrote a remote index reference at this position"
      * lookup. The lenient field-caps integration (deferred to a follow-up PR) populates
-     * {@code lenientResolution}, keyed by the shadow's {@link ViewShadowRelation#indexPattern()}
+     * {@code optionalLinkedResolution}, keyed by the shadow's {@link ViewShadowRelation#optionalLinkedPattern()}
      * (view name + applicable exclusions). The full pattern is the lookup key — different
      * exclusion lists at the same view name produce distinct {@code ViewShadowRelation}
      * instances and may resolve differently (e.g. one comes back empty because of the
      * exclusions, the other resolves to a remote index). This rule:
      * <ul>
      *   <li>If a valid {@link IndexResolution} is present for the shadow's
-     *       {@link ViewShadowRelation#indexPattern()}, replaces the shadow with an
+     *       {@link ViewShadowRelation#optionalLinkedPattern()}, replaces the shadow with an
      *       {@link EsRelation} built from the resolved {@link EsIndex} (same shape as
      *       {@link ResolveTable}'s {@code resolveIndex} for a strict UR).</li>
      *   <li>Otherwise leaves the shadow unresolved. {@link ViewCompactionPostIndexResolution}
@@ -514,7 +514,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(ViewShadowRelation shadow, AnalyzerContext context) {
-            IndexResolution resolution = context.lenientResolution().get(shadow.indexPattern());
+            IndexResolution resolution = context.optionalLinkedResolution().get(shadow.optionalLinkedPattern());
             if (resolution == null || resolution.isValid() == false) {
                 // No remote index found (or lookup didn't run yet) — leave the shadow alone for
                 // ViewCompactionPostIndexResolution to strip.

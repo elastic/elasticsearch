@@ -75,7 +75,7 @@ public class PreAnalyzer {
         // A LinkedHashSet preserves the order shadows were emitted in for deterministic test output;
         // it also deduplicates so two shadows with the same indexPattern only produce one lenient call.
         Set<IndexPattern> viewShadows = new LinkedHashSet<>();
-        plan.forEachUp(ViewShadowRelation.class, p -> viewShadows.add(p.indexPattern()));
+        plan.forEachUp(ViewShadowRelation.class, p -> viewShadows.add(p.optionalLinkedPattern()));
 
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);

@@ -41,7 +41,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
  *   <li>strict + matched shadow at the same level → both kept as siblings (Strategy A — no
  *       merging into a single combined {@code EsRelation});</li>
  *   <li>two shadows with the same view name but different exclusions resolve independently —
- *       the lookup key is the full {@link ViewShadowRelation#indexPattern()}, so the same view
+ *       the lookup key is the full {@link ViewShadowRelation#optionalLinkedPattern()}, so the same view
  *       name with one exclusion list can match a remote index while another exclusion list at
  *       the same view name returns nothing.</li>
  * </ul>
@@ -108,7 +108,7 @@ public class ResolveViewShadowTests extends ESTestCase {
         ViewShadowRelation shadow = new ViewShadowRelation(EMPTY, "v1", List.of());
         EsIndex strictIdx = EsIndexGenerator.esIndex("strict_idx", LoadMapping.loadMapping("mapping-one-field.json"));
         var analyzer = analyzer().addIndex(strictIdx)
-            .addLenientShadow(shadow.indexPattern(), IndexResolution.invalid("not found"))
+            .addLenientShadow(shadow.optionalLinkedPattern(), IndexResolution.invalid("not found"))
             .buildAnalyzer();
 
         LogicalPlan plan = analyzer.analyze(viewUnionAllOf("strict_idx", strictUR("strict_idx"), shadow));
@@ -145,14 +145,14 @@ public class ResolveViewShadowTests extends ESTestCase {
 
     /**
      * Shadow with exclusions: the lookup key is the shadow's full
-     * {@link ViewShadowRelation#indexPattern()} — view name <em>plus</em> the comma-joined
+     * {@link ViewShadowRelation#optionalLinkedPattern()} — view name <em>plus</em> the comma-joined
      * exclusions. Confirms an entry registered under that exact pattern resolves the shadow.
      */
     public void testShadowLookupKeyIncludesExclusions() {
         ViewShadowRelation shadow = new ViewShadowRelation(EMPTY, "v1", List.of("-stale-*"));
-        assertEquals("v1,-stale-*", shadow.indexPattern().indexPattern());
+        assertEquals("v1,-stale-*", shadow.optionalLinkedPattern().indexPattern());
         EsIndex remoteV1 = EsIndexGenerator.esIndex("v1", LoadMapping.loadMapping("mapping-one-field.json"));
-        var analyzer = analyzer().addLenientShadow(shadow.indexPattern(), IndexResolution.valid(remoteV1)).buildAnalyzer();
+        var analyzer = analyzer().addLenientShadow(shadow.optionalLinkedPattern(), IndexResolution.valid(remoteV1)).buildAnalyzer();
 
         LogicalPlan plan = analyzer.analyze(shadow);
 
@@ -178,7 +178,7 @@ public class ResolveViewShadowTests extends ESTestCase {
         ViewShadowRelation emptyShadow = new ViewShadowRelation(EMPTY, "my-data", List.of("-my-data", "-unrelated-*"));
         EsIndex remoteMyData = EsIndexGenerator.esIndex("my-data", LoadMapping.loadMapping("mapping-one-field.json"));
         // Only the matched-shadow's pattern has a lenient entry; the empty-shadow's pattern is absent.
-        var analyzer = analyzer().addLenientShadow(matchedShadow.indexPattern(), IndexResolution.valid(remoteMyData))
+        var analyzer = analyzer().addLenientShadow(matchedShadow.optionalLinkedPattern(), IndexResolution.valid(remoteMyData))
             .addIndex(EsIndexGenerator.esIndex("strict_idx", LoadMapping.loadMapping("mapping-one-field.json")))
             .buildAnalyzer();
 

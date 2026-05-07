@@ -31,7 +31,8 @@ public class AnalyzerContext {
     private final EsqlFunctionRegistry functionRegistry;
     private final Map<IndexPattern, IndexResolution> indexResolution;
     private final Map<String, IndexResolution> lookupResolution;
-    private final Map<IndexPattern, IndexResolution> lenientResolution;  // CPS-specific resolution for remote indexes matching local views
+    private final Map<IndexPattern, IndexResolution> optionalLinkedResolution;  // CPS-specific resolution for remote indexes matching local
+                                                                                // views
     private final EnrichResolution enrichResolution;
     private final InferenceResolution inferenceResolution;
     private final ExternalSourceResolution externalSourceResolution;
@@ -47,7 +48,7 @@ public class AnalyzerContext {
         ProjectMetadata projectMetadata,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
-        Map<IndexPattern, IndexResolution> lenientResolution,
+        Map<IndexPattern, IndexResolution> optionalLinkedResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         ExternalSourceResolution externalSourceResolution,
@@ -60,7 +61,7 @@ public class AnalyzerContext {
         this.projectMetadata = projectMetadata;
         this.indexResolution = indexResolution;
         this.lookupResolution = lookupResolution;
-        this.lenientResolution = lenientResolution;
+        this.optionalLinkedResolution = optionalLinkedResolution;
         this.enrichResolution = enrichResolution;
         this.inferenceResolution = inferenceResolution;
         this.externalSourceResolution = externalSourceResolution;
@@ -120,7 +121,7 @@ public class AnalyzerContext {
      * Contains resolution for optional linked patterns. Such patterns include linked indices (if exist) that shadow local views.
      */
     public Map<IndexPattern, IndexResolution> optionalLinkedResolution() {
-        return lenientResolution;
+        return optionalLinkedResolution;
     }
 
     public EnrichResolution enrichResolution() {
@@ -197,7 +198,7 @@ public class AnalyzerContext {
             projectMetadata,
             result.indexResolution(),
             result.lookupIndices(),
-            result.lenientResolution(),
+            result.optionalLinkedResolution(),
             result.enrichResolution(),
             result.inferenceResolution(),
             result.externalSourceResolution(),

@@ -1338,7 +1338,7 @@ public class EsqlSession {
             // Strict pass first: resolves the user-typed UnresolvedRelation patterns and initialises
             // cross-cluster state. After it completes we run the lenient pass over any
             // ViewShadowRelation patterns (CPS-only) so their results land in
-            // result.lenientResolution() — empty iterator → no-op when there are no shadows.
+            // result.optionalLinkedResolution() — empty iterator → no-op when there are no shadows.
             forAll(
                 preAnalysis.indexes().entrySet().iterator(),
                 result,
@@ -1357,7 +1357,7 @@ public class EsqlSession {
                     (l, strictResult) -> forAll(
                         preAnalysis.viewShadows().iterator(),
                         strictResult,
-                        (sp, r, ll) -> preAnalyzeFlatViewIndices(
+                        (sp, r, ll) -> preAnalyzeOptionalLinkedIndices(
                             sp,
                             configuration.projectRouting(),
                             preAnalysis,
@@ -1434,16 +1434,10 @@ public class EsqlSession {
     }
 
     /**
-     * Lenient (CPS) field-caps resolution for {@code ViewShadowRelation} index patterns. Mirrors
-     * {@link #preAnalyzeFlatMainIndices} but uses the lenient {@code IndicesOptions}
-     * ({@code ALLOW_UNAVAILABLE_TARGETS}) — the "view name has no matching remote index" case is
-     * the expected outcome and must not error. Stores the result into
-     * {@link PreAnalysisResult#lenientResolution()}; the {@code ResolveViewShadow} analyzer
-     * rule reads it from there. Cross-cluster state has already been initialised by the strict
-     * pass, so this method only updates failures and re-runs the view-error check (which is what
-     * enforces "remote project hosts a *view* with the same name → fail the query").
+     * This performs lenient field caps resolutions for linkedOptionalPatterns
+     * in order to resolve optional linked indices (if exist) shadowed by local views.
      */
-    private void preAnalyzeFlatViewIndices(
+    private void preAnalyzeOptionalLinkedIndices(
         IndexPattern indexPattern,
         String projectRouting,
         PreAnalyzer.PreAnalysis preAnalysis,
@@ -1469,7 +1463,7 @@ public class EsqlSession {
             listener.delegateFailureAndWrap((l, indexResolution) -> {
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                 EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
-                l.onResponse(result.withLenientIndices(indexPattern, indexResolution.inner()));
+                l.onResponse(result.withWithOptionalLinkedIndices(indexPattern, indexResolution.inner()));
             })
         );
     }
@@ -1751,7 +1745,8 @@ public class EsqlSession {
         Set<String> wildcardJoinIndices,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupIndices,
-        Map<IndexPattern, IndexResolution> lenientResolution,  // CPS-only, lenient results for remote indices matching local views
+        // CPS specific optionalLinkedPatterns. Such patterns references indices (if present) shadowing views resolved on origin
+        Map<IndexPattern, IndexResolution> optionalLinkedResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         ExternalSourceResolution externalSourceResolution,
@@ -1782,12 +1777,8 @@ public class EsqlSession {
             return this;
         }
 
-        /**
-         * Records a lenient (CPS view-shadow) field-caps result. Mirrors {@link #withIndices}
-         * but stores into {@link #lenientResolution} keyed by the shadow's {@code indexPattern()}.
-         */
-        PreAnalysisResult withLenientIndices(IndexPattern indexPattern, IndexResolution indices) {
-            lenientResolution.put(indexPattern, indices);
+        PreAnalysisResult withWithOptionalLinkedIndices(IndexPattern indexPattern, IndexResolution indices) {
+            optionalLinkedResolution.put(indexPattern, indices);
             return this;
         }
 
@@ -1797,7 +1788,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
-                lenientResolution,
+                optionalLinkedResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
@@ -1811,7 +1802,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
-                lenientResolution,
+                optionalLinkedResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
@@ -1825,7 +1816,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
-                lenientResolution,
+                optionalLinkedResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
@@ -1845,7 +1836,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
-                lenientResolution,
+                optionalLinkedResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,

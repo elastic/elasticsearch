@@ -493,17 +493,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                 var state = flushAndCombineState(flushQueues, group);
                 // Do not combine intervals across shards because intervals from different indices may overlap.
                 if (state != null && state.samples > 0) {
-                    state.flushDeltaInterval();
-                    timestamps.beginPositionEntry();
-                    values.beginPositionEntry();
-                    for (int intervalId : state.intervals) {
-                        timestamps.appendLong(intervalBuffer.lastTs(intervalId));
-                        timestamps.appendLong(intervalBuffer.firstTs(intervalId));
-                        values.appendDouble(intervalBuffer.lastValue(intervalId));
-                        values.appendDouble(intervalBuffer.firstValue(intervalId));
-                    }
-                    timestamps.endPositionEntry();
-                    values.endPositionEntry();
+                    state.writeIntervalsToBlocks(timestamps, values);
                     sampleCounts.appendLong(state.samples);
                     resets.appendDouble(state.resets);
                 } else {
@@ -702,17 +692,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                     flushGroup(state, rawBuffer, flushQueue);
                 }
                 if (state != null && state.samples > 1) {
-                    state.flushDeltaInterval();
-                    // combine intervals for the final evaluation
-                    int[] intervals = state.intervals;
-                    intervalBuffer.sort(intervals);
-                    for (int i = 1; i < intervals.length; i++) {
-                        int next = intervals[i - 1]; // reversed
-                        int prev = intervals[i];
-                        if (intervalBuffer.lastValue(prev) > intervalBuffer.firstValue(next)) {
-                            state.resets += intervalBuffer.lastValue(prev);
-                        }
-                    }
+                    state.combineIntervals();
                 }
             }
             if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
@@ -927,6 +907,33 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             intervals = ArrayUtil.growExact(intervals, currentSize + intervalCount);
             for (int i = 0; i < intervalCount; i++) {
                 intervals[currentSize++] = firstIntervalId + i;
+            }
+        }
+
+        void writeIntervalsToBlocks(LongBlock.Builder timestamps, DoubleBlock.Builder values) {
+            flushDeltaInterval();
+            timestamps.beginPositionEntry();
+            values.beginPositionEntry();
+            for (int intervalId : intervals) {
+                timestamps.appendLong(intervalBuffer.lastTs(intervalId));
+                timestamps.appendLong(intervalBuffer.firstTs(intervalId));
+                values.appendDouble(intervalBuffer.lastValue(intervalId));
+                values.appendDouble(intervalBuffer.firstValue(intervalId));
+            }
+            timestamps.endPositionEntry();
+            values.endPositionEntry();
+        }
+
+        void combineIntervals() {
+            flushDeltaInterval();
+            // combine intervals for the final evaluation
+            intervalBuffer.sort(intervals);
+            for (int i = 1; i < intervals.length; i++) {
+                int next = intervals[i - 1]; // reversed
+                int prev = intervals[i];
+                if (intervalBuffer.lastValue(prev) > intervalBuffer.firstValue(next)) {
+                    resets += intervalBuffer.lastValue(prev);
+                }
             }
         }
 

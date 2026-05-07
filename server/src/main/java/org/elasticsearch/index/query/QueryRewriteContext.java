@@ -408,11 +408,18 @@ public class QueryRewriteContext {
         return mapperService.getIndexAnalyzers();
     }
 
+    /**
+     * @return a supplier that can be used to check whether loading field data from _id field's inverted index is allowed.
+     */
+    public BooleanSupplier idFieldDataEnabled() {
+        return mapperService.getIdFieldDataEnabled();
+    }
+
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
-            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
+            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, indexSettings, getIndexAnalyzers(), false);
             return builder.build(MapperBuilderContext.root(false, false)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);

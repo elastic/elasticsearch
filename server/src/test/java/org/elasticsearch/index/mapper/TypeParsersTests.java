@@ -98,7 +98,6 @@ public class TypeParsersTests extends ESTestCase {
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
             mapperService.getIndexSettings(),
-            ProvidedIdFieldMapper.NO_FIELD_DATA,
             query -> {
                 throw new UnsupportedOperationException();
             },

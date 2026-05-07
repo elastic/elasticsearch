@@ -424,6 +424,95 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         assertPagesEqual(baselinePages, pushedPages);
     }
 
+    // --- Pre-warm dictionary-pages parity tests ---
+
+    /**
+     * End-to-end correctness test for the dictionary-page pre-warm optimization. Writes a
+     * multi-row-group file with a dictionary-encoded BINARY column and applies an equality
+     * filter on a value present only in some row groups. The optimized path pre-fetches
+     * dictionary pages in a coalesced batch and feeds them to {@code RowGroupFilter} via the
+     * pre-warmed cache; the baseline path reads dictionary pages on demand via parquet-mr's
+     * own code. Both must produce bit-identical row contents.
+     */
+    public void testDictionaryFilterPreWarmParity() throws IOException {
+        byte[] parquetData = createDictionaryEncodedStringFile();
+
+        FilterPredicate filter = FilterApi.eq(FilterApi.binaryColumn("category"), org.apache.parquet.io.api.Binary.fromString("cat_3"));
+
+        List<Page> baselinePages = readWithFilter(parquetData, filter, false);
+        List<Page> optimizedPages = readWithFilter(parquetData, filter, true);
+        assertPagesEqual(baselinePages, optimizedPages);
+
+        int totalRows = optimizedPages.stream().mapToInt(Page::getPositionCount).sum();
+        assertTrue("Equality filter on a present dictionary value must return some rows", totalRows > 0);
+    }
+
+    /**
+     * Same setup as {@link #testDictionaryFilterPreWarmParity} but for an equality filter on a
+     * value not in the dictionary. The dictionary filter should drop every row group on both
+     * paths; both must return zero rows.
+     */
+    public void testDictionaryFilterPreWarmDropsRowGroupsParity() throws IOException {
+        byte[] parquetData = createDictionaryEncodedStringFile();
+
+        FilterPredicate filter = FilterApi.eq(
+            FilterApi.binaryColumn("category"),
+            org.apache.parquet.io.api.Binary.fromString("not_in_dictionary")
+        );
+
+        List<Page> baselinePages = readWithFilter(parquetData, filter, false);
+        List<Page> optimizedPages = readWithFilter(parquetData, filter, true);
+        assertPagesEqual(baselinePages, optimizedPages);
+
+        int baselineRows = baselinePages.stream().mapToInt(Page::getPositionCount).sum();
+        int optimizedRows = optimizedPages.stream().mapToInt(Page::getPositionCount).sum();
+        assertEquals(0, baselineRows);
+        assertEquals(0, optimizedRows);
+    }
+
+    /**
+     * Builds a multi-row-group parquet file with a dictionary-encoded BINARY column. The
+     * dictionary alphabet is small (16 values) so every row group keeps dictionary encoding,
+     * which exercises {@code RowGroupFilter}'s DICTIONARY-level pruning code path that the
+     * pre-warm optimization targets.
+     */
+    private byte[] createDictionaryEncodedStringFile() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(INT32)
+            .named("id")
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("category")
+            .named("dict_test");
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(outputStream);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+
+        // 16-value dictionary: small enough that the writer keeps dictionary encoding for every
+        // row group; row count is sized to comfortably exceed the writer's small row group budget
+        // so we get multiple dictionary pages — the multi-row-group case is where pre-warm pays.
+        int rows = 65_536;
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withRowGroupSize(64 * 1024L)
+                .withPageSize(4 * 1024)
+                .withDictionaryPageSize(64 * 1024)
+                .withDictionaryEncoding(true)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group g = groupFactory.newGroup().append("id", i).append("category", "cat_" + (i % 16));
+                writer.write(g);
+            }
+        }
+        return outputStream.toByteArray();
+    }
+
     // --- Helpers ---
 
     private static ReferenceAttribute intAttr(String name) {

@@ -36,6 +36,10 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
     private static final String TEST_URL = "https://example.com";
     private static final int TEST_MAX_INPUT_TOKENS = 256;
     private static final int TEST_REQUESTS_PER_MINUTE = 100;
+    private static final int TEST_INVALID_TASK_TYPE_VALUE = 42;
+    private static final String TEST_NON_MAP_SETTINGS_VALUE = "not_a_map";
+    private static final String TEST_UNRECOGNIZED_FIELD = "unrecognized_top_level_field";
+    private static final String TEST_UNRECOGNIZED_VALUE = "value";
 
     @Override
     protected Writeable.Reader<UpdateInferenceModelAction.Request> instanceReader() {
@@ -170,6 +174,69 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
         var exception = expectThrows(ElasticsearchStatusException.class, request::getServiceSettings);
         assertThat(exception.getMessage(), is("Request body is empty"));
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+    }
+
+    public void testParseContent_TaskTypeIsNotString_ThrowsBadRequest() {
+        var request = requestWithBody(Strings.format("""
+            {
+                "task_type": %d
+            }""", TEST_INVALID_TASK_TYPE_VALUE));
+
+        var exception = expectThrows(ElasticsearchStatusException.class, request::getBodyTaskType);
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is(Strings.format("Failed to parse [task_type] in update request [{task_type=%d}]", TEST_INVALID_TASK_TYPE_VALUE))
+        );
+    }
+
+    public void testParseContent_ServiceSettingsAreNotMap_ThrowsBadRequest() {
+        var request = requestWithBody(Strings.format("""
+            {
+                "service_settings": "%s"
+            }""", TEST_NON_MAP_SETTINGS_VALUE));
+
+        var exception = expectThrows(ElasticsearchStatusException.class, request::getServiceSettings);
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is(Strings.format("Unable to parse [service_settings] in the request [{service_settings=%s}]", TEST_NON_MAP_SETTINGS_VALUE))
+        );
+    }
+
+    public void testParseContent_TaskSettingsAreNotMap_ThrowsBadRequest() {
+        var request = requestWithBody(Strings.format("""
+            {
+                "task_settings": "%s"
+            }""", TEST_NON_MAP_SETTINGS_VALUE));
+
+        var exception = expectThrows(ElasticsearchStatusException.class, request::getTaskSettings);
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is(Strings.format("Unable to parse [task_settings] in the request [{task_settings=%s}]", TEST_NON_MAP_SETTINGS_VALUE))
+        );
+    }
+
+    public void testParseContent_UnknownTopLevelField_ThrowsBadRequest() {
+        var request = requestWithBody(Strings.format("""
+            {
+                "task_type": "text_embedding",
+                "%s": "%s"
+            }""", TEST_UNRECOGNIZED_FIELD, TEST_UNRECOGNIZED_VALUE));
+
+        var exception = expectThrows(ElasticsearchStatusException.class, request::getServiceSettings);
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Request contained fields which cannot be updated, remove these fields and try again [{%s=%s}]",
+                    TEST_UNRECOGNIZED_FIELD,
+                    TEST_UNRECOGNIZED_VALUE
+                )
+            )
+        );
     }
 
     private static UpdateInferenceModelAction.Request requestWithBody(String body) {

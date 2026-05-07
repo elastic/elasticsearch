@@ -19,7 +19,7 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 
 public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulkIndexByScrollRequest<Self>> extends
-        AbstractBulkBySearchRequest<Self> {
+    AbstractBulkBySearchRequest<Self> {
     /**
      * Script to modify the documents before they are processed.
      */

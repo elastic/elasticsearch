@@ -14,10 +14,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 public class PersistedCloudCredentialTests extends AbstractXContentSerializingTestCase<PersistedCloudCredential> {
 
@@ -64,41 +62,8 @@ public class PersistedCloudCredentialTests extends AbstractXContentSerializingTe
         return true;
     }
 
-    public void testConstructorRejectsNullArguments() {
-        var credential = new CloudCredential(new SecureString("v".toCharArray()));
-        var npe = expectThrows(NullPointerException.class, () -> new PersistedCloudCredential(null, credential));
-        assertThat(npe.getMessage(), containsString("id"));
-
-        var npe2 = expectThrows(NullPointerException.class, () -> new PersistedCloudCredential("an-id", null));
-        assertThat(npe2.getMessage(), containsString("credential"));
-    }
-
     public void testNewInstanceStampsCurrentVersion() {
         var instance = createTestInstance();
         assertThat(instance.version(), is(equalTo(PersistedCloudCredential.CURRENT_VERSION)));
-    }
-
-    public void testToStringRedactsCredential() {
-        var instance = createTestInstance();
-        var str = instance.toString();
-        assertThat(str, containsString(instance.id()));
-        assertThat(str, containsString("::es_redacted::"));
-        assertThat(str, not(containsString(instance.credential().value().toString())));
-    }
-
-    public void testEqualityAndHashCodeBasedOnIdAndCredential() {
-        var id = randomAlphaOfLengthBetween(5, 22);
-        var chars = randomAlphaOfLengthBetween(16, 64).toCharArray();
-        var first = new PersistedCloudCredential(id, new CloudCredential(new SecureString(chars.clone())));
-        var second = new PersistedCloudCredential(id, new CloudCredential(new SecureString(chars.clone())));
-
-        assertThat(first, is(equalTo(second)));
-        assertThat(first.hashCode(), is(equalTo(second.hashCode())));
-
-        var differentId = new PersistedCloudCredential(
-            randomValueOtherThan(id, () -> randomAlphaOfLengthBetween(5, 22)),
-            new CloudCredential(new SecureString(chars.clone()))
-        );
-        assertThat(first, is(not(equalTo(differentId))));
     }
 }

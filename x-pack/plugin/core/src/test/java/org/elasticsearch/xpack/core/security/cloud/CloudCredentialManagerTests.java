@@ -19,12 +19,12 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class CloudCredentialManagerTests extends ESTestCase {
@@ -70,7 +70,7 @@ public class CloudCredentialManagerTests extends ESTestCase {
 
     public void testWrapClientWithNullResolverReturnsDelegateUnchanged() {
         try (var threadPool = new TestThreadPool(getTestName())) {
-            var delegate = new TrackingClient(threadPool);
+            var delegate = TestAssertingClient.assertingNoDispatch(threadPool);
             assertThat(manager.wrapClient(delegate, (CloudCredentialResolver) null), sameInstance(delegate));
             assertThat(manager.wrapClient(delegate, (CloudCredential) null), sameInstance(delegate));
             assertThat(manager.wrapClient(delegate, (PersistedCloudCredential) null), sameInstance(delegate));
@@ -79,7 +79,7 @@ public class CloudCredentialManagerTests extends ESTestCase {
 
     public void testWrapClientRoutesResolveFailureToListener() {
         try (var threadPool = new TestThreadPool(getTestName())) {
-            var delegate = new TrackingClient(threadPool);
+            var delegate = TestAssertingClient.assertingNoDispatch(threadPool);
             var failure = new RuntimeException("boom");
             CloudCredentialResolver throwingResolver = () -> { throw failure; };
 
@@ -90,13 +90,12 @@ public class CloudCredentialManagerTests extends ESTestCase {
 
             assertNull(capturedSuccess.get());
             assertThat(capturedFailure.get(), sameInstance(failure));
-            assertThat(delegate.lastRequest, is(nullValue()));
         }
     }
 
     public void testWrapClientRoutesInjectFailureToListener() {
         try (var threadPool = new TestThreadPool(getTestName())) {
-            var delegate = new TrackingClient(threadPool);
+            var delegate = TestAssertingClient.assertingNoDispatch(threadPool);
             var credential = new CloudCredential(new SecureString("v".toCharArray()));
 
             var wrapped = manager.wrapClient(delegate, credential);
@@ -105,22 +104,65 @@ public class CloudCredentialManagerTests extends ESTestCase {
 
             assertThat(capturedFailure.get(), notNullValue());
             assertThat(capturedFailure.get(), instanceOf(UnsupportedOperationException.class));
-            assertThat(delegate.lastRequest, is(nullValue()));
         }
     }
 
     public void testWrapClientWithNullResolveSkipsInjectAndDispatches() {
         try (var threadPool = new TestThreadPool(getTestName())) {
-            var delegate = new TrackingClient(threadPool);
             CloudCredentialResolver nullResolver = () -> null;
-
-            // The Default manager would throw on inject if called; absent injection (null resolve)
-            // means the wrapped client just delegates straight through.
-            var wrapped = manager.wrapClient(delegate, nullResolver);
             var request = new NoopRequest();
+            var dispatched = new AtomicBoolean();
+            var delegate = new TestAssertingClient(threadPool, (req, ctx) -> {
+                assertThat(req, sameInstance(request));
+                dispatched.set(true);
+            });
+
+            var wrapped = manager.wrapClient(delegate, nullResolver);
             wrapped.execute(NoopAction.INSTANCE, request, ActionListener.wrap(r -> {}, e -> {}));
 
-            assertThat(delegate.lastRequest, sameInstance(request));
+            assertTrue("delegate#doExecute should have fired", dispatched.get());
+        }
+    }
+
+    public void testWrapClientResolvesInjectsAndDispatchesOnExecute() {
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            final String testCredKey = "test_cred";
+            var credential = new CloudCredential(new SecureString("v".toCharArray()));
+            var request = new NoopRequest();
+            var dispatched = new AtomicBoolean();
+
+            var capturingManager = new CloudCredentialManager() {
+                @Override
+                public boolean hasCloudManagedCredential(ThreadContext threadContext) {
+                    return false;
+                }
+
+                @Override
+                public CloudCredential extractCloudManagedCredential(ThreadContext threadContext) {
+                    throw new AssertionError("extract should not be called by wrapClient default");
+                }
+
+                @Override
+                public void injectCloudManagedCredential(ThreadContext threadContext, CloudCredential cred) {
+                    threadContext.putTransient(testCredKey, cred);
+                }
+
+                @Override
+                public CloudCredentialResolver resolverOf(PersistedCloudCredential persisted) {
+                    throw new AssertionError("resolverOf(PersistedCloudCredential) should not be called");
+                }
+            };
+
+            var delegate = new TestAssertingClient(threadPool, (req, ctx) -> {
+                assertThat(req, sameInstance(request));
+                assertThat(ctx.getTransient(testCredKey), sameInstance(credential));
+                dispatched.set(true);
+            });
+
+            var wrapped = capturingManager.wrapClient(delegate, credential);
+            wrapped.execute(NoopAction.INSTANCE, request, ActionListener.wrap(r -> {}, e -> {}));
+
+            assertTrue("delegate#doExecute should have fired", dispatched.get());
         }
     }
 
@@ -139,12 +181,20 @@ public class CloudCredentialManagerTests extends ESTestCase {
         }
     }
 
-    /** {@link NoOpClient} that records the last request received via {@code execute(...)}. */
-    private static class TrackingClient extends NoOpClient {
-        volatile ActionRequest lastRequest;
+    /**
+     * {@link NoOpClient} that invokes a caller-supplied callback inside {@code doExecute}, so tests
+     * can assert inline on the request and on the active {@link ThreadContext} at the moment of dispatch.
+     */
+    private static class TestAssertingClient extends NoOpClient {
+        private final BiConsumer<ActionRequest, ThreadContext> onDispatch;
 
-        TrackingClient(ThreadPool threadPool) {
+        static TestAssertingClient assertingNoDispatch(ThreadPool threadPool) {
+            return new TestAssertingClient(threadPool, (req, ctx) -> fail("doExecute should not have been called"));
+        }
+
+        TestAssertingClient(ThreadPool threadPool, BiConsumer<ActionRequest, ThreadContext> onDispatch) {
             super(threadPool);
+            this.onDispatch = onDispatch;
         }
 
         @Override
@@ -153,7 +203,7 @@ public class CloudCredentialManagerTests extends ESTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-            lastRequest = request;
+            onDispatch.accept(request, threadPool().getThreadContext());
             super.doExecute(action, request, listener);
         }
     }

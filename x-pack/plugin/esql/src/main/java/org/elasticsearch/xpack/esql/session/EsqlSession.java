@@ -1355,7 +1355,7 @@ public class EsqlSession {
                 ),
                 listener.delegateFailureAndWrap(
                     (l, strictResult) -> forAll(
-                        preAnalysis.lenientLinkedIndices().iterator(),
+                        preAnalysis.optionalLinkedIndices().iterator(),
                         strictResult,
                         (sp, r, ll) -> preAnalyzeOptionalLinkedIndices(
                             sp,

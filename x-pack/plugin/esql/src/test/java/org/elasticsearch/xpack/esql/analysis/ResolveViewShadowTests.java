@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 /**
  * Tests for the {@code Analyzer.ResolveViewShadow} analyzer rule. Each test builds a small plan
  * tree by hand (since {@link ViewShadowRelation} has no surface syntax) and runs the analyzer
- * with mocked {@link AnalyzerContext#lenientResolution()} maps to verify the rule's behaviour:
+ * with mocked {@link AnalyzerContext#optionalLinkedResolution()} maps to verify the rule's behaviour:
  * <ul>
  *   <li>shadow with a valid lenient resolution → replaced with {@code EsRelation};</li>
  *   <li>shadow with no lenient entry (or an invalid resolution) → left unresolved, then stripped
@@ -164,7 +164,7 @@ public class ResolveViewShadowTests extends ESTestCase {
 
     /**
      * Two shadows with the <em>same</em> view name but <em>different</em> exclusion lists are
-     * looked up independently in {@link AnalyzerContext#lenientResolution()}: one combination
+     * looked up independently in {@link AnalyzerContext#optionalLinkedResolution()}: one combination
      * resolves to a remote index (becomes an {@link EsRelation}), the other has no entry
      * (stays unresolved → stripped). Reproduces the motivating scenario from
      * {@code FROM my-data,-my-data,my-data,-unrelated-exclusion}: at the first position the

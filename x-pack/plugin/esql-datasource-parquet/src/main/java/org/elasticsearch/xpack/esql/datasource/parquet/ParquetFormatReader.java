@@ -836,7 +836,25 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         // guard sees the same predicate that drove row-group pruning and column-index RowRanges.
         // Only pass it through when late materialization is actually active; otherwise the
         // iterator has no use for it.
-        FilterPredicate triviallyPassesPredicate = effectivePushed != null ? filterPredicate : null;
+        //
+        // Additionally suppress the predicate when any YES conjunct in pushedExpressions did not
+        // translate to a FilterPredicate (today: WildcardLike/Not(WildcardLike) AND'd with a
+        // translatable conjunct). The trivially-passes shortcut would bypass the late-mat
+        // evaluator on the strength of the FilterPredicate alone, but the missing YES conjunct
+        // is no longer in FilterExec to catch the over-inclusion — so dropping the guard here
+        // would silently leak rows that don't match the YES conjunct (e.g. URL LIKE "x*" rows
+        // outside the prefix when AND'd with a stats-trivial status = 200).
+        //
+        // DO NOT REMOVE the hasYesConjunctOutsideFilterPredicate check — it is load-bearing for
+        // correctness of YES-pushed predicates that have no parquet-FilterPredicate translation.
+        // The integration regression test
+        // OptimizedFilteredReaderTests.testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak
+        // and the unit tests in ParquetPushedExpressionsTests cover this contract.
+        MessageType fileSchema = reader.getFileMetaData().getSchema();
+        FilterPredicate triviallyPassesPredicate = effectivePushed != null
+            && (pushedExpressions == null || pushedExpressions.hasYesConjunctOutsideFilterPredicate(fileSchema) == false)
+                ? filterPredicate
+                : null;
 
         return new OptimizedParquetColumnIterator(
             reader,

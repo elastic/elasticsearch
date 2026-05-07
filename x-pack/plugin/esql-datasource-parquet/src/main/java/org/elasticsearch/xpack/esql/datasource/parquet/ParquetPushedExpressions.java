@@ -173,6 +173,53 @@ final class ParquetPushedExpressions {
         return combined;
     }
 
+    /**
+     * Returns {@code true} when at least one held conjunct is YES-eligible per
+     * {@link ParquetFilterPushdownSupport#isFullyEvaluable(Expression)} (so {@code FilterExec}
+     * has been dropped for it) AND its translation to a Parquet
+     * {@link FilterPredicate} for {@code schema} is {@code null} (so it is not represented in
+     * the {@link #toFilterPredicate} output).
+     *
+     * <p>Consumers of {@link #toFilterPredicate} that bypass {@link #evaluateFilter} on the basis
+     * of stats reasoning over the predicate (e.g. the trivially-passes shortcut in
+     * {@code OptimizedParquetColumnIterator}) MUST disable that shortcut when this method returns
+     * {@code true}: the YES conjunct is silently absent from the predicate they reasoned about
+     * and would otherwise leak rows it does not match. RECHECK conjuncts that fail to translate
+     * are excluded from this check on purpose — their downstream {@code FilterExec} still
+     * re-applies them, masking the shortcut's over-inclusion.
+     *
+     * <p>Today the only canConvert-but-not-translatable expression is {@link WildcardLike}
+     * (and {@code Not(WildcardLike)}), which is also the only YES-eligible non-comparator
+     * expression — so in practice this method returns {@code true} exactly when a {@code LIKE}
+     * conjunct is present alongside other translatable conjuncts.
+     *
+     * <p>YES is determined here by {@link ParquetFilterPushdownSupport#isFullyEvaluable(Expression)}
+     * rather than the full {@code canPush} check. The full check additionally probes
+     * {@code canCompileAllPatterns}; a pattern that fails that probe at plan time is downgraded
+     * to RECHECK and stays in {@code FilterExec}, so it would not be a YES conjunct at runtime.
+     * Using only {@code isFullyEvaluable} here is therefore conservative — it may flag an
+     * expression as YES that the planner already downgraded, suppressing the shortcut for that
+     * file. The wasted work is bounded: at most one extra {@code evaluateFilter} pass per
+     * trivially-passing row group, which is exactly the cost the shortcut was saving.
+     *
+     * <p><b>Do not weaken this method.</b> Returning {@code false} when it should return
+     * {@code true} causes silent wrong-results: rows that do not match a YES conjunct (today:
+     * a {@code LIKE} pattern) are emitted as if they did, because the trivially-passes shortcut
+     * routes them around the late-mat evaluator and there is no downstream {@code FilterExec}
+     * to catch the over-inclusion. The contract is exercised by
+     * {@code ParquetPushedExpressionsTests#testHasYesConjunctOutsideFilterPredicate*} and the
+     * integration regression test
+     * {@code OptimizedFilteredReaderTests#testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak}.
+     */
+    boolean hasYesConjunctOutsideFilterPredicate(MessageType schema) {
+        for (Expression expr : expressions) {
+            if (ParquetFilterPushdownSupport.isFullyEvaluable(expr) && translateExpression(expr, schema) == null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private FilterPredicate translateExpression(Expression expr, MessageType schema) {
         if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne && bc.right().foldable()) {
             String name = ne.name();

@@ -420,7 +420,9 @@ public final class IndexSortConfig {
             // metadata fields are not eagerly loaded as mapped fields, so if we have slice enabled, and no mapped fields, we get an empty
             // lookup and must handle this weird edge case.
             final MappedFieldType ft = Optional.ofNullable(fieldTypeLookup.apply(sortSpec.field))
-                .orElseGet(() -> sliceEnabled && RoutingFieldMapper.NAME.equals(sortSpec.field) ?  RoutingFieldMapper.DOC_VALUES_FIELD_TYPE : null);
+                .orElseGet(
+                    () -> sliceEnabled && RoutingFieldMapper.NAME.equals(sortSpec.field) ? RoutingFieldMapper.DOC_VALUES_FIELD_TYPE : null
+                );
             if (ft == null) {
                 String err = "unknown index sort field:[" + sortSpec.field + "]";
                 if (this.indexMode == IndexMode.TIME_SERIES) {

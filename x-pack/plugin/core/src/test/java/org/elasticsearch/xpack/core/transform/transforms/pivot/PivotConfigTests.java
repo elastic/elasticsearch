@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -69,6 +70,18 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
     @Override
     protected PivotConfig createTestInstance() {
         return randomPivotConfig();
+    }
+
+    @Override
+    protected PivotConfig mutateInstanceForVersion(PivotConfig instance, TransportVersion version) {
+        if (version.supports(TermsGroupSource.MAX_TERMS_FOR_CHANGE_DETECTION) == false) {
+            return new PivotConfig(
+                TermsGroupSourceTests.mutateGroupConfigForBwc(instance.getGroupConfig()),
+                instance.getAggregationConfig(),
+                instance.getMaxPageSearchSize()
+            );
+        }
+        return instance;
     }
 
     @Override

@@ -47,6 +47,7 @@ public final class TransformField {
     public static final ParseField DEDUCE_MAPPINGS = new ParseField("deduce_mappings");
     public static final ParseField NUM_FAILURE_RETRIES = new ParseField("num_failure_retries");
     public static final ParseField UNATTENDED = new ParseField("unattended");
+    public static final ParseField MAX_TERMS_FOR_CHANGE_DETECTION = new ParseField("max_terms_for_change_detection");
 
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField SYNC = new ParseField("sync");
@@ -101,6 +102,7 @@ public final class TransformField {
      */
     public static final String FOR_INTERNAL_STORAGE = "for_internal_storage";
     public static final String EXCLUDE_GENERATED = "exclude_generated";
+    public static final String EXCLUDE_TRANSFORM_METADATA = "exclude_transform_metadata";
 
     // internal document id
     public static final String DOCUMENT_ID_FIELD = "_id";

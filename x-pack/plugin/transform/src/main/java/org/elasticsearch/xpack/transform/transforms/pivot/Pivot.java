@@ -21,9 +21,11 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -38,6 +40,7 @@ import org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUti
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -52,6 +55,10 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  */
 public class Pivot extends AbstractCompositeAggFunction {
     private static final Logger logger = LogManager.getLogger(Pivot.class);
+
+    private static final ToXContent.Params COMPOSITE_AGG_PARAMS = new ToXContent.MapParams(
+        Collections.singletonMap(TransformField.EXCLUDE_TRANSFORM_METADATA, "true")
+    );
 
     private final PivotConfig config;
     private final SettingsConfig settings;
@@ -184,7 +191,7 @@ public class Pivot extends AbstractCompositeAggFunction {
             for (Entry<String, SingleGroupSource> groupBy : groups) {
                 builder.startObject();
                 builder.startObject(groupBy.getKey());
-                builder.field(groupBy.getValue().getType().value(), groupBy.getValue());
+                builder.field(groupBy.getValue().getType().value(), groupBy.getValue(), COMPOSITE_AGG_PARAMS);
                 builder.endObject();
                 builder.endObject();
             }

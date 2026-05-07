@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -60,9 +61,12 @@ public interface CloudCredentialManager {
     CloudCredentialResolver resolverOf(PersistedCloudCredential persisted);
 
     /**
-     * Returns a cloud credentials-aware {@link Client}. On every {@code execute(...)}, calls {@code resolver.resolve()}
-     * to obtain a {@link CloudCredential}, injects it via {@link #injectCloudManagedCredential}, then
-     * delegates to {@code delegate}.
+     * Returns a cloud credentials-aware {@link Client}. On every {@code execute(...)}, calls
+     * {@code resolver.resolve()} to obtain a {@link CloudCredential}, injects it into the active
+     * {@link ThreadContext} via {@link #injectCloudManagedCredential}, then delegates to {@code delegate}.
+     * <p>
+     * The credential or persisted envelope captured by {@code resolver} must remain open for the
+     * lifetime of the returned client.
      */
     default Client wrapClient(Client delegate, @Nullable CloudCredentialResolver resolver) {
         if (resolver == null) {
@@ -76,24 +80,15 @@ public interface CloudCredentialManager {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                final CloudCredential credential;
-                try {
-                    credential = resolver.resolve();
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                    return;
-                }
-                if (credential == null) {
-                    super.doExecute(action, request, listener);
-                    return;
-                }
-                try {
-                    self.injectCloudManagedCredential(threadPool().getThreadContext(), credential);
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                    return;
-                }
-                super.doExecute(action, request, listener);
+                ActionListener.run(listener, l -> {
+                    final CloudCredential credential = resolver.resolve();
+                    final ThreadContext threadContext = threadPool().getThreadContext();
+                    final var preservedListener = ContextPreservingActionListener.wrapPreservingContext(l, threadContext);
+                    try (var ignored = threadContext.newStoredContext()) {
+                        self.injectCloudManagedCredential(threadContext, credential);
+                        super.doExecute(action, request, preservedListener);
+                    }
+                });
             }
         };
     }

@@ -485,26 +485,21 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             inFipsJvm() && testCandidate.getTestSection().getPrerequisiteSection().hasYamlRunnerFeature("fips_140")
         );
 
-        boolean setupDeferred = false;
-        if (testCandidate.getSetupSection().isEmpty() == false) {
-            if (skipSetupSections() == false) {
-                logger.debug("start setup test [{}]", testCandidate.getTestPath());
-                for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
-                    executeSection(executableSection);
-                }
-                logger.debug("end setup test [{}]", testCandidate.getTestPath());
-            } else {
-                // Setup was skipped — register a deferred refresh on the LazyRefreshRestClient.
-                // The wrapper runs the callback synchronously on the calling thread before the
-                // next non-read request issued by the body. Read-only bodies skip it entirely.
-                setupDeferred = true;
-                org.elasticsearch.client.LazyRefreshRestClient.setPendingRefresh(this::runDeferredCleanupAndSetup);
+        if (skipSetupSections() == false && testCandidate.getSetupSection().isEmpty() == false) {
+            logger.debug("start setup test [{}]", testCandidate.getTestPath());
+            for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
+                executeSection(executableSection);
             }
+            logger.debug("end setup test [{}]", testCandidate.getTestPath());
         }
 
         restTestExecutionContext.clear();
         // Prepare the stash so that ${_project_id_prefix_} is expanded as needed in some assertions:
         restTestExecutionContext.stash().stashValue("_project_id_prefix_", activeProjectPrefix());
+
+        // Reset the write-occurred flag so it is scoped to the test body only — writes done by
+        // setup (or by @Before hooks) are not what determines whether end-of-test cleanup must run.
+        org.elasticsearch.client.LazyRefreshRestClient.resetWriteOccurred();
 
         try {
             for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
@@ -538,11 +533,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 }
                 logger.debug("end teardown test [{}]", testCandidate.getTestPath());
             }
-            if (setupDeferred) {
-                // If the body had no writes, the deferred refresh was never consumed. Clear it
-                // so it doesn't leak into the next test.
-                org.elasticsearch.client.LazyRefreshRestClient.setPendingRefresh(null);
-            }
         }
     }
 
@@ -574,24 +564,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     /**
-     * Subclasses can override to skip running the YAML teardown section (e.g. when sharing
-     * setup state across consecutive tests in the same yaml file).
+     * Subclasses can override to skip running the YAML teardown section (e.g. when deferring
+     * cleanup so consecutive read-only tests can reuse the previous test's setup state).
      */
     protected boolean skipTeardownSections() {
         return false;
-    }
-
-    /**
-     * Run the deferred cleanup of any previous test plus the current test's YAML setup section.
-     * Invoked by {@link org.elasticsearch.client.LazyRefreshRestClient} on the calling thread
-     * just before the next non-read HTTP request, when setup was skipped via
-     * {@link #skipSetupSections()}. Subclasses should perform whatever wipe is needed and then
-     * call {@code super.runDeferredCleanupAndSetup()} to run the YAML setup section.
-     */
-    protected void runDeferredCleanupAndSetup() {
-        for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
-            executeSection(executableSection);
-        }
     }
 
     protected boolean randomizeContentType() {

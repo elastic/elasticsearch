@@ -18,23 +18,24 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
 /**
- * A {@link RestClient} that runs a one-shot, opt-in "refresh" callback on the calling thread
- * before the next non-read request. Tests use {@link #setPendingRefresh(Runnable)} to register
- * deferred work (e.g. a YAML setup section) that should run only when the body actually mutates
- * cluster state. Read-only request paths skip the callback entirely.
+ * A {@link RestClient} that records whether any non-read (write) request has been issued through
+ * it since {@link #resetWriteOccurred()} was last called. Tests use this to decide whether the
+ * cluster needs a real cleanup at the end of a test, or whether the test was effectively
+ * read-only and any deferred cleanup can be carried over to the next test.
  *
- * <p>Unlike an {@code HttpRequestInterceptor} hooked into the async pipeline, the refresh runs
- * synchronously here in {@link #performRequest(Request)} on the test thread, so wipe + setup
- * fully quiesce before the original request is even submitted.</p>
+ * <p>Detection runs synchronously here in {@link #performRequest(Request)} on the test thread —
+ * not from inside an async {@code HttpRequestInterceptor} — so there is no I/O-thread
+ * re-entrancy or pipeline-ordering hazard.</p>
  */
 public final class LazyRefreshRestClient extends RestClient {
 
-    private static final AtomicReference<Runnable> PENDING_REFRESH = new AtomicReference<>();
-    private static final ThreadLocal<Boolean> IN_REFRESH = ThreadLocal.withInitial(() -> false);
+    /** Set to true on every non-read request. Reset by callers between tests/phases. */
+    private static final AtomicBoolean WRITE_OCCURRED = new AtomicBoolean(false);
+
     private static volatile Predicate<Request> readPredicate = LazyRefreshRestClient::defaultIsReadRequest;
 
     private static final Set<String> DEFAULT_READ_PATH_SUFFIXES = Set.of(
@@ -75,12 +76,15 @@ public final class LazyRefreshRestClient extends RestClient {
         this.constructed = true;
     }
 
-    /**
-     * Register a callback to be run lazily, just before the next non-read HTTP request. The
-     * callback is consumed (cleared) once it fires. Pass {@code null} to clear.
-     */
-    public static void setPendingRefresh(Runnable refresh) {
-        PENDING_REFRESH.set(refresh);
+    /** Returns whether any non-read request has been issued since the last reset. */
+    public static boolean writeOccurred() {
+        return WRITE_OCCURRED.get();
+    }
+
+    /** Clears the write-occurred flag. Tests call this between phases (e.g. after YAML setup,
+     *  before the body) to scope the flag to the next phase. */
+    public static void resetWriteOccurred() {
+        WRITE_OCCURRED.set(false);
     }
 
     /**
@@ -109,37 +113,21 @@ public final class LazyRefreshRestClient extends RestClient {
         return false;
     }
 
-    private void runPendingRefreshIfNeeded(Request request) {
-        if (IN_REFRESH.get()) {
-            return;
-        }
-        if (PENDING_REFRESH.get() == null) {
-            return;
-        }
-        if (readPredicate.test(request)) {
-            return;
-        }
-        Runnable refresh = PENDING_REFRESH.getAndSet(null);
-        if (refresh == null) {
-            return;
-        }
-        IN_REFRESH.set(Boolean.TRUE);
-        try {
-            refresh.run();
-        } finally {
-            IN_REFRESH.remove();
+    private void recordIfWrite(Request request) {
+        if (readPredicate.test(request) == false) {
+            WRITE_OCCURRED.set(true);
         }
     }
 
     @Override
     public Response performRequest(Request request) throws IOException {
-        runPendingRefreshIfNeeded(request);
+        recordIfWrite(request);
         return delegate.performRequest(request);
     }
 
     @Override
     public Cancellable performRequestAsync(Request request, ResponseListener responseListener) {
-        runPendingRefreshIfNeeded(request);
+        recordIfWrite(request);
         return delegate.performRequestAsync(request, responseListener);
     }
 

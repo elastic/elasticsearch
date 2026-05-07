@@ -12,16 +12,16 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.client.LazyRefreshRestClient;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.AfterClass;
 import org.junit.ClassRule;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
 @TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
@@ -57,16 +57,18 @@ public class XpackWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProj
         })
         .build();
 
-    /** Per-yaml-file count of tests not yet completed in this JVM. */
-    private static final Map<String, Integer> remainingPerFile = new HashMap<>();
+    /**
+     * Whether the cluster currently has state from a prior test that we have <em>deferred</em>
+     * cleaning up. When true, the next test skips its YAML setup (the state is already there)
+     * and the YAML teardown / framework wipe stay deferred. When the body of any test issues a
+     * non-read HTTP request, that test's end-of-test cleanup runs and clears this flag, so the
+     * test after it runs setup against a fresh cluster.
+     */
+    private static boolean deferredCleanupPending = false;
 
-    /** Yaml file whose setup state is currently warm in the cluster, or null if cluster was wiped. */
-    private static String warmFile = null;
-
-    /** Cached result for {@link #preserveClusterUponCompletion()} — the framework calls it
-     *  multiple times per test (cleanUpCluster, assertEmptyProjects), but our implementation
-     *  has side effects (decrementing the per-file counter, updating {@link #warmFile}) that
-     *  must run exactly once per test. */
+    /** Cached per-test result for {@link #preserveClusterUponCompletion()} so its decision and
+     *  side effects run exactly once even though the framework calls it twice
+     *  ({@code cleanUpCluster} and {@code assertEmptyProjects}). */
     private Boolean cachedPreserve = null;
 
     public XpackWithMultipleProjectsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
@@ -75,25 +77,23 @@ public class XpackWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProj
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        Iterable<Object[]> base = ESClientYamlSuiteTestCase.createParameters();
-        remainingPerFile.clear();
-        for (Object[] p : base) {
-            ClientYamlTestCandidate c = (ClientYamlTestCandidate) p[0];
-            remainingPerFile.merge(c.getSuitePath(), 1, Integer::sum);
-        }
-        warmFile = null;
-        return base;
+        deferredCleanupPending = false;
+        return ESClientYamlSuiteTestCase.createParameters();
+    }
+
+    @AfterClass
+    public static void resetDeferredCleanupState() {
+        deferredCleanupPending = false;
     }
 
     @Override
     protected boolean skipSetupSections() {
-        return getTestCandidate().getSuitePath().equals(warmFile);
+        return deferredCleanupPending;
     }
 
     @Override
     protected boolean skipTeardownSections() {
-        Integer remaining = remainingPerFile.get(getTestCandidate().getSuitePath());
-        return remaining != null && remaining > 1;
+        return LazyRefreshRestClient.writeOccurred() == false;
     }
 
     @Override
@@ -101,38 +101,10 @@ public class XpackWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProj
         if (cachedPreserve != null) {
             return cachedPreserve;
         }
-        String currentFile = getTestCandidate().getSuitePath();
-        Integer remaining = remainingPerFile.get(currentFile);
-        boolean preserve = remaining != null && remaining > 1;
-        if (preserve) {
-            warmFile = currentFile;
-        } else {
-            warmFile = null;
-        }
-        if (remaining != null) {
-            if (remaining <= 1) {
-                remainingPerFile.remove(currentFile);
-            } else {
-                remainingPerFile.put(currentFile, remaining - 1);
-            }
-        }
-        cachedPreserve = preserve;
-        return preserve;
-    }
-
-    /**
-     * On the first non-read request after a same-file setup share, wipe the cluster (clearing
-     * any residue from previous tests' bodies) before the YAML setup re-runs against a clean state.
-     */
-    @Override
-    protected void runDeferredCleanupAndSetup() {
-        try {
-            wipeCluster();
-        } catch (Exception e) {
-            throw new AssertionError("failed to wipe cluster before deferred setup", e);
-        }
-        warmFile = null;
-        super.runDeferredCleanupAndSetup();
+        boolean writeHappened = LazyRefreshRestClient.writeOccurred();
+        cachedPreserve = (writeHappened == false);
+        deferredCleanupPending = cachedPreserve;
+        return cachedPreserve;
     }
 
     @Override

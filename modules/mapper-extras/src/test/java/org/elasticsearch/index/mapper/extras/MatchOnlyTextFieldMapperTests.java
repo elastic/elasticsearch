@@ -119,6 +119,9 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
             checker.registerConflictCheck("doc_values", b -> b.field("doc_values", true));
         }
+        if (IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()) {
+            checker.registerConflictCheck("index", b -> b.field("index", false));
+        }
     }
 
     @Override

@@ -432,27 +432,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
             }, exc -> {
                 try (onFinish) {
-                    recordRequestCountMetrics(inferenceProvider.model, requests.size(), exc);
-                    failAllInferenceRequests(
-                        requests,
-                        r -> new InferenceException(
-                            "Exception when running inference id [{}] on field [{}]",
-                            exc,
-                            inferenceProvider.model.getInferenceEntityId(),
-                            r.field()
-                        )
-                    );
-
-                    if (ExceptionsHelper.status(exc).getStatus() >= 500) {
-                        List<String> fields = requests.stream().map(FieldInferenceRequest::field).distinct().toList();
-                        logger.warn(
-                            "Exception when running inference id ["
-                                + inferenceProvider.model.getInferenceEntityId()
-                                + "] on fields "
-                                + fields,
-                            exc
-                        );
-                    }
+                    onInferenceServiceFailure(inferenceProvider, requests, exc);
                 }
             });
 
@@ -540,27 +520,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
             }, exc -> {
                 try (onFinish) {
-                    recordRequestCountMetrics(inferenceProvider.model, requests.size(), exc);
-                    failAllInferenceRequests(
-                        requests,
-                        r -> new InferenceException(
-                            "Exception when running inference id [{}] on field [{}]",
-                            exc,
-                            inferenceProvider.model.getInferenceEntityId(),
-                            r.field()
-                        )
-                    );
-
-                    if (ExceptionsHelper.status(exc).getStatus() >= 500) {
-                        List<String> fields = requests.stream().map(FieldInferenceRequest::field).distinct().toList();
-                        logger.warn(
-                            "Exception when running inference id ["
-                                + inferenceProvider.model.getInferenceEntityId()
-                                + "] on fields "
-                                + fields,
-                            exc
-                        );
-                    }
+                    onInferenceServiceFailure(inferenceProvider, requests, exc);
                 }
             });
 
@@ -575,6 +535,31 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         ) {
             for (FieldInferenceRequest request : requests) {
                 setInferenceResponseFailure(request.bulkItemIndex(), failure.apply(request));
+            }
+        }
+
+        private void onInferenceServiceFailure(
+            InferenceProvider inferenceProvider,
+            List<? extends FieldInferenceRequest> requests,
+            Exception exc
+        ) {
+            recordRequestCountMetrics(inferenceProvider.model, requests.size(), exc);
+            failAllInferenceRequests(
+                requests,
+                r -> new InferenceException(
+                    "Exception when running inference id [{}] on field [{}]",
+                    exc,
+                    inferenceProvider.model.getInferenceEntityId(),
+                    r.field()
+                )
+            );
+
+            if (ExceptionsHelper.status(exc).getStatus() >= 500) {
+                List<String> fields = requests.stream().map(FieldInferenceRequest::field).distinct().toList();
+                logger.warn(
+                    "Exception when running inference id [" + inferenceProvider.model.getInferenceEntityId() + "] on fields " + fields,
+                    exc
+                );
             }
         }
 

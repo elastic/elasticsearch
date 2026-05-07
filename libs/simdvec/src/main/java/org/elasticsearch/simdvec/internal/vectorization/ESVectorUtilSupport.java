@@ -125,6 +125,8 @@ public interface ESVectorUtilSupport {
 
     boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
 
+    void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches);
+
     void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest);
 
     void linearCombination(float scaleOther, float[] other, float[] dest);

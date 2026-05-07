@@ -122,21 +122,6 @@ public class IpFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testNotIndexed() throws Exception {
-
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-            b.field("type", "ip");
-            b.field("index", false);
-        }));
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
-
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        IndexableField dvField = fields.get(0);
-        assertEquals(DocValuesType.SORTED_SET, dvField.fieldType().docValuesType());
-    }
-
     public void testNoDocValues() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip");

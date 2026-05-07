@@ -653,12 +653,17 @@ public class FileSplitProvider implements SplitProvider {
         return groups.toArray(new int[0][]);
     }
 
+    /**
+     * Line-oriented formats that are safe for macro-splitting at approximate byte spans.
+     * {@code .csv} and {@code .tsv} are excluded because RFC-style quoting and embedded newlines
+     * mean record boundaries do not align with fixed byte strides.
+     */
     static boolean isSplittableFormat(String format) {
         if (format == null) {
             return false;
         }
         return switch (format) {
-            case ".csv", ".tsv", ".ndjson", ".jsonl", ".json", ".txt" -> true;
+            case ".ndjson", ".jsonl", ".json", ".txt" -> true;
             default -> false;
         };
     }
@@ -877,16 +882,26 @@ public class FileSplitProvider implements SplitProvider {
         if (a instanceof Number na && b instanceof Number nb) {
             return Double.compare(na.doubleValue(), nb.doubleValue());
         }
-        if (a instanceof Comparable<?> && b instanceof Comparable<?>) {
+        // Coerce mixed Number/String cases: a partition value may be stored as "2024" (String)
+        // while the literal from the filter is Integer 2024, or vice versa.
+        if (a instanceof Number && b instanceof Number == false) {
             try {
-                @SuppressWarnings("rawtypes")
-                Comparable ca = (Comparable) a;
-                @SuppressWarnings("unchecked")
-                int result = ca.compareTo(b);
-                return result;
-            } catch (ClassCastException e) {
+                return Double.compare(((Number) a).doubleValue(), Double.parseDouble(b.toString()));
+            } catch (NumberFormatException e) {
                 return a.toString().compareTo(b.toString());
             }
+        }
+        if (b instanceof Number && a instanceof Number == false) {
+            try {
+                return Double.compare(Double.parseDouble(a.toString()), ((Number) b).doubleValue());
+            } catch (NumberFormatException e) {
+                return a.toString().compareTo(b.toString());
+            }
+        }
+        if (a instanceof Comparable<?> && b instanceof Comparable<?> && a.getClass() == b.getClass()) {
+            @SuppressWarnings("unchecked")
+            Comparable<Object> ca = (Comparable<Object>) a;
+            return ca.compareTo(b);
         }
         return a.toString().compareTo(b.toString());
     }

@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -79,13 +78,7 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        var rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            GoogleVertexAiService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         var dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
 
@@ -143,7 +136,6 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            GoogleVertexAiService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

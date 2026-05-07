@@ -45,7 +45,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -101,13 +100,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
-        }
-
-        @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -213,13 +207,7 @@ public enum IndexMode {
             return TimeSeriesRoutingHashFieldMapper.INSTANCE;
         }
 
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return TsidExtractingIdFieldMapper.INSTANCE;
-        }
-
-        @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            // We don't support field data on TSDB's _id
+        public IdFieldMapper idFieldMapperForReindex() {
             return TsidExtractingIdFieldMapper.INSTANCE;
         }
 
@@ -294,13 +282,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
-        }
-
-        @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -402,13 +385,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
-        }
-
-        @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -535,15 +513,10 @@ public enum IndexMode {
     public abstract CompressedXContent getDefaultMapping(IndexSettings indexSettings);
 
     /**
-     * Build the {@link FieldMapper} for {@code _id}.
+     * Get the singleton {@link FieldMapper} for reindex to correctly reindex the id into the destination index.
+     * It can never support field data.
      */
-    public abstract IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled);
-
-    /**
-     * Get the singleton {@link FieldMapper} for {@code _id}. It can never support
-     * field data.
-     */
-    public abstract IdFieldMapper idFieldMapperWithoutFieldData();
+    public abstract IdFieldMapper idFieldMapperForReindex();
 
     /**
      * @return the time range based on the provided index metadata and index mode implementation.

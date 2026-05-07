@@ -188,8 +188,8 @@ public final class BulkByScrollWireSerializingTestUtils {
     }
 
     public static boolean abstractBulkIndexByScrollRequestsEqual(
-        AbstractBulkIndexByScrollRequest<?> firstRequest,
-        AbstractBulkIndexByScrollRequest<?> secondRequest
+        AbstractBulkIndexBySearchRequest<?> firstRequest,
+        AbstractBulkIndexBySearchRequest<?> secondRequest
     ) {
         if (abstractBulkByScrollRequestsEqual(firstRequest, secondRequest) == false) {
             return false;

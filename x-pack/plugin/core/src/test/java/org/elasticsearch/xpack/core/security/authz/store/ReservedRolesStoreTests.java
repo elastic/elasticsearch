@@ -1241,7 +1241,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(false));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
+                is(false)
+            );
             assertThat(
                 kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
                 is(false)

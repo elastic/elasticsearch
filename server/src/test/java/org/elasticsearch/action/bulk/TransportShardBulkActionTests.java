@@ -34,8 +34,10 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
@@ -94,6 +96,17 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     private final ShardId shardId = new ShardId("index", "_na_", 0);
     private final Settings idxSettings = indexSettings(IndexVersion.current(), 1, 0).build();
+
+    private final Settings pressureSettings = Settings.builder()
+        .put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "10KB")
+        .put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), "12KB")
+        .put(IndexingPressure.MAX_REPLICA_BYTES.getKey(), "15KB")
+        .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "8KB")
+        .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1KB")
+        .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "9KB")
+        .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "128B")
+        .put(IndexingPressure.MAX_OPERATION_SIZE.getKey(), "128B")
+        .build();
 
     private IndexMetadata indexMetadata(String mapping) {
         IndexMetadata.Builder builder = IndexMetadata.builder("index").settings(idxSettings).primaryTerm(0, 1);
@@ -621,7 +634,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             .retryOnConflict(retries);
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 
-        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        // We want to account for update expansion
+        String value = randomBoolean() ? "value" : "x".repeat(randomIntBetween(1024, 4096));
+        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", value);
         DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
 
         Exception err = new VersionConflictEngineException(shardId, "id", "I'm conflicted <(;_;)>");
@@ -638,7 +653,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new UpdateHelper.Result(
                 updateResponse,
                 randomBoolean() ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
-                Collections.singletonMap("field", "value"),
+                Collections.singletonMap("field", value),
                 Requests.INDEX_CONTENT_TYPE
             )
         );
@@ -647,36 +662,59 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
         randomlySetIgnoredPrimaryResponse(primaryRequest);
-        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
-        for (int i = 0; i < retries + 1; i++) {
-            assertTrue(context.hasMoreOperationsToExecute());
-            TransportShardBulkAction.executeBulkItemRequest(
-                context,
-                updateHelper,
-                threadPool::absoluteTimeInMillis,
-                new NoopMappingUpdatePerformer(),
-                (listener, mappingVersion) -> listener.onResponse(null),
-                ASSERTING_DONE_LISTENER,
-                documentParsingProvider
-            );
+        IndexingPressure indexingPressure = new IndexingPressure(pressureSettings);
+
+        final long indexingBytes = bulkShardRequest.ramBytesUsed();
+        final long maxMemoryOverhead = TransportShardBulkAction.getMaxOperationMemoryOverhead(bulkShardRequest);
+
+        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, indexingBytes, false);) {
+            try (
+                IndexingPressure.PrimaryExpansionTracker tracker = indexingPressure.trackPrimaryOperationExpansion(
+                    1,
+                    maxMemoryOverhead,
+                    false
+                );
+            ) {
+                BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard, tracker);
+
+                for (int i = 0; i < retries + 1; i++) {
+                    assertTrue(context.hasMoreOperationsToExecute());
+                    TransportShardBulkAction.executeBulkItemRequest(
+                        context,
+                        updateHelper,
+                        threadPool::absoluteTimeInMillis,
+                        new NoopMappingUpdatePerformer(),
+                        (listener, mappingVersion) -> listener.onResponse(null),
+                        ASSERTING_DONE_LISTENER,
+                        documentParsingProvider
+                    );
+
+                    // For the retries, the expansion change should be reverted
+                    long expectedSize = indexingBytes + maxMemoryOverhead;
+                    if (i == retries) {
+                        expectedSize += BulkPrimaryExecutionContext.expansionDeltaBytes(writeRequest, updateResponse);
+                    }
+                    assertEquals(expectedSize, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                }
+                assertFalse(context.hasMoreOperationsToExecute());
+
+                assertNull(context.getLocationToSync());
+                BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();
+                assertThat(primaryResponse.getItemId(), equalTo(0));
+                assertThat(primaryResponse.getId(), equalTo("id"));
+                assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
+                assertTrue(primaryResponse.isFailed());
+                assertThat(primaryResponse.getFailureMessage(), containsString("I'm conflicted <(;_;)>"));
+                BulkItemResponse.Failure failure = primaryResponse.getFailure();
+                assertThat(failure.getIndex(), equalTo("index"));
+                assertThat(failure.getId(), equalTo("id"));
+                assertThat(failure.getCause(), equalTo(err));
+                assertThat(failure.getStatus(), equalTo(RestStatus.CONFLICT));
+
+                verify(documentParsingProvider, times(retries + 1)).newMeteringParserDecorator(any());
+            }
         }
-        assertFalse(context.hasMoreOperationsToExecute());
-
-        assertNull(context.getLocationToSync());
-        BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();
-        assertThat(primaryResponse.getItemId(), equalTo(0));
-        assertThat(primaryResponse.getId(), equalTo("id"));
-        assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
-        assertTrue(primaryResponse.isFailed());
-        assertThat(primaryResponse.getFailureMessage(), containsString("I'm conflicted <(;_;)>"));
-        BulkItemResponse.Failure failure = primaryResponse.getFailure();
-        assertThat(failure.getIndex(), equalTo("index"));
-        assertThat(failure.getId(), equalTo("id"));
-        assertThat(failure.getCause(), equalTo(err));
-        assertThat(failure.getStatus(), equalTo(RestStatus.CONFLICT));
-
-        verify(documentParsingProvider, times(retries + 1)).newMeteringParserDecorator(any());
     }
 
     @SuppressWarnings("unchecked")
@@ -685,7 +723,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 
-        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        String value = randomBoolean() ? "value" : "x".repeat(randomIntBetween(1024, 4096));
+        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", value);
         DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
 
         boolean created = randomBoolean();
@@ -703,7 +742,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new UpdateHelper.Result(
                 updateResponse,
                 created ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
-                Collections.singletonMap("field", "value"),
+                Collections.singletonMap("field", value),
                 Requests.INDEX_CONTENT_TYPE
             )
         );
@@ -713,32 +752,53 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         randomlySetIgnoredPrimaryResponse(primaryRequest);
 
-        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-        TransportShardBulkAction.executeBulkItemRequest(
-            context,
-            updateHelper,
-            threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(),
-            (listener, mappingVersion) -> {},
-            ASSERTING_DONE_LISTENER,
-            documentParsingProvider
-        );
-        assertFalse(context.hasMoreOperationsToExecute());
+        IndexingPressure indexingPressure = new IndexingPressure(pressureSettings);
 
-        // Check that the translog is successfully advanced
-        assertThat(context.getLocationToSync(), equalTo(resultLocation));
-        assertThat(bulkShardRequest.items()[0].request(), equalTo(updateResponse));
-        // Since this was not a conflict failure, the primary response
-        // should be filled out with the failure information
-        BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();
-        assertThat(primaryResponse.getItemId(), equalTo(0));
-        assertThat(primaryResponse.getId(), equalTo("id"));
-        assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
-        DocWriteResponse response = primaryResponse.getResponse();
-        assertThat(response.status(), equalTo(created ? RestStatus.CREATED : RestStatus.OK));
-        assertThat(response.getSeqNo(), equalTo(13L));
+        final long indexingBytes = bulkShardRequest.ramBytesUsed();
+        final long maxMemoryOverhead = TransportShardBulkAction.getMaxOperationMemoryOverhead(bulkShardRequest);
 
-        verify(documentParsingProvider).newMeteringParserDecorator(updateResponse);
+        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, indexingBytes, false);) {
+            try (
+                IndexingPressure.PrimaryExpansionTracker tracker = indexingPressure.trackPrimaryOperationExpansion(
+                    1,
+                    maxMemoryOverhead,
+                    false
+                );
+            ) {
+                BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard, tracker);
+                assertEquals(indexingBytes + maxMemoryOverhead, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                TransportShardBulkAction.executeBulkItemRequest(
+                    context,
+                    updateHelper,
+                    threadPool::absoluteTimeInMillis,
+                    new NoopMappingUpdatePerformer(),
+                    (listener, mappingVersion) -> {},
+                    ASSERTING_DONE_LISTENER,
+                    documentParsingProvider
+                );
+                assertFalse(context.hasMoreOperationsToExecute());
+
+                // Check that the translog is successfully advanced
+                assertThat(context.getLocationToSync(), equalTo(resultLocation));
+                assertThat(bulkShardRequest.items()[0].request(), equalTo(updateResponse));
+                // Since this was not a conflict failure, the primary response
+                // should be filled out with the failure information
+                BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();
+                assertThat(primaryResponse.getItemId(), equalTo(0));
+                assertThat(primaryResponse.getId(), equalTo("id"));
+                assertThat(primaryResponse.getOpType(), equalTo(DocWriteRequest.OpType.UPDATE));
+                DocWriteResponse response = primaryResponse.getResponse();
+                assertThat(response.status(), equalTo(created ? RestStatus.CREATED : RestStatus.OK));
+                assertThat(response.getSeqNo(), equalTo(13L));
+
+                // If there is expansion the size should change
+                long expectedChange = BulkPrimaryExecutionContext.expansionDeltaBytes(writeRequest, updateResponse);
+                long expectedSize = indexingBytes + maxMemoryOverhead + expectedChange;
+                assertEquals(expectedSize, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+
+                verify(documentParsingProvider).newMeteringParserDecorator(updateResponse);
+            }
+        }
     }
 
     private ShardRouting newShardRouting(ShardRouting.Role role) {
@@ -751,7 +811,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 
-        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        String value = randomBoolean() ? "value" : "x".repeat(randomIntBetween(1024, 4096));
+        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", value);
         DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
 
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
@@ -768,7 +829,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new UpdateHelper.Result(
                 updateResponse,
                 DocWriteResponse.Result.UPDATED,
-                Collections.singletonMap("field", "value"),
+                Collections.singletonMap("field", value),
                 Requests.INDEX_CONTENT_TYPE
             )
         );
@@ -776,23 +837,116 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
-        TransportShardBulkAction.executeBulkItemRequest(
-            context,
-            updateHelper,
-            threadPool::absoluteTimeInMillis,
-            new NoopMappingUpdatePerformer(),
-            (listener, mappingVersion) -> {},
-            ASSERTING_DONE_LISTENER,
-            documentParsingProvider
+        IndexingPressure indexingPressure = new IndexingPressure(pressureSettings);
+
+        final long indexingBytes = bulkShardRequest.ramBytesUsed();
+        final long maxMemoryOverhead = TransportShardBulkAction.getMaxOperationMemoryOverhead(bulkShardRequest);
+
+        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, indexingBytes, false);) {
+            try (
+                IndexingPressure.PrimaryExpansionTracker tracker = indexingPressure.trackPrimaryOperationExpansion(
+                    1,
+                    maxMemoryOverhead,
+                    false
+                );
+            ) {
+                BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard, tracker);
+                TransportShardBulkAction.executeBulkItemRequest(
+                    context,
+                    updateHelper,
+                    threadPool::absoluteTimeInMillis,
+                    new NoopMappingUpdatePerformer(),
+                    (listener, mappingVersion) -> {},
+                    ASSERTING_DONE_LISTENER,
+                    documentParsingProvider
+                );
+                assertFalse(context.hasMoreOperationsToExecute());
+
+                // If there was an expansion the chang in size should have been reverted when the prepared update was dropped.
+                assertEquals(indexingBytes + maxMemoryOverhead, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+
+                // Check that the translog is successfully advanced
+                assertThat(context.getLocationToSync(), equalTo(resultLocation));
+                assertThat(bulkShardRequest.items()[0].request(), equalTo(writeRequest));
+
+                verify(documentParsingProvider).newMeteringParserDecorator(updateResponse);
+            }
+        }
+    }
+
+    public void testUpdateRequestWithExpansionOverPrimaryLimit() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
+        DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
+
+        String value = "x".repeat(4096);
+        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", value);
+        DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
+
+        boolean created = randomBoolean();
+        Translog.Location resultLocation = new Translog.Location(42, 42, 42);
+        Engine.IndexResult indexResult = new FakeIndexResult(1, 1, 13, created, resultLocation, "id");
+        IndexShard shard = mockShard(indexSettings, null);
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
+            indexResult
         );
-        assertFalse(context.hasMoreOperationsToExecute());
 
-        // Check that the translog is successfully advanced
-        assertThat(context.getLocationToSync(), equalTo(resultLocation));
-        assertThat(bulkShardRequest.items()[0].request(), equalTo(writeRequest));
+        UpdateHelper updateHelper = mock(UpdateHelper.class);
+        when(updateHelper.prepare(any(), eq(shard), any(), any())).thenReturn(
+            new UpdateHelper.Result(
+                updateResponse,
+                created ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED,
+                Collections.singletonMap("field", value),
+                Requests.INDEX_CONTENT_TYPE
+            )
+        );
 
-        verify(documentParsingProvider).newMeteringParserDecorator(updateResponse);
+        BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+
+        randomlySetIgnoredPrimaryResponse(primaryRequest);
+
+        final long indexingBytes = bulkShardRequest.ramBytesUsed();
+        final long maxMemoryOverhead = TransportShardBulkAction.getMaxOperationMemoryOverhead(bulkShardRequest);
+        final long maxPrimaryBytes = maxMemoryOverhead + indexingBytes + 1024;
+
+        Settings pressureSettings = Settings.builder()
+            .put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "10KB")
+            .put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), maxPrimaryBytes + "B")
+            .put(IndexingPressure.MAX_REPLICA_BYTES.getKey(), "15KB")
+            .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "8KB")
+            .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "1KB")
+            .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "9KB")
+            .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "128B")
+            .put(IndexingPressure.MAX_OPERATION_SIZE.getKey(), "128B")
+            .build();
+
+        IndexingPressure indexingPressure = new IndexingPressure(pressureSettings);
+
+        try (Releasable coordinating = indexingPressure.markCoordinatingOperationStarted(1, indexingBytes, false);) {
+            try (
+                IndexingPressure.PrimaryExpansionTracker tracker = indexingPressure.trackPrimaryOperationExpansion(
+                    1,
+                    maxMemoryOverhead,
+                    false
+                );
+            ) {
+                BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard, tracker);
+                assertEquals(indexingBytes + maxMemoryOverhead, indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
+                expectThrows(
+                    EsRejectedExecutionException.class,
+                    () -> TransportShardBulkAction.executeBulkItemRequest(
+                        context,
+                        updateHelper,
+                        threadPool::absoluteTimeInMillis,
+                        new NoopMappingUpdatePerformer(),
+                        (listener, mappingVersion) -> {},
+                        ASSERTING_DONE_LISTENER,
+                        documentParsingProvider
+                    )
+                );
+            }
+        }
     }
 
     public void testUpdateWithDelete() throws Exception {

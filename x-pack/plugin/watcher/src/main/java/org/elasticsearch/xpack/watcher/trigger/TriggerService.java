@@ -143,14 +143,21 @@ public class TriggerService {
      * same job ID, the newly added job will replace the old job (the old job will not be triggered anymore)
      *
      * @param watch   The new watch
+     * @return        {@code true} if the underlying engine actually scheduled the job, {@code false} if the engine
+     *                rejected it (e.g. paused). Stats are only updated when the engine accepted the watch
      */
-    public void add(Watch watch) {
-        engines.get(watch.trigger().type()).add(watch);
-        addToStats(watch);
+    public synchronized boolean add(Watch watch) {
+        final boolean added = engines.get(watch.trigger().type()).add(watch);
+        if (added) {
+            addToStats(watch);
+        }
+        return added;
     }
 
     /**
      * Removes the job associated with the given name from this trigger service.
+     *
+     * This method assumes each engine ensures memory visibility of its internal state across threads (no synchronization here)
      *
      * @param jobName   The name of the job to remove
      * @return          {@code true} if the job existed and removed, {@code false} otherwise.

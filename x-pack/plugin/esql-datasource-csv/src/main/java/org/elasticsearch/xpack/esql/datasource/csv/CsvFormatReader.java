@@ -51,7 +51,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -226,33 +225,28 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return mapper;
     }
 
-    private static CsvFormatOptions parseOptionsFromConfig(Map<String, Object> config) {
-        char delimiter = parseChar(config.get("delimiter"), ',');
-        char quoteChar = parseChar(config.get("quote"), '"');
-        char escapeChar = parseChar(config.get("escape"), '\\');
-        String commentPrefix = parseString(config.get("comment"), "//");
-        String nullValue = parseString(config.get("null_value"), "");
-        Charset encoding = parseEncoding(config.get("encoding"));
-        DateTimeFormatter datetimeFormatter = parseDatetimeFormat(config.get("datetime_format"));
-        int maxFieldSize = parseInt(config.get("max_field_size"), CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE);
-        CsvFormatOptions.MultiValueSyntax multiValueSyntax = parseMultiValueSyntax(config.get("multi_value_syntax"));
-        boolean headerRow = parseBooleanOption("header_row", config.get("header_row"), true);
-        String columnPrefix = parseString(config.get("column_prefix"), CsvFormatOptions.DEFAULT_COLUMN_PREFIX);
+    /**
+     * Merge {@code WITH} options into {@code baseline} (the reader's current {@link CsvFormatOptions}).
+     * Absent keys keep baseline values so e.g. TSV's tab delimiter is preserved when only {@code header_row}
+     * is overridden.
+     */
+    private static CsvFormatOptions parseOptionsFromConfig(Map<String, Object> config, CsvFormatOptions baseline) {
+        char delimiter = parseChar(config.get("delimiter"), baseline.delimiter());
+        char quoteChar = parseChar(config.get("quote"), baseline.quoteChar());
+        char escapeChar = parseChar(config.get("escape"), baseline.escapeChar());
+        String commentPrefix = parseString(config.get("comment"), baseline.commentPrefix());
+        String nullValue = parseString(config.get("null_value"), baseline.nullValue());
+        Charset encoding = parseEncoding(config.get("encoding"), baseline.encoding());
+        DateTimeFormatter datetimeFormatter = parseDatetimeFormat(config.get("datetime_format"), baseline.datetimeFormatter());
+        int maxFieldSize = parseInt(config.get("max_field_size"), baseline.maxFieldSize());
+        CsvFormatOptions.MultiValueSyntax multiValueSyntax = parseMultiValueSyntax(
+            config.get("multi_value_syntax"),
+            baseline.multiValueSyntax()
+        );
+        boolean headerRow = parseBooleanOption("header_row", config.get("header_row"), baseline.headerRow());
+        String columnPrefix = parseString(config.get("column_prefix"), baseline.columnPrefix());
 
-        if (delimiter == ','
-            && quoteChar == '"'
-            && escapeChar == '\\'
-            && "//".equals(commentPrefix)
-            && "".equals(nullValue)
-            && StandardCharsets.UTF_8.equals(encoding)
-            && datetimeFormatter == null
-            && maxFieldSize == CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE
-            && multiValueSyntax == CsvFormatOptions.MultiValueSyntax.BRACKETS
-            && headerRow
-            && CsvFormatOptions.DEFAULT_COLUMN_PREFIX.equals(columnPrefix)) {
-            return null;
-        }
-        return new CsvFormatOptions(
+        CsvFormatOptions merged = new CsvFormatOptions(
             delimiter,
             quoteChar,
             escapeChar,
@@ -265,11 +259,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
             headerRow,
             columnPrefix
         );
+        return merged.equals(baseline) ? null : merged;
     }
 
-    private static CsvFormatOptions.MultiValueSyntax parseMultiValueSyntax(Object value) {
+    private static CsvFormatOptions.MultiValueSyntax parseMultiValueSyntax(Object value, CsvFormatOptions.MultiValueSyntax baseline) {
         if (value == null || value.toString().isEmpty()) {
-            return CsvFormatOptions.MultiValueSyntax.BRACKETS;
+            return baseline;
         }
         String s = value.toString().trim().toLowerCase(Locale.ROOT);
         if ("none".equals(s)) {
@@ -357,9 +352,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    private static Charset parseEncoding(Object value) {
+    private static Charset parseEncoding(Object value, Charset baseline) {
         if (value == null || value.toString().isEmpty()) {
-            return StandardCharsets.UTF_8;
+            return baseline;
         }
         try {
             return Charset.forName(value.toString());
@@ -368,9 +363,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    private static DateTimeFormatter parseDatetimeFormat(Object value) {
+    private static DateTimeFormatter parseDatetimeFormat(Object value, DateTimeFormatter baseline) {
         if (value == null || value.toString().isEmpty()) {
-            return null;
+            return baseline;
         }
         try {
             return DateTimeFormatter.ofPattern(value.toString(), Locale.ROOT);
@@ -393,7 +388,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (config == null || config.isEmpty()) {
             return this;
         }
-        CsvFormatOptions parsed = parseOptionsFromConfig(config);
+        CsvFormatOptions parsed = parseOptionsFromConfig(config, options);
         int newSampleSize = parseInt(config.get("schema_sample_size"), schemaSampleSize);
         Check.isTrue(newSampleSize > 0, "schema_sample_size must be positive, got: {}", newSampleSize);
         ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);

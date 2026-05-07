@@ -357,6 +357,7 @@ public class EsqlSession {
                         new LogicalOptimizerContext(finalConfiguration, foldContext, minimumVersion)
                     );
 
+                    var columnMetadata = new Holder<Map<NameId, Map<String, Object>>>();
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
                         .<LogicalPlan>andThen(
                             (l, p) -> preMapper.preMapper(
@@ -364,8 +365,9 @@ public class EsqlSession {
                                 l
                             )
                         )
-                        .<Result>andThen(
-                            (l, p) -> executeOptimizedPlan(
+                        .<Result>andThen((l, p) -> {
+                            columnMetadata.set(createColumnMetadata(p, foldContext));
+                            executeOptimizedPlan(
                                 request,
                                 executionInfo,
                                 planRunner,
@@ -376,9 +378,11 @@ public class EsqlSession {
                                 minimumVersion,
                                 planTimeProfile,
                                 l
-                            )
+                            );
+                        })
+                        .<Versioned<Result>>andThen(
+                            (l, r) -> l.onResponse(attachMetadataAndVersion(r, columnMetadata.get(), minimumVersion))
                         )
-                        .<Versioned<Result>>andThen((l, r) -> l.onResponse(new Versioned<>(r, minimumVersion)))
                         .addListener(listener);
                 }
             }
@@ -433,12 +437,6 @@ public class EsqlSession {
 
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
 
-        var columnMetadata = createColumnMetadata(optimizedPlan, foldContext);
-        listener = listener.delegateFailureAndWrap(
-            (l, r) -> l.onResponse(
-                new Result(r.schema(), r.pages(), columnMetadata, r.configuration(), r.completionInfo(), r.executionInfo())
-            )
-        );
         // In explain mode, wrap the listener to transform results into EXPLAIN table format.
         // We use the same execution path as normal queries to ensure accuracy.
         listener = explainMode
@@ -469,6 +467,24 @@ public class EsqlSession {
             (a, b) -> Maps.merge(a, b, (m1, m2) -> {
                 throw new IllegalStateException("Should not produce metadata with the same key");
             })
+        );
+    }
+
+    private static Versioned<Result> attachMetadataAndVersion(
+        Result result,
+        Map<NameId, Map<String, Object>> columnMetadata,
+        TransportVersion minimumVersion
+    ) {
+        return new Versioned<>(
+            new Result(
+                result.schema(),
+                result.pages(),
+                columnMetadata,
+                result.configuration(),
+                result.completionInfo(),
+                result.executionInfo()
+            ),
+            minimumVersion
         );
     }
 

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.index.IndexMode;
+
 import java.util.HashSet;
 import java.util.Set;
 
@@ -47,13 +49,15 @@ public class CreateIndexCapabilities {
             Set.of(
                 LOGSDB_INDEX_MODE_CAPABILITY,
                 LOOKUP_INDEX_MODE_CAPABILITY,
-                COLUMNAR_INDEX_MODES_CAPABILITY,
                 NESTED_DENSE_VECTOR_SYNTHETIC_TEST,
                 POORLY_FORMATTED_BAD_REQUEST,
                 HUNSPELL_DICT_400,
                 DISABLE_SEQUENCE_NUMBERS_CAPABILITY
             )
         );
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            caps.add(COLUMNAR_INDEX_MODES_CAPABILITY);
+        }
         CAPABILITIES = Set.copyOf(caps);
     }
 }

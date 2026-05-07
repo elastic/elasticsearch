@@ -274,6 +274,48 @@ public class BytesRefArrayTests extends ESTestCase {
         }
     }
 
+    public void testEmptyEquals() {
+        final int pageSize = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        try (BytesRefArray array = new BytesRefArray(pageSize, mockBigArrays())) {
+            var v0 = new BytesRef(randomByteArrayOfLength(pageSize / 2));
+            var v1 = new BytesRef(randomByteArrayOfLength(pageSize / 2));
+            var empty = new BytesRef();
+            array.append(v0);
+            array.append(v1);
+            array.append(empty);
+            assertTrue(array.bytesEqual(0, v0));
+            assertTrue(array.bytesEqual(1, v1));
+            assertTrue(array.bytesEqual(2, empty));
+            assertFalse(array.bytesEqual(0, empty));
+            assertFalse(array.bytesEqual(1, empty));
+        }
+    }
+
+    public void testRandomEquals() {
+        final int pageSize = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        try (BytesRefArray array = new BytesRefArray(randomIntBetween(1, pageSize), mockBigArrays())) {
+            int numValues = between(10, 100);
+            BytesRef[] values = new BytesRef[numValues];
+            for (int i = 0; i < numValues; i++) {
+                int length = randomFrom(0, between(1, 1024), pageSize / 2, pageSize, pageSize * 2);
+                var value = new BytesRef(length);
+                array.append(value);
+                values[i] = value;
+            }
+            for (int i = 0; i < numValues; i++) {
+                assertTrue(array.bytesEqual(i, values[i]));
+            }
+            for (int i = 0; i < numValues; i++) {
+                BytesRef other = randomFrom(values);
+                if (other.equals(values[i])) {
+                    assertTrue(array.bytesEqual(i, other));
+                } else {
+                    assertFalse(array.bytesEqual(i, other));
+                }
+            }
+        }
+    }
+
     private static BigArrays mockBigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
     }

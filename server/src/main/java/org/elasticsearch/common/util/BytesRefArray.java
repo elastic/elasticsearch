@@ -219,9 +219,12 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
 
     public boolean bytesEqual(long id, BytesRef other) {
         final long startOffset = getOffset(id);
-        final int length = Math.toIntExact(getOffset(id + 1) - startOffset);
+        final long length = getOffset(id + 1) - startOffset;
         if (length != other.length) {
             return false;
+        }
+        if (length == 0) {
+            return true;
         }
         return bytes.bytesEqual(startOffset, other);
     }

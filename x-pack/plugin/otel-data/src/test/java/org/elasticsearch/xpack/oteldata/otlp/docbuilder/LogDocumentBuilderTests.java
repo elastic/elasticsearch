@@ -112,6 +112,58 @@ public class LogDocumentBuilderTests extends ESTestCase {
         assertThat(doc.evaluate("body.structured.nested"), equalTo(Map.of("inner_key", "inner_value")));
     }
 
+    public void testBodyMapDocument() throws IOException {
+        byte[] bytes = new byte[] { 0x2a, 0x2b };
+        LogRecord logRecord = LogRecord.newBuilder()
+            .setTimeUnixNano(1_000_000_000L)
+            .setSeverityText("ignored")
+            .setBody(
+                AnyValue.newBuilder()
+                    .setKvlistValue(
+                        KeyValueList.newBuilder()
+                            .addValues(keyValue("@timestamp", "2024-03-12T20:00:41.123456789Z"))
+                            .addValues(keyValue("id", 1L))
+                            .addValues(keyValue("key", "value"))
+                            .addValues(keyValue("key.a", "a"))
+                            .addValues(keyValue("pi", 3.14))
+                            .addValues(
+                                keyValue("nested", KeyValueList.newBuilder().addValues(keyValue("inner_key", "inner_value")).build())
+                            )
+                            .addValues(
+                                KeyValue.newBuilder()
+                                    .setKey("bytes")
+                                    .setValue(AnyValue.newBuilder().setBytesValue(ByteString.copyFrom(bytes)).build())
+                                    .build()
+                            )
+                    )
+                    .build()
+            )
+            .build();
+
+        ObjectPath doc = buildBodyMapDocument(logRecord);
+
+        assertThat(doc.evaluate("@timestamp"), equalTo("2024-03-12T20:00:41.123456789Z"));
+        assertThat(doc.evaluate("id"), equalTo(1));
+        assertThat(doc.evaluate("key"), equalTo("value"));
+        assertThat(doc.evaluate("key\\.a"), equalTo("a"));
+        assertThat(doc.evaluate("pi"), equalTo(3.14));
+        assertThat(doc.evaluate("nested.inner_key"), equalTo("inner_value"));
+        assertThat(doc.evaluate("bytes"), equalTo(Base64.getEncoder().encodeToString(bytes)));
+        assertThat(doc.evaluate("body"), nullValue());
+        assertThat(doc.evaluate("severity_text"), nullValue());
+    }
+
+    public void testBodyMapDocumentRequiresMapBody() {
+        LogRecord logRecord = LogRecord.newBuilder()
+            .setTimeUnixNano(1_000_000_000L)
+            .setBody(AnyValue.newBuilder().setStringValue("msg").build())
+            .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildBodyMapDocument(logRecord));
+
+        assertThat(e.getMessage(), equalTo("invalid log record body type for 'bodymap' mapping mode: STRING_VALUE"));
+    }
+
     public void testArrayBodyAllMaps() throws IOException {
         // An array of kvlist values should produce body.structured (no wrapper)
         LogRecord logRecord = LogRecord.newBuilder()
@@ -411,6 +463,12 @@ public class LogDocumentBuilderTests extends ESTestCase {
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         documentBuilder.buildLogDocument(builder, resource, ByteString.EMPTY, scope, ByteString.EMPTY, targetIndex, logRecord);
+        return ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+    }
+
+    private ObjectPath buildBodyMapDocument(LogRecord logRecord) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        documentBuilder.buildBodyMapLogDocument(builder, logRecord);
         return ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
     }
 }

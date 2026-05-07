@@ -162,6 +162,7 @@ public class CsvTestsDataLoader {
         new TestDataset("ages"),
         new TestDataset("heights"),
         new TestDataset("decades"),
+        new TestDataset("mv_decades"),
         new TestDataset("airports"),
         new TestDataset("airports").withIndex("airports_mp").withData("airports_mp.csv").withSetting("lookup-settings.json"),
         new TestDataset("airports_no_doc_values").withData("airports.csv"),
@@ -252,7 +253,7 @@ public class CsvTestsDataLoader {
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V3),
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V5),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 

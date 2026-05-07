@@ -29,12 +29,14 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
+import org.elasticsearch.test.fixture.RequestEntry;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -47,6 +49,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -77,6 +80,7 @@ public class S3HttpHandler implements HttpHandler {
     private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, MultipartUpload> uploads = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, AtomicInteger> completingUploads = new ConcurrentHashMap<>();
+    private final List<RequestEntry> requestLog = new CopyOnWriteArrayList<>();
 
     public S3HttpHandler(final String bucket, S3ConsistencyModel consistencyModel) {
         this(bucket, null, consistencyModel);
@@ -107,11 +111,18 @@ public class S3HttpHandler implements HttpHandler {
      */
     public static final String DEFAULT_LIST_OBJECT_LAST_MODIFIED = "1970-01-01T00:00:00.000Z";
 
+    public List<RequestEntry> requestLog() {
+        return Collections.unmodifiableList(requestLog);
+    }
+
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         // Remove custom query parameters before processing the request. This simulates how S3 ignores them.
         // https://docs.aws.amazon.com/AmazonS3/latest/userguide/LogFormat.html#LogFormatCustom
         final S3Request request = parseRequest(exchange);
+        requestLog.add(
+            new RequestEntry(System.nanoTime(), request.method(), request.path(), exchange.getRequestHeaders().getFirst("Range"))
+        );
 
         if (METHODS_HAVING_NO_REQUEST_BODY.contains(request.method())) {
             int read = exchange.getRequestBody().read();

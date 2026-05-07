@@ -263,10 +263,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> store;
         private final Parameter<Boolean> norms;
-
-        private final IndexMode indexMode;
-
-        private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
+        private final Parameter<Boolean> index;
 
         final DocValuesParameter docValuesParameters = DocValuesParameter.arraysWithCardinality(
             DEFAULT_DOC_VALUES_PARAMS,
@@ -314,35 +311,22 @@ public final class TextFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final TextParams.Analyzers analyzers;
-        private final boolean usesBinaryDocValuesForFallbackFields;
+        final IndexSettings indexSettings;
 
-        public Builder(String name, IndexAnalyzers indexAnalyzers) {
-            this(name, IndexVersion.current(), null, indexAnalyzers, false, false, false);
-        }
-
-        public Builder(
-            String name,
-            IndexVersion indexCreatedVersion,
-            IndexMode indexMode,
-            IndexAnalyzers indexAnalyzers,
-            boolean isSyntheticSourceEnabled,
-            boolean isWithinMultiField,
-            boolean usesBinaryDocValuesForFallbackFields
-        ) {
-            super(name, indexCreatedVersion, isWithinMultiField);
-
-            this.indexMode = indexMode;
-            this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
-
+        public Builder(String name, IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, boolean isWithinMultiField) {
+            super(name, indexSettings.getIndexVersionCreated(), isWithinMultiField);
+            this.indexSettings = indexSettings;
+            this.index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, indexSettings.isIndexDisabledByDefault() == false);
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((TextFieldMapper) m).indexAnalyzer,
                 m -> (((TextFieldMapper) m).positionIncrementGap),
-                indexCreatedVersion
+                indexSettings.getIndexVersionCreated()
             );
 
+            IndexMode indexMode = indexSettings.getMode();
             this.norms = Parameter.normsParam(m -> ((TextFieldMapper) m).norms, () -> {
-                if (indexCreatedVersion.onOrAfter(IndexVersions.DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB)) {
+                if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB)) {
                     // don't enable norms by default if the index is LOGSDB or TSDB based
                     return indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES;
                 }
@@ -352,12 +336,13 @@ public final class TextFieldMapper extends FieldMapper {
 
             this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
                 // ideally and for simplicity, store should be set to false by default
-                if (keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexCreatedVersion)) {
+                if (keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
                     return false;
                 }
 
+                boolean isSyntheticSourceEnabled = SourceFieldMapper.isSynthetic(indexSettings);
                 // however, because historically we set store to true to support synthetic source, we must also keep that logic:
-                if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
+                if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
                     return isSyntheticSourceEnabled
                         && isWithinMultiField == false
                         && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
@@ -367,30 +352,8 @@ public final class TextFieldMapper extends FieldMapper {
             });
         }
 
-        public Builder(String name, IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, boolean isWithinMultiField) {
-            this(
-                name,
-                indexSettings.getIndexVersionCreated(),
-                indexSettings.getMode(),
-                indexAnalyzers,
-                SourceFieldMapper.isSynthetic(indexSettings),
-                isWithinMultiField,
-                useBinaryDocValuesForFallbackFields(indexSettings)
-            );
-        }
-
         private Builder(String name, MappingParserContext context) {
             this(name, context.getIndexSettings(), context.getIndexAnalyzers(), context.isWithinMultiField());
-        }
-
-        private static boolean useBinaryDocValuesForFallbackFields(final IndexSettings indexSettings) {
-            IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
-            if (indexVersion.onOrAfter(IndexVersions.FALLBACK_TEXT_FIELDS_BINARY_DOC_VALUES_FORMAT_CHECK)) {
-                return indexSettings.useTimeSeriesDocValuesFormat();
-            }
-            // for BWC - indices created before TEXT_FIELDS_BINARY_DOC_VALUES_TSDB_DOC_VALUES_FORMAT_CHECK, stored fallback fields only in
-            // binary doc values
-            return indexVersion.onOrAfter(IndexVersions.STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES);
         }
 
         public Builder index(boolean index) {
@@ -488,6 +451,7 @@ public final class TextFieldMapper extends FieldMapper {
                 ft = new LegacyTextFieldType(context.buildFullName(leafName()), index.getValue(), store.getValue(), tsi, meta.getValue());
                 // ignore fieldData and eagerGlobalOrdinals
             } else {
+                boolean usesBinaryDocValuesForFallbackFields = useBinaryDocValuesForFallbackFields(indexSettings);
                 ft = new TextFieldType(
                     context.buildFullName(leafName()),
                     index.getValue(),
@@ -1622,8 +1586,6 @@ public final class TextFieldMapper extends FieldMapper {
 
     }
 
-    private final IndexVersion indexCreatedVersion;
-    private final IndexMode indexMode;
     private final boolean index;
     private final boolean store;
     private final DocValuesParameter.Values docValuesParameters;
@@ -1642,6 +1604,7 @@ public final class TextFieldMapper extends FieldMapper {
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
     private final boolean usesBinaryDocValuesForFallbackFields;
+    private final IndexSettings indexSettings;
 
     private TextFieldMapper(
         String simpleName,
@@ -1661,18 +1624,17 @@ public final class TextFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + fullPath() + "]");
         }
 
-        this.indexCreatedVersion = builder.indexCreatedVersion();
+        this.indexSettings = builder.indexSettings;
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.prefixFieldInfo = prefixFieldInfo;
         this.phraseFieldInfo = phraseFieldInfo;
-        this.indexMode = builder.indexMode;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.index = builder.index.getValue();
         this.store = builder.store.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
-        this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, this.indexCreatedVersion);
+        this.dvFactory = new DocValuesFieldFactory(docValuesParameters.multiValue(), false, indexSettings.getIndexVersionCreated());
         this.similarity = builder.similarity.getValue();
         this.indexOptions = builder.indexOptions.getValue();
         this.norms = builder.norms.getValue();
@@ -1680,7 +1642,7 @@ public final class TextFieldMapper extends FieldMapper {
         this.indexPrefixes = builder.indexPrefixes.getValue();
         this.freqFilter = builder.freqFilter.getValue();
         this.fieldData = builder.fieldData.get();
-        this.usesBinaryDocValuesForFallbackFields = builder.usesBinaryDocValuesForFallbackFields;
+        this.usesBinaryDocValuesForFallbackFields = useBinaryDocValuesForFallbackFields(builder.indexSettings);
     }
 
     @Override
@@ -1704,20 +1666,26 @@ public final class TextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            leafName(),
-            indexCreatedVersion,
-            indexMode,
-            indexAnalyzers,
-            fieldType().isSyntheticSourceEnabled(),
-            fieldType().isWithinMultiField(),
-            usesBinaryDocValuesForFallbackFields
-        ).init(this);
+        return new Builder(leafName(), indexSettings, indexAnalyzers, fieldType().isWithinMultiField()).init(this);
     }
 
     @Override
     protected boolean isSingleValueEnforced() {
         return docValuesParameters.multiValue().isSingleValued();
+    }
+
+    @Override
+    public boolean supportsBatchIndexing() {
+        // Plain text mappers can be driven through parseCreateField by the bulk batch path.
+        // index_prefixes and index_phrases add sub-field documents that the batch path does
+        // not write, and synthetic-source fallback storage requires extra coordination across
+        // doc fields that we do not handle yet. fielddata is search-time only and is allowed.
+        return hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && prefixFieldInfo == null
+            && phraseFieldInfo == null
+            && fieldType().needsFallbackStorageForSyntheticSource(indexSettings.getIndexVersionCreated()) == false;
     }
 
     @Override
@@ -1760,7 +1728,7 @@ public final class TextFieldMapper extends FieldMapper {
             }
         }
 
-        if (fieldType().needsFallbackStorageForSyntheticSource(indexCreatedVersion)) {
+        if (fieldType().needsFallbackStorageForSyntheticSource(indexSettings.getIndexVersionCreated())) {
             // rely on the delegate field if we can
             if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
                 return;
@@ -1990,7 +1958,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         // this check exists for BWC purposes - there was a bug that resulted in some text fields being stored in ignored source
         if (fieldType().syntheticSourceDelegate.isEmpty()
-            && indexCreatedVersion.before(IndexVersions.TEXT_FIELDS_STORED_IN_IGNORED_SOURCE_FIX)) {
+            && indexSettings.getIndexVersionCreated().before(IndexVersions.TEXT_FIELDS_STORED_IN_IGNORED_SOURCE_FIX)) {
             return super.syntheticSourceSupport();
         }
 
@@ -2004,7 +1972,7 @@ public final class TextFieldMapper extends FieldMapper {
         // layer for loading from a fallback field created during indexing by this text field mapper
         final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
         if (usesBinaryDocValuesForFallbackFields) {
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fallbackFieldName, indexCreatedVersion));
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fallbackFieldName, indexSettings.getIndexVersionCreated()));
         } else {
             // for bwc - fallback fields were originally stored in StoredFields
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fallbackFieldName) {
@@ -2028,7 +1996,7 @@ public final class TextFieldMapper extends FieldMapper {
     private CompositeSyntheticFieldLoader syntheticFieldLoaderFromDocValues() {
         var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
         if (fieldType().usesBinaryDocValues()) {
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexCreatedVersion));
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath(), indexSettings.getIndexVersionCreated()));
         } else {
             layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
                 @Override
@@ -2055,7 +2023,12 @@ public final class TextFieldMapper extends FieldMapper {
             });
 
             // also load from fallback field for values that exceeded MAX_TERM_LENGTH
-            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().syntheticSourceFallbackFieldName(), indexCreatedVersion));
+            layers.add(
+                new BinaryDocValuesSyntheticFieldLoaderLayer(
+                    fieldType().syntheticSourceFallbackFieldName(),
+                    indexSettings.getIndexVersionCreated()
+                )
+            );
         }
         return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
     }
@@ -2097,5 +2070,15 @@ public final class TextFieldMapper extends FieldMapper {
             return (keyword.hasNormalizer() == false || keyword.isNormalizerSkipStoreOriginalValue())
                 && (keyword.fieldType().hasDocValues() || keyword.fieldType().isStored());
         }
+    }
+
+    static boolean useBinaryDocValuesForFallbackFields(final IndexSettings indexSettings) {
+        IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
+        if (indexVersion.onOrAfter(IndexVersions.FALLBACK_TEXT_FIELDS_BINARY_DOC_VALUES_FORMAT_CHECK)) {
+            return indexSettings.useTimeSeriesDocValuesFormat();
+        }
+        // for BWC - indices created before TEXT_FIELDS_BINARY_DOC_VALUES_TSDB_DOC_VALUES_FORMAT_CHECK, stored fallback fields only in
+        // binary doc values
+        return indexVersion.onOrAfter(IndexVersions.STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES);
     }
 }

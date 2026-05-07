@@ -136,9 +136,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters
         );
 
+        private final Parameter<Boolean> indexed;
+
         private final TextParams.Analyzers analyzers;
         private final boolean storedFieldInBinaryFormat;
         private final boolean usesBinaryDocValuesForFallbackFields;
+        private final boolean indexDisabledByDefault;
 
         private Builder(
             String name,
@@ -146,9 +149,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             IndexAnalyzers indexAnalyzers,
             boolean storedFieldInBinaryFormat,
             boolean isWithinMultiField,
-            boolean usesBinaryDocValuesForFallbackFields
+            boolean usesBinaryDocValuesForFallbackFields,
+            boolean indexDisabledByDefault
         ) {
             super(name, indexCreatedVersion, isWithinMultiField);
+
+            this.indexed = Parameter.indexParam(m -> ((MatchOnlyTextFieldMapper) m).indexed(), indexDisabledByDefault == false);
 
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
@@ -158,6 +164,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             );
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
             this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         public Builder(String name, MappingParserContext context) {
@@ -167,19 +174,24 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 context.getIndexAnalyzers(),
                 isSyntheticSourceStoredFieldInBinaryFormat(context.indexVersionCreated()),
                 context.isWithinMultiField(),
-                usesBinaryDocValuesForFallbackFields(context.getIndexSettings())
+                usesBinaryDocValuesForFallbackFields(context.getIndexSettings()),
+                context.getIndexSettings().isIndexDisabledByDefault()
             );
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
+            List<Parameter<?>> params = new ArrayList<>();
+            params.add(meta);
             // when EXTENDED_DOC_VALUES_PARAMS_FF is disabled, exclude docValuesParameters from parsing
             // so doc_values configuration in the mapping is ignored and the default (disabled) is used
             if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
-                return new Parameter<?>[] { docValuesParameters, meta };
-            } else {
-                return new Parameter<?>[] { meta };
+                params.add(docValuesParameters);
             }
+            if (IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()) {
+                params.add(indexed);
+            }
+            return params.toArray(Parameter[]::new);
         }
 
         private static boolean usesBinaryDocValuesForFallbackFields(final IndexSettings indexSettings) {
@@ -872,6 +884,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private final boolean usesBinaryDocValuesForFallbackFields;
     private final FieldMapper.DocValuesParameter.Values docValuesParameters;
     private final DocValuesFieldFactory dvFactory;
+    private final boolean indexDisabledByDefault;
+    private final boolean indexed;
 
     private MatchOnlyTextFieldMapper(
         String simpleName,
@@ -894,6 +908,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         this.docValuesParameters = builder.docValuesParameters.getValue();
         // match_only_text does not use doc values skippers
         this.dvFactory = new DocValuesFieldFactory(this.docValuesParameters.multiValue(), false, this.indexCreatedVersion);
+        this.indexed = builder.indexed.get();
+        this.indexDisabledByDefault = builder.indexDisabledByDefault;
     }
 
     @Override
@@ -909,8 +925,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             indexAnalyzers,
             storedFieldInBinaryFormat,
             fieldType().isWithinMultiField(),
-            usesBinaryDocValuesForFallbackFields
+            usesBinaryDocValuesForFallbackFields,
+            indexDisabledByDefault
         ).init(this);
+    }
+
+    public boolean indexed() {
+        return indexed;
     }
 
     @Override
@@ -926,8 +947,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             return;
         }
 
-        Field field = new Field(fieldType().name(), value.string(), fieldType);
-        context.doc().add(field);
+        if (indexed) {
+            Field field = new Field(fieldType().name(), value.string(), fieldType);
+            context.doc().add(field);
+        }
 
         final var utfBytes = value.bytes();
         // Add doc_values if enabled

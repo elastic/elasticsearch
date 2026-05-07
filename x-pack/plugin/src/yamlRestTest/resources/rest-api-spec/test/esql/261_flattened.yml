@@ -1,0 +1,66 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, contains ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ flattened_datatype ]
+      reason: "Requires flattened datatype support"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              attr:
+                type: flattened
+  - do:
+      index:
+        index: test
+        refresh: true
+        body:
+          attr:
+            a: foo
+
+---
+'sort by flattened field':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test | SORT attr | LIMIT 3'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'cannot sort on flattened' }
+
+---
+'group by flattened field':
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test | STATS COUNT(*) BY attr'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'cannot group by on [flattened] type for grouping [attr]' }
+
+---
+'limit by flattened field':
+  - requires:
+      test_runner_features: capabilities
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ esql_limit_by ]
+      reason: "Requires LIMIT BY support"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test | LIMIT 1 BY attr'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'cannot group by on [flattened] type for grouping [attr]' }

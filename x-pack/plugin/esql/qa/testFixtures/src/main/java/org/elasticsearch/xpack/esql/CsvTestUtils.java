@@ -728,6 +728,7 @@ public final class CsvTestUtils {
         EXPONENTIAL_HISTOGRAM(CsvTestUtils::parseExponentialHistogram, ExponentialHistogram.class),
         TDIGEST(CsvTestUtils::parseTDigest, TDigestHolder.class),
         HISTOGRAM(CsvTestUtils::parseHistogram, BytesRef.class),
+        FLATTENED(s -> s, String.class),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {
@@ -839,6 +840,7 @@ public final class CsvTestUtils {
                 case NULL -> NULL;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> actualType;
                 case HISTOGRAM -> HISTOGRAM;
+                case FLATTENED -> FLATTENED;
                 default -> KEYWORD;
             };
         }

@@ -104,7 +104,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     @Override

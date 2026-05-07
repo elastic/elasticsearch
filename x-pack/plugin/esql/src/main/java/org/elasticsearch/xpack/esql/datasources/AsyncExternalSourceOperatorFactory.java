@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -500,6 +501,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         StoragePath lastRangeFilePath;
         @Nullable
         Object lastFileContext;
+        @Nullable
+        StoragePath lastSchemaPath;
+        @Nullable
+        List<Attribute> lastBoundSchema;
 
         ProducerState(
             @Nullable ExternalSliceQueue queue,
@@ -702,10 +707,27 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 state.lastFileContext = rangeCtx.fileContext();
             } else {
                 StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
-                pages = openWithParallelism(fileReader, obj, cols, errorPolicy);
+                boolean recordAlignedMacro = FileSplitProvider.isRecordAlignedMacroSplit(fileSplit);
+                boolean firstSplit = fileSplit.offset() == 0 || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+                if (cols.isEmpty() && recordAlignedMacro && firstSplit == false) {
+                    // COUNT(*)/empty-projection path on a non-leading record-aligned macro-split:
+                    // bind schema from the full file (header-bearing formats like CSV need file-leading bytes).
+                    // Cache per file path to avoid redundant metadata fetches across splits of the same file.
+                    List<Attribute> cachedSchema = fileSplit.path().equals(state.lastSchemaPath) ? state.lastBoundSchema : null;
+                    if (cachedSchema == null) {
+                        SourceMetadata meta = fileReader.metadata(storageProvider.newObject(fileSplit.path()));
+                        if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
+                            cachedSchema = meta.schema();
+                        }
+                    }
+                    if (cachedSchema != null) {
+                        fileReader = fileReader.withSchema(cachedSchema);
+                        state.lastSchemaPath = fileSplit.path();
+                        state.lastBoundSchema = cachedSchema;
+                    }
+                }
+                pages = openWithParallelism(fileReader, obj, cols, errorPolicy, recordAlignedMacro, firstSplit);
                 if (pages == null) {
-                    boolean firstSplit = fileSplit.offset() == 0
-                        || "true".equals(fileSplit.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
                     boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                     FormatReadContext ctx = FormatReadContext.builder()
                         .projectedColumns(cols)
@@ -714,6 +736,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .errorPolicy(errorPolicy)
                         .firstSplit(firstSplit)
                         .lastSplit(lastSplit)
+                        .recordAligned(recordAlignedMacro)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
@@ -745,7 +768,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages = null;
         try {
             StorageObject obj = storageProvider.newObject(files.path(fileIndex));
-            pages = openWithParallelism(formatReader, obj, cols, errorPolicy);
+            pages = openWithParallelism(formatReader, obj, cols, errorPolicy, false, true);
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
                 FormatReadContext ctx = FormatReadContext.builder()
@@ -805,7 +828,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     ) {
         ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         executor.execute(ActionRunnable.run(failureListener, () -> {
-            CloseableIterator<Page> pages = openWithParallelism(formatReader, storageObject, projectedColumns, errorPolicy);
+            CloseableIterator<Page> pages = openWithParallelism(formatReader, storageObject, projectedColumns, errorPolicy, false, true);
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(projectedColumns)
@@ -991,8 +1014,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED;
     }
 
-    CloseableIterator<Page> openWithParallelism(FormatReader reader, StorageObject obj, List<String> cols, ErrorPolicy policy)
-        throws IOException {
+    CloseableIterator<Page> openWithParallelism(
+        FormatReader reader,
+        StorageObject obj,
+        List<String> cols,
+        ErrorPolicy policy,
+        boolean recordAlignedMacroSplit,
+        boolean splitIncludesFileLeader
+    ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
         }
@@ -1003,7 +1032,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             }
             case SEGMENTABLE_UNCOMPRESSED -> {
                 SegmentableFormatReader seg = resolveSegmentableReader(reader);
-                return ParallelParsingCoordinator.parallelRead(seg, obj, cols, batchSize, parsingParallelism, executor, policy);
+                return ParallelParsingCoordinator.parallelRead(
+                    seg,
+                    obj,
+                    cols,
+                    batchSize,
+                    parsingParallelism,
+                    executor,
+                    policy,
+                    recordAlignedMacroSplit,
+                    splitIncludesFileLeader
+                );
             }
             case STREAM_ONLY_COMPRESSED -> {
                 CompressionDelegatingFormatReader cdr = (CompressionDelegatingFormatReader) reader;

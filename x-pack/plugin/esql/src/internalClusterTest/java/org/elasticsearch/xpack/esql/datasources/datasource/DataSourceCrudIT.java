@@ -386,6 +386,44 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(parentDsName)));
     }
 
+    public void testDatasetSettingsCannotShadowParentSecretKey() throws Exception {
+        // The SPI contract on DataSourceValidator.validateDataset says dataset settings carry no
+        // secrets, but only convention enforces that. If a dataset key ever shadowed a parent
+        // secret-keyed setting, DatasetRewriter.mergeSettings would silently overwrite the
+        // SecureString — losing secret-classification down the carrier path. validatePutDataset
+        // rejects the put at validate-time so the invariant is enforced where it's defined.
+        final String parentDsName = "shadowing_parent";
+        final String datasetName = "shadowing_ds";
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                putDataSourceRequest(parentDsName, Map.of("region", "us-east-1", "secret_access_key", "AKIAXYZ"))
+            )
+        );
+
+        ExecutionException err = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(datasetName, parentDsName, "test://logs/", Map.of("secret_access_key", "ANY"))
+            ).get()
+        );
+        assertThat(err.getCause(), instanceOf(ValidationException.class));
+        assertThat(err.getCause().getMessage(), containsString("dataset setting [secret_access_key] shadows a secret data-source setting"));
+        expectDatasetMissing(datasetName);
+
+        // A non-secret colliding key (region) is fine — only secret keys are rejected.
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest(datasetName, parentDsName, "test://logs/", Map.of("region", "eu-west-1"))
+            )
+        );
+
+        assertAcked(client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest(datasetName)));
+        assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(parentDsName)));
+    }
+
     public void testUnknownTypeRejected() {
         PutDataSourceAction.Request req = new PutDataSourceAction.Request(
             TEST_TIMEOUT,

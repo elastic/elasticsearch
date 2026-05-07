@@ -66,7 +66,7 @@ import java.util.function.BiFunction;
  * <p>When filter hints contain resolved {@link Expression} objects, evaluates them against
  * each file's partition values to prune files that cannot match the filter.
  *
- * <p>Newline-delimited JSON ({@code .ndjson}, {@code .jsonl}, {@code .json}) uses record-aligned macro splits:
+ * <p>Line-oriented formats (NDJSON/JSONL/JSON and CSV/TSV) use record-aligned macro splits:
  * {@link SegmentableFormatReader#findNextRecordBoundary} probes near {@code target_split_size} strides so each
  * {@link FileSplit} starts on a line boundary. Cross-node parallelism is restored without fixed-byte mid-record cuts.
  */
@@ -552,8 +552,8 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Macro-splits newline-delimited JSON at record boundaries near {@code targetStrideBytes}, enabling multiple workers
-     * per file without mid-line cuts.
+     * Macro-splits supported line-oriented formats at record boundaries near {@code targetStrideBytes},
+     * enabling multiple workers per file without mid-record cuts.
      */
     private boolean tryNewlineAlignedMacroSplits(
         StoragePath filePath,
@@ -618,7 +618,7 @@ public class FileSplitProvider implements SplitProvider {
             return false;
         }
         String f = format.toLowerCase(Locale.ROOT);
-        return ".ndjson".equals(f) || ".jsonl".equals(f) || ".json".equals(f);
+        return ".ndjson".equals(f) || ".jsonl".equals(f) || ".json".equals(f) || ".csv".equals(f) || ".tsv".equals(f);
     }
 
     /** Whether this leaf split came from {@link #tryNewlineAlignedMacroSplits}. */

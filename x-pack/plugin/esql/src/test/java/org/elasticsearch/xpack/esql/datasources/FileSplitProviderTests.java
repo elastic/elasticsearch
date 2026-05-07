@@ -455,7 +455,27 @@ public class FileSplitProviderTests extends ESTestCase {
         assertNull(whole.config().get(FileSplitProvider.LAST_SPLIT_KEY));
     }
 
+    public void testNewlineMacroSplitCandidateExtensionsIncludeCsvAndTsv() {
+        assertTrue(FileSplitProvider.isNewlineMacroSplitCandidateExtension(".csv"));
+        assertTrue(FileSplitProvider.isNewlineMacroSplitCandidateExtension(".tsv"));
+        assertTrue(FileSplitProvider.isNewlineMacroSplitCandidateExtension(".ndjson"));
+        assertFalse(FileSplitProvider.isNewlineMacroSplitCandidateExtension(".parquet"));
+    }
+
     public void testNewlineAlignedNdjsonMacroSplitsAreDisjointAndMarked() throws IOException {
+        assertNewlineAlignedMacroSplitsDisjointAndMarked(".ndjson", "ndjson-macro-test", "abcdefgh\n", "s3://b/*.ndjson");
+    }
+
+    public void testNewlineAlignedCsvMacroSplitsAreDisjointAndMarked() throws IOException {
+        assertNewlineAlignedMacroSplitsDisjointAndMarked(".csv", "csv-macro-test", "a,b,c\n", "s3://b/*.csv");
+    }
+
+    private void assertNewlineAlignedMacroSplitsDisjointAndMarked(
+        String extension,
+        String registryName,
+        String lineContent,
+        String globPattern
+    ) throws IOException {
         SegmentableFormatReader mockReader = mock(SegmentableFormatReader.class);
         when(mockReader.minimumSegmentSize()).thenReturn(1024L);
         when(mockReader.findNextRecordBoundary(any())).thenAnswer(invocation -> {
@@ -471,18 +491,17 @@ public class FileSplitProviderTests extends ESTestCase {
             return -1L;
         });
 
-        String line = "abcdefgh\n";
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 4000; i++) {
-            sb.append(line);
+            sb.append(lineContent);
         }
         byte[] payload = sb.toString().getBytes(StandardCharsets.UTF_8);
         long fileLength = payload.length;
 
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy("ndjson-macro-test", (s, bf) -> mockReader, Settings.EMPTY, null);
-        formatRegistry.registerExtension(".ndjson", "ndjson-macro-test");
-        formatRegistry.byName("ndjson-macro-test");
+        formatRegistry.registerLazy(registryName, (s, bf) -> mockReader, Settings.EMPTY, null);
+        formatRegistry.registerExtension(extension, registryName);
+        formatRegistry.byName(registryName);
 
         StorageProviderRegistry storageRegistry = createPayloadStorageRegistry(payload);
 
@@ -495,13 +514,14 @@ public class FileSplitProviderTests extends ESTestCase {
             Settings.EMPTY
         );
 
-        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/lines.ndjson"), fileLength, Instant.EPOCH);
-        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson");
+        String fileName = "lines" + extension;
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/" + fileName), fileLength, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), globPattern);
 
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = splitter.discoverSplits(ctx);
 
-        assertTrue("Expected multiple newline-aligned macro splits", splits.size() > 1);
+        assertTrue("Expected multiple newline-aligned macro splits for " + extension, splits.size() > 1);
         long expectedOffset = 0;
         for (int i = 0; i < splits.size(); i++) {
             FileSplit fs = (FileSplit) splits.get(i);

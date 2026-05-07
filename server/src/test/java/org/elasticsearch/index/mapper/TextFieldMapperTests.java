@@ -2483,6 +2483,64 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.omitNorms(), is(false));
     }
 
+    public void testNormsDisabledWhenIndexModeIsColumnar() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // given
+        Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        XContentBuilder mapping = mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        var source = source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("potato", "a potato flew around my room");
+        });
+
+        // when
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("potato");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+
+        // then
+        assertThat(fieldType.omitNorms(), is(true));
+    }
+
+    public void testNormsDisabledWhenIndexModeIsColumnarLogsdb() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // given
+        Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
+        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName());
+        Settings indexSettings = indexSettingsBuilder.build();
+
+        XContentBuilder mapping = mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "text");
+            b.endObject();
+        });
+
+        var source = source(b -> {
+            b.field("@timestamp", Instant.now());
+            b.field("potato", "a potato flew around my room");
+        });
+
+        // when
+        DocumentMapper mapper = createMapperService(indexSettings, mapping).documentMapper();
+        ParsedDocument doc = mapper.parse(source);
+
+        List<IndexableField> fields = doc.rootDoc().getFields("potato");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+
+        // then
+        assertThat(fieldType.omitNorms(), is(true));
+    }
+
     public void testConditionalBlockLoader() throws IOException {
         int numDocs = between(5, 100);
         List<Object> textValues = new ArrayList<>();

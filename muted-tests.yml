@@ -392,9 +392,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessMergeIT
   method: testOnlyForceMergesAreAllowedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/147880
-- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
-  method: testOldCommitsAreRetainedIfSearchNodesUseThem
-  issue: https://github.com/elastic/elasticsearch/issues/147888
 - class: org.elasticsearch.xpack.ml.integration.MlDistributedFailureIT
   method: testClusterWithTwoMlNodes_RunsDatafeed_GivenOriginalNodeGoesDown
   issue: https://github.com/elastic/elasticsearch/issues/147914
@@ -485,9 +482,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
   method: testCloseWhileSegmentatorParkedOnDispatchPermit
   issue: https://github.com/elastic/elasticsearch/issues/148229
-- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
-  method: testCommitsTrackingTakesIntoAccountSearchNodeUsage
-  issue: https://github.com/elastic/elasticsearch/issues/148300
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithoutFailures
   issue: https://github.com/elastic/elasticsearch/issues/148310
@@ -530,3 +524,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessIndexCommitListenerIT
   method: testRefIsNotReleasedUponNotificationFailure
   issue: https://github.com/elastic/elasticsearch/issues/148471
+- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
+  method: testCommitPrefetching
+  issue: https://github.com/elastic/elasticsearch/issues/148476
+- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
+  method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotifcation
+  issue: https://github.com/elastic/elasticsearch/issues/148480
+- class: org.elasticsearch.compute.data.BlockAccountingTests
+  method: testBytesRefVector
+  issue: https://github.com/elastic/elasticsearch/issues/148481

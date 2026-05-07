@@ -126,6 +126,44 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(index.isSystem(), is(false));
     }
 
+    public void testCreateDataStreamLogsdbColumnar() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        final String dataStreamName = "my-data-stream";
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .template(new Template(Settings.builder().put("index.mode", "columnar_logsdb").build(), null, null))
+            .dataStreamTemplate(new DataStreamTemplate())
+            .build();
+        final var projectId = randomProjectIdOrDefault();
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
+            .build();
+        CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(projectId, dataStreamName);
+        ClusterState newState = MetadataCreateDataStreamService.createDataStream(
+            metadataCreateIndexService,
+            Settings.EMPTY,
+            cs,
+            true,
+            req,
+            RerouteBehavior.PERFORM_REROUTE,
+            ActionListener.noop(),
+            false
+        );
+        final var project = newState.metadata().getProject(projectId);
+        assertThat(project.dataStreams().size(), equalTo(1));
+        assertThat(project.dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
+        assertThat(project.dataStreams().get(dataStreamName).isSystem(), is(false));
+        assertThat(project.dataStreams().get(dataStreamName).isHidden(), is(false));
+        assertThat(project.dataStreams().get(dataStreamName).isReplicated(), is(false));
+        assertThat(project.dataStreams().get(dataStreamName).getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+        assertThat(project.dataStreams().get(dataStreamName).getDataLifecycle(), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
+        final var index = project.index(project.dataStreams().get(dataStreamName).getWriteIndex());
+        assertThat(index, notNullValue());
+        assertThat(index.getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(index.isSystem(), is(false));
+    }
+
     public void testCreateDataStreamWithAliasFromTemplate() throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         final String dataStreamName = "my-data-stream";

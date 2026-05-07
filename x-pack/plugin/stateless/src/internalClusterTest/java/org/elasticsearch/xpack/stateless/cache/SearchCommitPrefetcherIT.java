@@ -371,8 +371,6 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         }
 
         var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
-        // TEMP: forces the same race the CI flake hits — leaves uncommitted changes for `flush` to commit
-        client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
 
         flush(indexName);
 

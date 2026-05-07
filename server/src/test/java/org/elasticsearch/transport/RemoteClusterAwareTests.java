@@ -173,7 +173,7 @@ public class RemoteClusterAwareTests extends ESTestCase {
         mustThrowException(
             new String[] { "*:*", "-cluster2:-index1" },
             IllegalArgumentException.class,
-            "To exclude a cluster you must specify the '*' wildcard"
+            "cannot apply exclusion for both the cluster and the index expression"
         );
         // Excluding a cluster that we didn't previously include
         mustThrowException(

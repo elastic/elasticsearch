@@ -306,6 +306,19 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
         }
 
         {
+            // Explicit deterministic coverage for linked project index exclusion syntax variants.
+            final var excludeByProjectPrefix = "-P1:logs";
+            final var excludeByIndexPrefix = "P1:-logs";
+            final var byProjectPrefix = rewriteIndexExpressions(origin, linked, "*", excludeByProjectPrefix);
+            final var byIndexPrefix = rewriteIndexExpressions(origin, linked, "*", excludeByIndexPrefix);
+
+            assertThat(byProjectPrefix.keySet(), containsInAnyOrder("*", excludeByProjectPrefix));
+            assertThat(byIndexPrefix.keySet(), containsInAnyOrder("*", excludeByIndexPrefix));
+            assertIndexRewriteResultsContains(byProjectPrefix.get(excludeByProjectPrefix), containsInAnyOrder(excludeByProjectPrefix));
+            assertIndexRewriteResultsContains(byIndexPrefix.get(excludeByIndexPrefix), containsInAnyOrder(excludeByIndexPrefix));
+        }
+
+        {
             // Exclusion on origin project or index throws 404 if origin is filtered out by project routing
             final String excludedIndex = randomFrom("*", "metrics*", "metrics");
             final var excludeExpression = randomBoolean() ? "-_origin:" + excludedIndex : "_origin:-" + excludedIndex;

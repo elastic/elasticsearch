@@ -196,8 +196,8 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                     } else if (indexPart.startsWith("-")) {
                         throw new IllegalArgumentException(
                             Strings.format(
-                                "To exclude a cluster you must specify the '*' wildcard for the index expression, but found: [%s]",
-                                indexPart
+                                "cannot apply exclusion for both the cluster and the index expression, but found: [%s]",
+                                remoteClusterName + ":" + indexPart
                             )
                         );
                     } else {

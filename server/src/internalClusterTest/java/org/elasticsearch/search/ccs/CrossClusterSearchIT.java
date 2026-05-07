@@ -712,15 +712,27 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
         });
     }
 
-    public void testNegativeRemoteIndexNameThrows() {
-        SearchRequest searchRequest = new SearchRequest("*:*", "-" + REMOTE_CLUSTER + ":prod");
+    public void testNegativeRemoteIndexNameIsRemoteIndexExclusion() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        SearchRequest searchRequest = new SearchRequest(REMOTE_CLUSTER + ":*", "-" + REMOTE_CLUSTER + ":prod");
         searchRequest.setCcsMinimizeRoundtrips(true);
         searchRequest.allowPartialSearchResults(false);
         searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
-        var queryFuture = client(LOCAL_CLUSTER).search(searchRequest);
-        // This should throw the wildcard error
-        ExecutionException ee = expectThrows(ExecutionException.class, queryFuture::get);
-        assertNotNull(ee.getCause());
+        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
+            assertNotNull(response);
+            Clusters clusters = response.getClusters();
+            assertThat(clusters.getTotal(), equalTo(1));
+            Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNull(localClusterSearchInfo);
+            Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getIndexExpression(), equalTo("*,-prod"));
+            for (var hit : response.getHits()) {
+                assertThat(hit.getIndex(), equalTo(remoteIndex));
+            }
+        });
     }
 
     public void testClusterDetailsWhenLocalClusterHasNoMatchingIndex() throws Exception {

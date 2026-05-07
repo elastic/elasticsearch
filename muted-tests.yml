@@ -485,9 +485,6 @@ tests:
 - class: org.elasticsearch.index.mapper.DateRangeDocValuesLoaderTests
   method: testEmptyRangesAppendsNull
   issue: https://github.com/elastic/elasticsearch/issues/148378
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=nodes.stats/11_indices_metrics/Metric - http}
-  issue: https://github.com/elastic/elasticsearch/issues/148430
 - class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
   method: testRestartForConfiguringReservedRolesAndClosingIndex
   issue: https://github.com/elastic/elasticsearch/issues/148431

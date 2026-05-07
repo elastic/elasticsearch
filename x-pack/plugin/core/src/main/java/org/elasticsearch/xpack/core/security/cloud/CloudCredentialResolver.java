@@ -11,7 +11,7 @@ package org.elasticsearch.xpack.core.security.cloud;
  * Resolves a {@link CloudCredential} on demand.
  */
 @FunctionalInterface
-public interface CloudCredentialSource {
+public interface CloudCredentialResolver {
 
     /**
      * Returns the credential ready to inject into a thread context.

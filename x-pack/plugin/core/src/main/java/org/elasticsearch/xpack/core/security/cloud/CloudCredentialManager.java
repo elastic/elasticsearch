@@ -47,25 +47,25 @@ public interface CloudCredentialManager {
     void injectCloudManagedCredential(ThreadContext threadContext, CloudCredential credential);
 
     /**
-     * Returns a source backed by an in-memory credential representation.
+     * Returns a resolver backed by an in-memory credential.
      */
-    default CloudCredentialSource sourceOf(CloudCredential credential) {
+    default CloudCredentialResolver resolverOf(CloudCredential credential) {
         Objects.requireNonNull(credential, "credential must not be null");
         return () -> credential;
     }
 
     /**
-     * Returnes a source backed by a persisted credential.
+     * Returns a resolver backed by a persisted credential.
      */
-    CloudCredentialSource sourceOf(PersistedCloudCredential persisted);
+    CloudCredentialResolver resolverOf(PersistedCloudCredential persisted);
 
     /**
-     * Returns a cloud credentials-aware {@link Client}. On every {@code execute(...)}, calls {@code source.resolve()}
+     * Returns a cloud credentials-aware {@link Client}. On every {@code execute(...)}, calls {@code resolver.resolve()}
      * to obtain a {@link CloudCredential}, injects it via {@link #injectCloudManagedCredential}, then
      * delegates to {@code delegate}.
      */
-    default Client wrapClient(Client delegate, @Nullable CloudCredentialSource source) {
-        if (source == null) {
+    default Client wrapClient(Client delegate, @Nullable CloudCredentialResolver resolver) {
+        if (resolver == null) {
             return delegate;
         }
         final CloudCredentialManager self = this;
@@ -78,7 +78,7 @@ public interface CloudCredentialManager {
             ) {
                 final CloudCredential credential;
                 try {
-                    credential = source.resolve();
+                    credential = resolver.resolve();
                 } catch (Exception e) {
                     listener.onFailure(e);
                     return;
@@ -98,14 +98,14 @@ public interface CloudCredentialManager {
         };
     }
 
-    /** Convenience: wraps via {@link #sourceOf(CloudCredential)}. Returns {@code delegate} when {@code credential} is null. */
+    /** Convenience: wraps via {@link #resolverOf(CloudCredential)}. Returns {@code delegate} when {@code credential} is null. */
     default Client wrapClient(Client delegate, @Nullable CloudCredential credential) {
-        return wrapClient(delegate, credential == null ? null : sourceOf(credential));
+        return wrapClient(delegate, credential == null ? null : resolverOf(credential));
     }
 
-    /** Convenience: wraps via {@link #sourceOf(PersistedCloudCredential)}. Returns {@code delegate} when {@code persisted} is null. */
+    /** Convenience: wraps via {@link #resolverOf(PersistedCloudCredential)}. Returns {@code delegate} when {@code persisted} is null. */
     default Client wrapClient(Client delegate, @Nullable PersistedCloudCredential persisted) {
-        return wrapClient(delegate, persisted == null ? null : sourceOf(persisted));
+        return wrapClient(delegate, persisted == null ? null : resolverOf(persisted));
     }
 
     /**
@@ -129,7 +129,7 @@ public interface CloudCredentialManager {
         }
 
         @Override
-        public CloudCredentialSource sourceOf(PersistedCloudCredential persisted) {
+        public CloudCredentialResolver resolverOf(PersistedCloudCredential persisted) {
             throw new UnsupportedOperationException("cloud-managed credential decoding is not available");
         }
     }

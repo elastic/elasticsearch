@@ -53,25 +53,25 @@ public class CloudCredentialManagerTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, () -> manager.injectCloudManagedCredential(threadContext, credential));
     }
 
-    public void testSourceOfCredentialResolvesToWrappedInstance() {
+    public void testResolverOfCredentialResolvesToWrappedInstance() {
         var credential = new CloudCredential(new SecureString("v".toCharArray()));
-        var source = manager.sourceOf(credential);
-        assertThat(source.resolve(), sameInstance(credential));
+        var resolver = manager.resolverOf(credential);
+        assertThat(resolver.resolve(), sameInstance(credential));
     }
 
-    public void testSourceOfCredentialRejectsNull() {
-        expectThrows(NullPointerException.class, () -> manager.sourceOf((CloudCredential) null));
+    public void testResolverOfCredentialRejectsNull() {
+        expectThrows(NullPointerException.class, () -> manager.resolverOf((CloudCredential) null));
     }
 
-    public void testSourceOfPersistedThrowsOnDefault() {
+    public void testResolverOfPersistedThrowsOnDefault() {
         var persisted = new PersistedCloudCredential("an-id", new CloudCredential(new SecureString("v".toCharArray())));
-        expectThrows(UnsupportedOperationException.class, () -> manager.sourceOf(persisted));
+        expectThrows(UnsupportedOperationException.class, () -> manager.resolverOf(persisted));
     }
 
-    public void testWrapClientWithNullSourceReturnsDelegateUnchanged() {
+    public void testWrapClientWithNullResolverReturnsDelegateUnchanged() {
         try (var threadPool = new TestThreadPool(getTestName())) {
             var delegate = new TrackingClient(threadPool);
-            assertThat(manager.wrapClient(delegate, (CloudCredentialSource) null), sameInstance(delegate));
+            assertThat(manager.wrapClient(delegate, (CloudCredentialResolver) null), sameInstance(delegate));
             assertThat(manager.wrapClient(delegate, (CloudCredential) null), sameInstance(delegate));
             assertThat(manager.wrapClient(delegate, (PersistedCloudCredential) null), sameInstance(delegate));
         }
@@ -81,9 +81,9 @@ public class CloudCredentialManagerTests extends ESTestCase {
         try (var threadPool = new TestThreadPool(getTestName())) {
             var delegate = new TrackingClient(threadPool);
             var failure = new RuntimeException("boom");
-            CloudCredentialSource throwingSource = () -> { throw failure; };
+            CloudCredentialResolver throwingResolver = () -> { throw failure; };
 
-            var wrapped = manager.wrapClient(delegate, throwingSource);
+            var wrapped = manager.wrapClient(delegate, throwingResolver);
             var capturedFailure = new AtomicReference<Exception>();
             var capturedSuccess = new AtomicReference<Object>();
             wrapped.execute(NoopAction.INSTANCE, new NoopRequest(), ActionListener.wrap(capturedSuccess::set, capturedFailure::set));
@@ -112,11 +112,11 @@ public class CloudCredentialManagerTests extends ESTestCase {
     public void testWrapClientWithNullResolveSkipsInjectAndDispatches() {
         try (var threadPool = new TestThreadPool(getTestName())) {
             var delegate = new TrackingClient(threadPool);
-            CloudCredentialSource nullSource = () -> null;
+            CloudCredentialResolver nullResolver = () -> null;
 
             // The Default manager would throw on inject if called; absent injection (null resolve)
             // means the wrapped client just delegates straight through.
-            var wrapped = manager.wrapClient(delegate, nullSource);
+            var wrapped = manager.wrapClient(delegate, nullResolver);
             var request = new NoopRequest();
             wrapped.execute(NoopAction.INSTANCE, request, ActionListener.wrap(r -> {}, e -> {}));
 

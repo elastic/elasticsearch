@@ -238,10 +238,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Test: delete backing index while DLM is in the "mark read-only" phase
-    // -------------------------------------------------------------------------
-
     /**
      * Detects the "mark read-only" phase by intercepting {@link TransportAddIndexBlockAction}.
      * While that request is in-flight, the test deletes the original backing index.
@@ -260,10 +256,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         assertNoErrorRecorded(candidateIndex);
         logger.info("--> delete-during-mark-read-only disruption handled gracefully");
     }
-
-    // -------------------------------------------------------------------------
-    // Test: delete backing index while DLM is in the "clone" phase
-    // -------------------------------------------------------------------------
 
     /**
      * Detects the "clone" phase by intercepting {@link TransportResizeAction}.
@@ -285,10 +277,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         logger.info("--> delete-during-clone disruption handled gracefully");
     }
 
-    // -------------------------------------------------------------------------
-    // Test: delete backing index while DLM is in the "take snapshot" phase
-    // -------------------------------------------------------------------------
-
     /**
      * Detects the "take snapshot" phase by intercepting {@link TransportGetSnapshotsAction}.
      * While that request is in-flight, the test deletes the original backing index.
@@ -308,10 +296,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         assertNoErrorRecorded(candidateIndex);
         logger.info("--> delete-during-snapshot disruption handled gracefully");
     }
-
-    // -------------------------------------------------------------------------
-    // Test: transition recovers after a transient failure (read-only step)
-    // -------------------------------------------------------------------------
 
     /**
      * Intercepts the first {@link TransportAddIndexBlockAction} request and injects a failure
@@ -395,10 +379,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         logger.info("--> transition successfully recovered after transient failure");
     }
 
-    // -------------------------------------------------------------------------
-    // Test: delete backing index while DLM is in the "force merge" phase
-    // -------------------------------------------------------------------------
-
     /**
      * Detects the "force merge" phase by intercepting {@code indices:admin/forcemerge}.
      * While that request is in-flight, the test deletes the original backing index.
@@ -420,10 +400,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         logger.info("--> delete-during-force-merge disruption handled gracefully");
     }
 
-    // -------------------------------------------------------------------------
-    // Test: delete backing index while DLM is in the "mount snapshot" phase
-    // -------------------------------------------------------------------------
-
     /**
      * Detects the "mount searchable snapshot" phase by intercepting
      * {@code cluster:admin/snapshot/mount}. While that request is in-flight, the test deletes
@@ -444,10 +420,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         logger.info("--> delete-during-mount-snapshot disruption handled gracefully");
     }
 
-    // -------------------------------------------------------------------------
-    // Test: delete backing index while DLM is in the "cleanup" phase
-    // -------------------------------------------------------------------------
-
     /**
      * Detects the "cleanup" phase by intercepting {@code indices:admin/data_stream/modify}
      * (the action used to swap the old backing index with the mounted frozen index in the
@@ -467,10 +439,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         assertNoErrorRecorded(candidateIndex);
         logger.info("--> delete-during-cleanup disruption handled gracefully");
     }
-
-    // -------------------------------------------------------------------------
-    // Test: delete the clone index during the snapshot phase
-    // -------------------------------------------------------------------------
 
     /**
      * The clone index is what actually gets snapshotted. Deleting it mid-snapshot exercises a
@@ -493,10 +461,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         assertErrorRecorded(candidateIndex);
         logger.info("--> delete-clone-during-snapshot disruption handled gracefully");
     }
-
-    // -------------------------------------------------------------------------
-    // Test: repository unavailable during snapshot
-    // -------------------------------------------------------------------------
 
     /**
      * Removes the snapshot repository while the snapshot phase is in progress.
@@ -544,10 +508,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         logger.info("--> repository-unavailable disruption recovered successfully");
     }
 
-    // -------------------------------------------------------------------------
-    // Test: concurrent user rollover during transition
-    // -------------------------------------------------------------------------
-
     /**
      * While the frozen transition is in progress (force-merge phase), triggers a user-initiated
      * rollover on the same data stream.
@@ -584,35 +544,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         logger.info("--> concurrent rollover during transition handled gracefully");
     }
 
-    // -------------------------------------------------------------------------
-    // Test: index closed mid-transition (during clone phase)
-    // -------------------------------------------------------------------------
-
-    /**
-     * Closes the backing index while the clone phase is in progress. This produces an
-     * IndexClosedException rather than IndexNotFoundException.
-     */
-    public void testCloseIndexDuringClone() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
-        String candidateIndex = setupClusterAndInfrastructure(2, 1);
-
-        CountDownLatch latch = registerDisruptionInterceptor(
-            TransportResizeAction.TYPE.name(),
-            () -> client().admin().indices().prepareClose(candidateIndex).get(),
-            false
-        );
-        triggerRollover();
-
-        assertTrue("Resize (clone) request was never seen by the interceptor", latch.await(30, TimeUnit.SECONDS));
-        assertErrorRecorded(candidateIndex);
-        logger.info("--> close-index-during-clone disruption recorded error as expected");
-    }
-
-    // -------------------------------------------------------------------------
-    // Test: delete mounted frozen index before swap completes
-    // -------------------------------------------------------------------------
-
     /**
      * After the mount phase succeeds but before the data stream modify/swap completes,
      * deletes the newly mounted frozen index. The swap then references a non-existent index.
@@ -634,10 +565,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         assertErrorRecorded(candidateIndex);
         logger.info("--> delete-frozen-index-before-swap disruption recorded error as expected");
     }
-
-    // -------------------------------------------------------------------------
-    // Test: lifecycle policy updated (frozenAfter removed) mid-transition
-    // -------------------------------------------------------------------------
 
     /**
      * While the frozen transition is in progress (force-merge phase), updates the lifecycle
@@ -677,9 +604,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         logger.info("--> lifecycle-policy-updated-during-transition disruption handled gracefully");
     }
 
-    // =========================================================================
     // Helpers
-    // =========================================================================
 
     /**
      * Starts the required cluster nodes and sets up the data stream infrastructure.

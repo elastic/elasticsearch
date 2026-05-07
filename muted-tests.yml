@@ -521,3 +521,9 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testReshardMetrics
   issue: https://github.com/elastic/elasticsearch/issues/148463
+- class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
+  method: testReindexRelocatesWhenCoordinatorShutsDown
+  issue: https://github.com/elastic/elasticsearch/issues/148373
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionIT
+  method: testEndToEndFrozenTransition
+  issue: https://github.com/elastic/elasticsearch/issues/148467

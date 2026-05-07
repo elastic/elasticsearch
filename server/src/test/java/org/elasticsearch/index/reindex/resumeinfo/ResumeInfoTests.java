@@ -22,8 +22,11 @@ import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.SliceStatus;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResult;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskResult;
+import org.elasticsearch.tasks.TaskResultTests;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
@@ -83,6 +86,42 @@ public class ResumeInfoTests extends ESTestCase {
         assertFalse(info.isSliceCompleted(0));
         assertTrue(info.isSliceCompleted(1));
         expectThrows(IllegalArgumentException.class, () -> info.isSliceCompleted(2));
+    }
+
+    /** Sliced resume may carry PIT worker state for an in-progress slice. */
+    public void testResumeInfoWithSlicesIncludingPitWorker() {
+        PitWorkerResumeInfo pitWorker = new PitWorkerResumeInfo(
+            new BytesArray(randomAlphaOfLengthBetween(1, 32).getBytes(StandardCharsets.UTF_8)),
+            randomSearchAfterValues(),
+            randomNonNegativeLong(),
+            taskStatus(),
+            randomBoolean() ? null : (randomBoolean() ? Version.CURRENT : Version.fromId(randomIntBetween(1, 999_999)))
+        );
+        int sliceInProgress = randomIntBetween(0, 50);
+        int sliceDone = randomValueOtherThan(sliceInProgress, () -> randomIntBetween(0, 50));
+        SliceStatus inProgress = new SliceStatus(sliceInProgress, pitWorker, null);
+        SliceStatus completed = sliceStatusWithResult(sliceDone, new ElasticsearchException(randomAlphaOfLengthBetween(1, 40)));
+        ResumeInfo info = new ResumeInfo(randomOrigin(), null, Map.of(sliceInProgress, inProgress, sliceDone, completed));
+        assertThat(info.getSlice(sliceInProgress).get().resumeInfo(), equalTo(pitWorker));
+        assertFalse(info.isSliceCompleted(sliceInProgress));
+    }
+
+    public void testResumeInfoWithSourceTaskResult() throws IOException {
+        ResumeInfo.RelocationOrigin origin = randomOrigin();
+        ScrollWorkerResumeInfo worker = scrollWorkerResumeInfo(randomAlphaOfLengthBetween(1, 24), randomNonNegativeLong(), taskStatus());
+        TaskResult source = TaskResultTests.randomTaskResult();
+        ResumeInfo info = new ResumeInfo(origin, worker, null, source);
+        assertThat(info.sourceTaskResult(), equalTo(source));
+        assertThat(info.getWorker().get(), equalTo(worker));
+    }
+
+    public void testResumeInfoThreeArgConstructorLeavesSourceTaskResultNull() {
+        ResumeInfo info = new ResumeInfo(
+            randomOrigin(),
+            scrollWorkerResumeInfo(randomAlphaOfLengthBetween(1, 24), randomNonNegativeLong(), taskStatus()),
+            null
+        );
+        assertNull(info.sourceTaskResult());
     }
 
     /** Stored slices map is a copy; later mutations to the input map do not affect the instance. */
@@ -231,6 +270,19 @@ public class ResumeInfoTests extends ESTestCase {
         assertFalse(status.isCompleted());
     }
 
+    public void testSliceStatusWithPitWorkerResumeInfo() {
+        PitWorkerResumeInfo pit = new PitWorkerResumeInfo(
+            new BytesArray(randomAlphaOfLengthBetween(1, 24).getBytes(StandardCharsets.UTF_8)),
+            randomSearchAfterValues(),
+            randomNonNegativeLong(),
+            taskStatus(),
+            randomBoolean() ? null : (randomBoolean() ? Version.CURRENT : Version.fromId(randomIntBetween(1, 999_999)))
+        );
+        SliceStatus status = new SliceStatus(randomIntBetween(0, 100), pit, null);
+        assertThat(status.resumeInfo(), equalTo(pit));
+        assertFalse(status.isCompleted());
+    }
+
     public void testSliceStatusWithResultFailure() {
         WorkerResult result = new WorkerResult(null, new ElasticsearchException("err"));
         SliceStatus status = new SliceStatus(3, null, result);
@@ -248,6 +300,21 @@ public class ResumeInfoTests extends ESTestCase {
         assertNull(status.resumeInfo());
         assertThat(status.result(), equalTo(result));
         assertTrue(status.isCompleted());
+    }
+
+    // ---------- RelocationOrigin ----------
+
+    /** {@link ResumeInfo.RelocationOrigin} rejects a null {@link TaskId}. */
+    public void testRelocationOriginRejectsNullOriginalTaskId() {
+        expectThrows(NullPointerException.class, () -> new ResumeInfo.RelocationOrigin(null, randomNonNegativeLong()));
+    }
+
+    public void testRelocationOriginAccessors() {
+        TaskId taskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        long startMillis = randomNonNegativeLong();
+        ResumeInfo.RelocationOrigin origin = new ResumeInfo.RelocationOrigin(taskId, startMillis);
+        assertThat(origin.originalTaskId(), equalTo(taskId));
+        assertThat(origin.originalStartTimeMillis(), equalTo(startMillis));
     }
 
     private static BulkByScrollTask.Status taskStatus() {
@@ -271,5 +338,18 @@ public class ResumeInfoTests extends ESTestCase {
             randomBoolean() ? TaskId.EMPTY_TASK_ID : new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomNonNegativeLong()
         );
+    }
+
+    private static Object[] randomSearchAfterValues() {
+        int length = randomIntBetween(1, 4);
+        Object[] values = new Object[length];
+        for (int i = 0; i < length; i++) {
+            values[i] = switch (randomIntBetween(0, 2)) {
+                case 0 -> randomLong();
+                case 1 -> randomAlphaOfLengthBetween(1, 12);
+                default -> randomInt();
+            };
+        }
+        return values;
     }
 }

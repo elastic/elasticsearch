@@ -256,6 +256,23 @@ public interface BlockLoader {
     }
 
     /**
+     * An interface for numeric doc values readers that can optionally produce a {@link DocIdSetIterator}
+     * optimized for range queries using SIMD bitmask scanning, with internal skipper-based block skipping
+     * when a skipper is available for the field.
+     * <p>
+     * The returned iterator shares internal block-decoding state with the reader that produced it.
+     * Callers must not use the originating reader after obtaining the iterator; the iterator assumes
+     * exclusive ownership of that shared state.
+     * <p>
+     * The default implementation returns {@code null}, indicating no optimized iterator is available.
+     */
+    interface OptionalNumericRangeReader {
+        default DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue) throws IOException {
+            return null;
+        }
+    }
+
+    /**
      * An interface for readers that attempt to load BytesRef length values directly without loading BytesRefs.
      * <p>
      * Implementations may return {@code null} if they are unable to load the requested values,
@@ -798,12 +815,12 @@ public interface BlockLoader {
          * Append multiple BytesRef. Offsets contains offsets of each BytesRef in the byte array.
          * The length of the offsets array is one more than the number of BytesRefs.
          */
-        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException;
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int[] offsets) throws IOException;
 
         /**
          * Append multiple BytesRefs, all with the same length.
          */
-        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long bytesRefLengths) throws IOException;
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int bytesRefLengths) throws IOException;
     }
 
     interface FloatBuilder extends Builder {

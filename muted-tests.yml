@@ -341,9 +341,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
   method: testTranslogMasterFailureOnlyStressRecoveryTest
   issue: https://github.com/elastic/elasticsearch/issues/147835
-- class: org.elasticsearch.xpack.stateless.lucene.SearchDirectoryTests
-  method: testGetHighestOffsetSegmentInfos
-  issue: https://github.com/elastic/elasticsearch/issues/147837
 - class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
   method: testShardPrewarming
   issue: https://github.com/elastic/elasticsearch/issues/147838

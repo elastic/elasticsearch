@@ -49,6 +49,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private static final TransportVersion TIMESTAMP_RANGE_TELEMETRY = TransportVersion.fromName("timestamp_range_telemetry");
     private static final TransportVersion BATCHED_QUERY_PHASE_VERSION = TransportVersion.fromName("batched_query_phase_version");
     private static final TransportVersion VECTOR_INDEX_TYPE_TELEMETRY = TransportVersion.fromName("vector_index_type_telemetry");
+    private static final TransportVersion SEMANTIC_QUERY_TELEMETRY = TransportVersion.fromName("semantic_query_telemetry");
 
     private int from;
     private int size;
@@ -88,6 +89,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     @Nullable
     private String vectorIndexType;
+
+    private boolean semanticFieldQueried;
 
     /**
      * SearchHits from top_hits that must be released when this result is released. Eagerly allocated so
@@ -481,6 +484,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
             if (in.getTransportVersion().supports(VECTOR_INDEX_TYPE_TELEMETRY)) {
                 vectorIndexType = in.readOptionalString();
             }
+            if (in.getTransportVersion().supports(SEMANTIC_QUERY_TELEMETRY)) {
+                semanticFieldQueried = in.readBoolean();
+            }
             success = true;
         } finally {
             if (success == false) {
@@ -551,6 +557,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         if (out.getTransportVersion().supports(VECTOR_INDEX_TYPE_TELEMETRY)) {
             out.writeOptionalString(vectorIndexType);
+        }
+        if (out.getTransportVersion().supports(SEMANTIC_QUERY_TELEMETRY)) {
+            out.writeBoolean(semanticFieldQueried);
         }
     }
 
@@ -660,5 +669,17 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public void setVectorIndexType(String vectorIndexType) {
         this.vectorIndexType = vectorIndexType;
+    }
+
+    /**
+     * Whether a {@code semantic_text} (or other semantic-prefixed) field was queried on this shard.
+     * Used for telemetry only.
+     */
+    public boolean isSemanticFieldQueried() {
+        return semanticFieldQueried;
+    }
+
+    public void setSemanticFieldQueried(boolean semanticFieldQueried) {
+        this.semanticFieldQueried = semanticFieldQueried;
     }
 }

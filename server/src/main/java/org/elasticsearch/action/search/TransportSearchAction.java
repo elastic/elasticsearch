@@ -2631,6 +2631,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchResponse.getVectorIndexType()
                     );
                 }
+                if (searchResponse.isSemanticFieldQueried()) {
+                    searchRequestAttributes.put(SearchRequestAttributesExtractor.SEMANTIC_ATTRIBUTE, true);
+                }
                 searchResponseMetrics.recordTookTime(
                     searchResponse.getTookInMillis(),
                     searchResponse.getTimeRangeFilterFromMillis(),

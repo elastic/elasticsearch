@@ -112,6 +112,7 @@ public class MetricValidator {
             "pit_scroll",
             "query_type",
             "response_status",
+            "semantic",
             "sort",
             "target",
             "time_range_filter_field",

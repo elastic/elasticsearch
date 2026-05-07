@@ -93,6 +93,7 @@ public class QueryRewriteContext {
     private boolean trackTimeRangeFilterFrom = true;
     private final boolean allowPartialSearchResults;
     private final Set<String> vectorIndexTypes = new HashSet<>();
+    private boolean semanticFieldQueried = false;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -732,6 +733,21 @@ public class QueryRewriteContext {
      */
     public Set<String> getVectorIndexTypes() {
         return vectorIndexTypes;
+    }
+
+    /**
+     * Records that a {@code semantic_text} (or other semantic-prefixed) field was the target of a query
+     * during shard-level query rewriting. For telemetry purposes.
+     */
+    public void recordSemanticFieldQueried() {
+        this.semanticFieldQueried = true;
+    }
+
+    /**
+     * Returns whether a semantic field was queried — see {@link #recordSemanticFieldQueried()}.
+     */
+    public boolean isSemanticFieldQueried() {
+        return semanticFieldQueried;
     }
 
     /**

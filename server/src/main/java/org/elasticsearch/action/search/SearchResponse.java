@@ -94,6 +94,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private transient Long timeRangeFilterFromMillis;
     // only used for telemetry purposes on the coordinating node, where the search response gets created
     private transient String vectorIndexType;
+    // only used for telemetry purposes on the coordinating node, where the search response gets created
+    private transient boolean semanticFieldQueried;
 
     // SearchHits from top_hits aggs to release when this response is released.
     private final List<SearchHits> topHitsToRelease;
@@ -216,6 +218,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         );
         this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
         this.vectorIndexType = searchResponseSections.vectorIndexType;
+        this.semanticFieldQueried = searchResponseSections.semanticFieldQueried;
         if (this.profileResults != null) {
             this.profileResults.setOriginalSource(source);
             this.profileResults.setRequestIndices(indices);
@@ -549,6 +552,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      */
     public String getVectorIndexType() {
         return vectorIndexType;
+    }
+
+    /**
+     * Whether a semantic-prefixed field (e.g. {@code semantic_text}) was queried on any shard.
+     * Coordinator-side telemetry only.
+     */
+    public boolean isSemanticFieldQueried() {
+        return semanticFieldQueried;
     }
 
     @Override

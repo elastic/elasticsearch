@@ -308,6 +308,7 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
         if (fieldType == null) {
             return new MatchNoneQueryBuilder();
         } else if (fieldType instanceof SemanticFieldMapper.SemanticFieldType semanticFieldType) {
+            searchExecutionContext.recordSemanticFieldQueried();
             if (inferenceResultsMap == null) {
                 // This should never happen, but throw on it in case it ever does
                 throw new IllegalStateException(

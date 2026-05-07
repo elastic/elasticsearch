@@ -145,7 +145,8 @@ public class QueryPhase {
         addCollectorsAndSearch(
             searchContext,
             searchContext.getSearchExecutionContext().getTimeRangeFilterFromMillis(),
-            searchContext.getSearchExecutionContext().getVectorIndexTypes()
+            searchContext.getSearchExecutionContext().getVectorIndexTypes(),
+            searchContext.getSearchExecutionContext().isSemanticFieldQueried()
         );
 
         RescorePhase.execute(searchContext);
@@ -160,21 +161,28 @@ public class QueryPhase {
      * wire everything (mapperService, etc.)
      */
     static void addCollectorsAndSearch(SearchContext searchContext, Long timeRangeFilterFromMillis) {
-        addCollectorsAndSearch(searchContext, timeRangeFilterFromMillis, Set.of());
+        addCollectorsAndSearch(searchContext, timeRangeFilterFromMillis, Set.of(), false);
     }
 
     /**
      * In a package-private method so that it can be tested without having to
      * wire everything (mapperService, etc.)
      */
-    static void addCollectorsAndSearch(SearchContext searchContext, Long timeRangeFilterFromMillis, Set<String> vectorIndexTypes)
-        throws QueryPhaseExecutionException {
+    static void addCollectorsAndSearch(
+        SearchContext searchContext,
+        Long timeRangeFilterFromMillis,
+        Set<String> vectorIndexTypes,
+        boolean semanticFieldQueried
+    ) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
         queryResult.setTimeRangeFilterFromMillis(timeRangeFilterFromMillis);
         if (vectorIndexTypes.isEmpty() == false) {
             queryResult.setVectorIndexType(vectorIndexTypes.size() == 1 ? vectorIndexTypes.iterator().next() : "mixed");
+        }
+        if (semanticFieldQueried) {
+            queryResult.setSemanticFieldQueried(true);
         }
         queryResult.searchTimedOut(false);
         try {

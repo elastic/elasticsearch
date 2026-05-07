@@ -38,6 +38,7 @@ public class SearchResponseSections implements Releasable {
         1,
         null,
         null,
+        false,
         null,
         null
     );
@@ -51,6 +52,7 @@ public class SearchResponseSections implements Releasable {
         1,
         null,
         null,
+        false,
         null,
         null
     );
@@ -64,6 +66,7 @@ public class SearchResponseSections implements Releasable {
     protected final Long timeRangeFilterFromMillis;
     @Nullable
     protected final String vectorIndexType;
+    protected final boolean semanticFieldQueried;
     // List of top_hits SearchHits to release; cleared when transferred to SearchResponse so close() does not release
     private List<SearchHits> topHitsToRelease;
     // Completion suggestion option hits (refs taken in merge before fetch result is released); cleared when transferred
@@ -89,6 +92,7 @@ public class SearchResponseSections implements Releasable {
             numReducePhases,
             timeRangeFilterFromMillis,
             null,
+            false,
             null,
             null
         );
@@ -104,6 +108,7 @@ public class SearchResponseSections implements Releasable {
         int numReducePhases,
         Long timeRangeFilterFromMillis,
         @Nullable String vectorIndexType,
+        boolean semanticFieldQueried,
         @Nullable List<SearchHits> topHitsToRelease,
         @Nullable List<SearchHit> completionOptionHitsToRelease
     ) {
@@ -116,6 +121,7 @@ public class SearchResponseSections implements Releasable {
         this.numReducePhases = numReducePhases;
         this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
         this.vectorIndexType = vectorIndexType;
+        this.semanticFieldQueried = semanticFieldQueried;
         this.topHitsToRelease = topHitsToRelease;
         this.completionOptionHitsToRelease = completionOptionHitsToRelease;
     }

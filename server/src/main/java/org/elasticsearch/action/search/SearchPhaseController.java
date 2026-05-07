@@ -402,6 +402,7 @@ public final class SearchPhaseController {
                 true,
                 null,
                 null,
+                false,
                 null
             );
         }
@@ -433,6 +434,7 @@ public final class SearchPhaseController {
         int size = 0;
         Long timeRangeFilterFromMillis = null;
         String vectorIndexType = null;
+        boolean semanticFieldQueried = false;
         DocValueFormat[] sortValueFormats = null;
         for (QuerySearchResult result : nonNullResults) {
             from = result.from();
@@ -458,6 +460,10 @@ public final class SearchPhaseController {
                 } else if (vectorIndexType.equals(result.getVectorIndexType()) == false) {
                     vectorIndexType = "mixed";
                 }
+            }
+
+            if (result.isSemanticFieldQueried()) {
+                semanticFieldQueried = true;
             }
 
             if (hasSuggest) {
@@ -517,6 +523,7 @@ public final class SearchPhaseController {
             false,
             timeRangeFilterFromMillis,
             vectorIndexType,
+            semanticFieldQueried,
             topHitsToRelease
         );
     }
@@ -604,6 +611,8 @@ public final class SearchPhaseController {
         Long timeRangeFilterFromMillis,
         // dense_vector index type used by KNN queries on this search (or "mixed", or null when no KNN ran)
         @Nullable String vectorIndexType,
+        // true iff a semantic_text (or other semantic-prefixed) field was queried on any shard
+        boolean semanticFieldQueried,
         // SearchHits from top_hits aggs for release by SearchResponse (may be null)
         @Nullable List<SearchHits> topHitsToRelease
     ) {
@@ -633,6 +642,7 @@ public final class SearchPhaseController {
                 numReducePhases,
                 timeRangeFilterFromMillis,
                 vectorIndexType,
+                semanticFieldQueried,
                 topHitsToRelease,
                 completionOptionHitsToRelease
             );

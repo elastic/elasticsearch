@@ -35,7 +35,7 @@ public class SemanticTextUtils {
      * <p>Each element in the returned list is one of:
      * <ul>
      *     <li>a {@link String} — for raw {@code String}, {@code Number}, or {@code Boolean} input values</li>
-     *     <li>an {@link org.elasticsearch.inference.InferenceString} — for input values supplied as an object</li>
+     *     <li>an {@link InferenceString} — for input values supplied as an object</li>
      * </ul>
      *
      * <p>If {@code valueObj} is a {@link Collection}, every element is converted in iteration order. Any other {@code valueObj}
@@ -46,9 +46,8 @@ public class SemanticTextUtils {
      * @return a flat list of inference inputs
      * @throws ElasticsearchStatusException if the raw source field value uses an invalid format
      */
-    @SuppressWarnings("unchecked")
     public static List<Object> nodeObjectValues(String field, Object valueObj) {
-        return (List<Object>) nodeObjectValues(field, valueObj, true);
+        return nodeValues(valueObj, raw -> nodeObjectValue(field, raw, true));
     }
 
     /**
@@ -63,29 +62,20 @@ public class SemanticTextUtils {
      * @return a list of string inference inputs
      * @throws ElasticsearchStatusException if the raw source field value uses an invalid format
      */
-    @SuppressWarnings("unchecked")
     public static List<String> nodeStringValues(String field, Object valueObj) {
-        return (List<String>) nodeObjectValues(field, valueObj, false);
+        return nodeValues(valueObj, raw -> (String) nodeObjectValue(field, raw, false));
     }
 
-    private static List<?> nodeObjectValues(String field, Object valueObj, boolean parseInferenceStrings) {
-        final Function<Object, Object> parseRawValue = raw -> {
-            Object parsed = nodeObjectValue(field, raw, parseInferenceStrings);
-            assert parseInferenceStrings || parsed instanceof String : "All values for field [" + field + "] must be strings";
-            return parsed;
-        };
-
-        List<Object> parsedValues;
+    private static <T> List<T> nodeValues(Object valueObj, Function<Object, T> parse) {
         if (valueObj instanceof Collection<?> values) {
-            parsedValues = new ArrayList<>(values.size());
+            List<T> parsed = new ArrayList<>(values.size());
             for (var v : values) {
-                parsedValues.add(parseRawValue.apply(v));
+                parsed.add(parse.apply(v));
             }
-        } else {
-            parsedValues = List.of(parseRawValue.apply(valueObj));
+            return parsed;
         }
 
-        return parsedValues;
+        return List.of(parse.apply(valueObj));
     }
 
     private static Object nodeObjectValue(String field, Object valueObj, boolean parseInferenceStrings) {

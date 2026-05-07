@@ -40,6 +40,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
+
 /**
  * End-to-end constant-detection coverage for the {@code *ArrowBufBlock.of(...)} factories
  * across every supported fixed-width Arrow type. Verifies that uniform vectors yield constant
@@ -339,8 +341,9 @@ public class ArrowBufConstantTests extends ESTestCase {
             try (Block block = BooleanArrowBufBlock.of(v, blockFactory)) {
                 BooleanBlock bb = (BooleanBlock) block;
                 assertTrue(bb.asVector() != null && bb.asVector().isConstant());
-                for (int i = 0; i < 9; i++)
+                for (int i = 0; i < 9; i++) {
                     assertTrue(bb.getBoolean(i));
+                }
             }
         }
     }
@@ -355,8 +358,9 @@ public class ArrowBufConstantTests extends ESTestCase {
             try (Block block = BooleanArrowBufBlock.of(v, blockFactory)) {
                 BooleanBlock bb = (BooleanBlock) block;
                 assertTrue(bb.asVector() != null && bb.asVector().isConstant());
-                for (int i = 0; i < 16; i++)
+                for (int i = 0; i < 16; i++) {
                     assertFalse(bb.getBoolean(i));
+                }
             }
         }
     }
@@ -381,7 +385,7 @@ public class ArrowBufConstantTests extends ESTestCase {
     public void testVarCharConstant() {
         try (VarCharVector v = new VarCharVector("v", allocator)) {
             v.allocateNew(4);
-            byte[] bytes = "hello".getBytes();
+            byte[] bytes = "hello".getBytes(StandardCharsets.UTF_8);
             for (int i = 0; i < 4; i++) {
                 v.setSafe(i, bytes);
             }
@@ -398,9 +402,9 @@ public class ArrowBufConstantTests extends ESTestCase {
     public void testVarCharNotConstantSameLength() {
         try (VarCharVector v = new VarCharVector("v", allocator)) {
             v.allocateNew(3);
-            v.setSafe(0, "abc".getBytes());
-            v.setSafe(1, "abc".getBytes());
-            v.setSafe(2, "abd".getBytes());
+            v.setSafe(0, "abc".getBytes(StandardCharsets.UTF_8));
+            v.setSafe(1, "abc".getBytes(StandardCharsets.UTF_8));
+            v.setSafe(2, "abd".getBytes(StandardCharsets.UTF_8));
             v.setValueCount(3);
             try (Block block = BytesRefArrowBufBlock.of(v, blockFactory)) {
                 assertFalse(block.asVector() != null && block.asVector().isConstant());
@@ -412,9 +416,9 @@ public class ArrowBufConstantTests extends ESTestCase {
     public void testVarCharNotConstantDifferentLength() {
         try (VarCharVector v = new VarCharVector("v", allocator)) {
             v.allocateNew(3);
-            v.setSafe(0, "abc".getBytes());
-            v.setSafe(1, "abc".getBytes());
-            v.setSafe(2, "abcd".getBytes());
+            v.setSafe(0, "abc".getBytes(StandardCharsets.UTF_8));
+            v.setSafe(1, "abc".getBytes(StandardCharsets.UTF_8));
+            v.setSafe(2, "abcd".getBytes(StandardCharsets.UTF_8));
             v.setValueCount(3);
             try (Block block = BytesRefArrowBufBlock.of(v, blockFactory)) {
                 assertFalse(block.asVector() != null && block.asVector().isConstant());

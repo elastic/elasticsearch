@@ -309,6 +309,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
         sourceBuilder.version(needsSourceDocumentVersions);
         sourceBuilder.seqNoAndPrimaryTerm(needsSourceDocumentSeqNoAndPrimaryTerm);
 
+        if (sourceBuilder.trackTotalHitsUpTo() == null) {
+            sourceBuilder.trackTotalHits(true);
+        }
+
         if (needsVectors) {
             // always include vectors in the response unless explicitly set
             var fetchSource = sourceBuilder.fetchSource();

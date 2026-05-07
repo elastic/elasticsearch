@@ -318,64 +318,32 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.visitCode();
 
-        // Two counters guard loop backedges in opted-in functions: the cancellation poll counter
-        // (drives a runnable invocation that throws TimeExceededException / TaskCancelledException
-        // when a deadline or cancel is registered on the search context) and the legacy max-loop
-        // counter (throws PainlessError after a fixed budget). At function entry we make exactly
-        // one of them "active": when a cancellation runnable is bound on the script we set the
-        // legacy counter to Integer.MAX_VALUE so it can't trip; when no runnable is bound we set
-        // the poll counter to Integer.MAX_VALUE instead so the legacy counter remains the sole
-        // safety net. This means scripts running under a search-with-timeout get cancellation
-        // semantics, while scripts running outside a search context (no runnable supplied) fall
-        // back exactly to the historical max_loop_counter behavior.
+        // Per-loop safety: cancellation-aware (opted-in) functions emit a runtime
+        // {@code if (cancelRunnable != null)} guard at every loop backedge that picks between
+        // the cancellation poll (drives a runnable that throws TimeExceededException /
+        // TaskCancelledException when a deadline or cancel is registered on the search context)
+        // and the legacy max-loop counter (throws PainlessError after a fixed budget). At
+        // function entry we just initialize all three locals once; the per-loop branch decides
+        // which path to follow based on the runtime value of cancelRunnable, which can change
+        // between executions of the same script instance via _setCancellationCheck.
+        // Non-opted-in functions emit only the legacy counter (unchanged historical behavior).
         boolean cancellation = irFunctionNode.hasCondition(IRCCancellationCheck.class);
         int maxLoopCounter = irFunctionNode.getDecorationValue(IRDMaxLoopCounter.class);
-        Variable cancelRunnable = null;
-        Variable poll = null;
-        Variable loop = null;
 
         if (cancellation) {
-            cancelRunnable = writeScope.defineInternalVariable(Runnable.class, "cancelRunnable");
-            poll = writeScope.defineInternalVariable(int.class, "poll");
+            Variable cancelRunnable = writeScope.defineInternalVariable(Runnable.class, "cancelRunnable");
+            Variable poll = writeScope.defineInternalVariable(int.class, "poll");
 
             methodWriter.loadThis();
             methodWriter.invokeInterface(WriterConstants.BASE_INTERFACE_TYPE, WriterConstants.GET_CANCELLATION_CHECK);
             methodWriter.visitVarInsn(Opcodes.ASTORE, cancelRunnable.getSlot());
+
+            methodWriter.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
+            methodWriter.visitVarInsn(Opcodes.ISTORE, poll.getSlot());
         }
 
         if (maxLoopCounter > 0) {
-            loop = writeScope.defineInternalVariable(int.class, "loop");
-        }
-
-        if (cancellation) {
-            // Branch on cancelRunnable:
-            // non-null → poll = CANCELLATION_POLL_INTERVAL (cancellation active),
-            // loop = Integer.MAX_VALUE (legacy disabled)
-            // null → poll = Integer.MAX_VALUE (cancellation inert),
-            // loop = maxLoopCounter (legacy active fallback)
-            Label nullCancel = new Label();
-            Label done = new Label();
-            methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
-            methodWriter.ifNull(nullCancel);
-            // non-null branch
-            methodWriter.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
-            methodWriter.visitVarInsn(Opcodes.ISTORE, poll.getSlot());
-            if (loop != null) {
-                methodWriter.push(Integer.MAX_VALUE);
-                methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
-            }
-            methodWriter.goTo(done);
-            // null branch
-            methodWriter.mark(nullCancel);
-            methodWriter.push(Integer.MAX_VALUE);
-            methodWriter.visitVarInsn(Opcodes.ISTORE, poll.getSlot());
-            if (loop != null) {
-                methodWriter.push(maxLoopCounter);
-                methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
-            }
-            methodWriter.mark(done);
-        } else if (loop != null) {
-            // Legacy-only path: int #loop = settings.getMaxLoopCounter()
+            Variable loop = writeScope.defineInternalVariable(int.class, "loop");
             methodWriter.push(maxLoopCounter);
             methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
@@ -386,51 +354,89 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
     }
 
     /**
-     * Emits the per-iteration safety check at a loop's backedge. Opted-in (cancellation-aware)
-     * functions emit <em>both</em> the cancellation poll-counter delegate and the legacy max-loop
-     * counter so the legacy counter remains the no-deadline fallback. Non-opted-in functions emit
-     * only the legacy counter (unchanged behavior). When neither variable is in scope (e.g.
-     * synthetic injected functions with {@code IRDMaxLoopCounter(0)} and no cancellation), nothing
-     * is emitted.
+     * Emits the per-iteration safety check at the backedge of a regular for/while/do-while loop.
+     * Opted-in (cancellation-aware) functions emit a runtime
+     * {@code if (cancelRunnable != null)} guard that picks between the cancellation poll
+     * (timeout/cancel via {@code Runnable.run()}) and the legacy max-loop counter at every
+     * iteration. The branch lets the JIT specialize per call site / per instance and fold away
+     * the inactive arm; it also removes the wasted decrement that would otherwise happen on the
+     * inactive counter. Non-opted-in functions just emit the legacy counter unchanged.
      */
     private static void writeLoopGuard(WriteScope writeScope, MethodWriter methodWriter, Location location) {
-        writeCancellationGuard(writeScope, methodWriter, location);
-        Variable loop = writeScope.getInternalVariable("loop");
-        if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), location);
-        }
+        writeBranchedLoopGuard(writeScope, methodWriter, location, true);
     }
 
     /**
-     * Emits only the cancellation poll-counter delegate when in scope; never falls back to the
-     * legacy max-loop counter. Used by for-each loops which historically did not emit the legacy
-     * counter at all — we close the gap for opted-in (cancellation-aware) contexts but preserve
-     * the existing "for-each is uncovered" behavior for legacy contexts to avoid changing
-     * behavior of long-existing scripts.
-     *
-     * @return {@code true} if a cancellation check was emitted
-     */
-    private static boolean writeCancellationGuard(WriteScope writeScope, MethodWriter methodWriter, Location location) {
-        Variable cancelRunnable = writeScope.getInternalVariable("cancelRunnable");
-        if (cancelRunnable == null) {
-            return false;
-        }
-        Variable poll = writeScope.getInternalVariable("poll");
-        methodWriter.writeCancellationCheck(cancelRunnable.getSlot(), poll.getSlot(), WriterConstants.CANCELLATION_POLL_INTERVAL, location);
-        return true;
-    }
-
-    /**
-     * Emits the per-iteration safety check for a for-each loop body — only the cancellation
-     * guard, never the legacy max-loop counter. For opted-in contexts: when a cancellation
-     * runnable is registered at runtime, the timeout/cancel fires; when it's null (no
-     * deadline/cancel set) the poll counter never trips (initialized to {@link Integer#MAX_VALUE}
-     * at function entry) and the for-each runs unprotected — matching the historical
-     * "for-each loops are uncovered by max_loop_counter" behavior. For legacy contexts: nothing
-     * is emitted at all (cancellation guard returns immediately).
+     * Emits the per-iteration safety check at the backedge of a for-each loop. Same shape as
+     * {@link #writeLoopGuard} for opted-in functions. For non-opted-in functions nothing is
+     * emitted at all — preserves the historical "for-each is uncovered by max_loop_counter"
+     * behavior so this change doesn't retroactively break long-existing scripts (filter, ingest,
+     * etc.) that iterate large collections via for-each.
      */
     private static void writeForEachLoopGuard(WriteScope writeScope, MethodWriter methodWriter, Location location) {
-        writeCancellationGuard(writeScope, methodWriter, location);
+        writeBranchedLoopGuard(writeScope, methodWriter, location, false);
+    }
+
+    /**
+     * Shared emission for both regular and for-each loop guards.
+     *
+     * <ul>
+     *   <li>If {@code cancelRunnable} is in scope (opted-in function): emit
+     *       {@code if (cancelRunnable != null) writeCancellationCheck else writeLoopCounter}.
+     *       Whichever counter the runtime branch skips pays no per-iteration cost — important
+     *       for correctness because the inactive counter would otherwise eventually trip on
+     *       long-running scripts (e.g. an int counter pre-set to {@link Integer#MAX_VALUE}
+     *       would still hit zero after ~2 seconds of tight looping).
+     *   <li>If {@code cancelRunnable} is not in scope and {@code legacyForNonOptedIn} is true
+     *       (regular loops): emit just {@link MethodWriter#writeLoopCounter}.
+     *   <li>If {@code cancelRunnable} is not in scope and {@code legacyForNonOptedIn} is false
+     *       (for-each in non-opted-in functions): emit nothing.
+     * </ul>
+     */
+    private static void writeBranchedLoopGuard(
+        WriteScope writeScope,
+        MethodWriter methodWriter,
+        Location location,
+        boolean legacyForNonOptedIn
+    ) {
+        Variable cancelRunnable = writeScope.getInternalVariable("cancelRunnable");
+        Variable loop = writeScope.getInternalVariable("loop");
+
+        if (cancelRunnable == null) {
+            if (legacyForNonOptedIn && loop != null) {
+                methodWriter.writeLoopCounter(loop.getSlot(), location);
+            }
+            return;
+        }
+
+        Variable poll = writeScope.getInternalVariable("poll");
+
+        if (loop == null) {
+            // No legacy fallback to choose between — just skip the cancellation check when
+            // the runnable is null.
+            Label skip = new Label();
+            methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
+            methodWriter.ifNull(skip);
+            methodWriter.writeCancellationCheck(
+                cancelRunnable.getSlot(),
+                poll.getSlot(),
+                WriterConstants.CANCELLATION_POLL_INTERVAL,
+                location
+            );
+            methodWriter.mark(skip);
+            return;
+        }
+
+        Label legacyPath = new Label();
+        Label end = new Label();
+
+        methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
+        methodWriter.ifNull(legacyPath);
+        methodWriter.writeCancellationCheck(cancelRunnable.getSlot(), poll.getSlot(), WriterConstants.CANCELLATION_POLL_INTERVAL, location);
+        methodWriter.goTo(end);
+        methodWriter.mark(legacyPath);
+        methodWriter.writeLoopCounter(loop.getSlot(), location);
+        methodWriter.mark(end);
     }
 
     @Override

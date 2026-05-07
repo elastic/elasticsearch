@@ -1461,20 +1461,11 @@ public class EsqlSession {
             preAnalysis.hasTimeSeriesAggregation(),
             trackUnmappedFieldIndices,
             listener.delegateFailureAndWrap((l, indexResolution) -> {
-                // Mirror the post-resolution bookkeeping that {@link #preAnalyzeFlatMainIndices}
-                // does for the strict call. A CPS-only path — e.g. {@code FROM data} where
-                // {@code data} is a local view shadowing a remote index — discovers the linked
-                // project ONLY in this lenient response, so without {@code initCrossClusterState}
-                // here the linked project's {@code Cluster} would never be initialised in
-                // {@code executionInfo} and the executor's {@code clusterStatus != RUNNING}
-                // gate would skip the remote query fragment. Calling {@code initCluster} per
-                // cluster is idempotent (it appends the index expression on a second call), so
-                // this is safe even when the strict pass already initialised the same cluster.
                 EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
                 EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
-                planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
+                // TODO count distinct linked projects
                 l.onResponse(result.withWithOptionalLinkedIndices(indexPattern, indexResolution.inner()));
             })
         );
@@ -1614,6 +1605,7 @@ public class EsqlSession {
                 EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
                     executionInfo,
                     result.indexResolution.values(),
+                    result.optionalLinkedResolution.values(),
                     requestFilter != null
                 );
             }

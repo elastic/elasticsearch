@@ -23,10 +23,15 @@ import org.elasticsearch.xcontent.XContentString;
  * {@code Partitioned}) return {@code null} from that factory and callers should use
  * {@link IndexRouting#indexShard(IndexRequest)} directly.
  *
+ * <p><b>Invariant:</b> a given {@code RoutingExtractor} instance is only fed fields from documents
+ * targeting the same index. Callers must obtain a fresh extractor via
+ * {@link IndexRouting#newRoutingExtractor()} when switching indices, since both the routing
+ * strategy and the column-index-to-path mapping are per-index.
+ *
  * <p>The column-level cache is intentionally <b>not</b> cleared between documents: column indices
  * are stable for the lifetime of the {@link EirfEncoder} they're attached to (the schema is built
- * up cumulatively across all docs in the bulk), so once column N's predicate result is known it
- * remains valid for every subsequent document.
+ * up cumulatively across all docs in the bulk for a single index), so once column N's predicate
+ * result is known it remains valid for every subsequent document fed to this extractor.
  */
 public abstract class RoutingExtractor implements EirfEncoder.LeafSink {
 

@@ -62,6 +62,7 @@ public class TsidBuilder {
      * The underlying dimensions list retains its capacity.
      */
     public void reset() {
+        murmur3Hasher.reset();
         dimensions.clear();
     }
 

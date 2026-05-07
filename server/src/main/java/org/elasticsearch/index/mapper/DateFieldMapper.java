@@ -1167,7 +1167,7 @@ public final class DateFieldMapper extends FieldMapper {
     private static boolean shouldUseDocValuesSkipper(IndexSettings indexSettings, boolean hasDocValues, final String fullFieldName) {
         return indexSettings.useDocValuesSkipper()
             && hasDocValues
-            && indexSettings.getMode().isColumnar()
+            && (IndexMode.LOGSDB.equals(indexSettings.getMode()) || IndexMode.TIME_SERIES.equals(indexSettings.getMode()))
             && indexSettings.getIndexSortConfig() != null
             && indexSettings.getIndexSortConfig().hasSortOnField(fullFieldName)
             && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);

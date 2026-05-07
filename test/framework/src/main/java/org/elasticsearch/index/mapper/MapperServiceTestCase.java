@@ -157,8 +157,6 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             case STANDARD, LOOKUP -> createDocumentMapper(mappings);
             case TIME_SERIES -> createTimeSeriesModeDocumentMapper(mappings);
             case LOGSDB -> createLogsModeDocumentMapper(mappings);
-            case COLUMNAR -> createColumnarModeDocumentMapper(mappings);
-            case COLUMNAR_LOGSDB -> createColumnarLogsdbModeDocumentMapper(mappings);
         };
     }
 
@@ -176,16 +174,6 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
 
     protected final DocumentMapper createLogsModeDocumentMapper(XContentBuilder mappings) throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).build();
-        return createMapperService(settings, mappings).documentMapper();
-    }
-
-    protected final DocumentMapper createColumnarModeDocumentMapper(XContentBuilder mappings) throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        return createMapperService(settings, mappings).documentMapper();
-    }
-
-    protected final DocumentMapper createColumnarLogsdbModeDocumentMapper(XContentBuilder mappings) throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName()).build();
         return createMapperService(settings, mappings).documentMapper();
     }
 

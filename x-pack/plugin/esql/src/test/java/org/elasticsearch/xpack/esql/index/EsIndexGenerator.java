@@ -50,7 +50,7 @@ public class EsIndexGenerator {
     }
 
     public static Map<String, IndexMode> randomIndexNameWithModes() {
-        return randomMap(0, 10, () -> tuple(randomIdentifier(), randomFrom(IndexMode.availableModes())));
+        return randomMap(0, 10, () -> tuple(randomIdentifier(), randomFrom(IndexMode.values())));
     }
 
     public static Map<String, List<String>> randomRemotesWithIndices() {

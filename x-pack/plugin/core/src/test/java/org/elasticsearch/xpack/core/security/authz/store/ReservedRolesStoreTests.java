@@ -1230,8 +1230,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
 
-        // Agent Builder OTLP traces
-        Arrays.asList("traces-agent_builder.otel-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach(indexName -> {
+        // Agent Builder OTLP telemetry (traces + logs from span events)
+        Arrays.asList(
+            "traces-agent_builder.otel-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-agent_builder.otel-" + randomAlphaOfLength(randomIntBetween(0, 13))
+        ).forEach(indexName -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));

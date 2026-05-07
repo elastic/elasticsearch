@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -126,25 +127,21 @@ public class RangeWithin extends EsqlScalarFunction {
             return null;
         }
 
-        return rangeWithin(leftValue, rightValue, left.dataType(), right.dataType());
+        if (left.dataType() == DATE_RANGE) {
+            return processRange((LongRangeBlockBuilder.LongRange) leftValue, (LongRangeBlockBuilder.LongRange) rightValue);
+        }
+        return processPoint((Long) leftValue, (LongRangeBlockBuilder.LongRange) rightValue);
     }
 
-    /**
-     * Returns true if the left value is within the right range.
-     * - (date_range, date_range): first within second (first fully contained by second).
-     * - (date, date_range): point within range.
-     */
-    static boolean rangeWithin(Object leftVal, Object rightVal, DataType leftType, DataType rightType) {
-        if (leftType == DATE_RANGE && rightType == DATE_RANGE) {
-            LongRangeBlockBuilder.LongRange a = (LongRangeBlockBuilder.LongRange) leftVal;
-            LongRangeBlockBuilder.LongRange b = (LongRangeBlockBuilder.LongRange) rightVal;
-            return a.from() >= b.from() && a.to() <= b.to();
-        }
-        // (date, date_range): point in range
-        assert leftType == DATETIME && rightType == DATE_RANGE;
-        long point = (Long) leftVal;
-        LongRangeBlockBuilder.LongRange r = (LongRangeBlockBuilder.LongRange) rightVal;
-        return point >= r.from() && point < r.to();
+    @Evaluator(extraName = "Point")
+    static boolean processPoint(long point, LongRangeBlockBuilder.LongRange range) {
+        // Range is [from, to); to is exclusive.
+        return point >= range.from() && point < range.to();
+    }
+
+    @Evaluator(extraName = "Range")
+    static boolean processRange(LongRangeBlockBuilder.LongRange a, LongRangeBlockBuilder.LongRange b) {
+        return a.from() >= b.from() && a.to() <= b.to();
     }
 
     @Override
@@ -161,8 +158,11 @@ public class RangeWithin extends EsqlScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var leftEvaluator = toEvaluator.apply(left);
-        var rangeEvaluator = toEvaluator.apply(right);
-        return new RangeWithinEvaluator.Factory(source(), left.dataType(), right.dataType(), leftEvaluator, rangeEvaluator);
+        var rightEvaluator = toEvaluator.apply(right);
+        if (left.dataType() == DATE_RANGE) {
+            return new RangeWithinRangeEvaluator.Factory(source(), leftEvaluator, rightEvaluator);
+        }
+        return new RangeWithinPointEvaluator.Factory(source(), leftEvaluator, rightEvaluator);
     }
 
     @Override

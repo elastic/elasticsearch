@@ -889,8 +889,16 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     ) {
         IndexMode dsIndexMode = this.indexMode;
         if (isStandardLike(dsIndexMode) && isStandardLike(indexModeFromTemplate)) {
-            // Within standard-like group (null / STANDARD / COLUMNAR): adopt the exact variant from the template.
-            dsIndexMode = toStandardLike(indexModeFromTemplate);
+            if (dsIndexMode == IndexMode.COLUMNAR) {
+                // COLUMNAR keeps its mode only if the template still says COLUMNAR; any other standard-like template reverts to null.
+                if (indexModeFromTemplate != IndexMode.COLUMNAR) {
+                    dsIndexMode = null;
+                }
+            } else if (indexModeFromTemplate == IndexMode.COLUMNAR) {
+                // null / STANDARD promoted to COLUMNAR by the template.
+                dsIndexMode = IndexMode.COLUMNAR;
+            }
+            // null / STANDARD ↔ null / STANDARD: preserve dsIndexMode unchanged.
         } else if (isLogsdbLike(dsIndexMode) && isLogsdbLike(indexModeFromTemplate)) {
             // Within logsdb-like group (LOGSDB / COLUMNAR_LOGSDB): adopt the exact variant from the template.
             dsIndexMode = indexModeFromTemplate;

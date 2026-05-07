@@ -205,7 +205,7 @@ public final class WriterConstants {
      * {@link org.elasticsearch.painless.PainlessScript#_getCancellationCheck()} runs once every
      * {@code CANCELLATION_POLL_INTERVAL} iters to amortize the check cost.
      */
-    public static final int CANCELLATION_POLL_INTERVAL = 1024;
+    public static final int CANCELLATION_POLL_INTERVAL = 1000;
 
     public static final Method GET_CANCELLATION_CHECK = getAsmMethod(Runnable.class, "_getCancellationCheck");
 

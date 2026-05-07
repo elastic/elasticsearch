@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 148470
+summary: Not re-sync for paused shard snapshot after it is reassigned
+type: bug

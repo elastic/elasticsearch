@@ -525,9 +525,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * Regression: the coordinator's fallback path must pass recordAligned through to the
      * reader even when parallelism is 1 (openWithParallelism returns null). This validates
-     * the single-threaded CSV read of a non-leading macro-split with a row limit set.
+     * the single-threaded CSV read of a non-leading macro-split.
      */
-    public void testCsvNonLeadingMacroSplitWithRowLimitPreservesRows() throws Exception {
+    public void testCsvNonLeadingMacroSplitSingleThreadPreservesRows() throws Exception {
         String header = "x,y\n";
         int dataRows = 50;
         StringBuilder sb = new StringBuilder(header);
@@ -570,6 +570,46 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             }
         }
         return rows;
+    }
+
+    /**
+     * Partial projection (selecting 1 of 3 columns) on a non-leading record-aligned macro-split
+     * must return the correct row count and exactly one block per page (the projected column).
+     */
+    public void testCsvNonLeadingMacroSplitPartialProjectionReturnsOneColumn() throws Exception {
+        String header = "a,b,c\n";
+        int dataRows = 60;
+        StringBuilder sb = new StringBuilder(header);
+        for (int i = 0; i < dataRows; i++) {
+            sb.append(i).append(",val").append(i).append(",end").append(i).append("\n");
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        InMemoryStorageObject full = new InMemoryStorageObject(bytes);
+        long headerBytes = header.getBytes(StandardCharsets.UTF_8).length;
+        StorageObject nonLeadingRange = new RangeStorageObject(full, headerBytes, bytes.length - headerBytes);
+
+        CsvFormatReader base = new CsvFormatReader(blockFactory());
+        SourceMetadata meta = base.metadata(full);
+        CsvFormatReader withSchema = (CsvFormatReader) base.withSchema(meta.schema());
+
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of("b"))
+            .batchSize(100)
+            .firstSplit(false)
+            .lastSplit(true)
+            .recordAligned(true)
+            .build();
+
+        long rows = 0;
+        try (CloseableIterator<Page> iter = withSchema.read(nonLeadingRange, ctx)) {
+            while (iter.hasNext()) {
+                Page p = iter.next();
+                assertEquals("partial projection must yield exactly 1 block per page", 1, p.getBlockCount());
+                rows += p.getPositionCount();
+                p.releaseBlocks();
+            }
+        }
+        assertEquals("all data rows must be returned with partial projection", dataRows, rows);
     }
 
     /**

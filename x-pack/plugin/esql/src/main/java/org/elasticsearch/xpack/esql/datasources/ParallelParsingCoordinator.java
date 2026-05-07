@@ -96,6 +96,10 @@ public final class ParallelParsingCoordinator {
     }
 
     /**
+     * Convenience overload that forwards {@code splitIncludesFileLeader=true}. This assumes the
+     * storage object includes the file's leading bytes (header row). For non-leading macro-splits,
+     * use the nine-argument overload with explicit {@code splitIncludesFileLeader=false}.
+     *
      * @param splitStartsAtRecordBoundary when {@code true}, {@code storageObject} is a byte range that already begins
      *                                     on a record boundary (e.g. newline-aligned macro {@link FileSplit});
      *                                     single-threaded fallback reads must set {@link FormatReadContext#recordAligned()}.

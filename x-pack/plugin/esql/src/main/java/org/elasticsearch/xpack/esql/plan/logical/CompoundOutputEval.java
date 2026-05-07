@@ -48,7 +48,8 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
         GeneratingPlan<CompoundOutputEval<T>>,
         PostAnalysisVerificationAware,
         Streaming,
-        SortAgnostic {
+        SortAgnostic,
+        SortPreserving {
 
     /**
      * The input by which the evaluation is performed.

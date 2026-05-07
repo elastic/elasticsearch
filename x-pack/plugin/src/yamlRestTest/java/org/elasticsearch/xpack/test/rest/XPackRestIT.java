@@ -18,6 +18,8 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.junit.Before;
 import org.junit.ClassRule;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 public class XPackRestIT extends AbstractXPackRestTest {
@@ -56,13 +58,30 @@ public class XPackRestIT extends AbstractXPackRestTest {
         .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
         .build();
 
+    /** Per-yaml-file count of tests not yet completed in this JVM. */
+    private static final Map<String, Integer> remainingPerFile = new HashMap<>();
+    /** Yaml file whose setup state is currently warm in the cluster, or null if cluster was wiped. */
+    private static String warmFile = null;
+
+    /** Cached result for {@link #preserveClusterUponCompletion()} — the framework calls it
+     *  multiple times per test (cleanUpCluster, assertEmptyProjects), but our implementation
+     *  has side effects that must run exactly once per test. */
+    private Boolean cachedPreserve = null;
+
     public XPackRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters();
+        Iterable<Object[]> base = createParameters();
+        remainingPerFile.clear();
+        for (Object[] p : base) {
+            ClientYamlTestCandidate c = (ClientYamlTestCandidate) p[0];
+            remainingPerFile.merge(c.getSuitePath(), 1, Integer::sum);
+        }
+        warmFile = null;
+        return base;
     }
 
     /**
@@ -71,6 +90,56 @@ public class XPackRestIT extends AbstractXPackRestTest {
     @Before
     public void setupLicense() {
         super.waitForLicense();
+    }
+
+    @Override
+    protected boolean skipSetupSections() {
+        return getTestCandidate().getSuitePath().equals(warmFile);
+    }
+
+    @Override
+    protected boolean skipTeardownSections() {
+        Integer remaining = remainingPerFile.get(getTestCandidate().getSuitePath());
+        return remaining != null && remaining > 1;
+    }
+
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        if (cachedPreserve != null) {
+            return cachedPreserve;
+        }
+        String currentFile = getTestCandidate().getSuitePath();
+        Integer remaining = remainingPerFile.get(currentFile);
+        boolean preserve = remaining != null && remaining > 1;
+        if (preserve) {
+            warmFile = currentFile;
+        } else {
+            warmFile = null;
+        }
+        if (remaining != null) {
+            if (remaining <= 1) {
+                remainingPerFile.remove(currentFile);
+            } else {
+                remainingPerFile.put(currentFile, remaining - 1);
+            }
+        }
+        cachedPreserve = preserve;
+        return preserve;
+    }
+
+    /**
+     * On the first non-read request after a same-file setup share, wipe the cluster (clearing
+     * any residue from previous tests' bodies) before the YAML setup re-runs against a clean state.
+     */
+    @Override
+    protected void runDeferredCleanupAndSetup() {
+        try {
+            wipeCluster();
+        } catch (Exception e) {
+            throw new AssertionError("failed to wipe cluster before deferred setup", e);
+        }
+        warmFile = null;
+        super.runDeferredCleanupAndSetup();
     }
 
     @Override

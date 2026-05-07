@@ -34,7 +34,7 @@ import java.nio.file.Path;
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    // Review item 10: defer to DockerElasticsearchCluster so credentials are defined once and propagated
+    // Defer to DockerElasticsearchCluster so credentials are defined once and propagated
     // into the container's user provisioning script via env vars.
     private static final String USER = DockerElasticsearchCluster.USER;
     private static final String PASS = DockerElasticsearchCluster.PASS;

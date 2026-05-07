@@ -138,4 +138,29 @@ public class GaugeAdapterTests extends ESTestCase {
         AssertionError error = assertThrows(AssertionError.class, otelMeter::collectMetrics);
         assertThat(error.getMessage(), containsString("Attribute [es_has_timestamp] of [es.test.name.total] is forbidden"));
     }
+
+    public void testGaugeDoesNotReportOldValuesAnymoreAfterChangingProvider() {
+        var anotherMeter = new RecordingOtelMeter();
+        var value = new AtomicReference<>(42L);
+
+        var gauge = registry.registerLongGauge("es.test.name.total", "desc", "thingies", () -> new LongWithAttributes(value.get()));
+
+        otelMeter.collectMetrics();
+        var metrics = otelMeter.getRecorder().getMeasurements(gauge);
+        assertThat(metrics, hasSize(1));
+        assertThat(metrics.get(0).getLong(), equalTo(42L));
+
+        registry.setProvider(anotherMeter);
+        value.set(12L);
+
+        anotherMeter.collectMetrics();
+        metrics = anotherMeter.getRecorder().getMeasurements(gauge);
+        assertThat(metrics, hasSize(1));
+        assertThat("New meter records the updated value", metrics.get(0).getLong(), equalTo(12L));
+
+        otelMeter.getRecorder().resetCalls();
+        otelMeter.collectMetrics();
+        metrics = otelMeter.getRecorder().getMeasurements(gauge);
+        assertThat("Old meter does not record anything anymore after being overriden", metrics, hasSize(0));
+    }
 }

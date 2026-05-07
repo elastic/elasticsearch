@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 144520
-summary: ESQL 137269 some csv tests for lookup join behavior with multivalues
-type: enhancement

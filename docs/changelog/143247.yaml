@@ -1,5 +1,0 @@
-area: Downsampling
-issues: []
-pr: 143247
-summary: Use the tdigest type and compression from TDigest in downsampling
-type: enhancement

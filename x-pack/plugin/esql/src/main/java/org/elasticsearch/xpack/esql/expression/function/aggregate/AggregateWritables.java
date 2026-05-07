@@ -27,6 +27,7 @@ public class AggregateWritables {
             Percentile.ENTRY,
             Rate.ENTRY,
             Irate.ENTRY,
+            LegacyIrate.ENTRY,
             Idelta.ENTRY,
             Increase.ENTRY,
             Delta.ENTRY,

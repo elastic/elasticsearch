@@ -874,6 +874,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         shouldBeSupported.remove(DataType.DATE_RANGE);
         shouldBeSupported.remove(DataType.TDIGEST);
         shouldBeSupported.remove(DataType.HISTOGRAM);
+        shouldBeSupported.remove(DataType.FLATTENED); // TO_STRING not yet supported for flattened
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled() == false) {
             shouldBeSupported.remove(DataType.AGGREGATE_METRIC_DOUBLE);
         }

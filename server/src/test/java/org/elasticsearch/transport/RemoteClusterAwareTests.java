@@ -46,6 +46,9 @@ public class RemoteClusterAwareTests extends ESTestCase {
     public void testGroupClusterIndices() {
         RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
         Set<String> remoteClusterNames = Set.of("cluster1", "cluster2", "some-cluster3");
+        String remoteDateMathExclusion = randomBoolean()
+            ? "cluster2:-<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>"
+            : "-cluster2:<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>";
         String[] requestIndices = new String[] {
             "index1",
             "index2",
@@ -57,7 +60,7 @@ public class RemoteClusterAwareTests extends ESTestCase {
             "<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>",
             "cluster1:<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>",
             "-<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|00:00}}>",
-            "cluster2:-<datemath-{2001-01-01-13||+1h/h{yyyy-MM-dd-HH|-07:00}}>", };
+            remoteDateMathExclusion, };
 
         Map<String, List<String>> groupedIndices = remoteClusterAware.groupClusterIndices(remoteClusterNames, requestIndices);
         assertEquals(3, groupedIndices.size());
@@ -95,6 +98,7 @@ public class RemoteClusterAwareTests extends ESTestCase {
     public void testGroupClusterIndicesWildcard() {
         RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
         Set<String> remoteClusterNames = Set.of("cluster1", "cluster2", "some-cluster3");
+        String remoteIndexExclusion = randomBoolean() ? "cluster*:-noindex" : "-cluster*:noindex";
         String[] requestIndices = new String[] {
             "*",
             "*:*",
@@ -102,7 +106,7 @@ public class RemoteClusterAwareTests extends ESTestCase {
             "cluster*:index1",
             "-some-*:*",
             "-index*",
-            "cluster*:-noindex" };
+            remoteIndexExclusion };
 
         Map<String, List<String>> groupedIndices = remoteClusterAware.groupClusterIndices(remoteClusterNames, requestIndices);
         assertEquals(3, groupedIndices.size());

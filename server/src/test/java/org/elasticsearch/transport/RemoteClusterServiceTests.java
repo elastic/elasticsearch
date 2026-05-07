@@ -274,9 +274,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertEquals("foo", localIndexes.get(0));
                 }
                 {
+                    String remoteIndexExclusion = randomBoolean() ? "-cluster_2:foo*" : "cluster_2:-foo*";
                     Map<String, List<String>> groupedIndicesWithNegativeClusterPrefix = service.groupClusterIndices(
                         service.getRegisteredRemoteClusterNames(),
-                        new String[] { "cluster_1:bar", "-cluster_2:foo*", "cluster_1:test", "cluster_2:foo*", "foo" }
+                        new String[] { "cluster_1:bar", remoteIndexExclusion, "cluster_1:test", "cluster_2:foo*", "foo" }
                     );
                     Map<String, List<String>> groupedIndicesWithNegativeIndexPrefix = service.groupClusterIndices(
                         service.getRegisteredRemoteClusterNames(),
@@ -285,16 +286,18 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertThat(groupedIndicesWithNegativeClusterPrefix, equalTo(groupedIndicesWithNegativeIndexPrefix));
                 }
                 {
+                    String remoteConcreteExclusion = randomBoolean() ? "-cluster_1:logs" : "cluster_1:-logs";
                     Map<String, List<String>> groupedIndicesWithOnlyExclusion = service.groupClusterIndices(
                         service.getRegisteredRemoteClusterNames(),
-                        new String[] { "-cluster_1:logs" }
+                        new String[] { remoteConcreteExclusion }
                     );
                     assertThat(groupedIndicesWithOnlyExclusion.get("cluster_1"), equalTo(List.of("-logs")));
                 }
                 {
+                    String remoteConcreteExclusion = randomBoolean() ? "-cluster_1:logs" : "cluster_1:-logs";
                     Map<String, List<String>> groupedIndicesExclusionBeforeInclusion = service.groupClusterIndices(
                         service.getRegisteredRemoteClusterNames(),
-                        new String[] { "-cluster_1:logs", "cluster_1:*" }
+                        new String[] { remoteConcreteExclusion, "cluster_1:*" }
                     );
                     assertEquals(List.of("-logs", "*"), groupedIndicesExclusionBeforeInclusion.get("cluster_1"));
                 }

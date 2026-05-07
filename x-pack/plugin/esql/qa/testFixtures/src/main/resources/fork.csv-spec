@@ -1088,11 +1088,11 @@ required_capability: fork_project_away_columns_fix
 
 from employees
 | fork (stats z = count(*) by first_name)
-       (where emp_no > 10000)
+       (where emp_no > 10000 | sort emp_no | limit 10)
        (stats x = count(*))
 | stats y = count(*)
 ;
 
 y:long
-192
+102
 ;

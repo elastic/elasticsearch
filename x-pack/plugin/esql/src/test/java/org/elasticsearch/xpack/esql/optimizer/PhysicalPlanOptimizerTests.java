@@ -10409,26 +10409,29 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * {@snippet lang="text":
-     * LimitExec[1000[INTEGER],8]
-     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#13],SINGLE,[$$y$count{r}#86, $$y$seen{r}#87],8]
+     * LimitExec[10000[INTEGER],8]
+     * \_AggregateExec[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS y#14],SINGLE,[$$y$count{r}#87, $$y$seen{r}#88],8]
      *   \_MergeExec[[]]
-     *     |_AggregateExec[[first_name{f}#15],[],FINAL,[first_name{f}#15],1]
-     *     | \_ExchangeExec[[first_name{f}#15],true]
-     *     |   \_AggregateExec[[first_name{f}#15],[],INITIAL,[first_name{f}#15],1]
-     *     |     \_FieldExtractExec[first_name{f}#15]<[],[],[]>
-     *     |       \_EsQueryExec[test],...]
-     *     |_ExchangeExec[[],false]
-     *     | \_ProjectExec[[]]
-     *     |   \_EsQueryExec[test],...]
+     *     |_AggregateExec[[first_name{f}#16],[],FINAL,[first_name{f}#16],1]
+     *     | \_ExchangeExec[[first_name{f}#16],true]
+     *     |   \_AggregateExec[[first_name{f}#16],[first_name{f}#16],INITIAL,[first_name{f}#16],50]
+     *     |     \_FieldExtractExec[first_name{f}#16]<[],[],[]>
+     *     |       \_EsQueryExec[test], ...]
+     *     |_ProjectExec[[]]
+     *     | \_TopNExec[[Order[emp_no{f}#26,ASC,LAST]],10[INTEGER],4]
+     *     |   \_ExchangeExec[[emp_no{f}#26],false]
+     *     |     \_ProjectExec[[emp_no{f}#26]]
+     *     |       \_FieldExtractExec[emp_no{f}#26]<[],[],[]>
+     *     |         \_EsQueryExec[test],...]
      *     \_ProjectExec[[]]
-     *       \_LocalSourceExec[[x{r}#8],Page{blocks=[ConstantNullBlock[positions=1]]}]
+     *       \_LocalSourceExec[[x{r}#9],Page{blocks=[ConstantNullBlock[positions=1]]}]
      * }
      */
     public void testForkWithMultipleBranchesAndFinalStats() {
         String query = """
              from test
              | fork (stats z = count(*) by first_name)
-                    (where emp_no > 10000)
+                    (where emp_no > 10000 | SORT emp_no | LIMIT 10)
                     (stats x = count(*))
              | stats y = count(*)
             """;
@@ -10451,14 +10454,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(names(firstBranchEsQuery.output()), equalTo(List.of("_doc")));
 
         // second branch
-        var secondBranchExchange = as(merge.children().get(1), ExchangeExec.class);
-        assertThat(secondBranchExchange.output().size(), equalTo(0));
-
-        var secondBranchProject = as(secondBranchExchange.child(), ProjectExec.class);
+        var secondBranchProject = as(merge.children().get(1), ProjectExec.class);
         assertThat(secondBranchProject.projections().size(), equalTo(0));
-
-        var secondBranchEsQuery = as(secondBranchProject.child(), EsQueryExec.class);
-        assertThat(names(secondBranchEsQuery.output()), equalTo(List.of("_doc")));
+        var secondBranchTopN = as(secondBranchProject.child(), TopNExec.class);
+        var secondBranchExchange = as(secondBranchTopN.child(), ExchangeExec.class);
+        secondBranchProject = as(secondBranchExchange.child(), ProjectExec.class);
+        assertThat(names(secondBranchProject.projections()), equalTo(List.of("emp_no")));
+        var secondBranchFieldExtract = as(secondBranchProject.child(), FieldExtractExec.class);
+        assertThat(Expressions.names(secondBranchFieldExtract.attributesToExtract()), equalTo(List.of("emp_no")));
+        var secondBranchEsQuery = as(secondBranchFieldExtract.child(), EsQueryExec.class);
+        assertThat(names(secondBranchEsQuery.output()), contains("_doc"));
+        assertThat(secondBranchEsQuery.sorts().size(), equalTo(1));
+        assertThat(secondBranchEsQuery.sorts().getFirst().field().name(), equalTo("emp_no"));
 
         // third branch
         var thirdBranchProject = as(merge.children().get(2), ProjectExec.class);

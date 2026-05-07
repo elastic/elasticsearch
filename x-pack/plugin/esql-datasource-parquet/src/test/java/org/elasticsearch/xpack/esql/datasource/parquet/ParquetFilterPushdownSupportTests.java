@@ -13,10 +13,12 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -676,6 +678,140 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
 
         assertTrue(result.hasPushedFilter());
         assertEquals(1, result.remainder().size());
+    }
+
+    // --- WildcardLike (LIKE) tests ---
+
+    public void testWildcardLikeKeywordPushedAsYes() {
+        Attribute col = attr("url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*google*"));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertThat(result.pushedFilter(), instanceOf(ParquetPushedExpressions.class));
+        // YES semantics: the late-mat evaluator is TVL-correct for WildcardLike (nulls already
+        // map to bit 0, and Not(WildcardLike) AND-s out the null mask before negation), so the
+        // FilterExec re-check is unnecessary. Keeping it would double the per-row LIKE cost on
+        // every surviving row — the entire motivation for switching this conjunct off RECHECK.
+        assertEquals("WildcardLike must be dropped from the remainder under YES", 0, result.remainder().size());
+    }
+
+    public void testWildcardLikeCaseInsensitivePushedAsYes() {
+        Attribute col = attr("url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*Google*"), true);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(0, result.remainder().size());
+    }
+
+    public void testWildcardLikeNonKeywordNotPushed() {
+        Attribute col = attr("loc", DataType.GEO_POINT);
+        Expression filter = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*"));
+
+        assertFalse(ParquetFilterPushdownSupport.canConvert(filter));
+    }
+
+    public void testWildcardLikeMatchAllPattern() {
+        // LIKE "*" is still convertible — evaluation has a fast path that returns all non-null rows
+        // without invoking the automaton runner.
+        Attribute col = attr("name", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*"));
+
+        assertTrue(ParquetFilterPushdownSupport.canConvert(filter));
+    }
+
+    public void testWildcardLikeCanPushReturnsYes() {
+        Attribute col = attr("url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*google*"));
+
+        // The bare LIKE is fully evaluable by the late-mat evaluator (two-valued mask is
+        // TVL-correct because null rows already map to bit 0); FilterExec is not needed.
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(filter));
+    }
+
+    public void testWildcardLikeCombinedWithEqualsKeepsEqualsInRemainder() {
+        Attribute url = attr("url", DataType.KEYWORD);
+        Attribute searchPhrase = attr("searchPhrase", DataType.KEYWORD);
+        Expression like = new WildcardLike(Source.EMPTY, url, new WildcardPattern("*google*"));
+        Expression neq = new NotEquals(Source.EMPTY, searchPhrase, keywordLit(""), null);
+        // A single AND conjunct with one YES (LIKE) and one RECHECK (!=) leaf — pushed as a
+        // whole because the RECHECK leaf forces the safer side to win for the combined expr.
+        Expression filter = new And(Source.EMPTY, like, neq);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        // Mixed AND keeps the conjunct in remainder so FilterExec re-applies the != per-row.
+        // Promoting it to YES would silently drop the != bit semantics (the bitmask path's
+        // Not handling for binary comparisons does not encode TVL).
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testWildcardLikeAndWildcardLikePushedAsYes() {
+        // Two LIKE conjuncts in a single AND — both arms YES-eligible, so the combined
+        // expression is YES and the conjunct is dropped from the remainder.
+        Attribute url = attr("url", DataType.KEYWORD);
+        Attribute title = attr("title", DataType.KEYWORD);
+        Expression likeUrl = new WildcardLike(Source.EMPTY, url, new WildcardPattern("*google*"));
+        Expression likeTitle = new WildcardLike(Source.EMPTY, title, new WildcardPattern("*Google*"), true);
+        Expression filter = new And(Source.EMPTY, likeUrl, likeTitle);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(filter));
+        assertEquals(0, result.remainder().size());
+    }
+
+    public void testNotOverAndOfWildcardLikesIsRecheck() {
+        // Regression: NOT (LIKE AND LIKE) must NOT be YES. The evaluator's generic Not branch
+        // would compute ~(m1 & m2), which is not SQL NOT(a AND b) under TVL — e.g. row with
+        // a=NULL, b=match: (NULL AND TRUE)=UNKNOWN, must NOT survive NOT(...), but the bitwise
+        // path gives ~(0 & 1) = ~0 = 1 → row incorrectly survives. Only Not(WildcardLike) has
+        // a TVL-aware special case in evaluateExpression; anything else under Not stays RECHECK
+        // so FilterExec can fix the null handling.
+        Attribute url = attr("url", DataType.KEYWORD);
+        Attribute title = attr("title", DataType.KEYWORD);
+        Expression likeUrl = new WildcardLike(Source.EMPTY, url, new WildcardPattern("*google*"));
+        Expression likeTitle = new WildcardLike(Source.EMPTY, title, new WildcardPattern("*Google*"));
+        Expression notAnd = new Not(Source.EMPTY, new And(Source.EMPTY, likeUrl, likeTitle));
+
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(notAnd));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(notAnd));
+        assertTrue(result.hasPushedFilter());
+        assertEquals("RECHECK keeps the conjunct in remainder so FilterExec re-applies", 1, result.remainder().size());
+    }
+
+    public void testNotOverNotOfWildcardLikeIsRecheck() {
+        // NOT (NOT (col LIKE p)) is logically equivalent to col LIKE p but goes through the
+        // generic Not branch (the special case only fires for the immediate Not(WildcardLike)
+        // shape). Stay RECHECK to keep FilterExec available; promoting to YES would need
+        // either De Morgan / double-negation simplification or a deeper TVL-aware evaluator.
+        Attribute url = attr("url", DataType.KEYWORD);
+        Expression like = new WildcardLike(Source.EMPTY, url, new WildcardPattern("*google*"));
+        Expression notNot = new Not(Source.EMPTY, new Not(Source.EMPTY, like));
+
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(notNot));
+    }
+
+    public void testWildcardLikeNegatedPushedAsYes() {
+        // NOT (URL LIKE "*google*"): YES is safe because evaluateExpression has a Not(WildcardLike)
+        // special case that AND-s out the null mask before negation, restoring SQL three-valued
+        // logic. Without that special case, dropping FilterExec would let null rows survive the
+        // predicate (the generic two-valued negate flips null bits from 0 to 1).
+        Attribute col = attr("url", DataType.KEYWORD);
+        Expression like = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*google*"));
+        Expression filter = new Not(Source.EMPTY, like);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(filter));
+        assertEquals(0, result.remainder().size());
     }
 
     // --- helpers ---

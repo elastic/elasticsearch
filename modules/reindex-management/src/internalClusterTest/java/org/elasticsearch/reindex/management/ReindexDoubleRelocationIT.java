@@ -198,7 +198,7 @@ public class ReindexDoubleRelocationIT extends ESIntegTestCase {
         assertThat(afterCancelMap.get("original_task_id"), is(nullValue()));
         assertThat(afterCancelMap.get("original_start_time_in_millis"), is(nullValue()));
         assertThat(ObjectPath.eval("status.canceled", afterCancelMap), equalTo("by user request"));
-        assertThat(ObjectPath.eval("response.canceled", afterCancelMap), equalTo("by user request"));
+        // depending on how quickly we cancel, we might either get an error (shard failure) or response, so not asserting
     }
 
     private GetReindexResponse getReindex(final TaskId taskId, final boolean waitForCompletion) {

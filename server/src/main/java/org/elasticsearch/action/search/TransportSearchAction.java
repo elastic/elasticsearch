@@ -13,28 +13,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.DelegatingActionListener;
-import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.RemoteClusterActionType;
-import org.elasticsearch.action.ResolvedIndexExpression;
-import org.elasticsearch.action.ResolvedIndexExpressions;
-import org.elasticsearch.action.ResolvedIndices;
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.*;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
-import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.*;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -49,11 +35,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.cluster.routing.SearchShardRouting;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -102,28 +84,13 @@ import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -526,6 +493,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchResponseActionListener = delegate;
             }
 
+            Optional<CrossProjectSearchMetrics> cpsMetrics =
+                 Optional.of(new CrossProjectSearchMetrics());
+
+            logger.info("CPS metrics: {}", cpsMetrics.get());
+
             if (resolvedIndices.getRemoteClusterIndices().isEmpty()) {
                 if (resolvesCrossProject && rewritten.getResolvedIndexExpressions() != null) {
                     ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(
@@ -547,17 +519,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     resolvedIndices,
                     projectState,
                     SearchResponse.Clusters.EMPTY,
-                    searchPhaseProvider.apply(searchResponseActionListener)
+                    searchPhaseProvider.apply(searchResponseActionListener),
+                    cpsMetrics
                 );
             } else {
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
                 if (rewritten.allowPartialSearchResults() == null) {
                     rewritten.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
                 }
-                Optional<CrossProjectSearchMetrics> cpsMetrics = resolvesCrossProject
-                    ? Optional.of(new CrossProjectSearchMetrics())
-                    : Optional.empty();
-                logger.info("CPS metrics: {}", cpsMetrics.get());
                 if (shouldMinimizeRoundtrips(rewritten)) {
                     collectRemoteResolvedIndices(
                         parentTaskId,
@@ -582,7 +551,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                     replacedIndices,
                                     projectState,
                                     SearchResponse.Clusters.EMPTY,
-                                    searchPhaseProvider.apply(searchResponseActionListener)
+                                    searchPhaseProvider.apply(searchResponseActionListener),
+                                    cpsMetrics
                                 );
                             } else {
                                 final var aggregationReduceContextBuilder = rewritten.source() != null
@@ -625,7 +595,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                         replacedIndices,
                                         projectState,
                                         clusters,
-                                        searchPhaseProvider.apply(l)
+                                        searchPhaseProvider.apply(l),
+                                        cpsMetrics
                                     ),
                                     transportService,
                                     forceConnectTimeoutSecs,
@@ -706,7 +677,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 projectState,
                                 remoteAliasFilters,
                                 participatingProjects,
-                                searchPhaseProvider.apply(finalDelegate)
+                                searchPhaseProvider.apply(finalDelegate),
+                                cpsMetrics
                             );
                         }),
                         forceConnectTimeoutSecs,
@@ -1673,7 +1645,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ResolvedIndices resolvedIndices,
         ProjectState projectState,
         SearchResponse.Clusters clusterInfo,
-        SearchPhaseProvider searchPhaseProvider
+        SearchPhaseProvider searchPhaseProvider,
+        Optional<CrossProjectSearchMetrics> cpsMetrics
     ) {
         executeSearch(
             (SearchTask) task,
@@ -1686,7 +1659,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             projectState,
             Collections.emptyMap(),
             clusterInfo,
-            searchPhaseProvider
+            searchPhaseProvider,
+            cpsMetrics
         );
     }
 
@@ -1855,7 +1829,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ProjectState projectState,
         Map<String, AliasFilter> remoteAliasMap,
         SearchResponse.Clusters clusters,
-        SearchPhaseProvider searchPhaseProvider
+        SearchPhaseProvider searchPhaseProvider,
+        Optional<CrossProjectSearchMetrics> cpsMetrics
     ) {
         if (searchRequest.allowPartialSearchResults() == null) {
             // No user preference defined in search request - apply cluster service default
@@ -1996,7 +1971,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             preFilterSearchShards,
             threadPool,
             clusters,
-            searchRequestAttributes
+            searchRequestAttributes,
+            cpsMetrics
         );
     }
 
@@ -2115,7 +2091,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             boolean preFilter,
             ThreadPool threadPool,
             SearchResponse.Clusters clusters,
-            Map<String, Object> searchRequestAttributes
+            Map<String, Object> searchRequestAttributes,
+            Optional<CrossProjectSearchMetrics> cpsMetrics
         );
     }
 
@@ -2141,7 +2118,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             boolean preFilter,
             ThreadPool threadPool,
             SearchResponse.Clusters clusters,
-            Map<String, Object> searchRequestAttributes
+            Map<String, Object> searchRequestAttributes,
+            Optional<CrossProjectSearchMetrics> cpsMetrics
         ) {
             if (preFilter) {
                 // only for aggs we need to contact shards even if there are no matches
@@ -2180,7 +2158,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         false,
                         threadPool,
                         clusters,
-                        searchRequestAttributes
+                        searchRequestAttributes,
+                        cpsMetrics
                     );
                 }));
                 return;
@@ -2227,7 +2206,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         client,
                         searchResponseMetrics,
                         searchRequestAttributes,
-                        searchService.isPitRelocationEnabled()
+                        searchService.isPitRelocationEnabled(),
+                        cpsMetrics
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
@@ -2253,7 +2233,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchService.batchQueryPhase(),
                         searchService.isPitRelocationEnabled(),
                         searchResponseMetrics,
-                        searchRequestAttributes
+                        searchRequestAttributes,
+                        cpsMetrics
                     );
                 }
                 success = true;

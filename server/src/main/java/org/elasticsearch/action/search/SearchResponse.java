@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
@@ -222,6 +223,47 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             searchResponseSections.transferTopHitsToRelease(),
             searchResponseSections.transferCompletionOptionHitsToRelease(),
             null
+        );
+        this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
+        if (this.profileResults != null) {
+            this.profileResults.setOriginalSource(source);
+            this.profileResults.setRequestIndices(indices);
+        }
+    }
+
+    public SearchResponse(
+        SearchResponseSections searchResponseSections,
+        String scrollId,
+        int totalShards,
+        int successfulShards,
+        int skippedShards,
+        long tookInMillis,
+        ShardSearchFailure[] shardFailures,
+        Clusters clusters,
+        BytesReference pointInTimeId,
+        SearchSourceBuilder source,
+        String[] indices,
+        CrossProjectSearchMetrics cpsMetrics
+    ) {
+        this(
+            searchResponseSections.hits,
+            searchResponseSections.aggregations,
+            searchResponseSections.suggest,
+            searchResponseSections.timedOut,
+            searchResponseSections.terminatedEarly,
+            searchResponseSections.profileResults,
+            searchResponseSections.numReducePhases,
+            scrollId,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardFailures,
+            clusters,
+            pointInTimeId,
+            searchResponseSections.transferTopHitsToRelease(),
+            searchResponseSections.transferCompletionOptionHitsToRelease(),
+            cpsMetrics
         );
         this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
         if (this.profileResults != null) {

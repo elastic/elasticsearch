@@ -21,9 +21,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-/// Wraps an [AbstractBulkByPaginatedSearchRequest] that is being resumed (e.g. as part of relocating a long-running reindex/update-by-query/
-/// delete-by-query task to another node). Implements [CompositeIndicesRequest] so that security treats the resumed reindex request
-/// like the original [ReindexRequest].
+/// Wraps an [AbstractBulkByPaginatedSearchRequest] that is being resumed (e.g. as part of relocating a long-running
+/// reindex/update-by-query/delete-by-query task to another node).
+/// Implements [CompositeIndicesRequest] so that security treats the resumed reindex request like the original [ReindexRequest].
 public class ResumeBulkByScrollRequest extends ActionRequest implements CompositeIndicesRequest {
 
     private final AbstractBulkByPaginatedSearchRequest<?> delegate;

@@ -24,7 +24,9 @@ import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchReque
 
 public abstract class AbstractBulkByPaginatedSearchRequestBuilder<
     Request extends AbstractBulkByPaginatedSearchRequest<Request>,
-    Self extends AbstractBulkByPaginatedSearchRequestBuilder<Request, Self>> extends ActionRequestLazyBuilder<Request, BulkByScrollResponse> {
+    Self extends AbstractBulkByPaginatedSearchRequestBuilder<Request, Self>> extends ActionRequestLazyBuilder<
+        Request,
+        BulkByScrollResponse> {
     private final SearchRequestBuilder source;
     private Integer maxDocs;
     private Boolean abortOnVersionConflict;

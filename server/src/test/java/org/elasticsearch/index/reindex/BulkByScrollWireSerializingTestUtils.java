@@ -121,9 +121,9 @@ public final class BulkByScrollWireSerializingTestUtils {
     }
 
     /**
-     * Equality for {@link AbstractBulkByPaginatedSearchRequest#getResumeInfo()} suitable for wire tests: {@link ResumeInfo.PitWorkerResumeInfo}
-     * uses {@code searchAfterValues} that may change numeric types across {@link org.elasticsearch.common.io.stream.StreamOutput} /
-     * {@link org.elasticsearch.common.io.stream.StreamInput} round-trips.
+     * Equality for {@link AbstractBulkByPaginatedSearchRequest#getResumeInfo()} suitable for wire tests:
+     * {@link ResumeInfo.PitWorkerResumeInfo} uses {@code searchAfterValues} that may change numeric types across
+     * {@link org.elasticsearch.common.io.stream.StreamOutput} / {@link org.elasticsearch.common.io.stream.StreamInput} round-trips.
      */
     public static boolean resumeInfosEqual(Optional<ResumeInfo> first, Optional<ResumeInfo> second) {
         if (first.isPresent() != second.isPresent()) {
@@ -278,7 +278,8 @@ public final class BulkByScrollWireSerializingTestUtils {
         if (ESTestCase.randomBoolean()) {
             request.setSourceIndicesForDescription(new String[] { "idx1", "idx2" });
         }
-        if (request.getMaxDocs() != AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() < request.getSlices()) {
+        if (request.getMaxDocs() != AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES
+            && request.getMaxDocs() < request.getSlices()) {
             request.setMaxDocs(request.getSlices());
         }
     }

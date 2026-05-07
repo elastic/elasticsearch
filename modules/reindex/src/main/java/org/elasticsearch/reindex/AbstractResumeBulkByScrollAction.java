@@ -31,9 +31,8 @@ import java.util.concurrent.Executor;
  * Abstract transport action for resuming BulkByScrollAction operations asynchronously. Delegates to the corresponding action on the local
  * node, then returns a {@link ResumeBulkByScrollResponse} containing the task id of the delegate action.
  */
-public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractBulkByPaginatedSearchRequest<Request>> extends HandledTransportAction<
-    ResumeBulkByScrollRequest,
-    ResumeBulkByScrollResponse> {
+public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractBulkByPaginatedSearchRequest<Request>> extends
+    HandledTransportAction<ResumeBulkByScrollRequest, ResumeBulkByScrollResponse> {
 
     private final ClusterService clusterService;
     private final ActionType<BulkByScrollResponse> delegateAction;

@@ -263,10 +263,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testBucketColumnMetadataRetainedAfterLookupJoin() {
-        client().prepareIndex("events")
-            .setSource("value", 150)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        client().prepareIndex("events").setSource("value", 150).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         assertAcked(
             client().admin()

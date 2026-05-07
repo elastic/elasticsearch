@@ -954,7 +954,8 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         double decay,
         String type
     ) {
-        String originStr = origin.getX() + "," + origin.getY();
+        // GeoUtils.parseGeoPoint expects coordinate strings in "lat,lon" order; use getY (lat) then getX (lon).
+        String originStr = origin.getY() + "," + origin.getX();
 
         return switch (type) {
             case "linear" -> new ScoreScriptUtils.DecayGeoLinear(originStr, scale, offset, decay).decayGeoLinear(value);

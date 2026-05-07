@@ -274,12 +274,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final boolean experimentalFeaturesEnabled;
         private final List<VectorsFormatProvider> vectorsFormatProviders;
 
+        private final boolean indexDisabledByDefault;
+
         public Builder(
             String name,
             IndexVersion indexVersionCreated,
             boolean isExcludeSourceVectors,
             boolean experimentalFeaturesEnabled,
-            List<VectorsFormatProvider> vectorsFormatProviders
+            List<VectorsFormatProvider> vectorsFormatProviders,
+            boolean indexDisabledByDefault
         ) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
@@ -315,12 +318,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 });
             this.isExcludeSourceVectors = isExcludeSourceVectors;
-            final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
+            final boolean indexedByDefaultVersionCheck = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
             final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
             final boolean defaultBBQHnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
             final boolean defaultBBQDisk = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_DISK);
-            this.indexed = Parameter.indexParam(m -> toType(m).fieldType().indexed, indexedByDefault);
-            if (indexedByDefault) {
+            this.indexed = Parameter.indexParam(
+                m -> toType(m).fieldType().indexed,
+                indexedByDefaultVersionCheck && indexDisabledByDefault == false
+            );
+            if (indexedByDefaultVersionCheck) {
                 // Only serialize on newer index versions to prevent breaking existing indices when upgrading
                 this.indexed.alwaysSerialize();
             }
@@ -329,7 +335,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 false,
                 m -> toType(m).fieldType().similarity,
                 (Supplier<VectorSimilarity>) () -> {
-                    if (indexedByDefault && indexed.getValue()) {
+                    if (indexedByDefaultVersionCheck && indexed.getValue()) {
                         return elementType.getValue() == ElementType.BIT ? VectorSimilarity.L2_NORM : VectorSimilarity.COSINE;
                     }
                     return null;
@@ -397,6 +403,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
             });
+
+            this.indexDisabledByDefault = indexDisabledByDefault;
         }
 
         private boolean isVectorIndexTypeAllowedByProviders(VectorIndexType indexType) {
@@ -524,7 +532,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 isExcludeSourceVectors,
                 isExcludeSourceVectorsFinal,
                 experimentalFeaturesEnabled,
-                vectorsFormatProviders
+                vectorsFormatProviders,
+                indexDisabledByDefault
             );
         }
     }
@@ -2798,7 +2807,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             c.getIndexSettings().getIndexVersionCreated(),
             INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(c.getIndexSettings().getSettings()),
             IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(c.getIndexSettings().getSettings()),
-            c.getVectorsFormatProviders()
+            c.getVectorsFormatProviders(),
+            c.getIndexSettings().isIndexDisabledByDefault()
         ),
         notInMultiFields(CONTENT_TYPE)
     );
@@ -3390,6 +3400,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private final boolean excludeSourceVectors;
     private final boolean experimentalFeaturesEnabled;
     private final List<VectorsFormatProvider> extraVectorsFormatProviders;
+    private final boolean indexDisabledByDefault;
 
     private DenseVectorFieldMapper(
         String simpleName,
@@ -3400,7 +3411,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         boolean excludeSourceVectorsSetting,
         boolean excludeSourceVectors,
         boolean experimentalFeaturesEnabled,
-        List<VectorsFormatProvider> vectorsFormatProviders
+        List<VectorsFormatProvider> vectorsFormatProviders,
+        boolean indexDisabledByDefault
     ) {
         super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
@@ -3409,6 +3421,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         this.excludeSourceVectors = excludeSourceVectors;
         this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
         this.extraVectorsFormatProviders = vectorsFormatProviders;
+        this.indexDisabledByDefault = indexDisabledByDefault;
     }
 
     @Override
@@ -3534,7 +3547,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             indexCreatedVersion,
             excludeSourceVectorsSetting,
             experimentalFeaturesEnabled,
-            extraVectorsFormatProviders
+            extraVectorsFormatProviders,
+            indexDisabledByDefault
         ).init(this);
     }
 

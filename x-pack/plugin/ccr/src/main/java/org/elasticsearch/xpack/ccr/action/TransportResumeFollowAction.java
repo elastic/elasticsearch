@@ -329,16 +329,15 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
      */
     private static void validateSettings(final Settings leaderIndexSettings, final Settings followerIndexSettings) {
         // make a copy, remove settings that are allowed to be different, and then compare if the settings are equal
-        final Settings leaderSettings = Settings.builder()
-            .put(filter(leaderIndexSettings))
-            // index.lifecycle.indexing_complete can legitimately differ at follow startup: the leader's ILM may
-            // set it during the restore window, before the shard follow task starts syncing settings.
-            .remove(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)
-            .build();
-        final Settings followerSettings = Settings.builder()
-            .put(filter(followerIndexSettings))
-            .remove(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE)
-            .build();
+        final Settings.Builder leaderSettingsBuilder = Settings.builder().put(filter(leaderIndexSettings));
+        // index.lifecycle.indexing_complete can legitimately differ at follow startup: the leader's ILM may
+        // set it during the restore window, before the shard follow task starts syncing settings.
+        leaderSettingsBuilder.remove(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE);
+        final Settings leaderSettings = leaderSettingsBuilder.build();
+
+        final Settings.Builder followerSettingsBuilder = Settings.builder().put(filter(followerIndexSettings));
+        followerSettingsBuilder.remove(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE);
+        final Settings followerSettings = followerSettingsBuilder.build();
         if (leaderSettings.equals(followerSettings) == false) {
             final String message = String.format(
                 Locale.ROOT,

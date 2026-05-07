@@ -13,12 +13,14 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 
 public class BaseVectorizationTests extends ESTestCase {
@@ -56,14 +58,13 @@ public class BaseVectorizationTests extends ESTestCase {
      *
      * <p>If {@code in} does not expose a fast-path interface this method
      * returns it unchanged.
-     *
-     * <p>Currently only the {@link DirectAccessInput} path is asserted.
-     * TODO: add an MSAI asserter.
      */
     static IndexInput wrapForAssertion(IndexInput in, int expectedSliceLength) {
         IndexInput unwrapped = FilterIndexInput.unwrapOnlyTest(in);
         if (unwrapped instanceof DirectAccessInput) {
-            return new AssertingDelegatingDirectAccessInput("asserting(" + unwrapped + ")", unwrapped, expectedSliceLength);
+            return new AssertingDirectAccessInput("asserting(" + unwrapped + ")", unwrapped, expectedSliceLength);
+        } else if (unwrapped instanceof MemorySegmentAccessInput) {
+            return new AssertingMemorySegmentAccessInput("asserting(" + unwrapped + ")", unwrapped, expectedSliceLength);
         }
         return unwrapped;
     }
@@ -75,11 +76,11 @@ public class BaseVectorizationTests extends ESTestCase {
      * delegates to the wrapped input's own DAI implementation. The wrapped
      * input must itself be a {@link DirectAccessInput}.
      */
-    static final class AssertingDelegatingDirectAccessInput extends FilterIndexInput implements DirectAccessInput {
+    static final class AssertingDirectAccessInput extends FilterIndexInput implements DirectAccessInput {
         private final DirectAccessInput delegate;
         private final int expectedSliceLength;
 
-        private AssertingDelegatingDirectAccessInput(String resourceDescription, IndexInput delegate, int expectedSliceLength) {
+        private AssertingDirectAccessInput(String resourceDescription, IndexInput delegate, int expectedSliceLength) {
             super(resourceDescription, delegate);
             if (delegate instanceof DirectAccessInput == false) {
                 throw new IllegalArgumentException("delegate must implement DirectAccessInput; got " + delegate.getClass().getName());
@@ -99,6 +100,63 @@ public class BaseVectorizationTests extends ESTestCase {
             throws IOException {
             assertEquals("unexpected slice length", expectedSliceLength, length);
             return delegate.withByteBufferSlices(offsets, length, count, action);
+        }
+
+        @Override
+        public AssertingDirectAccessInput clone() {
+            return new AssertingDirectAccessInput(toString(), ((IndexInput) delegate).clone(), expectedSliceLength);
+        }
+    }
+
+    /**
+     * A {@link FilterIndexInput} that also implements {@link MemorySegmentAccessInput}: each segmentSliceOrNull call asserts the requested
+     * slice length matches the configured expected length, then delegates.
+     * The wrapped input must itself be a {@link MemorySegmentAccessInput}.
+     */
+    static final class AssertingMemorySegmentAccessInput extends FilterIndexInput implements MemorySegmentAccessInput {
+        private final MemorySegmentAccessInput delegate;
+        private final int expectedSliceLength;
+
+        private AssertingMemorySegmentAccessInput(String resourceDescription, IndexInput delegate, int expectedSliceLength) {
+            super(resourceDescription, delegate);
+            if (delegate instanceof MemorySegmentAccessInput == false) {
+                throw new IllegalArgumentException(
+                    "delegate must implement MemorySegmentAccessInput; got " + delegate.getClass().getName()
+                );
+            }
+            this.delegate = (MemorySegmentAccessInput) delegate;
+            this.expectedSliceLength = expectedSliceLength;
+        }
+
+        @Override
+        public MemorySegment segmentSliceOrNull(long pos, long len) throws IOException {
+            assertEquals("unexpected slice length", expectedSliceLength, (int) len);
+            return delegate.segmentSliceOrNull(pos, len);
+        }
+
+        @Override
+        public byte readByte(long pos) throws IOException {
+            return delegate.readByte(pos);
+        }
+
+        @Override
+        public short readShort(long pos) throws IOException {
+            return delegate.readShort(pos);
+        }
+
+        @Override
+        public int readInt(long pos) throws IOException {
+            return delegate.readInt(pos);
+        }
+
+        @Override
+        public long readLong(long pos) throws IOException {
+            return delegate.readLong(pos);
+        }
+
+        @Override
+        public AssertingMemorySegmentAccessInput clone() {
+            return new AssertingMemorySegmentAccessInput(toString(), ((IndexInput) delegate).clone(), expectedSliceLength);
         }
     }
 }

@@ -37,40 +37,45 @@ public class VectorScorerBFloat16BulkOperationBenchmarkTests extends ESTestCase 
         assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
-    public void testSequential() {
+    private VectorScorerBFloat16BulkOperationBenchmark newBench() {
+        var vectorData = VectorScorerBFloat16BulkOperationBenchmark.VectorData.create(dims, 1000, 200, random());
+        var bench = new VectorScorerBFloat16BulkOperationBenchmark();
+        bench.function = function;
+        bench.queryType = queryType;
+        bench.dims = dims;
+        bench.numVectors = 1000;
+        bench.bulkSize = 200;
+        bench.setup(vectorData);
+        return bench;
+    }
+
+    public void testBulk() {
         for (int i = 0; i < 100; i++) {
-            var vectorData = VectorScorerBFloat16BulkOperationBenchmark.VectorData.create(dims, 1000, 200, random());
-            var bench = new VectorScorerBFloat16BulkOperationBenchmark();
-            bench.function = function;
-            bench.queryType = queryType;
-            bench.dims = dims;
-            bench.numVectors = 1000;
-            bench.bulkSize = 200;
-            bench.setup(vectorData);
+            var bench = newBench();
             try {
-                float[] single = bench.scoreMultipleSequential();
-                float[] bulk = bench.scoreMultipleSequentialBulk();
-                assertArrayEquals(function + "/" + queryType, single, bulk, 1e-3f);
+                assertArrayEquals(function + "/" + queryType, bench.scoreSequential(), bench.scoreBulk(), 1e-3f);
             } finally {
                 bench.teardown();
             }
         }
     }
 
-    public void testRandom() {
+    public void testBulkOffsets() {
         for (int i = 0; i < 100; i++) {
-            var vectorData = VectorScorerBFloat16BulkOperationBenchmark.VectorData.create(dims, 1000, 200, random());
-            var bench = new VectorScorerBFloat16BulkOperationBenchmark();
-            bench.function = function;
-            bench.queryType = queryType;
-            bench.dims = dims;
-            bench.numVectors = 1000;
-            bench.bulkSize = 200;
-            bench.setup(vectorData);
+            var bench = newBench();
             try {
-                float[] single = bench.scoreMultipleRandom();
-                float[] bulk = bench.scoreMultipleRandomBulk();
-                assertArrayEquals(function + "/" + queryType, single, bulk, 1e-3f);
+                assertArrayEquals(function + "/" + queryType, bench.scoreRandom(), bench.scoreBulkOffsets(), 1e-3f);
+            } finally {
+                bench.teardown();
+            }
+        }
+    }
+
+    public void testBulkSparse() {
+        for (int i = 0; i < 100; i++) {
+            var bench = newBench();
+            try {
+                assertArrayEquals(function + "/" + queryType, bench.scoreRandom(), bench.scoreBulkSparse(), 1e-3f);
             } finally {
                 bench.teardown();
             }

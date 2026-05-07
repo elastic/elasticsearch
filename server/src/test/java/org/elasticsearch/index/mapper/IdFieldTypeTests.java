@@ -55,14 +55,14 @@ public class IdFieldTypeTests extends ESTestCase {
 
     public void testIsAggregatable() {
         boolean[] enabled = new boolean[1];
-        BooleanSupplier fieldDataEnabled = () -> enabled[0];
+        BooleanSupplier idFieldDataEnabled = () -> enabled[0];
         MappedFieldType ft = new ProvidedIdFieldMapper.IdFieldType();
         assertFalse(ft.isAggregatable());
-        assertFalse(ft.isAggregatable(fieldDataEnabled));
+        assertFalse(ft.isAggregatable(idFieldDataEnabled));
 
         enabled[0] = true;
         assertFalse(ft.isAggregatable());
-        assertTrue(ft.isAggregatable(fieldDataEnabled));
+        assertTrue(ft.isAggregatable(idFieldDataEnabled));
 
         assertFalse(TsidExtractingIdFieldMapper.INSTANCE.fieldType().isAggregatable());
     }

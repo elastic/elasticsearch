@@ -213,7 +213,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
     private final Function<Query, BitSetProducer> bitSetProducer;
     private final MapperMetrics mapperMetrics;
-    private final BooleanSupplier fieldDataEnabled;
+    private final BooleanSupplier idFieldDataEnabled;
 
     private volatile DocumentMapper mapper;
     private volatile long mappingVersion;
@@ -226,7 +226,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         SimilarityService similarityService,
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-        BooleanSupplier fieldDataEnabled,
+        BooleanSupplier idFieldDataEnabled,
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
         MapperMetrics mapperMetrics,
@@ -241,7 +241,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             similarityService,
             mapperRegistry,
             searchExecutionContextSupplier,
-            fieldDataEnabled,
+            idFieldDataEnabled,
             scriptCompiler,
             bitSetProducer,
             mapperMetrics,
@@ -259,7 +259,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         SimilarityService similarityService,
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-        BooleanSupplier fieldDataEnabled,
+        BooleanSupplier idFieldDataEnabled,
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
         MapperMetrics mapperMetrics,
@@ -300,7 +300,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.bitSetProducer = bitSetProducer;
         this.mapperMetrics = mapperMetrics;
         this.mapper = documentMapper;
-        this.fieldDataEnabled = fieldDataEnabled;
+        this.idFieldDataEnabled = idFieldDataEnabled;
     }
 
     public boolean hasNested() {
@@ -315,8 +315,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mappingParserContextSupplier.get();
     }
 
-    public BooleanSupplier getFieldDataEnabled() {
-        return fieldDataEnabled;
+    /**
+     * @return a supplier that can be used to check whether loading field data from _id field's inverted index is allowed.
+     */
+    public BooleanSupplier getIdFieldDataEnabled() {
+        return idFieldDataEnabled;
     }
 
     /**

@@ -52,22 +52,22 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
 
     public void testEnableFieldData() throws IOException {
         boolean[] enabled = new boolean[1];
-        BooleanSupplier fieldDataEnabled = () -> enabled[0];
+        BooleanSupplier idFieldDataEnabled = () -> enabled[0];
 
         MapperService mapperService = createMapperService(() -> enabled[0], mapping(b -> {}));
         ProvidedIdFieldMapper.IdFieldType ft = (ProvidedIdFieldMapper.IdFieldType) mapperService.fieldType("_id");
 
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields(fieldDataEnabled, "index", "test")).build(null, null)
+            () -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields(idFieldDataEnabled, "index", "test")).build(null, null)
         );
         assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
-        assertFalse(ft.isAggregatable(fieldDataEnabled));
+        assertFalse(ft.isAggregatable(idFieldDataEnabled));
 
         enabled[0] = true;
-        ft.fielddataBuilder(FieldDataContext.noRuntimeFields(fieldDataEnabled, "index", "test")).build(null, null);
+        ft.fielddataBuilder(FieldDataContext.noRuntimeFields(idFieldDataEnabled, "index", "test")).build(null, null);
         assertWarnings(ProvidedIdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE);
-        assertTrue(ft.isAggregatable(fieldDataEnabled));
+        assertTrue(ft.isAggregatable(idFieldDataEnabled));
     }
 
     public void testFetchIdFieldValue() throws IOException {

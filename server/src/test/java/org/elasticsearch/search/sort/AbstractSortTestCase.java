@@ -212,7 +212,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             throw new UnsupportedOperationException();
         }, null).build(MapperBuilderContext.root(false, false))));
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.getFieldDataEnabled()).thenReturn(() -> false);
+        when(mapperService.getIdFieldDataEnabled()).thenReturn(() -> false);
         return new SearchExecutionContext(
             0,
             0,

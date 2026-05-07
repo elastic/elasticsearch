@@ -65,8 +65,8 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
-        public boolean isAggregatable(BooleanSupplier fieldDataEnabled) {
-            return fieldDataEnabled.getAsBoolean();
+        public boolean isAggregatable(BooleanSupplier idFieldDataEnabled) {
+            return idFieldDataEnabled.getAsBoolean();
         }
 
         @Override
@@ -76,8 +76,8 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            final boolean fieldDataEnabled = fieldDataContext.fieldDataEnabled().getAsBoolean();
-            if (fieldDataEnabled == false) {
+            final boolean idFieldDataEnabled = fieldDataContext.idFieldDataEnabled().getAsBoolean();
+            if (idFieldDataEnabled == false) {
                 throw new IllegalArgumentException(
                     "Fielddata access on the _id field is disallowed, "
                         + "you can re-enable it by updating the dynamic cluster setting: "

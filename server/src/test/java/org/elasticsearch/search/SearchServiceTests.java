@@ -638,7 +638,7 @@ public class SearchServiceTests extends IndexShardTestCase {
             IndexMode.STANDARD
         );
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.getFieldDataEnabled()).thenReturn(() -> false);
+        when(mapperService.getIdFieldDataEnabled()).thenReturn(() -> false);
         return new SearchExecutionContext(
             0,
             0,

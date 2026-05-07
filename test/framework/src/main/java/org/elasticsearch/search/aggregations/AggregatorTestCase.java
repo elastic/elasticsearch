@@ -408,7 +408,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             ).build(new IndexFieldDataCache.None(), breakerService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.getFieldDataEnabled()).thenReturn(() -> false);
+        when(mapperService.getIdFieldDataEnabled()).thenReturn(() -> false);
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
             0,
             -1,

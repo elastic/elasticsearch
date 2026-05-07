@@ -1118,7 +1118,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         };
         MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, randomFrom(IndexMode.values()));
         MapperService mapperService = mock(MapperService.class);
-        when(mapperService.getFieldDataEnabled()).thenReturn(() -> false);
+        when(mapperService.getIdFieldDataEnabled()).thenReturn(() -> false);
         return new SearchExecutionContext(
             0,
             0,

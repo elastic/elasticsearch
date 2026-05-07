@@ -341,7 +341,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 getIndexSettings(),
                 () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()),
                 this::sourcePath,
-                mapperService.getFieldDataEnabled(),
+                mapperService.getIdFieldDataEnabled(),
                 fielddataOperation
             )
         );

@@ -408,8 +408,11 @@ public class QueryRewriteContext {
         return mapperService.getIndexAnalyzers();
     }
 
-    public BooleanSupplier fieldDataEnabled() {
-        return mapperService.getFieldDataEnabled();
+    /**
+     * @return a supplier that can be used to check whether loading field data from _id field's inverted index is allowed.
+     */
+    public BooleanSupplier idFieldDataEnabled() {
+        return mapperService.getIdFieldDataEnabled();
     }
 
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {

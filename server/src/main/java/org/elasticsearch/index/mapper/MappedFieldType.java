@@ -184,7 +184,7 @@ public abstract class MappedFieldType {
     /**
      * Returns true if the field is aggregatable.
      */
-    public boolean isAggregatable(BooleanSupplier fieldDataEnabled) {
+    public boolean isAggregatable(BooleanSupplier idFieldDataEnabled) {
         return isAggregatable();
     }
 

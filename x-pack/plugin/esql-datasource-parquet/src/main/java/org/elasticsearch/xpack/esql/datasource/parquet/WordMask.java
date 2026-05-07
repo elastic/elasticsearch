@@ -52,6 +52,15 @@ final class WordMask {
         return (numBits + 63) >>> 6;
     }
 
+    /**
+     * Returns the raw {@code long} word at {@code index} within the backing array. Exposed for
+     * helpers that walk the mask word-by-word (e.g., survivor-run extraction); callers must
+     * apply trailing-bit masking themselves when {@code index == wordCount() - 1}.
+     */
+    long wordAt(int index) {
+        return words[index];
+    }
+
     void clear(int index) {
         words[index >>> 6] &= ~(1L << index);
     }

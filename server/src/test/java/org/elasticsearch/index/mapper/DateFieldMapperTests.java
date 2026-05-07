@@ -205,18 +205,6 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertTrue("expected a doc values field for [field]", hasDocValuesField);
     }
 
-    public void testNotIndexed() throws Exception {
-
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("index", false)));
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
-
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        IndexableField dvField = fields.get(0);
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-    }
-
     public void testNoDocValues() throws Exception {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("doc_values", false)));

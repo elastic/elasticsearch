@@ -1298,7 +1298,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
 
         var shardId = findIndexShard(indexName).shardId();
-        var statelessCommitService = (TestStatelessCommitService) internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
         var threadPool = internalCluster().getInstance(ThreadPool.class, indexNode);
         final var metricsPlugin = findPlugin(indexNode, TestTelemetryPlugin.class);
 

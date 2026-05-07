@@ -199,9 +199,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
     public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
-
-    public static final String SHARD_COMMIT_REFERENCES_INFOS_GAUGE_METRIC = "es.stateless.shard.commit_references_infos";
-    public static final String SHARD_BCC_BLOB_REFERENCES_GAUGE_METRIC = "es.stateless.shard.bcc_blob_references";
     public static final String COMMIT_NUMBER_OF_REFERENCED_BCCS = "es.stateless.shard.referenced_bccs_per_commit.histogram";
 
     private final ClusterService clusterService;
@@ -1728,16 +1725,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             } else {
                 return ephemeralNodeIdSupplier.get();
             }
-        }
-
-        // Visible for tests
-        final int commitReferencesInfosCount() {
-            return commitReferencesInfos.size();
-        }
-
-        // Visible for tests
-        final int bccBlobReferencesCount() {
-            return primaryTermAndGenToBlobReference.size();
         }
 
         /**

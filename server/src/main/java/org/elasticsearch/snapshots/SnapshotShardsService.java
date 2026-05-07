@@ -797,6 +797,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                 );
                                 continue;
                             }
+                            // but we think the shard has paused - we need to make new master know that
                             logger.debug("""
                                 new master thinks that shard [{}] snapshot [{}], with shard generation [{}], is still running, but the \
                                 shard snapshot is paused locally, updating status on master

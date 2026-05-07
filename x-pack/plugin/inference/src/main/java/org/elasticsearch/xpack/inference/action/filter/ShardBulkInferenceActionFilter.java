@@ -759,24 +759,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                 int inputLengthDelta = switch (v) {
                     case String s when s.isBlank() -> addBlankStringResponse(slot, field, sourceField, s, order);
-                    case String s -> {
-                        int stringLength = addChunkedStringRequest(
-                            requests,
-                            itemIndex,
-                            field,
-                            sourceField,
-                            s,
-                            order,
-                            offsetAdjustment,
-                            chunkingSettings
-                        );
-
-                        // When using the inference metadata fields format, all the text input values are concatenated so that the
-                        // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
-                        // to apply to account for this.
-                        offsetAdjustment += stringLength + 1; // Add one for separator char length
-                        yield stringLength;
-                    }
+                    case String s -> addChunkedStringRequest(
+                        requests,
+                        itemIndex,
+                        field,
+                        sourceField,
+                        s,
+                        order,
+                        offsetAdjustment,
+                        chunkingSettings
+                    );
                     case InferenceString is -> addInferenceStringRequest(requests, itemIndex, field, sourceField, is, order, inputIndex);
                     default -> {
                         setInferenceResponseFailure(
@@ -796,6 +788,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 };
                 if (inputLengthDelta < 0) {
                     break;
+                }
+
+                if (v instanceof String s) {
+                    // When using the inference metadata fields format, all the text input values are concatenated so that the
+                    // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
+                    // to apply to account for this.
+                    offsetAdjustment += s.length() + 1; // Add one for separator char length
                 }
 
                 inputLength += inputLengthDelta;

@@ -571,19 +571,13 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     public void testNestedObjectWithMultiFieldsgetTotalFieldsCount() {
         ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1").add(
             new ObjectMapper.Builder("child_size_2").add(
-                new TextFieldMapper.Builder("grand_child_size_3", createDefaultIndexAnalyzers()).addMultiField(
-                    new KeywordFieldMapper.Builder("multi_field_size_4", defaultIndexSettings())
-                )
+                new TextFieldMapper.Builder("grand_child_size_3", defaultIndexSettings(), createDefaultIndexAnalyzers(), false)
+                    .addMultiField(new KeywordFieldMapper.Builder("multi_field_size_4", defaultIndexSettings()))
                     .addMultiField(
-                        new TextFieldMapper.Builder(
-                            "grand_child_size_5",
-                            IndexVersion.current(),
-                            null,
-                            createDefaultIndexAnalyzers(),
-                            false,
-                            true,
-                            true
-                        ).addMultiField(new KeywordFieldMapper.Builder("multi_field_of_multi_field_size_6", defaultIndexSettings(), true))
+                        new TextFieldMapper.Builder("grand_child_size_5", defaultIndexSettings(), createDefaultIndexAnalyzers(), true)
+                            .addMultiField(
+                                new KeywordFieldMapper.Builder("multi_field_of_multi_field_size_6", defaultIndexSettings(), true)
+                            )
                     )
             )
         );

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.common.notifications;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -279,20 +280,62 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testWriteDocFailureRecoversViaBacklog() throws Exception {
+    public void testWriteDocRecoversFromIndexNotFound() throws Exception {
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
         auditor.info("foo", "First message via backlog");
         verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(), any());
 
         doAnswer(ans -> {
             ActionListener<Object> listener = (ActionListener<Object>) ans.getArgument(2);
-            listener.onFailure(new RuntimeException("transient error"));
+            listener.onFailure(new IndexNotFoundException("test_index"));
             return null;
         }).when(client).execute(eq(TransportIndexAction.TYPE), any(), any());
 
-        auditor.info("foo", "Message that fails direct write");
-        // writeDoc fails → reset → indexDoc → backlog → installTemplateAndCreateIndex → writeBacklog (bulk)
+        auditor.info("foo", "Message that hits IndexNotFoundException");
+        // writeDoc gets INFE → handleIndexNotFound → reset → indexDoc → backlog → writeBacklog (bulk)
         assertBusy(() -> verify(client, times(2)).execute(eq(TransportBulkAction.TYPE), any(), any()));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testWriteDocRetriesOnTransientFailure() throws Exception {
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
+        auditor.info("foo", "First message via backlog");
+        verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(), any());
+
+        AtomicInteger writeAttempts = new AtomicInteger(0);
+        doAnswer(ans -> {
+            ActionListener<Object> listener = (ActionListener<Object>) ans.getArgument(2);
+            if (writeAttempts.incrementAndGet() < 3) {
+                listener.onFailure(new RuntimeException("transient write error"));
+            } else {
+                listener.onResponse(mock(DocWriteResponse.class));
+            }
+            return null;
+        }).when(client).execute(eq(TransportIndexAction.TYPE), any(), any());
+
+        auditor.info("foo", "Message that fails then succeeds on retry");
+
+        assertBusy(() -> assertThat(writeAttempts.get(), equalTo(3)));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testWriteDocGivesUpAfterMaxRetries() throws Exception {
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
+        auditor.info("foo", "First message via backlog");
+        verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(), any());
+
+        AtomicInteger writeAttempts = new AtomicInteger(0);
+        doAnswer(ans -> {
+            ActionListener<Object> listener = (ActionListener<Object>) ans.getArgument(2);
+            writeAttempts.incrementAndGet();
+            listener.onFailure(new RuntimeException("persistent write error"));
+            return null;
+        }).when(client).execute(eq(TransportIndexAction.TYPE), any(), any());
+
+        auditor.info("foo", "Message that always fails");
+
+        // 1 optimistic attempt + 1 initial RetryableAction attempt + MAX_WRITE_RETRIES retries = 4 total
+        assertBusy(() -> assertThat(writeAttempts.get(), equalTo(1 + 1 + AbstractAuditor.MAX_WRITE_RETRIES)));
     }
 
     @SuppressWarnings("unchecked")

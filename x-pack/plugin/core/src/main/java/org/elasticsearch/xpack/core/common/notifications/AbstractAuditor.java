@@ -20,6 +20,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
@@ -31,7 +32,6 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -42,6 +42,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
     private static final Logger logger = LogManager.getLogger(AbstractAuditor.class);
     static final int MAX_BUFFER_SIZE = 1000;
+    static final int MAX_INDEX_CREATION_RETRIES = 2;
     static final int MAX_WRITE_RETRIES = 2;
     static final TimeValue RETRY_INITIAL_DELAY = TimeValue.timeValueMillis(200);
     static final TimeValue RETRY_TIMEOUT = TimeValue.timeValueSeconds(10);
@@ -116,12 +117,8 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     }
 
     protected void indexDoc(ToXContent toXContent) {
-        indexDoc(toXContent, 0);
-    }
-
-    private void indexDoc(ToXContent toXContent, int writeRetries) {
         if (indexAndAliasCreated.get()) {
-            writeDoc(toXContent, writeRetries);
+            writeDoc(toXContent);
             return;
         }
 
@@ -135,7 +132,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
             }
 
         }, e -> {
-            logger.atWarn().withThrowable(e).log("Failed to create audit index and alias after [{}] attempts", 1 + MAX_WRITE_RETRIES);
+            logger.warn("Failed to create audit index [{}] after retries, will retry on next audit message", auditIndexWriteAlias, e);
             indexAndAliasCreationInProgress.set(false);
         });
 
@@ -157,23 +154,61 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                     installTemplateAndCreateIndex(createListener);
                 }
             } else {
-                writeDoc(toXContent, writeRetries);
+                writeDoc(toXContent);
             }
         }
     }
 
-    private void writeDoc(ToXContent toXContent, int writeRetries) {
+    private void writeDoc(ToXContent toXContent) {
         client.index(indexRequest(toXContent), ActionListener.wrap(AbstractAuditor::onIndexResponse, e -> {
-            if (writeRetries >= MAX_WRITE_RETRIES) {
-                onIndexFailure(e);
+            if (e instanceof IndexNotFoundException) {
+                handleIndexNotFound(toXContent);
             } else {
-                logger.debug("Failed to write audit message, resetting and re-entering indexDoc", e);
-                executorService.execute(() -> {
-                    reset();
-                    indexDoc(toXContent, writeRetries + 1);
-                });
+                retryWriteDoc(toXContent);
             }
         }));
+    }
+
+    private void retryWriteDoc(ToXContent toXContent) {
+        int[] attempts = { 0 };
+        new RetryableAction<DocWriteResponse>(
+            logger,
+            clusterService.threadPool(),
+            RETRY_INITIAL_DELAY,
+            RETRY_TIMEOUT,
+            ActionListener.wrap(AbstractAuditor::onIndexResponse, e -> {
+                if (e instanceof IndexNotFoundException) {
+                    handleIndexNotFound(toXContent);
+                } else {
+                    onIndexFailure(e);
+                }
+            }),
+            executorService
+        ) {
+            @Override
+            public void tryAction(ActionListener<DocWriteResponse> listener) {
+                client.index(indexRequest(toXContent), listener);
+            }
+
+            @Override
+            public boolean shouldRetry(Exception e) {
+                if (e instanceof IndexNotFoundException) {
+                    return false;
+                }
+                return attempts[0]++ < MAX_WRITE_RETRIES;
+            }
+        }.run();
+    }
+
+    // No backoff needed: IndexNotFoundException means the index was deleted externally
+    // (e.g., feature state reset). Re-entering indexDoc buffers this message in the
+    // backlog and triggers installTemplateAndCreateIndex, which has its own
+    // RetryableAction with exponential backoff.
+    private void handleIndexNotFound(ToXContent toXContent) {
+        executorService.execute(() -> {
+            reset();
+            indexDoc(toXContent);
+        });
     }
 
     private IndexRequest indexRequest(ToXContent toXContent) {
@@ -225,7 +260,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     }
 
     private void installTemplateAndCreateIndex(ActionListener<Boolean> listener) {
-        var attempts = new AtomicInteger(0);
+        int[] attempts = { 0 };
         new RetryableAction<Boolean>(logger, clusterService.threadPool(), RETRY_INITIAL_DELAY, RETRY_TIMEOUT, listener, executorService) {
             @Override
             public void tryAction(ActionListener<Boolean> retryListener) {
@@ -255,7 +290,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
             @Override
             public boolean shouldRetry(Exception e) {
-                return attempts.getAndIncrement() < MAX_WRITE_RETRIES;
+                return attempts[0]++ < MAX_INDEX_CREATION_RETRIES;
             }
         }.run();
     }

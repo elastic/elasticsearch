@@ -1,4 +1,4 @@
-pr: 999999
+pr: 148539
 summary: Add `chat_completion` task type to the Anthropic inference service
 area: Machine Learning
 type: enhancement

@@ -155,10 +155,7 @@ public class AvgTests extends AbstractAggregationTestCase {
                         .map(v -> (Integer) v)
                         .collect(Collectors.summarizingInt(Integer::intValue))
                         .getAverage();
-                    case LONG -> fieldData.stream()
-                        .mapToDouble(v -> (double) (long) v)
-                        .summaryStatistics()
-                        .getAverage();
+                    case LONG -> fieldData.stream().mapToDouble(v -> (double) (long) v).summaryStatistics().getAverage();
                     case DOUBLE -> fieldData.stream()
                         .map(v -> (Double) v)
                         .collect(Collectors.summarizingDouble(Double::doubleValue))

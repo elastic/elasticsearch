@@ -2068,19 +2068,29 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
 
         @Override
-        protected void doExecute(Task task, DummyAbstractBulkByPaginatedSearchRequest request, ActionListener<BulkByScrollResponse> listener) {
+        protected void doExecute(
+            Task task,
+            DummyAbstractBulkByPaginatedSearchRequest request,
+            ActionListener<BulkByScrollResponse> listener
+        ) {
             // no-op
         }
     }
 
-    private static class DummyAbstractBulkByPaginatedSearchRequest extends AbstractBulkByPaginatedSearchRequest<DummyAbstractBulkByPaginatedSearchRequest> {
+    private static class DummyAbstractBulkByPaginatedSearchRequest extends AbstractBulkByPaginatedSearchRequest<
+        DummyAbstractBulkByPaginatedSearchRequest> {
 
         DummyAbstractBulkByPaginatedSearchRequest(SearchRequest searchRequest) {
             super(searchRequest, true);
         }
 
         @Override
-        public DummyAbstractBulkByPaginatedSearchRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
+        public DummyAbstractBulkByPaginatedSearchRequest forSlice(
+            TaskId slicingTask,
+            SearchRequest slice,
+            int totalSlices,
+            int activeSlices
+        ) {
             throw new UnsupportedOperationException();
         }
 

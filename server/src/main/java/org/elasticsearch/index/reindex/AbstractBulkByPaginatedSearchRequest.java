@@ -35,7 +35,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
 
-public abstract class AbstractBulkByPaginatedSearchRequest<Self extends AbstractBulkByPaginatedSearchRequest<Self>> extends LegacyActionRequest {
+public abstract class AbstractBulkByPaginatedSearchRequest<Self extends AbstractBulkByPaginatedSearchRequest<Self>> extends
+    LegacyActionRequest {
 
     public static final int MAX_DOCS_ALL_MATCHES = -1;
     public static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);

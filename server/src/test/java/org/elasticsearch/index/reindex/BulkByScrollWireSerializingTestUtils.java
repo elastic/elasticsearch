@@ -278,7 +278,8 @@ public final class BulkByScrollWireSerializingTestUtils {
         if (ESTestCase.randomBoolean()) {
             request.setSourceIndicesForDescription(new String[] { "idx1", "idx2" });
         }
-        if (request.getMaxDocs() != AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() < request.getSlices()) {
+        if (request.getMaxDocs() != AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES
+            && request.getMaxDocs() < request.getSlices()) {
             request.setMaxDocs(request.getSlices());
         }
     }

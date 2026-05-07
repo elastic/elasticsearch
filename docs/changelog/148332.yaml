@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148332
+summary: Dictionary short-circuit for late-mat filters
+type: enhancement

@@ -222,7 +222,7 @@ public class KnnIndexTester {
                     args.doPrecondition(),
                     args.preconditioningBlockDims(),
                     flatVectorThreshold,
-                    null
+                    args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null
                 );
             }
             case GPU_HNSW -> switch (quantizeBits) {
@@ -518,7 +518,7 @@ public class KnnIndexTester {
             }
             numSegments(indexPath, indexResults, sharedDir);
 
-            boolean hasQueries = testConfiguration.numQueries() > 0 && dataGenerator.hasQueries();
+            boolean hasQueries = testConfiguration.numQueries() > 0 && dataGenerator.numQueries() > 0;
             if (hasQueries) {
                 Directory readDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
                 try {

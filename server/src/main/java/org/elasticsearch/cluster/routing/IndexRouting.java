@@ -246,7 +246,8 @@ public abstract class IndexRouting {
         }
 
         private static boolean shouldUseTimeBasedId(final IndexMode indexMode, final IndexVersion creationVersion) {
-            return indexMode == IndexMode.LOGSDB && isNewIndexVersion(creationVersion);
+            return (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.COLUMNAR_LOGSDB || indexMode == IndexMode.COLUMNAR)
+                && isNewIndexVersion(creationVersion);
         }
 
         private static boolean isNewIndexVersion(final IndexVersion creationVersion) {
@@ -387,7 +388,9 @@ public abstract class IndexRouting {
             this.trackTimeSeriesRoutingHash = indexMode == IndexMode.TIME_SERIES
                 && metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
             this.useTimeSeriesSyntheticId = metadata.useTimeSeriesSyntheticId();
-            addIdWithRoutingHash = indexMode == IndexMode.LOGSDB;
+            addIdWithRoutingHash = (indexMode == IndexMode.LOGSDB
+                || indexMode == IndexMode.COLUMNAR_LOGSDB
+                || indexMode == IndexMode.COLUMNAR);
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, Set.copyOf(includePaths), null, true);
         }
 

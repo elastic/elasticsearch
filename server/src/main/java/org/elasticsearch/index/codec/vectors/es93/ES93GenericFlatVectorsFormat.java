@@ -12,9 +12,11 @@ package org.elasticsearch.index.codec.vectors.es93;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
@@ -66,6 +68,37 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
         bfloat16VectorFormat
     );
 
+    private static FlatVectorsScorer getScorer(KnnVectorValues values) {
+        switch (values.getEncoding()) {
+            case BYTE:
+                if (values.getVectorByteLength() == values.dimension()) {
+                    return defaultVectorFormat.flatVectorsScorer();
+                } else if (values.getVectorByteLength() == values.dimension() / Byte.SIZE) {
+                    return bitVectorFormat.flatVectorsScorer();
+                }
+                break;
+            case FLOAT32:
+                if (values.getVectorByteLength() == values.dimension() * Float.BYTES) {
+                    return defaultVectorFormat.flatVectorsScorer();
+                } else if (values.getVectorByteLength() == values.dimension() * BFloat16.BYTES) {
+                    return bfloat16VectorFormat.flatVectorsScorer();
+                }
+                break;
+        }
+
+        throw new UnsupportedOperationException(
+            "Could not find scorer for vector ["
+                + values
+                + "] with encoding ["
+                + values.getEncoding()
+                + "], dimensions ["
+                + values.dimension()
+                + "], byte size ["
+                + values.getVectorByteLength()
+                + "]"
+        );
+    }
+
     private final DirectIOCapableFlatVectorsFormat writeFormat;
     private final boolean useDirectIO;
 
@@ -99,7 +132,7 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
             var format = supportedFormats.get(f);
             if (format == null) return null;
             return format.fieldsReader(state, dio);
-        });
+        }, ES93GenericFlatVectorsFormat::getScorer);
     }
 
     @Override

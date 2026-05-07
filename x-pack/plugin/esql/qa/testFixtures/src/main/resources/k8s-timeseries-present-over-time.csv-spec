@@ -22,6 +22,7 @@ true                    | two         | 2024-05-10T00:22:00.000Z
 
 present_over_time_events_received_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket
 
 PROMQL index=k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:00.000Z" events_received=(max by (pod) (present_over_time(events_received{cluster="prod",pod="two"}[2m])))
 | SORT step;
@@ -29,14 +30,14 @@ PROMQL index=k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:
 ignoreOrder:true
 
 events_received:double | step:datetime            | pod:keyword
-1.0                    | 2024-05-10T00:02:00.000Z | two
-1.0                    | 2024-05-10T00:08:00.000Z | two
-0.0                    | 2024-05-10T00:10:00.000Z | two
+1.0                    | 2024-05-10T00:04:00.000Z | two
+1.0                    | 2024-05-10T00:10:00.000Z | two
 0.0                    | 2024-05-10T00:12:00.000Z | two
-1.0                    | 2024-05-10T00:14:00.000Z | two
+0.0                    | 2024-05-10T00:14:00.000Z | two
 1.0                    | 2024-05-10T00:16:00.000Z | two
-0.0                    | 2024-05-10T00:18:00.000Z | two
-1.0                    | 2024-05-10T00:20:00.000Z | two
+1.0                    | 2024-05-10T00:18:00.000Z | two
+0.0                    | 2024-05-10T00:20:00.000Z | two
+1.0                    | 2024-05-10T00:22:00.000Z | two
 ;
 
 present_over_time_of_long
@@ -589,6 +590,7 @@ events_received:integer | pod:keyword | time_bucket:datetime
 
 present_over_time_events_received_as_integer_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket
 
 PROMQL index=k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:00.000Z" events_received=(max by (pod) (present_over_time(events_received{cluster="prod",pod="two"}[2m])))
 | SORT step;
@@ -596,12 +598,12 @@ PROMQL index=k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:
 ignoreOrder:true
 
 events_received:double | step:datetime            | pod:keyword
-1.0                    | 2024-05-10T00:02:00.000Z | two
-1.0                    | 2024-05-10T00:08:00.000Z | two
-0.0                    | 2024-05-10T00:10:00.000Z | two
+1.0                    | 2024-05-10T00:04:00.000Z | two
+1.0                    | 2024-05-10T00:10:00.000Z | two
 0.0                    | 2024-05-10T00:12:00.000Z | two
-1.0                    | 2024-05-10T00:14:00.000Z | two
+0.0                    | 2024-05-10T00:14:00.000Z | two
 1.0                    | 2024-05-10T00:16:00.000Z | two
-0.0                    | 2024-05-10T00:18:00.000Z | two
-1.0                    | 2024-05-10T00:20:00.000Z | two
+1.0                    | 2024-05-10T00:18:00.000Z | two
+0.0                    | 2024-05-10T00:20:00.000Z | two
+1.0                    | 2024-05-10T00:22:00.000Z | two
 ;

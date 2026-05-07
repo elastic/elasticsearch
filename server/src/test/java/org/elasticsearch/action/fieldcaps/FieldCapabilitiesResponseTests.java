@@ -49,7 +49,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         int numResponse = randomIntBetween(0, 10);
         for (int i = 0; i < numResponse; i++) {
             Map<String, IndexFieldCapabilities> fieldCaps = FieldCapabilitiesIndexResponseTests.randomFieldCaps();
-            var indexMode = randomFrom(IndexMode.values());
+            var indexMode = randomFrom(IndexMode.availableModes());
             responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, fieldCaps, randomBoolean(), indexMode));
         }
         randomResponse = FieldCapabilitiesResponse.builder().withIndexResponses(responses).build();

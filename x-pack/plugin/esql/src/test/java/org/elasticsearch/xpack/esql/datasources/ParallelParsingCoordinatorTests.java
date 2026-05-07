@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -357,6 +358,39 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         FormatReadContext only = seen.get(0);
         assertTrue("Whole-file fallback path must mark firstSplit=true", only.firstSplit());
         assertTrue("Whole-file fallback path must mark lastSplit=true", only.lastSplit());
+    }
+
+    /**
+     * Regression: {@code COUNT(*)} passes empty projected columns; parallel segment workers must
+     * still see the file column width via metadata-bound schema (otherwise structural validation
+     * compares rows against schema size 0).
+     */
+    public void testParallelReadEmptyProjectionInfersCsvSchemaBeforeSegments() throws Exception {
+        String header = "a,b,c\n";
+        String row = "1,2,3\n";
+        StringBuilder sb = new StringBuilder(header);
+        while (sb.length() < 3 * 1024 * 1024) {
+            sb.append(row);
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(bytes);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory());
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of(), 500, 4, exec);
+            long rows = 0;
+            try (iter) {
+                while (iter.hasNext()) {
+                    Page p = iter.next();
+                    rows += p.getPositionCount();
+                    p.releaseBlocks();
+                }
+            }
+            assertTrue(rows > 0);
+        } finally {
+            exec.shutdown();
+        }
     }
 
     /**

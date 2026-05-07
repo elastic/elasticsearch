@@ -1815,9 +1815,10 @@ public class EsqlCapabilities {
 
         /**
          * Support for the DATE_RANGE field type, RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX.
-         * V3: DATE_RANGE fields with {@code doc_values: false} now return null instead of throwing an exception.
+         * V4: RANGE_MIN, RANGE_MAX and RANGE_WITHIN now warn and return null on multi-valued input instead of
+         * silently aggregating across values
          */
-        DATE_RANGE_FIELD_TYPE_V3(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V4(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -2530,6 +2531,11 @@ public class EsqlCapabilities {
          * MMR fixes for constant folding
          */
         MMR_FOLDABLE_QUERY_VECTOR_FIX,
+
+        /**
+         * Support the BY grouping clause in CHANGE_POINT to detect change points independently per group.
+         */
+        CHANGE_POINT_BY(Build.current().isSnapshot()),
 
         FIX_DIV_ERROR_MESSAGE,
 

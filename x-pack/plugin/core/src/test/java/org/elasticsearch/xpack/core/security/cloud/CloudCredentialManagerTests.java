@@ -18,12 +18,16 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -107,23 +111,6 @@ public class CloudCredentialManagerTests extends ESTestCase {
         }
     }
 
-    public void testWrapClientWithNullResolveSkipsInjectAndDispatches() {
-        try (var threadPool = new TestThreadPool(getTestName())) {
-            CloudCredentialResolver nullResolver = () -> null;
-            var request = new NoopRequest();
-            var dispatched = new AtomicBoolean();
-            var delegate = new TestAssertingClient(threadPool, (req, ctx) -> {
-                assertThat(req, sameInstance(request));
-                dispatched.set(true);
-            });
-
-            var wrapped = manager.wrapClient(delegate, nullResolver);
-            wrapped.execute(NoopAction.INSTANCE, request, ActionListener.wrap(r -> {}, e -> {}));
-
-            assertTrue("delegate#doExecute should have fired", dispatched.get());
-        }
-    }
-
     public void testWrapClientResolvesInjectsAndDispatchesOnExecute() {
         try (var threadPool = new TestThreadPool(getTestName())) {
             final String testCredKey = "test_cred";
@@ -163,6 +150,155 @@ public class CloudCredentialManagerTests extends ESTestCase {
             wrapped.execute(NoopAction.INSTANCE, request, ActionListener.wrap(r -> {}, e -> {}));
 
             assertTrue("delegate#doExecute should have fired", dispatched.get());
+        }
+    }
+
+    public void testWrapClientRestoresCallerContextAfterExecute() {
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            final String testCredKey = "test_cred";
+            final String preExistingKey = "pre_existing";
+            final String preExistingValue = "still_here";
+            var credential = new CloudCredential(new SecureString("v".toCharArray()));
+            var dispatchedSawCredential = new AtomicBoolean();
+
+            var capturingManager = new CloudCredentialManager() {
+                @Override
+                public boolean hasCloudManagedCredential(ThreadContext threadContext) {
+                    return threadContext.getTransient(testCredKey) != null;
+                }
+
+                @Override
+                public CloudCredential extractCloudManagedCredential(ThreadContext threadContext) {
+                    return threadContext.getTransient(testCredKey);
+                }
+
+                @Override
+                public void injectCloudManagedCredential(ThreadContext threadContext, CloudCredential cred) {
+                    threadContext.putTransient(testCredKey, cred);
+                }
+
+                @Override
+                public CloudCredentialResolver resolverOf(PersistedCloudCredential persisted) {
+                    throw new AssertionError("resolverOf(PersistedCloudCredential) should not be called");
+                }
+            };
+
+            var delegate = new TestAssertingClient(threadPool, (req, ctx) -> {
+                assertThat(ctx.getTransient(testCredKey), sameInstance(credential));
+                assertThat(ctx.getTransient(preExistingKey), is(preExistingValue));
+                dispatchedSawCredential.set(true);
+            });
+
+            var threadContext = threadPool.getThreadContext();
+            threadContext.putTransient(preExistingKey, preExistingValue);
+            assertNull("pre-condition: caller context must not contain the cloud token", threadContext.getTransient(testCredKey));
+
+            var wrapped = capturingManager.wrapClient(delegate, credential);
+            var listenerCalledUnderOriginalContext = new AtomicBoolean();
+            wrapped.execute(NoopAction.INSTANCE, new NoopRequest(), ActionListener.wrap(r -> {
+                assertNull(
+                    "listener must fire under the original context, without the injected cloud token",
+                    threadContext.getTransient(testCredKey)
+                );
+                assertThat(threadContext.getTransient(preExistingKey), is(preExistingValue));
+                listenerCalledUnderOriginalContext.set(true);
+            }, e -> fail("listener should succeed: " + e)));
+
+            assertTrue("delegate#doExecute should have fired", dispatchedSawCredential.get());
+            assertTrue("listener should have run", listenerCalledUnderOriginalContext.get());
+            assertNull(
+                "post-condition: caller context must not be polluted with the injected cloud token",
+                threadContext.getTransient(testCredKey)
+            );
+            assertThat(
+                "post-condition: pre-existing transients must survive",
+                threadContext.getTransient(preExistingKey),
+                is(preExistingValue)
+            );
+        }
+    }
+
+    public void testWrapClientComposesWithClientHelperStash() {
+        try (var threadPool = new TestThreadPool(getTestName())) {
+            final String testCredKey = "test_cred";
+            final String authHeaderValue = "test-auth-value";
+            var credential = new CloudCredential(new SecureString("v".toCharArray()));
+            var dispatched = new AtomicBoolean();
+
+            var capturingManager = new CloudCredentialManager() {
+                @Override
+                public boolean hasCloudManagedCredential(ThreadContext threadContext) {
+                    return threadContext.getTransient(testCredKey) != null;
+                }
+
+                @Override
+                public CloudCredential extractCloudManagedCredential(ThreadContext threadContext) {
+                    return threadContext.getTransient(testCredKey);
+                }
+
+                @Override
+                public void injectCloudManagedCredential(ThreadContext threadContext, CloudCredential cred) {
+                    threadContext.putTransient(testCredKey, cred);
+                }
+
+                @Override
+                public CloudCredentialResolver resolverOf(PersistedCloudCredential persisted) {
+                    throw new AssertionError("resolverOf(PersistedCloudCredential) should not be called");
+                }
+            };
+
+            var threadContext = threadPool.getThreadContext();
+            threadContext.putTransient(testCredKey, credential);
+            var captured = capturingManager.extractCloudManagedCredential(threadContext);
+
+            var delegate = new TestAssertingClient(threadPool, (req, ctx) -> {
+                assertThat(
+                    "dispatched action should see the cloud token re-injected after ClientHelper stashed",
+                    ctx.getTransient(testCredKey),
+                    sameInstance(credential)
+                );
+                assertThat(
+                    "dispatched action should see the security header copied by ClientHelper",
+                    ctx.getHeader(AuthenticationField.AUTHENTICATION_KEY),
+                    is(authHeaderValue)
+                );
+                dispatched.set(true);
+            });
+
+            var wrapped = capturingManager.wrapClient(delegate, captured);
+            var listenerRan = new AtomicBoolean();
+
+            ClientHelper.executeWithHeadersAsync(
+                Map.of(AuthenticationField.AUTHENTICATION_KEY, authHeaderValue),
+                "ml-test-origin",
+                wrapped,
+                NoopAction.INSTANCE,
+                new NoopRequest(),
+                ActionListener.wrap(r -> {
+                    assertThat(
+                        "listener should fire under the caller's original context (cloud token still present)",
+                        threadContext.getTransient(testCredKey),
+                        sameInstance(credential)
+                    );
+                    assertNull(
+                        "listener should not see the stash-internal security header",
+                        threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY)
+                    );
+                    listenerRan.set(true);
+                }, e -> fail("listener should succeed: " + e))
+            );
+
+            assertTrue("delegate#doExecute should have fired", dispatched.get());
+            assertTrue("listener should have run", listenerRan.get());
+            assertThat(
+                "post-condition: caller's original cloud token is still in scope",
+                threadContext.getTransient(testCredKey),
+                sameInstance(credential)
+            );
+            assertNull(
+                "post-condition: ClientHelper's stash-internal header should not have leaked",
+                threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY)
+            );
         }
     }
 

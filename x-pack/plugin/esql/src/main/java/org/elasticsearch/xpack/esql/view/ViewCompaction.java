@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -346,9 +347,21 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
         );
     }
 
+    /**
+     * True iff any of {@code ur}'s comma-separated patterns is an exclusion in any of the
+     * forms field-caps recognises ({@code -name}, {@code cluster:-name}, {@code *:-name},
+     * {@code -cluster:*}). Mirrors {@code ViewResolver.patternIsExclusion} — see that
+     * method's Javadoc for why the cluster-prefixed forms must be detected here too: order
+     * matters when patterns are concatenated by the merge step, and silently dropping a
+     * cluster-prefixed exclusion would let it merge into a sibling and lose its scope.
+     */
     private static boolean containsExclusion(UnresolvedRelation ur) {
         for (String pattern : ur.indexPattern().indexPattern().split(",")) {
             if (pattern.startsWith("-")) {
+                return true;
+            }
+            String[] split = RemoteClusterAware.splitIndexName(pattern);
+            if (split[0] != null && split[1].startsWith("-")) {
                 return true;
             }
         }

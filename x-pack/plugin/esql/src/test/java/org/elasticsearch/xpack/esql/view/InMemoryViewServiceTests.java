@@ -2212,6 +2212,39 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(shadowExclusions.get("v_b"), equalTo(List.of("-staleB-*")));
     }
 
+    /**
+     * Cluster-prefixed exclusions ({@code cluster:-name}, {@code *:-name}) and cluster-level
+     * exclusions ({@code -cluster:*}) must travel with the shadow's exclusions list, just like
+     * the bare {@code -name} form. Reproduces a serverless integration scenario:
+     * {@code FROM my-data, my_linked_project:-my-data} where {@code my-data} is a local view
+     * and a remote index on {@code my_linked_project} — the cluster-scoped exclusion has to reach
+     * the lenient field-caps target as {@code my-data,my_linked_project:-my-data}, otherwise the
+     * lenient lookup matches the remote index and the shadow erroneously resolves to a remote
+     * {@code EsRelation}.
+     */
+    public void testViewShadowRelationCarriesClusterPrefixedExclusions() {
+        addView("my-data", "FROM source-index");
+        addView("v_a", "FROM emp");
+        addView("v_b", "FROM emp");
+
+        // Cluster-prefixed exclusion (cluster:-name): attaches to shadows positioned before it.
+        LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM my-data,my_linked_project:-my-data"));
+        Map<String, List<String>> shadowExclusions = collectShadowExclusions(resolved);
+        assertThat(shadowExclusions.get("my-data"), equalTo(List.of("my_linked_project:-my-data")));
+
+        // *:-name form (exclusion across all remotes): same handling.
+        resolved = replaceViewsWithoutCompaction(query("FROM v_a,*:-stale,v_b"));
+        shadowExclusions = collectShadowExclusions(resolved);
+        assertThat(shadowExclusions.get("v_a"), equalTo(List.of("*:-stale")));
+        assertThat(shadowExclusions.get("v_b"), equalTo(List.of()));
+
+        // Cluster-level exclusion (-cluster:*): also propagates.
+        resolved = replaceViewsWithoutCompaction(query("FROM v_a,-stale_cluster:*,v_b"));
+        shadowExclusions = collectShadowExclusions(resolved);
+        assertThat(shadowExclusions.get("v_a"), equalTo(List.of("-stale_cluster:*")));
+        assertThat(shadowExclusions.get("v_b"), equalTo(List.of()));
+    }
+
     // -------------------------------------------------------------------------------------------
     // Staged transformation tests.
     //

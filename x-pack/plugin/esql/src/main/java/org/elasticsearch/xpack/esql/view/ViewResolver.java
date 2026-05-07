@@ -21,6 +21,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -531,18 +532,42 @@ public class ViewResolver {
     }
 
     /**
-     * Checks whether a pattern is an exclusion targeting a concrete (non-wildcard) view name.
+     * Checks whether a pattern is a <em>local</em> exclusion targeting a concrete (non-wildcard)
+     * view name — e.g. {@code -my_view}. Cluster-prefixed forms ({@code cluster:-my_view},
+     * {@code *:-my_view}) and cluster-level exclusions ({@code -cluster:*}) do not target a
+     * local concrete view name and are excluded here, even though they pass
+     * {@link #patternIsExclusion}. View names cannot contain {@code :} (validated at create
+     * time), so a colon in {@code pattern} indicates a cluster scope rather than a view target.
      */
     private static boolean isConcreteViewExclusion(String pattern, Predicate<String> viewExistsPredicate) {
-        if (patternIsExclusion(pattern) == false) {
+        if (pattern.startsWith("-") == false || pattern.contains(":")) {
             return false;
         }
         String target = pattern.substring(1);
         return Regex.isSimpleMatchPattern(target) == false && viewExistsPredicate.test(target);
     }
 
+    /**
+     * True iff {@code pattern} is any field-caps exclusion form:
+     * <ul>
+     *   <li>{@code -name} — local exclusion;</li>
+     *   <li>{@code cluster:-name} / {@code *:-name} — cluster-prefixed exclusion (the local
+     *       part starts with {@code -});</li>
+     *   <li>{@code -cluster:*} — cluster-level exclusion (whole cluster removed).</li>
+     * </ul>
+     * The cluster-prefixed forms in particular are essential for view-shadow exclusion
+     * propagation: a query like {@code FROM my_view, cluster:-my_view} must attach
+     * {@code cluster:-my_view} to {@code my_view}'s shadow so the lenient field-caps target
+     * mirrors the local exclusion scope. Detecting only the {@code -name} form would silently
+     * drop the cluster scope and the lenient lookup would erroneously include the excluded
+     * remote.
+     */
     private static boolean patternIsExclusion(String pattern) {
-        return pattern.startsWith("-");
+        if (pattern.startsWith("-")) {
+            return true;
+        }
+        String[] split = RemoteClusterAware.splitIndexName(pattern);
+        return split[0] != null && split[1].startsWith("-");
     }
 
     /**

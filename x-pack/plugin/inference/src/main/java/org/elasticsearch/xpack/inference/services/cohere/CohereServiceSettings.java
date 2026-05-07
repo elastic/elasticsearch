@@ -97,7 +97,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
             validationException.addValidationError(MODEL_REQUIRED_FOR_V2_API);
         }
 
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, CohereService.NAME, context);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
 
@@ -285,7 +285,6 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            CohereService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

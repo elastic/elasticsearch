@@ -221,6 +221,6 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 }

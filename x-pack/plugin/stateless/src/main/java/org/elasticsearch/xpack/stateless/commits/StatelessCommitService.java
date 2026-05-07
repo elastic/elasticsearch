@@ -120,14 +120,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     /** How long an indexing shard should not have sent new commit notifications in order to be deemed as inactive. */
     public static final Setting<TimeValue> SHARD_INACTIVITY_DURATION_TIME_SETTING = Setting.positiveTimeSetting(
-        "shard.inactivity.duration",
+        "stateless.shard.inactivity.duration",
         TimeValue.timeValueMinutes(10),
         Setting.Property.NodeScope
     );
 
     /** How frequently we check for inactive indexing shards, and potentially send requests for in-use commits to the search shards. */
     public static final Setting<TimeValue> SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING = Setting.positiveTimeSetting(
-        "shard.inactivity.monitor.interval",
+        "stateless.shard.inactivity.monitor.interval",
         TimeValue.timeValueMinutes(30),
         Setting.Property.NodeScope
     );
@@ -1167,12 +1167,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      *
      * Visible for testing.
      */
-    private static ShardCommitState getSafe(ConcurrentHashMap<ShardId, ShardCommitState> map, ShardId shardId) {
+    static ShardCommitState getSafe(ConcurrentHashMap<ShardId, ShardCommitState> map, ShardId shardId) {
         final ShardCommitState commitState = map.get(shardId);
         if (commitState == null) {
             throw new AlreadyClosedException("shard [" + shardId + "] has already been closed");
         }
         return commitState;
+    }
+
+    // Visible for testing.
+    ShardCommitState getSafe(ShardId shardId) {
+        return getSafe(shardsCommitsStates, shardId);
     }
 
     class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
@@ -1910,6 +1915,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 );
             }
             blobReference.removeLocalCommitRef(commitPrimaryTermAndGeneration);
+        }
+
+        // Visible for testing.
+        Map<PrimaryTermAndGeneration, BlobReference> getPrimaryTermAndGenToBlobReferences() {
+            return primaryTermAndGenToBlobReference;
         }
 
         private PrimaryTermAndGeneration resolvePrimaryTermForGeneration(long generation) {

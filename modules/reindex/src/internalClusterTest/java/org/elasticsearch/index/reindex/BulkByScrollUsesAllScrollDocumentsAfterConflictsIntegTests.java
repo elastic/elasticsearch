@@ -243,7 +243,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
 
             if (scriptEnabled) {
                 final Script script = new Script(ScriptType.INLINE, SCRIPT_LANG, NOOP_GENERATOR, Collections.emptyMap());
-                ((AbstractBulkIndexByScrollRequestBuilder) requestBuilder).script(script);
+                ((AbstractBulkIndexByPaginatedSearchRequestBuilder) requestBuilder).script(script);
             }
 
             final SearchRequestBuilder source = requestBuilder.source();
@@ -259,7 +259,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
 
             final BulkResponse bulkItemResponses = bulkFuture.actionGet();
             for (BulkItemResponse bulkItemResponse : bulkItemResponses) {
-                assertThat(Strings.toString(bulkItemResponses), bulkItemResponse.isFailed(), is(false));
+                assertThat(Strings.toTruncatedString(bulkItemResponses), bulkItemResponse.isFailed(), is(false));
             }
 
             final BulkByScrollResponse bulkByScrollResponse = updateByQueryResponse.actionGet();

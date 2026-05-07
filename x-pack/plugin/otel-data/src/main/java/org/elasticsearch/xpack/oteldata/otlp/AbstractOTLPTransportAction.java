@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.oteldata.otlp;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.MessageLite;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -19,9 +17,12 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,7 +47,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         ThreadPool threadPool,
         Client client
     ) {
-        super(name, transportService, actionFilters, OTLPActionRequest::new, threadPool.executor(ThreadPool.Names.WRITE));
+        super(name, transportService, actionFilters, in -> TransportAction.localOnly(), threadPool.executor(ThreadPool.Names.WRITE));
         this.client = client;
     }
 
@@ -56,12 +57,12 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             ProcessingContext context = prepareBulkRequest(request, bulkRequestBuilder);
             if (bulkRequestBuilder.numberOfActions() == 0) {
-                if (context.getIgnoredDataPoints() == 0) {
+                if (context.getIgnoredItems() == 0) {
                     listener.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
                 } else {
                     listener.onFailure(
                         new ElasticsearchStatusException(
-                            context.getIgnoredDataPointsMessage(IGNORED_DATA_POINTS_MESSAGE_LIMIT),
+                            context.getIgnoredItemsMessage(IGNORED_DATA_POINTS_MESSAGE_LIMIT),
                             RestStatus.BAD_REQUEST
                         )
                     );
@@ -71,7 +72,7 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
 
             ProcessingContext finalContext = context;
             bulkRequestBuilder.execute(listener.delegateFailure((delegate, bulkResponse) -> {
-                if (bulkResponse.hasFailures() || finalContext.getIgnoredDataPoints() > 0) {
+                if (bulkResponse.hasFailures() || finalContext.getIgnoredItems() > 0) {
                     handlePartialSuccess(bulkResponse, finalContext, delegate);
                 } else {
                     delegate.onResponse(new OTLPActionResponse(BytesArray.EMPTY));
@@ -100,31 +101,31 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         ProcessingContext EMPTY = () -> 0;
 
         /**
-         * Creates a ProcessingContext that only tracks the total number of data points processed
-         * and does not track any ignored data points or error messages.
+         * Creates a ProcessingContext that only tracks the total number of items processed
+         * and does not track any ignored items or error messages.
          *
-         * @param totalDataPoints the total number of data points processed
-         * @return a ProcessingContext instance with the specified total data points and no ignored data points or error messages
+         * @param totalItems the total number of items processed
+         * @return a ProcessingContext instance with the specified total items and no ignored items or error messages
          */
-        static ProcessingContext withTotalDataPoints(int totalDataPoints) {
-            return new WithTotalDataPoints(totalDataPoints);
+        static ProcessingContext withTotalItems(int totalItems) {
+            return new WithTotalItems(totalItems);
         }
 
-        int totalDataPoints();
+        int totalItems();
 
-        default int getIgnoredDataPoints() {
+        default int getIgnoredItems() {
             return 0;
         }
 
-        default String getIgnoredDataPointsMessage(int limit) {
+        default String getIgnoredItemsMessage(int limit) {
             return "";
         }
 
         /**
-         * A simple implementation of ProcessingContext that only tracks the total number of data points processed
-         * and does not track any ignored data points or error messages.
+         * A simple implementation of ProcessingContext that only tracks the total number of items processed
+         * and does not track any ignored items or error messages.
          */
-        record WithTotalDataPoints(int totalDataPoints) implements ProcessingContext {}
+        record WithTotalItems(int totalItems) implements ProcessingContext {}
     }
 
     /**
@@ -154,8 +155,8 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
         for (BulkItemResponse bulkItemResponse : bulkItemResponses.getItems()) {
             BulkItemResponse.Failure failure = bulkItemResponse.getFailure();
             if (failure != null) {
-                // we're counting each document as one data point here
-                // which is an approximation since one document can represent multiple data points
+                // we're counting each document as one item here
+                // which is an approximation since one document can represent multiple OTLP items
                 failures++;
                 if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
                     // If the server receives more requests than the client is allowed or the server is overloaded,
@@ -170,8 +171,8 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
             }
         }
         if (bulkItemResponses.getItems().length == failures) {
-            // all data points failed, so we report total data points as failures
-            failures = context.totalDataPoints();
+            // all items failed, so we report total items as failures
+            failures = context.totalItems();
         }
         StringBuilder failureMessageBuilder = new StringBuilder();
         for (Map.Entry<String, Map<RestStatus, FailureGroup>> indexEntry : failureGroups.entrySet()) {
@@ -190,12 +191,12 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
                 failureMessageBuilder.append("\n");
             }
         }
-        failureMessageBuilder.append(context.getIgnoredDataPointsMessage(10));
+        failureMessageBuilder.append(context.getIgnoredItemsMessage(10));
         String message = failureMessageBuilder.toString();
         if (status == RestStatus.TOO_MANY_REQUESTS) {
             listener.onFailure(new ElasticsearchStatusException(message, RestStatus.TOO_MANY_REQUESTS));
         } else {
-            MessageLite response = responseWithRejectedDataPoints(failures + context.getIgnoredDataPoints(), message);
+            MessageLite response = responseWithRejectedItems(failures + context.getIgnoredItems(), message);
             listener.onResponse(new OTLPActionResponse(response));
         }
     }
@@ -203,12 +204,12 @@ public abstract class AbstractOTLPTransportAction extends HandledTransportAction
     record FailureGroup(AtomicInteger failureCount, String failureMessageSample) {}
 
     /**
-     * Builds the response for a request that had some rejected data points.
+     * Builds the response for a request that had some rejected items.
      *
-     * @param rejectedDataPoints the number of data points that were rejected
-     * @param message            a message describing the reason for rejection, which may be included in the response body
-     * @return a MessageLite containing the response message with details about the rejected data points
+     * @param rejectedItems the number of items that were rejected
+     * @param message       a message describing the reason for rejection, which may be included in the response body
+     * @return a MessageLite containing the response message with details about the rejected items
      */
-    abstract MessageLite responseWithRejectedDataPoints(int rejectedDataPoints, String message);
+    abstract MessageLite responseWithRejectedItems(int rejectedItems, String message);
 
 }

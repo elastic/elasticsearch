@@ -1034,7 +1034,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertBusy(() -> {
             final var clusterAllocationExplanation = getClusterAllocationExplanation(client(), restoredIndexName, 0, true);
-            final String description = Strings.toString(clusterAllocationExplanation);
+            final String description = Strings.toTruncatedString(clusterAllocationExplanation);
             final AllocateUnassignedDecision allocateDecision = clusterAllocationExplanation.getShardAllocationDecision()
                 .getAllocateDecision();
             assertTrue(description, allocateDecision.isDecisionTaken());
@@ -1057,7 +1057,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             final RestoreInProgress restoreInProgress = RestoreInProgress.get(
                 clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setCustoms(true).get().getState()
             );
-            assertTrue(Strings.toString(restoreInProgress, true, true), restoreInProgress.isEmpty());
+            assertTrue(Strings.toTruncatedString(restoreInProgress, true, true), restoreInProgress.isEmpty());
         });
 
         // Re-register the repository containing the actual data & verify that the shards are now allocated

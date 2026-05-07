@@ -265,18 +265,23 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             if (r instanceof SearchRequest) {
                 final SearchHit[] hits = IntStream.range(0, nhits)
                     .mapToObj(
-                        i -> SearchHit.unpooled(
+                        i -> new SearchHit(
                             randomIntBetween(0, Integer.MAX_VALUE),
                             SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/" + tokenNames[i]
                         )
                     )
                     .toArray(SearchHit[]::new);
-                ActionListener.respondAndRelease(
-                    l,
-                    SearchResponseUtils.successfulResponse(
-                        SearchHits.unpooled(hits, new TotalHits(nhits, TotalHits.Relation.EQUAL_TO), randomFloat(), null, null, null)
-                    )
+                SearchHits searchHits = new SearchHits(
+                    hits,
+                    new TotalHits(nhits, TotalHits.Relation.EQUAL_TO),
+                    randomFloat(),
+                    null,
+                    null,
+                    null
                 );
+                var searchResponse = SearchResponseUtils.successfulResponse(searchHits);
+                searchHits.decRef(); // transfer ownership to searchResponse
+                ActionListener.respondAndRelease(l, searchResponse);
             } else if (r instanceof ClearScrollRequest) {
                 l.onResponse(new ClearScrollResponse(true, 1));
             } else {

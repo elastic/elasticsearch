@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -178,28 +176,6 @@ public final class SourceStatisticsSerializer {
     @Nullable
     public static Long extractColumnSizeBytes(Map<String, Object> sourceMetadata, String columnName) {
         return sourceMetadata != null ? asBoxedLong(sourceMetadata.get(columnSizeBytesKey(columnName))) : null;
-    }
-
-    /**
-     * Resolves the effective metadata for a set of splits. For single-split queries returns
-     * the given sourceMetadata directly; for multi-split queries merges per-split statistics
-     * from each {@link FileSplit}. Returns {@code null} if any split is not a {@code FileSplit}
-     * or if {@link #mergeStatistics} cannot produce a valid merged result (e.g. missing or
-     * non-numeric row counts).
-     */
-    public static Map<String, Object> resolveEffectiveMetadata(List<? extends ExternalSplit> splits, Map<String, Object> sourceMetadata) {
-        if (splits.size() <= 1) {
-            return sourceMetadata;
-        }
-        List<Map<String, Object>> splitStats = new ArrayList<>(splits.size());
-        for (ExternalSplit split : splits) {
-            if (split instanceof FileSplit fileSplit) {
-                splitStats.add(fileSplit.statistics());
-            } else {
-                return null;
-            }
-        }
-        return mergeStatistics(splitStats);
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })

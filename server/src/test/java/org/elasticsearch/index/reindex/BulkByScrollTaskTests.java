@@ -39,7 +39,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
     /**
      * Creates a minimal {@link BulkByScrollTask} with random id, type, action, description and optional relocation eligibility.
-     * The task is neither a leader nor a worker until {@link BulkByScrollTask#setWorkerCount(int)} or
+     * The task is neither a leader nor a worker until {@link BulkByScrollTask#setWorkerCount(int, float)} or
      * {@link BulkByScrollTask#setWorker(float, Integer)} is called.
      */
     private static BulkByScrollTask createTask(boolean eligibleForRelocationOnShutdown) {
@@ -158,7 +158,8 @@ public class BulkByScrollTaskTests extends ESTestCase {
         );
         BulkByScrollTask.Status status = new BulkByScrollTask.Status(
             Arrays.asList(null, null, new BulkByScrollTask.StatusOrException(completedStatus)),
-            null
+            null,
+            0f
         );
         status.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), containsString("\"slices\":[null,null,{\"slice_id\":2"));
@@ -169,7 +170,8 @@ public class BulkByScrollTaskTests extends ESTestCase {
         Exception e = new Exception();
         BulkByScrollTask.Status status = new BulkByScrollTask.Status(
             Arrays.asList(null, null, new BulkByScrollTask.StatusOrException(e)),
-            null
+            null,
+            0f
         );
         status.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), containsString("\"slices\":[null,null,{\"type\":\"exception\""));
@@ -239,7 +241,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
             mergedThrottledUntil = timeValueNanos(min(mergedThrottledUntil.nanos(), throttledUntil.nanos()));
         }
         String reasonCancelled = randomBoolean() ? randomAlphaOfLength(10) : null;
-        BulkByScrollTask.Status merged = new BulkByScrollTask.Status(Arrays.asList(statuses), reasonCancelled);
+        BulkByScrollTask.Status merged = new BulkByScrollTask.Status(Arrays.asList(statuses), reasonCancelled, mergedRequestsPerSecond);
         assertEquals(mergedTotal, merged.getTotal());
         assertEquals(mergedUpdated, merged.getUpdated());
         assertEquals(mergedCreated, merged.getCreated());
@@ -274,13 +276,13 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
     /**
      * Verifies that {@link BulkByScrollTask#isLeader()} returns false for a freshly created task and true after
-     * {@link BulkByScrollTask#setWorkerCount(int)} is called.
+     * {@link BulkByScrollTask#setWorkerCount(int, float)} is called.
      */
     public void testIsLeader() {
         BulkByScrollTask task = createTask(randomBoolean());
         assertFalse(task.isLeader());
         int slices = between(2, 20);
-        task.setWorkerCount(slices);
+        task.setWorkerCount(slices, Float.POSITIVE_INFINITY);
         assertTrue(task.isLeader());
     }
 
@@ -298,22 +300,28 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#setWorkerCount(int)} throws when the task is already a leader.
+     * Verifies that {@link BulkByScrollTask#setWorkerCount(int, float)} throws when the task is already a leader.
      */
     public void testSetWorkerCountThrowsWhenAlreadyLeader() {
         BulkByScrollTask task = createTask(randomBoolean());
-        task.setWorkerCount(between(2, 10));
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> task.setWorkerCount(between(2, 10)));
+        task.setWorkerCount(between(2, 10), Float.POSITIVE_INFINITY);
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> task.setWorkerCount(between(2, 10), Float.POSITIVE_INFINITY)
+        );
         assertThat(exception.getMessage(), containsString("already a leader"));
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#setWorkerCount(int)} throws when the task is already a worker.
+     * Verifies that {@link BulkByScrollTask#setWorkerCount(int, float)} throws when the task is already a worker.
      */
     public void testSetWorkerCountThrowsWhenAlreadyWorker() {
         BulkByScrollTask task = createTask(randomBoolean());
         task.setWorker(randomFloatBetween(0.1f, 100f), null);
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> task.setWorkerCount(between(2, 10)));
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> task.setWorkerCount(between(2, 10), Float.POSITIVE_INFINITY)
+        );
         assertThat(exception.getMessage(), containsString("already a worker"));
     }
 
@@ -335,7 +343,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
      */
     public void testSetWorkerThrowsWhenAlreadyLeader() {
         BulkByScrollTask task = createTask(randomBoolean());
-        task.setWorkerCount(between(2, 10));
+        task.setWorkerCount(between(2, 10), Float.POSITIVE_INFINITY);
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
             () -> task.setWorker(randomFloatBetween(0.1f, 100f), between(0, 5))
@@ -345,7 +353,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
     /**
      * Verifies that {@link BulkByScrollTask#getLeaderState()} returns the leader state after
-     * {@link BulkByScrollTask#setWorkerCount(int)} and throws when the task is not a leader.
+     * {@link BulkByScrollTask#setWorkerCount(int, float)} and throws when the task is not a leader.
      */
     public void testGetLeaderState() {
         BulkByScrollTask task = createTask(randomBoolean());
@@ -353,7 +361,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("not set to be a leader"));
 
         int slices = between(2, 20);
-        task.setWorkerCount(slices);
+        task.setWorkerCount(slices, Float.POSITIVE_INFINITY);
         LeaderBulkByScrollTaskState leaderState = task.getLeaderState();
         assertNotNull(leaderState);
         assertEquals(slices, leaderState.getSlices());
@@ -429,7 +437,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
     public void testTaskInfoGivenSubtaskInfo() {
         int slices = between(2, 8);
         BulkByScrollTask task = createTask(randomBoolean());
-        task.setWorkerCount(slices);
+        task.setWorkerCount(slices, Float.POSITIVE_INFINITY);
 
         String localNodeId = randomAlphaOfLength(5);
         List<TaskInfo> sliceInfoList = Arrays.asList(new TaskInfo[slices]);
@@ -564,7 +572,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
         BulkByScrollTask task = createTask(true);
         assertTrue(task.tryInitiateRelocationHandoff());
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, task::ensureCancellable);
-        assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         assertThat(e.getMessage(), equalTo("cannot cancel task [" + task.getId() + "] because it is being relocated"));
         assertEquals(BulkByScrollTask.RelocationProgress.State.HANDOFF_INITIATED, task.getRelocationProgress().current());
         assertTrue(task.useCreateSemanticsForResultStorage());

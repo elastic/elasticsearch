@@ -36,6 +36,7 @@ import org.hamcrest.Matchers;
 import org.hamcrest.StringDescription;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
@@ -588,6 +589,15 @@ public final class CsvAssert {
                 LongRangeBlockBuilder.LongRange.class,
                 x -> EsqlDataTypeConverter.dateRangeToString((LongRangeBlockBuilder.LongRange) x)
             );
+            case FLATTENED -> {
+                // Parse expected JSON string to Map so comparison with actual is order-independent
+                String json = (String) expectedValue;
+                try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+                    yield parser.map();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
             case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, JSON, NULL, BOOLEAN,
                 DENSE_VECTOR, TDIGEST, UNSUPPORTED -> expectedValue;
         };
@@ -610,6 +620,21 @@ public final class CsvAssert {
                 String.class,
                 x -> DEFAULT_DATE_NANOS_FORMATTER.formatNanos(DEFAULT_DATE_NANOS_FORMATTER.parseNanos((String) x))
             );
+            case FLATTENED -> {
+                if (actualValue instanceof Map<?, ?>) {
+                    // REST test: value was deserialized as a Map from the JSON response
+                    yield actualValue;
+                }
+                // CsvIT: value is a JSON string from the block loader
+                try (
+                    XContentParser parser = XContentType.JSON.xContent()
+                        .createParser(XContentParserConfiguration.EMPTY, (String) actualValue)
+                ) {
+                    yield parser.map();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
             default -> actualValue;
         };
     }

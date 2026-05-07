@@ -44,6 +44,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -160,6 +161,7 @@ public class AuthorizationService {
     private final boolean anonymousAuthzExceptionEnabled;
     private final DlsFlsFeatureTrackingIndicesAccessControlWrapper indicesAccessControlWrapper;
     private final AuthorizedProjectsResolver authorizedProjectsResolver;
+    private final ProjectRoutingResolver projectRoutingResolver;
 
     public AuthorizationService(
         Settings settings,
@@ -186,12 +188,12 @@ public class AuthorizationService {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
         this.restrictedIndices = restrictedIndices;
+        this.projectRoutingResolver = projectRoutingResolver;
         this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(
             settings,
             linkedProjectConfigService,
             resolver,
-            crossProjectModeDecider,
-            projectRoutingResolver
+            crossProjectModeDecider
         );
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
@@ -511,17 +513,18 @@ public class AuthorizationService {
         } else if (isIndexAction(action)) {
             final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
             assert projectMetadata != null;
+            final boolean resolvesCrossProject = indicesAndAliasesResolver.resolvesCrossProject(request);
             final SubscribableListener<TargetProjects> targetProjectListener;
-            if (indicesAndAliasesResolver.resolvesCrossProject(request)) {
+            if (resolvesCrossProject) {
                 targetProjectListener = new SubscribableListener<>();
                 authorizedProjectsResolver.resolveAuthorizedProjects(targetProjectListener);
             } else {
                 targetProjectListener = SubscribableListener.newSucceeded(TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED);
             }
 
-            targetProjectListener.addListener(ActionListener.wrap(targetProjects -> {
+            targetProjectListener.addListener(ActionListener.wrap(authorizedProjects -> {
                 final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = makeResolvedIndicesAsyncSupplier(
-                    targetProjects,
+                    authorizedProjects,
                     requestInfo,
                     requestId,
                     request,
@@ -562,7 +565,7 @@ public class AuthorizationService {
     }
 
     private AsyncSupplier<ResolvedIndices> makeResolvedIndicesAsyncSupplier(
-        TargetProjects targetProjects,
+        TargetProjects authorizedProjects,
         RequestInfo requestInfo,
         String requestId,
         TransportRequest request,
@@ -578,6 +581,8 @@ public class AuthorizationService {
                 var resolvedIndices = indicesAndAliasesResolver.resolvePITIndices(searchRequest);
                 return SubscribableListener.newSucceeded(resolvedIndices);
             }
+
+            final TargetProjects targetProjects = maybeSetResolvedTargetProjects(request, authorizedProjects, projectMetadata);
             final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request, targetProjects);
             if (resolvedIndices != null) {
                 return SubscribableListener.newSucceeded(resolvedIndices);
@@ -597,6 +602,46 @@ public class AuthorizationService {
                 return resolvedIndicesListener;
             }
         });
+    }
+
+    private TargetProjects maybeSetResolvedTargetProjects(
+        TransportRequest request,
+        TargetProjects authorizedProjects,
+        ProjectMetadata projectMetadata
+    ) {
+        if (request instanceof IndicesRequest.CrossProjectCandidate crossProjectCandidate
+            && indicesAndAliasesResolver.resolvesCrossProject(request)) {
+            final TargetProjects existing = crossProjectCandidate.getResolvedTargetProjects();
+            if (existing != null) {
+                // see https://github.com/elastic/elasticsearch/issues/135799 and ES-4376
+                if (Assertions.ENABLED) {
+                    final TargetProjects reResolved = projectRoutingResolver.resolve(
+                        crossProjectCandidate.getProjectRouting(),
+                        projectMetadata,
+                        authorizedProjects
+                    );
+                    assert existing.equals(reResolved)
+                        : "previously-recorded resolvedTargetProjects ["
+                            + existing
+                            + "] does not match re-resolved value ["
+                            + reResolved
+                            + "] for ["
+                            + crossProjectCandidate.getClass().getName()
+                            + "]";
+                }
+                return existing;
+            }
+            final TargetProjects targetProjects = projectRoutingResolver.resolve(
+                crossProjectCandidate.getProjectRouting(),
+                projectMetadata,
+                authorizedProjects
+            );
+            crossProjectCandidate.setResolvedTargetProjects(targetProjects);
+            return targetProjects;
+        }
+        assert authorizedProjects == TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED
+            : "expected LOCAL_ONLY_FOR_CPS_DISABLED when CPS does not apply but got [" + authorizedProjects + "]";
+        return authorizedProjects;
     }
 
     private void onAuthorizedResourceLoadFailure(

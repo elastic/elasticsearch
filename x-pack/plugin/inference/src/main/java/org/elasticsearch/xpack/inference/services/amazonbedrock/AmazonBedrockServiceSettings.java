@@ -61,13 +61,7 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
             EnumSet.allOf(AmazonBedrockProvider.class),
             validationException
         );
-        var rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            AMAZON_BEDROCK_BASE_NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         return new AmazonBedrockCommonSettings(region, model, provider, rateLimitSettings);
     }
@@ -80,7 +74,6 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            AMAZON_BEDROCK_BASE_NAME,
             ConfigurationParseContext.REQUEST
         );
 

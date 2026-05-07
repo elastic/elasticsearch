@@ -20,22 +20,33 @@ import java.io.SequenceInputStream;
 
 class NdJsonUtils {
     /**
-     * Shared {@link JsonFactory} for all NDJSON parsing. All settings are valid on the server-wide
-     * Jackson 2.15 used here (no separate Jackson dependency for this plugin).
+     * Shared {@link JsonFactory} for all NDJSON parsing. Tuned for high-throughput streaming reads.
+     * <p>
+     * We deliberately do <b>not</b> reuse {@code org.elasticsearch.xcontent.provider.json.ESJsonFactory}
+     * from {@code libs/x-content/impl}: that factory lives in a JPMS package which the
+     * {@code org.elasticsearch.xcontent.impl} module does not export, so it isn't reachable as a
+     * type from this plugin, and its settings target full-document XContent parsing rather than
+     * line-bounded NDJSON streamed in parallel. In particular {@code STRICT_DUPLICATE_DETECTION},
+     * {@code ALLOW_COMMENTS}, source-in-location bookkeeping, and the relaxed
+     * {@code streamReadConstraints} are correct for that path but unnecessary or counter-productive
+     * here.
      * <ul>
      *   <li>{@link StreamReadFeature#AUTO_CLOSE_SOURCE} disabled - schema inference may call
      *       {@link JsonParser#close()} while recovering from malformed JSON; that must not close a
      *       wrapping codec stream (e.g. bzip2) that is still being read.</li>
-     *   <li>{@link StreamReadFeature#USE_FAST_DOUBLE_PARSER} enabled - dispatches numeric parsing
-     *       to FastDoubleParser (~+20% on numeric-heavy fixtures); harmless when columns are
-     *       non-numeric. Available since Jackson 2.14.</li>
-     *   <li>{@link StreamReadFeature#INCLUDE_SOURCE_IN_LOCATION} disabled - we never echo source
-     *       payloads back via {@code JsonLocation.contentReference()}; skipping the per-token
-     *       book-keeping shaves allocations in the hot loop. Default flips to {@code false} in
-     *       Jackson 2.16; we want the same behaviour now.</li>
+     *   <li>{@link StreamReadFeature#USE_FAST_DOUBLE_PARSER} enabled - dispatches to FastDoubleParser
+     *       for numeric columns; harmless when columns are not numeric.</li>
+     *   <li>{@link StreamReadFeature#INCLUDE_SOURCE_IN_LOCATION} disabled - we never echo the source
+     *       payload back via {@code JsonLocation.contentReference()}; skipping it avoids per-token
+     *       book-keeping.</li>
      *   <li>{@link JsonFactory.Feature#INTERN_FIELD_NAMES} disabled - eliminates the global
-     *       {@code String.intern()} synchronization point under parallel parsing. Field names
-     *       live only as long as the {@code Attribute} lookup keys; interning gains us nothing.</li>
+     *       {@code String.intern()} synchronization point under parallel parsing. Field names live
+     *       only as long as the column attribute lookup keys, so interning gains us nothing while
+     *       serializing parser threads on the JVM string-table monitor. Disabling is safe because
+     *       this factory is package-private to the NDJSON plugin and every consumer (currently the
+     *       schema inferrer and {@link NdJsonPageDecoder}) treats {@code parser.currentName()} as a
+     *       hash-map key — there are no identity (==) comparisons that would silently break when
+     *       names stop being interned.</li>
      * </ul>
      */
     static final JsonFactory JSON_FACTORY = new JsonFactoryBuilder().disable(StreamReadFeature.AUTO_CLOSE_SOURCE)

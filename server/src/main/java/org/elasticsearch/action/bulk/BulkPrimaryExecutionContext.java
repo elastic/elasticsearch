@@ -176,9 +176,7 @@ class BulkPrimaryExecutionContext {
         assert assertInvariants(ItemProcessingState.INITIAL);
         requestToExecute = writeRequest;
         currentItemState = ItemProcessingState.TRANSLATED;
-        if (pressureExpansionTracker != null) {
-            pressureExpansionTracker.addExpandedBytes(expansionDeltaBytes(getCurrent(), writeRequest));
-        }
+        pressureExpansionTracker.addExpandedBytes(expansionDeltaBytes(getCurrent(), writeRequest));
         assert assertInvariants(ItemProcessingState.TRANSLATED);
     }
 
@@ -248,7 +246,7 @@ class BulkPrimaryExecutionContext {
     /** resets the current item state, prepare for a new execution */
     private void resetForExecutionRetry() {
         currentItemState = ItemProcessingState.INITIAL;
-        if (requestToExecute != null && pressureExpansionTracker != null) {
+        if (requestToExecute != null) {
             pressureExpansionTracker.removeExpandedBytes(expansionDeltaBytes(getCurrent(), requestToExecute));
         }
         requestToExecute = null;
@@ -355,7 +353,7 @@ class BulkPrimaryExecutionContext {
         // If the primary is not searchable we know that we are in serverless and that we do not need to hold the request into memory
         // anymore.
         if (primary.routingEntry().isSearchable() == false) {
-            if (requestToExecute != null && pressureExpansionTracker != null) {
+            if (requestToExecute != null) {
                 pressureExpansionTracker.removeExpandedBytes(expansionDeltaBytes(getCurrent(), requestToExecute));
             }
             requestToExecute = null;

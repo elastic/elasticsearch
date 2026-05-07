@@ -220,6 +220,40 @@ final class ParquetPushedExpressions {
         return false;
     }
 
+    /**
+     * Returns {@code true} when {@code expr} translates to a Parquet {@link FilterPredicate}
+     * with no silent-drop branch — i.e. the resulting predicate has the same matching set as
+     * {@code expr} (modulo TVL on nulls, which apache-mr handles compatibly for the basic
+     * comparators below). Used by {@link #translateExpression}'s {@code Not} branch to
+     * refuse pushing a negation over an expression that would silently drop a sub-arm:
+     * negation flips a looser-than-truth predicate into a STRICTER-than-truth one, which
+     * leaks rows during stats-based pruning.
+     *
+     * <p>Today this whitelist mirrors the leaf cases handled directly in
+     * {@link #translateExpression} (no recursion into {@code And}/{@code Or}/{@code Not}).
+     * That keeps the rule simple and obviously correct; it can be relaxed later (e.g. allow
+     * {@code Not(And(translatable, translatable))}) once we have explicit test coverage for
+     * the additional shapes.
+     */
+    private static boolean isExactlyTranslatable(Expression expr) {
+        if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression && bc.right().foldable()) {
+            return true;
+        }
+        if (expr instanceof In in && in.value() instanceof NamedExpression) {
+            return true;
+        }
+        if (expr instanceof IsNull isNull && isNull.field() instanceof NamedExpression) {
+            return true;
+        }
+        if (expr instanceof IsNotNull isNotNull && isNotNull.field() instanceof NamedExpression) {
+            return true;
+        }
+        if (expr instanceof Range range && range.value() instanceof NamedExpression) {
+            return true;
+        }
+        return false;
+    }
+
     private FilterPredicate translateExpression(Expression expr, MessageType schema) {
         if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne && bc.right().foldable()) {
             String name = ne.name();
@@ -253,22 +287,21 @@ final class ParquetPushedExpressions {
             return translateRange(ne.name(), ne.dataType(), range, schema);
         }
         if (expr instanceof And and) {
-            boolean leftConvertible = ParquetFilterPushdownSupport.canConvert(and.left());
-            boolean rightConvertible = ParquetFilterPushdownSupport.canConvert(and.right());
-            if (leftConvertible && rightConvertible) {
-                FilterPredicate leftPred = translateExpression(and.left(), schema);
-                FilterPredicate rightPred = translateExpression(and.right(), schema);
-                if (leftPred != null && rightPred != null) {
-                    return FilterApi.and(leftPred, rightPred);
-                }
-                return leftPred != null ? leftPred : rightPred;
-            } else if (leftConvertible) {
-                return translateExpression(and.left(), schema);
-            } else {
-                return translateExpression(and.right(), schema);
+            // For AND, dropping an arm produces a LOOSER predicate (one that admits at least
+            // as many rows). That is safe for stats pruning, RowRanges, and the
+            // trivially-passes shortcut, all of which require a SUPERSET of the truth.
+            FilterPredicate leftPred = translateExpression(and.left(), schema);
+            FilterPredicate rightPred = translateExpression(and.right(), schema);
+            if (leftPred != null && rightPred != null) {
+                return FilterApi.and(leftPred, rightPred);
             }
+            return leftPred != null ? leftPred : rightPred;
         }
         if (expr instanceof Or or) {
+            // For OR, BOTH arms must translate or the predicate is unsafe. Dropping one OR
+            // arm yields a STRICTER predicate (the surviving arm alone), which would prune
+            // rows the original would have matched via the dropped arm. Return null so the
+            // shortcut/RowRanges path skips this expression entirely.
             FilterPredicate leftPred = translateExpression(or.left(), schema);
             FilterPredicate rightPred = translateExpression(or.right(), schema);
             if (leftPred != null && rightPred != null) {
@@ -277,6 +310,27 @@ final class ParquetPushedExpressions {
             return null;
         }
         if (expr instanceof Not not) {
+            // Negation flips the looser/stricter polarity of any silent drop in the inner
+            // expression: an inner AND that silently dropped an untranslatable arm produces a
+            // looser inner predicate; NOT of looser is STRICTER, which prunes rows the
+            // original would have matched (e.g. NOT(AND(LIKE, id<N)) becomes NOT(id<N), which
+            // wrongly drops rows where LIKE doesn't match and id<N). To stay safe we require
+            // the inner translation to be EXACT — i.e. it must contain no untranslatable
+            // sub-expression at all. Practically this means the inner must be a leaf
+            // comparator/range/equality that the translator handles directly. Anything more
+            // complex returns null so the predicate is not pushed, leaving the row to the
+            // late-mat evaluator (which evaluates the original ESQL expression, including
+            // the conjuncts under the inner AND, with TVL-correct semantics).
+            //
+            // DO NOT REMOVE the isExactlyTranslatable guard — without it, NOT over a
+            // silent-drop AND produces a stricter-than-truth predicate that silently loses
+            // rows during stats-based row-group / page pruning. There is no FilterExec safety
+            // net at the row-group/page level (FilterExec runs per-row on what survives).
+            // Regression tests live in {@code ParquetReaderFilterDifferentialTests} (see the
+            // randomized {@code NOT(AND(LIKE, ...))} cases that surfaced this bug).
+            if (isExactlyTranslatable(not.field()) == false) {
+                return null;
+            }
             FilterPredicate inner = translateExpression(not.field(), schema);
             return inner != null ? FilterApi.not(inner) : null;
         }

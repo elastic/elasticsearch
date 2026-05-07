@@ -75,7 +75,7 @@ public final class ParallelParsingCoordinator {
         int parallelism,
         Executor executor
     ) throws IOException {
-        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null);
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null, false);
     }
 
     /**
@@ -91,6 +91,24 @@ public final class ParallelParsingCoordinator {
         int parallelism,
         Executor executor,
         ErrorPolicy errorPolicy
+    ) throws IOException {
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, errorPolicy, false);
+    }
+
+    /**
+     * @param splitStartsAtRecordBoundary when {@code true}, {@code storageObject} is a byte range that already begins
+     *                                     on a record boundary (e.g. newline-aligned macro {@link FileSplit});
+     *                                     single-threaded fallback reads must set {@link FormatReadContext#recordAligned()}.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary
     ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
@@ -111,6 +129,7 @@ public final class ParallelParsingCoordinator {
             .projectedColumns(projectedColumns)
             .batchSize(batchSize)
             .errorPolicy(effectivePolicy)
+            .recordAligned(splitStartsAtRecordBoundary)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
             return parallelReader.read(storageObject, baseCtx);

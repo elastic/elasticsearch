@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -257,6 +260,35 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
             assertThat(findColumn(response, "date_bucket_renamed").meta(), nullValue());
         }
 
+    }
+
+    public void testBucketColumnMetadataRetainedAfterLookupJoin() {
+        client().prepareIndex("events")
+            .setSource("value", 150)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("bucket_descriptions")
+                .setSettings(
+                    Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOOKUP).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                )
+                .setMapping("bucket", "type=double", "label", "type=keyword")
+        );
+        client().prepareIndex("bucket_descriptions")
+            .setSource("bucket", 100.0, "label", "low")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM events
+            | STATS c=COUNT(*) BY bucket=BUCKET(value, 100.0)
+            | LOOKUP JOIN bucket_descriptions ON bucket
+            """))) {
+            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 100.0))));
+        }
     }
 
     public void testForkBucketColumnHasNoMetadata() {

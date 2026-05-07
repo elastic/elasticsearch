@@ -25,9 +25,6 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
-- class: org.elasticsearch.index.engine.CompletionStatsCacheTests
-  method: testCompletionStatsCache
-  issue: https://github.com/elastic/elasticsearch/issues/126910
 - class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
   method: testChangeFollowerHistoryUUID
   issue: https://github.com/elastic/elasticsearch/issues/127680

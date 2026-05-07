@@ -192,9 +192,6 @@ tests:
   - class: org.elasticsearch.smoketest.SmokeTestIngestWithAllDepsClientYamlTestSuiteIT
     method: test {yaml=ingest/100_sampling_with_reroute/Test get sample with multiple reroutes}
     issue: https://github.com/elastic/elasticsearch/issues/137457
-  - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
-    method: testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime {targetCluster=FOLLOWER}
-    issue: https://github.com/elastic/elasticsearch/issues/137565
   - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterBasicLicenseIT
     method: testLicenseInvalidForInference {p0=true}
     issue: https://github.com/elastic/elasticsearch/issues/137690

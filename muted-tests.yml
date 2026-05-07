@@ -509,9 +509,6 @@ tests:
 - class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
   method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
   issue: https://github.com/elastic/elasticsearch/issues/147972
-- class: org.elasticsearch.reindex.management.ReindexDoubleRelocationIT
-  method: testDoubleRelocationWithManagementEndpoints
-  issue: https://github.com/elastic/elasticsearch/issues/148462
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testReshardMetrics
   issue: https://github.com/elastic/elasticsearch/issues/148463

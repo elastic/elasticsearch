@@ -170,6 +170,32 @@ public class PruneEmptyForkBranchesTests extends AbstractLogicalPlanOptimizerTes
     }
 
     /**
+     * All branches pruned: the prune primitive produces a zero-child wrapper. The verifier's
+     * {@code Fork.checkBranchCount} is responsible for surfacing this as a clear failure
+     * ({@code "ViewUnionAll requires at least one branch"}); rules that want to handle the
+     * all-empty case successfully (like {@link PruneEmptyForkBranches} replacing it with a
+     * {@code LocalRelation}) must short-circuit BEFORE delegating to {@code pruneEmptyBranches}.
+     */
+    public void testAllEmptyProducesZeroChildViewUnionAllForVerifierToCatch() {
+        LocalRelation a = new LocalRelation(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
+        LocalRelation b = new LocalRelation(Source.EMPTY, List.of(), EmptyLocalSupplier.EMPTY);
+
+        LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+        children.put("name_a", a);
+        children.put("name_b", b);
+        ViewUnionAll vua = new ViewUnionAll(Source.EMPTY, children, List.of());
+
+        // Bypass PruneEmptyForkBranches's all-empty pre-check by calling pruneEmptyBranches
+        // directly — this is the contract the analyzer's PruneEmptyUnionAllBranch and
+        // ViewCompaction.stripViewShadowRelations rely on.
+        LogicalPlan result = vua.pruneEmptyBranches(c -> c instanceof LocalRelation lr && lr.hasEmptySupplier());
+
+        ViewUnionAll empty = as(result, ViewUnionAll.class);
+        assertEquals(0, empty.children().size());
+        assertEquals(0, empty.namedSubqueries().size());
+    }
+
+    /**
      * Single survivor: {@link PruneEmptyForkBranches} preserves the {@link ViewUnionAll} wrapper
      * even when only one branch is left (the existing UnionAll-based tests in this file rely on
      * the same no-collapse semantics — single-survivor collapse lives in

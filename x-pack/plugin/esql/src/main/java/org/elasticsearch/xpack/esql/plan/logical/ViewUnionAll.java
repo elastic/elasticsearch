@@ -85,9 +85,6 @@ public class ViewUnionAll extends UnionAll {
         if (kept.size() == namedSubqueries.size()) {
             return this;
         }
-        if (kept.isEmpty()) {
-            return this;
-        }
         return new ViewUnionAll(source(), kept, output());
     }
 

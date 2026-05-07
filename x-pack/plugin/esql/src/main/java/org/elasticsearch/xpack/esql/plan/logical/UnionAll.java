@@ -70,9 +70,6 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
         if (kept.size() == children().size()) {
             return this;
         }
-        if (kept.isEmpty()) {
-            return this;
-        }
         return new UnionAll(source(), kept, output());
     }
 

@@ -155,7 +155,7 @@ public abstract class NvidiaServiceSettings extends FilteredXContentObject imple
     ) {
         var model = ServiceUtils.extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var uri = ServiceUtils.extractOptionalUri(map, URL, validationException);
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, NvidiaService.NAME, context);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
         return new NvidiaCommonServiceSettings(model, uri, rateLimitSettings);
     }
 

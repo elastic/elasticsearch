@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
+import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -179,7 +180,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         Query[] expectedIntegerQueries = new Query[] {
             IntField.newExactQuery("field", 42),
             IntPoint.newExactQuery("field", 42),
-            SortedNumericDocValuesField.newSlowExactQuery("field", 42) };
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", 42, 42) };
         List<TermQueryTestCase> testCases = List.of(
             new TermQueryTestCase(NumberType.BYTE, expectedIntegerQueries),
             new TermQueryTestCase(NumberType.SHORT, expectedIntegerQueries),
@@ -189,31 +190,47 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 new Query[] {
                     LongField.newExactQuery("field", 42),
                     LongPoint.newExactQuery("field", 42),
-                    SortedNumericDocValuesField.newSlowExactQuery("field", 42) }
+                    SortedNumericDocValuesRangeQuery.newRangeQuery("field", 42, 42) }
             ),
             new TermQueryTestCase(
                 NumberType.FLOAT,
                 new Query[] {
                     FloatField.newExactQuery("field", 42),
                     FloatPoint.newExactQuery("field", 42),
-                    SortedNumericDocValuesField.newSlowExactQuery("field", NumericUtils.floatToSortableInt(42)) }
+                    SortedNumericDocValuesRangeQuery.newRangeQuery(
+                        "field",
+                        NumericUtils.floatToSortableInt(42),
+                        NumericUtils.floatToSortableInt(42)
+                    ) }
             ),
             new TermQueryTestCase(
                 NumberType.DOUBLE,
                 new Query[] {
                     DoubleField.newExactQuery("field", 42),
                     DoublePoint.newExactQuery("field", 42),
-                    SortedNumericDocValuesField.newSlowExactQuery("field", NumericUtils.doubleToSortableLong(42)) }
+                    SortedNumericDocValuesRangeQuery.newRangeQuery(
+                        "field",
+                        NumericUtils.doubleToSortableLong(42),
+                        NumericUtils.doubleToSortableLong(42)
+                    ) }
             ),
             new TermQueryTestCase(
                 NumberType.HALF_FLOAT,
                 new Query[] {
                     new IndexOrDocValuesQuery(
                         HalfFloatPoint.newExactQuery("field", 42),
-                        SortedNumericDocValuesField.newSlowExactQuery("field", HalfFloatPoint.halfFloatToSortableShort(42))
+                        SortedNumericDocValuesRangeQuery.newRangeQuery(
+                            "field",
+                            HalfFloatPoint.halfFloatToSortableShort(42),
+                            HalfFloatPoint.halfFloatToSortableShort(42)
+                        )
                     ),
                     HalfFloatPoint.newExactQuery("field", 42),
-                    SortedNumericDocValuesField.newSlowExactQuery("field", HalfFloatPoint.halfFloatToSortableShort(42)) }
+                    SortedNumericDocValuesRangeQuery.newRangeQuery(
+                        "field",
+                        HalfFloatPoint.halfFloatToSortableShort(42),
+                        HalfFloatPoint.halfFloatToSortableShort(42)
+                    ) }
             )
         );
 
@@ -604,12 +621,12 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
         Query expected = new IndexOrDocValuesQuery(
             LongPoint.newRangeQuery("field", 1, 3),
-            SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3)
+            SortedNumericDocValuesRangeQuery.newRangeQuery("field", 1, 3)
         );
         assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT));
 
         ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, true);
-        expected = SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3);
+        expected = SortedNumericDocValuesRangeQuery.newRangeQuery("field", 1, 3);
         assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT));
 
         MappedFieldType unsearchable = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, false);

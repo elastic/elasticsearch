@@ -163,8 +163,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static Path localFixturesPath;
 
     /**
-     * Load fixtures from src/test/resources/iceberg-fixtures/ into the S3 and GCS fixtures.
-     * Compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv and .ndjson files are generated
+     * Load fixtures from src/test/resources/iceberg-fixtures/ into the S3, GCS, and Azure fixtures.
+     * Compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv, .ndjson, and .tsv files are generated
      * on the fly rather than checked in.
      */
     @BeforeClass
@@ -177,7 +177,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
-     * Generate compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv and .ndjson fixtures
+     * Generate compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv, .ndjson, and .tsv fixtures
      * on the fly and add them to the S3, GCS, and Azure fixtures. This avoids checking in binary
      * compressed files.
      */
@@ -188,7 +188,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 AbstractExternalSourceSpecTestCase.class.getClassLoader(),
                 (relativePath, content) -> {
                     String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
-                    if (fileName.endsWith(".csv") == false && fileName.endsWith(".ndjson") == false) {
+                    if (fileName.endsWith(".csv") == false && fileName.endsWith(".ndjson") == false && fileName.endsWith(".tsv") == false) {
                         return;
                     }
                     String relativeDir = relativePath.contains("/") ? relativePath.substring(0, relativePath.lastIndexOf('/')) : "";

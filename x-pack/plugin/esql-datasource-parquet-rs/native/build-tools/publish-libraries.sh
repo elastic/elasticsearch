@@ -16,13 +16,15 @@ fi
 # Move to the "native" directory
 cd $(dirname $0)/..
 
-VERSION=$(./build-tools/src-sha1.sh)
+# Use the native code hash as the "version"
+VERSION=$(cd .. && ../../../gradlew -q printNativeCodeHash | grep '^native-code-hash:' | cut -d: -f2)
+
 REPOSITORY="https://artifactory.elastic.dev/artifactory/elasticsearch-native"
 LIB_NAME="libesql_parquet_rs"
 URL="${REPOSITORY}/org/elasticsearch/${LIB_NAME}/${VERSION}/${LIB_NAME}-${VERSION}.zip"
 
 if curl -sS -I --fail --location ${URL} > /dev/null 2>&1; then
-  echo "Error: Artifacts already exist for version '${VERSION}'. Bump version before republishing."
+  echo "Error: Artifacts already exist for version '${VERSION}'."
   exit 1;
 fi
 

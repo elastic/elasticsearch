@@ -96,24 +96,30 @@ static STORE_CACHE: LazyLock<Mutex<LruCache<String, Arc<dyn ObjectStore>>>> =
 /// Returns the cache key for a remote store: `scheme://bucket-or-host[/container]|connection_key`.
 ///
 /// The path component (object key) is excluded so that all objects in the same bucket
-/// share one store entry. For Azure the first path segment (container name) is included
-/// because `MicrosoftAzureBuilder` is per-container.
+/// share one store entry. For Azure the container name is included because
+/// `MicrosoftAzureBuilder` is per-container; the key is normalized so that path-style
+/// and Hadoop-style Azure URLs targeting the same account+container collapse to the
+/// same entry.
 fn store_cache_key(uri: &str, config: &StorageConfig) -> String {
-    let after_scheme = uri.find("://").map(|i| i + 3).unwrap_or(0);
-    let rest = &uri[after_scheme..];
-
-    let prefix_len = if uri.starts_with("az://") || uri.starts_with("abfss://") || uri.starts_with("wasbs://") {
-        // Azure: include host + first path segment (container).
-        rest.find('/').map(|host_slash| {
-            let after_host = &rest[host_slash + 1..];
-            host_slash + 1 + after_host.find('/').unwrap_or(after_host.len())
-        }).unwrap_or(rest.len())
+    let prefix = if uri.starts_with("az://") || uri.starts_with("abfss://") || uri.starts_with("wasbs://") {
+        match parse_azure_url(uri) {
+            Ok((account, container, _)) => {
+                let scheme_end = uri.find("://").map(|i| i + 3).unwrap_or(0);
+                let scheme_with_sep = &uri[..scheme_end];
+                let account = account.unwrap_or_default();
+                format!("{}{}/{}", scheme_with_sep, account, container)
+            }
+            Err(_) => uri.to_string(),
+        }
     } else {
         // S3, GCS, HTTP: host (bucket) only.
-        rest.find('/').unwrap_or(rest.len())
+        let after_scheme = uri.find("://").map(|i| i + 3).unwrap_or(0);
+        let rest = &uri[after_scheme..];
+        let prefix_len = rest.find('/').unwrap_or(rest.len());
+        uri[..after_scheme + prefix_len].to_string()
     };
 
-    format!("{}|{}", &uri[..after_scheme + prefix_len], config.connection_key())
+    format!("{}|{}", prefix, config.connection_key())
 }
 
 /// Returns a cached or newly built store for remote URIs; local paths always get a fresh store.
@@ -167,9 +173,7 @@ fn object_path_from_uri(uri: &str) -> Result<object_store::path::Path, Box<dyn s
         return Ok(object_store::path::Path::from(key));
     }
     if uri.starts_with("az://") || uri.starts_with("abfss://") || uri.starts_with("wasbs://") {
-        let url = Url::parse(uri)?;
-        let path = url.path().trim_start_matches('/');
-        let key = path.split_once('/').map(|(_, k)| k).unwrap_or(path);
+        let (_, _, key) = parse_azure_url(uri)?;
         return Ok(object_store::path::Path::from(key));
     }
     if uri.starts_with("http://") || uri.starts_with("https://") {
@@ -180,6 +184,40 @@ fn object_path_from_uri(uri: &str) -> Result<object_store::path::Path, Box<dyn s
     // Local
     let normalized = uri.strip_prefix('/').unwrap_or(uri);
     Ok(object_store::path::Path::from(normalized))
+}
+
+/// Parses an Azure URL in either path-style or Hadoop-style form.
+///
+/// Path-style (account in host, container as first path segment):
+///   `wasbs://ACCOUNT.blob.core.windows.net/CONTAINER/key/...`
+///
+/// Hadoop-style (container in userinfo, account in host):
+///   `wasbs://CONTAINER@ACCOUNT.blob.core.windows.net/key/...`
+///
+/// Returns `(account_from_url, container, key)`. The account is `None` only when the
+/// host doesn't contain a leading label; callers may then fall back to config values.
+fn parse_azure_url(
+    uri: &str,
+) -> Result<(Option<String>, String, String), Box<dyn std::error::Error + Send + Sync>> {
+    let url = Url::parse(uri)?;
+    let host = url.host_str().ok_or("missing host in Azure URL")?;
+    let account = host
+        .split('.')
+        .next()
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+
+    let path = url.path().trim_start_matches('/');
+    let username = url.username();
+
+    if !username.is_empty() {
+        Ok((account, username.to_string(), path.to_string()))
+    } else {
+        let (container, key) = path
+            .split_once('/')
+            .ok_or("missing container/key in Azure URL path")?;
+        Ok((account, container.to_string(), key.to_string()))
+    }
 }
 
 /// Resolves a URI into an ObjectStore + object path based on the scheme.
@@ -248,30 +286,24 @@ fn build_s3(
     Ok(Arc::new(LimitStore::new(builder.build()?, S3_MAX_CONCURRENT_REQUESTS)))
 }
 
-/// Parses `wasbs://` / `abfss://` / `az://` Azure URLs.
-/// Format: `wasbs://ACCOUNT.blob.core.windows.net/CONTAINER/path/to/object`
+/// Parses `wasbs://` / `abfss://` / `az://` Azure URLs in both path-style and
+/// Hadoop-style forms. See `parse_azure_url` for the supported grammars.
 fn build_azure(
     uri: &str,
     config: &StorageConfig,
 ) -> Result<Arc<dyn ObjectStore>, Box<dyn std::error::Error + Send + Sync>>
 {
-    let url = Url::parse(uri)?;
-    let host = url.host_str().ok_or("missing host in Azure URL")?;
+    let (account_from_url, container, _key) = parse_azure_url(uri)?;
 
-    let account_from_url = host.split('.').next().filter(|s| s.is_empty() == false);
-
-    let path = url.path().trim_start_matches('/');
-    let (container, _key) = path.split_once('/')
-        .ok_or("missing container/key in Azure URL path")?;
-
-    let mut builder = MicrosoftAzureBuilder::new().with_container_name(container);
+    let mut builder = MicrosoftAzureBuilder::new().with_container_name(&container);
 
     if let Some(v) = config.get("endpoint") {
         builder = builder.with_endpoint(v.to_string()).with_allow_http(true);
     }
 
     let account = config.get("account")
-        .or_else(|| config.get("account_name"))
+        .map(str::to_string)
+        .or_else(|| config.get("account_name").map(str::to_string))
         .or(account_from_url);
     if let Some(v) = account {
         builder = builder.with_account(v);

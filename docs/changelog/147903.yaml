@@ -1,5 +1,0 @@
-area: Vector Search
-issues: []
-pr: 147903
-summary: Fix `PosixCloseableMappedByteBuffer.slice()` to preserve concrete type
-type: bug

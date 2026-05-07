@@ -120,6 +120,7 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.BUCKETS;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_BUCKETS;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.END;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.INDEX;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.PROMQL_ALLOWED_PARAMS;
@@ -834,7 +835,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             parsedTargetPvalueColumn == null ? "pvalue" : parsedTargetPvalueColumn.name(),
             DataType.DOUBLE
         );
-        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
+        List<Expression> groupings = visitList(this, ctx.groupings, Expression.class);
+        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue, groupings);
     }
 
     private Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
@@ -1546,7 +1548,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Duration step = null;
         Integer buckets = null;
         Duration scrapeInterval = Duration.ofMinutes(1);
-        IndexPattern indexPattern = new IndexPattern(source, "*");
+        IndexPattern indexPattern = new IndexPattern(source, DEFAULT_PROMQL_INDEX_PATTERN);
 
         Set<String> paramsSeen = new HashSet<>();
         for (EsqlBaseParser.PromqlParamContext paramCtx : ctx.promqlParam()) {
@@ -1682,8 +1684,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             throw new ParsingException(source(ctx), "Parameter [{}] for index must be a string", ctx.NAMED_OR_POSITIONAL_PARAM().getText());
         } else if (ctx.promqlIndexPattern().isEmpty()) {
-            // Default to all indices if no index pattern is provided
-            return new IndexPattern(source(ctx), "*");
+            return new IndexPattern(source(ctx), DEFAULT_PROMQL_INDEX_PATTERN);
         } else {
             return new IndexPattern(source(ctx), visitPromqlIndexPattern(ctx.promqlIndexPattern()));
         }

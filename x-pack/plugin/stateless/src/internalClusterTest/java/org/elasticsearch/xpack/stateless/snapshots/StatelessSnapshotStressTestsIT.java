@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotStressTestsHelper.TrackedCluster;
 import org.elasticsearch.snapshots.SnapshotStressTestsHelper.TransferableReleasables;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -191,7 +192,8 @@ public class StatelessSnapshotStressTestsIT extends AbstractStatelessPluginInteg
                                     .allMatch(
                                         shardRouting -> shardRouting.active()
                                             && excludedNodeId.equals(shardRouting.currentNodeId()) == false
-                                    )
+                                    ),
+                                TimeValue.ONE_MINUTE
                             ).addListener(mustSucceed(ignored -> {
                                 logger.info("--> moved index [{}] away from node [{}]", trackedIndex.indexName(), excludedNode.nodeName());
                                 Releasables.close(releaseAll);

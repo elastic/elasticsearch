@@ -89,6 +89,11 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public ToMask toMask() {
         if (getPositionCount() == 0) {
             return new ToMask(blockFactory().newConstantBooleanVector(false, 0), false);

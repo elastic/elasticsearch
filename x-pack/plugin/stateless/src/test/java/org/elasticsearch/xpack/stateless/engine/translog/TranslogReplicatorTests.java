@@ -10,9 +10,16 @@ package org.elasticsearch.xpack.stateless.engine.translog;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -27,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -60,6 +68,7 @@ import static org.elasticsearch.xpack.stateless.engine.translog.TranslogRecovery
 import static org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_OPERATIONS_SIZE_METRIC;
 import static org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_OPERATIONS_TOTAL_METRIC;
 import static org.elasticsearch.xpack.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_REPLAY_TIME_METRIC;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -108,6 +117,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -154,6 +164,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -231,6 +242,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -312,6 +324,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -399,6 +412,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -454,6 +468,7 @@ public class TranslogReplicatorTests extends ESTestCase {
                 .build(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -530,6 +545,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -577,6 +593,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -628,6 +645,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -684,6 +702,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -733,6 +752,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -796,6 +816,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -836,6 +857,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm + 1
         );
         translogReplicator.doStart();
@@ -873,6 +895,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -956,6 +979,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -990,6 +1014,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -1017,6 +1042,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -1077,6 +1103,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -1145,6 +1172,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -1199,6 +1227,7 @@ public class TranslogReplicatorTests extends ESTestCase {
             getSettings(),
             objectStoreService,
             consistencyService,
+            false,
             (sId) -> primaryTerm
         );
         translogReplicator.doStart();
@@ -1211,6 +1240,64 @@ public class TranslogReplicatorTests extends ESTestCase {
         }
 
         expectThrows(AlreadyClosedException.class, future::actionGet);
+    }
+
+    public void testListenerFailedWhenProjectMarkedForDeletion() throws IOException {
+        Index index = new Index("name", "test-uuid");
+        ShardId shardId = new ShardId(index, 0);
+        long primaryTerm = randomLongBetween(0, 10);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+
+        ClusterState clusterState = buildClusterStateWithProjectMarkedForDeletion(index, primaryTerm);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
+        when(consistencyService.state()).thenReturn(clusterState);
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            true,
+            (sId) -> primaryTerm
+        );
+        translogReplicator.doStart();
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
+
+        Translog.Operation[] operations = generateRandomOperations(1);
+        Translog.Serialized[] serialized = serializeOperations(operations);
+        Translog.Location location = new Translog.Location(0, 0, serialized[0].length());
+        translogReplicator.add(shardId, serialized[0], 0, location);
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        translogReplicator.sync(shardId, location, future);
+
+        ResourceNotFoundException ex = expectThrows(ResourceNotFoundException.class, future::actionGet);
+        assertThat(ex.getMessage(), containsString("marked for deletion"));
+    }
+
+    private static ClusterState buildClusterStateWithProjectMarkedForDeletion(Index index, long primaryTerm) {
+        ProjectId projectId = ProjectId.fromId("test-project");
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            )
+            .primaryTerm(0, primaryTerm)
+            .build();
+
+        Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build();
+
+        ProjectStateRegistry registry = ProjectStateRegistry.builder()
+            .putProjectSettings(projectId, Settings.EMPTY)
+            .markProjectForDeletion(projectId)
+            .build();
+
+        return ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).putCustom(ProjectStateRegistry.TYPE, registry).build();
     }
 
     private static Translog.Operation[] generateRandomOperations(int numOps) {

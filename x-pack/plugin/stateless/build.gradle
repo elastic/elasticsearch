@@ -3,6 +3,8 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.stateless'
+
 
 esplugin {
     name = 'stateless'
@@ -17,65 +19,47 @@ configurations {
     }
 }
 
-restResources {
-  restApi {
-    include '_common', 'cluster', 'indices', 'index', 'search', 'get', 'nodes.info'
-  }
-}
-
 dependencies {
-    compileOnly project(':server')
-    testImplementation project(':test:framework')
+  compileOnly project(':server')
+  compileOnly project(xpackModule('core'))
+  compileOnly project(xpackModule('blob-cache'))
 
-    compileOnly project(xpackModule('core'))
-    compileOnly project(xpackModule('blob-cache'))
+  testImplementation project(':test:framework')
+  testImplementation testArtifact(project(xpackModule('searchable-snapshots')))
+  testImplementation 'com.amazonaws:aws-java-sdk-core:1.12.684'
+  testImplementation 'com.amazonaws:aws-java-sdk-s3:1.12.684'
+  testImplementation project(':test:fixtures:s3-fixture')
+  testImplementation project(':test:fixtures:gcs-fixture')
+  testImplementation project(':test:fixtures:azure-fixture')
+  testImplementation project(':test:fixtures:aws-fixture-utils')
+  testImplementation project(':modules:repository-s3')
+  testImplementation project(':modules:repository-gcs')
+  testImplementation project(':modules:repository-azure')
+  testImplementation testArtifact(project(':server'))
+  internalClusterTestImplementation testArtifact(project(xpackModule('core')))
+  internalClusterTestImplementation project(xpackModule('shutdown'))
+  internalClusterTestImplementation project(':modules:data-streams')
+  internalClusterTestImplementation project(':modules:mapper-extras')
+  internalClusterTestImplementation project(xpackModule('esql'))
+  internalClusterTestImplementation project(xpackModule('esql-core'))
 
-    internalClusterTestImplementation testArtifact(project(xpackModule('core')))
-    internalClusterTestImplementation project(xpackModule('shutdown'))
+  javaRestTestImplementation project(':x-pack:test:stateless-test-framework')
+  yamlRestTestImplementation project(':x-pack:test:stateless-test-framework')
 
-    internalClusterTestImplementation project(':modules:data-streams')
-    internalClusterTestImplementation project(':modules:mapper-extras')
-    internalClusterTestImplementation project(xpackModule('esql'))
-    internalClusterTestImplementation project(xpackModule('esql-core'))
-
-    testImplementation testArtifact(project(xpackModule('searchable-snapshots')))
-    testImplementation 'com.amazonaws:aws-java-sdk-core:1.12.684'
-    testImplementation 'com.amazonaws:aws-java-sdk-s3:1.12.684'
-    testImplementation project(':test:fixtures:s3-fixture')
-    testImplementation project(':test:fixtures:gcs-fixture')
-    testImplementation project(':test:fixtures:azure-fixture')
-    testImplementation project(':test:fixtures:aws-fixture-utils')
-    testImplementation project(':modules:repository-s3')
-    testImplementation project(':modules:repository-gcs')
-    testImplementation project(':modules:repository-azure')
-    testImplementation testArtifact(project(':server'))
-    javaRestTestImplementation project(':x-pack:test:stateless-test-framework')
-    yamlRestTestImplementation project(':x-pack:test:stateless-test-framework')
-
-    clusterModules project(':x-pack:plugin:secure-settings')
-    clusterModules project(':x-pack:plugin:stateless-no-wait-for-active-shards')
-    clusterModules project(':x-pack:plugin:stateless-master-failover')
-    clusterModules project(':x-pack:plugin:stateless-sigterm')
-    clusterModules project(':x-pack:plugin:stateless-health-shards-availability')
-    clusterModules project(':x-pack:plugin:logsdb')
-    clusterModules project(':modules:data-streams')
-    clusterModules project(':modules:mapper-extras')
-}
-
-restResources {
-    restApi {
-        include '_common', 'cluster', 'indices', 'index', 'search'
-    }
-}
-
-dependencies {
   clusterModules project(':x-pack:plugin:secure-settings')
   clusterModules project(':x-pack:plugin:stateless-no-wait-for-active-shards')
   clusterModules project(':x-pack:plugin:stateless-master-failover')
   clusterModules project(':x-pack:plugin:stateless-sigterm')
   clusterModules project(':x-pack:plugin:stateless-health-shards-availability')
+  clusterModules project(':x-pack:plugin:logsdb')
   clusterModules project(':modules:data-streams')
   clusterModules project(':modules:mapper-extras')
+}
+
+restResources {
+    restApi {
+        include '_common', 'cluster', 'indices', 'index', 'search', 'get', 'nodes.info'
+    }
 }
 
 tasks.named('test') {

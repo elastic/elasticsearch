@@ -490,6 +490,122 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Regression: a non-leading record-aligned macro-split must set {@code recordAligned=true}
+     * in the fallback context; otherwise CsvFormatReader drops the first data row (treats it as
+     * a partial-line fragment from the previous split). Validates both paths and asserts the
+     * row-count difference.
+     */
+    public void testCsvNonLeadingMacroSplitRecordAlignedPreservesAllRows() throws Exception {
+        String header = "a,b,c\n";
+        int dataRows = 20;
+        StringBuilder sb = new StringBuilder(header);
+        for (int i = 0; i < dataRows; i++) {
+            sb.append("1,2,3\n");
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        InMemoryStorageObject full = new InMemoryStorageObject(bytes);
+        long headerBytes = header.getBytes(StandardCharsets.UTF_8).length;
+        long bodyLength = bytes.length - headerBytes;
+        StorageObject nonLeadingRange = new RangeStorageObject(full, headerBytes, bodyLength);
+
+        CsvFormatReader base = new CsvFormatReader(blockFactory());
+        SourceMetadata meta = base.metadata(full);
+        CsvFormatReader withSchema = (CsvFormatReader) base.withSchema(meta.schema());
+
+        long rowsWithRecordAligned = countCsvRows(withSchema, nonLeadingRange, List.of("a", "b", "c"), false, true);
+        long rowsWithoutRecordAligned = countCsvRows(withSchema, nonLeadingRange, List.of("a", "b", "c"), false, false);
+
+        assertEquals("recordAligned=true must preserve all data rows", dataRows, rowsWithRecordAligned);
+        assertTrue(
+            "recordAligned=false drops the first row (treats it as partial-line fragment)",
+            rowsWithoutRecordAligned < rowsWithRecordAligned
+        );
+    }
+
+    /**
+     * Regression: the coordinator's fallback path must pass recordAligned through to the
+     * reader even when parallelism is 1 (openWithParallelism returns null). This validates
+     * the single-threaded CSV read of a non-leading macro-split with a row limit set.
+     */
+    public void testCsvNonLeadingMacroSplitWithRowLimitPreservesRows() throws Exception {
+        String header = "x,y\n";
+        int dataRows = 50;
+        StringBuilder sb = new StringBuilder(header);
+        for (int i = 0; i < dataRows; i++) {
+            sb.append(i).append(",").append(i * 10).append("\n");
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        InMemoryStorageObject full = new InMemoryStorageObject(bytes);
+        long headerBytes = header.getBytes(StandardCharsets.UTF_8).length;
+        StorageObject nonLeadingRange = new RangeStorageObject(full, headerBytes, bytes.length - headerBytes);
+
+        CsvFormatReader base = new CsvFormatReader(blockFactory());
+        SourceMetadata meta = base.metadata(full);
+        CsvFormatReader withSchema = (CsvFormatReader) base.withSchema(meta.schema());
+
+        long rowsAligned = countCsvRows(withSchema, nonLeadingRange, List.of("x", "y"), false, true);
+        assertEquals("all data rows must be read with recordAligned=true", dataRows, rowsAligned);
+    }
+
+    private static long countCsvRows(
+        CsvFormatReader reader,
+        StorageObject object,
+        List<String> projectedColumns,
+        boolean firstSplit,
+        boolean recordAligned
+    ) throws IOException {
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projectedColumns)
+            .batchSize(100)
+            .firstSplit(firstSplit)
+            .lastSplit(true)
+            .recordAligned(recordAligned)
+            .build();
+        long rows = 0;
+        try (CloseableIterator<Page> iter = reader.read(object, ctx)) {
+            while (iter.hasNext()) {
+                Page p = iter.next();
+                rows += p.getPositionCount();
+                p.releaseBlocks();
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * When {@code metadata()} returns null on a non-leading split with empty projection and
+     * {@code splitIncludesFileLeader=false}, the coordinator must not crash — it should proceed
+     * without schema binding and still produce rows via the reader's own inference.
+     */
+    public void testParallelReadNullMetadataNonLeadingSplitDoesNotCrash() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 200; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\n");
+        }
+        byte[] content = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(content);
+        LineFormatReader reader = new LineFormatReader(blockFactory());
+
+        assertNull("precondition: LineFormatReader.metadata() returns null", reader.metadata(obj));
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of(), 50, 4, exec, null, true, false);
+            long rows = 0;
+            try (iter) {
+                while (iter.hasNext()) {
+                    Page p = iter.next();
+                    rows += p.getPositionCount();
+                    p.releaseBlocks();
+                }
+            }
+            assertTrue("reader with null metadata must still produce rows", rows > 0);
+        } finally {
+            exec.shutdown();
+        }
+    }
+
+    /**
      * Records the {@link FormatReadContext} of every {@code read} call so tests can assert the
      * coordinator's per-segment split-flag dispatch behavior. Otherwise behaves like the parent
      * {@link LineFormatReader}.

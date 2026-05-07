@@ -49,7 +49,9 @@ PUT my-index-000001
 
 The default {{infer}} endpoint varies by deployment type and version:
 
-- {applies_to}`stack: ga 9.4` {applies_to}`serverless: ga` On {{ech}} deployments running {{stack}} 9.4+ and on {{serverless-short}}, the `inference_id` parameter defaults to `.jina-embeddings-v5-text-small` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md)..
+- {applies_to}`stack: ga 9.4` {applies_to}`serverless: ga` On {{ech}} deployments running {{stack}} 9.4+ and on {{serverless-short}}, the `inference_id` parameter defaults to `.jina-embeddings-v5-text-small` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md). 
+
+  Jina models are not supported for deployment on [{{ml}} nodes](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#ml-node-role). Using these models requires connectivity to EIS and is therefore not currently compatible with fully air-gapped environments.
 
 - {applies_to}`stack: ga 9.3` On {{ech}} deployments running {{stack}} 9.3, the `inference_id` parameter defaults to `.elser-2-elastic` and runs on [EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis).
 

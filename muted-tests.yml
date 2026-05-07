@@ -16,9 +16,6 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
-- class: org.elasticsearch.index.engine.CompletionStatsCacheTests
-  method: testCompletionStatsCache
-  issue: https://github.com/elastic/elasticsearch/issues/126910
 - class: org.elasticsearch.xpack.profiling.action.GetStatusActionIT
   method: testWaitsUntilResourcesAreCreated
   issue: https://github.com/elastic/elasticsearch/issues/129486
@@ -37,9 +34,6 @@ tests:
 - class: org.elasticsearch.gradle.TestClustersPluginFuncTest
   method: override jdk usage via ES_JAVA_HOME for known jdk os incompatibilities
   issue: https://github.com/elastic/elasticsearch/issues/135413
-- class: org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPluginIT
-  method: testConcurrentAuthentication
-  issue: https://github.com/elastic/elasticsearch/issues/135777
 - class: org.elasticsearch.xpack.ilm.CCRIndexLifecycleIT
   method: testTsdbLeaderIndexRolloverAndSyncAfterWaitUntilEndTime {targetCluster=FOLLOWER}
   issue: https://github.com/elastic/elasticsearch/issues/137565
@@ -142,9 +136,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:lookup-join.mvKeywordFieldJoinWarningsFromLeftSide}
   issue: https://github.com/elastic/elasticsearch/issues/145904
-- class: org.elasticsearch.xpack.security.failurestore.FailureStoreSecurityRestIT
-  method: testWatcher
-  issue: https://github.com/elastic/elasticsearch/issues/145928
 - class: org.elasticsearch.xpack.sql.qa.jdbc.single_node.SingleNodeJdbcWarningsIT
   method: testSingleDeprecationWarning
   issue: https://github.com/elastic/elasticsearch/issues/145933
@@ -205,9 +196,6 @@ tests:
 - class: org.elasticsearch.reindex.ReindexBasicTests
   method: testReindexFailsWhenSourceIndexIsClosed
   issue: https://github.com/elastic/elasticsearch/issues/146466
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testReindexFailsWhenPitRelocationFails
-  issue: https://github.com/elastic/elasticsearch/issues/146650
 - class: org.elasticsearch.lucene.FullClusterRestartSystemIndexCompatibilityIT
   method: testAsyncSearchIndexMigration {p0=9.5.0}
   issue: https://github.com/elastic/elasticsearch/issues/146848
@@ -217,9 +205,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_forceTrue_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/146955
-- class: org.elasticsearch.index.reindex.ReindexClientYamlTestSuiteIT
-  method: test {yaml=reindex/10_basic/Response format for created}
-  issue: https://github.com/elastic/elasticsearch/issues/147005
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/146314
@@ -250,12 +235,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/145728
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/250_high_cardinality_keyword/Test mv_min}
-  issue: https://github.com/elastic/elasticsearch/issues/147379
-- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
-  method: test {p0=esql/250_high_cardinality_keyword/Test avg length}
-  issue: https://github.com/elastic/elasticsearch/issues/147380
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskRelocatesOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/147449
@@ -404,9 +383,6 @@ tests:
 - class: org.elasticsearch.backwards.RareTermsIT
   method: testSingleValuedString
   issue: https://github.com/elastic/elasticsearch/issues/147853
-- class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
-  method: testGenerationalFileBlobReferenceIsRetainedCorrectly
-  issue: https://github.com/elastic/elasticsearch/issues/147858
 - class: org.elasticsearch.search.internal.CancellableBulkScorerTests
   method: testIntervalGrowsGeometrically
   issue: https://github.com/elastic/elasticsearch/issues/147872
@@ -425,18 +401,12 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexCancelIT
   method: testCancellingChildTaskRejected
   issue: https://github.com/elastic/elasticsearch/issues/147925
-- class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
-  method: testWithByteBufferSliceReturnsFalseAfterEviction
-  issue: https://github.com/elastic/elasticsearch/issues/147929
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testRecoverHollowShardReadsSingleRegionAndEvictsCache
   issue: https://github.com/elastic/elasticsearch/issues/147937
 - class: org.elasticsearch.xpack.sql.qa.single_node.RestSqlIT
   method: testNextPageText
   issue: https://github.com/elastic/elasticsearch/issues/147950
-- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
-  method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
-  issue: https://github.com/elastic/elasticsearch/issues/147972
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testDataStreamStatsActionBroadcastedToSearchNodesOnly
   issue: https://github.com/elastic/elasticsearch/issues/147973
@@ -476,9 +446,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.store.input.CachedBlobContainerIndexInputTests
   method: testRandomReads
   issue: https://github.com/elastic/elasticsearch/issues/148163
-- class: org.elasticsearch.xpack.stateless.recovery.SearchShardRelocationIT
-  method: testUnpromotableRelocationHandoffFailsIfTargetAllocationIdChanges
-  issue: https://github.com/elastic/elasticsearch/issues/147957
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/148175
@@ -518,42 +485,48 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
   method: testCloseWhileSegmentatorParkedOnDispatchPermit
   issue: https://github.com/elastic/elasticsearch/issues/148229
-- class: org.elasticsearch.xpack.esql.action.ExternalParquetCountPushdownIT
-  method: testCountStarPushdownCoordinatorOnly
-  issue: https://github.com/elastic/elasticsearch/issues/148116
-- class: org.elasticsearch.xpack.esql.action.ExternalParquetCountPushdownIT
-  method: testCountStarPushdown
-  issue: https://github.com/elastic/elasticsearch/issues/148118
-- class: org.elasticsearch.xpack.esql.action.ExternalParquetCountPushdownIT
-  method: testCountStarPushdownSingleRowGroup
-  issue: https://github.com/elastic/elasticsearch/issues/148119
-- class: org.elasticsearch.xpack.esql.action.ExternalParquetCountPushdownIT
-  method: testCountStarPushdownManyRowGroups
-  issue: https://github.com/elastic/elasticsearch/issues/148117
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
   method: testCommitsTrackingTakesIntoAccountSearchNodeUsage
   issue: https://github.com/elastic/elasticsearch/issues/148300
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithoutFailures
   issue: https://github.com/elastic/elasticsearch/issues/148310
-- class: org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInputTests
-  method: testWithByteBufferSlicesReturnsFalseAfterEviction
-  issue: https://github.com/elastic/elasticsearch/issues/148330
 - class: org.elasticsearch.xpack.security.authc.esnative.ReservedRealmElasticAutoconfigIntegTests
   method: testAutoconfigFailedPasswordPromotion
   issue: https://github.com/elastic/elasticsearch/issues/122668
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148339
-- class: org.elasticsearch.xpack.stateless.snapshots.MetadataSnapshotBlobStoreDirectoryTests
-  method: testMetadataSnapshotWithBlobOffset
-  issue: https://github.com/elastic/elasticsearch/issues/148342
-- class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
-  method: testReindexRelocatesWhenCoordinatorShutsDown
-  issue: https://github.com/elastic/elasticsearch/issues/148373
 - class: org.elasticsearch.xpack.esql.analysis.VerifierTests
   method: testFlattenedSorting
   issue: https://github.com/elastic/elasticsearch/issues/148374
 - class: org.elasticsearch.index.mapper.DateRangeDocValuesLoaderTests
   method: testEmptyRangesAppendsNull
   issue: https://github.com/elastic/elasticsearch/issues/148378
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=nodes.stats/11_indices_metrics/Metric - http}
+  issue: https://github.com/elastic/elasticsearch/issues/148430
+- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
+  method: testRestartForConfiguringReservedRolesAndClosingIndex
+  issue: https://github.com/elastic/elasticsearch/issues/148431
+- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
+  method: testDeletingAndCreatingSecurityIndexTriggersSynchronization
+  issue: https://github.com/elastic/elasticsearch/issues/148432
+- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
+  method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
+  issue: https://github.com/elastic/elasticsearch/issues/147972
+- class: org.elasticsearch.reindex.management.ReindexDoubleRelocationIT
+  method: testDoubleRelocationWithManagementEndpoints
+  issue: https://github.com/elastic/elasticsearch/issues/148462
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testReshardMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/148463
+- class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
+  method: testReindexRelocatesWhenCoordinatorShutsDown
+  issue: https://github.com/elastic/elasticsearch/issues/148373
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionIT
+  method: testEndToEndFrozenTransition
+  issue: https://github.com/elastic/elasticsearch/issues/148467
+- class: org.elasticsearch.xpack.stateless.StatelessIndexCommitListenerIT
+  method: testRefIsNotReleasedUponNotificationFailure
+  issue: https://github.com/elastic/elasticsearch/issues/148471

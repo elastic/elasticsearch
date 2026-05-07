@@ -8811,6 +8811,24 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(mvExpand2.child(), Row.class);
     }
 
+    public void testPruneRedundantOrderByThroughCompoundOutputEval() {
+        var rule = new PruneRedundantOrderBy();
+
+        var query = """
+            row x = 1
+            | sort x
+            | registered_domain rd = "www.example.com"
+            | stats c = count(*)
+            """;
+        LogicalPlan analyzed = defaultAnalyzer().query(query);
+        LogicalPlan optimized = rule.apply(analyzed);
+
+        var limit = as(optimized, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var registeredDomain = as(aggregate.child(), RegisteredDomain.class);
+        as(registeredDomain.child(), Row.class);
+    }
+
     /**
      * {@snippet lang="text":
      * Eval[[1[INTEGER] AS irrelevant1, 2[INTEGER] AS irrelevant2]]

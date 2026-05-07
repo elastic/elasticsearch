@@ -117,14 +117,9 @@ public class AnalyzerContext {
     }
 
     /**
-     * Lenient field-caps results keyed by the shadow's full
-     * {@link org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation#indexPattern()}
-     * (view name + applicable exclusions). Used by the {@code ResolveViewShadow} analyzer rule
-     * to replace {@link org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation} nodes
-     * with {@code EsRelation}s when a remote index matching the pattern was found. Empty for
-     * non-CPS paths.
+     * Contains resolution for optional linked patterns. Such patterns include linked indices (if exist) that shadow local views.
      */
-    public Map<IndexPattern, IndexResolution> lenientResolution() {
+    public Map<IndexPattern, IndexResolution> optionalLinkedResolution() {
         return lenientResolution;
     }
 

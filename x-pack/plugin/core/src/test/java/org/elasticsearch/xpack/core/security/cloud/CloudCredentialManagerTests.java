@@ -48,7 +48,7 @@ public class CloudCredentialManagerTests extends ESTestCase {
 
     public void testExtractThrowsOnDefault() {
         var threadContext = new ThreadContext(Settings.EMPTY);
-        expectThrows(IllegalStateException.class, () -> manager.extractCloudManagedCredential(threadContext));
+        expectThrows(UnsupportedOperationException.class, () -> manager.extractCloudManagedCredential(threadContext));
     }
 
     public void testInjectThrowsOnDefault() {

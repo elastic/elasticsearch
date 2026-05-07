@@ -33,17 +33,16 @@ public interface CloudCredentialManager {
     /**
      * Extracts the caller's UIAM cloud credential from {@code threadContext}.
      * <p>
-     * <b>Precondition:</b> {@link #hasCloudManagedCredential(ThreadContext)} must return {@code true}
-     * for {@code threadContext}. Calling this method when no cloud credential is present in the active
-     * identity throws {@link IllegalStateException}.
+     * <b>Precondition:</b> {@link #hasCloudManagedCredential(ThreadContext)} must return {@code true};
+     * otherwise the call fails with an unchecked exception.
      *
      * @return the caller's cloud credential
      */
     CloudCredential extractCloudManagedCredential(ThreadContext threadContext);
 
     /**
-     * Injects a previously-extracted {@link CloudCredential} into {@code threadContext} so cross-project
-     * actions executed in that context.
+     * Injects a {@link CloudCredential} into {@code threadContext} so downstream actions can
+     * authenticate with it.
      */
     void injectCloudManagedCredential(ThreadContext threadContext, CloudCredential credential);
 
@@ -115,7 +114,7 @@ public interface CloudCredentialManager {
 
         @Override
         public CloudCredential extractCloudManagedCredential(ThreadContext threadContext) {
-            throw new IllegalStateException("no cloud-managed credential extraction is supported by this implementation");
+            throw new UnsupportedOperationException("cloud-managed credential extraction is not available");
         }
 
         @Override

@@ -12,7 +12,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 /**
- * SPI for granting cloud API keys for ML cross-project search jobs.
+ * Service for managing cloud API keys for ML cross-project search jobs.
  */
 public interface InternalCloudApiKeyService {
 

@@ -105,12 +105,23 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
      * Drop any still-unresolved {@link ViewShadowRelation} siblings from {@link ViewUnionAll}s.
      * Delegates to {@link ViewUnionAll#pruneEmptyBranches(java.util.function.Predicate)} so the
      * named-subqueries map stays in sync with the surviving children. Shares the same primitive
-     * as {@code Analyzer.PruneEmptyUnionAllBranch} — different predicate, same shape — which
-     * keeps the two rules order-independent: running the EMPTY_SUBQUERY prune before or after
-     * this strip yields the same end state.
+     * as {@code Analyzer.PruneEmptyUnionAllBranch} and {@code PruneEmptyForkBranches} —
+     * different predicates, same shape — which keeps these rules order-independent: running
+     * them in any order yields the same end state for the branches each predicate identifies.
+     * <p>
+     * Strip-specific extra: collapses a single-survivor {@link ViewUnionAll} to that lone
+     * child. A view-resolved union with one branch left is no longer a branching choice — it's
+     * just that single resolved subtree. (The other prune rules don't do this — they preserve
+     * the wrapper. The collapse is a {@link ViewCompaction} semantic, not a {@link UnionAll} one.)
      */
     private static LogicalPlan stripViewShadowRelations(LogicalPlan plan) {
-        return plan.transformDown(ViewUnionAll.class, vua -> vua.pruneEmptyBranches(child -> child instanceof ViewShadowRelation));
+        return plan.transformDown(ViewUnionAll.class, vua -> {
+            LogicalPlan pruned = vua.pruneEmptyBranches(child -> child instanceof ViewShadowRelation);
+            if (pruned instanceof ViewUnionAll prunedVua && prunedVua.children().size() == 1) {
+                return prunedVua.children().getFirst();
+            }
+            return pruned;
+        });
     }
 
     /**

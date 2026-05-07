@@ -200,15 +200,17 @@ public class ResolveViewShadowTests extends ESTestCase {
      * Regression: a {@link ViewUnionAll} with both a strict UR whose resolution is
      * {@code EMPTY_SUBQUERY} (e.g. CCS subquery that didn't match anything) <em>and</em> a
      * matched shadow used to trip the assertion in {@link ViewUnionAll#asSubqueryMap}. The
-     * {@code PruneEmptyUnionAllBranch} analyzer rule would call
+     * {@code PruneEmptyUnionAllBranch} analyzer rule called
      * {@code unionAll.replaceChildren(shorterList)} which mismatched the named-subqueries map.
      * The fix routes the prune through {@link UnionAll#pruneEmptyBranches} — overridden in
      * {@link ViewUnionAll} to filter the named map directly, preserving the surviving names.
      * <p>
      * Setup: a ViewUnionAll with strict UR "missing_idx" (resolution {@code EMPTY_SUBQUERY})
      * and a shadow for view "v1" (lenient resolution found a remote index named "v1"). After
-     * analysis the EMPTY_SUBQUERY branch is pruned, the shadow resolves, and the lone remaining
-     * sibling is the {@code EsRelation} for "v1".
+     * analysis the EMPTY_SUBQUERY branch is pruned and the shadow resolves to an
+     * {@code EsRelation}; the surviving wrapper is a single-child {@link ViewUnionAll} carrying
+     * just the resolved {@code v1} branch under its preserved name. (The single-child wrapper
+     * is preserved here — only {@code ViewCompaction.stripViewShadowRelations} collapses.)
      */
     public void testPruneEmptySubqueryBranchPreservesShadowResolutionInViewUnionAll() {
         EsIndex remoteV1 = EsIndexGenerator.esIndex("v1", LoadMapping.loadMapping("mapping-one-field.json"));
@@ -219,7 +221,9 @@ public class ResolveViewShadowTests extends ESTestCase {
         );
 
         var limit = as(plan, Limit.class);
-        var esRelation = as(unwrapProject(limit.child()), EsRelation.class);
+        var unionAll = as(limit.child(), ViewUnionAll.class);
+        assertEquals("expected a single surviving child after pruning", 1, unionAll.children().size());
+        var esRelation = as(unwrapProject(unionAll.children().getFirst()), EsRelation.class);
         assertEquals("v1", esRelation.indexPattern());
         assertWarnings(NO_LIMIT_WARNING);
     }

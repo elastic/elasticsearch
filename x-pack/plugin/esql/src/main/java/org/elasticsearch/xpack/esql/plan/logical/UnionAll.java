@@ -54,26 +54,12 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
     }
 
     /**
-     * Drop branches whose root the {@code isEmpty} predicate considers empty (e.g. an
-     * {@link UnresolvedRelation} whose resolution came back as {@code IndexResolution.EMPTY_SUBQUERY},
-     * or — under the {@link ViewUnionAll} override — a still-unresolved {@link ViewShadowRelation}).
-     * <p>
-     * Returns:
-     * <ul>
-     *   <li>{@code this} when no branch is empty (cheap no-op);</li>
-     *   <li>the lone surviving branch when only one remains (so a single-child UnionAll never
-     *       lingers in the plan);</li>
-     *   <li>a fresh {@code UnionAll} with the filtered children otherwise.</li>
-     * </ul>
-     * As a defensive measure, an empty result is treated as a no-op (returns {@code this}) — the
-     * caller is expected to enforce the "all branches empty" rejection separately (typically in
-     * the analyzer's verifier).
-     * <p>
-     * Subclasses with subclass-specific invariants (notably {@link ViewUnionAll}, which carries
-     * a named-subqueries map alongside the positional children) should override this method to
-     * preserve those invariants. Calling {@link #replaceChildren} with a smaller list does not
-     * work for such subclasses.
+     * Override of {@link Fork#pruneEmptyBranches(Predicate)} that returns a {@link UnionAll}
+     * (rather than letting the base implementation produce whatever {@link #replaceChildren}
+     * would). Mirrors the base behaviour otherwise: single-survivor wrappers are preserved
+     * (callers that want to collapse to the lone child do so explicitly).
      */
+    @Override
     public LogicalPlan pruneEmptyBranches(Predicate<LogicalPlan> isEmpty) {
         List<LogicalPlan> kept = new ArrayList<>(children().size());
         for (LogicalPlan child : children()) {
@@ -83,9 +69,6 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
         }
         if (kept.size() == children().size()) {
             return this;
-        }
-        if (kept.size() == 1) {
-            return kept.getFirst();
         }
         if (kept.isEmpty()) {
             return this;

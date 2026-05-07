@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
@@ -102,6 +103,42 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
     public Fork refreshOutput() {
         return new Fork(source(), children(), refreshedOutput());
+    }
+
+    /**
+     * Drop branches whose root the {@code isEmpty} predicate considers empty. Each
+     * {@link Fork} subclass with structural invariants beyond the positional children list
+     * (notably {@link ViewUnionAll}, which carries a named-subqueries map) overrides this method
+     * to preserve those invariants — the base implementation here uses {@link #replaceChildren},
+     * which only works when each subclass's {@code replaceChildren} accepts a count change.
+     * <p>
+     * Behaviour:
+     * <ul>
+     *   <li>nothing pruned → returns {@code this} (cheap no-op);</li>
+     *   <li>at least one branch pruned, at least one survivor → returns
+     *       {@code replaceChildren(survivors)};</li>
+     *   <li>all branches pruned → returns {@code this} (defensive — the caller decides what
+     *       "all empty" should mean for its semantics; e.g. {@code PruneEmptyForkBranches}
+     *       short-circuits this case to {@code LocalRelation}).</li>
+     * </ul>
+     * The single-survivor collapse semantics that {@link UnionAll}/{@link ViewUnionAll} have
+     * (a {@code UnionAll} with one branch is equivalent to that branch) lives in those
+     * overrides — a {@code Fork} with a single branch is still a {@code Fork} per FORK syntax.
+     */
+    public LogicalPlan pruneEmptyBranches(Predicate<LogicalPlan> isEmpty) {
+        List<LogicalPlan> kept = new ArrayList<>(children().size());
+        for (LogicalPlan child : children()) {
+            if (isEmpty.test(child) == false) {
+                kept.add(child);
+            }
+        }
+        if (kept.size() == children().size()) {
+            return this;
+        }
+        if (kept.isEmpty()) {
+            return this;
+        }
+        return replaceChildren(kept);
     }
 
     protected List<Attribute> refreshedOutput() {

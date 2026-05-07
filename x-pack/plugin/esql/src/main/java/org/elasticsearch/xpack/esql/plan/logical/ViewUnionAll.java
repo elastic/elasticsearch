@@ -69,10 +69,10 @@ public class ViewUnionAll extends UnionAll {
     }
 
     /**
-     * Name-aware override: filter the named-subqueries map directly so the surviving children
-     * keep their original names. Single-survivor collapses to that lone child (without its
-     * NamedSubquery wrapper if it has one — that's the same semantics as the base
-     * {@link UnionAll#pruneEmptyBranches(Predicate)}).
+     * Name-aware override of {@link UnionAll#pruneEmptyBranches(Predicate)}: filters the
+     * named-subqueries map directly so the surviving children keep their original names. Like
+     * the base, single-survivor wrappers are preserved — callers that want to collapse to the
+     * lone child do so explicitly.
      */
     @Override
     public LogicalPlan pruneEmptyBranches(Predicate<LogicalPlan> isEmpty) {
@@ -84,9 +84,6 @@ public class ViewUnionAll extends UnionAll {
         }
         if (kept.size() == namedSubqueries.size()) {
             return this;
-        }
-        if (kept.size() == 1) {
-            return kept.values().iterator().next();
         }
         if (kept.isEmpty()) {
             return this;

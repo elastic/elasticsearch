@@ -76,6 +76,22 @@ public interface PostFilterableKnnQuery {
     Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK);
 
     /**
+     * Reconstructs the KNN query for the augmented pre-filter fallback used by
+     * {@link PostFilterKnnQuery} when post-filtering yields some — but fewer than {@code k} —
+     * results. The returned query keeps the implementor's original filter as a pre-filter,
+     * combined with an {@link ExcludeDocsQuery} over {@code excludedDocs} so already-collected
+     * docs are not visited again, and asks for {@code remainingK} results.
+     * <p>
+     * Unlike {@link #createRetryQuery}, no seed docs are passed — the fallback switches modes
+     * from post-filter to pre-filter, so HNSW graph seeding does not apply.
+     *
+     * @param reader        the index reader
+     * @param excludedDocs  docs already collected by the post-filter rounds, sorted
+     * @param remainingK    how many additional top results we aim to return ({@code k - collected})
+     */
+    Query createFallbackQuery(IndexReader reader, int[] excludedDocs, int remainingK);
+
+    /**
      * Creates a filter-less delegate query for post-filtering. Subclasses provide
      * the concrete query type with the appropriate vector data.
      */

@@ -375,7 +375,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(0, mergedResponse.getSkippedShards());
                 assertEquals(0, mergedResponse.getFailedShards());
                 assertEquals(0, mergedResponse.getShardFailures().length);
-                assertEquals(expectedProfile, mergedResponse.getProfileResults());
+                assertEquals(expectedProfile, mergedResponse.getSearchProfileShardResults());
             } finally {
                 mergedResponse.decRef();
             }
@@ -420,7 +420,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             awaitResponsesAdded();
             SearchResponse mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
             try {
-                assertFalse("profile shards should be present", mergedResponse.getProfileResults().isEmpty());
+                assertFalse("profile shards should be present", mergedResponse.getSearchProfileShardResults().isEmpty());
                 SearchProfileResults mergedProfile = mergedResponse.getSearchProfileResults();
                 assertNotNull(mergedProfile);
                 assertEquals(coordinatorSource, mergedProfile.getOriginalSource());
@@ -469,7 +469,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             awaitResponsesAdded();
             SearchResponse mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
             try {
-                assertTrue("merged profile shards should be empty", mergedResponse.getProfileResults().isEmpty());
+                assertTrue("merged profile shards should be empty", mergedResponse.getSearchProfileShardResults().isEmpty());
                 assertNull(mergedResponse.getSearchProfileResults());
             } finally {
                 mergedResponse.decRef();
@@ -1069,7 +1069,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertNull(response.getScrollId());
                 assertSame(InternalAggregations.EMPTY, response.getAggregations());
                 assertNull(response.getSuggest());
-                assertEquals(0, response.getProfileResults().size());
+                assertEquals(0, response.getSearchProfileShardResults().size());
                 assertNull(response.isTerminatedEarly());
                 assertEquals(0, response.getShardFailures().length);
             } finally {
@@ -1332,8 +1332,9 @@ public class SearchResponseMergerTests extends ESTestCase {
         int successful = 2;
         int skipped = 1;
         Index[] indices = new Index[] { new Index("foo_idx", "1bba9f5b-c5a1-4664-be1b-26be590c1aff") };
+        SearchHits hitsRemote1 = createSimpleDeterministicSearchHits(clusterAlias, indices);
         final SearchResponse searchResponseRemote1 = new SearchResponse(
-            createSimpleDeterministicSearchHits(clusterAlias, indices),
+            hitsRemote1,
             createDeterminsticAggregation(maxAggName, rangeAggName, value, count),
             null,
             false,
@@ -1348,6 +1349,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
+        hitsRemote1.decRef(); // transfer ownership to searchResponseRemote1
 
         // full response from remote2 remote cluster
         value = 55.55;
@@ -1357,8 +1359,9 @@ public class SearchResponseMergerTests extends ESTestCase {
         successful = 2;
         skipped = 1;
         indices = new Index[] { new Index("foo_idx", "ae024679-097a-4a27-abf8-403f1e9189de") };
+        SearchHits hitsRemote2 = createSimpleDeterministicSearchHits(clusterAlias, indices);
         SearchResponse searchResponseRemote2 = new SearchResponse(
-            createSimpleDeterministicSearchHits(clusterAlias, indices),
+            hitsRemote2,
             createDeterminsticAggregation(maxAggName, rangeAggName, value, count),
             null,
             false,
@@ -1373,6 +1376,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
+        hitsRemote2.decRef(); // transfer ownership to searchResponseRemote2
         try {
             SearchResponse.Clusters clusters = SearchResponseTests.createCCSClusterObject(
                 3,
@@ -1665,7 +1669,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         PriorityQueue<SearchHit> priorityQueue = new PriorityQueue<>(new SearchHitComparator(sortFields));
         SearchHit[] hits = deterministicSearchHitArray(numDocs, clusterAlias, indices, maxScore, scoreFactor, sortFields, priorityQueue);
 
-        return SearchHits.unpooled(hits, totalHits, maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore, sortFields, null, null);
+        return new SearchHits(hits, totalHits, maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore, sortFields, null, null);
     }
 
     private static InternalAggregations createDeterminsticAggregation(String maxAggName, String rangeAggName, double value, int count) {
@@ -1697,7 +1701,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         for (int j = 0; j < numDocs; j++) {
             ShardId shardId = new ShardId(randomFrom(indices), j);
             SearchShardTarget shardTarget = new SearchShardTarget("abc123", shardId, clusterAlias);
-            SearchHit hit = SearchHit.unpooled(j);
+            SearchHit hit = new SearchHit(j);
 
             float score = Float.NaN;
             if (Float.isNaN(maxScore) == false) {

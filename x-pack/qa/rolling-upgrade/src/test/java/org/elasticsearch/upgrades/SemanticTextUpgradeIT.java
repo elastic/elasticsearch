@@ -48,6 +48,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTe
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.nullValue;
 
 public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
     private static final String INDEX_BASE_NAME = "semantic_text_test_index";
@@ -137,10 +138,10 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         indexDoc(DOC_2_ID, DOC_VALUES.get(DOC_2_ID));
 
         ObjectPath sparseQueryObjectPath = semanticQuery(SPARSE_FIELD, SPARSE_MODEL, "test value", 3);
-        assertQueryResponseWithHighlights(sparseQueryObjectPath, SPARSE_FIELD);
+        assertQueryResponseWithHighlights(sparseQueryObjectPath, SPARSE_FIELD, useLegacyFormat);
 
         ObjectPath denseQueryObjectPath = semanticQuery(DENSE_FIELD, DENSE_MODEL, "test value", 3);
-        assertQueryResponseWithHighlights(denseQueryObjectPath, DENSE_FIELD);
+        assertQueryResponseWithHighlights(denseQueryObjectPath, DENSE_FIELD, useLegacyFormat);
     }
 
     private String getIndexName() {
@@ -232,6 +233,10 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
 
             builder.field("highlight", highlightBuilder);
         }
+        // Use the fields parameter to get _inference_fields for compatibility with old stack versions
+        builder.startArray("fields");
+        builder.value("_inference_fields");
+        builder.endArray();
         builder.endObject();
 
         Request request = new Request("GET", getIndexName() + "/_search");
@@ -241,7 +246,8 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
         return assertOKAndCreateObjectPath(response);
     }
 
-    private static void assertQueryResponseWithHighlights(ObjectPath queryObjectPath, String field) throws IOException {
+    private static void assertQueryResponseWithHighlights(ObjectPath queryObjectPath, String field, boolean useLegacyFormat)
+        throws IOException {
         assertThat(queryObjectPath.evaluate("hits.total.value"), equalTo(2));
         assertThat(queryObjectPath.evaluateArraySize("hits.hits"), equalTo(2));
 
@@ -251,6 +257,12 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
             String id = ObjectPath.evaluate(hit, "_id");
             assertThat(id, notNullValue());
             docIds.add(id);
+
+            if (useLegacyFormat) {
+                assertThat(ObjectPath.evaluate(hit, "_source._inference_fields"), nullValue());
+            } else {
+                assertThat(ObjectPath.evaluate(hit, "_source._inference_fields." + field), notNullValue());
+            }
 
             List<String> expectedHighlight = DOC_VALUES.get(id);
             assertThat(expectedHighlight, notNullValue());

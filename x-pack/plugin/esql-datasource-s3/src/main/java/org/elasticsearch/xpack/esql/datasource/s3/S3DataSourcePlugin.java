@@ -43,7 +43,7 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
                 if (config == null || config.isEmpty()) {
                     return create(settings);
                 }
-                S3Configuration s3Config = S3Configuration.fromMap(config);
+                S3Configuration s3Config = S3Configuration.fromQueryConfig(config);
                 return new S3StorageProvider(s3Config);
             }
         };

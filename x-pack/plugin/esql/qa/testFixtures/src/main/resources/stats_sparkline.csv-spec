@@ -48,11 +48,11 @@ sparkline:long                         | gender:keyword
 sparklineWithInlineFilter
 required_capability: fn_sparkline
 FROM employees
-| STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z") WHERE gender == "M"
+| STATS sparkline = SPARKLINE(COUNT(*), hire_date, 20, "1985-01-01T00:00:00Z", "1985-12-31T00:00:00Z") WHERE gender == "M"
 ;
 
 sparkline:long
-[0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 3, 0, 0]
+[0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 3, 0]
 ;
 
 sparklineInInlineStats

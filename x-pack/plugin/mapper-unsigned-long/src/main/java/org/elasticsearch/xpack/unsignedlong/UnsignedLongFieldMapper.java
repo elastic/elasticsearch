@@ -138,6 +138,10 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             ).acceptsNull();
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+                if (indexSettings.isIndexDisabledByDefault()) {
+                    return false;
+                }
+
                 if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
                     return false;
                 }
@@ -757,6 +761,19 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    public boolean supportsBatchIndexing() {
+        // Plain unsigned_long mappers can be driven through parseCreateField by the bulk batch
+        // path. ignore_malformed and null_value are allowed. Dimensions, time-series metrics,
+        // copy_to, multi-fields, and scripts pull in behavior that the v1 batch path does not
+        // support.
+        return hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && dimension == false
+            && metricType == null;
     }
 
     @Override

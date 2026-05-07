@@ -10,7 +10,10 @@
           "name" : "aggregation",
           "type" : "double",
           "optional" : false,
-          "description" : "Aggregation that calculates the y-axis value of the sparkline graph for each datapoint."
+          "description" : "Aggregation that calculates the y-axis value of the sparkline graph for each datapoint.",
+          "hint" : {
+            "kind" : "aggregation"
+          }
         },
         {
           "name" : "key",
@@ -46,7 +49,10 @@
           "name" : "aggregation",
           "type" : "integer",
           "optional" : false,
-          "description" : "Aggregation that calculates the y-axis value of the sparkline graph for each datapoint."
+          "description" : "Aggregation that calculates the y-axis value of the sparkline graph for each datapoint.",
+          "hint" : {
+            "kind" : "aggregation"
+          }
         },
         {
           "name" : "key",
@@ -82,7 +88,10 @@
           "name" : "aggregation",
           "type" : "long",
           "optional" : false,
-          "description" : "Aggregation that calculates the y-axis value of the sparkline graph for each datapoint."
+          "description" : "Aggregation that calculates the y-axis value of the sparkline graph for each datapoint.",
+          "hint" : {
+            "kind" : "aggregation"
+          }
         },
         {
           "name" : "key",

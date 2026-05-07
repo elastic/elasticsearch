@@ -788,12 +788,14 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                                     )
                             );
                         } else if (stage == Stage.PAUSED) {
-                            if (clusterService.localNode().getId().equals(masterShard.nodeId()) == false) {
+                            // Master may reassign or already reassigned the shard snapshot
+                            if (masterShard.state() == ShardState.PAUSED_FOR_NODE_REMOVAL
+                                || clusterService.localNode().getId().equals(masterShard.nodeId()) == false) {
                                 logger.debug(
-                                    "shard {} snapshot [{}] is reassigned to node [{}] on new master, skipping pause resync",
+                                    "shard {} snapshot [{}] skipping pause resync, master shard status [{}]",
                                     shardId,
                                     snapshot.snapshot(),
-                                    masterShard.nodeId()
+                                    masterShard
                                 );
                                 continue;
                             }

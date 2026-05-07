@@ -111,7 +111,8 @@ public class MapperUtils {
                 rerank.inferenceId(),
                 rerank.queryText(),
                 rerank.rerankFields(),
-                rerank.scoreAttribute()
+                rerank.scoreAttribute(),
+                rerank.timeout()
             );
         }
 
@@ -122,7 +123,8 @@ public class MapperUtils {
                 completion.inferenceId(),
                 completion.prompt(),
                 completion.targetField(),
-                completion.taskSettings()
+                completion.taskSettings(),
+                completion.timeout()
             );
         }
 
@@ -155,7 +157,8 @@ public class MapperUtils {
                 changePoint.value(),
                 changePoint.key(),
                 changePoint.targetType(),
-                changePoint.targetPvalue()
+                changePoint.targetPvalue(),
+                changePoint.groupings()
             );
         }
 
@@ -234,7 +237,8 @@ public class MapperUtils {
                 intermediateAttributes,
                 null,
                 ts.timeBucket(),
-                ts.outputTimeBucket()
+                ts.outputTimeBucket(),
+                ts.isCollapsed()
             );
             case SampledAggregate sample -> new SampledAggregateExec(
                 sample.source(),

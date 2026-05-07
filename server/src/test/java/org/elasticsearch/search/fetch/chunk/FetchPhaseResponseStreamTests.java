@@ -344,27 +344,47 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
     // ==================== Reference Counting Tests ====================
 
-    public void testHitsIncRefOnWrite() throws IOException {
-        CircuitBreaker breaker = new NoopCircuitBreaker("test");
+    public void testHitOwnershipTransferredToQueueOnWrite() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);
 
+        FetchPhaseResponseChunk chunk = createChunk(0, 5, 0);
         try {
-            FetchPhaseResponseChunk chunk = createChunk(0, 5, 0);
-            writeChunk(stream, chunk);
+            stream.writeChunk(chunk, () -> {});
 
-            FetchSearchResult result = buildFinalResult(stream);
-
-            try {
-                // Hits should still have references after writeChunk
-                for (SearchHit hit : result.hits().getHits()) {
-                    assertTrue("Hit should have references", hit.hasReferences());
-                }
-            } finally {
-                result.decRef();
+            for (SearchHit hit : chunk.getHits()) {
+                assertNull("Chunk should have released its reference to the hit after consumeHits", hit);
             }
         } finally {
-            stream.decRef();
+            chunk.close();
         }
+
+        FetchSearchResult result = buildFinalResult(stream);
+        for (SearchHit hit : result.hits().getHits()) {
+            assertTrue("Hit should have references", hit.hasReferences());
+        }
+        result.decRef();
+
+        stream.decRef();
+        assertThat("Breaker bytes should be released after stream close", breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testHitsReleasedWhenStreamClosedWithoutBuildFinalResult() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 5, breaker);
+
+        FetchPhaseResponseChunk chunk = createChunk(0, 5, 0);
+        try {
+            stream.writeChunk(chunk, () -> {});
+        } finally {
+            chunk.close();
+        }
+
+        assertThat("Breaker should account for the accumulated chunk bytes", breaker.getUsed(), greaterThan(0L));
+
+        stream.decRef();
+
+        assertThat("All breaker bytes should be released", breaker.getUsed(), equalTo(0L));
     }
 
     // ==================== Score Handling Tests ====================
@@ -499,7 +519,12 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             AtomicBoolean releasableClosed = new AtomicBoolean(false);
             Releasable releasable = () -> releasableClosed.set(true);
 
-            stream.writeChunk(createChunk(0, 5, 0), releasable);
+            FetchPhaseResponseChunk chunk = createChunk(0, 5, 0);
+            try {
+                stream.writeChunk(chunk, releasable);
+            } finally {
+                chunk.close();
+            }
 
             assertTrue("Releasable should be closed after successful write", releasableClosed.get());
         } finally {
@@ -519,10 +544,12 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             AtomicBoolean releasableClosed = new AtomicBoolean(false);
             Releasable releasable = () -> releasableClosed.set(true);
 
-            expectThrows(
-                CircuitBreakingException.class,
-                () -> { stream.writeChunk(createChunkWithSourceSize(0, 5, 0, 10000), releasable); }
-            );
+            FetchPhaseResponseChunk chunk = createChunkWithSourceSize(0, 5, 0, 10000);
+            try {
+                expectThrows(CircuitBreakingException.class, () -> stream.writeChunk(chunk, releasable));
+            } finally {
+                chunk.close();
+            }
 
             assertFalse("Releasable should not be closed on failure", releasableClosed.get());
         } finally {
@@ -539,10 +566,11 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         AtomicBoolean releasableClosed = new AtomicBoolean(false);
 
         try {
-            CircuitBreakingException e = expectThrows(
-                CircuitBreakingException.class,
-                () -> stream.writeChunk(chunk, () -> releasableClosed.set(true))
-            );
+            try {
+                expectThrows(CircuitBreakingException.class, () -> stream.writeChunk(chunk, () -> releasableClosed.set(true)));
+            } finally {
+                chunk.close();
+            }
 
             assertFalse("Releasable should not be closed on failure", releasableClosed.get());
             assertThat("No bytes should be tracked on breaker trip", breaker.getUsed(), equalTo(0L));
@@ -616,7 +644,7 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
     public void testChunkMetadata() throws IOException {
         SearchHit hit = createHit(0);
         try {
-            FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hit), 1, 10, 0);
+            FetchPhaseResponseChunk chunk = new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(new SearchHit[] { hit }, 0), 1, 10, 0);
 
             assertThat(chunk.shardId(), equalTo(TEST_SHARD_ID));
             assertThat(chunk.hitCount(), equalTo(1));
@@ -648,11 +676,9 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             hits[i] = createHit(startId + i);
         }
         try {
-            return new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits), hitCount, 100, sequenceStart);
+            return new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits, sequenceStart), hitCount, 100, sequenceStart);
         } finally {
-            for (SearchHit hit : hits) {
-                hit.decRef();
-            }
+            decRefSearchHits(hits);
         }
     }
 
@@ -662,11 +688,9 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             hits[i] = createHit(startId + i);
         }
         try {
-            return new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits), hitCount, 100, sequenceStart);
+            return new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits, sequenceStart), hitCount, 100, sequenceStart);
         } finally {
-            for (SearchHit hit : hits) {
-                hit.decRef();
-            }
+            decRefSearchHits(hits);
         }
     }
 
@@ -677,11 +701,9 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             hits[i] = createHitWithSourceSize(startId + i, sourceSize);
         }
         try {
-            return new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits), hitCount, 100, sequenceStart);
+            return new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits, sequenceStart), hitCount, 100, sequenceStart);
         } finally {
-            for (SearchHit hit : hits) {
-                hit.decRef();
-            }
+            decRefSearchHits(hits);
         }
     }
 
@@ -691,11 +713,15 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
             hits[i] = createHitWithScore(startId + i, scores[i]);
         }
         try {
-            return new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits), scores.length, 100, sequenceStart);
+            return new FetchPhaseResponseChunk(TEST_SHARD_ID, serializeHits(hits, sequenceStart), scores.length, 100, sequenceStart);
         } finally {
-            for (SearchHit hit : hits) {
-                hit.decRef();
-            }
+            decRefSearchHits(hits);
+        }
+    }
+
+    private void decRefSearchHits(SearchHit[] hits) {
+        for (SearchHit hit : hits) {
+            hit.decRef();
         }
     }
 
@@ -725,17 +751,22 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         return hit;
     }
 
-    private BytesReference serializeHits(SearchHit... hits) throws IOException {
+    private BytesReference serializeHits(SearchHit[] hits, long sequenceStart) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            for (SearchHit hit : hits) {
-                hit.writeTo(out);
+            for (int i = 0; i < hits.length; i++) {
+                out.writeVInt((int) (sequenceStart + i));
+                hits[i].writeTo(out);
             }
             return out.bytes();
         }
     }
 
     private void writeChunk(FetchPhaseResponseStream stream, FetchPhaseResponseChunk chunk) throws IOException {
-        stream.writeChunk(chunk, () -> {});
+        try {
+            stream.writeChunk(chunk, () -> {});
+        } finally {
+            chunk.close();
+        }
     }
 
 }

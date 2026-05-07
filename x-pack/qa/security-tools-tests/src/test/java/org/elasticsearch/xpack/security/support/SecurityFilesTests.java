@@ -44,7 +44,6 @@ import static org.hamcrest.Matchers.not;
 
 public class SecurityFilesTests extends ESTestCase {
     public void testThatOriginalPermissionsAreKept() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path path = createTempFile();
 
         // no posix file permissions, nothing to test, done here

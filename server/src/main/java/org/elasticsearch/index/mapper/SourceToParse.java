@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
@@ -39,6 +40,9 @@ public class SourceToParse {
 
     private final XContentMeteringParserDecorator meteringParserDecorator;
 
+    @Nullable
+    private final XContentParser eirfParser;
+
     public SourceToParse(
         @Nullable String id,
         BytesReference source,
@@ -49,6 +53,32 @@ public class SourceToParse {
         boolean includeSourceOnError,
         XContentMeteringParserDecorator meteringParserDecorator,
         @Nullable BytesRef tsid
+    ) {
+        this(
+            id,
+            source,
+            xContentType,
+            routing,
+            dynamicTemplates,
+            dynamicTemplateParams,
+            includeSourceOnError,
+            meteringParserDecorator,
+            tsid,
+            null
+        );
+    }
+
+    public SourceToParse(
+        @Nullable String id,
+        BytesReference source,
+        XContentType xContentType,
+        @Nullable String routing,
+        Map<String, String> dynamicTemplates,
+        Map<String, Map<String, String>> dynamicTemplateParams,
+        boolean includeSourceOnError,
+        XContentMeteringParserDecorator meteringParserDecorator,
+        @Nullable BytesRef tsid,
+        @Nullable XContentParser eirfParser
     ) {
         this.id = id;
         // we always convert back to byte array, since we store it and Field only supports bytes..
@@ -61,6 +91,7 @@ public class SourceToParse {
         this.includeSourceOnError = includeSourceOnError;
         this.meteringParserDecorator = meteringParserDecorator;
         this.tsid = tsid;
+        this.eirfParser = eirfParser;
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
@@ -130,5 +161,14 @@ public class SourceToParse {
 
     public BytesRef tsid() {
         return tsid;
+    }
+
+    /**
+     * Returns a pre-built parser for EIRF row data, or null if this source uses standard XContent.
+     * When non-null, DocumentParser uses this parser instead of creating one from the source bytes.
+     */
+    @Nullable
+    public XContentParser getEirfParser() {
+        return eirfParser;
     }
 }

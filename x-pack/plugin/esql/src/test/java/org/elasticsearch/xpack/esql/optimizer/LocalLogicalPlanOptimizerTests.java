@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -37,8 +38,11 @@ import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Increase;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
@@ -49,9 +53,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLik
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
@@ -66,6 +73,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -116,6 +124,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -733,6 +742,95 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var caseF = as(inn.children().get(0), Case.class);
         assertThat(Expressions.names(caseF.children()), contains("emp_no IS NULL", "\"1\"", "salary IS NOT NULL", "\"2\"", "first_name"));
         var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testIsNullFilterDoesNotPruneDisjunctionBranch() {
+        // (nullable IS NOT NULL OR emp_no > 10000) AND nullable IS NULL simplifies to
+        // (emp_no > 10000) AND nullable IS NULL — the surviving OR branch must not be pruned.
+        var plan = localPlan("""
+            FROM test
+            | EVAL nullable = languages
+            | KEEP emp_no, nullable
+            | WHERE nullable IS NOT NULL OR emp_no > 10000
+            | WHERE nullable IS NULL
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat(conjuncts, hasSize(2));
+
+        var residualBranch = conjuncts.stream()
+            .filter(GreaterThan.class::isInstance)
+            .map(GreaterThan.class::cast)
+            .findFirst()
+            .orElseThrow();
+        var residualField = as(residualBranch.left(), FieldAttribute.class);
+        assertEquals("emp_no", residualField.name());
+
+        var isNull = conjuncts.stream().filter(IsNull.class::isInstance).map(IsNull.class::cast).findFirst().orElseThrow();
+        String nullableName = Expressions.name(isNull.field());
+        assertTrue(
+            "expected nullable field null-check to be preserved",
+            "nullable".equals(nullableName) || "languages".equals(nullableName)
+        );
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
+    }
+
+    public void testIsNullOrDisjunctionWithSeparateWhereClauses() {
+        // Two separate WHERE clauses are merged by PushDownAndCombineFilters into the same pattern,
+        // so the surviving OR branch must also be preserved when the clauses come from different pipes.
+        var plan = localPlan("""
+            FROM test
+            | WHERE gender IS NOT NULL OR emp_no > 10015
+            | WHERE gender IS NULL
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat("surviving branch and IS NULL must both be present", conjuncts, hasSize(2));
+
+        assertTrue("expected emp_no GreaterThan conjunct", conjuncts.stream().anyMatch(GreaterThan.class::isInstance));
+        assertTrue("expected gender IS NULL conjunct", conjuncts.stream().anyMatch(IsNull.class::isInstance));
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
+    }
+
+    public void testIsNullOrDisjunctionWithEvalAlias() {
+        // EVAL introduces an alias; PropagateNullable must preserve the surviving OR branch
+        // even when the IS NULL targets an alias rather than a direct field.
+        var plan = localPlan("""
+            FROM test
+            | EVAL g = gender
+            | KEEP emp_no, g
+            | WHERE g IS NOT NULL OR emp_no > 10015
+            | WHERE g IS NULL
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat("surviving branch and IS NULL must both be present", conjuncts, hasSize(2));
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
+    }
+
+    public void testIsNullOrDisjunctionDoesNotPruneToEmptyRelation() {
+        // A salary-based surviving branch: (gender IS NOT NULL OR salary > 50000) AND gender IS NULL
+        // must keep the salary filter rather than pruning to empty.
+        var plan = localPlan("""
+            FROM test
+            | WHERE (gender IS NOT NULL OR salary > 50000) AND gender IS NULL
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat("surviving branch and IS NULL must both be present", conjuncts, hasSize(2));
+
+        assertTrue("expected salary GreaterThan conjunct", conjuncts.stream().anyMatch(GreaterThan.class::isInstance));
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
     }
 
     /**
@@ -1759,5 +1857,56 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var optimizedAttr = as(alias.child(), TimeSeriesMetadataAttribute.class);
         assertThat(MetadataAttribute.isTimeSeriesAttribute(optimizedAttr), is(true));
         assertThat(optimizedAttr.withoutFields(), equalTo(Set.of()));
+    }
+
+    public void testTemporalityInjection() {
+        var fieldAttr = getFieldAttribute("counter", DataType.COUNTER_LONG);
+        var timestampAttr = getFieldAttribute("@timestamp", DataType.DATETIME);
+        var relation = new EsRelation(
+            EMPTY,
+            "test",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("test", IndexMode.TIME_SERIES),
+            List.of(fieldAttr, timestampAttr)
+        );
+        var tsAggregate = new TimeSeriesAggregate(
+            EMPTY,
+            relation,
+            List.of(),
+            List.of(
+                new Alias(EMPTY, "r", new Rate(EMPTY, fieldAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, timestampAttr, null)),
+                new Alias(EMPTY, "i", new Increase(EMPTY, fieldAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, timestampAttr, null))
+            ),
+            null,
+            timestampAttr
+        );
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public boolean exists(FieldAttribute.FieldName field) {
+                return field.string().equals(fieldAttr.name()) || field.string().equals(timestampAttr.name());
+            }
+        };
+        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), searchStats);
+        var optimizedPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(tsAggregate);
+
+        var optimizedTsAgg = as(optimizedPlan, TimeSeriesAggregate.class);
+        var optimizedRate = as(Alias.unwrap(optimizedTsAgg.aggregates().getFirst()), Rate.class);
+        var optimizedIncrease = as(Alias.unwrap(optimizedTsAgg.aggregates().get(1)), Increase.class);
+
+        var optimizedRelation = as(optimizedTsAgg.child(), EsRelation.class);
+        var relationTemporalities = optimizedRelation.output().stream().filter(TemporalityAttribute.class::isInstance).toList();
+
+        assertThat(optimizedRate.temporality(), notNullValue());
+        assertThat(optimizedIncrease.temporality(), notNullValue());
+
+        var rateTemporality = as(optimizedRate.temporality(), TemporalityAttribute.class);
+        var increaseTemporality = as(optimizedIncrease.temporality(), TemporalityAttribute.class);
+        assertThat(increaseTemporality.id(), equalTo(rateTemporality.id()));
+
+        assertThat(relationTemporalities, hasSize(1));
+        assertThat((relationTemporalities.getFirst()).id(), equalTo(rateTemporality.id()));
     }
 }

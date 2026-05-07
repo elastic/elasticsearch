@@ -27,6 +27,10 @@ tasks.named("test").configure {
   systemProperty "tests.system_call_filter", "false"
 }
 
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.parquet'
+}
+
 tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }

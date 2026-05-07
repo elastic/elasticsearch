@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
 import static org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportHelpers.agentFlushWaitTimeMs;
-import static org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportHelpers.sleepForAgentExport;
 
 /**
  * A {@link MeterSupplier} that supplies a {@link Meter} from {@link GlobalOpenTelemetry}
@@ -26,10 +25,15 @@ import static org.elasticsearch.telemetry.apm.internal.export.agent.AgentExportH
  * @see org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportMeterSupplier
  */
 public final class AgentExportMeterSupplier implements MeterSupplier {
-    private final long agentFlushWaitTime;
+    private final Runnable flushFn;
 
     public AgentExportMeterSupplier(Settings settings) {
-        agentFlushWaitTime = agentFlushWaitTimeMs(settings);
+        this(() -> AgentExportHelpers.sleepForAgentExport(agentFlushWaitTimeMs(settings)));
+    }
+
+    // package-private for testing: allows injecting a recording or no-op flush
+    AgentExportMeterSupplier(Runnable flushFn) {
+        this.flushFn = flushFn;
     }
 
     @Override
@@ -39,6 +43,6 @@ public final class AgentExportMeterSupplier implements MeterSupplier {
 
     @Override
     public void attemptFlushMetrics() {
-        sleepForAgentExport(agentFlushWaitTime);
+        flushFn.run();
     }
 }

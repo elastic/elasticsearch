@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -47,6 +48,11 @@ $if(BytesRef)$
         }
     }
 
+    @Override
+    public PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch) {
+        return vector.get(valueIndex, scratch);
+    }
+
 $elseif(boolean)$
     @Override
     public ToMask toMask() {
@@ -63,6 +69,11 @@ $else$
     public $type$ get$Type$(int valueIndex) {
         return vector.get$Type$(valueIndex);
 $endif$
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
     }
 
     @Override

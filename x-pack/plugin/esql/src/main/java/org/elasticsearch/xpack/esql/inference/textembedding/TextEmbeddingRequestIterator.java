@@ -11,108 +11,53 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.esql.inference.AbstractEmbeddingRequestIterator;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem.PositionValueCountsBuilder;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItemIterator;
-import org.elasticsearch.xpack.esql.inference.InputTextReader;
 
 import java.util.List;
-import java.util.NoSuchElementException;
 
 /**
- * Iterator that converts a block of text strings into inference request items for text embedding.
+ * Embedding request iterator for plain (untyped) text inputs.
  * <p>
- * Each position in the text block is converted into a {@link InferenceAction.Request}
- * for text embedding inference. Null text inputs are preserved as null requests.
- * For multi-valued text fields, only the first value is used.
+ * Produces {@link InferenceAction.Request} items
  * </p>
  */
-class TextEmbeddingRequestIterator implements BulkInferenceRequestItemIterator {
+class TextEmbeddingRequestIterator extends AbstractEmbeddingRequestIterator {
 
-    private final InputTextReader textReader;
-    private final String inferenceId;
-    private final int size;
-    private int currentPos = 0;
+    private final TimeValue timeout;
 
-    private final PositionValueCountsBuilder positionValueCountsBuilder = BulkInferenceRequestItem.positionValueCountsBuilder();
-
-    /**
-     * Constructs a new iterator from the given block of text inputs.
-     *
-     * @param inferenceId The ID of the inference model to invoke.
-     * @param textBlock   The input block containing text to embed.
-     */
-    TextEmbeddingRequestIterator(String inferenceId, BytesRefBlock textBlock) {
-        this.textReader = new InputTextReader(textBlock);
-        this.size = textBlock.getPositionCount();
-        this.inferenceId = inferenceId;
+    TextEmbeddingRequestIterator(String inferenceId, BytesRefBlock textBlock, TimeValue timeout) {
+        super(inferenceId, TaskType.TEXT_EMBEDDING, textBlock);
+        this.timeout = timeout;
     }
 
     @Override
-    public boolean hasNext() {
-        return currentPos < size;
-    }
-
-    @Override
-    public BulkInferenceRequestItem next() {
-        if (hasNext() == false) {
-            throw new NoSuchElementException();
-        }
-
-        positionValueCountsBuilder.reset();
-
-        // Read rows until we find a non-null value or reach the end of the page.
-        // For multi-valued fields, only the first value is considered to do the embedding.
-        String currentText = textReader.readText(currentPos++, 1);
-        while (hasNext() && currentText == null) {
-            positionValueCountsBuilder.addValue(0);
-            currentText = textReader.readText(currentPos++, 1);
-        }
-
-        positionValueCountsBuilder.addValue(currentText == null ? 0 : 1);
-
-        if (currentText != null) {
-            // Consume trailing null positions after the current row
-            while (hasNext() && textReader.isNull(currentPos)) {
-                positionValueCountsBuilder.addValue(0);
-                currentPos++;
-            }
-        }
-
-        return new BulkInferenceRequestItem(inferenceRequest(currentText), positionValueCountsBuilder);
-    }
-
-    /**
-     * Wraps a single text string into an {@link InferenceAction.Request} for text embedding.
-     */
-    private InferenceAction.Request inferenceRequest(String text) {
+    protected BulkInferenceRequestItem buildRequestItem(String text, PositionValueCountsBuilder pvcs) {
         if (text == null) {
-            return null;
+            return new BulkInferenceRequestItem(null, pvcs);
         }
-
-        return InferenceAction.Request.builder(inferenceId, TaskType.TEXT_EMBEDDING).setInput(List.of(text)).build();
-    }
-
-    @Override
-    public int estimatedSize() {
-        return textReader.estimatedSize();
-    }
-
-    @Override
-    public void close() {
-        Releasables.closeExpectNoException(textReader);
+        InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, taskType).setInput(List.of(text));
+        if (timeout != null) {
+            builder.setInferenceTimeout(timeout);
+        }
+        return new BulkInferenceRequestItem(builder.build(), pvcs);
     }
 
     /**
      * Factory for creating {@link TextEmbeddingRequestIterator} instances.
      */
-    record Factory(String inferenceId, ExpressionEvaluator textEvaluator) implements BulkInferenceRequestItemIterator.Factory {
+    record Factory(String inferenceId, TaskType taskType, ExpressionEvaluator textEvaluator, TimeValue timeout)
+        implements
+            BulkInferenceRequestItemIterator.Factory {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new TextEmbeddingRequestIterator(inferenceId, (BytesRefBlock) textEvaluator.eval(inputPage));
+            return new TextEmbeddingRequestIterator(inferenceId, (BytesRefBlock) textEvaluator.eval(inputPage), timeout);
         }
 
         @Override

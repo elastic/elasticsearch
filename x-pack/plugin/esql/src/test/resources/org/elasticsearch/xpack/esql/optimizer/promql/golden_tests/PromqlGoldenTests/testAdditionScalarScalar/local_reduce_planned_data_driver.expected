@@ -1,0 +1,5 @@
+ExchangeSinkExec[[_tsid{m}#0, step{r}#1],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+TimeSeriesAggregate[[_tsid{m}#0, step{r}#1],[step{r}#1],BUCKET(@timestamp{f}#2,PT1H[TIME_DURATION]),BUCKET(@timestamp{f}#2,PT1H[TIME_DURATION]),@timestamp{f}#2,false]
+\_Eval[[BUCKET(@timestamp{f}#2,PT1H[TIME_DURATION]) AS step#1]]
+  \_EsRelation[k8s][@timestamp{f}#2, client.ip{f}#3, cluster{f}#4, event{f}#5, event_city{f}#6, event_city_boundary{f}#7, event_location{f}#8, event_log{f}#9, event_shape{f}#10, events_received{f}#11, network.bytes_in{f}#12, network.cost{f}#13, network.eth0.currently_connected_clients{f}#14, network.eth0.firmware_version{f}#15, network.eth0.last_up{f}#16, network.eth0.rx{f}#17, network.eth0.tx{f}#18, network.eth0.up{f}#19, network.total_bytes_in{f}#20, network.total_bytes_out{f}#21, network.total_cost{f}#22, pod{f}#23, region{f}#24, _tsid{m}#0]<>]]

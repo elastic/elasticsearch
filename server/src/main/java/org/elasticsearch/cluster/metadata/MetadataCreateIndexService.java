@@ -311,6 +311,9 @@ public class MetadataCreateIndexService {
         if (projectMetadata.hasView(index)) {
             throw new InvalidIndexNameException(index, "already exists as an ESQL view");
         }
+        if (projectMetadata.hasDataset(index)) {
+            throw new InvalidIndexNameException(index, "already exists as an ESQL dataset");
+        }
     }
 
     /**
@@ -2007,6 +2010,12 @@ public class MetadataCreateIndexService {
                 targetIndexName
             );
         }
+        if (projectMetadata.hasDataset(targetIndexName)) {
+            throw new ResourceAlreadyExistsException(
+                "cannot resize to [{}], as an ESQL dataset already exists with that name",
+                targetIndexName
+            );
+        }
         final IndexMetadata sourceMetadata = projectMetadata.index(sourceIndex);
         if (sourceMetadata == null) {
             throw new IndexNotFoundException(sourceIndex);
@@ -2189,7 +2198,8 @@ public class MetadataCreateIndexService {
     }
 
     private static boolean applyRefreshBlock(IndexMetadata indexMetadata) {
-        return 0 < indexMetadata.getNumberOfReplicas() // index has replicas
+        return (0 < indexMetadata.getNumberOfReplicas() // index has replicas or auto-expand replicas
+            || indexMetadata.getAutoExpandReplicas().enabled() && indexMetadata.getAutoExpandReplicas().maxReplicas() > 0)
             && indexMetadata.getResizeSourceIndex() == null // index is not a split/shrink index
             && indexMetadata.getInSyncAllocationIds().values().stream().allMatch(Set::isEmpty); // index is a new index
     }

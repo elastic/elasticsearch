@@ -338,8 +338,8 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 
-    public void testDisableIndex() throws Exception {
-
+    @Override
+    public void testNotIndexed() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "flattened");
             b.field("index", false);
@@ -414,6 +414,21 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
         assertEquals(1, keyedFields.size());
         assertEquals(DocValuesType.BINARY, keyedFields.get(0).fieldType().docValuesType());
+    }
+
+    @Override
+    public void testDisableDefaultIndex() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
+
+        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
+        var mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "flattened")));
+        var documentMapper = mapperService.documentMapper();
+        ParsedDocument doc = documentMapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(0, fields.size());
+        List<IndexableField> keyedFields = doc.rootDoc().getFields("field._keyed");
+        assertEquals(1, keyedFields.size());
+        assertEquals(DocValuesType.SORTED_SET, keyedFields.get(0).fieldType().docValuesType());
     }
 
     public void testDisableDocValues() throws Exception {
@@ -2184,36 +2199,6 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             }
             assertFalse(info, rightIterator.hasNext());
         }
-    }
-
-    public void testMultiValueSortedSet() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", "flattened").startObject("doc_values").field("multi_value", "sorted_set").endObject())
-        );
-        FlattenedFieldMapper mapper = (FlattenedFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper.fieldType().hasDocValues(), equalTo(true));
-    }
-
-    public void testMultiValueDefaultIsSortedSet() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "flattened")));
-        FlattenedFieldMapper mapper = (FlattenedFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper.fieldType().hasDocValues(), equalTo(true));
-    }
-
-    public void testMultiValueSortedNotAllowed() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        var e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(
-                fieldMapping(b -> b.field("type", "flattened").startObject("doc_values").field("multi_value", "sorted").endObject())
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("Unknown value [sorted] for field [multi_value] - accepted values are [no, sorted_set, arrays]")
-        );
     }
 
     public void testPassthroughWithNegativePriorityThrows() throws IOException {

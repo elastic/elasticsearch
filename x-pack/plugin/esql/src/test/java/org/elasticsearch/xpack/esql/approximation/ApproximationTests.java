@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
+import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.List;
 
@@ -30,9 +32,9 @@ public class ApproximationTests extends ApproximationTestCase {
         return withDefaultLimitWarning(super.filteredWarnings());
     }
 
-    public void testVerify_validQuery() throws Exception {
+    public void testVerify_validQuery() {
         verify("FROM test | WHERE emp_no<99 | SORT last_name | MV_EXPAND salary | STATS COUNT() BY gender");
-        verify("FROM test | CHANGE_POINT salary ON emp_no | EVAL x=1 | DROP emp_no | STATS SUM(salary) BY x");
+        verify("FROM test | EVAL x=1 | DROP emp_no | STATS sum=SUM(salary) BY x | CHANGE_POINT sum ON x");
         verify("FROM test | KEEP gender, emp_no | RENAME gender AS whatever | STATS MEDIAN(emp_no) | LIMIT 1000");
         verify("FROM test | EVAL blah=1 | GROK last_name \"%{IP:x}\" | SAMPLE 0.1 | STATS a=COUNT() | LIMIT 100 | SORT a");
         verify("ROW i=[1,2,3] | EVAL x=TO_STRING(i) | DISSECT x \"%{x}\" | STATS i=10*POW(PERCENTILE(i, 0.5), 2) | LIMIT 10");
@@ -40,31 +42,56 @@ public class ApproximationTests extends ApproximationTestCase {
         verify("FROM test | REGISTERED_DOMAIN rd = last_name | STATS c = COUNT() BY rd.registered_domain | LIMIT 10");
     }
 
+    public void testVerify_inlineStats() {
+        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
+        verify("FROM test | INLINE STATS COUNT() BY last_name | LIMIT 10");
+    }
+
+    public void testVerify_inlineStats_disabled() {
+        assumeTrue("needs approximation inline stats disabled", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled() == false);
+        assertError(
+            "FROM test | INLINE STATS COUNT() BY last_name | LIMIT 10",
+            equalTo("line 1:13: approximation not supported: query with [INLINE STATS COUNT() BY last_name] cannot be approximated")
+        );
+    }
+
+    public void testVerify_lookupJoin() {
+        assumeTrue("needs approximation lookup join", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
+        verify("FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()");
+    }
+
+    public void testVerify_lookupJoin_disabled() {
+        assumeTrue("needs approximation lookup join disabled", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled() == false);
+        assertError(
+            "FROM test | LOOKUP JOIN test_lookup ON emp_no | STATS COUNT()",
+            equalTo("line 1:13: approximation not supported: query with [LOOKUP JOIN test_lookup ON emp_no] cannot be approximated")
+        );
+    }
+
     public void testVerify_validQuery_queryProperties() throws Exception {
         assertThat(
             verify("FROM test | SORT last_name | RENAME gender AS whatever | EVAL blah=1 | STATS COUNT() BY emp_no"),
-            equalTo(new Approximation.QueryProperties(true, false, false))
+            equalTo(new Approximation.QueryProperties(true, false))
         );
         assertThat(
             verify("FROM test | STATS COUNT() BY emp_no | WHERE emp_no > 10 | LIMIT 3 | MV_EXPAND emp_no"),
-            equalTo(new Approximation.QueryProperties(true, false, false))
+            equalTo(new Approximation.QueryProperties(true, false))
         );
-        assertThat(
-            verify("FROM test | WHERE emp_no > 10 | STATS SUM(emp_no)"),
-            equalTo(new Approximation.QueryProperties(false, true, false))
-        );
-        assertThat(
-            verify("FROM test | SAMPLE 0.3 | STATS COUNT() BY emp_no"),
-            equalTo(new Approximation.QueryProperties(true, true, false))
-        );
+        assertThat(verify("FROM test | WHERE emp_no > 10 | STATS SUM(emp_no)"), equalTo(new Approximation.QueryProperties(false, true)));
+        assertThat(verify("FROM test | SAMPLE 0.3 | STATS COUNT() BY emp_no"), equalTo(new Approximation.QueryProperties(true, true)));
         assertThat(
             verify("FROM test | MV_EXPAND gender | STATS COUNT() BY emp_no"),
-            equalTo(new Approximation.QueryProperties(true, false, true))
+            equalTo(new Approximation.QueryProperties(true, false))
         );
         assertThat(
             verify("FROM test | MV_EXPAND gender | WHERE emp_no < 3 | STATS COUNT()"),
-            equalTo(new Approximation.QueryProperties(false, true, true))
+            equalTo(new Approximation.QueryProperties(false, true))
         );
+    }
+
+    public void testVerify_validQuery_queryProperties_inlineStats() throws Exception {
+        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
+        assertThat(verify("FROM test | WHERE emp_no < 3 | INLINE STATS COUNT()"), equalTo(new Approximation.QueryProperties(false, true)));
     }
 
     public void testVerify_exactlyOneStats() {
@@ -78,13 +105,29 @@ public class ApproximationTests extends ApproximationTestCase {
         );
     }
 
+    public void testVerify_exactlyOneStats_inlineStats() {
+        assumeTrue("needs approximation inline stats", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
+        assertError(
+            "FROM test | INLINE STATS count=COUNT() BY emp_no | STATS AVG(count)",
+            equalTo("line 1:52: approximation not supported: query with multiple [STATS] cannot be approximated")
+        );
+        assertError(
+            "FROM test | STATS COUNT() BY emp_no | INLINE STATS COUNT()",
+            equalTo("line 1:39: approximation not supported: query with multiple [STATS] cannot be approximated")
+        );
+        assertError(
+            "FROM test | INLINE STATS count=COUNT() | INLINE STATS SUM(count)",
+            equalTo("line 1:42: approximation not supported: query with multiple [STATS] cannot be approximated")
+        );
+    }
+
     public void testVerify_incompatibleSourceCommand() {
         assertError(
             "SHOW INFO | STATS COUNT()",
             equalTo("line 1:1: approximation not supported: query with [SHOW INFO] cannot be approximated")
         );
         assertError(
-            "TS k8s | STATS COUNT(network.cost)",
+            "TS k8s | STATS RATE(network.total_bytes_in)",
             equalTo("line 1:1: approximation not supported: query with [TS k8s] cannot be approximated")
         );
     }
@@ -98,28 +141,18 @@ public class ApproximationTests extends ApproximationTestCase {
             "FROM test | STATS COUNT() | FORK (EVAL x=1) (EVAL y=1)",
             equalTo("line 1:29: approximation not supported: query with [FORK (EVAL x=1) (EVAL y=1)] cannot be approximated")
         );
-        assertError(
-            "FROM test | INLINE STATS COUNT() | STATS COUNT()",
-            equalTo("line 1:13: approximation not supported: query with [INLINE STATS COUNT()] cannot be approximated")
-        );
-        assertError(
-            "FROM test | STATS COUNT() | INLINE STATS COUNT()",
-            equalTo("line 1:29: approximation not supported: query with [INLINE STATS COUNT()] cannot be approximated")
-        );
-        assertError(
-            "FROM test | LOOKUP JOIN test_lookup ON emp_no | FORK (EVAL x=1) (EVAL y=1) | STATS COUNT()",
-            equalTo("line 1:13: approximation not supported: query with [LOOKUP JOIN test_lookup ON emp_no] cannot be approximated")
-        );
-        assertError(
-            "FROM test | STATS emp_no=COUNT() | LOOKUP JOIN test_lookup ON emp_no | FORK (EVAL x=1) (EVAL y=1)",
-            equalTo("line 1:36: approximation not supported: query with [LOOKUP JOIN test_lookup ON emp_no] cannot be approximated")
-        );
     }
 
     public void testVerify_incompatibleProcessingCommandBeforeStats() {
         assertError(
             "FROM test | LIMIT 1000 | STATS COUNT()",
             equalTo("line 1:13: approximation not supported: query with [LIMIT 1000] before [STATS] cannot be approximated")
+        );
+        assertError(
+            "FROM test | CHANGE_POINT salary ON emp_no | EVAL x=1 | DROP emp_no | STATS SUM(salary) BY x",
+            equalTo(
+                "line 1:13: approximation not supported: query with [CHANGE_POINT salary ON emp_no] before [STATS] cannot be approximated"
+            )
         );
     }
 
@@ -142,7 +175,7 @@ public class ApproximationTests extends ApproximationTestCase {
         );
     }
 
-    public void testPlans_noData() throws Exception {
+    public void testPlans_noData() {
         // This test simulates a source count of 0.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | STATS SUM(emp_no)");
@@ -155,7 +188,7 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, hasPlan(Aggregate.class, withAggs(Count.class)));
 
         // Source count of 0, so no more subplans.
-        mainPlan = approximation.newMainPlan(newCountResult(0));
+        mainPlan = processResult(approximation, mainPlan, newCountResult(0));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, nullValue());
 
@@ -164,7 +197,7 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(mainPlan, hasPlan(Aggregate.class, withAggs(Sum.class)));
     }
 
-    public void testPlans_smallDataNoFilters() throws Exception {
+    public void testPlans_smallDataNoFilters() {
         // This test simulates a source count of 1_000.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | STATS SUM(emp_no)");
@@ -177,7 +210,7 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, hasPlan(Aggregate.class, withAggs(Count.class)));
 
         // Source count of 1000, so no more subplans.
-        mainPlan = approximation.newMainPlan(newCountResult(1_000));
+        mainPlan = processResult(approximation, mainPlan, newCountResult(1_000));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, nullValue());
 
@@ -186,7 +219,7 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(mainPlan, hasPlan(Aggregate.class, withAggs(Sum.class)));
     }
 
-    public void testPlans_largeDataNoFilters() throws Exception {
+    public void testPlans_largeDataNoFilters() {
         // This test simulates a source count of 10^9.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | STATS SUM(emp_no)");
@@ -199,7 +232,7 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, hasPlan(Aggregate.class, withAggs(Count.class)));
 
         // Source count of 10^9.
-        mainPlan = approximation.newMainPlan(newCountResult(1_000_000_000));
+        mainPlan = processResult(approximation, mainPlan, newCountResult(1_000_000_000));
         // No filtering, so no more subplans.
         subplan = approximation.firstSubPlan();
         assertThat(subplan, nullValue());
@@ -209,7 +242,7 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(mainPlan, hasPlan(SampledAggregate.class, withProbability(1e-4), withAggs(Sum.class)));
     }
 
-    public void testPlans_largeDataAfterFiltering() throws Exception {
+    public void testPlans_largeDataAfterFiltering() {
         // This test simulates a source count of 10^12, and a filtered count of 10^9.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)");
@@ -223,7 +256,7 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, hasPlan(Aggregate.class, withAggs(Count.class)));
 
         // Source count of 10^12.
-        approximation.newMainPlan(newCountResult(1_000_000_000_000L));
+        processResult(approximation, mainPlan, newCountResult(1_000_000_000_000L));
         // There's filtering, so start with a count plan with sampling with probability 10^4 / 10^12.
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
@@ -231,14 +264,14 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-8), withAggs(CountApproximate.class)));
 
         // Sampled-corrected filtered count of 10^9 (so actual count of 10), so increase the sample probability.
-        approximation.newMainPlan(newCountResult(1_000_000_000));
+        processResult(approximation, mainPlan, newCountResult(1_000_000_000));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
         assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-5), withAggs(CountApproximate.class)));
 
         // Sampled-corrected filtered count of 10^9 (so actual count of 10_000), so no more subplans.
-        mainPlan = approximation.newMainPlan(newCountResult(1_000_000_000));
+        mainPlan = processResult(approximation, mainPlan, newCountResult(1_000_000_000));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, nullValue());
 
@@ -248,7 +281,7 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(mainPlan, hasPlan(SampledAggregate.class, withProbability(1e-4), withAggs(Sum.class)));
     }
 
-    public void testPlans_smallDataAfterFiltering() throws Exception {
+    public void testPlans_smallDataAfterFiltering() {
         // This test simulates a source count of 10^18, and a filtered count of 100.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)");
@@ -262,7 +295,7 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, hasPlan(Aggregate.class, withAggs(Count.class)));
 
         // Source count of 10^18.
-        approximation.newMainPlan(newCountResult(1_000_000_000_000_000_000L));
+        processResult(approximation, mainPlan, newCountResult(1_000_000_000_000_000_000L));
         // There's filtering, so start with a count plan with sampling with probability 10^4 / 10^18.
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
@@ -270,28 +303,28 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-14), withAggs(CountApproximate.class)));
 
         // Filtered count of 0, so increase the sample probability.
-        approximation.newMainPlan(newCountResult(0));
+        processResult(approximation, mainPlan, newCountResult(0));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
         assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-10), withAggs(CountApproximate.class)));
 
         // Filtered count of 0, so increase the sample probability.
-        approximation.newMainPlan(newCountResult(0));
+        processResult(approximation, mainPlan, newCountResult(0));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
         assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-6), withAggs(CountApproximate.class)));
 
         // Filtered count of 0, so increase the sample probability.
-        approximation.newMainPlan(newCountResult(0));
+        processResult(approximation, mainPlan, newCountResult(0));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
         assertThat(subplan, not(hasPlan(Aggregate.class)));
         assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-2), withAggs(CountApproximate.class)));
 
         // Filtered count of 0, so no more subplans.
-        mainPlan = approximation.newMainPlan(newCountResult(0));
+        mainPlan = processResult(approximation, mainPlan, newCountResult(0));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, nullValue());
 
@@ -301,7 +334,7 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(mainPlan, hasPlan(Aggregate.class, withAggs(Sum.class)));
     }
 
-    public void testPlans_smallDataBeforeFiltering() throws Exception {
+    public void testPlans_smallDataBeforeFiltering() {
         // This test simulates a source count of 1_000, and a filtered count of 10.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | WHERE gender == \"X\" | STATS SUM(emp_no)");
@@ -315,7 +348,7 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, hasPlan(Aggregate.class, withAggs(Count.class)));
 
         // Source count of 1000, so no more subplans.
-        mainPlan = approximation.newMainPlan(newCountResult(1_000));
+        mainPlan = processResult(approximation, mainPlan, newCountResult(1_000));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, nullValue());
 
@@ -325,8 +358,8 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(mainPlan, hasPlan(Aggregate.class, withAggs(Sum.class)));
     }
 
-    public void testPlans_smallDataAfterMvExpanding() throws Exception {
-        // This test simulates a source count of 1_000, and a mv_expanded count of 10_000.
+    public void testPlans_smallDataBeforeMvExpanding() {
+        // This test simulates a source count of 1_000, and an irrelevant mv_expanded count
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | MV_EXPAND emp_no | STATS SUM(emp_no)");
         LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
@@ -338,17 +371,8 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, not(hasPlan(SampledAggregate.class)));
         assertThat(subplan, hasPlan(Aggregate.class, withAggs(Count.class)));
 
-        // Source count of 1000.
-        approximation.newMainPlan(newCountResult(1_000));
-        // The next subplan should be the mv_expanded count,
-        // without sampling, because source count is small.
-        subplan = approximation.firstSubPlan();
-        assertThat(subplan, hasPlan(MvExpand.class));
-        assertThat(subplan, not(hasPlan(SampledAggregate.class)));
-        assertThat(subplan, hasPlan(Aggregate.class, withAggs(Count.class)));
-
-        // mv_expanded count of 10_000, so no more subplans.
-        mainPlan = approximation.newMainPlan(newCountResult(1_000));
+        // Source count of 1000, so no more subplans.
+        mainPlan = processResult(approximation, mainPlan, newCountResult(1_000));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, nullValue());
 
@@ -358,41 +382,8 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(mainPlan, hasPlan(Aggregate.class, withAggs(Sum.class)));
     }
 
-    public void testPlans_largeDataAfterMvExpanding() throws Exception {
-        // This test simulates a source count of 1_000, and a mv_expanded count of 10^9
-
-        LogicalPlan originalPlan = getLogicalPlan("FROM test | MV_EXPAND emp_no | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
-        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
-
-        // The first subplan should be the source count.
-        LogicalPlan subplan = approximation.firstSubPlan();
-        assertThat(subplan, not(hasPlan(MvExpand.class)));
-        assertThat(subplan, not(hasPlan(SampledAggregate.class)));
-        assertThat(subplan, hasPlan(Aggregate.class, withAggs(Count.class)));
-
-        // Source count of 1000.
-        approximation.newMainPlan(newCountResult(1_000));
-        // The next subplan should be the mv_expanded count,
-        // without no sampling because source count is small.
-        subplan = approximation.firstSubPlan();
-        assertThat(subplan, hasPlan(MvExpand.class));
-        assertThat(subplan, not(hasPlan(SampledAggregate.class)));
-        assertThat(subplan, hasPlan(Aggregate.class, withAggs(Count.class)));
-
-        // mv_expanded count of 10^9, so no more subplans.
-        mainPlan = approximation.newMainPlan(newCountResult(1_000_000_000));
-        subplan = approximation.firstSubPlan();
-        assertThat(subplan, nullValue());
-
-        // The main plan should have any sampling with probability 10^5/10^9.
-        assertThat(mainPlan, hasPlan(MvExpand.class));
-        assertThat(mainPlan, not(hasPlan(Aggregate.class)));
-        assertThat(mainPlan, hasPlan(SampledAggregate.class, withProbability(1e-4), withAggs(Sum.class)));
-    }
-
-    public void testPlans_largeDataBeforeMvExpanding() throws Exception {
-        // This test simulates a source count of 10^9, and a mv_expanded count of 10^12
+    public void testPlans_largeDataBeforeMvExpanding() {
+        // This test simulates a source count of 10^9, and an irrelevant mv_expanded count
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | MV_EXPAND emp_no | STATS SUM(emp_no)");
         LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
@@ -405,26 +396,45 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, hasPlan(Aggregate.class, withAggs(Count.class)));
 
         // Source count of 10^9.
-        approximation.newMainPlan(newCountResult(1_000_000_000));
-        // The next subplan should be the mv_expanded count,
-        // with sampling because source count is large.
-        subplan = approximation.firstSubPlan();
-        assertThat(subplan, hasPlan(MvExpand.class));
-        assertThat(subplan, not(hasPlan(Aggregate.class)));
-        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-5), withAggs(CountApproximate.class)));
+        mainPlan = processResult(approximation, mainPlan, newCountResult(1_000_000_000));
 
-        // Sample-corrected mv_expanded count of 10^12 (so actual of 10^7), so no more subplans.
-        mainPlan = approximation.newMainPlan(newCountResult(1_000_000_000_000L));
-        subplan = approximation.firstSubPlan();
-        assertThat(subplan, nullValue());
-
-        // The main plan should have any sampling with probability 10^5/10^12.
+        // The main plan should have sampling with probability 10^5/10^9.
         assertThat(mainPlan, hasPlan(MvExpand.class));
         assertThat(mainPlan, not(hasPlan(Aggregate.class)));
-        assertThat(mainPlan, hasPlan(SampledAggregate.class, withProbability(1e-7), withAggs(Sum.class)));
+        assertThat(mainPlan, hasPlan(SampledAggregate.class, withProbability(1e-4), withAggs(Sum.class)));
     }
 
-    public void testPlans_sampleProbabilityThreshold_noFilter() throws Exception {
+    public void testPlans_largeDataAfterMvExpandAndFilter() {
+        // This test simulates a source count of 10^9, and an mv_expanded/filtered count of 10^12.
+
+        LogicalPlan originalPlan = getLogicalPlan("FROM test | MV_EXPAND emp_no | WHERE emp_no > 1 | STATS SUM(emp_no)");
+        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
+        Approximation approximation = new Approximation(mainPlan, ApproximationSettings.DEFAULT);
+
+        // The first subplan should be the source count.
+        LogicalPlan subplan = approximation.firstSubPlan();
+        assertThat(subplan, not(hasPlan(MvExpand.class)));
+        assertThat(subplan, not(hasPlan(Filter.class)));
+        assertThat(subplan, not(hasPlan(SampledAggregate.class)));
+        assertThat(subplan, hasPlan(Aggregate.class, withAggs(Count.class)));
+
+        // Source count of 10^9.
+        processResult(approximation, mainPlan, newCountResult(1_000_000_000));
+        subplan = approximation.firstSubPlan();
+        assertThat(subplan, hasPlan(MvExpand.class));
+        assertThat(subplan, hasPlan(Filter.class));
+        assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-5), withAggs(CountApproximate.class)));
+
+        // Sampled-corrected filtered count of 10^12, so use the minimum sample probability.
+        mainPlan = processResult(approximation, mainPlan, newCountResult(1_000_000_000_000L));
+
+        // The main plan should have sampling with probability 10^5/10^9.
+        assertThat(mainPlan, hasPlan(MvExpand.class));
+        assertThat(mainPlan, not(hasPlan(Aggregate.class)));
+        assertThat(mainPlan, hasPlan(SampledAggregate.class, withProbability(1e-4), withAggs(Sum.class)));
+    }
+
+    public void testPlans_sampleProbabilityThreshold_noFilter() {
         // This test simulates a source count of 500_000, which leads to a sample probability of 0.5,
         // which is above the threshold, so no sampling should be applied.
 
@@ -438,7 +448,7 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, hasPlan(Aggregate.class, withAggs(Count.class)));
 
         // Source count of 500_000, so no more subplans.
-        mainPlan = approximation.newMainPlan(newCountResult(500_000));
+        mainPlan = processResult(approximation, mainPlan, newCountResult(500_000));
         subplan = approximation.firstSubPlan();
         assertThat(subplan, nullValue());
 
@@ -447,7 +457,7 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(mainPlan, hasPlan(Aggregate.class, withAggs(Sum.class)));
     }
 
-    public void testCountPlan_sampleProbabilityThreshold_withFilter() throws Exception {
+    public void testCountPlan_sampleProbabilityThreshold_withFilter() {
         // This test simulates a source count of 10^12, and a filtered count of 200_000.
         // This leads to a sample probability of 0.2, which is above the threshold,
         // so no sampling should be applied.
@@ -463,7 +473,7 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, hasPlan(Aggregate.class, withAggs(Count.class)));
 
         // Source count of 10^12.
-        approximation.newMainPlan(newCountResult(1_000_000_000_000L));
+        processResult(approximation, mainPlan, newCountResult(1_000_000_000_000L));
         // There's filtering, so start with a count plan with sampling with probability 10^4 / 10^12.
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
@@ -471,7 +481,7 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(subplan, hasPlan(SampledAggregate.class, withProbability(1e-8), withAggs(CountApproximate.class)));
 
         // Sampled filtered count of 0, so increase the sample probability.
-        approximation.newMainPlan(newCountResult(0));
+        processResult(approximation, mainPlan, newCountResult(0));
         // There's filtering, so start with a count plan with sampling with probability 10^4 / 10^12.
         subplan = approximation.firstSubPlan();
         assertThat(subplan, hasPlan(Filter.class));
@@ -480,7 +490,7 @@ public class ApproximationTests extends ApproximationTestCase {
 
         // Sampled filtered count of 20, which would next to a sample probability of 0.2,
         // which is above the threshold, so no more subplans.
-        mainPlan = approximation.newMainPlan(newCountResult(20));
+        mainPlan = processResult(approximation, mainPlan, newCountResult(20));
         // There's filtering, so start with a count plan with sampling with probability 10^4 / 10^12.
         subplan = approximation.firstSubPlan();
         assertThat(subplan, nullValue());
@@ -489,5 +499,10 @@ public class ApproximationTests extends ApproximationTestCase {
         assertThat(mainPlan, hasPlan(Filter.class));
         assertThat(mainPlan, not(hasPlan(SampledAggregate.class)));
         assertThat(mainPlan, hasPlan(Aggregate.class, withAggs(Sum.class)));
+    }
+
+    private LogicalPlan processResult(Approximation approximation, LogicalPlan mainPlan, Result result) {
+        Double sampleProbability = approximation.processResult(result);
+        return sampleProbability == null ? mainPlan : ApproximationPlan.substituteSampleProbability(mainPlan, sampleProbability);
     }
 }

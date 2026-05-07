@@ -20,6 +20,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -516,12 +517,14 @@ public class BooleanFieldMapper extends FieldMapper {
     private final Boolean nullValue;
     private final boolean indexed;
     private final DocValuesParameter.Values docValuesParameters;
+    private final DocValuesFieldFactory dvFactory;
     private final boolean stored;
     private final Script script;
     private final FieldValues<Boolean> scriptValues;
     private final ScriptCompiler scriptCompiler;
     private final Explicit<Boolean> ignoreMalformed;
     private final IndexSettings indexSettings;
+    private final boolean writeDimensionRouting;
     private final boolean storeMalformedFields;
 
     private final String offsetsFieldName;
@@ -539,10 +542,18 @@ public class BooleanFieldMapper extends FieldMapper {
         this.stored = builder.stored.getValue();
         this.indexed = builder.indexed.getValue();
         this.docValuesParameters = builder.docValuesParameters.getValue();
+        this.dvFactory = new DocValuesFieldFactory(
+            docValuesParameters.multiValue(),
+            fieldType().indexType.hasDocValuesSkipper(),
+            builder.indexSettings.getIndexVersionCreated()
+        );
         this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
         this.scriptCompiler = builder.scriptCompiler;
         this.indexSettings = builder.indexSettings;
+        this.writeDimensionRouting = builder.dimension.getValue()
+            && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
+            && efs.extractDimensionsWhileMapping();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.storeMalformedFields = storeMalformedFields;
         this.offsetsFieldName = offsetsFieldName;
@@ -558,6 +569,11 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean isSingleValueEnforced() {
+        return docValuesParameters.multiValue().isSingleValued();
+    }
+
+    @Override
     public BooleanFieldType fieldType() {
         return (BooleanFieldType) super.fieldType();
     }
@@ -565,6 +581,18 @@ public class BooleanFieldMapper extends FieldMapper {
     @Override
     public String getOffsetFieldName() {
         return offsetsFieldName;
+    }
+
+    @Override
+    public boolean supportsBatchIndexing() {
+        // Plain boolean mappers can be driven through parseCreateField by the bulk batch path.
+        // ignore_malformed is allowed — parseCreateField handles it via addIgnoredField, which
+        // BatchDocumentParserContext records. Dimensions, copy_to, multi-fields, and scripts pull
+        // in behavior that the batch path does not support.
+        return hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && fieldType().isDimension() == false;
     }
 
     @Override
@@ -610,7 +638,7 @@ public class BooleanFieldMapper extends FieldMapper {
             return;
         }
 
-        if (fieldType().isDimension()) {
+        if (writeDimensionRouting) {
             context.getRoutingFields().addBoolean(fieldType().name(), value);
         }
         if (indexed) {
@@ -620,11 +648,7 @@ public class BooleanFieldMapper extends FieldMapper {
             context.doc().add(new StoredField(fieldType().name(), value ? "T" : "F"));
         }
         if (docValuesParameters.enabled()) {
-            if (fieldType().indexType.hasDocValuesSkipper()) {
-                context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), value ? 1 : 0));
-            } else {
-                context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
-            }
+            dvFactory.addNumericField(context.doc(), fieldType().name(), value ? 1 : 0);
         } else {
             context.addToFieldNames(fieldType().name());
         }

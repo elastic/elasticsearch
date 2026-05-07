@@ -233,7 +233,7 @@ public interface BlockLoader {
          *                       see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
          * @param toDouble       a function to convert long values to double, or null if no conversion is needed/supported
          * @param toInt          whether to convert to int in case int block / vector is needed
-         * @param binaryMultiValuedFormat whether the multi-valued binary format is used (CustomBinaryDocValuesField).
+         * @param binaryMultiValuedFormat whether the multi-valued binary format is used (MultiValuedBinaryDocValuesField).
          */
         @Nullable
         BlockLoader.Block tryRead(
@@ -251,6 +251,23 @@ public interface BlockLoader {
          * or {@code null} if this optimization is not supported by the underlying data.
          */
         default DocIdSetIterator tryContainsIterator(BytesRef containsTerm) throws IOException {
+            return null;
+        }
+    }
+
+    /**
+     * An interface for numeric doc values readers that can optionally produce a {@link DocIdSetIterator}
+     * optimized for range queries using SIMD bitmask scanning, with internal skipper-based block skipping
+     * when a skipper is available for the field.
+     * <p>
+     * The returned iterator shares internal block-decoding state with the reader that produced it.
+     * Callers must not use the originating reader after obtaining the iterator; the iterator assumes
+     * exclusive ownership of that shared state.
+     * <p>
+     * The default implementation returns {@code null}, indicating no optimized iterator is available.
+     */
+    interface OptionalNumericRangeReader {
+        default DocIdSetIterator tryRangeIterator(long lowerValue, long upperValue) throws IOException {
             return null;
         }
     }
@@ -700,6 +717,12 @@ public interface BlockLoader {
         Block constantInt(int value, int count);
 
         /**
+         * Build a block that contains {@code value} repeated
+         * {@code count} times.
+         */
+        Block constantLong(long value, int count);
+
+        /**
          * Build a reader for reading {@link SortedDocValues}
          */
         SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count, boolean isDense);
@@ -792,12 +815,12 @@ public interface BlockLoader {
          * Append multiple BytesRef. Offsets contains offsets of each BytesRef in the byte array.
          * The length of the offsets array is one more than the number of BytesRefs.
          */
-        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long[] offsets) throws IOException;
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int[] offsets) throws IOException;
 
         /**
          * Append multiple BytesRefs, all with the same length.
          */
-        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, long bytesRefLengths) throws IOException;
+        SingletonBytesRefBuilder appendBytesRefs(byte[] bytes, int bytesRefLengths) throws IOException;
     }
 
     interface FloatBuilder extends Builder {

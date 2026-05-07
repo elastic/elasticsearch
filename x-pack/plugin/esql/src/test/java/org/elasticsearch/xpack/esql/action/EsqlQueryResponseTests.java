@@ -304,6 +304,20 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         throw new UncheckedIOException(e);
                     }
                 }
+                case FLATTENED -> {
+                    try {
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(
+                            BytesReference.bytes(
+                                JsonXContent.contentBuilder()
+                                    .startObject()
+                                    .field(randomAlphaOfLength(3), randomAlphaOfLength(10))
+                                    .endObject()
+                            ).toBytesRef()
+                        );
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
                 case DENSE_VECTOR -> {
                     BlockLoader.FloatBuilder floatBuilder = (BlockLoader.FloatBuilder) builder;
                     int dims = randomIntBetween(32, 64) * 2; // min 64 dims, always even
@@ -1479,6 +1493,18 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             try (XContentBuilder sourceBuilder = JsonXContent.contentBuilder()) {
                                 sourceBuilder.map(o);
                                 ((BytesRefBlock.Builder) builder).appendBytesRef(BytesReference.bytes(sourceBuilder).toBytesRef());
+                            }
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    }
+                    case FLATTENED -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, ?> o = (Map<String, ?>) value;
+                        try {
+                            try (XContentBuilder flattenedBuilder = JsonXContent.contentBuilder()) {
+                                flattenedBuilder.map(o);
+                                ((BytesRefBlock.Builder) builder).appendBytesRef(BytesReference.bytes(flattenedBuilder).toBytesRef());
                             }
                         } catch (IOException e) {
                             throw new UncheckedIOException(e);

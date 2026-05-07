@@ -27,10 +27,13 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
 
     /**
      * Retrieves the int value stored at the given value index.
-     *
-     * <p> Values for a given position are between getFirstValueIndex(position) (inclusive) and
-     * getFirstValueIndex(position) + getValueCount(position) (exclusive).
-     *
+     * <p>
+     *    The {@code valueIndex} for a position is between.
+     * </p>
+     * {@snippet :
+     *    int start = getFirstValueIndex(position);  // @highlight
+     *    int end = start + getValueCount(position);  // @highlight
+     * }
      * @param valueIndex the value index
      * @return the data value (as a int)
      */
@@ -122,6 +125,12 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
 
     @Override
     IntBlock expand();
+
+    /**
+     * The maximum size in bytes of any single value stored in this block, or {@code 0} if there are no values.
+     * Always {@code Integer.BYTES} since all int values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     static IntBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();

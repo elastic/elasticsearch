@@ -638,8 +638,18 @@ public final class IndexSettings {
     );
 
     public static final FeatureFlag TIME_SERIES_TEMPORALITY_FEATURE_FLAG = new FeatureFlag("time_series_temporality");
+
+    /** Feature flag gating the ES95 pipeline-based TSDB doc values codec. */
+    public static final FeatureFlag ES95_CODEC_FEATURE_FLAG = new FeatureFlag("es95_codec");
+
     /**
      * Defines the name of the field storing the metric temporality.
+     * The corresponding field must be a keyword field (or keyword-like, e.g. constant_keyword).
+     * It should only store two values: either {@code delta} or {@code cumulative}.
+     * <br>
+     * The value of this field will then define how counters and histograms in the same document are interpreted.
+     * Note that if the temporality is not provided in an index (or in a document,({@code null} value)),
+     * ES|QL will assume a default, backwards compatible temporality: cumulative for counters and delta for histograms.
      */
     public static final Setting<String> TIME_SERIES_TEMPORALITY_FIELD = Setting.simpleString(
         "index.time_series.temporality_field",
@@ -693,6 +703,43 @@ public final class IndexSettings {
         Property.PrivateIndex,
         Property.Final
     );
+
+    /**
+     * Enables slice semantics for the index. When enabled, APIs accept {@code _slice} and treat it as routing.
+     */
+    public static final Setting<Boolean> SLICE_ENABLED = Setting.boolSetting("index.slice.enabled", false, new Setting.Validator<>() {
+        @Override
+        public void validate(Boolean enabled) {
+            if (enabled && SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "unknown setting [%s] please check that any required plugins are installed, "
+                            + "or check the breaking changes documentation for removed settings",
+                        SLICE_ENABLED.getKey()
+                    )
+                );
+            }
+        }
+
+        @Override
+        public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
+            if (enabled) {
+                var indexMode = (IndexMode) settings.get(MODE);
+                if (indexMode == IndexMode.TIME_SERIES) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "The setting [%s] cannot be used with [%s=%s].",
+                            SLICE_ENABLED.getKey(),
+                            MODE.getKey(),
+                            IndexMode.TIME_SERIES.getName()
+                        )
+                    );
+                }
+            }
+        }
+    }, Property.IndexScope, Property.Final, Property.ServerlessPublic);
 
     /**
     * The {@link IndexMode "mode"} of the index.
@@ -916,6 +963,25 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final FeatureFlag INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG = new FeatureFlag("index_disabled_by_default");
+    public static final Setting<Boolean> INDEX_DISABLED_BY_DEFAULT = Setting.boolSetting(
+        "index.mapping.index_disabled_by_default",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * Opt in setting that enables the ES95 TSDB doc values codec for a given time series index.
+     * Registered only when {@link #ES95_CODEC_FEATURE_FLAG} is enabled, defaults to {@code false}.
+     */
+    public static final Setting<Boolean> TIME_SERIES_ES95_CODEC_ENABLED_SETTING = Setting.boolSetting(
+        "index.time_series.es95_codec.enabled",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
@@ -1134,6 +1200,7 @@ public final class IndexSettings {
     private final boolean logsdbRouteOnSortFields;
     private final boolean logsdbSortOnHostName;
     private final boolean logsdbAddHostNameField;
+    private final boolean sliceEnabled;
     private volatile long retentionLeaseMillis;
 
     /**
@@ -1188,8 +1255,10 @@ public final class IndexSettings {
     private final boolean useTimeSeriesDocValuesFormat;
     private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
+    private final boolean timeSeriesEs95CodecEnabled;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
+    private final boolean indexDisabledByDefault;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1267,6 +1336,10 @@ public final class IndexSettings {
      */
     public boolean logsdbRouteOnSortFields() {
         return logsdbRouteOnSortFields;
+    }
+
+    public boolean isSliceEnabled() {
+        return sliceEnabled;
     }
 
     /**
@@ -1362,6 +1435,7 @@ public final class IndexSettings {
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
+        sliceEnabled = scopedSettings.get(SLICE_ENABLED);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
@@ -1393,10 +1467,12 @@ public final class IndexSettings {
         useDocValuesSkipperForHostname = USE_DOC_VALUES_SKIPPER.exists(settings)
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
             : version.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && version.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB);
+        indexDisabledByDefault = INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled() && scopedSettings.get(INDEX_DISABLED_BY_DEFAULT);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
+        timeSeriesEs95CodecEnabled = ES95_CODEC_FEATURE_FLAG.isEnabled() && scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
@@ -2197,10 +2273,26 @@ public final class IndexSettings {
     }
 
     /**
+     * Checks if this index has opted into the ES95 TSDB doc values codec.
+     * Always returns {@code false} when {@link #ES95_CODEC_FEATURE_FLAG} is disabled,
+     * regardless of any value set on {@link #TIME_SERIES_ES95_CODEC_ENABLED_SETTING}.
+     *
+     * @return {@code true} if the index has opted into ES95 and the feature flag is enabled;
+     *         {@code false} otherwise.
+     */
+    public boolean isTimeSeriesEs95CodecEnabled() {
+        return timeSeriesEs95CodecEnabled;
+    }
+
+    /**
      * @return Whether the ES 8.12 postings format should be used.
      */
     public boolean useEs812PostingsFormat() {
         return useEs812PostingsFormat;
+    }
+
+    public boolean isIndexDisabledByDefault() {
+        return indexDisabledByDefault;
     }
 
     /**

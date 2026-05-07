@@ -1548,6 +1548,49 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(EntityUtils.toString(response.getEntity()), equalTo("{\"acknowledged\":true}"));
     }
 
+    public void testNonCcsDatafeedStatsOmitsCrossClusterStats() throws Exception {
+        String jobId = "job-no-ccs-stats";
+        createJob(jobId, "airline");
+        String datafeedId = jobId + "-datafeed";
+        new DatafeedBuilder(datafeedId, jobId, "airline-data").setFrequency(TimeValue.timeValueSeconds(5)).build();
+        openJob(client(), jobId);
+
+        Request startRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start");
+        startRequest.addParameter("start", "2016-06-01T00:00:00Z");
+        Response response = client().performRequest(startRequest);
+        assertThat(EntityUtils.toString(response.getEntity()), containsString("\"started\":true"));
+
+        // While running: running_state should be present but remote_cluster_stats should be absent
+        assertBusy(() -> {
+            try {
+                Response statsResponse = client().performRequest(
+                    new Request("GET", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats")
+                );
+                String body = EntityUtils.toString(statsResponse.getEntity());
+                assertThat(body, containsString("\"real_time_configured\":true"));
+                assertThat(body, containsString("\"running_state\""));
+                assertFalse("remote_cluster_stats should not appear for non-CCS datafeed", body.contains("remote_cluster_stats"));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        Response stopResponse = client().performRequest(
+            new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stop")
+        );
+        assertThat(EntityUtils.toString(stopResponse.getEntity()), equalTo("{\"stopped\":true}"));
+
+        // After stopping: neither running_state nor remote_cluster_stats should appear
+        Response stoppedStatsResponse = client().performRequest(
+            new Request("GET", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats")
+        );
+        String stoppedBody = EntityUtils.toString(stoppedStatsResponse.getEntity());
+        assertThat(stoppedBody, containsString("\"state\":\"stopped\""));
+        assertFalse("remote_cluster_stats should not appear for stopped non-CCS datafeed", stoppedBody.contains("remote_cluster_stats"));
+
+        client().performRequest(new Request("POST", "/_ml/anomaly_detectors/" + jobId + "/_close"));
+    }
+
     public void testForceDeleteWhileDatafeedIsRunning() throws Exception {
         String jobId = "job-realtime-2";
         createJob(jobId, "airline");

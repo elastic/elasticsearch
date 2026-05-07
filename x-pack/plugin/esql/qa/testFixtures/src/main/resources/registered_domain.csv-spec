@@ -199,6 +199,7 @@ n:null | rd.domain:keyword | rd.registered_domain:keyword | rd.top_level_domain:
 
 sortBeforeRegisteredDomainAndStats
 required_capability: registered_domain_command
+required_capability: fix_compound_output_eval_sort_agnostic
 
 ROW a = 1, name_str = "a b"
 | RENAME a AS id_int

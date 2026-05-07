@@ -12,8 +12,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -22,6 +20,7 @@ import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 public class LoggingFeatureSetUsage extends XPackFeatureUsage {
 
@@ -104,6 +103,14 @@ public class LoggingFeatureSetUsage extends XPackFeatureUsage {
         this.queryConfig = queryConfig;
     }
 
+    QueryLoggingConfig queryConfig() {
+        return queryConfig;
+    }
+
+    EsqlLoggingConfig esqlConfig() {
+        return esqlConfig;
+    }
+
     public LoggingFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
         esqlConfig = new EsqlLoggingConfig(input);
@@ -126,5 +133,19 @@ public class LoggingFeatureSetUsage extends XPackFeatureUsage {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersion.zero();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        LoggingFeatureSetUsage that = (LoggingFeatureSetUsage) o;
+        return Objects.equals(esqlConfig, that.esqlConfig) && Objects.equals(queryConfig, that.queryConfig);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(esqlConfig, queryConfig);
     }
 }

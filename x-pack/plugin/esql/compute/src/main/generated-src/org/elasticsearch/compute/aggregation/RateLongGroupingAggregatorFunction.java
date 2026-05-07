@@ -764,62 +764,55 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
 
     static final class IntervalBuffer implements Releasable {
 
-        private final LongBuffer lastTsBuf;
-        private final LongBuffer lastValueBuf;
-        private final LongBuffer firstTsBuf;
-        private final LongBuffer firstValueBuf;
+        // Each interval occupies two consecutive slots: slot 2*intervalId stores the last (most recent)
+        // timestamp/value pair, slot 2*intervalId+1 stores the first (oldest) timestamp/value pair.
+        private final LongBuffer timestamps;
+        private final LongBuffer values;
 
         private int count = 0;
 
         IntervalBuffer(CircuitBreaker cb) {
-            LongBuffer lastTsBuf = null;
-            LongBuffer lastValueBuf = null;
-            LongBuffer firstTsBuf = null;
-            LongBuffer firstValueBuf = null;
+            LongBuffer timestamps = null;
+            LongBuffer values = null;
             boolean success = false;
             try {
-                lastTsBuf = new LongBuffer(cb, PAGE_SIZE);
-                lastValueBuf = new LongBuffer(cb, PAGE_SIZE);
-                firstTsBuf = new LongBuffer(cb, PAGE_SIZE);
-                firstValueBuf = new LongBuffer(cb, PAGE_SIZE);
+                timestamps = new LongBuffer(cb, PAGE_SIZE);
+                values = new LongBuffer(cb, PAGE_SIZE);
                 success = true;
             } finally {
                 if (success == false) {
-                    Releasables.close(lastTsBuf, lastValueBuf, firstTsBuf, firstValueBuf);
+                    Releasables.close(timestamps, values);
                 }
             }
-            this.firstTsBuf = firstTsBuf;
-            this.firstValueBuf = firstValueBuf;
-            this.lastTsBuf = lastTsBuf;
-            this.lastValueBuf = lastValueBuf;
+            this.timestamps = timestamps;
+            this.values = values;
         }
 
         long lastTs(int intervalId) {
-            return lastTsBuf.get(intervalId);
+            return timestamps.get(2 * intervalId);
         }
 
         long lastValue(int intervalId) {
-            return lastValueBuf.get(intervalId);
+            return values.get(2 * intervalId);
         }
 
         long firstTs(int intervalId) {
-            return firstTsBuf.get(intervalId);
+            return timestamps.get(2 * intervalId + 1);
         }
 
         long firstValue(int intervalId) {
-            return firstValueBuf.get(intervalId);
+            return values.get(2 * intervalId + 1);
         }
 
         int appendInterval(long lastTs, long lastValue, long firstTs, long firstValue) {
-            lastTsBuf.ensureCapacity(count + 1);
-            lastValueBuf.ensureCapacity(count + 1);
-            firstTsBuf.ensureCapacity(count + 1);
-            firstValueBuf.ensureCapacity(count + 1);
+            int newSlots = 2 * (count + 1);
+            timestamps.ensureCapacity(newSlots);
+            values.ensureCapacity(newSlots);
 
-            lastTsBuf.set(count, lastTs);
-            lastValueBuf.set(count, lastValue);
-            firstTsBuf.set(count, firstTs);
-            firstValueBuf.set(count, firstValue);
+            timestamps.set(2 * count, lastTs);
+            values.set(2 * count, lastValue);
+            timestamps.set(2 * count + 1, firstTs);
+            values.set(2 * count + 1, firstValue);
 
             return count++;
         }
@@ -832,17 +825,16 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             assert valueCount % 2 == 0 : "expected even number of values for intervals, got " + valueCount + " in " + ts;
 
             int newIntervalCount = valueCount / 2;
-            firstTsBuf.ensureCapacity(count + newIntervalCount);
-            firstValueBuf.ensureCapacity(count + newIntervalCount);
-            lastTsBuf.ensureCapacity(count + newIntervalCount);
-            lastValueBuf.ensureCapacity(count + newIntervalCount);
+            int newSlots = 2 * (count + newIntervalCount);
+            timestamps.ensureCapacity(newSlots);
+            values.ensureCapacity(newSlots);
 
             int firstId = count;
             for (int i = 0; i < valueCount; i += 2) {
-                lastTsBuf.set(count, ts.getLong(tsFirst + i));
-                lastValueBuf.set(count, vs.getLong(vsFirst + i));
-                firstTsBuf.set(count, ts.getLong(tsFirst + i + 1));
-                firstValueBuf.set(count, vs.getLong(vsFirst + i + 1));
+                timestamps.set(2 * count, ts.getLong(tsFirst + i));
+                values.set(2 * count, vs.getLong(vsFirst + i));
+                timestamps.set(2 * count + 1, ts.getLong(tsFirst + i + 1));
+                values.set(2 * count + 1, vs.getLong(vsFirst + i + 1));
                 count++;
             }
             return firstId;
@@ -897,7 +889,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
 
         @Override
         public void close() {
-            Releasables.close(lastTsBuf, lastValueBuf, firstTsBuf, firstValueBuf);
+            Releasables.close(timestamps, values);
         }
     }
 

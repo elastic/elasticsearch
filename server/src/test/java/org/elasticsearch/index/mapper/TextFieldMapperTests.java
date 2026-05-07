@@ -743,7 +743,14 @@ public class TextFieldMapperTests extends MapperTestCase {
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("field", "test value"))).rootDoc());
         }, reader -> {
-            FieldDataContext ctx = new FieldDataContext("test", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SEARCH);
+            FieldDataContext ctx = new FieldDataContext(
+                "test",
+                null,
+                () -> null,
+                Set::of,
+                () -> false,
+                MappedFieldType.FielddataOperation.SEARCH
+            );
             IndexFieldData<?> fieldData = fieldType.fielddataBuilder(ctx).build(null, null);
             assertNotNull(fieldData);
 
@@ -816,7 +823,14 @@ public class TextFieldMapperTests extends MapperTestCase {
         withLuceneIndex(mapperService, iw -> {
             iw.addDocument(mapperService.documentMapper().parse(source(b -> b.array("field", "value1", "value2"))).rootDoc());
         }, reader -> {
-            FieldDataContext ctx = new FieldDataContext("test", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SEARCH);
+            FieldDataContext ctx = new FieldDataContext(
+                "test",
+                null,
+                () -> null,
+                Set::of,
+                () -> false,
+                MappedFieldType.FielddataOperation.SEARCH
+            );
             IndexFieldData<?> fieldData = fieldType.fielddataBuilder(ctx).build(null, null);
             assertNotNull(fieldData);
 
@@ -1560,7 +1574,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> disabledMapper.fieldType("field")
-                .fielddataBuilder(new FieldDataContext("index", null, null, null, MappedFieldType.FielddataOperation.SEARCH))
+                .fielddataBuilder(new FieldDataContext("index", null, null, null, () -> false, MappedFieldType.FielddataOperation.SEARCH))
         );
         assertThat(
             e.getMessage(),
@@ -2266,7 +2280,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
             var indexSettings = mapperService.getIndexSettings();
             IndexFieldData<?> sfd = ft.fielddataBuilder(
-                new FieldDataContext("", indexSettings, () -> searchLookup, Set::of, MappedFieldType.FielddataOperation.SCRIPT)
+                new FieldDataContext("", indexSettings, () -> searchLookup, Set::of, () -> false, MappedFieldType.FielddataOperation.SCRIPT)
             ).build(null, null);
             LeafFieldData lfd = sfd.load(getOnlyLeafReader(searcher.getIndexReader()).getContext());
             TextDocValuesField scriptDV = (TextDocValuesField) lfd.getScriptFieldFactory("field");

@@ -419,9 +419,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/50_index_patterns/_index LIKE with overly complex pattern}
   issue: https://github.com/elastic/elasticsearch/issues/148134
-- class: org.elasticsearch.index.engine.LuceneChangesSnapshotTests
-  method: testUpdateAndReadChangesConcurrently
-  issue: https://github.com/elastic/elasticsearch/issues/148145
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testCacheIsWarmedBeforeSearchShardRecoveryWhenVBCCGetsUploaded
   issue: https://github.com/elastic/elasticsearch/issues/148148

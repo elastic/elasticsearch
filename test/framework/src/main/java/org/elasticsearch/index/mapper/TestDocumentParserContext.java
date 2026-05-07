@@ -79,7 +79,6 @@ public class TestDocumentParserContext extends DocumentParserContext {
                 null,
                 (type, name) -> Lucene.STANDARD_ANALYZER,
                 MapperTestCase.createIndexSettings(version, settings),
-                null,
                 query -> {
                     throw new UnsupportedOperationException();
                 },

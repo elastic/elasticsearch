@@ -19,7 +19,7 @@ import java.util.Objects;
  * binary results). It holds the routing information shared by all variants: which field the response is for, which
  * source field the input came from, the input's position relative to siblings, and the model that produced it.
  */
-abstract class FieldInferenceResponse {
+abstract sealed class FieldInferenceResponse permits InferenceStringFieldInferenceResponse, ChunkedStringFieldInferenceResponse {
     /** The target field. */
     private final String field;
     /** The source field that the input was extracted from. */

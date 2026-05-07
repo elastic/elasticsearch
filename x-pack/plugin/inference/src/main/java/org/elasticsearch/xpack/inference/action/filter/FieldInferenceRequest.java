@@ -16,7 +16,7 @@ import java.util.Objects;
  * input). It holds the routing information shared by all variants: where the request originated in the bulk request,
  * which field it targets, which source field it was extracted from, and its position relative to sibling inputs.
  */
-abstract class FieldInferenceRequest {
+abstract sealed class FieldInferenceRequest permits InferenceStringFieldInferenceRequest, ChunkedStringFieldInferenceRequest {
     /** The index of the item in the original bulk request. */
     private final int bulkItemIndex;
     /** The target field. */

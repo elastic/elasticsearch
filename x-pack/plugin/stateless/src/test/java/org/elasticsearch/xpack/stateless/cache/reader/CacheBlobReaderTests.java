@@ -326,7 +326,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         new BlobFileRanges(getLastInternalLocation().getValue()),
                         BlobCacheMetrics.NOOP,
                         System::currentTimeMillis,
-                        null
+                        false
                     ),
                     null,
                     length,
@@ -680,7 +680,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 new BlobFileRanges(internalLocation.getValue()),
                 BlobCacheMetrics.NOOP,
                 System::currentTimeMillis,
-                null
+                false
             );
             final long availableDataLength = BlobCacheUtils.toPageAlignedSize(vbccSize);
             try (var searchInput = new BlobCacheIndexInput("region", IOContext.DEFAULT, cacheFileReader, null, regionSize, 0)) {

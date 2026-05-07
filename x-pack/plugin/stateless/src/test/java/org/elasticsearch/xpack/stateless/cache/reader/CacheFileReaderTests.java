@@ -88,7 +88,7 @@ public class CacheFileReaderTests extends ESTestCase {
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
-                service
+                service.hasSearchRole()
             );
 
             assertFalse("indexing node tryPrefetch must report false", cacheFileReader.tryPrefetch(0L, blob.length));
@@ -126,7 +126,7 @@ public class CacheFileReaderTests extends ESTestCase {
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
-                service
+                service.hasSearchRole()
             );
 
             assertFalse("first call should miss the fast path", cacheFileReader.tryPrefetch(0L, blob.length));
@@ -175,7 +175,7 @@ public class CacheFileReaderTests extends ESTestCase {
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
                 System::currentTimeMillis,
-                service
+                service.hasSearchRole()
             );
 
             assertFalse(cacheFileReader.tryPrefetch(0L, blob.length));

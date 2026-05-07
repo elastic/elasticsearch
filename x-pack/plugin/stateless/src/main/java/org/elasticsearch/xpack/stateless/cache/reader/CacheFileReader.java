@@ -19,7 +19,6 @@ import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -60,8 +59,7 @@ public class CacheFileReader {
     private final BlobFileRanges blobFileRanges;
     private final BlobCacheMetrics blobCacheMetrics;
     private final LongSupplier relativeTimeInMillisSupplier;
-    @Nullable
-    private final StatelessSharedBlobCacheService cacheService;
+    private final boolean hasSearchRole;
 
     public CacheFileReader(
         StatelessSharedBlobCacheService.CacheFile cacheFile,
@@ -69,14 +67,14 @@ public class CacheFileReader {
         BlobFileRanges blobFileRanges,
         BlobCacheMetrics blobCacheMetrics,
         LongSupplier relativeTimeInMillisSupplier,
-        @Nullable StatelessSharedBlobCacheService cacheService
+        boolean hasSearchRole
     ) {
         this.cacheFile = Objects.requireNonNull(cacheFile);
         this.cacheBlobReader = Objects.requireNonNull(cacheBlobReader);
         this.blobFileRanges = Objects.requireNonNull(blobFileRanges);
         this.blobCacheMetrics = blobCacheMetrics;
         this.relativeTimeInMillisSupplier = relativeTimeInMillisSupplier;
-        this.cacheService = cacheService;
+        this.hasSearchRole = hasSearchRole;
     }
 
     /**
@@ -89,7 +87,7 @@ public class CacheFileReader {
             blobFileRanges,
             blobCacheMetrics,
             relativeTimeInMillisSupplier,
-            cacheService
+            hasSearchRole
         );
     }
 
@@ -111,7 +109,7 @@ public class CacheFileReader {
             blobCacheMetrics.recordPrefetch(PrefetchResult.AlreadyCached);
             return true;
         }
-        if (cacheService != null && cacheService.hasSearchRole()) {
+        if (hasSearchRole) {
             final long blobLength = cacheFile.getLength();
             // bail early when there is nothing to prefetch
             if (offset >= blobLength || length <= 0) {

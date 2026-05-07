@@ -131,6 +131,7 @@ import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompou
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor;
+import org.elasticsearch.xpack.stateless.allocation.ProjectIsolationAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.StatelessBalancingWeightsFactory;
 import org.elasticsearch.xpack.stateless.allocation.StatelessExistingShardsAllocator;
@@ -1260,6 +1261,7 @@ public class StatelessPlugin extends Plugin
             EstimatedHeapUsageAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_HIGH_WATERMARK_ENABLED,
             EstimatedHeapUsageAllocationDecider.MINIMUM_LOGGING_INTERVAL,
             EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT,
+            ProjectIsolationAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ISOLATED_PROJECTS_SETTING,
             SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
             SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING,
             SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING,
@@ -1883,6 +1885,7 @@ public class StatelessPlugin extends Plugin
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
         return List.of(
             new StatelessAllocationDecider(),
+            new ProjectIsolationAllocationDecider(clusterSettings),
             new EstimatedHeapUsageAllocationDecider(clusterSettings),
             new StatelessThrottlingConcurrentRecoveriesAllocationDecider(clusterSettings)
         );

@@ -525,3 +525,217 @@ setup:
       headers: {es-security-runas-user: minimal_with_task_user}
       catch: forbidden
       reindex_list: {}
+
+---
+"Rethrottle reindex works with only reindex/rethrottle permission":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+
+  - do:
+      headers: {es-security-runas-user: minimal_with_reindex_rethrottle_user}
+      reindex:
+        wait_for_completion: false
+        requests_per_second: 0.000001
+        body:
+          source:
+            index: source
+            size: 1
+          dest:
+            index: dest
+  - set: {task: task}
+
+  - do:
+      headers: {es-security-runas-user: minimal_with_reindex_rethrottle_user}
+      reindex_rethrottle:
+        task_id: $task
+        requests_per_second: -1
+
+  # wait for completion and clean up
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task
+
+---
+"Rethrottle reindex forbidden without reindex/rethrottle permission":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+
+  - do:
+      reindex:
+        wait_for_completion: false
+        requests_per_second: 0.000001
+        body:
+          source:
+            index: source
+            size: 1
+          dest:
+            index: dest
+  - set: {task: task}
+
+  - do:
+      headers: {es-security-runas-user: minimal_user}
+      catch: forbidden
+      reindex_rethrottle:
+        task_id: $task
+        requests_per_second: -1
+
+  # clean up
+  - do:
+      reindex_rethrottle:
+        task_id: $task
+        requests_per_second: -1
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task
+
+---
+"Rethrottle reindex forbidden for user with task permissions but no reindex/rethrottle permission":
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+
+  - do:
+      reindex:
+        wait_for_completion: false
+        requests_per_second: 0.000001
+        body:
+          source:
+            index: source
+            size: 1
+          dest:
+            index: dest
+  - set: {task: task}
+
+  - do:
+      headers: {es-security-runas-user: minimal_with_task_user}
+      catch: forbidden
+      reindex_rethrottle:
+        task_id: $task
+        requests_per_second: -1
+
+  # clean up
+  - do:
+      reindex_rethrottle:
+        task_id: $task
+        requests_per_second: -1
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task
+
+---
+"Cancel reindex works with only reindex/cancel permission":
+  - requires:
+      test_runner_features: [capabilities]
+      reason: Dedicated reindex cancel requires reindex management API
+      capabilities:
+        - method: POST
+          path: /_reindex/{task_id}/_cancel
+          capabilities: [reindex_management_api]
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+          - '{ "create": { "_index": "source"} }'
+          - '{ "text": "test" }'
+
+  - do:
+      headers: {es-security-runas-user: minimal_with_reindex_cancel_user}
+      reindex:
+        wait_for_completion: false
+        # throttle so the reindex stays running long enough for us to cancel it
+        requests_per_second: 0.000001
+        body:
+          source:
+            index: source
+            size: 1
+          dest:
+            index: dest
+  - set: {task: task}
+
+  - do:
+      headers: {es-security-runas-user: minimal_with_reindex_cancel_user}
+      reindex_cancel:
+        task_id: $task
+  - match: { completed: true }
+  - match: { id: $task }
+  - match: { cancelled: true }
+  - match: { status.canceled: "by user request" }
+
+---
+"Cancel reindex forbidden without reindex/cancel permission":
+  - requires:
+      test_runner_features: [capabilities]
+      reason: Dedicated reindex cancel requires reindex management API
+      capabilities:
+        - method: POST
+          path: /_reindex/{task_id}/_cancel
+          capabilities: [reindex_management_api]
+
+  - do:
+      headers: {es-security-runas-user: minimal_user}
+      catch: forbidden
+      reindex_cancel:
+        task_id: nodeMissing:123
+
+---
+"Cancel reindex forbidden for user with task permissions but no reindex/cancel permission":
+  - requires:
+      test_runner_features: [capabilities]
+      reason: Dedicated reindex cancel requires reindex management API
+      capabilities:
+        - method: POST
+          path: /_reindex/{task_id}/_cancel
+          capabilities: [reindex_management_api]
+
+  - do:
+      headers: {es-security-runas-user: minimal_with_task_user}
+      catch: forbidden
+      reindex_cancel:
+        task_id: nodeMissing:123

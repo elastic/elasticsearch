@@ -13,7 +13,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.suggest.document.Completion101PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion104PostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
@@ -44,7 +44,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
 
     public void testCompletionStatsCache() throws IOException, InterruptedException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
-        final PostingsFormat postingsFormat = new Completion101PostingsFormat();
+        final PostingsFormat postingsFormat = new Completion104PostingsFormat();
         indexWriterConfig.setCodec(TestUtil.alwaysPostingsFormat(postingsFormat)); // all fields are suggest fields
 
         try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
@@ -57,6 +57,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
             document.add(new SuggestField("otherfield", "anotherval", 1));
             document.add(new SuggestField("otherfield", "yetmoreval", 1));
             indexWriter.addDocument(document);
+            indexWriter.flush();
 
             final OpenCloseCounter openCloseCounter = new OpenCloseCounter();
             final CompletionStatsCache completionStatsCache = new CompletionStatsCache(() -> {
@@ -145,6 +146,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
             document2.add(new SuggestField("suggest2", "bar", 1));
             document2.add(new SuggestField("otherfield", "baz", 1));
             indexWriter.addDocument(document2);
+            indexWriter.flush();
             completionStatsCache.afterRefresh(true);
             final CompletionStats updatedStats = completionStatsCache.get();
             assertThat(updatedStats.getSizeInBytes(), greaterThan(totalSizeInBytes));

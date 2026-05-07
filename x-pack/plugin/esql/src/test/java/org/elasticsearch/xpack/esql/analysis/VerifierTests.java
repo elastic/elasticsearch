@@ -81,6 +81,21 @@ public class VerifierTests extends ESTestCase {
 
     private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
     private final List<String> DATE_PERIODS = List.of("day", "week", "month", "year");
+    private final List<DataType> SORTABLE_TYPES = List.of(
+        BOOLEAN,
+        DOUBLE,
+        DATE_NANOS,
+        DATETIME,
+        INTEGER,
+        IP,
+        KEYWORD,
+        LONG,
+        UNSIGNED_LONG,
+        VERSION
+    );
+    private final List<DataType> UNSORTABLE_TYPES = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()
+        ? List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX)
+        : List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE);
 
     public void testIncompatibleTypesInMathOperation() {
         defaultAnalyzer().error(
@@ -811,6 +826,66 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testUnsupportedGroupKeyTypesNotAllowedInLimitBy() {
+        analyzer().addK8sDownsampled()
+            .stripErrorPrefix(true)
+            .error(
+                "FROM k8s | LIMIT 1 BY network.eth0.tx",
+                equalTo("1:23: cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
+            );
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM exp_histo_sample | LIMIT 1 BY responseTime",
+                equalTo("1:36: cannot group by on [exponential_histogram] type for grouping [responseTime]")
+            );
+        analyzer().addIndex("decades", "mapping-decades.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM decades | LIMIT 1 BY date_range",
+                equalTo(
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V4.isEnabled()
+                        ? "1:27: cannot group by on [date_range] type for grouping [date_range]"
+                        : "1:27: Cannot use field [date_range] with unsupported type [date_range]"
+                )
+            );
+        tsdb().error(
+            "FROM test | LIMIT 1 BY network.bytes_in",
+            equalTo("1:24: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+    }
+
+    public void testUnsupportedGroupKeyTypesNotAllowedInStatsBy() {
+        analyzer().addK8sDownsampled()
+            .stripErrorPrefix(true)
+            .error(
+                "FROM k8s | STATS count(*) BY network.eth0.tx",
+                equalTo("1:30: cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
+            );
+        analyzer().addIndex("exp_histo_sample", "exp_histo_sample-mappings.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM exp_histo_sample | STATS count(*) BY responseTime",
+                equalTo("1:43: cannot group by on [exponential_histogram] type for grouping [responseTime]")
+            );
+        analyzer().addIndex("decades", "mapping-decades.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM decades | STATS count(*) BY date_range",
+                equalTo(
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V4.isEnabled()
+                        ? "1:34: cannot group by on [date_range] type for grouping [date_range]"
+                        : "1:34: Cannot use field [date_range] with unsupported type [date_range]"
+                )
+            );
+        analyzer().addIndex("test", "mapping-all-types.json")
+            .stripErrorPrefix(true)
+            .error(
+                "FROM test | STATS count(*) BY dense_vector",
+                equalTo("1:31: cannot group by on [dense_vector] type for grouping [dense_vector]")
+            );
+    }
+
     public void testDoubleRenamingField() {
         defaultAnalyzer().error(
             "from test | rename emp_no as r1, r1 as r2, emp_no as r3 | keep r3",
@@ -1384,6 +1459,12 @@ public class VerifierTests extends ESTestCase {
         defaultAnalyzer().error("from test metadata _source | sort _source", equalTo("1:35: cannot sort on _source"));
     }
 
+    public void testFlattenedSorting() {
+        var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
+        index.error("FROM flattened_otel_logs | SORT attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
+        index.error("FROM flattened_otel_logs | SORT resource.attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
+    }
+
     public void testCountersSorting() {
         Map<DataType, String> counterDataTypes = Map.of(
             COUNTER_DOUBLE,
@@ -1679,12 +1760,56 @@ public class VerifierTests extends ESTestCase {
             "from test | mv_expand id | where " + functionInvocation,
             containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
         );
+        fullText().error(
+            "from test | limit 1 by id | where " + functionInvocation,
+            containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
+        );
+        fullText().error(
+            "from test | sort id | limit 1 by id | where " + functionInvocation,
+            containsString("[" + functionName + "] " + functionType + " cannot be used after LIMIT")
+        );
         fullText().stripErrorPrefix(false)
             .error(
                 "from test | mv_expand " + fieldName + " | where " + functionInvocation,
                 allOf(
                     containsString("Found 1 problem"),
                     containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
+                )
+            );
+    }
+
+    public void testFullTextFunctionsAfterFork() {
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where title : \"data\"",
+            containsString("[:] operator cannot be used after FORK")
+        );
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")",
+            containsString("[MATCH] function cannot be used after FORK")
+        );
+        fullText().error(
+            "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match_phrase(title, \"data\")",
+            containsString("[MatchPhrase] function cannot be used after FORK")
+        );
+        fullText().stripErrorPrefix(false)
+            .error(
+                "from test metadata _id, _index, _score | fork (where true) (where true) | keep title | where match(title, \"data\")",
+                allOf(containsString("Found 1 problem"), containsString("[MATCH] function cannot be used after FORK"))
+            );
+    }
+
+    public void testFullTextFunctionsAfterForkWithEvalInBranch() {
+        fullText().stripErrorPrefix(false)
+            .error(
+                "from test metadata _id, _index, _score "
+                    + "| fork (where true) (where true | EVAL title = \"abc\") "
+                    + "| keep title "
+                    + "| where title : \"data\"",
+                allOf(
+                    containsString("Found 3 problems"),
+                    containsString("[:] operator cannot be used after FORK"),
+                    containsString("[:] operator cannot operate on [title], which is not a field from an index mapping"),
+                    containsString("Column [title] has conflicting data types in FORK branches: [KEYWORD] and [TEXT]")
                 )
             );
     }
@@ -2631,16 +2756,18 @@ public class VerifierTests extends ESTestCase {
         airports.error("FROM airports | CHANGE_POINT scalerank", equalTo("1:17: Unknown column [@timestamp]"));
     }
 
-    public void testChangePoint_keySortable() {
+    public void testChangePointByUnknownColumn() {
+        assumeTrue("change_point_by must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_BY.isEnabled());
+        var airports = analyzer().addAirports().stripErrorPrefix(true);
+        airports.error("FROM airports | CHANGE_POINT scalerank ON scalerank BY blahblah", equalTo("1:56: Unknown column [blahblah]"));
+    }
+
+    public void testChangePointKeySortable() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
-        List<DataType> sortableTypes = List.of(BOOLEAN, DOUBLE, DATE_NANOS, DATETIME, INTEGER, IP, KEYWORD, LONG, UNSIGNED_LONG, VERSION);
-        List<DataType> unsortableTypes = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()
-            ? List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX)
-            : List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE);
-        for (DataType type : sortableTypes) {
+        for (DataType type : SORTABLE_TYPES) {
             defaultAnalyzer().query(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type));
         }
-        for (DataType type : unsortableTypes) {
+        for (DataType type : UNSORTABLE_TYPES) {
             defaultAnalyzer().error(
                 Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type),
                 equalTo("2:26: CHANGE_POINT only supports sortable keys, found expression [key] type [" + type + "]")
@@ -2648,7 +2775,20 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testChangePoint_valueNumeric() {
+    public void testChangePointByGroupingSortable() {
+        assumeTrue("change_point_by must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_BY.isEnabled());
+        for (DataType type : SORTABLE_TYPES) {
+            defaultAnalyzer().query(Strings.format("ROW key=0, value=0, grp=NULL::%s\n | CHANGE_POINT value ON key BY grp", type));
+        }
+        for (DataType type : UNSORTABLE_TYPES) {
+            defaultAnalyzer().error(
+                Strings.format("ROW key=0, value=0, grp=NULL::%s\n | CHANGE_POINT value ON key BY grp", type),
+                equalTo("2:33: CHANGE_POINT grouping only supports sortable values, found expression [grp] type [" + type + "]")
+            );
+        }
+    }
+
+    public void testChangePointValueNumeric() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
         List<DataType> numericTypes = List.of(DOUBLE, INTEGER, LONG, UNSIGNED_LONG);
         List<DataType> nonNumericTypes = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()

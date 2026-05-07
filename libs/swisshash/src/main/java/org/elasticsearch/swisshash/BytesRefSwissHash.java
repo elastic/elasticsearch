@@ -725,7 +725,7 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     }
 
     private boolean matches(BytesRef key, int id) {
-        return key.bytesEquals(bytesRefs.get(id, scratch));
+        return bytesRefs.bytesEqual(id, key);
     }
 
     private boolean matches(PagedBytesCursor key, int id) {

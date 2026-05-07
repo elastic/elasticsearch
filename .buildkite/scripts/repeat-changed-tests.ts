@@ -70,6 +70,8 @@ interface Pipeline {
   steps: [PipelineGroup];
 }
 
+type CommandRunner = (command: string, options: { cwd: string; stdio?: "inherit" | "ignore" }) => Buffer;
+
 export function toGradleProject(path: string): string {
   const segments = path.split("/");
   // Mirror the rename in settings.gradle: direct children of :test:external-modules
@@ -187,32 +189,72 @@ const KIND_KEYS: Record<TestKind, string> = {
   yamlRestTestSuite: "repeat-changed-tests:yaml-suite",
 };
 
+// Gradle task-level options (`--tests`, `--rerun`, ...) bind to the most
+// recently named task on the command line; they don't fan out to all listed
+// test tasks. So per-task options must be emitted directly after each
+// `:project:taskName` they apply to. See
+// https://docs.gradle.org/current/userguide/command_line_interface.html#sec:task_options
+function tasksWithFilters(
+  batch: ClassifiedTest[],
+  taskName: string,
+  toFilter: (t: ClassifiedTest) => string,
+  perTaskSuffix?: string
+): string {
+  const byTask = new Map<string, string[]>();
+  for (const t of batch) {
+    const task = `${t.gradleProject}:${taskName}`;
+    const filters = byTask.get(task);
+    if (filters) {
+      filters.push(toFilter(t));
+    } else {
+      byTask.set(task, [toFilter(t)]);
+    }
+  }
+  return [...byTask.entries()]
+    .map(([task, filters]) => [task, ...filters, ...(perTaskSuffix ? [perTaskSuffix] : [])].join(" "))
+    .join(" ");
+}
+
 export function generateBatchCommand(batch: ClassifiedTest[]): string {
   const kind = batch[0].kind;
 
   switch (kind) {
     case "test": {
-      const projects = [...new Set(batch.map((t) => `${t.gradleProject}:test`))];
-      const testFilters = batch.map((t) => `--tests ${t.fqcn}`).join(" ");
-      return `.ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! ${projects.join(" ")} ${testFilters}`;
+      const tasks = tasksWithFilters(batch, "test", (t) => `--tests ${t.fqcn}`);
+      return `.ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! ${tasks}`;
     }
     case "internalClusterTest": {
-      const projects = [...new Set(batch.map((t) => `${t.gradleProject}:internalClusterTest`))];
-      const testFilters = batch.map((t) => `--tests ${t.fqcn}`).join(" ");
-      return `.ci/scripts/run-gradle.sh -Dtests.iters=20 -Dtests.timeoutSuite=3600000! ${projects.join(" ")} ${testFilters}`;
+      const tasks = tasksWithFilters(batch, "internalClusterTest", (t) => `--tests ${t.fqcn}`);
+      return `.ci/scripts/run-gradle.sh -Dtests.iters=20 -Dtests.timeoutSuite=3600000! ${tasks}`;
     }
     case "javaRestTest": {
-      const projects = [...new Set(batch.map((t) => `${t.gradleProject}:javaRestTest`))];
-      const testFilters = batch.map((t) => `--tests ${t.fqcn}`).join(" ");
-      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${projects.join(" ")} ${testFilters} --rerun`;
+      const tasks = tasksWithFilters(batch, "javaRestTest", (t) => `--tests ${t.fqcn}`, "--rerun");
+      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${tasks}`;
     }
     case "yamlRestTestRunner": {
       return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${batch[0].gradleProject}:yamlRestTest --rerun`;
     }
     case "yamlRestTestSuite": {
-      const projects = [...new Set(batch.map((t) => `${t.gradleProject}:yamlRestTest`))];
-      const suitePaths = batch.map((t) => t.suitePath).join(",");
-      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${projects.join(" ")} -Dtests.rest.suite=${suitePaths} --rerun`;
+      // `tests.rest.suite` is a JVM system property, not a Gradle task option,
+      // so a single value would apply to every yamlRestTest task in the
+      // invocation. ESClientYamlSuiteTestCase recognises a per-task scoped
+      // variant `tests.rest.suite.<task path>` so each task can receive only
+      // the suites that exist on its classpath.
+      const byTask = new Map<string, string[]>();
+      for (const t of batch) {
+        const task = `${t.gradleProject}:yamlRestTest`;
+        const paths = byTask.get(task);
+        if (paths) {
+          paths.push(t.suitePath!);
+        } else {
+          byTask.set(task, [t.suitePath!]);
+        }
+      }
+      const tasks = [...byTask.keys()].map((task) => `${task} --rerun`).join(" ");
+      const suiteProps = [...byTask.entries()]
+        .map(([task, paths]) => `-Dtests.rest.suite.${task}=${paths.join(",")}`)
+        .join(" ");
+      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${tasks} ${suiteProps}`;
     }
   }
 }
@@ -276,13 +318,31 @@ export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
   };
 }
 
+export function resolveMergeBaseTarget(
+  targetBranch: string,
+  run: CommandRunner = (command, options) => execSync(command, options),
+  projectRoot: string = PROJECT_ROOT
+): string {
+  try {
+    run(`git rev-parse --verify ${targetBranch}^{commit}`, { cwd: projectRoot, stdio: "ignore" });
+    return targetBranch;
+  } catch {
+  // Some target branches aren't present in the local checkout: ghstack synthetic
+  // refs (gh/<user>/<n>/base) and serverless patch branches (patch/<name>). Fetch
+  // the ref and use FETCH_HEAD so we don't depend on origin/<branch> naming.
+    run(`git fetch --no-tags origin ${targetBranch}`, { cwd: projectRoot, stdio: "inherit" });
+    return "FETCH_HEAD";
+  }
+}
+
 function main() {
   console.log("Computing merge base...");
   const targetBranch = process.env.GITHUB_PR_TARGET_BRANCH;
   if (!targetBranch) {
     throw new Error("GITHUB_PR_TARGET_BRANCH environment variable is required");
   }
-  const mergeBase = execSync(`git merge-base ${targetBranch} HEAD`, { cwd: PROJECT_ROOT }).toString().trim();
+  const targetRef = resolveMergeBaseTarget(targetBranch);
+  const mergeBase = execSync(`git merge-base ${targetRef} HEAD`, { cwd: PROJECT_ROOT }).toString().trim();
   console.log(`Merge base: ${mergeBase}`);
 
   console.log("Getting changed files...");

@@ -150,40 +150,49 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         boolean isRunning = in.readBoolean();
         boolean isAsync = in.readBoolean();
         List<ColumnInfoImpl> columns = in.readCollectionAsList(ColumnInfoImpl::new);
-        List<Page> pages = in.readCollectionAsList(Page::new);
-        long documentsFound = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
-        long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
-        Profile profile = in.readOptionalWriteable(Profile::readFrom);
-        boolean columnar = in.readBoolean();
+        List<Page> pages = in.readReleasableCollectionAsList(Page::new);
+        boolean success = false;
+        try {
+            long documentsFound = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
+            long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
+            Profile profile = in.readOptionalWriteable(Profile::readFrom);
+            boolean columnar = in.readBoolean();
 
-        long startTimeMillis = 0L;
-        long expirationTimeMillis = 0L;
-        if (in.getTransportVersion().supports(ESQL_TIMESTAMPS_INFO)) {
-            startTimeMillis = in.readLong();
-            expirationTimeMillis = in.readLong();
+            long startTimeMillis = 0L;
+            long expirationTimeMillis = 0L;
+            if (in.getTransportVersion().supports(ESQL_TIMESTAMPS_INFO)) {
+                startTimeMillis = in.readLong();
+                expirationTimeMillis = in.readLong();
+            }
+
+            ZoneId zoneId = ZoneOffset.UTC;
+            if (in.getTransportVersion().supports(ESQL_RESPONSE_TIMEZONE_FORMAT)) {
+                zoneId = in.readZoneId();
+            }
+
+            EsqlExecutionInfo executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
+            EsqlQueryResponse response = new EsqlQueryResponse(
+                columns,
+                pages,
+                documentsFound,
+                valuesLoaded,
+                profile,
+                columnar,
+                asyncExecutionId,
+                isRunning,
+                isAsync,
+                zoneId,
+                startTimeMillis,
+                expirationTimeMillis,
+                executionInfo
+            );
+            success = true;
+            return response;
+        } finally {
+            if (success == false) {
+                Releasables.close(pages);
+            }
         }
-
-        ZoneId zoneId = ZoneOffset.UTC;
-        if (in.getTransportVersion().supports(ESQL_RESPONSE_TIMEZONE_FORMAT)) {
-            zoneId = in.readZoneId();
-        }
-
-        EsqlExecutionInfo executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
-        return new EsqlQueryResponse(
-            columns,
-            pages,
-            documentsFound,
-            valuesLoaded,
-            profile,
-            columnar,
-            asyncExecutionId,
-            isRunning,
-            isAsync,
-            zoneId,
-            startTimeMillis,
-            expirationTimeMillis,
-            executionInfo
-        );
     }
 
     @Override

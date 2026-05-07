@@ -74,6 +74,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_SOURCE_SHUTDOWN_SHARE_FACTOR_SETTING,
                 DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING,
                 SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
+                SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,
                 SharedBlobCacheWarmingService.PREWARM_INDEX_SHARD_FOR_ID_LOOKUPS_SETTING,
                 SharedBlobCacheWarmingService.ID_LOOKUP_PREWARM_RATIO_SETTING
             )

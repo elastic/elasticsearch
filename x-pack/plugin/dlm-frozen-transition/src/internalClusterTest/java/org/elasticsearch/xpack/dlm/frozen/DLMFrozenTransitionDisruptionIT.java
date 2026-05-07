@@ -42,6 +42,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -251,7 +252,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         startFrozenOnlyNode();
 
         // Phase 1: set up infrastructure and index a document (index is still the write index)
-        String candidateIndex = setupDataStreamInfrastructure(false);
+        String candidateIndex = setupDataStreamInfrastructure(1);
 
         // Phase 2: register interceptors BEFORE rollover so we catch the transition from the start
         CountDownLatch addBlockSeen = new CountDownLatch(1);
@@ -264,7 +265,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             }
 
             @Override
-            @SuppressWarnings({ "rawtypes", "unchecked" })
+            @SuppressWarnings({ "rawtypes" })
             public void intercept(
                 String action,
                 ActionRequest request,
@@ -334,7 +335,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         startFrozenOnlyNode();
 
         // Phase 1: set up infrastructure and index a document (index is still the write index)
-        String candidateIndex = setupDataStreamInfrastructure(false);
+        String candidateIndex = setupDataStreamInfrastructure(1);
 
         // Phase 2: watch cluster state for the DLM clone index to appear
         String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndex;
@@ -348,7 +349,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             }
 
             @Override
-            @SuppressWarnings({ "rawtypes", "unchecked" })
+            @SuppressWarnings({ "rawtypes" })
             public void intercept(
                 String action,
                 ActionRequest request,
@@ -416,7 +417,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         startFrozenOnlyNode();
 
         // Phase 1: set up infrastructure with 0 replicas (no clone step, original is snapshotted directly)
-        String candidateIndex = setupDataStreamInfrastructure(true);
+        String candidateIndex = setupDataStreamInfrastructure(0);
 
         // Phase 2: register interceptors BEFORE rollover
         CountDownLatch getSnapshotsSeen = new CountDownLatch(1);
@@ -429,7 +430,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             }
 
             @Override
-            @SuppressWarnings({ "rawtypes", "unchecked" })
+            @SuppressWarnings({ "rawtypes" })
             public void intercept(
                 String action,
                 ActionRequest request,
@@ -494,7 +495,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         startFrozenOnlyNode();
 
         // Phase 1: set up infrastructure and index a document (index is still the write index)
-        String candidateIndex = setupDataStreamInfrastructure(false);
+        String candidateIndex = setupDataStreamInfrastructure(1);
 
         // Phase 2: register interceptors BEFORE rollover
         AtomicBoolean failedOnce = new AtomicBoolean(false);
@@ -507,7 +508,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             }
 
             @Override
-            @SuppressWarnings({ "rawtypes", "unchecked" })
+            @SuppressWarnings({ "rawtypes" })
             public void intercept(
                 String action,
                 ActionRequest request,
@@ -589,7 +590,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         startFrozenOnlyNode();
 
         // Use 0 replicas so that the original index IS the force-merge index (no clone step)
-        String candidateIndex = setupDataStreamInfrastructure(true);
+        String candidateIndex = setupDataStreamInfrastructure(0);
 
         CountDownLatch forceMergeSeen = new CountDownLatch(1);
         AtomicBoolean deletionDone = new AtomicBoolean(false);
@@ -601,7 +602,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             }
 
             @Override
-            @SuppressWarnings({ "rawtypes", "unchecked" })
+            @SuppressWarnings({ "rawtypes" })
             public void intercept(
                 String action,
                 ActionRequest request,
@@ -665,7 +666,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         startFrozenOnlyNode();
 
         // Use 0 replicas so that the original index IS the force-merge index (no clone step)
-        String candidateIndex = setupDataStreamInfrastructure(true);
+        String candidateIndex = setupDataStreamInfrastructure(0);
 
         CountDownLatch mountSeen = new CountDownLatch(1);
         AtomicBoolean deletionDone = new AtomicBoolean(false);
@@ -677,7 +678,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             }
 
             @Override
-            @SuppressWarnings({ "rawtypes", "unchecked" })
+            @SuppressWarnings({ "rawtypes" })
             public void intercept(
                 String action,
                 ActionRequest request,
@@ -738,7 +739,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         startFrozenOnlyNode();
 
         // Use 0 replicas so that the original index IS the force-merge index (no clone step)
-        String candidateIndex = setupDataStreamInfrastructure(true);
+        String candidateIndex = setupDataStreamInfrastructure(0);
 
         CountDownLatch modifyDsSeen = new CountDownLatch(1);
         AtomicBoolean deletionDone = new AtomicBoolean(false);
@@ -750,7 +751,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             }
 
             @Override
-            @SuppressWarnings({ "rawtypes", "unchecked" })
+            @SuppressWarnings({ "rawtypes" })
             public void intercept(
                 String action,
                 ActionRequest request,
@@ -805,7 +806,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * Tests should register their interceptors after calling this method, then call
      * {@link #triggerRollover()} to make the index eligible for frozen transition.
      */
-    private String setupDataStreamInfrastructure(boolean zeroReplicas) throws Exception {
+    private String setupDataStreamInfrastructure(int numReplicas) throws Exception {
         assertAcked(
             client().execute(
                 TransportPutRepositoryAction.TYPE,
@@ -821,7 +822,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
 
         Settings templateSettings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, zeroReplicas ? 0 : 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
             .build();
 
         TransportPutComposableIndexTemplateAction.Request putTemplateReq = new TransportPutComposableIndexTemplateAction.Request(
@@ -855,7 +856,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[0].status(), equalTo(RestStatus.CREATED));
         client().admin().indices().refresh(new RefreshRequest(DATA_STREAM_NAME)).actionGet();
 
-        String candidateIndex = backingIndexNames(DATA_STREAM_NAME).getFirst();
+        String candidateIndex = backingIndexNames().getFirst();
         logger.info("--> candidate index (pre-rollover): {}", candidateIndex);
         return candidateIndex;
     }
@@ -872,12 +873,15 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     /**
      * Returns the names of the backing indices for the test data stream.
      */
-    private List<String> backingIndexNames(String dataStreamName) {
+    private List<String> backingIndexNames() {
         var clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        DataStream ds = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).dataStreams().get(dataStreamName);
+        DataStream ds = clusterState.metadata()
+            .getProject(Metadata.DEFAULT_PROJECT_ID)
+            .dataStreams()
+            .get(DLMFrozenTransitionDisruptionIT.DATA_STREAM_NAME);
         if (ds == null) {
             return List.of();
         }
-        return ds.getIndices().stream().map(idx -> idx.getName()).toList();
+        return ds.getIndices().stream().map(Index::getName).toList();
     }
 }

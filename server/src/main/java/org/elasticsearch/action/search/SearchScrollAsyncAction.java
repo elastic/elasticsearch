@@ -86,14 +86,13 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     public final void run() {
         final SearchContextIdForNode[] context = scrollId.getContext();
         if (context.length == 0) {
-            // Build an empty reduced query phase
+
             SearchPhaseController.ReducedQueryPhase emptyQueryPhase =
                 reducedScrollQueryPhase(List.of());
 
             // No fetch results
             AtomicArray<SearchPhaseResult> emptyFetchResults = new AtomicArray<>(0);
 
-            // Reuse existing response logic (this ensures consistency)
             sendResponse(emptyQueryPhase, emptyFetchResults);
             return;
         } else {

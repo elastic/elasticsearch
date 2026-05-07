@@ -3549,23 +3549,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnionAll unionAll, AnalyzerContext context) {
+            // Delegate to UnionAll#pruneEmptyBranches — ViewUnionAll overrides it to preserve
+            // its named-subqueries map so this rule works correctly when an EMPTY_SUBQUERY
+            // branch lives next to a CPS shadow inside a ViewUnionAll.
             Map<IndexPattern, IndexResolution> indexResolutions = context.indexResolution();
-            // check if any child is an UnresolvedRelation that resolves to an empty subquery
-            List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
-            for (LogicalPlan child : unionAll.children()) {
-                // check for UnresolvedRelation in the child plan tree
-                Holder<Boolean> isEmptySubquery = new Holder<>(Boolean.FALSE);
-                child.forEachUp(UnresolvedRelation.class, ur -> {
-                    IndexResolution resolution = indexResolutions.get(ur.indexPattern());
-                    if (resolution == IndexResolution.EMPTY_SUBQUERY) {
-                        isEmptySubquery.set(Boolean.TRUE);
-                    }
-                });
-                if (isEmptySubquery.get() == false) {
-                    newChildren.add(child);
+            return unionAll.pruneEmptyBranches(child -> resolvesToEmptySubquery(child, indexResolutions));
+        }
+
+        private static boolean resolvesToEmptySubquery(LogicalPlan branch, Map<IndexPattern, IndexResolution> indexResolutions) {
+            Holder<Boolean> isEmpty = new Holder<>(Boolean.FALSE);
+            branch.forEachUp(UnresolvedRelation.class, ur -> {
+                IndexResolution resolution = indexResolutions.get(ur.indexPattern());
+                if (resolution == IndexResolution.EMPTY_SUBQUERY) {
+                    isEmpty.set(Boolean.TRUE);
                 }
-            }
-            return newChildren.size() == unionAll.children().size() ? unionAll : unionAll.replaceChildren(newChildren);
+            });
+            return isEmpty.get();
         }
     }
 }

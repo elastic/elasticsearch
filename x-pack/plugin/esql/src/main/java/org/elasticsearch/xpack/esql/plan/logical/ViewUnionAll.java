@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SequencedSet;
+import java.util.function.Predicate;
 
 /**
  * A {@link UnionAll} produced by view resolution, as opposed to user-written subqueries.
@@ -57,12 +58,40 @@ public class ViewUnionAll extends UnionAll {
 
     private LinkedHashMap<String, LogicalPlan> asSubqueryMap(List<LogicalPlan> children) {
         SequencedSet<String> names = namedSubqueries.sequencedKeySet();
-        assert children.size() == names.size();
+        assert children.size() == names.size()
+            : "ViewUnionAll.replaceChildren expects a 1:1 positional replacement; use pruneEmptyBranches"
+                + " to drop branches and preserve the named-subqueries invariant.";
         LinkedHashMap<String, LogicalPlan> newSubqueries = new LinkedHashMap<>();
         for (LogicalPlan child : children) {
             newSubqueries.put(names.removeFirst(), child);
         }
         return newSubqueries;
+    }
+
+    /**
+     * Name-aware override: filter the named-subqueries map directly so the surviving children
+     * keep their original names. Single-survivor collapses to that lone child (without its
+     * NamedSubquery wrapper if it has one — that's the same semantics as the base
+     * {@link UnionAll#pruneEmptyBranches(Predicate)}).
+     */
+    @Override
+    public LogicalPlan pruneEmptyBranches(Predicate<LogicalPlan> isEmpty) {
+        LinkedHashMap<String, LogicalPlan> kept = new LinkedHashMap<>();
+        for (Map.Entry<String, LogicalPlan> entry : namedSubqueries.entrySet()) {
+            if (isEmpty.test(entry.getValue()) == false) {
+                kept.put(entry.getKey(), entry.getValue());
+            }
+        }
+        if (kept.size() == namedSubqueries.size()) {
+            return this;
+        }
+        if (kept.size() == 1) {
+            return kept.values().iterator().next();
+        }
+        if (kept.isEmpty()) {
+            return this;
+        }
+        return new ViewUnionAll(source(), kept, output());
     }
 
     @Override

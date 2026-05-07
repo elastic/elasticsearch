@@ -102,34 +102,15 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     /**
-     * Drop any {@link ViewShadowRelation} siblings from {@link ViewUnionAll}s, returning the
-     * (possibly-collapsed) parent. Phase A makes shadows transparent to existing consumers; Phase B
-     * removes this strip and routes shadows through the analyzer instead.
+     * Drop any still-unresolved {@link ViewShadowRelation} siblings from {@link ViewUnionAll}s.
+     * Delegates to {@link ViewUnionAll#pruneEmptyBranches(java.util.function.Predicate)} so the
+     * named-subqueries map stays in sync with the surviving children. Shares the same primitive
+     * as {@code Analyzer.PruneEmptyUnionAllBranch} — different predicate, same shape — which
+     * keeps the two rules order-independent: running the EMPTY_SUBQUERY prune before or after
+     * this strip yields the same end state.
      */
     private static LogicalPlan stripViewShadowRelations(LogicalPlan plan) {
-        return plan.transformDown(ViewUnionAll.class, vua -> {
-            LinkedHashMap<String, LogicalPlan> filtered = new LinkedHashMap<>();
-            boolean changed = false;
-            for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
-                if (entry.getValue() instanceof ViewShadowRelation) {
-                    changed = true;
-                    continue;
-                }
-                filtered.put(entry.getKey(), entry.getValue());
-            }
-            if (changed == false) {
-                return vua;
-            }
-            if (filtered.isEmpty()) {
-                // Defensive — should not happen in practice since each level has at least the
-                // strict resolution alongside the shadow. Fall back to the original vua.
-                return vua;
-            }
-            if (filtered.size() == 1) {
-                return filtered.values().iterator().next();
-            }
-            return new ViewUnionAll(vua.source(), filtered, vua.output());
-        });
+        return plan.transformDown(ViewUnionAll.class, vua -> vua.pruneEmptyBranches(child -> child instanceof ViewShadowRelation));
     }
 
     /**

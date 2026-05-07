@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
@@ -192,6 +193,34 @@ public class ResolveViewShadowTests extends ESTestCase {
         var strictEs = as(unwrapProject(as(emptyPlan, Limit.class).child()), EsRelation.class);
         assertEquals("strict_idx", strictEs.indexPattern());
 
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    /**
+     * Regression: a {@link ViewUnionAll} with both a strict UR whose resolution is
+     * {@code EMPTY_SUBQUERY} (e.g. CCS subquery that didn't match anything) <em>and</em> a
+     * matched shadow used to trip the assertion in {@link ViewUnionAll#asSubqueryMap}. The
+     * {@code PruneEmptyUnionAllBranch} analyzer rule would call
+     * {@code unionAll.replaceChildren(shorterList)} which mismatched the named-subqueries map.
+     * The fix routes the prune through {@link UnionAll#pruneEmptyBranches} — overridden in
+     * {@link ViewUnionAll} to filter the named map directly, preserving the surviving names.
+     * <p>
+     * Setup: a ViewUnionAll with strict UR "missing_idx" (resolution {@code EMPTY_SUBQUERY})
+     * and a shadow for view "v1" (lenient resolution found a remote index named "v1"). After
+     * analysis the EMPTY_SUBQUERY branch is pruned, the shadow resolves, and the lone remaining
+     * sibling is the {@code EsRelation} for "v1".
+     */
+    public void testPruneEmptySubqueryBranchPreservesShadowResolutionInViewUnionAll() {
+        EsIndex remoteV1 = EsIndexGenerator.esIndex("v1", LoadMapping.loadMapping("mapping-one-field.json"));
+        var analyzer = analyzer().addIndex("missing_idx", IndexResolution.EMPTY_SUBQUERY).addLenientShadow(remoteV1).buildAnalyzer();
+
+        LogicalPlan plan = analyzer.analyze(
+            viewUnionAllOf("missing_idx", strictUR("missing_idx"), new ViewShadowRelation(EMPTY, "v1", List.of()))
+        );
+
+        var limit = as(plan, Limit.class);
+        var esRelation = as(unwrapProject(limit.child()), EsRelation.class);
+        assertEquals("v1", esRelation.indexPattern());
         assertWarnings(NO_LIMIT_WARNING);
     }
 

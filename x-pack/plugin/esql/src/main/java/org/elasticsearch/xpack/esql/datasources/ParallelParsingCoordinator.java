@@ -75,7 +75,7 @@ public final class ParallelParsingCoordinator {
         int parallelism,
         Executor executor
     ) throws IOException {
-        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null);
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null, false);
     }
 
     /**
@@ -92,26 +92,56 @@ public final class ParallelParsingCoordinator {
         Executor executor,
         ErrorPolicy errorPolicy
     ) throws IOException {
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, errorPolicy, false);
+    }
+
+    /**
+     * @param splitStartsAtRecordBoundary when {@code true}, {@code storageObject} is a byte range that already begins
+     *                                     on a record boundary (e.g. newline-aligned macro {@link FileSplit});
+     *                                     single-threaded fallback reads must set {@link FormatReadContext#recordAligned()}.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary
+    ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
+
+        // COUNT(*) and similar: projectedColumns is empty while rows still need structural validation
+        // against the file width. Non-first parallel segments do not re-scan the header; bind the
+        // full on-disk schema before segment workers run (see CsvFormatReader#read firstSplit/recordAligned).
+        SegmentableFormatReader parallelReader = reader;
+        if (projectedColumns != null && projectedColumns.isEmpty()) {
+            var meta = parallelReader.metadata(storageObject);
+            if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
+                parallelReader = (SegmentableFormatReader) parallelReader.withSchema(meta.schema());
+            }
+        }
 
         ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
         FormatReadContext baseCtx = FormatReadContext.builder()
             .projectedColumns(projectedColumns)
             .batchSize(batchSize)
             .errorPolicy(effectivePolicy)
+            .recordAligned(splitStartsAtRecordBoundary)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
-            return reader.read(storageObject, baseCtx);
+            return parallelReader.read(storageObject, baseCtx);
         }
 
-        List<long[]> segments = computeSegments(reader, storageObject, fileLength, parallelism, minSegment);
+        List<long[]> segments = computeSegments(parallelReader, storageObject, fileLength, parallelism, minSegment);
 
         if (segments.size() <= 1) {
-            return reader.read(storageObject, baseCtx);
+            return parallelReader.read(storageObject, baseCtx);
         }
 
-        return new OrderedParallelIterator(reader, storageObject, projectedColumns, batchSize, segments, executor, effectivePolicy);
+        return new OrderedParallelIterator(parallelReader, storageObject, projectedColumns, batchSize, segments, executor, effectivePolicy);
     }
 
     /**
@@ -265,7 +295,7 @@ public final class ParallelParsingCoordinator {
                             break;
                         }
                         Page page = pages.next();
-                        queue.put(page);
+                        enqueueOrRelease(queue, page);
                     }
                 }
             } catch (Exception e) {
@@ -273,6 +303,20 @@ public final class ParallelParsingCoordinator {
             } finally {
                 enqueuePoison(queue);
                 allDone.countDown();
+            }
+        }
+
+        private void enqueueOrRelease(BlockingQueue<Page> queue, Page page) throws InterruptedException {
+            while (true) {
+                if (closed || firstError.get() != null) {
+                    if (page.getPositionCount() > 0) {
+                        page.releaseBlocks();
+                    }
+                    return;
+                }
+                if (queue.offer(page, 500, TimeUnit.MILLISECONDS)) {
+                    return;
+                }
             }
         }
 

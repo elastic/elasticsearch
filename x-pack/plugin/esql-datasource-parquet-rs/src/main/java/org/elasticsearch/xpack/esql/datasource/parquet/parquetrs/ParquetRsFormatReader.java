@@ -9,17 +9,31 @@ package org.elasticsearch.xpack.esql.datasource.parquet.parquetrs;
 
 import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
+import org.apache.arrow.c.CDataDictionaryProvider;
 import org.apache.arrow.c.Data;
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.dictionary.Dictionary;
+import org.apache.arrow.vector.dictionary.DictionaryProvider;
+import org.apache.arrow.vector.types.pojo.DictionaryEncoding;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.IntArrowBufBlock;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Releasables;
@@ -647,19 +661,24 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         }
 
         private Page readNextPage() {
-            try (ArrowSchema ffiSchema = ArrowSchema.allocateNew(allocator); ArrowArray ffiArray = ArrowArray.allocateNew(allocator)) {
-
+            try (
+                ArrowSchema ffiSchema = ArrowSchema.allocateNew(allocator);
+                ArrowArray ffiArray = ArrowArray.allocateNew(allocator);
+                // Receives one entry per dictionary id transferred over the FFI boundary.
+                // Scoped to a single page so multi-page batches don't accumulate stale dictionaries.
+                CDataDictionaryProvider dictProvider = new CDataDictionaryProvider()
+            ) {
                 if (ParquetRsBridge.nextBatch(handle, ffiSchema.memoryAddress(), ffiArray.memoryAddress()) == false) {
                     return null;
                 }
 
-                try (VectorSchemaRoot root = Data.importVectorSchemaRoot(allocator, ffiArray, ffiSchema, null)) {
+                try (VectorSchemaRoot root = Data.importVectorSchemaRoot(allocator, ffiArray, ffiSchema, dictProvider)) {
                     int rowCount = root.getRowCount();
                     List<FieldVector> vectors = root.getFieldVectors();
                     Block[] blocks = new Block[vectors.size()];
                     try {
                         for (int col = 0; col < vectors.size(); col++) {
-                            blocks[col] = convertVector(vectors.get(col));
+                            blocks[col] = convertVector(vectors.get(col), dictProvider);
                         }
                     } catch (RuntimeException e) {
                         Releasables.closeExpectNoException(blocks);
@@ -670,12 +689,110 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             }
         }
 
-        private Block convertVector(FieldVector vector) {
+        private Block convertVector(FieldVector vector, DictionaryProvider dictProvider) {
+            DictionaryEncoding encoding = vector.getField().getDictionary();
+            if (encoding != null) {
+                return dictionaryToBlock(vector, encoding, dictProvider);
+            }
             ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
             if (converter == null) {
                 throw new UnsupportedOperationException("Unsupported Arrow type [" + vector.getMinorType() + "]");
             }
             return converter.convert(vector, blockFactory);
+        }
+
+        /**
+         * Converts a dictionary-encoded Arrow vector into an ESQL {@link OrdinalBytesRefBlock}.
+         * Mirrors the dictionary fast path of the Java parquet reader
+         * ({@code PageColumnReader#buildOrdinalResult}): downstream operators can branch on
+         * {@code BytesRefBlock#asOrdinals()} to deduplicate work across repeated values.
+         * <p>
+         * Two short-circuits avoid building an ordinal block when the data is degenerate:
+         * <ul>
+         *   <li>all-null indices &rarr; {@link BlockFactory#newConstantNullBlock} (returned typed as
+         *       {@link BytesRefBlock}; {@code ConstantNullBlock} implements every typed block interface).</li>
+         *   <li>all-equal non-null indices &rarr; {@link BlockFactory#newConstantBytesRefBlockWith} so the
+         *       ordinal indirection is skipped entirely.</li>
+         * </ul>
+         * The constant detection on the indices block itself is supplied by
+         * {@link IntArrowBufBlock#of(org.apache.arrow.vector.ValueVector, BlockFactory)}.
+         * <p>
+         * The dictionary entries are copied into a heap-backed {@link BytesRefArray} (matching
+         * {@code PageColumnReader#buildDictionaryVector}) rather than zero-copied from the Arrow
+         * data buffer. The dictionary is k entries (typically a few KB) so the copy is negligible
+         * compared to the n-row index work the ordinal block saves; the trade keeps the block
+         * lifecycle independent of {@link CDataDictionaryProvider}'s page-scoped state.
+         */
+        private Block dictionaryToBlock(FieldVector indicesVector, DictionaryEncoding encoding, DictionaryProvider dictProvider) {
+            Dictionary dict = dictProvider.lookup(encoding.getId());
+            if (dict == null) {
+                throw new IllegalStateException("Missing dictionary for id [" + encoding.getId() + "]");
+            }
+            FieldVector dictValuesVector = dict.getVector();
+            if (dictValuesVector instanceof BaseVariableWidthVector == false) {
+                throw new UnsupportedOperationException(
+                    "Dictionary values vector type ["
+                        + dictValuesVector.getMinorType()
+                        + "] not supported; expected variable-width string/binary"
+                );
+            }
+            BaseVariableWidthVector dictValues = (BaseVariableWidthVector) dictValuesVector;
+
+            IntBlock ordinals = IntArrowBufBlock.of(indicesVector, blockFactory);
+            BytesRefVector dictVector = null;
+            boolean ownershipTransferred = false;
+            try {
+                int positionCount = ordinals.getPositionCount();
+                IntVector ordinalsVec = ordinals.asVector();
+                if (ordinalsVec != null && ordinalsVec.isConstant() && ordinals.mayHaveNulls() == false) {
+                    BytesRef constant = readDictionaryEntry(dictValues, ordinals.getInt(0), new BytesRef());
+                    return blockFactory.newConstantBytesRefBlockWith(constant, positionCount);
+                }
+                dictVector = buildDictionaryVector(dictValues, blockFactory);
+                OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(ordinals, dictVector);
+                ownershipTransferred = true;
+                return result;
+            } finally {
+                if (ownershipTransferred == false) {
+                    Releasables.closeExpectNoException(ordinals, dictVector);
+                }
+            }
+        }
+
+        private static BytesRef readDictionaryEntry(BaseVariableWidthVector dict, int index, BytesRef into) {
+            ArrowBuf data = dict.getDataBuffer();
+            ArrowBuf offsets = dict.getOffsetBuffer();
+            int start = offsets.getInt((long) index * Integer.BYTES);
+            int end = offsets.getInt((long) (index + 1) * Integer.BYTES);
+            int length = end - start;
+            byte[] bytes = new byte[length];
+            if (length > 0) {
+                data.getBytes(start, bytes);
+            }
+            into.bytes = bytes;
+            into.offset = 0;
+            into.length = length;
+            return into;
+        }
+
+        private static BytesRefVector buildDictionaryVector(BaseVariableWidthVector dict, BlockFactory blockFactory) {
+            int count = dict.getValueCount();
+            BytesRefArray array = new BytesRefArray(count, blockFactory.bigArrays());
+            boolean success = false;
+            try {
+                BytesRef scratch = new BytesRef();
+                for (int i = 0; i < count; i++) {
+                    readDictionaryEntry(dict, i, scratch);
+                    array.append(scratch);
+                }
+                BytesRefVector vector = blockFactory.newBytesRefArrayVector(array, count);
+                success = true;
+                return vector;
+            } finally {
+                if (success == false) {
+                    array.close();
+                }
+            }
         }
 
         @Override

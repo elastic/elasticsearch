@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::ptr;
 use std::sync::Arc;
 
@@ -6,6 +6,7 @@ use super::ASYNC_RUNTIME;
 use super::filter::{self, FilterExpr};
 use super::jni_utils::extract_storage_config;
 use arrow::array::{Array, BooleanArray, StructArray};
+use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::ffi;
 use arrow::record_batch::RecordBatch;
 use bytes::{Buf, Bytes};
@@ -19,6 +20,7 @@ use futures::{StreamExt, TryStreamExt};
 use object_store::{ObjectStore, ObjectStoreExt};
 use parquet::arrow::ProjectionMask;
 use parquet::arrow::arrow_reader::{ArrowReaderMetadata, ArrowReaderOptions, RowSelection, RowSelector};
+use parquet::basic::Encoding;
 use parquet::basic::Type as PhysicalType;
 use parquet::column::page::{Page, PageReader};
 use parquet::file::metadata::PageIndexPolicy;
@@ -38,6 +40,131 @@ fn meta_options_for(filter_present: bool) -> ArrowReaderOptions {
         PageIndexPolicy::Skip
     };
     ArrowReaderOptions::new().with_page_index_policy(policy)
+}
+
+/// Returns the names of `BYTE_ARRAY` (Utf8/Binary) columns whose every chunk across every row
+/// group is fully dictionary-encoded for its data pages.
+///
+/// We promote a column to `Dictionary(Int32, ...)` in [`dict_preserving_schema`] only when this
+/// returns its name. Columns that include even one PLAIN-encoded data page are left unwrapped:
+/// promoting them forces `parquet-rs` to synthesize a dictionary on the fly, which on
+/// high-cardinality columns produces a near-N-entry dictionary plus an N-int indices vector and
+/// then drags `OrdinalBytesRefBlock` indirection through every downstream operator. That is the
+/// regression seen on ClickBench's `SearchPhrase`/`ClientIP`/`MobilePhoneModel` columns, where
+/// `parquet-mr` falls back to PLAIN once its dictionary page overflows.
+///
+/// The chunk-level check follows the recipe documented on
+/// [`ColumnChunkMetaData::page_encoding_stats_mask`]: a chunk is fully dict-encoded iff a
+/// dictionary page is present **and** the data-page encodings mask contains only
+/// `RLE_DICTIONARY` or only `PLAIN_DICTIONARY`. The plain `encodings_mask()` cannot be used
+/// directly because the dictionary page itself is encoded as `PLAIN`, so a fallback chunk and a
+/// pure-dict chunk both end up with `{PLAIN, RLE_DICTIONARY}` set.
+///
+/// Page encoding stats are written by modern parquet writers but may be absent in legacy files;
+/// in that case we conservatively treat the chunk as not-fully-dict (no promotion) to avoid the
+/// synthesis cost on something we cannot verify.
+///
+/// The decision is per-file (which is the granularity `ArrowReaderOptions::with_schema` allows)
+/// and conservative. `parquet-mr`'s overflow pattern is effectively per-column-per-file — once
+/// one chunk overflows, subsequent chunks for that column are written as PLAIN — so the
+/// all-or-nothing signal mirrors what the Java reader achieves implicitly via its per-chunk
+/// `dictionary != null` check at `PageColumnReader.java:945`.
+fn dict_promotable_columns(metadata: &parquet::file::metadata::ParquetMetaData) -> HashSet<String> {
+    let mut promotable = HashSet::new();
+    let parquet_schema = metadata.file_metadata().schema_descr();
+    let num_row_groups = metadata.num_row_groups();
+    if num_row_groups == 0 {
+        return promotable;
+    }
+    for col_idx in 0..parquet_schema.num_columns() {
+        let col_desc = parquet_schema.column(col_idx);
+        if col_desc.physical_type() != PhysicalType::BYTE_ARRAY {
+            continue;
+        }
+        let mut all_dict = true;
+        for rg_idx in 0..num_row_groups {
+            let chunk = metadata.row_group(rg_idx).column(col_idx);
+            if chunk_fully_dict_encoded(chunk) == false {
+                all_dict = false;
+                break;
+            }
+        }
+        if all_dict {
+            promotable.insert(col_desc.name().to_string());
+        }
+    }
+    promotable
+}
+
+/// True iff the chunk has a dictionary page **and** every data page used a dictionary encoding
+/// (`RLE_DICTIONARY` or `PLAIN_DICTIONARY`). Returns false when page encoding stats are missing
+/// (legacy files), which is the conservative default — we don't promote what we can't verify.
+fn chunk_fully_dict_encoded(chunk: &parquet::file::metadata::ColumnChunkMetaData) -> bool {
+    if chunk.dictionary_page_offset().is_none() {
+        return false;
+    }
+    match chunk.page_encoding_stats_mask() {
+        Some(mask) => mask.is_only(Encoding::RLE_DICTIONARY) || mask.is_only(Encoding::PLAIN_DICTIONARY),
+        None => false,
+    }
+}
+
+/// Returns an Arrow schema where every `Utf8`/`Binary` column whose name is in `promotable`
+/// is rewritten as `Dictionary(Int32, Utf8|Binary)`. Supplied to
+/// `ArrowReaderOptions::with_schema` it instructs `parquet-rs` to keep dictionary-encoded
+/// `BYTE_ARRAY` pages in their dictionary form (`make_byte_array_dictionary_reader`) instead of
+/// materialising the values into a flat `VarChar`/`VarBinary` vector. Other columns (and
+/// non-promotable string columns) are passed through unchanged.
+fn dict_preserving_schema(arrow_schema: &Schema, promotable: &HashSet<String>) -> SchemaRef {
+    let fields: Vec<Field> = arrow_schema
+        .fields()
+        .iter()
+        .map(|f| {
+            if promotable.contains(f.name()) == false {
+                return (**f).clone();
+            }
+            match f.data_type() {
+                DataType::Utf8 => Field::new(
+                    f.name(),
+                    DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Utf8)),
+                    f.is_nullable(),
+                )
+                .with_metadata(f.metadata().clone()),
+                DataType::Binary => Field::new(
+                    f.name(),
+                    DataType::Dictionary(Box::new(DataType::Int32), Box::new(DataType::Binary)),
+                    f.is_nullable(),
+                )
+                .with_metadata(f.metadata().clone()),
+                _ => (**f).clone(),
+            }
+        })
+        .collect();
+    Arc::new(Schema::new_with_metadata(fields, arrow_schema.metadata().clone()))
+}
+
+/// Loads `ArrowReaderMetadata` and, for columns whose chunks all used dictionary encoding,
+/// rewrites the cached Arrow schema via [`dict_preserving_schema`] so the data reader emits
+/// `DictionaryArray`s for those columns (preserving Parquet's dictionary encoding through to the
+/// FFI boundary). When no column qualifies the second `try_new` is skipped entirely.
+///
+/// The page-index policy on `base_opts` is honoured by the initial `load_async`; the second
+/// `try_new` only swaps the schema, the `ParquetMetaData` (including any loaded page indexes) is
+/// reused as-is.
+pub(crate) async fn load_arrow_meta_dict_promoted<R>(
+    reader: &mut R,
+    base_opts: ArrowReaderOptions,
+) -> Result<ArrowReaderMetadata, ParquetError>
+where
+    R: AsyncFileReader,
+{
+    let arrow_meta = ArrowReaderMetadata::load_async(reader, base_opts.clone()).await?;
+    let promotable = dict_promotable_columns(arrow_meta.metadata());
+    if promotable.is_empty() {
+        return Ok(arrow_meta);
+    }
+    let dict_schema = dict_preserving_schema(arrow_meta.schema(), &promotable);
+    ArrowReaderMetadata::try_new(arrow_meta.metadata().clone(), base_opts.with_schema(dict_schema))
 }
 use parquet::file::reader::{ChunkReader, Length};
 use parquet::file::serialized_reader::SerializedPageReader;
@@ -302,7 +429,7 @@ async fn fetch_and_cache_metadata(
     // Cached metadata is reused across queries with different (or no) filters.
     // Use `Optional`: parse the page index when present so filter-pushdown can use it,
     // without erroring on legacy files that lack a page index.
-    let arrow_meta = ArrowReaderMetadata::load_async(
+    let arrow_meta = load_arrow_meta_dict_promoted(
         &mut obj_reader,
         ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
     ).await?;
@@ -454,7 +581,7 @@ fn open_async_for_range(
 
             let arrow_meta = match pre_loaded_meta {
                 Some(meta) => meta,
-                None => ArrowReaderMetadata::load_async(
+                None => load_arrow_meta_dict_promoted(
                     &mut obj_reader,
                     meta_options_for(filter.is_some()),
                 ).await.map_err(err)?,
@@ -867,6 +994,7 @@ fn page_kind(p: &Page) -> &'static str {
 /// Converts a `BooleanArray` (predicate result) into `Vec<RowSelector>` for use with
 /// `RowSelection`. Null values are treated as `false` (row does not pass).
 /// Returns the selectors and whether any row passed (has a `true` in the mask).
+
 fn bool_array_to_selectors(mask: &BooleanArray) -> (Vec<RowSelector>, bool) {
     let n = mask.len();
     if n == 0 {
@@ -1258,7 +1386,15 @@ async fn spawn_file_workers<R: AsyncFileReader + Clone + Send + Unpin + 'static>
                             Err(e) => { let _ = tx.send(Err(e)).await; return; }
                         };
                         for batch in reader {
-                            if tx.send(batch.map_err(|e| ParquetError::from(e))).await.is_err() {
+                            // Phase-2 reads with `with_row_selection`, which leaves
+                            // dictionaries sparse for the same reason `filter_record_batch`
+                            // does — see [`filter::compact_record_batch_dicts`].
+                            let to_send = match batch.map_err(ParquetError::from) {
+                                Ok(b) => filter::compact_record_batch_dicts(b)
+                                    .map_err(|e| ParquetError::General(e.to_string())),
+                                Err(e) => Err(e),
+                            };
+                            if tx.send(to_send).await.is_err() {
                                 return;
                             }
                         }
@@ -1334,6 +1470,18 @@ async fn spawn_file_workers<R: AsyncFileReader + Clone + Send + Unpin + 'static>
                                         return;
                                     }
                                 };
+                            // filter_record_batch keeps the original (now sparse) dictionary
+                            // for any DictionaryArray columns; compact it before handing the
+                            // batch to Java to avoid phantom hash-aggregation groups.
+                            let filtered = match filter::compact_record_batch_dicts(filtered) {
+                                Ok(b) => b,
+                                Err(e) => {
+                                    let _ = tx
+                                        .send(Err(ParquetError::General(e.to_string())))
+                                        .await;
+                                    return;
+                                }
+                            };
                             if filtered.num_rows() > 0 && tx.send(Ok(filtered)).await.is_err() {
                                 return;
                             }
@@ -1516,7 +1664,7 @@ fn open_multi(
                         let head = store.head(&path).await.map_err(err)?;
                         reader = reader.with_file_size(head.size as u64);
                     }
-                    let meta = ArrowReaderMetadata::load_async(&mut reader, opts)
+                    let meta = load_arrow_meta_dict_promoted(&mut reader, opts)
                         .await
                         .map_err(err)?;
                     super::cache::insert(path_str, meta.clone());

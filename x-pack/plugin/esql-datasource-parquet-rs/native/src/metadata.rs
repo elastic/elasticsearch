@@ -35,7 +35,7 @@ fn load_metadata(
         // Cached metadata is reused across queries with different (or no) filters.
         // Use `Optional`: parse the page index when present (so filter-pushdown
         // pruning can use it later) without erroring on legacy files that lack one.
-        let arrow_meta = ArrowReaderMetadata::load_async(
+        let arrow_meta = super::reader::load_arrow_meta_dict_promoted(
             &mut reader,
             ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional),
         )

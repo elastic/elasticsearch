@@ -1,12 +1,12 @@
 use super::jni_utils::*;
 use arrow::array::{
-    Array, ArrayRef, BinaryArray, BooleanArray, Date32Array, Date64Array, Float32Array,
-    Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, Scalar, StringArray,
-    TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
+    Array, ArrayRef, BinaryArray, BooleanArray, Date32Array, Date64Array, DictionaryArray,
+    Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, Scalar,
+    StringArray, TimestampMicrosecondArray, TimestampMillisecondArray, TimestampNanosecondArray,
     TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array, UInt8Array,
 };
 use arrow::compute::kernels::cmp;
-use arrow::datatypes::DataType;
+use arrow::datatypes::{DataType, Int32Type};
 use arrow::record_batch::RecordBatch;
 use jni::EnvUnowned;
 use jni::errors::{Result as JniResult, ThrowRuntimeExAndDefault};
@@ -926,7 +926,7 @@ pub fn evaluate_filter(expr: &FilterExpr, batch: &RecordBatch) -> arrow::error::
         FilterExpr::InList(col_expr, items) => {
             if let FilterExpr::Column(name) = col_expr.as_ref() {
                 if let Some(col) = find_column(batch, name) {
-                    return eval_in_list(col, items, num_rows);
+                    return eval_in_list(col, items);
                 }
             }
             Ok(BooleanArray::from(vec![false; num_rows]))
@@ -947,10 +947,131 @@ fn find_column(batch: &RecordBatch, name: &str) -> Option<Arc<dyn Array>> {
         .map(|(i, _)| batch.column(i).clone())
 }
 
+/// Runs `f` against the dictionary's small `values()` array when `col` is a
+/// `DictionaryArray<Int32Type>`, then expands the per-value mask back to a per-row
+/// mask via `take(mask, keys)`. Null keys propagate to nulls in the result, which
+/// `arrow::compute::filter_record_batch` treats as `false` — matching the row-level
+/// null semantics every evaluator already relies on.
+///
+/// For non-dictionary columns (or dictionaries with key types other than Int32 — not
+/// emitted by the dict-promotion path), the closure is invoked directly on `col`.
+fn eval_per_element<F>(col: &dyn Array, f: F) -> arrow::error::Result<BooleanArray>
+where
+    F: FnOnce(&dyn Array) -> arrow::error::Result<BooleanArray>,
+{
+    if let Some(dict) = col.as_any().downcast_ref::<DictionaryArray<Int32Type>>() {
+        let values_mask = f(dict.values().as_ref())?;
+        let expanded = arrow::compute::take(&values_mask, dict.keys(), None)?;
+        return Ok(expanded
+            .as_any()
+            .downcast_ref::<BooleanArray>()
+            .expect("take on BooleanArray returns BooleanArray")
+            .clone());
+    }
+    f(col)
+}
+
+/// Rebuild a `DictionaryArray<Int32>` so its `values()` contains only entries actually
+/// referenced by `keys()`, with keys remapped to the new positions.
+///
+/// `arrow::compute::filter` (and `take` with row selection) on a `DictionaryArray` keeps the
+/// original dictionary intact and only filters the keys, leaving the dict sparse — values
+/// that no key references are still present.
+///
+/// On the Java side `BytesRefBlockHash#add(BytesRefVector)` registers **every** dictionary
+/// entry as a hash group. So a sparse dict produces phantom output groups (e.g. an empty
+/// "" group with `COUNT(*) = 0`) for every value the filter dropped from view. Compacting
+/// here keeps that contract intact and is cheap when the dict is already compact (early
+/// return with the original `Arc`).
+pub fn compact_dict_array(array: &ArrayRef) -> arrow::error::Result<ArrayRef> {
+    let Some(dict) = array.as_any().downcast_ref::<DictionaryArray<Int32Type>>() else {
+        return Ok(Arc::clone(array));
+    };
+
+    let keys = dict.keys();
+    let values = dict.values();
+    let dict_size = values.len();
+
+    if dict_size == 0 || keys.len() == 0 {
+        return Ok(Arc::clone(array));
+    }
+
+    // Pass 1: which dict positions are referenced by at least one non-null key?
+    let mut used = vec![false; dict_size];
+    for i in 0..keys.len() {
+        if keys.is_valid(i) {
+            let k = keys.value(i) as usize;
+            if k < dict_size {
+                used[k] = true;
+            }
+        }
+    }
+    let used_count = used.iter().filter(|&&b| b).count();
+    if used_count == dict_size {
+        return Ok(Arc::clone(array));
+    }
+
+    // Build remapping table: old_idx -> new_idx (-1 if not used).
+    let mut new_idx = vec![-1i32; dict_size];
+    let mut next: i32 = 0;
+    let mut take_indices: Vec<i32> = Vec::with_capacity(used_count);
+    for i in 0..dict_size {
+        if used[i] {
+            new_idx[i] = next;
+            next += 1;
+            take_indices.push(i as i32);
+        }
+    }
+
+    // Pass 2: build the compacted values via take().
+    let take_arr = Int32Array::from(take_indices);
+    let new_values = arrow::compute::take(values.as_ref(), &take_arr, None)?;
+
+    // Pass 3: remap keys, preserving null-key positions.
+    let mut new_keys_buf: Vec<Option<i32>> = Vec::with_capacity(keys.len());
+    for i in 0..keys.len() {
+        if keys.is_valid(i) {
+            new_keys_buf.push(Some(new_idx[keys.value(i) as usize]));
+        } else {
+            new_keys_buf.push(None);
+        }
+    }
+    let new_keys = Int32Array::from(new_keys_buf);
+
+    let new_dict = DictionaryArray::<Int32Type>::try_new(new_keys, new_values)?;
+    Ok(Arc::new(new_dict))
+}
+
+/// Apply [`compact_dict_array`] to every column of `batch`. Returns the original `batch`
+/// when no column was modified, so non-dict batches are zero-cost.
+pub fn compact_record_batch_dicts(batch: RecordBatch) -> arrow::error::Result<RecordBatch> {
+    let mut new_columns: Vec<ArrayRef> = Vec::with_capacity(batch.num_columns());
+    let mut any_changed = false;
+    for col in batch.columns() {
+        let compacted = compact_dict_array(col)?;
+        if !Arc::ptr_eq(col, &compacted) {
+            any_changed = true;
+        }
+        new_columns.push(compacted);
+    }
+    if !any_changed {
+        return Ok(batch);
+    }
+    RecordBatch::try_new(batch.schema(), new_columns)
+}
+
 /// Build a scalar array matching the column's data type from a FilterExpr literal.
 /// Returns None if the literal type is incompatible with the column type.
+///
+/// Peels `Dictionary(_, value_t)` so a literal is matched against the dictionary's
+/// value type. Callers that wrap evaluation in [`eval_per_element`] already pass the
+/// values array (already unwrapped); the peel here keeps the function correct when
+/// invoked directly on a dictionary column.
 fn make_scalar(col: &dyn Array, lit: &FilterExpr) -> Option<ArrayRef> {
-    let dt = col.data_type();
+    let dt = match col.data_type() {
+        DataType::Dictionary(_, value_t) => value_t.as_ref(),
+        other => other,
+    };
     match lit {
         FilterExpr::LiteralInt(v) => match dt {
             DataType::Int32 => Some(Arc::new(Int32Array::from(vec![*v]))),
@@ -1013,10 +1134,13 @@ fn eval_comparison(
     let num_rows = batch.num_rows();
     if let FilterExpr::Column(name) = left {
         if let Some(col) = find_column(batch, name) {
-            if let Some(scalar_arr) = make_scalar(col.as_ref(), right) {
-                let scalar = Scalar::new(scalar_arr);
-                return cmp_fn(&col, &scalar);
-            }
+            return eval_per_element(col.as_ref(), |arr| {
+                if let Some(scalar_arr) = make_scalar(arr, right) {
+                    cmp_fn(&arr, &Scalar::new(scalar_arr))
+                } else {
+                    Ok(BooleanArray::from(vec![false; arr.len()]))
+                }
+            });
         }
     }
     Ok(BooleanArray::from(vec![false; num_rows]))
@@ -1025,20 +1149,24 @@ fn eval_comparison(
 fn eval_in_list(
     col: Arc<dyn Array>,
     items: &[FilterExpr],
-    num_rows: usize,
 ) -> arrow::error::Result<BooleanArray> {
-    let mut combined: Option<BooleanArray> = None;
-    for item in items {
-        if let Some(scalar_arr) = make_scalar(col.as_ref(), item) {
-            let scalar = Scalar::new(scalar_arr);
-            let eq_result = cmp::eq(&col, &scalar)?;
-            combined = Some(match combined {
-                Some(prev) => arrow::compute::kernels::boolean::or(&prev, &eq_result)?,
-                None => eq_result,
-            });
+    eval_per_element(col.as_ref(), |arr| {
+        let mut combined: Option<BooleanArray> = None;
+        for item in items {
+            if let Some(scalar_arr) = make_scalar(arr, item) {
+                let scalar = Scalar::new(scalar_arr);
+                let eq_result = cmp::eq(&arr, &scalar)?;
+                combined = Some(match combined {
+                    Some(prev) => arrow::compute::kernels::boolean::or(&prev, &eq_result)?,
+                    None => eq_result,
+                });
+            }
         }
-    }
-    Ok(combined.unwrap_or_else(|| BooleanArray::from(vec![false; num_rows])))
+        // No item matched the column type: produce an all-false mask at this layer's
+        // length. For a dict column that's per-value (gets expanded to per-row by take);
+        // for a flat column it's already per-row.
+        Ok(combined.unwrap_or_else(|| BooleanArray::from(vec![false; arr.len()])))
+    })
 }
 
 fn eval_like(
@@ -1051,29 +1179,32 @@ fn eval_like(
 ) -> arrow::error::Result<BooleanArray> {
     if let FilterExpr::Column(name) = col_expr {
         if let Some(col) = find_column(batch, name) {
-            let str_col = as_string_array(&col);
-            if let Some(str_arr) = str_col.as_ref().or_else(|| col.as_any().downcast_ref::<StringArray>()) {
-                let pattern_scalar = StringArray::new_scalar(pattern);
-                // ESQL's case-insensitive WildcardLike (built via Lucene's RegExp.CASE_INSENSITIVE)
-                // is ASCII-only, while arrow's ilike/nilike apply Unicode case folding. The two
-                // agree on every common upper/lower pair (including extended Latin like 'ü'/'Ü');
-                // they only diverge on a handful of Unicode ligatures (e.g. 'ﬀ' vs "FF", 'ß' vs "SS").
-                // For the supported text in ESQL this difference is not user-visible.
-                let result = match (negate, case_insensitive) {
-                    (false, false) => arrow::compute::kernels::comparison::like(str_arr, &pattern_scalar)?,
-                    (false, true) => arrow::compute::kernels::comparison::ilike(str_arr, &pattern_scalar)?,
-                    (true, false) => arrow::compute::kernels::comparison::nlike(str_arr, &pattern_scalar)?,
-                    (true, true) => arrow::compute::kernels::comparison::nilike(str_arr, &pattern_scalar)?,
-                };
-                return Ok(result);
-            }
+            return eval_per_element(col.as_ref(), |arr| {
+                let converted = as_string_array(arr);
+                if let Some(str_arr) = converted.as_ref().or_else(|| arr.as_any().downcast_ref::<StringArray>()) {
+                    let pattern_scalar = StringArray::new_scalar(pattern);
+                    // ESQL's case-insensitive WildcardLike (built via Lucene's RegExp.CASE_INSENSITIVE)
+                    // is ASCII-only, while arrow's ilike/nilike apply Unicode case folding. The two
+                    // agree on every common upper/lower pair (including extended Latin like 'ü'/'Ü');
+                    // they only diverge on a handful of Unicode ligatures (e.g. 'ﬀ' vs "FF", 'ß' vs "SS").
+                    // For the supported text in ESQL this difference is not user-visible.
+                    let result = match (negate, case_insensitive) {
+                        (false, false) => arrow::compute::kernels::comparison::like(str_arr, &pattern_scalar)?,
+                        (false, true) => arrow::compute::kernels::comparison::ilike(str_arr, &pattern_scalar)?,
+                        (true, false) => arrow::compute::kernels::comparison::nlike(str_arr, &pattern_scalar)?,
+                        (true, true) => arrow::compute::kernels::comparison::nilike(str_arr, &pattern_scalar)?,
+                    };
+                    return Ok(result);
+                }
+                Ok(BooleanArray::from(vec![false; arr.len()]))
+            });
         }
     }
     Ok(BooleanArray::from(vec![false; num_rows]))
 }
 
 /// Try to interpret a column as a StringArray, converting from BinaryArray if needed.
-fn as_string_array(col: &Arc<dyn Array>) -> Option<StringArray> {
+fn as_string_array(col: &dyn Array) -> Option<StringArray> {
     if col.as_any().downcast_ref::<StringArray>().is_some() {
         return None;
     }
@@ -1101,20 +1232,23 @@ fn eval_starts_with(
 ) -> arrow::error::Result<BooleanArray> {
     if let FilterExpr::Column(name) = col_expr {
         if let Some(col) = find_column(batch, name) {
-            let str_arr = col.as_any().downcast_ref::<StringArray>();
-            let bin_arr = col.as_any().downcast_ref::<BinaryArray>();
-            let mut results = Vec::with_capacity(num_rows);
-            for i in 0..num_rows {
-                if col.is_null(i) {
-                    results.push(Some(false));
-                } else {
-                    let val: Option<&str> = str_arr.map(|a| a.value(i))
-                        .or_else(|| bin_arr.and_then(|a| std::str::from_utf8(a.value(i)).ok()));
-                    let m = val.map(|v| v >= prefix && upper.map_or(true, |u| v < u)).unwrap_or(false);
-                    results.push(Some(m));
+            return eval_per_element(col.as_ref(), |arr| {
+                let str_arr = arr.as_any().downcast_ref::<StringArray>();
+                let bin_arr = arr.as_any().downcast_ref::<BinaryArray>();
+                let n = arr.len();
+                let mut results = Vec::with_capacity(n);
+                for i in 0..n {
+                    if arr.is_null(i) {
+                        results.push(Some(false));
+                    } else {
+                        let val: Option<&str> = str_arr.map(|a| a.value(i))
+                            .or_else(|| bin_arr.and_then(|a| std::str::from_utf8(a.value(i)).ok()));
+                        let m = val.map(|v| v >= prefix && upper.map_or(true, |u| v < u)).unwrap_or(false);
+                        results.push(Some(m));
+                    }
                 }
-            }
-            return Ok(BooleanArray::from(results));
+                Ok(BooleanArray::from(results))
+            });
         }
     }
     Ok(BooleanArray::from(vec![false; num_rows]))
@@ -1402,4 +1536,363 @@ pub extern "system" fn Java_org_elasticsearch_xpack_esql_datasource_parquet_parq
         Ok(jstr.into_raw())
     })
     .resolve::<ThrowRuntimeExAndDefault>()
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow::array::Array;
+    use arrow::datatypes::{Field, Schema};
+    use std::sync::Arc;
+
+    /// Build a single-column RecordBatch from a (name, array) pair.
+    fn batch(name: &str, col: ArrayRef) -> RecordBatch {
+        let field = Field::new(name, col.data_type().clone(), true);
+        let schema = Arc::new(Schema::new(vec![field]));
+        RecordBatch::try_new(schema, vec![col]).unwrap()
+    }
+
+    /// Build a `Dictionary(Int32, Utf8)` column from values like ["a", "", "b", null, "a"].
+    /// Each input becomes its own dictionary entry; nulls become null keys (so the row is null).
+    fn dict_utf8(values: &[Option<&str>]) -> ArrayRef {
+        let mut keys: Vec<Option<i32>> = Vec::with_capacity(values.len());
+        let mut dict_vals: Vec<&str> = Vec::new();
+        for v in values {
+            match v {
+                Some(s) => {
+                    keys.push(Some(dict_vals.len() as i32));
+                    dict_vals.push(s);
+                }
+                None => keys.push(None),
+            }
+        }
+        let key_arr = Int32Array::from(keys);
+        let val_arr = StringArray::from(dict_vals);
+        Arc::new(DictionaryArray::<Int32Type>::try_new(key_arr, Arc::new(val_arr)).unwrap())
+    }
+
+    /// Convenience: collect a BooleanArray into Vec<Option<bool>> for assertions.
+    fn collect_bool(arr: &BooleanArray) -> Vec<Option<bool>> {
+        (0..arr.len()).map(|i| if arr.is_null(i) { None } else { Some(arr.value(i)) }).collect()
+    }
+
+    fn col_expr(name: &str) -> FilterExpr {
+        FilterExpr::Column(name.to_string())
+    }
+
+    fn lit_str(s: &str) -> FilterExpr {
+        FilterExpr::LiteralString(s.to_string())
+    }
+
+    // -- eval_per_element ---------------------------------------------------
+
+    #[test]
+    fn eval_per_element_passes_through_flat_columns() {
+        let arr: ArrayRef = Arc::new(StringArray::from(vec![Some("a"), Some("b"), None]));
+        let mask = eval_per_element(arr.as_ref(), |a| {
+            // Predicate: true for non-null
+            Ok(arrow::compute::is_not_null(a)?)
+        })
+        .unwrap();
+        assert_eq!(collect_bool(&mask), vec![Some(true), Some(true), Some(false)]);
+    }
+
+    #[test]
+    fn eval_per_element_unwraps_dict_and_expands() {
+        // Dict has 2 unique values referenced by 5 keys (one null).
+        let arr = dict_utf8(&[Some("foo"), Some("bar"), Some("foo"), None, Some("bar")]);
+        let mask = eval_per_element(arr.as_ref(), |values| {
+            // Predicate evaluated on the dict's small values array.
+            // values = ["foo", "bar"] -> mark "bar" as true.
+            let s = values.as_any().downcast_ref::<StringArray>().unwrap();
+            let bools: Vec<bool> = (0..s.len()).map(|i| s.value(i) == "bar").collect();
+            Ok(BooleanArray::from(bools))
+        })
+        .unwrap();
+        // Position 3 has a null key -> propagates to null in the result.
+        assert_eq!(
+            collect_bool(&mask),
+            vec![Some(false), Some(true), Some(false), None, Some(true)]
+        );
+    }
+
+    // -- eval_comparison (covers eq/neq/lt/lte/gt/gte) ----------------------
+
+    #[test]
+    fn neq_on_dict_utf8_filters_correctly() {
+        // Q10 minimal repro: WHERE col != "" on a dict-promoted string column.
+        let arr = dict_utf8(&[Some(""), Some("iPad"), Some(""), Some("iPhone"), None]);
+        let b = batch("col", arr);
+        let expr = FilterExpr::NotEq(Box::new(col_expr("col")), Box::new(lit_str("")));
+        let mask = evaluate_filter(&expr, &b).unwrap();
+        assert_eq!(
+            collect_bool(&mask),
+            vec![Some(false), Some(true), Some(false), Some(true), None]
+        );
+    }
+
+    #[test]
+    fn eq_on_dict_utf8_filters_correctly() {
+        let arr = dict_utf8(&[Some(""), Some("iPad"), Some(""), Some("iPhone"), None]);
+        let b = batch("col", arr);
+        let expr = FilterExpr::Eq(Box::new(col_expr("col")), Box::new(lit_str("iPad")));
+        let mask = evaluate_filter(&expr, &b).unwrap();
+        assert_eq!(
+            collect_bool(&mask),
+            vec![Some(false), Some(true), Some(false), Some(false), None]
+        );
+    }
+
+    #[test]
+    fn lt_on_dict_utf8_filters_correctly() {
+        let arr = dict_utf8(&[Some("a"), Some("c"), Some("b"), Some("d")]);
+        let b = batch("col", arr);
+        let expr = FilterExpr::Lt(Box::new(col_expr("col")), Box::new(lit_str("c")));
+        let mask = evaluate_filter(&expr, &b).unwrap();
+        assert_eq!(
+            collect_bool(&mask),
+            vec![Some(true), Some(false), Some(true), Some(false)]
+        );
+    }
+
+    // -- eval_in_list -------------------------------------------------------
+
+    #[test]
+    fn in_list_on_dict_utf8_filters_correctly() {
+        let arr = dict_utf8(&[Some("apple"), Some("banana"), Some("cherry"), Some("date"), None]);
+        let b = batch("col", arr);
+        let expr = FilterExpr::InList(
+            Box::new(col_expr("col")),
+            vec![lit_str("apple"), lit_str("cherry")],
+        );
+        let mask = evaluate_filter(&expr, &b).unwrap();
+        assert_eq!(
+            collect_bool(&mask),
+            vec![Some(true), Some(false), Some(true), Some(false), None]
+        );
+    }
+
+    // -- eval_like ----------------------------------------------------------
+
+    #[test]
+    fn like_on_dict_utf8_filters_correctly() {
+        let arr = dict_utf8(&[Some("foo"), Some("foobar"), Some("baz"), None]);
+        let b = batch("col", arr);
+        let expr = FilterExpr::Like(Box::new(col_expr("col")), "foo%".to_string(), false);
+        let mask = evaluate_filter(&expr, &b).unwrap();
+        assert_eq!(
+            collect_bool(&mask),
+            vec![Some(true), Some(true), Some(false), None]
+        );
+    }
+
+    #[test]
+    fn ilike_on_dict_utf8_filters_correctly() {
+        let arr = dict_utf8(&[Some("Foo"), Some("FOOBAR"), Some("baz")]);
+        let b = batch("col", arr);
+        let expr = FilterExpr::Like(Box::new(col_expr("col")), "foo%".to_string(), true);
+        let mask = evaluate_filter(&expr, &b).unwrap();
+        assert_eq!(
+            collect_bool(&mask),
+            vec![Some(true), Some(true), Some(false)]
+        );
+    }
+
+    #[test]
+    fn nlike_on_dict_utf8_filters_correctly() {
+        let arr = dict_utf8(&[Some("foo"), Some("baz")]);
+        let b = batch("col", arr);
+        let expr = FilterExpr::NotLike(Box::new(col_expr("col")), "foo%".to_string(), false);
+        let mask = evaluate_filter(&expr, &b).unwrap();
+        assert_eq!(collect_bool(&mask), vec![Some(false), Some(true)]);
+    }
+
+    // -- eval_starts_with ---------------------------------------------------
+
+    #[test]
+    fn starts_with_on_dict_utf8_filters_correctly() {
+        let arr = dict_utf8(&[Some("apple"), Some("apricot"), Some("banana"), None]);
+        let b = batch("col", arr);
+        // Range-style upper bound: rows starting with "ap" are >= "ap" and < "aq".
+        let expr = FilterExpr::StartsWith(
+            Box::new(col_expr("col")),
+            "ap".to_string(),
+            Some("aq".to_string()),
+        );
+        let mask = evaluate_filter(&expr, &b).unwrap();
+        assert_eq!(
+            collect_bool(&mask),
+            vec![Some(true), Some(true), Some(false), None]
+        );
+    }
+
+    // -- IsNull / IsNotNull (dict-aware via arrow's is_null on &dyn Array) --
+
+    #[test]
+    fn is_null_on_dict_utf8_filters_correctly() {
+        let arr = dict_utf8(&[Some("a"), None, Some("b"), None]);
+        let b = batch("col", arr);
+        let expr = FilterExpr::IsNull(Box::new(col_expr("col")));
+        let mask = evaluate_filter(&expr, &b).unwrap();
+        assert_eq!(
+            collect_bool(&mask),
+            vec![Some(false), Some(true), Some(false), Some(true)]
+        );
+    }
+
+    #[test]
+    fn is_not_null_on_dict_utf8_filters_correctly() {
+        let arr = dict_utf8(&[Some("a"), None, Some("b"), None]);
+        let b = batch("col", arr);
+        let expr = FilterExpr::IsNotNull(Box::new(col_expr("col")));
+        let mask = evaluate_filter(&expr, &b).unwrap();
+        assert_eq!(
+            collect_bool(&mask),
+            vec![Some(true), Some(false), Some(true), Some(false)]
+        );
+    }
+
+    // -- Regression: flat (non-dict) Utf8 columns still work ---------------
+
+    #[test]
+    fn neq_on_flat_utf8_unchanged() {
+        let arr: ArrayRef = Arc::new(StringArray::from(vec![Some(""), Some("x"), None, Some("")]));
+        let b = batch("col", arr);
+        let expr = FilterExpr::NotEq(Box::new(col_expr("col")), Box::new(lit_str("")));
+        let mask = evaluate_filter(&expr, &b).unwrap();
+        assert_eq!(
+            collect_bool(&mask),
+            vec![Some(false), Some(true), None, Some(false)]
+        );
+    }
+
+    // -- compact_dict_array -------------------------------------------------
+
+    /// Build a `Dictionary(Int32, Utf8)` directly from explicit keys + dict values, so we
+    /// can construct the sparse shape that `filter_record_batch` produces (a dict whose
+    /// values include entries no key references).
+    fn dict_utf8_raw(keys: Vec<Option<i32>>, vals: &[&str]) -> ArrayRef {
+        let key_arr = Int32Array::from(keys);
+        let val_arr = StringArray::from(vals.to_vec());
+        Arc::new(DictionaryArray::<Int32Type>::try_new(key_arr, Arc::new(val_arr)).unwrap())
+    }
+
+    fn dict_to_strings(arr: &ArrayRef) -> Vec<Option<String>> {
+        let dict = arr
+            .as_any()
+            .downcast_ref::<DictionaryArray<Int32Type>>()
+            .unwrap();
+        let vals = dict
+            .values()
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        let keys = dict.keys();
+        (0..keys.len())
+            .map(|i| {
+                if keys.is_null(i) {
+                    None
+                } else {
+                    Some(vals.value(keys.value(i) as usize).to_string())
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn compact_dict_drops_unreferenced_values() {
+        // Dict has 3 values ["", "iPad", "iPhone"] but only key=2 ("iPhone") is referenced.
+        let arr = dict_utf8_raw(vec![Some(2), Some(2), Some(2)], &["", "iPad", "iPhone"]);
+        let compacted = compact_dict_array(&arr).unwrap();
+        let dict = compacted
+            .as_any()
+            .downcast_ref::<DictionaryArray<Int32Type>>()
+            .unwrap();
+        assert_eq!(dict.values().len(), 1, "values should be compacted to 1");
+        let vals = dict
+            .values()
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        assert_eq!(vals.value(0), "iPhone");
+        // Same row content, just compact storage.
+        assert_eq!(
+            dict_to_strings(&compacted),
+            vec![
+                Some("iPhone".to_string()),
+                Some("iPhone".to_string()),
+                Some("iPhone".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn compact_dict_returns_same_arc_when_already_compact() {
+        let arr = dict_utf8_raw(vec![Some(0), Some(1), Some(0)], &["a", "b"]);
+        let compacted = compact_dict_array(&arr).unwrap();
+        assert!(
+            Arc::ptr_eq(&arr, &compacted),
+            "already-compact dict should not be rebuilt"
+        );
+    }
+
+    #[test]
+    fn compact_dict_preserves_null_keys() {
+        // Two dict entries; only "y" is referenced by non-null keys, plus null keys mixed in.
+        let arr = dict_utf8_raw(
+            vec![Some(1), None, Some(1), None],
+            &["x" /* unused */, "y"],
+        );
+        let compacted = compact_dict_array(&arr).unwrap();
+        let dict = compacted
+            .as_any()
+            .downcast_ref::<DictionaryArray<Int32Type>>()
+            .unwrap();
+        assert_eq!(dict.values().len(), 1);
+        assert_eq!(
+            dict_to_strings(&compacted),
+            vec![Some("y".to_string()), None, Some("y".to_string()), None]
+        );
+    }
+
+    #[test]
+    fn compact_dict_handles_no_referenced_values() {
+        // All keys null: no value is referenced, dict should compact to empty.
+        let arr = dict_utf8_raw(vec![None, None], &["a", "b"]);
+        let compacted = compact_dict_array(&arr).unwrap();
+        let dict = compacted
+            .as_any()
+            .downcast_ref::<DictionaryArray<Int32Type>>()
+            .unwrap();
+        assert_eq!(dict.values().len(), 0);
+        assert_eq!(dict.keys().len(), 2);
+        assert!(dict.keys().is_null(0) && dict.keys().is_null(1));
+    }
+
+    #[test]
+    fn compact_dict_passes_through_non_dict_columns() {
+        let arr: ArrayRef = Arc::new(StringArray::from(vec![Some("a"), None, Some("b")]));
+        let compacted = compact_dict_array(&arr).unwrap();
+        assert!(
+            Arc::ptr_eq(&arr, &compacted),
+            "non-dict column should pass through untouched"
+        );
+    }
+
+    #[test]
+    fn compact_record_batch_is_noop_when_no_columns_change() {
+        let arr = dict_utf8_raw(vec![Some(0), Some(1)], &["a", "b"]);
+        let b = batch("col", arr);
+        let original_ptr = b.column(0).as_ref() as *const _;
+        let out = compact_record_batch_dicts(b).unwrap();
+        let out_ptr = out.column(0).as_ref() as *const _;
+        assert_eq!(
+            original_ptr, out_ptr,
+            "compact_record_batch_dicts should not allocate when nothing changed"
+        );
+    }
 }

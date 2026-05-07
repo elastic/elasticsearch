@@ -106,9 +106,7 @@ public class ScriptScoreQuery extends Query {
             this.visit(QueryVisitor.termCollector(terms));
         }
 
-        // Captured once per createWeight; the script invokes it between loop iterations to honor
-        // the surrounding search's timeout and task-cancellation. Null when the searcher is not a
-        // ContextIndexSearcher (e.g. some test paths) — script execution then has no deadline.
+        // Null in test paths that pass a plain IndexSearcher; the script then has no deadline.
         final Runnable cancellationCheck = (searcher instanceof ContextIndexSearcher cis) ? cis::checkCancelled : null;
 
         return new Weight(this) {

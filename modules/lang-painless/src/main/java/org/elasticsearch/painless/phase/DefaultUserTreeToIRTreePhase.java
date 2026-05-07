@@ -268,12 +268,9 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
     protected ClassNode irClassNode;
 
     /**
-     * Attaches per-loop safety mechanisms to {@code irFunctionNode}. Opted-in contexts (those whose
-     * base class overrides {@code _getCancellationCheck()}) get the cancellation-runnable check
-     * <em>and</em> the legacy max-loop counter. The cancellation path fires when a deadline or
-     * task-cancel is registered on the search context; the legacy counter remains the no-timeout
-     * fallback so a runaway loop can't run unbounded when no deadline is set. Non-opted-in
-     * contexts get only the legacy counter (unchanged behavior).
+     * Attaches per-loop safety mechanisms. Opted-in contexts get both {@link IRCCancellationCheck}
+     * (cancellation path) and {@link IRDMaxLoopCounter} (legacy fallback when no runnable is
+     * bound at runtime). Non-opted-in contexts get only the legacy counter (unchanged).
      */
     protected static void attachLoopProtection(FunctionNode irFunctionNode, ScriptScope scriptScope) {
         if (scriptScope.getScriptClassInfo().supportsCancellation()) {

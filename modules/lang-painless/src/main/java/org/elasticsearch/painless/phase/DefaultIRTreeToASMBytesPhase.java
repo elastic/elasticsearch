@@ -318,15 +318,9 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.visitCode();
 
-        // Per-loop safety: cancellation-aware (opted-in) functions emit a runtime
-        // {@code if (cancelRunnable != null)} guard at every loop backedge that picks between
-        // the cancellation poll (drives a runnable that throws TimeExceededException /
-        // TaskCancelledException when a deadline or cancel is registered on the search context)
-        // and the legacy max-loop counter (throws PainlessError after a fixed budget). At
-        // function entry we just initialize all three locals once; the per-loop branch decides
-        // which path to follow based on the runtime value of cancelRunnable, which can change
-        // between executions of the same script instance via _setCancellationCheck.
-        // Non-opted-in functions emit only the legacy counter (unchanged historical behavior).
+        // Initialize the loop-guard locals once. The runtime branch in writeBranchedLoopGuard
+        // picks between cancellation and legacy at each backedge based on the cancelRunnable
+        // value, which can change per execution via _setCancellationCheck.
         boolean cancellation = irFunctionNode.hasCondition(IRCCancellationCheck.class);
         int maxLoopCounter = irFunctionNode.getDecorationValue(IRDMaxLoopCounter.class);
 
@@ -353,45 +347,27 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.endMethod();
     }
 
-    /**
-     * Emits the per-iteration safety check at the backedge of a regular for/while/do-while loop.
-     * Opted-in (cancellation-aware) functions emit a runtime
-     * {@code if (cancelRunnable != null)} guard that picks between the cancellation poll
-     * (timeout/cancel via {@code Runnable.run()}) and the legacy max-loop counter at every
-     * iteration. The branch lets the JIT specialize per call site / per instance and fold away
-     * the inactive arm; it also removes the wasted decrement that would otherwise happen on the
-     * inactive counter. Non-opted-in functions just emit the legacy counter unchanged.
-     */
+    /** Per-iteration guard for for/while/do-while. See {@link #writeBranchedLoopGuard}. */
     private static void writeLoopGuard(WriteScope writeScope, MethodWriter methodWriter, Location location) {
         writeBranchedLoopGuard(writeScope, methodWriter, location, true);
     }
 
     /**
-     * Emits the per-iteration safety check at the backedge of a for-each loop. Same shape as
-     * {@link #writeLoopGuard} for opted-in functions. For non-opted-in functions nothing is
-     * emitted at all — preserves the historical "for-each is uncovered by max_loop_counter"
-     * behavior so this change doesn't retroactively break long-existing scripts (filter, ingest,
-     * etc.) that iterate large collections via for-each.
+     * Per-iteration guard for for-each. Same as {@link #writeLoopGuard} for opted-in functions;
+     * emits nothing for non-opted-in (preserves historical for-each-uncovered behavior so
+     * existing filter/ingest/etc. scripts iterating large collections aren't broken).
      */
     private static void writeForEachLoopGuard(WriteScope writeScope, MethodWriter methodWriter, Location location) {
         writeBranchedLoopGuard(writeScope, methodWriter, location, false);
     }
 
     /**
-     * Shared emission for both regular and for-each loop guards.
-     *
-     * <ul>
-     *   <li>If {@code cancelRunnable} is in scope (opted-in function): emit
-     *       {@code if (cancelRunnable != null) writeCancellationCheck else writeLoopCounter}.
-     *       Whichever counter the runtime branch skips pays no per-iteration cost — important
-     *       for correctness because the inactive counter would otherwise eventually trip on
-     *       long-running scripts (e.g. an int counter pre-set to {@link Integer#MAX_VALUE}
-     *       would still hit zero after ~2 seconds of tight looping).
-     *   <li>If {@code cancelRunnable} is not in scope and {@code legacyForNonOptedIn} is true
-     *       (regular loops): emit just {@link MethodWriter#writeLoopCounter}.
-     *   <li>If {@code cancelRunnable} is not in scope and {@code legacyForNonOptedIn} is false
-     *       (for-each in non-opted-in functions): emit nothing.
-     * </ul>
+     * Shared loop-guard emission. Opted-in functions emit
+     * {@code if (cancelRunnable != null) writeCancellationCheck else writeLoopCounter} so the
+     * inactive counter pays no per-iteration cost (important: an int counter pre-set to
+     * {@link Integer#MAX_VALUE} still trips after ~2 s of tight looping). Non-opted-in
+     * functions emit only the legacy counter (or nothing, when {@code legacyForNonOptedIn} is
+     * false — used by for-each).
      */
     private static void writeBranchedLoopGuard(
         WriteScope writeScope,

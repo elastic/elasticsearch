@@ -138,23 +138,9 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     /**
-     * Emits a per-loop cancellation check that delegates to a {@link Runnable} stored in a local
-     * variable (typically populated at function entry from
-     * {@link org.elasticsearch.painless.PainlessScript#_getCancellationCheck()}). The check is
-     * amortized via a poll counter so the runnable is only invoked once every {@code pollInterval}
-     * iterations on the hot path.
-     * <p>
-     * Hot path bytecode (counter still positive): {@code iinc; iload; iconst_0; if_icmpgt skip}.
-     * Cold path: {@code aload; invokeinterface Runnable.run(); reset counter}.
-     * <p>
-     * The runnable itself is expected to throw an unchecked exception (e.g.
-     * {@code TimeExceededException}, {@code TaskCancelledException}) when execution should abort;
-     * the throw propagates straight out of the script.
-     *
-     * @param runnableSlot local-variable slot holding the cancellation {@link Runnable}
-     * @param pollSlot     local-variable slot holding the int poll counter
-     * @param pollInterval value the poll counter is reset to after a cold-path invocation
-     * @param location     source location used for line-number/debug info
+     * Emits an amortized per-loop cancellation check. Hot path: {@code iinc; iload; ifgt skip}.
+     * Cold path (every {@code pollInterval} iters): {@code aload; invokeinterface Runnable.run; reset counter}.
+     * The runnable throws an unchecked exception when execution should abort.
      */
     public void writeCancellationCheck(int runnableSlot, int pollSlot, int pollInterval, Location location) {
         assert runnableSlot != -1;

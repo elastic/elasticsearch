@@ -160,13 +160,7 @@ public class ScriptClassInfo {
         this.supportsCancellation = detectCancellationSupport(baseClass);
     }
 
-    /**
-     * Returns whether {@code baseClass} (or one of its concrete supertypes) overrides
-     * {@code _getCancellationCheck()}. When true, the painless engine emits per-loop cancellation
-     * checks that delegate to the runnable returned by that method instead of the legacy
-     * statement-budget check (see
-     * {@link org.elasticsearch.painless.symbol.IRDecorations.IRCCancellationCheck}).
-     */
+    /** See {@link #supportsCancellation()}. */
     private static boolean detectCancellationSupport(Class<?> baseClass) {
         try {
             java.lang.reflect.Method m = baseClass.getMethod("_getCancellationCheck");
@@ -221,10 +215,8 @@ public class ScriptClassInfo {
     }
 
     /**
-     * Whether the script base class provides a non-default {@code _getCancellationCheck()} method.
-     * When true, the painless emitter wires per-loop cancellation checks via
-     * {@link org.elasticsearch.painless.PainlessScript#_getCancellationCheck()} instead of the
-     * legacy max-loop-counter mechanism.
+     * Whether the script base class overrides {@code _getCancellationCheck()}. Drives
+     * {@link org.elasticsearch.painless.symbol.IRDecorations.IRCCancellationCheck} attachment.
      */
     public boolean supportsCancellation() {
         return supportsCancellation;

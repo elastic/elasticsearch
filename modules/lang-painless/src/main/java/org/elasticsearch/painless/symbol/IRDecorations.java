@@ -355,10 +355,9 @@ public class IRDecorations {
     }
 
     /**
-     * Marks a function whose loops should emit a cancellation check (delegating to the script's
-     * {@code _getCancellationCheck()} runnable) instead of the legacy {@link IRDMaxLoopCounter}
-     * statement-budget check. Attached only when the script's base class opts in by overriding
-     * {@code _getCancellationCheck()}; otherwise the existing loop-counter mechanism applies.
+     * Marker that opts a function into the cancellation-aware loop guard (vs. the legacy
+     * {@link IRDMaxLoopCounter}). Attached when the script base class overrides
+     * {@code _getCancellationCheck()}.
      */
     public static class IRCCancellationCheck implements IRCondition {
 

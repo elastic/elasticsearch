@@ -169,11 +169,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /**
-     * Run all registered cancellation/timeout checks. Throws whatever the registered runnables
-     * throw when a search has timed out or its task has been cancelled (e.g.
-     * {@link TimeExceededException} or
-     * {@link org.elasticsearch.tasks.TaskCancelledException}). A no-op when no cancellation checks
-     * are registered.
+     * Runs all registered cancellation/timeout checks; throws when one fires (e.g.
+     * {@link TimeExceededException}, {@link org.elasticsearch.tasks.TaskCancelledException}).
+     * No-op if none registered.
      */
     public void checkCancelled() {
         this.cancellable.checkCancelled();

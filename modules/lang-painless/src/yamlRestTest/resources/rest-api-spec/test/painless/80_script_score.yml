@@ -592,12 +592,11 @@
 
 ---
 "Search timeout aborts a long-running script_score loop":
-  # Verifies that the per-search timeout fires from inside a painless score script's
-  # loop. Prior to the cancellation-runnable wiring, painless honored only the
-  # statement-budget (max_loop_counter) which is unrelated to wall-clock time; the
-  # search timeout fired only between document collections, so a tight loop on a
-  # single doc would run to completion regardless. With one shard and one document
-  # the timeout has no other opportunity to fire — only the in-script check can.
+  # The search timeout (registered on ContextIndexSearcher.cancellable) is normally checked
+  # only between leaf-reader contexts and inside CancellableBulkScorer. With one shard and
+  # one document none of those points fires, so without the in-script poll a tight loop in
+  # the score script would run to completion regardless of the request timeout. This test
+  # exercises that in-script poll path end-to-end.
   - do:
       indices.create:
           index: test_script_score_timeout
@@ -626,14 +625,10 @@
                   script_score:
                       query: {match_all: {}}
                       script:
-                          # Busy-wait on the wall clock until the search timeout cancels the
-                          # script. With a request timeout set, the cancellation runnable is
-                          # bound on the script and the legacy max_loop_counter is disabled at
-                          # function entry — so the cancellation poll is the sole stop signal,
-                          # making the test deterministic regardless of hardware speed or JIT
-                          # behavior. System.currentTimeMillis() is whitelisted as
-                          # @nondeterministic so neither the JIT nor the painless optimizer
-                          # can fold the loop away.
+                          # System.currentTimeMillis is whitelisted (@nondeterministic) so the
+                          # JIT can't fold the loop away. With cancellation wired the runtime
+                          # branch picks the cancellation poll over the legacy counter, so
+                          # cancellation is the sole stop signal — independent of hardware speed.
                           source: |
                               long start = System.currentTimeMillis();
                               while (System.currentTimeMillis() - start < 60000L) {

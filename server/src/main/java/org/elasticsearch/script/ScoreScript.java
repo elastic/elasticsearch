@@ -210,23 +210,15 @@ public abstract class ScoreScript extends DocBasedScript {
     }
 
     /**
-     * Sets a {@link Runnable} that is invoked periodically by the painless engine while a script
-     * executes (between loop iterations) to check for search timeout or task cancellation. The
-     * runnable is expected to throw an unchecked exception when execution should abort. Setting
+     * Stores a runnable invoked between loop iterations by the painless engine to check for
+     * search timeout or task cancellation. The runnable throws when execution should abort;
      * {@code null} disables the check.
-     * <p>
-     * Starting a name with underscore so that the user cannot access this function directly
-     * through a script.
      */
     public void _setCancellationCheck(Runnable cancellationCheck) {
         this.cancellationCheck = cancellationCheck;
     }
 
-    /**
-     * Returns the cancellation check runnable previously set via {@link #_setCancellationCheck},
-     * or {@code null} if no check is registered. Read by the painless engine at the start of
-     * {@code execute} and invoked between loop iterations.
-     */
+    /** Returns the runnable set by {@link #_setCancellationCheck}, or {@code null}. */
     public Runnable _getCancellationCheck() {
         return cancellationCheck;
     }

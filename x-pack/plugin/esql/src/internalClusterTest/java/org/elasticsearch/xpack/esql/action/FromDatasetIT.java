@@ -206,6 +206,9 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testLookupJoinRejectedAgainstDataset() throws Exception {
+        // Create some_real_index locally so the test exercises the LOOKUP JOIN rejection rather
+        // than failing earlier with "unknown index" under order-dependent runs.
+        createIndex("some_real_index");
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(

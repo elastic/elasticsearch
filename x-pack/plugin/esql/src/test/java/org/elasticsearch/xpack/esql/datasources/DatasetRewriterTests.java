@@ -321,11 +321,12 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     public void testSecretSettingsArrivedAsSecureStringNotPlaintext() {
-        // Secret values must not be materialized as plaintext String in the carrier — the heap
-        // would hold the secret as an immutable string until GC. They arrive as SecureString so
-        // consumers can close() after use. Plugins call .toString() at point of use.
-        // (DataSourceSetting requires the underlying value to be a String for secret settings;
-        // secretValue() then constructs a SecureString around it on every call.)
+        // Secret values arrive in the carrier as SecureString rather than plaintext String — a
+        // hygiene boundary at this layer, not an end-to-end guarantee. DataSourceSetting wraps the
+        // underlying String in a SecureString on every secretValue() call; consumers may close()
+        // after use to bound the carrier-side lifetime. Plugins still call .toString() at the point
+        // of use, which materializes a plaintext copy that the SDK consumes — full secret-handling
+        // protection is out of scope for this layer and is tracked under separate encryption work.
         DataSource parent = dataSource("s3_parent", Map.of("access_key", new DataSourceSetting("AKIAEXAMPLE_SECRET_VALUE", true)));
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
@@ -421,13 +422,13 @@ public class DatasetRewriterTests extends ESTestCase {
         assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
     }
 
-    public void testDateMathPatternMatchingRegisteredDatasetRewrites() {
-        // Date-math expansion that resolves to a literal-existing dataset name should be picked up by
-        // the slow path's resolver. Registers a dataset with a literal date-suffix name and probes
-        // with `<logs-{now/d}>`. The resolver expands the date math at execution time; if the result
-        // matches the registered dataset name, the rewriter emits an UnresolvedExternalRelation.
+    public void testLiteralPatternMatchingDatasetWithDateSuffixRewrites() {
+        // A literal pattern that exactly matches a registered dataset whose name happens to contain
+        // a date suffix should be rewritten to UnresolvedExternalRelation. This is the literal-match
+        // case (no `<...>` expansion); the no-match date-math case is covered by
+        // testDateMathPatternReachesSlowPath above. A real date-math match-case would require pinning
+        // the resolver's clock, which the rewriter does not expose for tests.
         DataSource parent = dataSource("s3_parent", Map.of());
-        // Use a wildcard-friendly literal name so the test isn't time-of-day dependent.
         Dataset dataset = new Dataset("logs-2026-05-05", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs-2026-05-05", dataset));
 

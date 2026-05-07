@@ -1105,6 +1105,10 @@ public class EsqlSession {
             org.elasticsearch.xpack.esql.core.expression.Expression tablePath = p.tablePath();
             if (tablePath instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal && literal.value() != null) {
                 String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
+                // If two UnresolvedExternalRelation nodes share the same literal path the later config
+                // overwrites the earlier one. Today the dataset-rewrite pipeline produces at most one
+                // UER per concrete path, so this is benign; if plan shapes evolve to allow per-call
+                // config divergence at the same path this needs to become a merge or a verifier check.
                 pathConfigs.put(path, p.config());
             } else {
                 throw new IllegalStateException(

@@ -115,7 +115,8 @@ public class MetricValidator {
             "sort",
             "target",
             "time_range_filter_field",
-            "time_range_filter_from"
+            "time_range_filter_from",
+            "vector_index_type"
         );
         static final Set<String> SEARCH_SHARD_ATTRIBUTES = Sets.addToCopy(SEARCH_ATTRIBUTES, "system_thread");
 

@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
@@ -26,14 +27,18 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
@@ -52,6 +57,9 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
     private static final String FETCH_SEARCH_PHASE_METRIC = "es.search_response.took_durations.fetch.histogram";
     private static final String OPEN_PIT_SEARCH_PHASE_METRIC = "es.search_response.took_durations.open_pit.histogram";
     private static final String QUERY_SEARCH_PHASE_METRIC = "es.search_response.took_durations.query.histogram";
+    private static final String TOOK_DURATION_TOTAL_HISTOGRAM = SearchResponseMetrics.TOOK_DURATION_TOTAL_HISTOGRAM_NAME;
+
+    private static final String vectorIndexName = "test_vector_search_metrics";
 
     @Override
     protected boolean resetNodeAfterTest() {
@@ -91,6 +99,31 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
         prepareIndex(secondIndexName).setId("10").setSource("body", "doc4", "@timestamp", "2026-02-01").setRefreshPolicy(IMMEDIATE).get();
         prepareIndex(secondIndexName).setId("11").setSource("body", "doc5", "@timestamp", "2026-03-01").setRefreshPolicy(IMMEDIATE).get();
         prepareIndex(secondIndexName).setId("12").setSource("body", "doc6", "@timestamp", "2026-04-01").setRefreshPolicy(IMMEDIATE).get();
+
+        XContentBuilder mappings = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("my_vector")
+            .field("type", "dense_vector")
+            .field("dims", 3)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .startObject("index_options")
+            .field("type", "flat")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex(
+            vectorIndexName,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(),
+            mappings
+        );
+        ensureGreen(vectorIndexName);
+        prepareIndex(vectorIndexName).setId("v1")
+            .setSource("my_vector", new float[] { 1.0f, 2.0f, 3.0f })
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
     }
 
     @After
@@ -196,6 +229,38 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
         var resp = client().execute(TransportSearchShardsAction.TYPE, request).actionGet();
         assertThat(resp.getGroups(), hasSize(num_primaries));
         assertMeasurements(List.of(CAN_MATCH_SEARCH_PHASE_METRIC), 1);
+    }
+
+    public void testVectorSearchSetsVectorIndexTypeAttribute() {
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch(vectorIndexName)
+                .setKnnSearch(
+                    List.of(
+                        new KnnSearchBuilder(
+                            "my_vector",
+                            org.elasticsearch.search.vectors.VectorData.fromFloats(new float[] { 1.0f, 2.0f, 3.0f }),
+                            1,
+                            10,
+                            null,
+                            null,
+                            null
+                        )
+                    )
+                ),
+            "v1"
+        );
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM);
+        assertThat(measurements, hasSize(1));
+        Map<String, Object> attributes = measurements.getFirst().attributes();
+        assertEquals("flat", attributes.get(SearchRequestAttributesExtractor.VECTOR_INDEX_TYPE_ATTRIBUTE));
+        assertEquals(true, attributes.get(SearchRequestAttributesExtractor.KNN_ATTRIBUTE));
+    }
+
+    public void testNonVectorSearchDoesNotSetVectorIndexTypeAttribute() {
+        assertSearchHitsWithoutFailures(client().prepareSearch(indexName).setQuery(simpleQueryStringQuery("doc1")), "1");
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM);
+        assertThat(measurements, hasSize(1));
+        assertNull(measurements.getFirst().attributes().get(SearchRequestAttributesExtractor.VECTOR_INDEX_TYPE_ATTRIBUTE));
     }
 
     private void resetMeter() {

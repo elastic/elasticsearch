@@ -2625,6 +2625,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Override
         public void onResponse(SearchResponse searchResponse) {
             try {
+                if (searchResponse.getVectorIndexType() != null) {
+                    searchRequestAttributes.put(
+                        SearchRequestAttributesExtractor.VECTOR_INDEX_TYPE_ATTRIBUTE,
+                        searchResponse.getVectorIndexType()
+                    );
+                }
                 searchResponseMetrics.recordTookTime(
                     searchResponse.getTookInMillis(),
                     searchResponse.getTimeRangeFilterFromMillis(),

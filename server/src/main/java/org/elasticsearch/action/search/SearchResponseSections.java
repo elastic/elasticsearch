@@ -38,6 +38,7 @@ public class SearchResponseSections implements Releasable {
         1,
         null,
         null,
+        null,
         null
     );
     public static final SearchResponseSections EMPTY_WITHOUT_TOTAL_HITS = new SearchResponseSections(
@@ -50,6 +51,7 @@ public class SearchResponseSections implements Releasable {
         1,
         null,
         null,
+        null,
         null
     );
     protected final SearchHits hits;
@@ -60,6 +62,8 @@ public class SearchResponseSections implements Releasable {
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
     protected final Long timeRangeFilterFromMillis;
+    @Nullable
+    protected final String vectorIndexType;
     // List of top_hits SearchHits to release; cleared when transferred to SearchResponse so close() does not release
     private List<SearchHits> topHitsToRelease;
     // Completion suggestion option hits (refs taken in merge before fetch result is released); cleared when transferred
@@ -85,6 +89,7 @@ public class SearchResponseSections implements Releasable {
             numReducePhases,
             timeRangeFilterFromMillis,
             null,
+            null,
             null
         );
     }
@@ -98,6 +103,7 @@ public class SearchResponseSections implements Releasable {
         SearchProfileResults profileResults,
         int numReducePhases,
         Long timeRangeFilterFromMillis,
+        @Nullable String vectorIndexType,
         @Nullable List<SearchHits> topHitsToRelease,
         @Nullable List<SearchHit> completionOptionHitsToRelease
     ) {
@@ -109,6 +115,7 @@ public class SearchResponseSections implements Releasable {
         this.terminatedEarly = terminatedEarly;
         this.numReducePhases = numReducePhases;
         this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
+        this.vectorIndexType = vectorIndexType;
         this.topHitsToRelease = topHitsToRelease;
         this.completionOptionHitsToRelease = completionOptionHitsToRelease;
     }

@@ -92,6 +92,7 @@ public class QueryRewriteContext {
     private Long timeRangeFilterFromMillis;
     private boolean trackTimeRangeFilterFrom = true;
     private final boolean allowPartialSearchResults;
+    private final Set<String> vectorIndexTypes = new HashSet<>();
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -714,6 +715,23 @@ public class QueryRewriteContext {
      */
     public void setTrackTimeRangeFilterFrom(boolean trackTimeRangeFilterFrom) {
         this.trackTimeRangeFilterFrom = trackTimeRangeFilterFrom;
+    }
+
+    /**
+     * Records the dense_vector index type (e.g. {@code "int8_hnsw"}, {@code "bbq_hnsw"}, {@code "flat"})
+     * used by a KNN query during shard-level query construction. For telemetry purposes.
+     */
+    public void recordVectorIndexType(String vectorIndexType) {
+        if (vectorIndexType != null) {
+            vectorIndexTypes.add(vectorIndexType);
+        }
+    }
+
+    /**
+     * Returns the set of dense_vector index types recorded via {@link #recordVectorIndexType(String)}.
+     */
+    public Set<String> getVectorIndexTypes() {
+        return vectorIndexTypes;
     }
 
     /**

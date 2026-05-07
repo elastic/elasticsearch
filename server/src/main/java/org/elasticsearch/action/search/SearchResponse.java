@@ -92,6 +92,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final long tookInMillis;
     // only used for telemetry purposes on the coordinating node, where the search response gets created
     private transient Long timeRangeFilterFromMillis;
+    // only used for telemetry purposes on the coordinating node, where the search response gets created
+    private transient String vectorIndexType;
 
     // SearchHits from top_hits aggs to release when this response is released.
     private final List<SearchHits> topHitsToRelease;
@@ -213,6 +215,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             searchResponseSections.transferCompletionOptionHitsToRelease()
         );
         this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
+        this.vectorIndexType = searchResponseSections.vectorIndexType;
         if (this.profileResults != null) {
             this.profileResults.setOriginalSource(source);
             this.profileResults.setRequestIndices(indices);
@@ -538,6 +541,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     public Long getTimeRangeFilterFromMillis() {
         return timeRangeFilterFromMillis;
+    }
+
+    /**
+     * The dense_vector index type used by KNN queries in this search (or {@code "mixed"} when more than
+     * one type was used across shards). {@code null} when no KNN query ran. Coordinator-side telemetry only.
+     */
+    public String getVectorIndexType() {
+        return vectorIndexType;
     }
 
     @Override

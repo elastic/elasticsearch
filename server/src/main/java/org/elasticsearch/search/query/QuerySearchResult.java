@@ -48,6 +48,7 @@ import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 public final class QuerySearchResult extends SearchPhaseResult {
     private static final TransportVersion TIMESTAMP_RANGE_TELEMETRY = TransportVersion.fromName("timestamp_range_telemetry");
     private static final TransportVersion BATCHED_QUERY_PHASE_VERSION = TransportVersion.fromName("batched_query_phase_version");
+    private static final TransportVersion VECTOR_INDEX_TYPE_TELEMETRY = TransportVersion.fromName("vector_index_type_telemetry");
 
     private int from;
     private int size;
@@ -84,6 +85,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     @Nullable
     private Long timeRangeFilterFromMillis;
+
+    @Nullable
+    private String vectorIndexType;
 
     /**
      * SearchHits from top_hits that must be released when this result is released. Eagerly allocated so
@@ -474,6 +478,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
             if (in.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
                 timeRangeFilterFromMillis = in.readOptionalLong();
             }
+            if (in.getTransportVersion().supports(VECTOR_INDEX_TYPE_TELEMETRY)) {
+                vectorIndexType = in.readOptionalString();
+            }
             success = true;
         } finally {
             if (success == false) {
@@ -541,6 +548,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         if (out.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
             out.writeOptionalLong(timeRangeFilterFromMillis);
+        }
+        if (out.getTransportVersion().supports(VECTOR_INDEX_TYPE_TELEMETRY)) {
+            out.writeOptionalString(vectorIndexType);
         }
     }
 
@@ -637,5 +647,18 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public void setTimeRangeFilterFromMillis(Long timeRangeFilterFromMillis) {
         this.timeRangeFilterFromMillis = timeRangeFilterFromMillis;
+    }
+
+    /**
+     * The dense_vector index type (e.g. {@code "int8_hnsw"}, {@code "bbq_disk"}, {@code "flat"})
+     * used by KNN queries on this shard, or {@code "mixed"} when more than one type was used.
+     * {@code null} when no KNN query ran on this shard. Used for telemetry only.
+     */
+    public String getVectorIndexType() {
+        return vectorIndexType;
+    }
+
+    public void setVectorIndexType(String vectorIndexType) {
+        this.vectorIndexType = vectorIndexType;
     }
 }

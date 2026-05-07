@@ -46,6 +46,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
@@ -141,7 +142,11 @@ public class QueryPhase {
         // here to make sure it happens during the QUERY phase
         AggregationPhase.preProcess(searchContext);
 
-        addCollectorsAndSearch(searchContext, searchContext.getSearchExecutionContext().getTimeRangeFilterFromMillis());
+        addCollectorsAndSearch(
+            searchContext,
+            searchContext.getSearchExecutionContext().getTimeRangeFilterFromMillis(),
+            searchContext.getSearchExecutionContext().getVectorIndexTypes()
+        );
 
         RescorePhase.execute(searchContext);
         SuggestPhase.execute(searchContext);
@@ -154,11 +159,23 @@ public class QueryPhase {
      * In a package-private method so that it can be tested without having to
      * wire everything (mapperService, etc.)
      */
-    static void addCollectorsAndSearch(SearchContext searchContext, Long timeRangeFilterFromMillis) throws QueryPhaseExecutionException {
+    static void addCollectorsAndSearch(SearchContext searchContext, Long timeRangeFilterFromMillis) {
+        addCollectorsAndSearch(searchContext, timeRangeFilterFromMillis, Set.of());
+    }
+
+    /**
+     * In a package-private method so that it can be tested without having to
+     * wire everything (mapperService, etc.)
+     */
+    static void addCollectorsAndSearch(SearchContext searchContext, Long timeRangeFilterFromMillis, Set<String> vectorIndexTypes)
+        throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
         queryResult.setTimeRangeFilterFromMillis(timeRangeFilterFromMillis);
+        if (vectorIndexTypes.isEmpty() == false) {
+            queryResult.setVectorIndexType(vectorIndexTypes.size() == 1 ? vectorIndexTypes.iterator().next() : "mixed");
+        }
         queryResult.searchTimedOut(false);
         try {
             queryResult.from(searchContext.from());

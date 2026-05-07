@@ -401,6 +401,7 @@ public final class SearchPhaseController {
                 0,
                 true,
                 null,
+                null,
                 null
             );
         }
@@ -431,6 +432,7 @@ public final class SearchPhaseController {
         int from = 0;
         int size = 0;
         Long timeRangeFilterFromMillis = null;
+        String vectorIndexType = null;
         DocValueFormat[] sortValueFormats = null;
         for (QuerySearchResult result : nonNullResults) {
             from = result.from();
@@ -447,6 +449,14 @@ public final class SearchPhaseController {
                     // all shards should hold the same value, besides edge cases like different mappings
                     // for event.ingested and @timestamp across indices being searched
                     timeRangeFilterFromMillis = Math.min(result.getTimeRangeFilterFromMillis(), timeRangeFilterFromMillis);
+                }
+            }
+
+            if (result.getVectorIndexType() != null) {
+                if (vectorIndexType == null) {
+                    vectorIndexType = result.getVectorIndexType();
+                } else if (vectorIndexType.equals(result.getVectorIndexType()) == false) {
+                    vectorIndexType = "mixed";
                 }
             }
 
@@ -506,6 +516,7 @@ public final class SearchPhaseController {
             from,
             false,
             timeRangeFilterFromMillis,
+            vectorIndexType,
             topHitsToRelease
         );
     }
@@ -591,6 +602,8 @@ public final class SearchPhaseController {
         // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
         boolean isEmptyResult,
         Long timeRangeFilterFromMillis,
+        // dense_vector index type used by KNN queries on this search (or "mixed", or null when no KNN ran)
+        @Nullable String vectorIndexType,
         // SearchHits from top_hits aggs for release by SearchResponse (may be null)
         @Nullable List<SearchHits> topHitsToRelease
     ) {
@@ -619,6 +632,7 @@ public final class SearchPhaseController {
                 buildSearchProfileResults(fetchResults),
                 numReducePhases,
                 timeRangeFilterFromMillis,
+                vectorIndexType,
                 topHitsToRelease,
                 completionOptionHitsToRelease
             );

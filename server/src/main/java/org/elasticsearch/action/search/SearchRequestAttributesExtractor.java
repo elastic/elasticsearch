@@ -189,6 +189,7 @@ public final class SearchRequestAttributesExtractor {
     public static final String QUERY_TYPE_ATTRIBUTE = "query_type";
     public static final String PIT_SCROLL_ATTRIBUTE = "pit_scroll";
     public static final String KNN_ATTRIBUTE = "knn";
+    public static final String VECTOR_INDEX_TYPE_ATTRIBUTE = "vector_index_type";
     public static final String TIME_RANGE_FILTER_FIELD_ATTRIBUTE = "time_range_filter_field";
     public static final String TIME_RANGE_FILTER_FROM_ATTRIBUTE = "time_range_filter_from";
 

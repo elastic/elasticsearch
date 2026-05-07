@@ -249,7 +249,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
         String candidateIndex = setupClusterAndInfrastructure(2, 1);
-        CountDownLatch latch = registerDeleteIndexIntercepter(TransportAddIndexBlockAction.TYPE.name(), candidateIndex, false);
+        CountDownLatch latch = registerDeleteIndexInterceptor(TransportAddIndexBlockAction.TYPE.name(), candidateIndex, false);
         triggerRollover();
 
         assertTrue("AddIndexBlock request was never seen by the interceptor", latch.await(30, TimeUnit.SECONDS));
@@ -269,7 +269,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
         String candidateIndex = setupClusterAndInfrastructure(2, 1);
-        CountDownLatch latch = registerDeleteIndexIntercepter(TransportResizeAction.TYPE.name(), candidateIndex, false);
+        CountDownLatch latch = registerDeleteIndexInterceptor(TransportResizeAction.TYPE.name(), candidateIndex, false);
         triggerRollover();
 
         assertTrue("Resize (clone) request was never seen by the interceptor", latch.await(30, TimeUnit.SECONDS));
@@ -285,16 +285,120 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * {@code IndexNotFoundException}. The service handles this gracefully without recording
      * a persistent error.
      */
-    public void testDeleteCloneIndexDuringSnapshot() throws Exception {
+    public void testDeleteBackingIndexDuringSnapshot() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
         String candidateIndex = setupClusterAndInfrastructure(1, 0);
-        CountDownLatch latch = registerDeleteIndexIntercepter(TransportGetSnapshotsAction.TYPE.name(), candidateIndex, false);
+        CountDownLatch latch = registerDeleteIndexInterceptor(TransportGetSnapshotsAction.TYPE.name(), candidateIndex, false);
         triggerRollover();
 
         assertTrue("GetSnapshots request was never seen by the interceptor", latch.await(30, TimeUnit.SECONDS));
         assertNoErrorRecorded(candidateIndex);
         logger.info("--> delete-during-snapshot disruption handled gracefully");
+    }
+
+    /**
+     * Detects the "force merge" phase by intercepting {@code indices:admin/forcemerge}.
+     * While that request is in-flight, the test deletes the original backing index.
+     * <p>
+     * Expected behaviour: subsequent steps discover the index is missing. The
+     * {@code IndexNotFoundException} path in {@link DLMConvertToFrozen#run()} handles this
+     * gracefully without recording a persistent error.
+     */
+    public void testDeleteBackingIndexDuringForceMerge() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        String candidateIndex = setupClusterAndInfrastructure(1, 0);
+        // Force merge runs on the data node thread — must delete asynchronously to avoid deadlock
+        CountDownLatch latch = registerDeleteIndexInterceptor("indices:admin/forcemerge", candidateIndex, true);
+        triggerRollover();
+
+        assertTrue("ForceMerge request was never seen by the interceptor", latch.await(30, TimeUnit.SECONDS));
+        assertNoErrorRecorded(candidateIndex);
+        logger.info("--> delete-during-force-merge disruption handled gracefully");
+    }
+
+    /**
+     * Detects the "mount searchable snapshot" phase by intercepting
+     * {@code cluster:admin/snapshot/mount}. While that request is in-flight, the test deletes
+     * the original backing index.
+     * <p>
+     * Expected behaviour: the service discovers the index is missing and handles this gracefully
+     * without recording a persistent error.
+     */
+    public void testDeleteBackingIndexDuringMountSnapshot() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        String candidateIndex = setupClusterAndInfrastructure(1, 0);
+        CountDownLatch latch = registerDeleteIndexInterceptor("cluster:admin/snapshot/mount", candidateIndex, false);
+        triggerRollover();
+
+        assertTrue("MountSearchableSnapshot request was never seen by the interceptor", latch.await(60, TimeUnit.SECONDS));
+        assertNoErrorRecorded(candidateIndex);
+        logger.info("--> delete-during-mount-snapshot disruption handled gracefully");
+    }
+
+    /**
+     * Detects the "cleanup" phase by intercepting {@code indices:admin/data_stream/modify}
+     * (the action used to swap the old backing index with the mounted frozen index in the
+     * data stream). While that request is in-flight, the test deletes the original backing index.
+     * <p>
+     * Expected behaviour: the original index deletion is already the intent of the cleanup phase.
+     * The service handles this gracefully without recording a persistent error.
+     */
+    public void testDeleteBackingIndexDuringCleanup() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        String candidateIndex = setupClusterAndInfrastructure(1, 0);
+        CountDownLatch latch = registerDeleteIndexInterceptor("indices:admin/data_stream/modify", candidateIndex, false);
+        triggerRollover();
+
+        assertTrue("ModifyDataStreams request was never seen by the interceptor", latch.await(60, TimeUnit.SECONDS));
+        assertNoErrorRecorded(candidateIndex);
+        logger.info("--> delete-during-cleanup disruption handled gracefully");
+    }
+
+    /**
+     * Deletes the clone index during snapshot.
+     */
+    public void testDeleteCloneIndexDuringSnapshot() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        String candidateIndex = setupClusterAndInfrastructure(1, 0);
+        String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndex;
+
+        CountDownLatch latch = registerDisruptionInterceptor(
+            TransportGetSnapshotsAction.TYPE.name(),
+            () -> client().admin().indices().delete(new DeleteIndexRequest(cloneIndexName)).actionGet(),
+            false
+        );
+        triggerRollover();
+
+        assertTrue("GetSnapshots request was never seen by the interceptor", latch.await(30, TimeUnit.SECONDS));
+        assertErrorRecorded(candidateIndex);
+        logger.info("--> delete-clone-during-snapshot disruption handled gracefully");
+    }
+
+    /**
+     * After the mount phase succeeds but before the data stream modify/swap completes,
+     * deletes the newly mounted frozen index. The swap then references a non-existent index.
+     */
+    public void testDeleteMountedFrozenIndexBeforeSwap() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        String candidateIndex = setupClusterAndInfrastructure(1, 0);
+        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
+
+        CountDownLatch latch = registerDisruptionInterceptor(
+            "indices:admin/data_stream/modify",
+            () -> client().admin().indices().delete(new DeleteIndexRequest(expectedFrozenIndexName)).actionGet(),
+            false
+        );
+        triggerRollover();
+
+        assertTrue("ModifyDataStreams request was never seen by the interceptor", latch.await(60, TimeUnit.SECONDS));
+        assertErrorRecorded(candidateIndex);
+        logger.info("--> delete-frozen-index-before-swap disruption recorded error as expected");
     }
 
     /**
@@ -380,89 +484,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     }
 
     /**
-     * Detects the "force merge" phase by intercepting {@code indices:admin/forcemerge}.
-     * While that request is in-flight, the test deletes the original backing index.
-     * <p>
-     * Expected behaviour: subsequent steps discover the index is missing. The
-     * {@code IndexNotFoundException} path in {@link DLMConvertToFrozen#run()} handles this
-     * gracefully without recording a persistent error.
-     */
-    public void testDeleteBackingIndexDuringForceMerge() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
-        String candidateIndex = setupClusterAndInfrastructure(1, 0);
-        // Force merge runs on the data node thread — must delete asynchronously to avoid deadlock
-        CountDownLatch latch = registerDeleteIndexIntercepter("indices:admin/forcemerge", candidateIndex, true);
-        triggerRollover();
-
-        assertTrue("ForceMerge request was never seen by the interceptor", latch.await(30, TimeUnit.SECONDS));
-        assertNoErrorRecorded(candidateIndex);
-        logger.info("--> delete-during-force-merge disruption handled gracefully");
-    }
-
-    /**
-     * Detects the "mount searchable snapshot" phase by intercepting
-     * {@code cluster:admin/snapshot/mount}. While that request is in-flight, the test deletes
-     * the original backing index.
-     * <p>
-     * Expected behaviour: the service discovers the index is missing and handles this gracefully
-     * without recording a persistent error.
-     */
-    public void testDeleteBackingIndexDuringMountSnapshot() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
-        String candidateIndex = setupClusterAndInfrastructure(1, 0);
-        CountDownLatch latch = registerDeleteIndexIntercepter("cluster:admin/snapshot/mount", candidateIndex, false);
-        triggerRollover();
-
-        assertTrue("MountSearchableSnapshot request was never seen by the interceptor", latch.await(60, TimeUnit.SECONDS));
-        assertNoErrorRecorded(candidateIndex);
-        logger.info("--> delete-during-mount-snapshot disruption handled gracefully");
-    }
-
-    /**
-     * Detects the "cleanup" phase by intercepting {@code indices:admin/data_stream/modify}
-     * (the action used to swap the old backing index with the mounted frozen index in the
-     * data stream). While that request is in-flight, the test deletes the original backing index.
-     * <p>
-     * Expected behaviour: the original index deletion is already the intent of the cleanup phase.
-     * The service handles this gracefully without recording a persistent error.
-     */
-    public void testDeleteBackingIndexDuringCleanup() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
-        String candidateIndex = setupClusterAndInfrastructure(1, 0);
-        CountDownLatch latch = registerDeleteIndexIntercepter("indices:admin/data_stream/modify", candidateIndex, false);
-        triggerRollover();
-
-        assertTrue("ModifyDataStreams request was never seen by the interceptor", latch.await(60, TimeUnit.SECONDS));
-        assertNoErrorRecorded(candidateIndex);
-        logger.info("--> delete-during-cleanup disruption handled gracefully");
-    }
-
-    /**
-     * The clone index is what actually gets snapshotted. Deleting it mid-snapshot exercises a
-     * different failure path than deleting the original backing index.
-     */
-    public void testDeleteCloneIndexDuringSnapshotPhase() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
-        String candidateIndex = setupClusterAndInfrastructure(1, 0);
-        String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndex;
-
-        CountDownLatch latch = registerDisruptionInterceptor(
-            TransportGetSnapshotsAction.TYPE.name(),
-            () -> client().admin().indices().delete(new DeleteIndexRequest(cloneIndexName)).actionGet(),
-            false
-        );
-        triggerRollover();
-
-        assertTrue("GetSnapshots request was never seen by the interceptor", latch.await(30, TimeUnit.SECONDS));
-        assertErrorRecorded(candidateIndex);
-        logger.info("--> delete-clone-during-snapshot disruption handled gracefully");
-    }
-
-    /**
      * Removes the snapshot repository while the snapshot phase is in progress.
      * After restoring the repository, the transition retries and completes successfully.
      */
@@ -545,28 +566,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     }
 
     /**
-     * After the mount phase succeeds but before the data stream modify/swap completes,
-     * deletes the newly mounted frozen index. The swap then references a non-existent index.
-     */
-    public void testDeleteMountedFrozenIndexBeforeSwap() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
-        String candidateIndex = setupClusterAndInfrastructure(1, 0);
-        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
-
-        CountDownLatch latch = registerDisruptionInterceptor(
-            "indices:admin/data_stream/modify",
-            () -> client().admin().indices().delete(new DeleteIndexRequest(expectedFrozenIndexName)).actionGet(),
-            false
-        );
-        triggerRollover();
-
-        assertTrue("ModifyDataStreams request was never seen by the interceptor", latch.await(60, TimeUnit.SECONDS));
-        assertErrorRecorded(candidateIndex);
-        logger.info("--> delete-frozen-index-before-swap disruption recorded error as expected");
-    }
-
-    /**
      * While the frozen transition is in progress (force-merge phase), updates the lifecycle
      * policy to remove the frozenAfter setting. The service should not crash.
      */
@@ -628,7 +627,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      *
      * @return a latch that counts down when the interceptor first fires
      */
-    private CountDownLatch registerDeleteIndexIntercepter(String actionName, String indexToDelete, boolean async) {
+    private CountDownLatch registerDeleteIndexInterceptor(String actionName, String indexToDelete, boolean async) {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean deletionDone = new AtomicBoolean(false);
 
@@ -659,7 +658,9 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
                             }
                         };
                         if (async) {
-                            new Thread(deletion).start();
+                            Thread t = new Thread(deletion, "test-delete-" + indexToDelete);
+                            t.setDaemon(true);
+                            t.start();
                         } else {
                             deletion.run();
                         }
@@ -679,6 +680,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      */
     private CountDownLatch registerDisruptionInterceptor(String actionName, Runnable disruptionAction, boolean async) {
         CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean disruptionDone = new AtomicBoolean(false);
 
         ActionInterceptorPlugin.addInterceptor(new ActionInterceptor() {
             @Override
@@ -697,10 +699,14 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
                 if (latch.getCount() > 0) {
                     logger.info("--> intercepted [{}], running disruption action now", actionName);
                     latch.countDown();
-                    if (async) {
-                        new Thread(disruptionAction).start();
-                    } else {
-                        disruptionAction.run();
+                    if (disruptionDone.compareAndSet(false, true)) {
+                        if (async) {
+                            Thread t = new Thread(disruptionAction, "test-disruption-" + actionName);
+                            t.setDaemon(true);
+                            t.start();
+                        } else {
+                            disruptionAction.run();
+                        }
                     }
                 }
                 proceed.accept(request, listener);

@@ -259,6 +259,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                     segmentsFileName,
                     metadata,
                     indexShard::wrapSearcher,
+                    // pitContextInfo.reshardingState() can't be null, see serialization logic.
                     pitContextInfo.reshardingState().indexReshardingMetadata,
                     pitContextInfo.reshardingState().splitShardCountSummary,
                     new ActionListener<>() {
@@ -494,7 +495,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             if (in.getTransportVersion().supports(RESHARDING_METADATA_IN_PIT_RELOCATION)) {
                 reshardingState = new OpenPITReshardingState(in);
             } else {
-                reshardingState = null;
+                reshardingState = OpenPITReshardingState.notPresent();
             }
         }
 
@@ -521,7 +522,9 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             out.writeVLong(keepAlive);
             contextId.writeTo(out);
             out.writeMap(metadata, StreamOutput::writeString, StreamOutput::writeWriteable);
-            reshardingState.writeTo(out);
+            if (out.getTransportVersion().supports(RESHARDING_METADATA_IN_PIT_RELOCATION)) {
+                reshardingState.writeTo(out);
+            }
         }
 
         @Override
@@ -591,6 +594,11 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
             Writeable {
         OpenPITReshardingState(StreamInput in) throws IOException {
             this(in.readOptional(IndexReshardingMetadata::new), new SplitShardCountSummary(in));
+        }
+
+        // Placeholder value used when caller didn't provide this data.
+        static OpenPITReshardingState notPresent() {
+            return new OpenPITReshardingState(null, SplitShardCountSummary.UNSET);
         }
 
         @Override

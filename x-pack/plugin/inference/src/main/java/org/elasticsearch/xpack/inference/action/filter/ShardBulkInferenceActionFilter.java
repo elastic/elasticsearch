@@ -88,6 +88,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
@@ -350,9 +351,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             if (InferenceLicenceCheck.isServiceLicenced(inferenceProvider.service.name(), licenseState) == false) {
                 try (onFinish) {
                     var complianceException = InferenceLicenceCheck.complianceException(inferenceProvider.service.name());
-                    for (FieldInferenceRequest request : requests) {
-                        setInferenceResponseFailure(request.bulkItemIndex(), complianceException);
-                    }
+                    failAllInferenceRequests(requests, r -> complianceException);
                     return;
                 }
             }
@@ -434,17 +433,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }, exc -> {
                 try (onFinish) {
                     recordRequestCountMetrics(inferenceProvider.model, requests.size(), exc);
-                    for (ChunkedStringFieldInferenceRequest request : requests) {
-                        setInferenceResponseFailure(
-                            request.bulkItemIndex(),
-                            new InferenceException(
-                                "Exception when running inference id [{}] on field [{}]",
-                                exc,
-                                inferenceProvider.model.getInferenceEntityId(),
-                                request.field()
-                            )
-                        );
-                    }
+                    failAllInferenceRequests(
+                        requests,
+                        r -> new InferenceException(
+                            "Exception when running inference id [{}] on field [{}]",
+                            exc,
+                            inferenceProvider.model.getInferenceEntityId(),
+                            r.field()
+                        )
+                    );
 
                     if (ExceptionsHelper.status(exc).getStatus() >= 500) {
                         List<String> fields = requests.stream().map(FieldInferenceRequest::field).distinct().toList();
@@ -489,7 +486,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                 + "]"
                         );
                         recordRequestCountMetrics(inferenceProvider.model, requests.size(), typeMismatchException);
-                        failAllInferenceRequests(requests, typeMismatchException);
+                        failAllInferenceRequests(
+                            requests,
+                            r -> new InferenceException(
+                                "Unexpected state when running inference on field [{}]",
+                                typeMismatchException,
+                                r.field()
+                            )
+                        );
                         return;
                     }
 
@@ -506,7 +510,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                 + "]"
                         );
                         recordRequestCountMetrics(inferenceProvider.model, requests.size(), sizeMismatchException);
-                        failAllInferenceRequests(requests, sizeMismatchException);
+                        failAllInferenceRequests(
+                            requests,
+                            r -> new InferenceException(
+                                "Unexpected state when running inference on field [{}]",
+                                sizeMismatchException,
+                                r.field()
+                            )
+                        );
                         return;
                     }
 
@@ -532,10 +543,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     recordRequestCountMetrics(inferenceProvider.model, requests.size(), exc);
                     failAllInferenceRequests(
                         requests,
-                        new InferenceException(
-                            "Exception when running inference id [{}]",
+                        r -> new InferenceException(
+                            "Exception when running inference id [{}] on field [{}]",
                             exc,
-                            inferenceProvider.model.getInferenceEntityId()
+                            inferenceProvider.model.getInferenceEntityId(),
+                            r.field()
                         )
                     );
 
@@ -557,10 +569,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 .embeddingInfer(inferenceProvider.model(), embeddingRequest, TimeValue.MAX_VALUE, completionListener);
         }
 
-        // TODO: Use util method more broadly
-        private void failAllInferenceRequests(List<? extends FieldInferenceRequest> requests, Exception failure) {
-            for (var request : requests) {
-                setInferenceResponseFailure(request.bulkItemIndex(), failure);
+        private void failAllInferenceRequests(
+            List<? extends FieldInferenceRequest> requests,
+            Function<FieldInferenceRequest, Exception> failure
+        ) {
+            for (FieldInferenceRequest request : requests) {
+                setInferenceResponseFailure(request.bulkItemIndex(), failure.apply(request));
             }
         }
 

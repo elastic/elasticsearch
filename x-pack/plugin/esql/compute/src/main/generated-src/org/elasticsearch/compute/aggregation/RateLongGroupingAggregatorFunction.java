@@ -888,6 +888,23 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         long deltaFirstValue;
         long deltaLastTs = Long.MIN_VALUE;
 
+        // The accessor methods first*/last* must only be called after combineIntervals()!
+        long lastTs() {
+            return intervalBuffer.lastTs(intervals[0]);
+        }
+
+        long lastValue() {
+            return intervalBuffer.lastValue(intervals[0]);
+        }
+
+        long firstTs() {
+            return intervalBuffer.firstTs(intervals[intervals.length - 1]);
+        }
+
+        long firstValue() {
+            return intervalBuffer.firstValue(intervals[intervals.length - 1]);
+        }
+
         boolean hasDelta() {
             return deltaLastTs >= deltaFirstTs;
         }
@@ -968,10 +985,10 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         if (state.samples < 2) {
             return Double.NaN;
         }
-        final long firstTS = intervalBuffer.firstTs(state.intervals[state.intervals.length - 1]);
-        final long lastTS = intervalBuffer.lastTs(state.intervals[0]);
-        double firstValue = intervalBuffer.firstValue(state.intervals[state.intervals.length - 1]);
-        double lastValue = intervalBuffer.lastValue(state.intervals[0]) + state.resets;
+        final long firstTS = state.firstTs();
+        final long lastTS = state.lastTs();
+        double firstValue = state.firstValue();
+        double lastValue = state.lastValue() + state.resets;
         if (isRateOverTime) {
             return (lastValue - firstValue) * dateFactor / (lastTS - firstTS);
         } else {
@@ -1001,8 +1018,8 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         var previousState = (0 <= previousGroupId && previousGroupId < reducedStates.size()) ? reducedStates.get(previousGroupId) : null;
         if (previousState == null || previousState.samples == 0) {
             if (state.samples == 1) {
-                firstTsSec = intervalBuffer.firstTs(state.intervals[0]) / dateFactor;
-                firstValue = intervalBuffer.firstValue(state.intervals[0]);
+                firstTsSec = state.firstTs() / dateFactor;
+                firstValue = state.firstValue();
             } else {
                 firstValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, true);
             }
@@ -1014,8 +1031,8 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         var nextState = (nextGroupId >= 0 && nextGroupId < reducedStates.size()) ? reducedStates.get(nextGroupId) : null;
         if (nextState == null || nextState.samples == 0) {
             if (state.samples == 1) {
-                lastTsSec = intervalBuffer.lastTs(state.intervals[0]) / dateFactor;
-                lastValue = intervalBuffer.lastValue(state.intervals[0]) + state.resets;
+                lastTsSec = state.lastTs() / dateFactor;
+                lastValue = state.lastValue() + state.resets;
             } else {
                 lastValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, false);
             }
@@ -1032,10 +1049,9 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             if (state.samples == 1) {
                 if (previousState != null) {
                     assert nextState == null;
-                    assert intervalBuffer.lastTs(state.intervals[0]) == firstTsSec * dateFactor
-                        : firstTsSec + ":" + intervalBuffer.lastTs(state.intervals[0]);
+                    assert state.lastTs() == firstTsSec * dateFactor : firstTsSec + ":" + state.lastTs();
                     if (isRateOverTime) {
-                        final double startTs = intervalBuffer.lastTs(previousState.intervals[0]) / dateFactor;
+                        final double startTs = previousState.lastTs() / dateFactor;
                         final double delta = deltaBetweenStates(previousState, state, dateFactor);
                         return delta / (firstTsSec - startTs);
                     } else {
@@ -1067,10 +1083,10 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         double dateFactor,
         boolean isLowerBoundary
     ) {
-        final double startTs = intervalBuffer.firstTs(state.intervals[state.intervals.length - 1]) / dateFactor;
-        final double startValue = intervalBuffer.firstValue(state.intervals[state.intervals.length - 1]);
-        final double endTs = intervalBuffer.lastTs(state.intervals[0]) / dateFactor;
-        final double endValue = intervalBuffer.lastValue(state.intervals[0]) + state.resets;
+        final double startTs = state.firstTs() / dateFactor;
+        final double startValue = state.firstValue();
+        final double endTs = state.lastTs() / dateFactor;
+        final double endValue = state.lastValue() + state.resets;
         final double sampleTsSec = endTs - startTs;
         final double averageSampleInterval = sampleTsSec / state.samples;
         final double slope = (endValue - startValue) / sampleTsSec;
@@ -1114,10 +1130,10 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         double dateFactor,
         boolean isLowerBoundary
     ) {
-        final double startValue = intervalBuffer.lastValue(lowerState.intervals[0]);
-        final double startTs = intervalBuffer.lastTs(lowerState.intervals[0]) / dateFactor;
-        final double endValue = intervalBuffer.firstValue(upperState.intervals[upperState.intervals.length - 1]);
-        final double endTs = intervalBuffer.firstTs(upperState.intervals[upperState.intervals.length - 1]) / dateFactor;
+        final double startValue = lowerState.lastValue();
+        final double startTs = lowerState.lastTs() / dateFactor;
+        final double endValue = upperState.firstValue();
+        final double endTs = upperState.firstTs() / dateFactor;
         assert startTs < endTs : "expected startTs < endTs, got " + startTs + " < " + endTs;
         final double delta = deltaBetweenStates(lowerState, upperState, dateFactor);
         final double slope = delta / (endTs - startTs);
@@ -1134,8 +1150,8 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     }
 
     private double deltaBetweenStates(ReducedState lowerState, ReducedState upperState, double dateFactor) {
-        final double startValue = intervalBuffer.lastValue(lowerState.intervals[0]);
-        final double endValue = intervalBuffer.firstValue(upperState.intervals[upperState.intervals.length - 1]);
+        final double startValue = lowerState.lastValue();
+        final double endValue = upperState.firstValue();
 
         // If the end value is smaller than the start value, a counter reset occurred.
         // In this case, the delta is considered equal to the end value.

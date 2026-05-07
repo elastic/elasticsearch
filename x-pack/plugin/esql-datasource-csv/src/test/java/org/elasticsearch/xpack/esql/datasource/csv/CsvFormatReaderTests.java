@@ -2155,6 +2155,67 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A cell that starts with {@code [} but has no MVC-closing {@code ]} (e.g. interval-like {@code [6:42)}) must not
+     * trigger bracket-swallowing — commas in the rest of the row remain column delimiters.
+     */
+    public void testBracketAwareOpenBracketWithoutMvcCloseIsLiteralColumnSplit() throws IOException {
+        String csv = "id:integer,title:keyword,dt:keyword\n1,[6:42) literal title text,2013-07-20\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            IntBlock idBlock = (IntBlock) page.getBlock(0);
+            BytesRefBlock titleBlock = (BytesRefBlock) page.getBlock(1);
+            BytesRefBlock dtBlock = (BytesRefBlock) page.getBlock(2);
+            assertEquals(1, idBlock.getInt(0));
+            assertEquals(new BytesRef("[6:42) literal title text"), titleBlock.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("2013-07-20"), dtBlock.getBytesRef(0, new BytesRef()));
+        }
+    }
+
+    /**
+     * Typed headers must use the same bracket-aware field splitting as data rows; otherwise bound schema width disagrees
+     * with row parses under parallel reads.
+     */
+    public void testMetadataSchemaColumnCountUsesBracketAwareHeaderSplit() throws IOException {
+        String csv = "id:integer,title:keyword\n1,[[37]]\n2,[hello,world]\n";
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        assertEquals(2, reader.metadata(createStorageObject(csv)).schema().size());
+        try (CloseableIterator<Page> iterator = reader.read(createStorageObject(csv), null, 10)) {
+            int rows = 0;
+            while (iterator.hasNext()) {
+                rows += iterator.next().getPositionCount();
+            }
+            assertEquals(2, rows);
+        }
+    }
+
+    /**
+     * Nested {@code [[…]]} must not close the MVC cell on the inner {@code ]} — otherwise an extra column appears.
+     * With {@code multi_value_syntax=brackets}, the outer MV strips once; the inner {@code [37]} is the single keyword element.
+     */
+    public void testBracketAwareNestedBracketsStaySingleCell() throws IOException {
+        String csv = "prefix:keyword,mid:keyword,suffix:keyword\nx,[[37]],y\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(3, page.getBlockCount());
+            BytesRefBlock midBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(1, midBlock.getValueCount(0));
+            assertEquals(new BytesRef("[37]"), midBlock.getBytesRef(midBlock.getFirstValueIndex(0), new BytesRef()));
+            BytesRefBlock suffixBlock = (BytesRefBlock) page.getBlock(2);
+            assertEquals(new BytesRef("y"), suffixBlock.getBytesRef(0, new BytesRef()));
+        }
+    }
+
     public void testMultiValueBracketsQuotedElements() throws IOException {
         String csv = "id:integer,names:keyword\n1,\"[\"\"hello\"\",\"\"world\"\"]\"\n";
         StorageObject object = createStorageObject(csv);
@@ -2486,6 +2547,119 @@ public class CsvFormatReaderTests extends ESTestCase {
         long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
         int expected = "partial,\"quoted\nfield\nwith\nnewlines\",end\n".length();
         assertEquals(expected, boundary);
+    }
+
+    public void testBracketPrefixedFieldStaysOneField() throws IOException {
+        // Production hits CSV pattern: `,[37] Title text,...` — the `[37]` looks like an MVC cell, but the field
+        // continues past the closing `]` until the next comma. Closing the cell on `]` (and starting a fresh entry)
+        // turns the trailing text into a phantom extra column → "row has [N+1] columns" failures.
+        String csv = "id:long,text:keyword,when:keyword\n1,[37] Title with text,2013-07-29\n2,plain,2013-07-30\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(3, page.getBlockCount());
+            BytesRefBlock text = (BytesRefBlock) page.getBlock(1);
+            assertEquals(new BytesRef("[37] Title with text"), text.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("plain"), text.getBytesRef(1, new BytesRef()));
+            BytesRefBlock when = (BytesRefBlock) page.getBlock(2);
+            assertEquals(new BytesRef("2013-07-29"), when.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("2013-07-30"), when.getBytesRef(1, new BytesRef()));
+        }
+    }
+
+    public void testBracketCellWithStrayQuoteAndCommasIsOneField() throws IOException {
+        // Reproduces the production hits CSV pattern where bracket MVC cells contain literal `"` characters
+        // and embedded commas (e.g. `[some text",1,2013-...,38,-12345]`). The lookahead must mirror the splitter:
+        // inside `[..]` only `[` and `]` matter — a stray `"` is a literal byte. Otherwise the lookahead reports
+        // "no matching ]" and the splitter falls back to treating `[` as plain text, which turns inner commas into
+        // delimiters and produces `row has [N+k] columns but schema defines [N]` failures.
+        String csv = "id:long,tags:keyword,when:keyword\n"
+            + "1,[some text\",1,2013-07-15 13:51:28,2013-07-15,38,177794517],ok\n"
+            + "2,[plain],ok\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(3, page.getBlockCount());
+            BytesRefBlock when = (BytesRefBlock) page.getBlock(2);
+            assertEquals(new BytesRef("ok"), when.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("ok"), when.getBytesRef(1, new BytesRef()));
+        }
+    }
+
+    public void testStrayQuoteInUnquotedFieldIsLiteralAndDoesNotMergeRows() throws IOException {
+        // Two physical rows, each fully formed for a 3-column schema. The first row contains
+        // a single literal `"` inside an unquoted text cell. RFC-4180 says quoting only opens at
+        // field start; without the field-start check the parser would conclude the first row has an
+        // open quote, glue the second row's bytes onto it, and report 6 columns instead of 3.
+        String csv = "id:long,title:keyword,value:long\n1,Inch \" mark,42\n2,plain,7\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(3, page.getBlockCount());
+            BytesRefBlock title = (BytesRefBlock) page.getBlock(1);
+            assertEquals(new BytesRef("Inch \" mark"), title.getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("plain"), title.getBytesRef(1, new BytesRef()));
+            LongBlock value = (LongBlock) page.getBlock(2);
+            assertEquals(42L, value.getLong(0));
+            assertEquals(7L, value.getLong(1));
+        }
+    }
+
+    public void testFindNextRecordBoundaryStrayQuoteIsNotAQuoteOpener() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        // Stray `"` inside an unquoted cell must not switch the scanner into quote mode; otherwise the
+        // first `\n` is skipped and the segment boundary lands far past the next record.
+        byte[] data = "1,Inch \" mark,42\n2,plain,7\n".getBytes(StandardCharsets.UTF_8);
+        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        assertEquals("1,Inch \" mark,42\n".length(), boundary);
+    }
+
+    public void testFindNextRecordBoundaryNewlineInsideBracketMvc() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        byte[] data = "before,[line1\nline2\nline3],after\nnext\n".getBytes(StandardCharsets.UTF_8);
+        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        assertEquals("before,[line1\nline2\nline3],after\n".length(), boundary);
+    }
+
+    public void testFindNextRecordBoundaryNestedBracketMvcWithEmbeddedNewlines() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        byte[] data = "a,[[cell\ninner]],b\nz\n".getBytes(StandardCharsets.UTF_8);
+        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        assertEquals("a,[[cell\ninner]],b\n".length(), boundary);
+    }
+
+    public void testFindNextRecordBoundaryMultiValueSyntaxNoneDoesNotTreatBracketsAsMvc() throws IOException {
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "none"));
+        byte[] data = "before,[not\nmvc],after\nnext\n".getBytes(StandardCharsets.UTF_8);
+        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        assertEquals("before,[not\n".length(), boundary);
+    }
+
+    public void testBracketAwareLeadingWhitespaceBeforeBracketOpensMvc() throws IOException {
+        String csv = "prefix:keyword,mid:keyword,suffix:keyword\nx,  [[37]],y\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(3, page.getBlockCount());
+            BytesRefBlock midBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(1, midBlock.getValueCount(0));
+            assertEquals(new BytesRef("[37]"), midBlock.getBytesRef(midBlock.getFirstValueIndex(0), new BytesRef()));
+        }
     }
 
     public void testFindNextRecordBoundaryAtBufferBoundary() throws IOException {
@@ -3401,12 +3575,13 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testSkipRowOnBracketParseError() throws IOException {
-        // Unclosed bracket in last cell is detected by splitLineBracketAware which throws
-        // EsqlIllegalArgumentException; the policy must intercept it.
+        // splitLineBracketAware no longer throws on a stray `[` without a closing `]` (real data has things like
+        // [6:42), so a literal `[` falls back to plain text). Use a structural error instead — too many fields for
+        // the declared schema — which is the canonical "row malformed" case routed through the policy.
         String csv = """
             id:long,tags:keyword
             1,[a,b,c]
-            2,[broken
+            2,extra,unexpected,fields
             3,[x,y]
             """;
 

@@ -113,20 +113,28 @@ public class CacheFileReader {
         }
         if (cacheService != null && cacheService.hasSearchRole()) {
             final long blobLength = cacheFile.getLength();
+            // bail early when there is nothing to prefetch
+            if (offset >= blobLength || length <= 0) {
+                return false;
+            }
             final long remainingFileLength = blobLength - offset;
-            final int intLength = length < Integer.MAX_VALUE ? Math.toIntExact(length) : Integer.MAX_VALUE;
-            final ByteRange rangeToPrefetch = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
+            final long clampedLength = Math.min(length, remainingFileLength);
+            final int intLength = clampedLength < Integer.MAX_VALUE ? Math.toIntExact(clampedLength) : Integer.MAX_VALUE;
+            // same ranges cannot be passed to populate, as write range may extend beyond actually file length,
+            // however read range must stay within file length
+            final ByteRange rangeToWrite = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
+            final ByteRange rangeToRead = ByteRange.of(offset, offset + clampedLength);
             // IndexingShardCacheBlobReader.getRangeInputStream forbids running on SHARD_READ_THREAD_POOL because
             // it issues a transport call and completes the listener on a different pool.
             final String readerExecutorName = cacheBlobReader.executorName();
-            cacheFile.populate(rangeToPrefetch, rangeToPrefetch, (channel, channelPos, relativePos, len) -> {
+            cacheFile.populate(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
                 channel.prefetch(channelPos, len);
                 return len;
             },
                 new SequentialRangeMissingHandler(
                     "lucene-prefetch",
                     cacheFile.getCacheKey().fileName(),
-                    rangeToPrefetch,
+                    rangeToWrite,
                     cacheBlobReader,
                     () -> writeBuffer.get().clear(),
                     bytesCopied -> {},

@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -245,6 +246,7 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             Request list = new Request("GET", "/_reindex");
             Response response = dataClient.performRequest(list);
             ObjectPath body = ObjectPath.createFromResponse(response);
+            assertThat(body.<List<?>>evaluate("reindex"), hasSize(1));
             assertThat(body.evaluate("reindex.0.id"), equalTo(taskId));
         }
     }

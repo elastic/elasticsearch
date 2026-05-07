@@ -14,6 +14,9 @@ import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
 public class ChangePointGenerator implements CommandGenerator {
     public static final String CHANGE_POINT = "change_point";
@@ -37,9 +40,28 @@ public class ChangePointGenerator implements CommandGenerator {
             alias2 = EsqlQueryGenerator.randomAttributeOrIdentifier(previousOutput);
         }
 
-        String cmd = " | CHANGE_POINT " + numericField + " ON " + timestampField + " AS " + alias1 + ", " + alias2;
+        StringBuilder cmd = new StringBuilder();
+        cmd.append(" | CHANGE_POINT ")
+            .append(numericField)
+            .append(" ON ")
+            .append(timestampField)
+            .append(" AS ")
+            .append(alias1)
+            .append(", ")
+            .append(alias2);
+        List<Column> nonNull = previousOutput.stream()
+            .filter(EsqlQueryGenerator::fieldCanBeUsed)
+            .filter(x -> x.type().equals("null") == false)
+            .collect(Collectors.toList());
 
-        return new CommandDescription(CHANGE_POINT, this, cmd, Map.of());
+        if (randomBoolean()) {
+            var col = EsqlQueryGenerator.randomGroupableName(nonNull);
+            if (col != null) {
+                cmd.append(" BY ").append(col);
+            }
+        }
+
+        return new CommandDescription(CHANGE_POINT, this, cmd.toString(), Map.of());
     }
 
     @Override

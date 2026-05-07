@@ -62,6 +62,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
@@ -193,6 +194,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
@@ -285,6 +287,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final IndexShardOperationPermits indexShardOperationPermits;
 
     private static final EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.POST_RECOVERY);
+    private final SearchReadyGate searchReadyGate;
     // for primaries, we only allow to write when actually started (so the cluster has decided we started)
     // in case we have a relocation of a primary, we also allow to write after phase 2 completed, where the shard may be
     // in state RECOVERING or POST_RECOVERY.
@@ -386,6 +389,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         this.searchStats = new ShardSearchStats(searchStatsSettings);
+        this.searchReadyGate = new SearchReadyGate(SearchReadyGate.defaultMaxPendingSupplier(threadPool), threadPool.generic());
         this.searchOperationListener = new SearchOperationListener.CompositeListener(
             CollectionUtils.appendToCopyNoNullElements(searchOperationListener, searchStats),
             logger
@@ -956,6 +960,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         IndexShardState previousState = state;
         state = newState;
         this.indexEventListener.indexShardStateChanged(this, previousState, newState, reason);
+        searchReadyGate.onShardStateChanged(newState);
+        if (readAllowedStates.contains(newState)) {
+            searchReadyGate.onReady();
+        }
         return previousState;
     }
 
@@ -1943,6 +1951,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                     checkAndCallWaitForEngineOrClosedShardListeners();
                 } finally {
+                    // Intentionally outside mutex: a concurrent waitForSearchReady seeing CLOSED before this fires
+                    // can be rejected with 429 (retriable); parked listeners still drain with IndexShardClosedException.
+                    searchReadyGate.onClosed(shardId);
                     final Engine engine = getAndSetCurrentEngine(null);
                     closeExecutor.execute(ActionRunnable.run(closeListener, new CheckedRunnable<>() {
                         @Override
@@ -4958,6 +4969,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Registers a listener that is notified when the shard reaches a state that allows search operations
+     * ({@link IndexShardState#POST_RECOVERY} or {@link IndexShardState#STARTED}). If the shard is already
+     * in a search-ready state, the listener is notified immediately.
+     * <p>
+     * The number of concurrently parked listeners per shard is bounded by {@link SearchReadyGate}; once that limit is
+     * reached, further callers fail fast with an {@link EsRejectedExecutionException}, signaling clients to retry.
+     * <p>
+     * Returns a {@link Releasable} representing the parked slot. Callers that complete the listener via an external
+     * path (e.g. task cancellation) must invoke {@link Releasable#close()} to free the slot promptly; otherwise it
+     * stays occupied until the gate finally fires on shard ready/close, which can starve later requests for a
+     * slow-recovering shard. Closing is idempotent and races safely with the eventual gate fire.
+     */
+    public Releasable waitForSearchReady(ActionListener<Void> listener) {
+        return searchReadyGate.addListener(listener, threadPool.getThreadContext());
+    }
+
+    /**
      * Registers a listener for an event when the shard advances to the provided primary term and segment generation.
      * Completes the listener with a {@link IndexShardClosedException} if the shard is closed.
      */
@@ -5004,5 +5032,110 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private static boolean isRejectedDueToShutdown(IOException e) {
         var rejected = ExceptionsHelper.unwrap(e, EsRejectedExecutionException.class);
         return rejected instanceof EsRejectedExecutionException esRejected && esRejected.isExecutorShutdown();
+    }
+
+    /**
+     * Parks search requests that arrive before the shard is search-ready and wakes them up when it transitions
+     * into {@link IndexShardState#POST_RECOVERY} or {@link IndexShardState#STARTED}, or fails them when the shard closes.
+     * <p>
+     * The number of concurrently parked requests is bounded by a caller-supplied {@link IntSupplier}; additional callers
+     * fail fast with {@link EsRejectedExecutionException} so a slow-to-recover shard cannot accumulate an unbounded backlog.
+     * In production the cap is dynamic: it scales the search thread pool queue size by the number of shards currently
+     * recovering on this node, so a single recovering shard is allowed to park as many requests as the queue could fit,
+     * while a node-wide recovery storm tightens each shard's budget proportionally. The cap is floored at one waiter
+     * per shard so a node hosting more recovering shards than the search queue can fit still admits a single waiter
+     * per shard rather than collapsing to all-reject.
+     */
+    static final class SearchReadyGate {
+        static final int UNBOUNDED_QUEUE_FALLBACK = 1000;
+
+        private static final AtomicInteger RECOVERING_SHARDS_ON_NODE = new AtomicInteger();
+
+        private final SubscribableListener<Void> listener = new SubscribableListener<>();
+        private final AtomicInteger pending = new AtomicInteger();
+        private final IntSupplier maxPendingSupplier;
+        private final Executor listenerExecutor;
+
+        private boolean recovering;
+
+        SearchReadyGate(IntSupplier maxPendingSupplier, Executor listenerExecutor) {
+            this.maxPendingSupplier = maxPendingSupplier;
+            this.listenerExecutor = listenerExecutor;
+        }
+
+        /**
+         * Registers {@code l} to be notified when {@link #onReady}/{@link #onClosed} fires. Fails fast with
+         * {@link EsRejectedExecutionException} when the current cap is exceeded.
+         * <p>
+         * Returns a {@link Releasable} for the parked slot. Closing it decrements {@code pending} and prevents the
+         * eventual gate fire from decrementing again. Callers that complete {@code l} via a side channel (e.g. task
+         * cancellation) must close the returned handle so the slot is freed promptly instead of being held until the
+         * gate finally fires. The released flag is shared with the {@code runAfter} hook installed on the gate
+         * listener, so the count moves down exactly once regardless of which path wins.
+         */
+        Releasable addListener(ActionListener<Void> l, ThreadContext threadContext) {
+            if (pending.incrementAndGet() > maxPendingSupplier.getAsInt()) {
+                pending.decrementAndGet();
+                l.onFailure(new EsRejectedExecutionException("too many pending requests waiting for shard to become searchable", false));
+                return () -> {};
+            }
+            AtomicBoolean released = new AtomicBoolean();
+            Releasable slot = () -> {
+                if (released.compareAndSet(false, true)) {
+                    pending.decrementAndGet();
+                }
+            };
+            listener.addListener(ActionListener.runAfter(l, slot::close), listenerExecutor, threadContext);
+            return slot;
+        }
+
+        void onReady() {
+            listener.onResponse(null);
+        }
+
+        void onClosed(ShardId shardId) {
+            listener.onFailure(new IndexShardClosedException(shardId));
+        }
+
+        /**
+         * Updates the node-global recovering-shard counter based on a state transition. Invoked by
+         * {@link IndexShard#changeState} for every transition so the default supplier reflects reality.
+         * <p>
+         * Idempotent: increments exactly once when the gate first observes {@link IndexShardState#RECOVERING},
+         * and decrements exactly once when it later observes any other state. Safe to call with the same state
+         * repeatedly.
+         * <p>
+         * Must be called while holding {@link IndexShard#mutex}; the {@code recovering} flag is non-volatile
+         * and relies on the monitor for visibility.
+         */
+        void onShardStateChanged(IndexShardState newState) {
+            if (newState == IndexShardState.RECOVERING && recovering == false) {
+                RECOVERING_SHARDS_ON_NODE.incrementAndGet();
+                recovering = true;
+            } else if (newState != IndexShardState.RECOVERING && recovering) {
+                RECOVERING_SHARDS_ON_NODE.decrementAndGet();
+                recovering = false;
+            }
+        }
+
+        /**
+         * Default supplier: caps per-shard pending at {@code max(1, searchQueueSize / recoveringShards)}, so the total
+         * across all concurrently-recovering shards stays bounded by the search thread pool queue size in the common case,
+         * and never collapses below one waiter per shard when the node hosts more recovering shards than the queue can fit.
+         * If the search queue is unbounded (no configured size) the formula uses {@link #UNBOUNDED_QUEUE_FALLBACK} as a
+         * substitute for the queue size, matching the default {@code thread_pool.search.queue_size}.
+         * <p>
+         * The queue size is read when this method is called. Only the recovering-shards count is re-read on each supplier
+         * invocation. This is safe because {@code thread_pool.search.queue_size} is a static node-level setting.
+         */
+        static IntSupplier defaultMaxPendingSupplier(ThreadPool threadPool) {
+            return defaultMaxPendingSupplier(threadPool.info(ThreadPool.Names.SEARCH).getQueueSize());
+        }
+
+        // package-private for tests: lets callers exercise the formula directly without standing up a ThreadPool.
+        static IntSupplier defaultMaxPendingSupplier(@Nullable Long queueSizeRaw) {
+            int queueSize = queueSizeRaw == null || queueSizeRaw <= 0 ? UNBOUNDED_QUEUE_FALLBACK : Math.toIntExact(queueSizeRaw);
+            return () -> Math.max(1, queueSize / Math.max(1, RECOVERING_SHARDS_ON_NODE.get()));
+        }
     }
 }

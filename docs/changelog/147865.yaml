@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 147865
+summary: "[Native] i8 bulk AVX-512 shared-b"
+type: enhancement

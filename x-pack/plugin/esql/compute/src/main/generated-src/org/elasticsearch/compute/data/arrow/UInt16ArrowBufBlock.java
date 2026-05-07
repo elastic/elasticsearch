@@ -53,6 +53,11 @@ public final class UInt16ArrowBufBlock extends AbstractArrowBufBlock<IntVector, 
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Integer.BYTES;
+    }
+
+    @Override
     protected ArrowBufVectorConstructor<IntVector> vectorConstructor() {
         return UInt16ArrowBufVector::new;
     }

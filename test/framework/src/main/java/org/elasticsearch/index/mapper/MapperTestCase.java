@@ -542,6 +542,40 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMinimalWarnings();
     }
 
+    public void testNotIndexed() throws IOException {
+        ParameterChecker checker = new ParameterChecker();
+        registerParameters(checker);
+        assumeTrue("mapper must support the 'index' parameter", checker.checkedParameters.contains("index"));
+
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("index", false);
+        }));
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", getSampleValueForDocument())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        for (var field : fields) {
+            assertThat(field.fieldType().indexOptions(), equalTo(IndexOptions.NONE));
+        }
+    }
+
+    public void testDisableDefaultIndex() throws IOException {
+        assumeTrue("feature under test must be enabled", IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled());
+
+        ParameterChecker checker = new ParameterChecker();
+        registerParameters(checker);
+        assumeTrue("mapper must support the 'index' parameter", checker.checkedParameters.contains("index"));
+
+        var settings = Settings.builder().put(IndexSettings.INDEX_DISABLED_BY_DEFAULT.getKey(), true).build();
+        var mapperService = createMapperService(settings, fieldMapping(this::minimalMapping));
+        var documentMapper = mapperService.documentMapper();
+
+        ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", this.getSampleValueForDocument())));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        for (var field : fields) {
+            assertThat(field.fieldType().indexOptions(), equalTo(IndexOptions.NONE));
+        }
+    }
+
     protected final void assertParseMinimalWarnings() {
         String[] warnings = getParseMinimalWarnings();
         if (warnings.length > 0) {

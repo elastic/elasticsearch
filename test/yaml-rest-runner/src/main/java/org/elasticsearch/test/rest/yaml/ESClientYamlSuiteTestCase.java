@@ -69,6 +69,14 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     /**
      * Property that allows to control which REST tests get run. Supports comma separated list of tests
      * or directories that contain tests e.g. -Dtests.rest.suite=index,get,create/10_with_id
+     * <p>
+     * A per-task variant {@code tests.rest.suite.<task path>} is also recognised and takes precedence
+     * over the unscoped property when set; this lets a single Gradle invocation supply different suite
+     * lists to different {@code yamlRestTest} tasks via the {@code tests.task} system property each task
+     * already exposes (see {@code GradleTestPolicySetupPlugin}). For example, running
+     * {@code :modules:reindex:yamlRestTest :rest-api-spec:yamlRestTest} in one invocation can use:
+     * {@code -Dtests.rest.suite.:modules:reindex:yamlRestTest=reindex/51_routing}
+     * {@code -Dtests.rest.suite.:rest-api-spec:yamlRestTest=get/41_routing_doc_values}.
      */
     public static final String REST_TESTS_SUITE = "tests.rest.suite";
     /**
@@ -227,7 +235,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * Create parameters for this parameterized test.
      */
     public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry) throws Exception {
-        return createParameters(executeableSectionRegistry, Map.of(), resolvePathsProperty(REST_TESTS_SUITE, ""));
+        return createParameters(executeableSectionRegistry, Map.of(), resolveRestTestsSuitePaths());
     }
 
     /**
@@ -235,7 +243,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * @param yamlParameters map or parameters used within the yaml specs to be replaced at parsing time.
      */
     public static Iterable<Object[]> createParameters(Map<String, Object> yamlParameters) throws Exception {
-        return createParameters(ExecutableSection.XCONTENT_REGISTRY, yamlParameters, resolvePathsProperty(REST_TESTS_SUITE, ""));
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY, yamlParameters, resolveRestTestsSuitePaths());
     }
 
     /**
@@ -244,7 +252,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * @param testPaths      list of paths to explicitly search for tests.
      */
     public static Iterable<Object[]> createParameters(Map<String, Object> yamlParameters, String... testPaths) throws Exception {
-        if (System.getProperty(REST_TESTS_SUITE) != null) {
+        if (resolveRestTestsSuiteProperty() != null) {
             throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
         }
         return createParameters(ExecutableSection.XCONTENT_REGISTRY, yamlParameters, testPaths);
@@ -255,7 +263,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * @param testPaths list of paths to explicitly search for tests.
      */
     public static Iterable<Object[]> createParameters(String... testPaths) throws Exception {
-        if (System.getProperty(REST_TESTS_SUITE) != null) {
+        if (resolveRestTestsSuiteProperty() != null) {
             throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
         }
         return createParameters(ExecutableSection.XCONTENT_REGISTRY, Map.of(), testPaths);
@@ -270,7 +278,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String... testPaths)
         throws Exception {
-        if (System.getProperty(REST_TESTS_SUITE) != null) {
+        if (resolveRestTestsSuiteProperty() != null) {
             throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
         }
         return createParameters(executeableSectionRegistry, Map.of(), testPaths);
@@ -398,6 +406,30 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         } else {
             return property.split(PATHS_SEPARATOR);
         }
+    }
+
+    /**
+     * Resolves the value of {@link #REST_TESTS_SUITE}, preferring the per-task scoped form
+     * {@code tests.rest.suite.<task path>} when {@code tests.task} is set and a matching property
+     * exists. Returns {@code null} if neither form is set.
+     */
+    private static String resolveRestTestsSuiteProperty() {
+        String task = System.getProperty("tests.task");
+        if (task != null) {
+            String scoped = System.getProperty(REST_TESTS_SUITE + "." + task);
+            if (scoped != null) {
+                return scoped;
+            }
+        }
+        return System.getProperty(REST_TESTS_SUITE);
+    }
+
+    private static String[] resolveRestTestsSuitePaths() {
+        String value = resolveRestTestsSuiteProperty();
+        if (Strings.hasLength(value) == false) {
+            return new String[] { "" };
+        }
+        return value.split(PATHS_SEPARATOR);
     }
 
     protected ClientYamlTestExecutionContext getAdminExecutionContext() {

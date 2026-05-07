@@ -1,5 +1,0 @@
-pr: 145131
-summary: Add passthrough support to flattened field type for mapped sub-fields
-area: Mapping
-type: enhancement
-issues: []

@@ -218,6 +218,13 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      */
     ElementType elementType();
 
+    /**
+     * {@return the maximum byte size of any single value in this block}
+     * For fixed-width types this is a constant. For {@code BytesRef}, this
+     * scans all values quickly.
+     */
+    int valueMaxByteSize();
+
     /** The block factory associated with this block. */
     BlockFactory blockFactory();
 

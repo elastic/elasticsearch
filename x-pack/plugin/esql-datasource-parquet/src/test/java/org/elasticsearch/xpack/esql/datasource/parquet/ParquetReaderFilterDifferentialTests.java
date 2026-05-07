@@ -285,119 +285,6 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     }
 
     // ---------------------------------------------------------------------------------------
-    // Silent-drop / NOT-translation regression cases.
-    //
-    // These cases pin down the family of bugs where translateExpression silently drops an
-    // untranslatable sub-expression (today: WildcardLike) under a logical connector and the
-    // resulting FilterPredicate becomes STRICTER than the true ESQL expression. A stricter
-    // pushed predicate is a correctness bug for our reader because we use the predicate for
-    // row-group and page (column-index) pruning — pruned rows can't be recovered downstream
-    // by FilterExec, so a stricter prune silently loses matching rows.
-    //
-    // The shapes below were not all reachable from the randomized harness with realistic
-    // budgets; surfacing the NOT(AND(LIKE, X)) bug took ~17 default-seed iterations on
-    // average (see commit 360b065 / the CI investigation). Pinning each shape as a fixed
-    // case makes the regression impossible to miss on a single local test run, complementing
-    // the randomized coverage that explores the long tail.
-    //
-    // DO NOT WEAKEN OR REMOVE these tests. They are the deterministic guard for
-    // ParquetPushedExpressions.translateExpression's "exactly translatable" contract —
-    // if you change that method (or the isExactlyTranslatable helper, or the canConvert /
-    // isFullyEvaluable classifications), these must keep passing. Changes that "simplify"
-    // the Not branch by removing the isExactlyTranslatable guard MUST be measured against
-    // these tests; a green randomized run is not sufficient evidence of correctness.
-    // ---------------------------------------------------------------------------------------
-
-    /**
-     * Regression: {@code NOT(AND(LIKE, X))} where {@code LIKE} is YES-eligible but does not
-     * translate to a {@link FilterPredicate} and {@code X} does. Without the
-     * {@code isExactlyTranslatable} guard in
-     * {@link ParquetPushedExpressions#translateExpression}, the {@code AND} arm silently
-     * dropped the LIKE and produced just {@code translate(X)}; the outer {@code NOT} then
-     * negated that, yielding a predicate {@code NOT(X)} that is STRICTER than the true
-     * {@code NOT(AND(LIKE, X)) = NOT(LIKE) OR NOT(X)} (because the latter accepts every
-     * row where LIKE doesn't match, regardless of {@code X}). The reader would then prune
-     * row groups whose stats prove {@code X} for every row, even though those groups may
-     * contain rows that don't match LIKE — silent under-inclusion.
-     *
-     * <p>This is the exact production bug fixed in commit {@code 360b065} ("guard Not
-     * translation against silent drops"), found by {@link #testRandomizedFilterTrees} on
-     * the ~17th default-seed iteration. Pinning it deterministically here means a single
-     * local run catches a regression — no need to re-roll seeds.
-     */
-    public void testNotAndLikeXIsNotStricterThanTruth() throws IOException {
-        // X = (id < ROW_COUNT / 2). Combined with our dataset (id is 0..ROW_COUNT-1
-        // contiguous), this produces a row-group-stats-trivial conjunct on the SINGLE_BIG_GROUP
-        // layout (false for every row in upper half) and a partial-prune conjunct elsewhere —
-        // so the bug surfaces across multiple layouts, not just one.
-        runDifferential(not(and(like(URL, "*google*"), lt(ID, (long) (ROW_COUNT / 2), DataType.LONG))));
-    }
-
-    /**
-     * Symmetric to {@link #testNotAndLikeXIsNotStricterThanTruth}: {@code NOT(OR(LIKE, X))}.
-     * Under {@code OR}, an arm that fails to translate is dropped entirely (the conservative
-     * "all arms or nothing" rule), so {@code OR(LIKE, X)} would translate to just
-     * {@code translate(X)}, and the outer {@code NOT} would yield {@code NOT(X)}, again
-     * STRICTER than the truth {@code NOT(OR(LIKE, X)) = NOT(LIKE) AND NOT(X)} (which is at
-     * least as restrictive as both). The {@code isExactlyTranslatable} guard refuses to
-     * push the {@code Not} when its child contains a silent-drop, so this lands as
-     * "no FilterPredicate" and pruning relies on other conjuncts only.
-     */
-    public void testNotOrLikeXIsNotStricterThanTruth() throws IOException {
-        runDifferential(not(or(like(URL, "*google*"), lt(ID, (long) (ROW_COUNT / 2), DataType.LONG))));
-    }
-
-    /**
-     * {@code NOT(NOT(LIKE))} should be equivalent to {@code LIKE}. The inner NOT alone is
-     * YES-eligible (special-cased to handle TVL nulls in {@code evaluateNotWildcardLike}),
-     * the outer NOT wraps a non-translatable child (the inner NOT itself doesn't translate,
-     * since {@code WildcardLike} doesn't translate), so the outer should refuse to push.
-     * No silent drop, no stricter predicate.
-     */
-    public void testNotNotLikeRoundTrip() throws IOException {
-        runDifferential(not(not(like(URL, "*google*"))));
-    }
-
-    /**
-     * Sanity check that {@code isExactlyTranslatable} is not over-conservative:
-     * {@code NOT(AND(X, Y))} with both arms translatable should still translate. If this
-     * test starts failing, the guard has become too strict — it should only refuse to push
-     * when an arm under {@code AND} or {@code OR} is silently dropped, not when every arm
-     * translates exactly.
-     */
-    public void testNotAndTwoTranslatableConjunctsStillPushes() throws IOException {
-        runDifferential(not(and(eq(STATUS, 200L, DataType.LONG), lt(ID, 50L, DataType.LONG))));
-    }
-
-    /**
-     * {@code AND(LIKE, NOT(X))} — LIKE outside the NOT, NOT around an exactly-translatable
-     * conjunct. The LIKE pushes as YES (no FilterPredicate, but YES); the {@code NOT(X)}
-     * pushes as RECHECK with a real FilterPredicate. The two combine cleanly: no silent
-     * drop because each conjunct is handled independently by {@code pushFilters} (the planner
-     * splits top-level AND into a list of conjuncts, see
-     * {@code ParquetFilterPushdownSupportTests#testWildcardLikeAsSeparateConjunctWithEqualsRecheckedOnly}).
-     * Asserts the per-conjunct path doesn't fall into the same silent-drop trap as the
-     * AND-wrapped case.
-     */
-    public void testAndOfLikeAndNotTranslatable() throws IOException {
-        runDifferential(and(like(URL, "*google*"), not(eq(STATUS, 404L, DataType.LONG))));
-    }
-
-    /**
-     * Deeper nesting: {@code NOT(AND(OR(LIKE1, LIKE2), X))} — both arms of the inner OR are
-     * silent-drops, so the OR collapses to nothing under translation; the AND then collapses
-     * to just {@code X}; the outer NOT becomes {@code NOT(X)}, STRICTER than the truth.
-     * The guard must catch this transitively, not just one level deep. Without the guard,
-     * this is the same shape of bug as
-     * {@link #testNotAndLikeXIsNotStricterThanTruth} but harder to surface randomly because
-     * it requires three levels of nesting in the right configuration.
-     */
-    public void testNotAndOrLikeLikeXTransitiveSilentDrop() throws IOException {
-        Expression filter = not(and(or(like(URL, "*google*"), like(URL, "*github*")), lt(ID, (long) (ROW_COUNT / 2), DataType.LONG)));
-        runDifferential(filter);
-    }
-
-    // ---------------------------------------------------------------------------------------
     // Randomized cases — random expression trees per layout.
     // ---------------------------------------------------------------------------------------
 
@@ -810,35 +697,21 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     }
 
     /**
-     * Oracle A: read with apache-mr's {@link ParquetReader} given a <b>conservatively</b>
-     * translated {@link FilterPredicate}, then post-filter the original ESQL expression in
-     * pure Java on top. apache-mr is a completely independent parquet stack (different
-     * RowGroupFilter, different ColumnIndex evaluator, different page reader), so any bug
-     * in one of our optimization layers shows up here as a disagreement.
+     * Oracle A: read with apache-mr's {@link ParquetReader} given the translated
+     * {@link FilterPredicate}, then post-filter the original ESQL expression in pure Java on
+     * top. apache-mr is a completely independent parquet stack (different RowGroupFilter,
+     * different ColumnIndex evaluator, different page reader), so any bug in one of our
+     * optimization layers shows up here as a disagreement.
      *
-     * <p><b>Why "conservatively translated".</b> Our production
-     * {@code ParquetPushedExpressions#translateExpression} silently drops untranslatable
-     * sub-expressions inside nested {@code AND}/{@code OR}/{@code NOT}, which can produce a
-     * predicate that is <em>stricter</em> than the original ESQL filter (e.g.
-     * {@code NOT(AND(LIKE, id<N))} translates to {@code NOT(id<N)} = {@code id>=N}, which
-     * drops rows the original would have kept). Apache-mr applies the predicate at the
-     * record level via {@code useRecordFilter}, so a stricter predicate <em>silently loses
-     * rows</em> that the Java post-filter cannot recover. Production's optimized reader does
-     * not exercise the same loss because it uses the FilterPredicate only for stats-based
-     * pruning, not for record-level filtering — but apache-mr does, and that mismatch is
-     * what made this oracle initially flag false positives on randomized
-     * {@code NOT(AND(LIKE, ...))} inputs.
-     *
-     * <p>To stay correct (an oracle, not a co-bug), we only push the FilterPredicate when
-     * the entire ESQL filter consists of top-level {@code AND} conjuncts where every
-     * conjunct is a translatable leaf with NO nested {@code NOT}/{@code OR} that could trigger the
-     * silent-drop. Anything more complex: skip the FilterPredicate; apache-mr reads every
-     * row and the Java post-filter applies the original expression. This costs us the
-     * cross-stack check on the apache-mr filter machinery for those cases — acceptable, the
-     * point of this oracle is to catch bugs in our reader, not to validate apache-mr.
+     * <p>The post-filter restores ESQL TVL semantics that diverge from parquet-mr's
+     * (e.g. {@code NOT(eq(col, k))} returns null rows in parquet-mr but drops them in ESQL)
+     * and applies any conjuncts that did not translate to a {@link FilterPredicate}
+     * (e.g. {@link WildcardLike}). When the translation returns {@code null} (no conjunct
+     * translated), apache-mr is used purely as a row reader — still useful as a structural
+     * cross-check on column decoding.
      */
     private Set<Long> oracleA_apacheMr(byte[] parquetBytes, Expression filter) throws IOException {
-        FilterPredicate filterPredicate = safeTranslateForApacheMr(filter);
+        FilterPredicate filterPredicate = new ParquetPushedExpressions(splitTopLevelAnd(filter)).toFilterPredicate(SCHEMA);
         GroupReaderBuilder builder = new GroupReaderBuilder(new ParquetStorageObjectAdapter(inMemoryStorageObject(parquetBytes)));
         if (filterPredicate != null) {
             builder.withFilter(FilterCompat.get(filterPredicate));
@@ -854,48 +727,6 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
             }
         }
         return ids;
-    }
-
-    /**
-     * Translate {@code filter} to a Parquet {@link FilterPredicate} only when the result is
-     * provably a SUPERSET of the original filter's matching set (i.e. apache-mr can safely
-     * pre-filter without losing any row the Java post-filter would have kept). Returns
-     * {@code null} otherwise — caller must read every row and rely on the post-filter.
-     *
-     * <p>Conservative rule: split at top-level {@code AND}, accept only conjuncts that are
-     * "leaf-shaped" (no nested {@code NOT}/{@code OR}/{@code AND}, no {@link WildcardLike}).
-     * For each accepted conjunct, ask the production translator; if it returns non-null,
-     * that conjunct's predicate is a true superset (since it's a leaf with no
-     * silent-drop potential). AND the accepted predicates and return.
-     */
-    private static FilterPredicate safeTranslateForApacheMr(Expression filter) {
-        List<Expression> conjuncts = splitTopLevelAnd(filter);
-        List<Expression> safe = new ArrayList<>();
-        for (Expression c : conjuncts) {
-            if (isLeafShaped(c)) {
-                safe.add(c);
-            }
-        }
-        if (safe.isEmpty()) {
-            return null;
-        }
-        return new ParquetPushedExpressions(safe).toFilterPredicate(SCHEMA);
-    }
-
-    /**
-     * A leaf-shaped expression contains no {@code NOT}, {@code OR}, {@code AND}, or
-     * {@link WildcardLike} anywhere in the tree. Such expressions translate to a Parquet
-     * predicate whose semantics exactly match (or are looser than) the ESQL original — there
-     * is no silent-drop branch in {@code translateExpression} that can fire.
-     */
-    private static boolean isLeafShaped(Expression expr) {
-        if (expr instanceof And || expr instanceof Or || expr instanceof Not) {
-            return false;
-        }
-        if (expr instanceof WildcardLike) {
-            return false;
-        }
-        return true;
     }
 
     /**

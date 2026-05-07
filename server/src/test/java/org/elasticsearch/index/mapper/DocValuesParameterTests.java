@@ -21,18 +21,12 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     public void testMultiValueWithoutCardinalityUsesDefault() throws Exception {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", "sorted_set").endObject())
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
         );
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(
             mapper.docValuesParameters(),
-            equalTo(
-                new FieldMapper.DocValuesParameter.Values(
-                    true,
-                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
-                )
-            )
+            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, false))
         );
     }
 
@@ -44,13 +38,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(
             mapper.docValuesParameters(),
-            equalTo(
-                new FieldMapper.DocValuesParameter.Values(
-                    true,
-                    FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
-                )
-            )
+            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true))
         );
     }
 
@@ -67,20 +55,6 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             )
         );
         assertThat(e.getMessage(), containsString("Unknown value [invalid] for field [cardinality] - accepted values are [low, high]"));
-    }
-
-    public void testInvalidMultiValue() throws Exception {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        var e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(
-                fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", "invalid").endObject())
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("Unknown value [invalid] for field [multi_value] - accepted values are [no, sorted_set, arrays]")
-        );
     }
 
     // -----------------------------------------------------------------------

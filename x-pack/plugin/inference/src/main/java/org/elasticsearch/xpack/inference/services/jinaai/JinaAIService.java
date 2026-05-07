@@ -253,12 +253,17 @@ public class JinaAIService extends SenderService<JinaAIModel> implements Reranki
         return TransportVersion.minimumCompatible();
     }
 
+    /**
+     * The {@code jina-reranker-m0} model <a href="https://jina.ai/models/jina-reranker-m0">has a 10,000 token input length</a>, which is
+     * the smallest of the non-deprecated Jina reranker models, so that value is used here.
+     * <p>
+     * Using 1 token = 0.75 words as a rough estimate, we get 7500 words. Allowing for some headroom, we set the window size to 7000 words
+     * @param modelId The model ID
+     * @return the max input size for the model, in words
+     */
     @Override
     public int rerankerWindowSize(String modelId) {
-        // Jina AI rerank models have an 8000 token input length https://jina.ai/models/jina-reranker-v2-base-multilingual
-        // Using 1 token = 0.75 words as a rough estimate, we get 6000 words
-        // allowing for some headroom, we set the window size below 6000 words
-        return 5500;
+        return 7000;
     }
 
     public static class Configuration {

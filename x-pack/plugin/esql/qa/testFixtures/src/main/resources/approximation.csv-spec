@@ -1064,6 +1064,33 @@ null            | fork2         | 3          | null                             
 ;
 
 
+Fork with inline stats and stats in branches
+required_capability: approximation_v7
+required_capability: approximation_fork
+required_capability: approximation_inline_stats_v2
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| KEEP sv
+| FORK (STATS total_count = COUNT())
+       (INLINE STATS count = COUNT() BY sv)
+| SORT _fork, sv DESC
+| LIMIT 4
+;
+
+// almost nothing for stats, 8000..12000 for inline stats, plus all (~245000) for results
+// note: processing all docs here might be an inefficiency of INLINE STATS
+documents_found: 253000..257000
+
+total_count:long | _fork:keyword | count:long | sv:integer | _approximation_confidence_interval(total_count):long | _approximation_certified(total_count):boolean | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
+245350           | fork1         | null       | null       | [245350,245350]                                      | {any}                                         | null                                           | null
+null             | fork2         | 100..2000  | 700        | null                                                 | null                                          | [100..2000,100..2000]                          | {any}
+null             | fork2         | 100..2000  | 700        | null                                                 | null                                          | [100..2000,100..2000]                          | {any}
+null             | fork2         | 100..2000  | 700        | null                                                 | null                                          | [100..2000,100..2000]                          | {any}
+;
+
+
 Warn on no stats
 required_capability: approximation_v7
 request_stored: skip

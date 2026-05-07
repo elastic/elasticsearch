@@ -1742,7 +1742,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
         builder.setStrictDeprecationMode(true);
-        return builder.build();
+        return new org.elasticsearch.client.LazyRefreshRestClient(builder.build());
     }
 
     /**

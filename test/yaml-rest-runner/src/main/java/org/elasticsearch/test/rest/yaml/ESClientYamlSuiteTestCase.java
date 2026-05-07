@@ -485,14 +485,21 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             inFipsJvm() && testCandidate.getTestSection().getPrerequisiteSection().hasYamlRunnerFeature("fips_140")
         );
 
-        boolean setupRan = false;
-        if (skipSetupSections() == false && testCandidate.getSetupSection().isEmpty() == false) {
-            logger.debug("start setup test [{}]", testCandidate.getTestPath());
-            for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
-                executeSection(executableSection);
+        boolean setupDeferred = false;
+        if (testCandidate.getSetupSection().isEmpty() == false) {
+            if (skipSetupSections() == false) {
+                logger.debug("start setup test [{}]", testCandidate.getTestPath());
+                for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
+                    executeSection(executableSection);
+                }
+                logger.debug("end setup test [{}]", testCandidate.getTestPath());
+            } else {
+                // Setup was skipped — register a deferred refresh on the LazyRefreshRestClient.
+                // The wrapper runs the callback synchronously on the calling thread before the
+                // next non-read request issued by the body. Read-only bodies skip it entirely.
+                setupDeferred = true;
+                org.elasticsearch.client.LazyRefreshRestClient.setPendingRefresh(this::runDeferredCleanupAndSetup);
             }
-            logger.debug("end setup test [{}]", testCandidate.getTestPath());
-            setupRan = true;
         }
 
         restTestExecutionContext.clear();
@@ -501,11 +508,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
         try {
             for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
-                if (setupRan == false && shouldRunDeferredSetup(executableSection)) {
-                    logger.debug("running deferred setup before write op in test [{}]", testCandidate.getTestPath());
-                    runDeferredCleanupAndSetup();
-                    setupRan = true;
-                }
                 executeSection(executableSection);
             }
             errorCollector.verify();
@@ -535,6 +537,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     executeSection(doSection);
                 }
                 logger.debug("end teardown test [{}]", testCandidate.getTestPath());
+            }
+            if (setupDeferred) {
+                // If the body had no writes, the deferred refresh was never consumed. Clear it
+                // so it doesn't leak into the next test.
+                org.elasticsearch.client.LazyRefreshRestClient.setPendingRefresh(null);
             }
         }
     }
@@ -575,20 +582,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     /**
-     * Called before each body section when {@link #skipSetupSections()} returned {@code true}.
-     * If this returns {@code true}, {@link #runDeferredCleanupAndSetup()} is invoked before the
-     * given section executes — allowing subclasses to lazily wipe and rerun the YAML setup just
-     * before the first write in the body, while letting earlier read-only sections proceed
-     * against shared state from a previous test.
-     */
-    protected boolean shouldRunDeferredSetup(ExecutableSection section) {
-        return false;
-    }
-
-    /**
      * Run the deferred cleanup of any previous test plus the current test's YAML setup section.
-     * Subclasses should perform whatever wipe is needed and then run the setup. Default
-     * implementation runs the YAML setup section against the current execution context.
+     * Invoked by {@link org.elasticsearch.client.LazyRefreshRestClient} on the calling thread
+     * just before the next non-read HTTP request, when setup was skipped via
+     * {@link #skipSetupSections()}. Subclasses should perform whatever wipe is needed and then
+     * call {@code super.runDeferredCleanupAndSetup()} to run the YAML setup section.
      */
     protected void runDeferredCleanupAndSetup() {
         for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {

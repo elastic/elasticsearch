@@ -19,7 +19,7 @@ configurations {
 }
 
 var zstdVersion = "1.5.7"
-var vecVersion = "1.0.107"
+var vecVersion = "1.0.111"
 var pqrsVersion = "0.2.0"
 
 repositories {

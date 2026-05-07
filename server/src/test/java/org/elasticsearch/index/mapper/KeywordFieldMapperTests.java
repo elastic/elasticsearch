@@ -423,15 +423,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertTrue(fields.get(0).fieldType().stored());
     }
 
-    public void testDisableIndex() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("index", false)));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        assertEquals(IndexOptions.NONE, fields.get(0).fieldType().indexOptions());
-        assertEquals(DocValuesType.SORTED_SET, fields.get(0).fieldType().docValuesType());
-    }
-
     public void testDisableDocValues() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("doc_values", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));

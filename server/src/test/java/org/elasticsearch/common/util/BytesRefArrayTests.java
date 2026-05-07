@@ -15,8 +15,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,6 +29,23 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class BytesRefArrayTests extends ESTestCase {
+
+    @Before
+    public void setIntOffsetLimit() {
+        if (randomBoolean()) {
+            BytesRefArray.MAX_INT_OFFSET = randomIntBetween(1, 1024);
+        } else if (randomBoolean()) {
+            BytesRefArray.MAX_INT_OFFSET = randomIntBetween(
+                (int) ByteSizeValue.ofKb(1).getBytes(),
+                (int) ByteSizeValue.ofMb(10).getBytes()
+            );
+        } else {
+            BytesRefArray.MAX_INT_OFFSET = randomIntBetween(
+                (int) ByteSizeValue.ofMb(10).getBytes(),
+                (int) ByteSizeValue.ofGb(1).getBytes()
+            );
+        }
+    }
 
     public static BytesRefArray randomArray() {
         return randomArray(randomIntBetween(0, 100), randomIntBetween(10, 50), mockBigArrays());

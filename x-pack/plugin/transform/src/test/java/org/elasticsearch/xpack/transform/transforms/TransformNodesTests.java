@@ -111,7 +111,7 @@ public class TransformNodesTests extends ESTestCase {
         // don't ask for transformIdOther
         TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(
             Arrays.asList(transformIdFoo, transformIdBar, transformIdFailed, transformIdBaz, transformIdStopped),
-            cs
+            cs.metadata().getDefaultProject()
         );
         assertEquals(2, transformNodeAssignments.getExecutorNodes().size());
         assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
@@ -128,7 +128,10 @@ public class TransformNodesTests extends ESTestCase {
         assertEquals(1, transformNodeAssignments.getStopped().size());
         assertTrue(transformNodeAssignments.getStopped().contains(transformIdStopped));
 
-        transformNodeAssignments = TransformNodes.transformTaskNodes(Arrays.asList(transformIdFoo, transformIdFailed), cs);
+        transformNodeAssignments = TransformNodes.transformTaskNodes(
+            Arrays.asList(transformIdFoo, transformIdFailed),
+            cs.metadata().getDefaultProject()
+        );
 
         assertEquals(1, transformNodeAssignments.getExecutorNodes().size());
         assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
@@ -140,7 +143,7 @@ public class TransformNodesTests extends ESTestCase {
         assertEquals(0, transformNodeAssignments.getStopped().size());
 
         // test simple matching
-        transformNodeAssignments = TransformNodes.findPersistentTasks("df-id-f*", cs);
+        transformNodeAssignments = TransformNodes.findPersistentTasks("df-id-f*", cs.metadata().getDefaultProject());
         assertEquals(1, transformNodeAssignments.getExecutorNodes().size());
         assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
         assertEquals(1, transformNodeAssignments.getWaitingForAssignment().size());
@@ -151,14 +154,14 @@ public class TransformNodesTests extends ESTestCase {
         assertEquals(0, transformNodeAssignments.getStopped().size());
 
         // test matching none
-        transformNodeAssignments = TransformNodes.findPersistentTasks("df-id-z*", cs);
+        transformNodeAssignments = TransformNodes.findPersistentTasks("df-id-z*", cs.metadata().getDefaultProject());
         assertEquals(0, transformNodeAssignments.getExecutorNodes().size());
         assertEquals(0, transformNodeAssignments.getWaitingForAssignment().size());
         assertEquals(0, transformNodeAssignments.getAssigned().size());
         assertEquals(0, transformNodeAssignments.getStopped().size());
 
         // test matching all
-        transformNodeAssignments = TransformNodes.findPersistentTasks("df-id-*", cs);
+        transformNodeAssignments = TransformNodes.findPersistentTasks("df-id-*", cs.metadata().getDefaultProject());
         assertEquals(3, transformNodeAssignments.getExecutorNodes().size());
         assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
         assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-2"));
@@ -175,7 +178,7 @@ public class TransformNodesTests extends ESTestCase {
         assertEquals(0, transformNodeAssignments.getStopped().size());
 
         // test matching all with _all
-        transformNodeAssignments = TransformNodes.findPersistentTasks("_all", cs);
+        transformNodeAssignments = TransformNodes.findPersistentTasks("_all", cs.metadata().getDefaultProject());
         assertEquals(3, transformNodeAssignments.getExecutorNodes().size());
         assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
         assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-2"));
@@ -192,7 +195,7 @@ public class TransformNodesTests extends ESTestCase {
         assertEquals(0, transformNodeAssignments.getStopped().size());
 
         // test matching exact
-        transformNodeAssignments = TransformNodes.findPersistentTasks(transformIdFoo, cs);
+        transformNodeAssignments = TransformNodes.findPersistentTasks(transformIdFoo, cs.metadata().getDefaultProject());
         assertEquals(1, transformNodeAssignments.getExecutorNodes().size());
         assertTrue(transformNodeAssignments.getExecutorNodes().contains("node-1"));
         assertEquals(0, transformNodeAssignments.getWaitingForAssignment().size());
@@ -206,14 +209,14 @@ public class TransformNodesTests extends ESTestCase {
         ClusterState emptyState = ClusterState.builder(new ClusterName("_name")).build();
         TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(
             Collections.singletonList("df-id"),
-            emptyState
+            emptyState.metadata().getDefaultProject()
         );
 
         assertEquals(0, transformNodeAssignments.getExecutorNodes().size());
         assertEquals(1, transformNodeAssignments.getStopped().size());
         assertTrue(transformNodeAssignments.getStopped().contains("df-id"));
 
-        transformNodeAssignments = TransformNodes.findPersistentTasks("df-*", emptyState);
+        transformNodeAssignments = TransformNodes.findPersistentTasks("df-*", emptyState.metadata().getDefaultProject());
 
         assertEquals(0, transformNodeAssignments.getExecutorNodes().size());
         assertEquals(0, transformNodeAssignments.getWaitingForAssignment().size());
@@ -298,9 +301,12 @@ public class TransformNodesTests extends ESTestCase {
                     )
             )
             .build();
-        assertThat(TransformNodes.getAssignment("transform-1", clusterState), is(nullValue()));
-        assertThat(TransformNodes.getAssignment("transform-2", clusterState), is(equalTo(assignment2)));
-        assertThat(TransformNodes.getAssignment("transform-3", clusterState), is(equalTo(INITIAL_ASSIGNMENT)));
+        assertThat(TransformNodes.getAssignment("transform-1", clusterState.metadata().getDefaultProject()), is(nullValue()));
+        assertThat(TransformNodes.getAssignment("transform-2", clusterState.metadata().getDefaultProject()), is(equalTo(assignment2)));
+        assertThat(
+            TransformNodes.getAssignment("transform-3", clusterState.metadata().getDefaultProject()),
+            is(equalTo(INITIAL_ASSIGNMENT))
+        );
     }
 
     private static ClusterState newClusterState(DiscoveryNodes nodes) {

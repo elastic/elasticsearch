@@ -99,11 +99,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return new NdJsonFormatReader(settings, blockFactory, schema, schemaSampleSize, segmentSizeBytes);
     }
 
-    /** Keys recognised by {@link #withConfig(Map)}. */
+    /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
     static final Set<String> RECOGNIZED_KEYS = Set.of("schema_sample_size", "segment_size");
 
     @Override
-    public Configured<FormatReader> withConfig(Map<String, Object> config) {
+    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             return Configured.empty(this);
         }

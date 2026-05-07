@@ -85,9 +85,15 @@ public abstract class DataSourceConfiguration {
     }
 
     /**
-     * Returns a copy of {@code raw} keyed by {@code fieldDefs}, plus the kept-key set. Used at
-     * query time where the WITH clause carries a mix of storage and format options. Dropped keys
-     * are logged at DEBUG (names only — values may be secrets).
+     * Returns a copy of {@code raw} containing only entries whose key is in {@code fieldDefs},
+     * paired with the set of keys that were kept. Used at query time where a query-time configuration map
+     * carries a mix of storage and format options; the storage plugin must ignore keys it does
+     * not own rather than reject them as unknown. Returns {@code null}/empty unchanged.
+     *
+     * <p>Dropped keys are logged at {@code DEBUG} so a user who misspells e.g. {@code accout} can
+     * find out why the storage config came back with defaults. Only key <em>names</em> are
+     * logged — values are never emitted, since this method is unaware of which keys are secrets.
+     * Format keys (like {@code header_row}) will appear here too, which is expected.
      */
     protected static Configured<Map<String, Object>> filterKnown(
         Map<String, Object> raw,

@@ -115,8 +115,9 @@ public class StorageManager implements Closeable {
             );
         }
 
+        // When config is provided, create a fresh provider with the per-query config
         if (config instanceof Map<?, ?> configMap && configMap.isEmpty() == false) {
-            StorageProvider provider = registry.createProvider(scheme, settings, (Map<String, Object>) configMap).value();
+            StorageProvider provider = registry.createProvider(scheme, settings, (Map<String, Object>) configMap);
             perQueryProviders.add(provider);
             return provider;
         }

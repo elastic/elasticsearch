@@ -55,7 +55,7 @@ public class StorageProviderCache implements Closeable {
      * contain identical key-value pairs.
      *
      * @param scheme normalized (lower-case) URI scheme, e.g. {@code "s3"}
-     * @param config the WITH-clause config map from the query
+     * @param config the configuration map config map from the query
      */
     public record CacheKey(String scheme, Map<String, Object> config) {}
 

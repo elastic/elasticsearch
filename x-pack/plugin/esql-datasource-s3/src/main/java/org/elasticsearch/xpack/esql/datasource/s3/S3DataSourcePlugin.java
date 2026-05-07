@@ -40,7 +40,7 @@ public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
             }
 
             @Override
-            public Configured<StorageProvider> create(Settings settings, Map<String, Object> config) {
+            public Configured<StorageProvider> createTrackingConsumedKeys(Settings settings, Map<String, Object> config) {
                 if (config == null || config.isEmpty()) {
                     return Configured.empty(create(settings));
                 }

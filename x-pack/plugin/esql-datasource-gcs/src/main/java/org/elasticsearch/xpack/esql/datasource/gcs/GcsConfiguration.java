@@ -48,7 +48,11 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
         return raw == null || raw.isEmpty() ? null : new GcsConfiguration(raw);
     }
 
-    /** Lenient: filters unknown keys; cross-field validation (auth/credential conflicts) still runs. */
+    /**
+     * Lenient factory for query-time configuration maps, which may carry format-level options
+     * (e.g. {@code header_row}) alongside storage-level options. Filters unknown keys
+     * before construction; cross-field validation (auth/credential conflicts) still runs.
+     */
     public static Configured<GcsConfiguration> fromQueryConfig(Map<String, Object> raw) {
         Configured<Map<String, Object>> filtered = filterKnown(raw, FIELDS);
         GcsConfiguration config = filtered.value() == null || filtered.value().isEmpty() ? null : new GcsConfiguration(filtered.value());

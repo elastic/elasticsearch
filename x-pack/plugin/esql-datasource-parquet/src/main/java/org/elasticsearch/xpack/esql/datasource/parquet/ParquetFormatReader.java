@@ -166,7 +166,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     }
 
     @Override
-    public Configured<FormatReader> withConfig(Map<String, Object> config) {
+    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             return Configured.empty(this);
         }

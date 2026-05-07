@@ -26,8 +26,8 @@ public interface ExternalSourceFactory {
     SourceMetadata resolveMetadata(String location, Map<String, Object> config);
 
     /**
-     * Reject WITH-clause keys this factory doesn't recognize at the given location. Implementations
-     * compose their claimed-key sets and call {@link WithClauseValidator#check}. Default no-op.
+     * Reject configuration keys this factory doesn't recognize at the given location. Implementations
+     * compose their claimed-key sets and call {@link ConfigKeyValidator#check}. Default no-op.
      */
     default void validateConfig(String location, Map<String, Object> config) {}
 

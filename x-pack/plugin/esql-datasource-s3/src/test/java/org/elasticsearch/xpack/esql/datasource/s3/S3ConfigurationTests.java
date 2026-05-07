@@ -117,7 +117,7 @@ public class S3ConfigurationTests extends ESTestCase {
         raw.put("access_key", "ak");
         raw.put("secret_key", "sk");
         raw.put("endpoint", "http://e");
-        // Format-level options that the WITH clause may carry; the storage plugin must ignore them.
+        // Format-level options that the configuration map may carry; the storage plugin must ignore them.
         raw.put("header_row", false);
         raw.put("column_prefix", "f");
 

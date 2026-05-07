@@ -40,7 +40,7 @@ public class ParquetFormatReaderRecognizedKeysTests extends ESTestCase {
         for (String key : ParquetFormatReader.RECOGNIZED_KEYS) {
             Map<String, Object> config = new HashMap<>();
             config.put(key, true);
-            Configured<FormatReader> result = new ParquetFormatReader(NOOP_BLOCK_FACTORY).withConfig(config);
+            Configured<FormatReader> result = new ParquetFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(config);
             assertTrue("key [" + key + "] must be consumed when present", result.consumedKeys().contains(key));
         }
     }
@@ -49,15 +49,15 @@ public class ParquetFormatReaderRecognizedKeysTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("optimized_reader", true);
         config.put("not_a_parquet_key", true);
-        Configured<FormatReader> result = new ParquetFormatReader(NOOP_BLOCK_FACTORY).withConfig(config);
+        Configured<FormatReader> result = new ParquetFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(config);
         assertThat(result.consumedKeys(), containsInAnyOrder("optimized_reader"));
     }
 
     public void testEmptyConfigConsumesNothing() {
-        assertThat(new ParquetFormatReader(NOOP_BLOCK_FACTORY).withConfig(Map.of()).consumedKeys(), empty());
+        assertThat(new ParquetFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(Map.of()).consumedKeys(), empty());
     }
 
     public void testNullConfigConsumesNothing() {
-        assertThat(new ParquetFormatReader(NOOP_BLOCK_FACTORY).withConfig(null).consumedKeys(), empty());
+        assertThat(new ParquetFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(null).consumedKeys(), empty());
     }
 }

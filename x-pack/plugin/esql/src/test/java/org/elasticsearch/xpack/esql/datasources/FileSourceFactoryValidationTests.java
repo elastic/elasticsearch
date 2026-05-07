@@ -12,9 +12,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 
 /**
  * Pins {@link FileSourceFactory#COORDINATOR_KEYS} membership against the keys other code in this
- * factory actually consumes. A missing entry would cause a real WITH-clause option (e.g.
- * {@code error_mode}) to be flagged as unknown for every user. The generic validator contract
- * lives in {@code WithClauseValidatorTests}.
+ * factory actually consumes. A missing entry would cause a real configuration option (e.g.
+ * {@code error_mode}, {@code target_split_size}) to be flagged as unknown for every user. The
+ * generic validator contract lives in {@code ConfigKeyValidatorTests}.
  */
 public class FileSourceFactoryValidationTests extends ESTestCase {
 
@@ -26,5 +26,9 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
         for (String key : ErrorPolicy.CONFIG_KEYS) {
             assertTrue("ErrorPolicy key " + key + " must be a coordinator key", FileSourceFactory.COORDINATOR_KEYS.contains(key));
         }
+    }
+
+    public void testCoordinatorKeysIncludesTargetSplitSize() {
+        assertTrue(FileSourceFactory.COORDINATOR_KEYS.contains(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE));
     }
 }

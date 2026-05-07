@@ -57,7 +57,7 @@ public class StorageProviderRegistry implements Closeable {
     private final Map<String, ConcurrencyBudgetAllocator> allocators = new ConcurrentHashMap<>();
     private final Map<String, AdaptiveBackoff> backoffs = new ConcurrentHashMap<>();
 
-    // Cache for providers created with a non-empty config (WITH clause queries).
+    // Cache for providers created with a non-empty per-query configuration map.
     // Avoids reconstructing cloud clients (S3, GCS, Azure) for repeated calls with the same config.
     private final StorageProviderCache configuredProviderCache = new StorageProviderCache();
 
@@ -102,7 +102,15 @@ public class StorageProviderRegistry implements Closeable {
         return factories.containsKey(normalized) || providers.containsKey(normalized);
     }
 
-    public Configured<StorageProvider> createProvider(String scheme, Settings settings, Map<String, Object> config) {
+    /**
+     * Convenience: returns the StorageProvider only.
+     * Use {@link #createProviderTrackingConsumedKeys(String, Settings, Map)} when the consumed-keys set is needed.
+     */
+    public StorageProvider createProvider(String scheme, Settings settings, Map<String, Object> config) {
+        return createProviderTrackingConsumedKeys(scheme, settings, config).value();
+    }
+
+    public Configured<StorageProvider> createProviderTrackingConsumedKeys(String scheme, Settings settings, Map<String, Object> config) {
         String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
 
         if (config == null || config.isEmpty()) {
@@ -118,12 +126,12 @@ public class StorageProviderRegistry implements Closeable {
             throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
         }
 
-        // Cache providers by (scheme, config) so queries with the same WITH-clause config
+        // Cache providers by (scheme, config) so queries with the same configuration map
         // reuse the same cloud client and connection pool instead of constructing a new one.
         StorageProviderCache.CacheKey cacheKey = new StorageProviderCache.CacheKey(normalizedScheme, config);
         try {
             return configuredProviderCache.getOrCreate(cacheKey, () -> {
-                Configured<StorageProvider> raw = factory.create(settings, config);
+                Configured<StorageProvider> raw = factory.createTrackingConsumedKeys(settings, config);
                 return new Configured<>(wrapProvider(raw.value(), normalizedScheme), raw.consumedKeys());
             });
         } catch (RuntimeException e) {

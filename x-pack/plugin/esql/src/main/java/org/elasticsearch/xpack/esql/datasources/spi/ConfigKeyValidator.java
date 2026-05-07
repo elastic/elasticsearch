@@ -14,10 +14,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-/** Reject WITH-clause keys not in any of the supplied claimed-key sets. */
-public final class WithClauseValidator {
+/** Reject configuration keys not in any of the supplied claimed-key sets. */
+public final class ConfigKeyValidator {
 
-    private WithClauseValidator() {}
+    private ConfigKeyValidator() {}
 
     /**
      * Throws {@link IllegalArgumentException} listing the unknown keys (sorted) and the recognised
@@ -52,7 +52,12 @@ public final class WithClauseValidator {
         }
         unknown.sort(String::compareTo);
         throw new IllegalArgumentException(
-            "unknown option" + (unknown.size() == 1 ? "" : "s") + " " + unknown + " in WITH clause; recognised options are " + allRecognised
+            "unknown option"
+                + (unknown.size() == 1 ? "" : "s")
+                + " "
+                + unknown
+                + " in data source configuration; recognised options are "
+                + allRecognised
         );
     }
 }

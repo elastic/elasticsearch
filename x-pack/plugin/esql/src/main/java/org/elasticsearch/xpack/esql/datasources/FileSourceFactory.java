@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
@@ -22,7 +23,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
-import org.elasticsearch.xpack.esql.datasources.spi.WithClauseValidator;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -120,9 +120,15 @@ final class FileSourceFactory implements ExternalSourceFactory {
             return;
         }
         StoragePath storagePath = StoragePath.of(location);
-        Configured<StorageProvider> resolvedStorage = storageRegistry.createProvider(storagePath.scheme(), settings, config);
-        Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
-        WithClauseValidator.check(config, List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS));
+        Configured<StorageProvider> resolvedStorage = storageRegistry.createProviderTrackingConsumedKeys(
+            storagePath.scheme(),
+            settings,
+            config
+        );
+        Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(
+            config
+        );
+        ConfigKeyValidator.check(config, List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS));
     }
 
     @Override
@@ -132,25 +138,31 @@ final class FileSourceFactory implements ExternalSourceFactory {
             String scheme = storagePath.scheme();
 
             StorageProvider provider;
-            Configured<FormatReader> readerConfigured;
+            FormatReader reader;
             if (config != null && config.isEmpty() == false) {
-                Configured<StorageProvider> storageConfigured = storageRegistry.createProvider(scheme, settings, config);
-                provider = storageConfigured.value();
-                readerConfigured = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
-                WithClauseValidator.check(
+                Configured<StorageProvider> storageConfigured = storageRegistry.createProviderTrackingConsumedKeys(
+                    scheme,
+                    settings,
+                    config
+                );
+                Configured<FormatReader> readerConfigured = resolveFormatReader(storagePath.objectName(), config)
+                    .withConfigTrackingConsumedKeys(config);
+                ConfigKeyValidator.check(
                     config,
                     List.of(storageConfigured.consumedKeys(), readerConfigured.consumedKeys(), COORDINATOR_KEYS)
                 );
+                provider = storageConfigured.value();
+                reader = readerConfigured.value();
             } else {
                 provider = storageRegistry.provider(storagePath);
-                readerConfigured = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
+                reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
             }
 
             StorageObject storageObject = provider.newObject(storagePath);
             if (storageObject.exists() == false) {
                 throw new IOException("File does not exist: " + location);
             }
-            return readerConfigured.value().metadata(storageObject);
+            return reader.metadata(storageObject);
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);
         }
@@ -176,13 +188,12 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
             StorageProvider storage;
             if (config != null && config.isEmpty() == false) {
-                storage = storageRegistry.createProvider(path.scheme(), settings, config).value();
+                storage = storageRegistry.createProvider(path.scheme(), settings, config);
             } else {
                 storage = storageRegistry.provider(path);
             }
 
             FormatReader format = resolveFormatReader(path.objectName(), config).withConfig(config)
-                .value()
                 .withPushedFilter(context.pushedFilter())
                 .withSchema(context.attributes());
             ErrorPolicy errorPolicy = resolveErrorPolicy(config, format);
@@ -231,13 +242,17 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
     static final String CONFIG_FORMAT = "format";
 
-    /** Keys claimed by the coordinator itself: {@link #CONFIG_FORMAT} and {@link ErrorPolicy#CONFIG_KEYS}. */
+    /**
+     * Keys claimed by the coordinator itself: {@link #CONFIG_FORMAT}, {@link ErrorPolicy#CONFIG_KEYS},
+     * and split-tuning options consumed by {@link FileSplitProvider} (e.g. {@code target_split_size}).
+     */
     static final Set<String> COORDINATOR_KEYS;
 
     static {
         Set<String> keys = new HashSet<>();
         keys.add(CONFIG_FORMAT);
         keys.addAll(ErrorPolicy.CONFIG_KEYS);
+        keys.add(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE);
         COORDINATOR_KEYS = Set.copyOf(keys);
     }
 

@@ -189,7 +189,7 @@ public class FileSplitProvider implements SplitProvider {
             // Derive scheme from the first file (all files in a FileList share the same scheme).
             if (fileList.fileCount() > 0) {
                 String scheme = fileList.path(0).scheme();
-                sharedProvider = storageRegistry.createProvider(scheme, settings, config).value();
+                sharedProvider = storageRegistry.createProvider(scheme, settings, config);
             }
         }
 
@@ -761,7 +761,7 @@ public class FileSplitProvider implements SplitProvider {
             return hoistedProvider;
         }
         if (config != null && config.isEmpty() == false) {
-            return storageRegistry.createProvider(filePath.scheme(), settings, config).value();
+            return storageRegistry.createProvider(filePath.scheme(), settings, config);
         }
         return storageRegistry.provider(filePath);
     }

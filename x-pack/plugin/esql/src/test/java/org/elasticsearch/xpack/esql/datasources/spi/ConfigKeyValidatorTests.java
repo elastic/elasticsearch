@@ -18,26 +18,26 @@ import java.util.Set;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
-public class WithClauseValidatorTests extends ESTestCase {
+public class ConfigKeyValidatorTests extends ESTestCase {
 
     public void testNullConfigIsAccepted() {
-        WithClauseValidator.check(null, List.of(Set.of()));
+        ConfigKeyValidator.check(null, List.of(Set.of()));
     }
 
     public void testEmptyConfigIsAccepted() {
-        WithClauseValidator.check(Map.of(), List.of(Set.of()));
+        ConfigKeyValidator.check(Map.of(), List.of(Set.of()));
     }
 
     public void testFullyClaimedConfigIsAccepted() {
         Map<String, Object> config = Map.of("a", 1, "b", 2);
-        WithClauseValidator.check(config, List.of(Set.of("a"), Set.of("b")));
+        ConfigKeyValidator.check(config, List.of(Set.of("a"), Set.of("b")));
     }
 
     public void testUnknownKeyIsRejected() {
         Map<String, Object> config = Map.of("a", 1, "typo", 2);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> WithClauseValidator.check(config, List.of(Set.of("a")))
+            () -> ConfigKeyValidator.check(config, List.of(Set.of("a")))
         );
         assertThat(e.getMessage(), allOf(containsString("typo"), containsString("unknown option ")));
     }
@@ -49,7 +49,7 @@ public class WithClauseValidatorTests extends ESTestCase {
         config.put("known", 3);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> WithClauseValidator.check(config, List.of(Set.of("known")))
+            () -> ConfigKeyValidator.check(config, List.of(Set.of("known")))
         );
         assertThat(e.getMessage(), containsString("[alpha_typo, zebra_typo]"));
     }
@@ -58,7 +58,7 @@ public class WithClauseValidatorTests extends ESTestCase {
         Map<String, Object> config = Map.of("typo", 1, "a", 1, "b", 2);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> WithClauseValidator.check(config, List.of(Set.of("a"), Set.of("b"), Set.of("c")))
+            () -> ConfigKeyValidator.check(config, List.of(Set.of("a"), Set.of("b"), Set.of("c")))
         );
         assertThat(e.getMessage(), allOf(containsString("a"), containsString("b"), containsString("c")));
     }
@@ -66,7 +66,7 @@ public class WithClauseValidatorTests extends ESTestCase {
     public void testSingleVsPluralWording() {
         IllegalArgumentException one = expectThrows(
             IllegalArgumentException.class,
-            () -> WithClauseValidator.check(Map.of("typo", 1), List.of(Set.of()))
+            () -> ConfigKeyValidator.check(Map.of("typo", 1), List.of(Set.of()))
         );
         assertThat(one.getMessage(), containsString("unknown option ["));
 
@@ -75,14 +75,14 @@ public class WithClauseValidatorTests extends ESTestCase {
         two.put("typo_b", 2);
         IllegalArgumentException many = expectThrows(
             IllegalArgumentException.class,
-            () -> WithClauseValidator.check(two, List.of(Set.of()))
+            () -> ConfigKeyValidator.check(two, List.of(Set.of()))
         );
         assertThat(many.getMessage(), containsString("unknown options ["));
     }
 
     public void testNoClaimedSetsRejectsAnyConfigKey() {
         Map<String, Object> config = Map.of("anything", 1);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> WithClauseValidator.check(config, List.of()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ConfigKeyValidator.check(config, List.of()));
         assertThat(e.getMessage(), containsString("anything"));
     }
 }

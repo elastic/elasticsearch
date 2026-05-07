@@ -106,7 +106,7 @@ public final class DataSourceModule implements Closeable {
                     }
 
                     @Override
-                    public Configured<StorageProvider> create(Settings s, Map<String, Object> config) {
+                    public Configured<StorageProvider> createTrackingConsumedKeys(Settings s, Map<String, Object> config) {
                         Map<String, StorageProviderFactory> factories = state.storageFactories();
                         StorageProviderFactory real = factories.get(scheme);
                         if (real == null) {
@@ -118,7 +118,7 @@ public final class DataSourceModule implements Closeable {
                                     + "] but storageProviders() did not return it"
                             );
                         }
-                        return real.create(s, config);
+                        return real.createTrackingConsumedKeys(s, config);
                     }
                 };
                 storageProviderRegistry.registerFactory(scheme, delegating);

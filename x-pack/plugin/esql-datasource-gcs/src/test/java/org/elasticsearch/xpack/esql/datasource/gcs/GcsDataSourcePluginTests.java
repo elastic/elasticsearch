@@ -10,12 +10,9 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Unit tests for GcsDataSourcePlugin.
@@ -40,9 +37,8 @@ public class GcsDataSourcePluginTests extends ESTestCase {
 
         // create(settings, null) should delegate to create(settings) without throwing.
         // The GCS client is lazily initialized, so no ADC error at construction time.
-        Configured<StorageProvider> result = factory.create(Settings.EMPTY, null);
-        assertNotNull(result.value());
-        assertEquals(Set.of(), result.consumedKeys());
+        var provider = factory.create(Settings.EMPTY, null);
+        assertNotNull(provider);
     }
 
     public void testStorageProviderFactoryCreateWithEmptyConfigDelegatesToDefault() {
@@ -54,9 +50,8 @@ public class GcsDataSourcePluginTests extends ESTestCase {
 
         // create(settings, emptyMap) should delegate to create(settings).
         // The GCS client is lazily initialized, so no ADC error at construction time.
-        Configured<StorageProvider> result = factory.create(Settings.EMPTY, Map.of());
-        assertNotNull(result.value());
-        assertEquals(Set.of(), result.consumedKeys());
+        var provider = factory.create(Settings.EMPTY, Map.of());
+        assertNotNull(provider);
     }
 
     public void testStorageProviderFactoryCreateWithConfigParsesFields() {

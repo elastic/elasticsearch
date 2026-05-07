@@ -48,7 +48,11 @@ public class S3Configuration extends FileDataSourceConfiguration {
         return raw == null || raw.isEmpty() ? null : new S3Configuration(raw);
     }
 
-    /** Lenient: filters unknown keys; cross-field validation (auth/credential conflicts) still runs. */
+    /**
+     * Lenient factory for query-time configuration maps, which may carry format-level options
+     * (e.g. {@code header_row}) alongside storage-level options. Filters unknown keys
+     * before construction; cross-field validation (auth/credential conflicts) still runs.
+     */
     public static Configured<S3Configuration> fromQueryConfig(Map<String, Object> raw) {
         Configured<Map<String, Object>> filtered = filterKnown(raw, FIELDS);
         S3Configuration config = filtered.value() == null || filtered.value().isEmpty() ? null : new S3Configuration(filtered.value());

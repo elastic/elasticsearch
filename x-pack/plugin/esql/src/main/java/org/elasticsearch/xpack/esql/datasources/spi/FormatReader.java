@@ -120,10 +120,21 @@ public interface FormatReader extends Closeable {
     List<String> fileExtensions();
 
     /**
-     * Returns a reader configured from the WITH-clause map, paired with the keys consumed from it.
-     * Default returns {@code this} with an empty consumed-keys set (formats with no options).
+     * Returns a reader configured from the input config map.
+     * Default delegates to {@link #withConfigTrackingConsumedKeys(Map)} and discards the consumed-keys set;
+     * use this overload when the caller does not need to validate against the consumed keys.
      */
-    default Configured<FormatReader> withConfig(Map<String, Object> config) {
+    default FormatReader withConfig(Map<String, Object> config) {
+        return withConfigTrackingConsumedKeys(config).value();
+    }
+
+    /**
+     * Returns a reader configured from the input config map, paired with the keys consumed from it.
+     * Default returns {@code this} with an empty consumed-keys set (formats with no options).
+     * Implementations that read configuration from the map should override this method
+     * (not {@link #withConfig(Map)}); the simple overload is a default convenience.
+     */
+    default Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
         return Configured.empty(this);
     }
 

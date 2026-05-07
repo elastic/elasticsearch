@@ -42,7 +42,7 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
             Map<String, Object> config = new HashMap<>();
             config.put(key, sampleValueFor(key));
             try {
-                Configured<FormatReader> result = newReader().withConfig(config);
+                Configured<FormatReader> result = newReader().withConfigTrackingConsumedKeys(config);
                 assertTrue("key [" + key + "] must be consumed when present", result.consumedKeys().contains(key));
             } catch (RuntimeException e) {
                 // A throw still proves the key was read — the reader looked at it before rejecting.
@@ -54,16 +54,16 @@ public class NdJsonFormatReaderRecognizedKeysTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("schema_sample_size", "20");
         config.put("not_an_ndjson_key", true);
-        Configured<FormatReader> result = newReader().withConfig(config);
+        Configured<FormatReader> result = newReader().withConfigTrackingConsumedKeys(config);
         assertThat(result.consumedKeys(), containsInAnyOrder("schema_sample_size"));
     }
 
     public void testEmptyConfigConsumesNothing() {
-        assertThat(newReader().withConfig(Map.of()).consumedKeys(), empty());
+        assertThat(newReader().withConfigTrackingConsumedKeys(Map.of()).consumedKeys(), empty());
     }
 
     public void testNullConfigConsumesNothing() {
-        assertThat(newReader().withConfig(null).consumedKeys(), empty());
+        assertThat(newReader().withConfigTrackingConsumedKeys(null).consumedKeys(), empty());
     }
 
     private NdJsonFormatReader newReader() {

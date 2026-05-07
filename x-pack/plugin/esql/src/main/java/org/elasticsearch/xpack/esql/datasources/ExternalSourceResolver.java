@@ -364,7 +364,7 @@ public class ExternalSourceResolver {
     private StorageProvider resolveProvider(StoragePath storagePath, Map<String, Object> config) {
         StorageProviderRegistry registry = dataSourceModule.storageProviderRegistry();
         if (config != null && config.isEmpty() == false) {
-            return registry.createProvider(storagePath.scheme(), settings, config).value();
+            return registry.createProvider(storagePath.scheme(), settings, config);
         }
         return registry.provider(storagePath);
     }

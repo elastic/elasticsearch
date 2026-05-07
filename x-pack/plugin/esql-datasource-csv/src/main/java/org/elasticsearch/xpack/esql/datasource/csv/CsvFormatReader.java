@@ -323,7 +323,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Parse a WITH-clause boolean option leniently:
+     * Parse a configuration boolean option leniently:
      * <ul>
      *   <li>{@code null} → {@code defaultValue} (option absent).</li>
      *   <li>Native {@link Boolean} (e.g. JSON {@code true}/{@code false}) is returned as-is.</li>
@@ -402,7 +402,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     );
 
     @Override
-    public Configured<FormatReader> withConfig(Map<String, Object> config) {
+    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             return Configured.empty(this);
         }

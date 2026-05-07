@@ -53,7 +53,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             Map<String, Object> config = new HashMap<>();
             config.put(key, sampleValueFor(key));
             try {
-                Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfig(config);
+                Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(config);
                 assertTrue("key [" + key + "] must be consumed when present", result.consumedKeys().contains(key));
             } catch (RuntimeException e) {
                 // A throw still proves the key was read — the reader looked at it before rejecting.
@@ -66,17 +66,17 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         config.put("delimiter", "|");
         config.put("not_a_csv_key", true);
         config.put("alsobogus", 42);
-        Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfig(config);
+        Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(config);
         assertThat(result.consumedKeys(), containsInAnyOrder("delimiter"));
     }
 
     public void testEmptyConfigConsumesNothing() {
-        Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfig(Map.of());
+        Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(Map.of());
         assertThat(result.consumedKeys(), empty());
     }
 
     public void testNullConfigConsumesNothing() {
-        Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfig(null);
+        Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(null);
         assertThat(result.consumedKeys(), empty());
     }
 
@@ -91,7 +91,7 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
             }
         }
         try {
-            Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfig(config);
+            Configured<FormatReader> result = new CsvFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(config);
             assertEquals(expectedConsumed, result.consumedKeys());
         } catch (RuntimeException e) {
             // Random values may trigger parser validation; the contract is only checked on success.

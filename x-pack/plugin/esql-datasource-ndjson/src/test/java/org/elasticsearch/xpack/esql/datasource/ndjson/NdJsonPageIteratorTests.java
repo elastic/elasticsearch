@@ -1463,29 +1463,29 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
     public void testWithConfigSchemaSampleSizeOverride() {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        var configured = reader.withConfig(Map.of("schema_sample_size", "50")).value();
+        var configured = reader.withConfig(Map.of("schema_sample_size", "50"));
         assertNotSame(reader, configured);
     }
 
     public void testWithConfigSchemaSampleSizeZeroIsRejected() {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "0")).value());
+        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "0")));
     }
 
     public void testWithConfigSchemaSampleSizeNegativeIsRejected() {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "-1")).value());
+        expectThrows(QlIllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "-1")));
     }
 
     public void testWithConfigSchemaSampleSizeInvalidIsRejected() {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "abc")).value());
+        expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("schema_sample_size", "abc")));
     }
 
     public void testWithConfigNullOrEmptyReturnsThis() {
         NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        assertSame(reader, reader.withConfig(null).value());
-        assertSame(reader, reader.withConfig(Map.of()).value());
+        assertSame(reader, reader.withConfig(null));
+        assertSame(reader, reader.withConfig(Map.of()));
     }
 
     public void testDefaultErrorPolicyIsStrictLikeOtherFormats() {
@@ -1517,7 +1517,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      */
     public void testMinimumSegmentSizeRespectsWithConfig() {
         var reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
-        FormatReader tuned = reader.withConfig(Map.of("segment_size", "2mb")).value();
+        FormatReader tuned = reader.withConfig(Map.of("segment_size", "2mb"));
         assertNotSame(reader, tuned);
         assertEquals("Per-query override applied", 2L * 1024 * 1024, ((NdJsonFormatReader) tuned).minimumSegmentSize());
         assertEquals("Original reader still uses the default", 4L * 1024 * 1024, reader.minimumSegmentSize());
@@ -1534,7 +1534,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
         QlIllegalArgumentException ex2 = expectThrows(
             QlIllegalArgumentException.class,
-            () -> reader.withConfig(Map.of("segment_size", "1kb")).value()
+            () -> reader.withConfig(Map.of("segment_size", "1kb"))
         );
         assertThat(ex2.getMessage(), Matchers.containsString("segment_size"));
     }

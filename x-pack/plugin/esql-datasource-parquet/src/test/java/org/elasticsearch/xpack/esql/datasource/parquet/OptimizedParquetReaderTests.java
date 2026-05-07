@@ -90,20 +90,20 @@ public class OptimizedParquetReaderTests extends ESTestCase {
 
     public void testWithConfigOptimizedReaderTrue() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", true)).value();
+        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", true));
         assertSame(reader, configured);
     }
 
     public void testWithConfigOptimizedReaderFalse() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", false)).value();
+        ParquetFormatReader configured = (ParquetFormatReader) reader.withConfig(Map.of("optimized_reader", false));
         assertNotSame(reader, configured);
     }
 
     public void testWithConfigDefaults() {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        assertSame(reader, reader.withConfig(null).value());
-        assertSame(reader, reader.withConfig(Map.of()).value());
+        assertSame(reader, reader.withConfig(null));
+        assertSame(reader, reader.withConfig(Map.of()));
     }
 
     public void testCorrectnessParitySimpleTypes() throws Exception {
@@ -659,7 +659,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         // file-level byte-ratio heuristic is gone but the explicit config knob is unchanged.
         ParquetFormatReader readerNoLateMat = ((ParquetFormatReader) new ParquetFormatReader(blockFactory, true).withConfig(
             Map.of(ParquetFormatReader.CONFIG_LATE_MATERIALIZATION, false)
-        ).value()).withPushedFilter(pushed);
+        )).withPushedFilter(pushed);
         List<Page> pagesNoLateMat = readAllPages(readerNoLateMat, storageObject);
         int rowsNoLateMat = pagesNoLateMat.stream().mapToInt(Page::getPositionCount).sum();
         assertThat("explicit no-late-mat returns all rows (no row-level filtering)", rowsNoLateMat, equalTo(totalRows));

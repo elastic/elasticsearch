@@ -926,7 +926,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
     }
 
     /**
-     * Builds a {@link StorageProviderFactory} that claims every WITH-clause key as consumed.
+     * Builds a {@link StorageProviderFactory} that claims every configuration key as consumed.
      * Used by tests that don't care about validation but do thread per-query config through;
      * without this, FileSourceFactory's coordinator validation would reject keys like
      * {@code access_key} that the stub doesn't actually parse.
@@ -939,7 +939,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             }
 
             @Override
-            public Configured<StorageProvider> create(Settings settings, Map<String, Object> config) {
+            public Configured<StorageProvider> createTrackingConsumedKeys(Settings settings, Map<String, Object> config) {
                 if (config == null || config.isEmpty()) {
                     return Configured.empty(provider);
                 }

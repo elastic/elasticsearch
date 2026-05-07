@@ -757,64 +757,95 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     break;
                 }
 
-                if (v instanceof String stringValue) {
-                    if (stringValue.isBlank()) {
-                        slot.addOrUpdateResponse(
-                            new ChunkedStringFieldInferenceResponse(
-                                field,
-                                sourceField,
-                                stringValue,
-                                order,
-                                0,
-                                null,
-                                EMPTY_CHUNKED_INFERENCE
-                            )
+                int inputLengthDelta = switch (v) {
+                    case String s when s.isBlank() -> addBlankStringResponse(slot, field, sourceField, s, order);
+                    case String s -> {
+                        int stringLength = addChunkedStringRequest(
+                            requests,
+                            itemIndex,
+                            field,
+                            sourceField,
+                            s,
+                            order,
+                            offsetAdjustment,
+                            chunkingSettings
                         );
-                    } else {
-                        requests.add(
-                            new ChunkedStringFieldInferenceRequest(
-                                itemIndex,
-                                field,
-                                sourceField,
-                                stringValue,
-                                order,
-                                offsetAdjustment,
-                                chunkingSettings
-                            )
-                        );
-                        inputLength += stringValue.length();
-                    }
 
-                    // When using the inference metadata fields format, all the text input values are concatenated so that the
-                    // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
-                    // to apply to account for this.
-                    offsetAdjustment += stringValue.length() + 1; // Add one for separator char length
-                } else if (v instanceof InferenceString inferenceString) {
-                    requests.add(
-                        new InferenceStringFieldInferenceRequest(itemIndex, field, sourceField, inferenceString, order, inputIndex)
-                    );
-                    inputLength += inferenceString.value().length();
-                } else {
-                    setInferenceResponseFailure(
-                        itemIndex,
-                        new IllegalStateException(
-                            "Unexpected parsed inference input type ["
-                                + v.getClass().getName()
-                                + "] for field ["
-                                + field
-                                + "] from source field ["
-                                + sourceField
-                                + "]"
-                        )
-                    );
+                        // When using the inference metadata fields format, all the text input values are concatenated so that the
+                        // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
+                        // to apply to account for this.
+                        offsetAdjustment += stringLength + 1; // Add one for separator char length
+                        yield stringLength;
+                    }
+                    case InferenceString is -> addInferenceStringRequest(requests, itemIndex, field, sourceField, is, order, inputIndex);
+                    default -> {
+                        setInferenceResponseFailure(
+                            itemIndex,
+                            new IllegalStateException(
+                                "Unexpected parsed inference input type ["
+                                    + v.getClass().getName()
+                                    + "] for field ["
+                                    + field
+                                    + "] from source field ["
+                                    + sourceField
+                                    + "]"
+                            )
+                        );
+                        yield -1;
+                    }
+                };
+                if (inputLengthDelta < 0) {
                     break;
                 }
 
+                inputLength += inputLengthDelta;
                 order++;
                 inputIndex++;
             }
 
             return inputLength;
+        }
+
+        private int addBlankStringResponse(
+            FieldInferenceResponseAccumulator slot,
+            String field,
+            String sourceField,
+            String input,
+            int order
+        ) {
+            slot.addOrUpdateResponse(
+                new ChunkedStringFieldInferenceResponse(field, sourceField, input, order, 0, null, EMPTY_CHUNKED_INFERENCE)
+            );
+            return 0;
+        }
+
+        private int addChunkedStringRequest(
+            List<FieldInferenceRequest> requests,
+            int itemIndex,
+            String field,
+            String sourceField,
+            String input,
+            int order,
+            int offsetAdjustment,
+            ChunkingSettings chunkingSettings
+        ) {
+            requests.add(
+                new ChunkedStringFieldInferenceRequest(itemIndex, field, sourceField, input, order, offsetAdjustment, chunkingSettings)
+            );
+            return input.length();
+        }
+
+        private int addInferenceStringRequest(
+            List<FieldInferenceRequest> requests,
+            int itemIndex,
+            String field,
+            String sourceField,
+            InferenceString input,
+            int order,
+            int sourceFieldInputIndex
+        ) {
+            requests.add(new InferenceStringFieldInferenceRequest(itemIndex, field, sourceField, input, order, sourceFieldInputIndex));
+            return input.value().length();
         }
 
         private boolean incrementIndexingPressurePreInference(ExtendedIndexRequest indexRequest, int itemIndex) {

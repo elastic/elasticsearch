@@ -820,58 +820,19 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
             return firstId;
         }
 
-        /**
-         * The ArrayUtils.timSort uses a tmp area of input.length/64, so 256 should be plenty here.
-         */
-        private static final int[] SORT_TMP_AREA = new int[256];
-
-        /**
-         * Sorts the provided interval-IDs by their last timestamp with the most recent first.
-         *
-         * @param intervalIds the array of intervalIDs
-         */
-        void sort(int[] intervalIds) {
-            new TimSorter(SORT_TMP_AREA.length) {
-
-                @Override
-                protected int compare(int i, int j) {
-                    return Long.compare(lastTs(intervalIds[j]), lastTs(intervalIds[i])); // want most recent first
-                }
-
-                @Override
-                protected void swap(int i, int j) {
-                    int tmp = intervalIds[i];
-                    intervalIds[i] = intervalIds[j];
-                    intervalIds[j] = tmp;
-                }
-
-                @Override
-                protected void copy(int src, int dest) {
-                    intervalIds[dest] = intervalIds[src];
-                }
-
-                @Override
-                protected void save(int start, int len) {
-                    System.arraycopy(intervalIds, start, SORT_TMP_AREA, 0, len);
-                }
-
-                @Override
-                protected void restore(int src, int dest) {
-                    intervalIds[dest] = SORT_TMP_AREA[src];
-                }
-
-                @Override
-                protected int compareSaved(int i, int j) {
-                    return Long.compare(lastTs(SORT_TMP_AREA[j]), lastTs(intervalIds[i])); // want most recent first
-                }
-            }.sort(0, intervalIds.length);
-        }
-
         @Override
         public void close() {
             Releasables.close(timestamps, values);
         }
     }
+
+    /**
+     * Temporary buffer for usage when sorting interval in {@link ReducedState#combineIntervals()}.
+     * This is non-static, because multiple aggregators could be active at the same time.
+     * However, we never use it concurrently within an aggregator, so we can use a shared buffer across {@link ReducedState}s.
+     * The size is based on ArrayUtils.timSort, which uses a tmp area of input.length/64, so 256 should be plenty here.
+     */
+    private final int[] INTERVAL_SORT_TMP_AREA = new int[256];
 
     final class ReducedState {
         private static final int[] EMPTY_INTERVALS = new int[0];
@@ -946,8 +907,8 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         void combineIntervals() {
             // only applies to cumulative metrics, we don't need to do anything for delta
             if (hasDelta() == false) {
-                // combine intervals for the final evaluation
-                intervalBuffer.sort(intervals);
+                // Sort the intervals by the lastTs (most recent first) for the final evaluation
+                sortIntervals();
                 for (int i = 1; i < intervals.length; i++) {
                     int next = intervals[i - 1]; // reversed
                     int prev = intervals[i];
@@ -956,6 +917,47 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
                     }
                 }
             }
+        }
+
+        private void sortIntervals() {
+            new TimSorter(INTERVAL_SORT_TMP_AREA.length) {
+
+                private int compareIntervals(int intervalA, int intervalB) {
+                    return Long.compare(intervalBuffer.lastTs(intervalB), intervalBuffer.lastTs(intervalA)); // want most recent first
+                }
+
+                @Override
+                protected int compare(int i, int j) {
+                    return compareIntervals(intervals[i], intervals[j]);
+                }
+
+                @Override
+                protected void swap(int i, int j) {
+                    int tmp = intervals[i];
+                    intervals[i] = intervals[j];
+                    intervals[j] = tmp;
+                }
+
+                @Override
+                protected void copy(int src, int dest) {
+                    intervals[dest] = intervals[src];
+                }
+
+                @Override
+                protected void save(int start, int len) {
+                    System.arraycopy(intervals, start, INTERVAL_SORT_TMP_AREA, 0, len);
+                }
+
+                @Override
+                protected void restore(int src, int dest) {
+                    intervals[dest] = INTERVAL_SORT_TMP_AREA[src];
+                }
+
+                @Override
+                protected int compareSaved(int i, int j) {
+                    return compareIntervals(intervals[i], INTERVAL_SORT_TMP_AREA[j]);
+                }
+            }.sort(0, intervals.length);
         }
 
         // The accessor methods first*/last* must only be called after combineIntervals() for non-delta states!

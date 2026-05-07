@@ -85,7 +85,7 @@
         index:   test_1
         id:      "1"
         routing: "5"
-        body:    { foo: bar }
+        body:    { foo: bar, "@timestamp": "2025-01-01T00:00:00Z" }
 
   # routing is not returned in the get response metadata when stored as doc values
   - do:

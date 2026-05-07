@@ -70,14 +70,10 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
         final boolean docValuesEnabledByDefault;
 
-        Builder(IndexMode indexMode) {
-            this(indexMode.isColumnar());
-        }
-
         Builder(boolean docValuesEnabledByDefault) {
             super(NAME);
             this.docValuesEnabledByDefault = docValuesEnabledByDefault;
-            this.docValues = Parameter.boolParam("doc_values", false, m -> toType(m).docValues, () -> docValuesEnabledByDefault);
+            this.docValues = Parameter.boolParam("doc_values", false, m -> toType(m).docValues, docValuesEnabledByDefault);
         }
 
         @Override
@@ -96,7 +92,10 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new Builder(c.getIndexSettings().getMode()));
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {
+        var indexMode = c.getIndexSettings().getMode();
+        return new Builder(indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.COLUMNAR_LOGSDB);
+    });
 
     /**
      * Field type used when routing is stored as a stored field (the default).

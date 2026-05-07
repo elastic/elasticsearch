@@ -20,7 +20,7 @@ import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FU
  * These snapshot the output of {@link LookupLogicalOptimizer} and {@link LookupPhysicalPlanOptimizer}
  * for LOOKUP JOIN queries.
  */
-public class LookupGoldenTests extends GoldenTestCase {
+public class LookupGoldenTest extends GoldenTestCase {
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.LOOKUP_LOGICAL_OPTIMIZATION, Stage.LOOKUP_PHYSICAL_OPTIMIZATION);
 
     /**

@@ -12,6 +12,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.allocation.TransportGetAllocationStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
+import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -19,9 +20,12 @@ import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Collection;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RestNodesStatsActionIT extends ESIntegTestCase {
 
@@ -46,5 +50,27 @@ public class RestNodesStatsActionIT extends ESIntegTestCase {
 
         var shouldSendGetAllocationStatsRequest = metrics.contains(Metric.ALLOCATIONS) || metrics.contains(Metric.FS);
         assertThat(getAllocationStatsActions.get(), equalTo(shouldSendGetAllocationStatsRequest ? 1 : 0));
+    }
+
+    public void testGetAllocationStatsRequestIsScopedToTargetedNodes() {
+        var node = internalCluster().startDataOnlyNode();
+        var localNodeId = client(node).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getLocalNodeId();
+
+        var captured = new AtomicReference<TransportGetAllocationStatsAction.Request>();
+        MockTransportService.getInstance(node).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (Objects.equals(action, TransportGetAllocationStatsAction.TYPE.name())) {
+                captured.set((TransportGetAllocationStatsAction.Request) MasterNodeRequestHelper.unwrapTermOverride(request));
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // Request without any node selector — coordinator passes null (= all nodes) to keep the cache fast path on the master.
+        client(node).admin().cluster().nodesStats(new NodesStatsRequest().addMetric(Metric.ALLOCATIONS)).actionGet();
+        assertThat(captured.get().nodeIds(), nullValue());
+
+        // Request scoped to the local node — coordinator resolves _local and ships only that node ID to the master.
+        captured.set(null);
+        client(node).admin().cluster().nodesStats(new NodesStatsRequest("_local").addMetric(Metric.ALLOCATIONS)).actionGet();
+        assertThat(captured.get().nodeIds(), equalTo(Set.of(localNodeId)));
     }
 }

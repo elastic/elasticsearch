@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -43,6 +45,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 
@@ -51,6 +54,10 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     TransportGetAllocationStatsAction.Response> {
 
     public static final ActionType<TransportGetAllocationStatsAction.Response> TYPE = new ActionType<>("cluster:monitor/allocation/stats");
+
+    public static final TransportVersion GET_ALLOCATION_STATS_REQUEST_NODE_IDS = TransportVersion.fromName(
+        "get_allocation_stats_request_node_ids"
+    );
 
     public static final TimeValue DEFAULT_CACHE_TTL = TimeValue.timeValueMinutes(1);
     public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting(
@@ -107,8 +114,28 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             : SubscribableListener.newSucceeded(Map.of());
 
         allocationStatsStep.andThenApply(
-            allocationStats -> new Response(allocationStats, request.metrics().contains(Metric.FS) ? diskThresholdSettings : null)
+            allocationStats -> new Response(
+                filterByNodeIds(allocationStats, request.nodeIds()),
+                request.metrics().contains(Metric.FS) ? diskThresholdSettings : null
+            )
         ).addListener(listener);
+    }
+
+    private static Map<String, NodeAllocationStats> filterByNodeIds(
+        Map<String, NodeAllocationStats> allocationStats,
+        @Nullable Set<String> nodeIds
+    ) {
+        if (nodeIds == null) {
+            return allocationStats;
+        }
+        Map<String, NodeAllocationStats> filtered = Maps.newMapWithExpectedSize(nodeIds.size());
+        for (String nodeId : nodeIds) {
+            NodeAllocationStats stats = allocationStats.get(nodeId);
+            if (stats != null) {
+                filtered.put(nodeId, stats);
+            }
+        }
+        return filtered;
     }
 
     @Override
@@ -119,27 +146,48 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     public static class Request extends MasterNodeReadRequest<Request> {
 
         private final EnumSet<Metric> metrics;
+        /**
+         * The set of node IDs whose allocation stats are wanted, or {@code null} to request stats for every node in the cluster. The master
+         * always computes (and caches) stats for every node; this field only controls which entries are serialized back to the coordinator.
+         */
+        @Nullable
+        private final Set<String> nodeIds;
 
         @SuppressWarnings("this-escape")
-        public Request(TimeValue masterNodeTimeout, TaskId parentTaskId, EnumSet<Metric> metrics) {
+        public Request(TimeValue masterNodeTimeout, TaskId parentTaskId, EnumSet<Metric> metrics, @Nullable Set<String> nodeIds) {
             super(masterNodeTimeout);
             setParentTask(parentTaskId);
             this.metrics = metrics;
+            this.nodeIds = nodeIds;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.metrics = in.readEnumSet(Metric.class);
+            if (in.getTransportVersion().supports(GET_ALLOCATION_STATS_REQUEST_NODE_IDS)) {
+                final var ids = in.readOptionalStringCollectionAsList();
+                this.nodeIds = ids == null ? null : Set.copyOf(ids);
+            } else {
+                this.nodeIds = null;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeEnumSet(metrics);
+            if (out.getTransportVersion().supports(GET_ALLOCATION_STATS_REQUEST_NODE_IDS)) {
+                out.writeOptionalStringCollection(nodeIds);
+            }
         }
 
         public EnumSet<Metric> metrics() {
             return metrics;
+        }
+
+        @Nullable
+        public Set<String> nodeIds() {
+            return nodeIds;
         }
 
         @Override

@@ -130,7 +130,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
             EnumSet.allOf(Metric.class),
             EnumSet.copyOf(randomSubsetOf(between(1, Metric.values().length), EnumSet.allOf(Metric.class)))
         )) {
-            var request = new TransportGetAllocationStatsAction.Request(TimeValue.ONE_MINUTE, TaskId.EMPTY_TASK_ID, metrics);
+            var request = new TransportGetAllocationStatsAction.Request(TimeValue.ONE_MINUTE, TaskId.EMPTY_TASK_ID, metrics, null);
 
             when(allocationStatsService.stats(any())).thenReturn(
                 Map.of(randomIdentifier(), NodeAllocationStatsTests.randomNodeAllocationStats())
@@ -154,6 +154,40 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
                 assertNull(response.getDiskThresholdSettings());
             }
         }
+    }
+
+    public void testReturnsOnlyRequestedNodeIds() throws Exception {
+        disableAllocationStatsCache();
+
+        final var nodeAStats = NodeAllocationStatsTests.randomNodeAllocationStats();
+        final var nodeBStats = NodeAllocationStatsTests.randomNodeAllocationStats();
+        final var nodeCStats = NodeAllocationStatsTests.randomNodeAllocationStats();
+        when(allocationStatsService.stats(any())).thenReturn(Map.of("node-a", nodeAStats, "node-b", nodeBStats, "node-c", nodeCStats));
+
+        // null nodeIds means "all nodes" — every entry is returned.
+        {
+            var response = runMasterOperation(getRequest(null));
+            assertEquals(Map.of("node-a", nodeAStats, "node-b", nodeBStats, "node-c", nodeCStats), response.getNodeAllocationStats());
+        }
+
+        // A non-null filter trims the response to just the requested IDs (and still hits the cache path on the master).
+        {
+            var response = runMasterOperation(getRequest(Set.of("node-a", "node-c")));
+            assertEquals(Map.of("node-a", nodeAStats, "node-c", nodeCStats), response.getNodeAllocationStats());
+        }
+
+        // Unknown node IDs are dropped from the response without raising.
+        {
+            var response = runMasterOperation(getRequest(Set.of("missing-node")));
+            assertThat(response.getNodeAllocationStats(), anEmptyMap());
+        }
+    }
+
+    private TransportGetAllocationStatsAction.Response runMasterOperation(TransportGetAllocationStatsAction.Request request)
+        throws Exception {
+        var future = new PlainActionFuture<TransportGetAllocationStatsAction.Response>();
+        action.masterOperation(getTask(), request, ClusterState.EMPTY_STATE, future);
+        return future.get();
     }
 
     public void testDeduplicatesStatsComputations() throws InterruptedException {
@@ -310,7 +344,16 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
     }
 
     private static TransportGetAllocationStatsAction.Request getRequest() {
-        return new TransportGetAllocationStatsAction.Request(TEST_REQUEST_TIMEOUT, TaskId.EMPTY_TASK_ID, EnumSet.of(Metric.ALLOCATIONS));
+        return getRequest(null);
+    }
+
+    private static TransportGetAllocationStatsAction.Request getRequest(Set<String> nodeIds) {
+        return new TransportGetAllocationStatsAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TaskId.EMPTY_TASK_ID,
+            EnumSet.of(Metric.ALLOCATIONS),
+            nodeIds
+        );
     }
 
     private static CancellableTask getTask() {

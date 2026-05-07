@@ -15,9 +15,15 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitStats;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -68,12 +74,14 @@ public final class FilterEvaluationOrderEstimator {
         for (int i = 0; i < conjuncts.size(); i++) {
             Expression expr = conjuncts.get(i);
             double selectivity = estimateSelectivity(expr, stats, rowCount);
+            double cost = estimateEvaluationCost(expr);
             long sizeBytes = estimateColumnSize(expr, stats);
-            scored.add(new ScoredExpression(expr, selectivity, sizeBytes, i));
+            scored.add(new ScoredExpression(expr, selectivity, cost, sizeBytes, i));
         }
 
         scored.sort(
             Comparator.comparingDouble((ScoredExpression s) -> s.selectivity)
+                .thenComparingDouble(s -> s.cost)
                 .thenComparingLong(s -> s.sizeBytes)
                 .thenComparingInt(s -> s.originalIndex)
         );
@@ -96,7 +104,37 @@ public final class FilterEvaluationOrderEstimator {
         return result;
     }
 
-    private record ScoredExpression(Expression expression, double selectivity, long sizeBytes, int originalIndex) {}
+    private record ScoredExpression(Expression expression, double selectivity, double cost, long sizeBytes, int originalIndex) {}
+
+    /**
+     * Assigns a per-row evaluation cost tier by expression type. Used as a tiebreaker
+     * when selectivity estimates are tied (e.g. all {@link #UNKNOWN_SELECTIVITY}).
+     * Null checks and exact comparisons are cheapest; automaton-based pattern matching is most expensive.
+     */
+    static double estimateEvaluationCost(Expression expr) {
+        if (expr instanceof IsNull || expr instanceof IsNotNull) {
+            return 0.0;
+        }
+        if (expr instanceof EsqlBinaryComparison || expr instanceof In) {
+            return 0.1;
+        }
+        if (expr instanceof Range) {
+            return 0.2;
+        }
+        if (expr instanceof StartsWith) {
+            return 0.3;
+        }
+        if (expr instanceof WildcardLike) {
+            return 0.9;
+        }
+        if (expr instanceof Not not) {
+            return estimateEvaluationCost(not.field()) + 0.01;
+        }
+        if (expr instanceof And and) {
+            return Math.min(estimateEvaluationCost(and.left()), estimateEvaluationCost(and.right()));
+        }
+        return 0.5;
+    }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     static double estimateSelectivity(Expression expr, SplitStats stats, long rowCount) {

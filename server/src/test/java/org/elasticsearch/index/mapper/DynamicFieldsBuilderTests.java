@@ -77,7 +77,7 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
 
         DocumentParserContext ctx = new TestDocumentParserContext(
-            MappingLookup.fromMapping(mapping, randomFrom(IndexMode.values())),
+            MappingLookup.fromMapping(mapping, randomFrom(IndexMode.availableModes())),
             sourceToParse
         ) {
             @Override

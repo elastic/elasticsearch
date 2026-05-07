@@ -161,7 +161,10 @@ public class PolicyManagerTests extends ESTestCase {
         assertEquals("Map is unchanged", Map.of(requestingClass.getModule(), expectedEntitlements), policyManager.moduleEntitlementsMap);
     }
 
-    /** Full registration→lookup chain: the policy map must be keyed by the same descriptor name {@code ScopeResolver} resolves to, otherwise {@code getEntitlements} returns the empty set. */
+    /**
+     * Full registration→lookup chain: the policy map must be keyed by the same descriptor name
+     * {@code ScopeResolver} resolves to, otherwise {@code getEntitlements} returns the empty set.
+     */
     public void testGetEntitlementsForPluginWithDirectoryNameDifferentFromDescriptorName() {
         String descriptorName = "myPlugin";
         var pluginPolicy = new Policy(

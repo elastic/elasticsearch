@@ -17,7 +17,10 @@ import org.junit.ClassRule;
 
 import java.util.Map;
 
-/** Runs the allowed-action suite when the plugin's install directory differs from its descriptor {@code name=} (rewritten to {@code "renamed_test_plugin"} before install). */
+/**
+ * Runs the allowed-action suite when the plugin's install directory differs from its descriptor
+ * {@code name=} (rewritten to {@code "renamed_test_plugin"} before install).
+ */
 public class EntitlementsAllowedNonModularNameMismatchIT extends AbstractEntitlementsIT {
 
     private static final String OVERRIDE_DESCRIPTOR_NAME = "renamed_test_plugin";

@@ -42,7 +42,10 @@ public class PolicyUtils {
 
     private static final Logger logger = LogManager.getLogger(PolicyUtils.class);
 
-    /** {@code pluginName} must be the descriptor {@code name=} value (not the install directory), since the runtime entitlement lookup keys off the descriptor name. */
+    /**
+     * {@code pluginName} must be the descriptor {@code name=} value (not the install directory),
+     * since the runtime entitlement lookup keys off the descriptor name.
+     */
     public record PluginData(Path pluginPath, String pluginName, boolean isModular, boolean isExternalPlugin) {
         public PluginData {
             requireNonNull(pluginPath);

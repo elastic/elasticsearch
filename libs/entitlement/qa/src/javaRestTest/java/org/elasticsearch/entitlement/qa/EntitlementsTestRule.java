@@ -72,7 +72,10 @@ class EntitlementsTestRule implements TestRule {
         this(modular, policyBuilder, tempDirSystemPropertyProvider, null);
     }
 
-    /** @param overrideDescriptorName if non-null, rewrites the test plugin's descriptor {@code name=} to this value (the install directory stays {@link #ENTITLEMENT_TEST_PLUGIN_NAME}). */
+    /**
+     * @param overrideDescriptorName if non-null, rewrites the test plugin's descriptor {@code name=}
+     *                               to this value (the install directory stays {@link #ENTITLEMENT_TEST_PLUGIN_NAME}).
+     */
     @SuppressWarnings("this-escape")
     EntitlementsTestRule(
         boolean modular,

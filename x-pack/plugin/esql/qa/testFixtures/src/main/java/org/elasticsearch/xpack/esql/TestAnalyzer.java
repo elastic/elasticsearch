@@ -131,7 +131,7 @@ public class TestAnalyzer {
 
     /**
      * Add a lenient (CPS shadow) resolution entry. The {@code ResolveViewShadow} analyzer rule
-     * looks up entries in {@link AnalyzerContext#lenientResolution()} by the shadow's full
+     * looks up entries in {@link AnalyzerContext#optionalLinkedResolution()} by the shadow's full
      * {@code IndexPattern} (view name + applicable exclusions), so the same view referenced
      * with different exclusion lists can be wired to different results.
      */

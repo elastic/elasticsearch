@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import java.net.URI;
 import java.util.Map;
 
 public class CohereCompletionModel extends CohereModel {
@@ -36,9 +37,22 @@ public class CohereCompletionModel extends CohereModel {
 
     // should be used directly only for testing
     CohereCompletionModel(String modelId, CohereCompletionServiceSettings serviceSettings, @Nullable DefaultSecretSettings secretSettings) {
-        this(
+        this(modelId, serviceSettings, secretSettings, null);
+    }
+
+    // should be used directly only for testing — accepts a URI to override the default Cohere endpoint
+    CohereCompletionModel(
+        String modelId,
+        CohereCompletionServiceSettings serviceSettings,
+        @Nullable DefaultSecretSettings secretSettings,
+        @Nullable URI testUri
+    ) {
+        super(
             new ModelConfigurations(modelId, TaskType.COMPLETION, CohereService.NAME, serviceSettings, EmptyTaskSettings.INSTANCE),
-            new ModelSecrets(secretSettings)
+            new ModelSecrets(secretSettings),
+            secretSettings,
+            serviceSettings,
+            testUri
         );
     }
 

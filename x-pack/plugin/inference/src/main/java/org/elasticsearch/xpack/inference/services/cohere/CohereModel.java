@@ -28,6 +28,8 @@ public abstract class CohereModel extends RateLimitGroupingModel {
 
     private final SecureString apiKey;
     private final CohereRateLimitServiceSettings rateLimitServiceSettings;
+    @Nullable
+    private final URI testUri;
 
     public CohereModel(
         ModelConfigurations configurations,
@@ -35,24 +37,34 @@ public abstract class CohereModel extends RateLimitGroupingModel {
         @Nullable ApiKeySecrets apiKeySecrets,
         CohereRateLimitServiceSettings rateLimitServiceSettings
     ) {
-        super(configurations, secrets);
+        this(configurations, secrets, apiKeySecrets, rateLimitServiceSettings, null);
+    }
 
+    protected CohereModel(
+        ModelConfigurations configurations,
+        ModelSecrets secrets,
+        @Nullable ApiKeySecrets apiKeySecrets,
+        CohereRateLimitServiceSettings rateLimitServiceSettings,
+        @Nullable URI testUri
+    ) {
+        super(configurations, secrets);
         this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
-        apiKey = ServiceUtils.apiKey(apiKeySecrets);
+        this.apiKey = ServiceUtils.apiKey(apiKeySecrets);
+        this.testUri = testUri;
     }
 
     protected CohereModel(CohereModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
-
         rateLimitServiceSettings = model.rateLimitServiceSettings();
         apiKey = model.apiKey();
+        testUri = model.testUri;
     }
 
     protected CohereModel(CohereModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
-
         rateLimitServiceSettings = model.rateLimitServiceSettings();
         apiKey = model.apiKey();
+        testUri = model.testUri;
     }
 
     public SecureString apiKey() {
@@ -73,7 +85,9 @@ public abstract class CohereModel extends RateLimitGroupingModel {
         return apiKey().hashCode();
     }
 
-    public URI baseUri() {
-        return rateLimitServiceSettings.uri();
+    /** Returns a URI override for test use, or {@code null} to use the default Cohere endpoint. */
+    @Nullable
+    public URI testUri() {
+        return testUri;
     }
 }

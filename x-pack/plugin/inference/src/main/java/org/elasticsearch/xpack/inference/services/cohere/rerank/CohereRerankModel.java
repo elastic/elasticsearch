@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import java.net.URI;
 import java.util.Map;
 
 public class CohereRerankModel extends CohereModel {
@@ -48,9 +49,23 @@ public class CohereRerankModel extends CohereModel {
         CohereRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
-        this(
+        this(modelId, serviceSettings, taskSettings, secretSettings, null);
+    }
+
+    // should be used directly only for testing — accepts a URI to override the default Cohere endpoint
+    public CohereRerankModel(
+        String modelId,
+        CohereRerankServiceSettings serviceSettings,
+        CohereRerankTaskSettings taskSettings,
+        @Nullable DefaultSecretSettings secretSettings,
+        @Nullable URI testUri
+    ) {
+        super(
             new ModelConfigurations(modelId, TaskType.RERANK, CohereService.NAME, serviceSettings, taskSettings),
-            new ModelSecrets(secretSettings)
+            new ModelSecrets(secretSettings),
+            secretSettings,
+            serviceSettings,
+            testUri
         );
     }
 

@@ -13,7 +13,8 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.hamcrest.MatcherAssert;
 
@@ -118,23 +119,20 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
         @Nullable String model,
         @Nullable CohereEmbeddingType embeddingType
     ) {
+        var testUri = url != null ? ServiceUtils.createUri(url) : null;
         return new CohereEmbeddingsModel(
             "id",
             new CohereEmbeddingsServiceSettings(
-                new CohereServiceSettings(
-                    url,
-                    SimilarityMeasure.DOT_PRODUCT,
-                    dimensions,
-                    tokenLimit,
-                    model,
-                    null,
-                    CohereServiceSettings.CohereApiVersion.V2
-                ),
+                new CohereCommonServiceSettings(model, null, CohereCommonServiceSettings.CohereApiVersion.V2),
+                SimilarityMeasure.DOT_PRODUCT,
+                dimensions,
+                tokenLimit,
                 Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
             ),
             taskSettings,
             chunkingSettings,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            testUri
         );
     }
 
@@ -155,7 +153,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             dimensions,
             model,
             embeddingType,
-            CohereServiceSettings.CohereApiVersion.V2
+            CohereCommonServiceSettings.CohereApiVersion.V2
         );
     }
 
@@ -167,17 +165,22 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
         @Nullable Integer dimensions,
         String model,
         @Nullable CohereEmbeddingType embeddingType,
-        CohereServiceSettings.CohereApiVersion apiVersion
+        CohereCommonServiceSettings.CohereApiVersion apiVersion
     ) {
+        var testUri = url != null ? ServiceUtils.createUri(url) : null;
         return new CohereEmbeddingsModel(
             "id",
             new CohereEmbeddingsServiceSettings(
-                new CohereServiceSettings(url, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, model, null, apiVersion),
+                new CohereCommonServiceSettings(model, null, apiVersion),
+                SimilarityMeasure.DOT_PRODUCT,
+                dimensions,
+                tokenLimit,
                 Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
             ),
             taskSettings,
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            testUri
         );
     }
 
@@ -191,23 +194,20 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
         @Nullable CohereEmbeddingType embeddingType,
         @Nullable SimilarityMeasure similarityMeasure
     ) {
+        var testUri = url != null ? ServiceUtils.createUri(url) : null;
         return new CohereEmbeddingsModel(
             "id",
             new CohereEmbeddingsServiceSettings(
-                new CohereServiceSettings(
-                    url,
-                    similarityMeasure,
-                    dimensions,
-                    tokenLimit,
-                    model,
-                    null,
-                    CohereServiceSettings.CohereApiVersion.V2
-                ),
+                new CohereCommonServiceSettings(model, null, CohereCommonServiceSettings.CohereApiVersion.V2),
+                similarityMeasure,
+                dimensions,
+                tokenLimit,
                 Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
             ),
             taskSettings,
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            testUri
         );
     }
 }

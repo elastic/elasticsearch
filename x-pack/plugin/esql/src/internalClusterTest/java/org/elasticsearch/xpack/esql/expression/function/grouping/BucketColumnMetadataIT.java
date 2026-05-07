@@ -259,6 +259,37 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
 
     }
 
+    public void testInlineStatsBucketColumnMetadata() {
+        client().prepareIndex("dates")
+            .setSource("date", "1985-07-09T00:00:00.000Z")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM dates
+            | INLINE STATS c=COUNT(*) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            """))) {
+            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month"))));
+        }
+    }
+
+    public void testInlineStatsUnnamedBucketColumnMetadata() {
+        client().prepareIndex("dates")
+            .setSource("date", "1985-07-09T00:00:00.000Z")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM dates
+            | INLINE STATS c=COUNT(*) BY BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            """))) {
+            assertThat(
+                findColumn(response, "BUCKET(date, 20, \"1985-01-01T00:00:00Z\", \"1986-01-01T00:00:00Z\")").meta(),
+                equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "month")))
+            );
+        }
+    }
+
     public void testBucketColumnMetadataWithNonFoldableRanges() {
         client().prepareIndex("test")
             .setSource("number", 1, "date", "1985-07-09T00:00:00.000Z")

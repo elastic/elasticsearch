@@ -39,15 +39,7 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
-    public static final Setting<String> TELEMETRY_OTEL_LOGS_ENDPOINT = Setting.simpleString(
-        "telemetry.otel.logs.endpoint",
-        "",
-        NodeScope
-    );
+    public static final Setting<String> TELEMETRY_OTEL_LOGS_ENDPOINT = Setting.simpleString("telemetry.otel.logs.endpoint", "", NodeScope);
 
-    public static final Setting<Boolean> TELEMETRY_OTEL_LOGS_ENABLED = Setting.boolSetting(
-        "telemetry.otel.logs.enabled",
-        false,
-        NodeScope
-    );
+    public static final Setting<Boolean> TELEMETRY_OTEL_LOGS_ENABLED = Setting.boolSetting("telemetry.otel.logs.enabled", false, NodeScope);
 }

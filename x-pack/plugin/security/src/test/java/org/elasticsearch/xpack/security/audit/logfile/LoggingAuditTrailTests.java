@@ -3327,7 +3327,12 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     private static void projectId(ThreadContext threadContext, Map<String, String> checkedFields) {
-        setFieldFromThreadContext(threadContext, checkedFields, Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, LoggingAuditTrail.PROJECT_ID_FIELD_NAME);
+        setFieldFromThreadContext(
+            threadContext,
+            checkedFields,
+            Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER,
+            LoggingAuditTrail.PROJECT_ID_FIELD_NAME
+        );
     }
 
     private static void setFieldFromThreadContext(

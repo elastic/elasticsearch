@@ -80,9 +80,7 @@ public class OtelSdkExportLogsSupplierTests extends ESTestCase {
      */
     public void testSdkLogRecordReachesExporter() {
         InMemoryLogRecordExporter exporter = InMemoryLogRecordExporter.create();
-        SdkLoggerProvider provider = SdkLoggerProvider.builder()
-            .addLogRecordProcessor(SimpleLogRecordProcessor.create(exporter))
-            .build();
+        SdkLoggerProvider provider = SdkLoggerProvider.builder().addLogRecordProcessor(SimpleLogRecordProcessor.create(exporter)).build();
         OpenTelemetrySdk sdk = OpenTelemetrySdk.builder().setLoggerProvider(provider).build();
         try {
             sdk.getLogsBridge().get("test").logRecordBuilder().setBody("hello from POC").setSeverity(Severity.INFO).emit();

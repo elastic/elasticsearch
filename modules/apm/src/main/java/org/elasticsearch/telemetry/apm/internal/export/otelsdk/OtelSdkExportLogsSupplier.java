@@ -71,9 +71,7 @@ public class OtelSdkExportLogsSupplier implements Closeable {
         }
         String endpoint = OtelSdkSettings.TELEMETRY_OTEL_LOGS_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {
-            throw new IllegalStateException(
-                "telemetry.otel.logs.enabled=true requires telemetry.otel.logs.endpoint to be configured"
-            );
+            throw new IllegalStateException("telemetry.otel.logs.enabled=true requires telemetry.otel.logs.endpoint to be configured");
         }
 
         OtlpHttpLogRecordExporterBuilder exporterBuilder = OtlpHttpLogRecordExporter.builder().setEndpoint(endpoint);

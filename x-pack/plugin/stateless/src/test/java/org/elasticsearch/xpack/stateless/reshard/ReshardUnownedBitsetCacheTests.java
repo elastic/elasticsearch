@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -23,6 +24,8 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
 import org.elasticsearch.test.ESTestCase;
+
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ReshardUnownedBitsetCacheTests extends ESTestCase {
 
@@ -87,11 +90,12 @@ public class ReshardUnownedBitsetCacheTests extends ESTestCase {
         }
     }
 
-    /** Same query used as DocumentSubsetBitsetCache tests for MatchAll rewritten path */
     public void testMatchAllRewrittenUsesMatchAllBitSet() throws Exception {
         Directory directory = newDirectory();
         try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
-            iw.addDocument(new Document());
+            var document = new Document();
+            document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("only"), Field.Store.NO));
+            iw.addDocument(document);
             iw.commit();
         }
 
@@ -126,9 +130,9 @@ public class ReshardUnownedBitsetCacheTests extends ESTestCase {
         Settings settings = Settings.builder().put(ReshardUnownedBitsetCache.CACHE_SIZE_SETTING.getKey(), "256mb").build();
         ReshardUnownedBitsetCache cache = new ReshardUnownedBitsetCache(settings);
 
-        try {
-            DirectoryReader reader1 = DirectoryReader.open(directory);
-            DirectoryReader reader2 = DirectoryReader.open(directory);
+        // Two independent DirectoryReader opens typically get distinct segment core cache keys, so you would see 2 misses.
+        // Same leaf context twice exercises the intended hit path (same core key + same query).
+        try (DirectoryReader reader = DirectoryReader.open(directory)) {
 
             IndexMetadata meta = IndexMetadata.builder("idx")
                 .settings(indexSettings(IndexVersion.current(), 2, 0))
@@ -137,18 +141,15 @@ public class ReshardUnownedBitsetCacheTests extends ESTestCase {
                 .build();
             ShardSplittingQuery query = new ShardSplittingQuery(meta, 0, false);
 
-            LeafReaderContext ctx1 = reader1.leaves().get(0);
-            LeafReaderContext ctx2 = reader2.leaves().get(0);
+            LeafReaderContext ctx = reader.leaves().get(0);
 
-            cache.getBitSet(query, ctx1);
-            cache.getBitSet(query, ctx2);
+            final BitSet bitSet1 = cache.getBitSet(query, ctx);
+            final BitSet bitSet1Again = cache.getBitSet(query, ctx);
 
-            cache.verifyInternalConsistency();
+            assertThat(bitSet1Again, sameInstance(bitSet1));
+            assertEquals(1, cache.entryCount());
             assertEquals(1L, cache.usageStats().get("misses"));
             assertEquals(1L, cache.usageStats().get("hits"));
-
-            reader1.close();
-            reader2.close();
         } finally {
             cache.close();
             directory.close();

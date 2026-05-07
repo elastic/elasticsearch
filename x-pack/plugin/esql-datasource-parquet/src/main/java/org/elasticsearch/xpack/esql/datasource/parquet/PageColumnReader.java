@@ -208,7 +208,16 @@ final class PageColumnReader implements Releasable {
             return blockFactory.newConstantNullBlock(0);
         }
         Block full = readBatch(maxRows, blockFactory);
-        return filterBlock(full, survivorPositions, survivorCount, blockFactory);
+        try {
+            // filterBlock closes `full` on success; on the `source.filter(...)` allocation
+            // failure it does NOT, so we explicitly release the source here to avoid leaking
+            // the full-batch block (and its breaker reservation) back up to the caller, which
+            // never saw the reference.
+            return filterBlock(full, survivorPositions, survivorCount, blockFactory);
+        } catch (RuntimeException e) {
+            Releasables.closeExpectNoException(full);
+            throw e;
+        }
     }
 
     private void loadDictionaryIfNeeded() {

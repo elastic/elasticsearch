@@ -530,8 +530,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 ? Optional.of(new CrossProjectSearchMetrics())
                 : Optional.empty();
 
-            logger.info("CPS metrics: {}", cpsMetrics.get());
-
             if (resolvedIndices.getRemoteClusterIndices().isEmpty()) {
                 if (resolvesCrossProject && rewritten.getResolvedIndexExpressions() != null) {
                     ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(

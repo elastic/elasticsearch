@@ -2315,7 +2315,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
         CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new StubSplittableCodec());
         byte[] payload = "{\"a\":1}\n".repeat(20).getBytes(StandardCharsets.UTF_8);
-        assertNull(factory.openWithParallelism(cdr, bytesStorageObject(payload), List.of("a"), ErrorPolicy.STRICT));
+        assertNull(factory.openWithParallelism(cdr, bytesStorageObject(payload), List.of("a"), ErrorPolicy.STRICT, false));
     }
 
     public void testOpenWithParallelismGzipCompressedReturnsIterator() throws IOException {
@@ -2334,7 +2334,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 cdr,
                 bytesStorageObject(gzipped),
                 List.of("a"),
-                ErrorPolicy.STRICT
+                ErrorPolicy.STRICT,
+                false
             );
             assertNotNull(iterator);
             iterator.close();
@@ -2357,7 +2358,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 inner,
                 bytesStorageObject(plain),
                 List.of("a"),
-                ErrorPolicy.STRICT
+                ErrorPolicy.STRICT,
+                false
             );
             assertNotNull(iterator);
             iterator.close();

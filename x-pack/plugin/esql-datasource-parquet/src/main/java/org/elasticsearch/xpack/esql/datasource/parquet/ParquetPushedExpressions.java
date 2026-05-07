@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -610,7 +611,7 @@ final class ParquetPushedExpressions {
     WordMask evaluateFilter(Map<String, Block> predicateBlocks, int rowCount, WordMask reusable) {
         reusable.setAll(rowCount);
         for (Expression expr : expressions) {
-            WordMask exprResult = evaluateExpression(expr, predicateBlocks, rowCount);
+            WordMask exprResult = evaluateExpression(expr, predicateBlocks, rowCount, reusable);
             if (exprResult != null) {
                 reusable.and(exprResult);
             }
@@ -622,7 +623,9 @@ final class ParquetPushedExpressions {
     }
 
     // Note: not static — uses the per-instance automaton cache in evaluateWildcardLike.
-    private WordMask evaluateExpression(Expression expr, Map<String, Block> blocks, int rowCount) {
+    // The intermediateMask is the cumulative AND of all previously evaluated conjuncts;
+    // expensive evaluators (LIKE, StartsWith) use it to skip already-eliminated rows.
+    private WordMask evaluateExpression(Expression expr, Map<String, Block> blocks, int rowCount, @Nullable WordMask intermediateMask) {
         if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne && bc.right().foldable()) {
             Block block = blocks.get(ne.name());
             if (block == null) {
@@ -677,8 +680,8 @@ final class ParquetPushedExpressions {
             return evaluateRange(range, block, rowCount);
         }
         if (expr instanceof And and) {
-            WordMask left = evaluateExpression(and.left(), blocks, rowCount);
-            WordMask right = evaluateExpression(and.right(), blocks, rowCount);
+            WordMask left = evaluateExpression(and.left(), blocks, rowCount, intermediateMask);
+            WordMask right = evaluateExpression(and.right(), blocks, rowCount, intermediateMask);
             if (left != null && right != null) {
                 left.and(right);
                 return left;
@@ -686,8 +689,8 @@ final class ParquetPushedExpressions {
             return left != null ? left : right;
         }
         if (expr instanceof Or or) {
-            WordMask left = evaluateExpression(or.left(), blocks, rowCount);
-            WordMask right = evaluateExpression(or.right(), blocks, rowCount);
+            WordMask left = evaluateExpression(or.left(), blocks, rowCount, intermediateMask);
+            WordMask right = evaluateExpression(or.right(), blocks, rowCount, intermediateMask);
             if (left != null && right != null) {
                 left.or(right);
                 return left;
@@ -713,9 +716,9 @@ final class ParquetPushedExpressions {
                 if (block == null) {
                     return null;
                 }
-                return evaluateNotWildcardLike(wl, block, rowCount);
+                return evaluateNotWildcardLike(wl, block, rowCount, intermediateMask);
             }
-            WordMask inner = evaluateExpression(not.field(), blocks, rowCount);
+            WordMask inner = evaluateExpression(not.field(), blocks, rowCount, intermediateMask);
             if (inner != null) {
                 inner.negate();
                 return inner;
@@ -727,14 +730,14 @@ final class ParquetPushedExpressions {
             if (block == null) {
                 return null;
             }
-            return evaluateStartsWith(sw, block, rowCount);
+            return evaluateStartsWith(sw, block, rowCount, intermediateMask);
         }
         if (expr instanceof WildcardLike wl && wl.field() instanceof NamedExpression ne) {
             Block block = blocks.get(ne.name());
             if (block == null) {
                 return null;
             }
-            return evaluateWildcardLike(wl, block, rowCount);
+            return evaluateWildcardLike(wl, block, rowCount, intermediateMask);
         }
         return null;
     }
@@ -977,7 +980,7 @@ final class ParquetPushedExpressions {
         return true;
     }
 
-    private static WordMask evaluateStartsWith(StartsWith sw, Block block, int rowCount) {
+    private static WordMask evaluateStartsWith(StartsWith sw, Block block, int rowCount, @Nullable WordMask intermediateMask) {
         Object prefixValue = literalValueOf(sw.prefix());
         if (prefixValue == null) {
             return null;
@@ -998,6 +1001,9 @@ final class ParquetPushedExpressions {
             mask.reset(rowCount);
             BytesRef scratch = new BytesRef();
             for (int i = 0; i < rowCount; i++) {
+                if (intermediateMask != null && intermediateMask.get(i) == false) {
+                    continue;
+                }
                 if (block.isNull(i) == false) {
                     BytesRef val = bb.getBytesRef(i, scratch);
                     if (val.length >= prefix.length && startsWith(val, prefix)) {
@@ -1059,16 +1065,11 @@ final class ParquetPushedExpressions {
      * one of the two supported block types, so the block-type {@code null} sentinel is unreachable
      * on the YES path in practice.
      */
-    private WordMask evaluateWildcardLike(WildcardLike wl, Block block, int rowCount) {
+    private WordMask evaluateWildcardLike(WildcardLike wl, Block block, int rowCount, @Nullable WordMask intermediateMask) {
         CompiledWildcard compiled = automatonFor(wl);
         if (compiled.matcher == null) {
-            // Pattern was too complex to determinize. Late-mat can't filter; rely on FilterExec.
             return null;
         }
-        // Fast path: pattern accepts every input. Skip the per-row automaton run. matchesAll is
-        // computed at compile time against the case-aware automaton in automatonFor(), so it is
-        // consistent with wl.caseInsensitive(). Nulls are still excluded — SQL's NULL LIKE *
-        // evaluates to unknown, treated here as "no match" for parity with the scalar path.
         if (compiled.matchesAll) {
             return maskNonNullRows(block, rowCount);
         }
@@ -1088,6 +1089,9 @@ final class ParquetPushedExpressions {
             mask.reset(rowCount);
             BytesRef scratch = new BytesRef();
             for (int i = 0; i < rowCount; i++) {
+                if (intermediateMask != null && intermediateMask.get(i) == false) {
+                    continue;
+                }
                 if (block.isNull(i) == false) {
                     BytesRef val = bb.getBytesRef(i, scratch);
                     if (runner.run(val.bytes, val.offset, val.length)) {
@@ -1127,8 +1131,8 @@ final class ParquetPushedExpressions {
      * far beyond {@code "*google*"}). If a future change broadens the YES-eligible set, this
      * contract must be revisited.
      */
-    private WordMask evaluateNotWildcardLike(WildcardLike wl, Block block, int rowCount) {
-        WordMask likeMask = evaluateWildcardLike(wl, block, rowCount);
+    private WordMask evaluateNotWildcardLike(WildcardLike wl, Block block, int rowCount, @Nullable WordMask intermediateMask) {
+        WordMask likeMask = evaluateWildcardLike(wl, block, rowCount, intermediateMask);
         if (likeMask == null) {
             return null;
         }

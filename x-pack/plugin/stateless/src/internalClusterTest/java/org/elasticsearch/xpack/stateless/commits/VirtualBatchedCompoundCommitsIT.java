@@ -104,9 +104,7 @@ import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STAT
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_NUMBER_COMMITS_HISTOGRAM_METRIC;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_TOTAL_SIZE_HISTOGRAM_METRIC;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.REFERENCED_BCCS_PER_COMMIT_HISTOGRAM_METRIC;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_BCC_BLOB_REFERENCES_GAUGE_METRIC;
-import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_COMMIT_REFERENCES_INFOS_GAUGE_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.COMMIT_NUMBER_OF_REFERENCED_BCCS;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE;
@@ -250,14 +248,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                     return false;
                 }
             };
-        }
-
-        public int commitReferencesInfosCount(ShardId shardId) {
-            return getShardCommitState(shardId).commitReferencesInfosCount();
-        }
-
-        public int bccBlobReferencesCountForTests(ShardId shardId) {
-            return getShardCommitState(shardId).bccBlobReferencesCount();
         }
     }
 
@@ -1341,39 +1331,13 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 // that is measured before creating the upload task
                 assertThat(ageMeasurements.getFirst().getLong(), greaterThanOrEqualTo(minAge));
 
-                final int expectedCommitRefsCount = statelessCommitService.commitReferencesInfosCount(shardId);
                 final List<Measurement> referencedBccsMeasurements = metricsPlugin.getLongHistogramMeasurement(
-                    REFERENCED_BCCS_PER_COMMIT_HISTOGRAM_METRIC
+                    COMMIT_NUMBER_OF_REFERENCED_BCCS
                 );
                 assertThat(referencedBccsMeasurements, hasSize(1));
                 for (Measurement referencedBccsMeasurement : referencedBccsMeasurements) {
                     assertThat(referencedBccsMeasurement.attributes(), equalTo(Map.of()));
                 }
-
-                metricsPlugin.collect();
-
-                final Map<String, Object> attributes = Map.of("index", shardId.getIndexName(), "shard", shardId.id());
-
-                final List<Measurement> commitRefsMeasurements = metricsPlugin.getLongGaugeMeasurement(
-                    SHARD_COMMIT_REFERENCES_INFOS_GAUGE_METRIC
-                );
-                assertThat(commitRefsMeasurements, hasSize(1));
-                assertThat(commitRefsMeasurements.getFirst().attributes(), equalTo(attributes));
-                assertThat(
-                    commitRefsMeasurements.getFirst().getLong(),
-                    equalTo((long) statelessCommitService.commitReferencesInfosCount(shardId))
-                );
-
-                final List<Measurement> bccReferencesMeasurements = metricsPlugin.getLongGaugeMeasurement(
-                    SHARD_BCC_BLOB_REFERENCES_GAUGE_METRIC
-                );
-
-                assertThat(commitRefsMeasurements, hasSize(1));
-                assertThat(commitRefsMeasurements.getFirst().attributes(), equalTo(attributes));
-                assertThat(
-                    bccReferencesMeasurements.getFirst().getLong(),
-                    equalTo((long) statelessCommitService.bccBlobReferencesCountForTests(shardId))
-                );
             }
         }
     }

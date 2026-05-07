@@ -163,7 +163,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression, Aggre
             return new MvAvg(s, field);
         }
         // Cast long inputs to double up-front so the intermediate Sum cannot overflow.
-        // Avg always returns double, and Sum(int) already accumulates as long without overflow,
+        // Avg always returns double, and Sum(int) already accumulates as long (Which would require many big values to overflow),
         // so the cast is only necessary for long.
         Expression sumField = field.dataType() == DataType.LONG ? new ToDouble(s, field) : field;
         return new Div(s, new Sum(s, sumField, filter(), window(), summationMode), new Count(s, field, filter(), window()), dataType());

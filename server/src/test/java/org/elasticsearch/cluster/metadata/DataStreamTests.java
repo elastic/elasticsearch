@@ -351,6 +351,235 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndexMode(), nullValue());
     }
 
+    public void testRolloverUpgradeToColumnarDataStream() {
+        DataStream ds = DataStreamTestHelper.randomInstance()
+            .copy()
+            .setReplicated(false)
+            .setIndexMode(randomBoolean() ? IndexMode.STANDARD : null)
+            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+
+        var rolledDs = ds.rollover(
+            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
+            newCoordinates.v2(),
+            IndexMode.COLUMNAR,
+            null
+        );
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.COLUMNAR));
+    }
+
+    public void testRolloverUpgradeToColumnarLogsdbDataStream() {
+        DataStream ds = DataStreamTestHelper.randomInstance()
+            .copy()
+            .setReplicated(false)
+            .setIndexMode(randomBoolean() ? IndexMode.STANDARD : null)
+            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+
+        var rolledDs = ds.rollover(
+            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
+            newCoordinates.v2(),
+            IndexMode.COLUMNAR_LOGSDB,
+            null
+        );
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+    }
+
+    public void testRolloverDowngradeFromColumnarToRegularDataStream() {
+        DataStream ds = DataStreamTestHelper.randomInstance()
+            .copy()
+            .setReplicated(false)
+            .setIndexMode(IndexMode.COLUMNAR)
+            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+
+        var rolledDs = ds.rollover(
+            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
+            newCoordinates.v2(),
+            randomBoolean() ? null : IndexMode.STANDARD,
+            null
+        );
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertThat(rolledDs.getIndexMode(), nullValue());
+    }
+
+    public void testRolloverDowngradeFromColumnarLogsdbToRegularDataStream() {
+        DataStream ds = DataStreamTestHelper.randomInstance()
+            .copy()
+            .setReplicated(false)
+            .setIndexMode(IndexMode.COLUMNAR_LOGSDB)
+            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+
+        var rolledDs = ds.rollover(
+            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
+            newCoordinates.v2(),
+            randomBoolean() ? null : IndexMode.STANDARD,
+            null
+        );
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertThat(rolledDs.getIndexMode(), nullValue());
+    }
+
+    public void testRolloverDowngradeFromLogsdbLikeToColumnar() {
+        IndexMode from = randomFrom(IndexMode.LOGSDB, IndexMode.COLUMNAR_LOGSDB);
+        DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(from).build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+
+        var rolledDs = ds.rollover(
+            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
+            newCoordinates.v2(),
+            IndexMode.COLUMNAR,
+            null
+        );
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.COLUMNAR));
+    }
+
+    public void testRolloverFromColumnarToLogsdbLike() {
+        IndexMode to = randomFrom(IndexMode.LOGSDB, IndexMode.COLUMNAR_LOGSDB);
+        DataStream ds = DataStreamTestHelper.randomInstance()
+            .copy()
+            .setReplicated(false)
+            .setIndexMode(IndexMode.COLUMNAR)
+            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+
+        var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), to, null);
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertThat(rolledDs.getIndexMode(), equalTo(to));
+    }
+
+    public void testRolloverFromColumnarToTimeSeries() {
+        DataStream ds = DataStreamTestHelper.randomInstance()
+            .copy()
+            .setReplicated(false)
+            .setIndexMode(IndexMode.COLUMNAR)
+            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+
+        var rolledDs = ds.rollover(
+            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
+            newCoordinates.v2(),
+            IndexMode.TIME_SERIES,
+            null
+        );
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
+    }
+
+    public void testRolloverDowngradeFromTimeSeriesDataStreamToColumnar() {
+        DataStream ds = DataStreamTestHelper.randomInstance()
+            .copy()
+            .setReplicated(false)
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+
+        var rolledDs = ds.rollover(
+            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
+            newCoordinates.v2(),
+            IndexMode.COLUMNAR,
+            null
+        );
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.COLUMNAR));
+    }
+
+    public void testRolloverFromTimeSeriesDataStreamToColumnarLogsdb() {
+        DataStream ds = DataStreamTestHelper.randomInstance()
+            .copy()
+            .setReplicated(false)
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+
+        var rolledDs = ds.rollover(
+            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
+            newCoordinates.v2(),
+            IndexMode.COLUMNAR_LOGSDB,
+            null
+        );
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+    }
+
+    public void testRolloverFromColumnarLogsdbToTimeSeries() {
+        DataStream ds = DataStreamTestHelper.randomInstance()
+            .copy()
+            .setReplicated(false)
+            .setIndexMode(IndexMode.COLUMNAR_LOGSDB)
+            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+
+        var rolledDs = ds.rollover(
+            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
+            newCoordinates.v2(),
+            IndexMode.TIME_SERIES,
+            null
+        );
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
+    }
+
+    public void testRolloverFromLogsdbToColumnarLogsdb() {
+        DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.LOGSDB).build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+
+        var rolledDs = ds.rollover(
+            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
+            newCoordinates.v2(),
+            IndexMode.COLUMNAR_LOGSDB,
+            null
+        );
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.COLUMNAR_LOGSDB));
+    }
+
+    public void testRolloverFromColumnarLogsdbToLogsdb() {
+        DataStream ds = DataStreamTestHelper.randomInstance()
+            .copy()
+            .setReplicated(false)
+            .setIndexMode(IndexMode.COLUMNAR_LOGSDB)
+            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        var newCoordinates = ds.nextWriteIndexAndGeneration(project, ds.getDataComponent());
+
+        var rolledDs = ds.rollover(
+            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
+            newCoordinates.v2(),
+            IndexMode.LOGSDB,
+            null
+        );
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.LOGSDB));
+    }
+
     public void testRolloverFailureStore() {
         DataStream ds = DataStreamTestHelper.randomInstance(true).promoteDataStream();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();

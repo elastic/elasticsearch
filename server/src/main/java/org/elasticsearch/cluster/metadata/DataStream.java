@@ -860,6 +860,24 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return unsafeRollover(writeIndex, generation, indexModeFromTemplate, autoShardingEvent);
     }
 
+    /** Returns true for index modes in the standard-like group: {@code null}, {@link IndexMode#STANDARD}, {@link IndexMode#COLUMNAR}. */
+    private static boolean isStandardLike(IndexMode mode) {
+        return mode == null || mode == IndexMode.STANDARD || mode == IndexMode.COLUMNAR;
+    }
+
+    /** Returns true for index modes in the logsdb-like group: {@link IndexMode#LOGSDB}, {@link IndexMode#COLUMNAR_LOGSDB}. */
+    private static boolean isLogsdbLike(IndexMode mode) {
+        return mode == IndexMode.LOGSDB || mode == IndexMode.COLUMNAR_LOGSDB;
+    }
+
+    /**
+     * Normalises a standard-like template mode to the value stored on the data stream.
+     * {@link IndexMode#COLUMNAR} is preserved; {@code null} and {@link IndexMode#STANDARD} both map to {@code null}.
+     */
+    private static IndexMode toStandardLike(IndexMode mode) {
+        return mode == IndexMode.COLUMNAR ? IndexMode.COLUMNAR : null;
+    }
+
     /**
      * Like {@link #rollover(Index, long, IndexMode, DataStreamAutoShardingEvent)}, but does no validation, use with care only.
      */
@@ -870,24 +888,32 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamAutoShardingEvent autoShardingEvent
     ) {
         IndexMode dsIndexMode = this.indexMode;
-        if ((dsIndexMode == null || dsIndexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.TIME_SERIES) {
-            // This allows for migrating a data stream to be a tsdb data stream:
-            // (only if index_mode=null|standard then allow it to be set to time_series)
-            dsIndexMode = IndexMode.TIME_SERIES;
-        } else if (dsIndexMode == IndexMode.TIME_SERIES && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
-            // Allow downgrading a time series data stream to a regular data stream
-            dsIndexMode = null;
-        } else if ((dsIndexMode == null || dsIndexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.LOGSDB) {
-            dsIndexMode = IndexMode.LOGSDB;
-        } else if (dsIndexMode == IndexMode.LOGSDB && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
-            // Allow downgrading a time series data stream to a regular data stream
-            dsIndexMode = null;
-        } else if (dsIndexMode == IndexMode.TIME_SERIES && indexModeFromTemplate == IndexMode.LOGSDB) {
-            dsIndexMode = IndexMode.LOGSDB;
-            LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
-        } else if (dsIndexMode == IndexMode.LOGSDB && indexModeFromTemplate == IndexMode.TIME_SERIES) {
-            dsIndexMode = IndexMode.TIME_SERIES;
-            LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
+        if (isStandardLike(dsIndexMode) && isStandardLike(indexModeFromTemplate)) {
+            // Within standard-like group (null / STANDARD / COLUMNAR): adopt the exact variant from the template.
+            dsIndexMode = toStandardLike(indexModeFromTemplate);
+        } else if (isLogsdbLike(dsIndexMode) && isLogsdbLike(indexModeFromTemplate)) {
+            // Within logsdb-like group (LOGSDB / COLUMNAR_LOGSDB): adopt the exact variant from the template.
+            dsIndexMode = indexModeFromTemplate;
+        } else if (isStandardLike(dsIndexMode)) {
+            if (indexModeFromTemplate == IndexMode.TIME_SERIES) {
+                dsIndexMode = IndexMode.TIME_SERIES;
+            } else if (isLogsdbLike(indexModeFromTemplate)) {
+                dsIndexMode = indexModeFromTemplate;
+            }
+        } else if (isLogsdbLike(dsIndexMode)) {
+            if (indexModeFromTemplate == IndexMode.TIME_SERIES) {
+                dsIndexMode = IndexMode.TIME_SERIES;
+                LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
+            } else if (isStandardLike(indexModeFromTemplate)) {
+                dsIndexMode = toStandardLike(indexModeFromTemplate);
+            }
+        } else if (dsIndexMode == IndexMode.TIME_SERIES) {
+            if (isStandardLike(indexModeFromTemplate)) {
+                dsIndexMode = toStandardLike(indexModeFromTemplate);
+            } else if (isLogsdbLike(indexModeFromTemplate)) {
+                dsIndexMode = indexModeFromTemplate;
+                LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
+            }
         }
 
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);

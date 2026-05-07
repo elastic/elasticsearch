@@ -65,7 +65,8 @@ import static org.elasticsearch.core.Strings.format;
 public abstract class FieldMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(FieldMapper.class);
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting("index.mapping.ignore_malformed", settings -> {
-        if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
+        IndexMode mode = IndexSettings.MODE.get(settings);
+        if ((mode == IndexMode.LOGSDB || mode == IndexMode.COLUMNAR_LOGSDB)
             && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_MALFORMED_LOGSDB)) {
             return "true";
         } else {

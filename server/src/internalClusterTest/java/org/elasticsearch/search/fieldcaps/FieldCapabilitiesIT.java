@@ -903,6 +903,46 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 indexModes.put("test_old_logs_" + i, IndexMode.STANDARD);
             }
         }
+        // columnar
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            final String columnarMapping = """
+                 {
+                     "properties": {
+                       "@timestamp": { "type": "date" },
+                       "hostname": { "type": "keyword"},
+                       "request_count" : { "type" : "long"},
+                       "cluster": {"type": "keyword"}
+                     }
+                 }
+                """;
+            Settings settings = Settings.builder().put("mode", "columnar").build();
+            int numIndices = between(1, 5);
+            for (int i = 0; i < numIndices; i++) {
+                assertAcked(indicesAdmin().prepareCreate("test_columnar_" + i).setSettings(settings).setMapping(columnarMapping));
+                indexModes.put("test_columnar_" + i, IndexMode.COLUMNAR);
+            }
+        }
+        // columnar_logsdb
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            final String columnarLogsdbMapping = """
+                 {
+                     "properties": {
+                       "@timestamp": { "type": "date" },
+                       "hostname": { "type": "keyword"},
+                       "request_count" : { "type" : "long"},
+                       "cluster": {"type": "keyword"}
+                     }
+                 }
+                """;
+            Settings settings = Settings.builder().put("mode", "columnar_logsdb").build();
+            int numIndices = between(1, 5);
+            for (int i = 0; i < numIndices; i++) {
+                assertAcked(
+                    indicesAdmin().prepareCreate("test_columnar_logsdb_" + i).setSettings(settings).setMapping(columnarLogsdbMapping)
+                );
+                indexModes.put("test_columnar_logsdb_" + i, IndexMode.COLUMNAR_LOGSDB);
+            }
+        }
         FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         request.setMergeResults(false);
         request.indices("test_*");

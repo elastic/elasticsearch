@@ -220,11 +220,8 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
     }
 
     public void testIgnoreMalformedDefaultsToFalseOnOldVersion() {
-        Settings settings = IndexSettingsTests.newIndexMeta(
-            "test",
-            buildSettings(),
-            IndexVersions.LENIENT_UPDATEABLE_SYNONYMS
-        ).getSettings();
+        Settings settings = IndexSettingsTests.newIndexMeta("test", buildSettings(), IndexVersions.LENIENT_UPDATEABLE_SYNONYMS)
+            .getSettings();
         assertFalse(FieldMapper.IGNORE_MALFORMED_SETTING.get(settings));
     }
 
@@ -234,11 +231,8 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
     }
 
     public void testIgnoreDynamicBeyondLimitDefaultsToFalseOnOldVersion() {
-        Settings settings = IndexSettingsTests.newIndexMeta(
-            "test",
-            buildSettings(),
-            IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB
-        ).getSettings();
+        Settings settings = IndexSettingsTests.newIndexMeta("test", buildSettings(), IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB)
+            .getSettings();
         assertFalse(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.get(settings));
     }
 

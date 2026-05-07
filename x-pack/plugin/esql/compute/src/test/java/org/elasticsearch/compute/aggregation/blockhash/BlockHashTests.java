@@ -753,12 +753,16 @@ public class BlockHashTests extends BlockHashTestCase {
                 new Object[] { 1L, 1L },
                 new Object[] { 0L, 1L } };
 
-            assertThat(
-                ordsAndKeys.description(),
-                forcePackedHash
-                    ? startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:LONG], entries=4, size=")
-                    : equalTo("LongLongBlockHash{channels=[0,1], entries=4}")
-            );
+            if (forcePackedHash) {
+                assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:LONG], entries=4, size="));
+                assertThat(ordsAndKeys.description(), endsWith("b}"));
+            } else {
+                assertThat(
+                    ordsAndKeys.description(),
+                    startsWith("Adaptive{LongLongBlockHash{keys=[LongKey[channel=0], LongKey[channel=1]], entries=4")
+                );
+                assertThat(ordsAndKeys.description(), endsWith("b}}"));
+            }
             assertOrds(ordsAndKeys.ords(), 0, 1, 0, 2, 3, 2);
             assertKeys(ordsAndKeys.keys(), expectedKeys);
             assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 4)));
@@ -808,61 +812,39 @@ public class BlockHashTests extends BlockHashTestCase {
             hash(ordsAndKeys -> {
                 if (forcePackedHash) {
                     assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:LONG], entries=10, size="));
-                    assertOrds(
-                        ordsAndKeys.ords(),
-                        new int[] { 0, 1, 2, 3 },
-                        new int[] { 0, 2 },
-                        new int[] { 0, 1 },
-                        new int[] { 0 },
-                        new int[] { 4 },
-                        new int[] { 5 },
-                        new int[] { 0 },
-                        new int[] { 0, 1, 2, 3 },
-                        new int[] { 6, 0, 7, 2, 8, 9 }
-                    );
-                    assertKeys(
-                        ordsAndKeys.keys(),
-                        new Object[][] {
-                            new Object[] { 1L, 10L },
-                            new Object[] { 1L, 20L },
-                            new Object[] { 2L, 10L },
-                            new Object[] { 2L, 20L },
-                            new Object[] { null, 10L },
-                            new Object[] { 1L, null },
-                            new Object[] { 1L, 30L },
-                            new Object[] { 2L, 30L },
-                            new Object[] { 3L, 30L },
-                            new Object[] { 3L, 10L }, }
-                    );
-                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 10)));
                 } else {
-                    assertThat(ordsAndKeys.description(), equalTo("LongLongBlockHash{channels=[0,1], entries=8}"));
-                    assertOrds(
-                        ordsAndKeys.ords(),
-                        new int[] { 0, 1, 2, 3 },
-                        new int[] { 0, 2 },
-                        new int[] { 0, 1 },
-                        new int[] { 0 },
-                        null,
-                        null,
-                        new int[] { 0 },
-                        new int[] { 0, 1, 2, 3 },
-                        new int[] { 4, 0, 5, 2, 6, 7 }
+                    assertThat(
+                        ordsAndKeys.description(),
+                        startsWith("Adaptive{PackedValuesBlockHash{groups=[0:LONG, 1:LONG], entries=10, size=")
                     );
-                    assertKeys(
-                        ordsAndKeys.keys(),
-                        new Object[][] {
-                            new Object[] { 1L, 10L },
-                            new Object[] { 1L, 20L },
-                            new Object[] { 2L, 10L },
-                            new Object[] { 2L, 20L },
-                            new Object[] { 1L, 30L },
-                            new Object[] { 2L, 30L },
-                            new Object[] { 3L, 30L },
-                            new Object[] { 3L, 10L }, }
-                    );
-                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 8)));
                 }
+                assertOrds(
+                    ordsAndKeys.ords(),
+                    new int[] { 0, 1, 2, 3 },
+                    new int[] { 0, 2 },
+                    new int[] { 0, 1 },
+                    new int[] { 0 },
+                    new int[] { 4 },
+                    new int[] { 5 },
+                    new int[] { 0 },
+                    new int[] { 0, 1, 2, 3 },
+                    new int[] { 6, 0, 7, 2, 8, 9 }
+                );
+                assertKeys(
+                    ordsAndKeys.keys(),
+                    new Object[][] {
+                        new Object[] { 1L, 10L },
+                        new Object[] { 1L, 20L },
+                        new Object[] { 2L, 10L },
+                        new Object[] { 2L, 20L },
+                        new Object[] { null, 10L },
+                        new Object[] { 1L, null },
+                        new Object[] { 1L, 30L },
+                        new Object[] { 2L, 30L },
+                        new Object[] { 3L, 30L },
+                        new Object[] { 3L, 10L }, }
+                );
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 10)));
             }, b1, b2);
         }
     }
@@ -885,7 +867,7 @@ public class BlockHashTests extends BlockHashTestCase {
                     ordsAndKeys.description(),
                     forcePackedHash
                         ? startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:LONG], entries=" + expectedEntries[0] + ", size=")
-                        : equalTo("LongLongBlockHash{channels=[0,1], entries=" + expectedEntries[0] + "}")
+                        : startsWith("Adaptive{PackedValuesBlockHash{groups=[0:LONG, 1:LONG], entries=" + expectedEntries[0] + ", size=")
                 );
                 assertOrds(ordsAndKeys.ords(), IntStream.range(start, expectedEntries[0]).toArray());
                 assertKeys(
@@ -1015,23 +997,23 @@ public class BlockHashTests extends BlockHashTestCase {
             hash((OrdsAndKeys ordsAndKeys) -> {
                 if (forcePackedHash) {
                     assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:LONG], entries=5, size="));
-                    assertOrds(ordsAndKeys.ords(), 0, 1, 2, 3, 4);
-                    assertKeys(
-                        ordsAndKeys.keys(),
-                        new Object[][] {
-                            new Object[] { 1L, 0L },
-                            new Object[] { null, null },
-                            new Object[] { 0L, 1L },
-                            new Object[] { 0L, null },
-                            new Object[] { null, 0L }, }
-                    );
-                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 5)));
                 } else {
-                    assertThat(ordsAndKeys.description(), equalTo("LongLongBlockHash{channels=[0,1], entries=2}"));
-                    assertOrds(ordsAndKeys.ords(), 0, null, 1, null, null);
-                    assertKeys(ordsAndKeys.keys(), new Object[][] { new Object[] { 1L, 0L }, new Object[] { 0L, 1L } });
-                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 2)));
+                    assertThat(
+                        ordsAndKeys.description(),
+                        startsWith("Adaptive{PackedValuesBlockHash{groups=[0:LONG, 1:LONG], entries=5, size=")
+                    );
                 }
+                assertOrds(ordsAndKeys.ords(), 0, 1, 2, 3, 4);
+                assertKeys(
+                    ordsAndKeys.keys(),
+                    new Object[][] {
+                        new Object[] { 1L, 0L },
+                        new Object[] { null, null },
+                        new Object[] { 0L, 1L },
+                        new Object[] { 0L, null },
+                        new Object[] { null, 0L }, }
+                );
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 5)));
             }, b1, b2);
         }
     }
@@ -1858,9 +1840,7 @@ public class BlockHashTests extends BlockHashTestCase {
                 }
                 called[0] = true;
                 callback.accept(ordsAndKeys);
-                if (hash instanceof LongLongBlockHash == false
-                    && hash instanceof BytesRefLongBlockHash == false
-                    && hash instanceof BytesRef3BlockHash == false) {
+                if (hash instanceof BytesRefLongBlockHash == false && hash instanceof BytesRef3BlockHash == false) {
                     try (ReleasableIterator<IntBlock> lookup = hash.lookup(new Page(values), ByteSizeValue.ofKb(between(1, 100)))) {
                         assertThat(lookup.hasNext(), equalTo(true));
                         try (IntBlock ords = lookup.next()) {

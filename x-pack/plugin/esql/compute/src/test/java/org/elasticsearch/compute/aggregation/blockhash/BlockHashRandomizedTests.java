@@ -175,12 +175,11 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
         try (BlockHash blockHash = newBlockHash(blockFactory, emitBatchSize, elementTypes)) {
             logger.info("checking {}", blockHash);
             /*
-             * Only the long/long, long/bytes_ref, and bytes_ref/long implementations don't collect nulls.
+             * Only the long/bytes_ref and bytes_ref/long implementations don't collect nulls.
              */
             Oracle oracle = new Oracle(
                 forcePackedHash
-                    || false == (elementTypes.equals(List.of(ElementType.LONG, ElementType.LONG))
-                        || elementTypes.equals(List.of(ElementType.LONG, ElementType.BYTES_REF))
+                    || false == (elementTypes.equals(List.of(ElementType.LONG, ElementType.BYTES_REF))
                         || elementTypes.equals(List.of(ElementType.BYTES_REF, ElementType.LONG)))
             );
 
@@ -196,13 +195,15 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                 BlockHashTests.hash(false, blockHash, ordsAndKeys -> {
                     if (usingSingle == false) {
                         /*
-                         * Either we chunk to emitBatchSize, or we emit one entry per input
-                         * page (the vector/vector fast path). Page sizes are assumed safe, so
-                         * emitting exactly positionCount in one shot is acceptable.
+                         * Either we chunk the block path to emitBatchSize, the adaptive
+                         * vector/vector fast path chunks to its own vectorBatchSize
+                         * (Math.max(emitBatchSize, 4096)), or we emit one entry per input
+                         * page. Page sizes are assumed safe.
                          */
+                        int vectorBatchSize = Math.max(emitBatchSize, 4096);
                         assertThat(
                             ordsAndKeys.ords().getTotalValueCount(),
-                            either(lessThanOrEqualTo(emitBatchSize)).or(equalTo(positionCount))
+                            either(lessThanOrEqualTo(vectorBatchSize)).or(equalTo(positionCount))
                         );
                     }
                     batchCount[0]++;
@@ -224,8 +225,7 @@ public class BlockHashRandomizedTests extends ComputeTestCase {
                 }
             }
 
-            if (blockHash instanceof LongLongBlockHash == false
-                && blockHash instanceof BytesRefLongBlockHash == false
+            if (blockHash instanceof BytesRefLongBlockHash == false
                 && blockHash instanceof BytesRef2BlockHash == false
                 && blockHash instanceof BytesRef3BlockHash == false) {
                 assertLookup(blockFactory, expectedOrds, types, blockHash, oracle);

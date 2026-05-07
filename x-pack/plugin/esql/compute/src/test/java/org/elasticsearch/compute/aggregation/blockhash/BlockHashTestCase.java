@@ -114,8 +114,7 @@ public abstract class BlockHashTestCase extends ESTestCase {
                 fail("hashes should not close AddInput");
             }
         });
-        if (blockHash instanceof LongLongBlockHash == false
-            && blockHash instanceof BytesRefLongBlockHash == false
+        if (blockHash instanceof BytesRefLongBlockHash == false
             && blockHash instanceof BytesRef2BlockHash == false
             && blockHash instanceof BytesRef3BlockHash == false) {
             try (IntVector nonEmpty = blockHash.nonEmpty()) {

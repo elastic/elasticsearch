@@ -143,7 +143,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             case 7 -> allowsCustomRouting = allowsCustomRouting == false;
             case 8 -> indexMode = randomBoolean() && indexMode != null
                 ? null
-                : randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
+                : randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.availableModes()));
             case 9 -> lifecycle = randomBoolean() && lifecycle != null
                 ? null
                 : DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build();

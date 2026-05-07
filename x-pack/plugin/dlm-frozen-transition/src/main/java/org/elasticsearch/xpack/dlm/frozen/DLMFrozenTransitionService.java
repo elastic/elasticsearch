@@ -38,7 +38,7 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
     static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
         "dlm.frozen_transition.poll_interval",
         TimeValue.timeValueMinutes(5),
-        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueSeconds(1),
         Setting.Property.NodeScope
     );
 

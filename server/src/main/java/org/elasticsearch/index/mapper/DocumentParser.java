@@ -196,7 +196,7 @@ public final class DocumentParser {
                     context.indexSettings(),
                     lookup,
                     context.mappingLookup()::sourcePaths,
-                    context.fieldDataEnabled(),
+                    () -> false,
                     fto
                 )
             ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
@@ -985,7 +985,7 @@ public final class DocumentParser {
         MappedFieldType fieldType = context.mappingLookup().getFieldType(fieldPath);
         if (fieldType != null) {
             // we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.
-            assert fieldType.hasDocValues() == false && fieldType.isAggregatable(context.fieldDataEnabled()) && fieldType.isSearchable();
+            assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
             return noopFieldMapper(fieldPath);
         }
         return null;

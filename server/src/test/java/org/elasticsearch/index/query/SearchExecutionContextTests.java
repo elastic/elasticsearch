@@ -657,7 +657,6 @@ public class SearchExecutionContextTests extends ESTestCase {
                 ScriptCompiler.NONE,
                 indexAnalyzers,
                 indexSettings,
-                () -> true,
                 query -> {
                     throw new UnsupportedOperationException();
                 },

@@ -62,7 +62,6 @@ public class MappingParserTests extends MapperServiceTestCase {
             scriptService,
             indexAnalyzers,
             indexSettings,
-            () -> false,
             bitsetFilterCache::getBitSetProducer,
             null
         );

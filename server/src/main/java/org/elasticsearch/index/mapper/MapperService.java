@@ -282,7 +282,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             scriptCompiler,
             indexAnalyzers,
             indexSettings,
-            fieldDataEnabled,
             bitSetProducer,
             mapperRegistry.getVectorsFormatProviders(),
             mapperRegistry.getNamespaceValidator(),

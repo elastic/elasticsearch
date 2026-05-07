@@ -359,10 +359,6 @@ public abstract class DocumentParserContext {
         return mappingParserContext.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? null : sourceToParse.routing();
     }
 
-    public final BooleanSupplier fieldDataEnabled() {
-        return mappingParserContext.getFieldDataEnabled();
-    }
-
     /**
      * Enforces that a field configured with {@code multi_value=no} receives at most one value per document. The first call for a given
      * field name succeeds; a subsequent call for the same name throws {@link IllegalArgumentException}. Shared across all child contexts

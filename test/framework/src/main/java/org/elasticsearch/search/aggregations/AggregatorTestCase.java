@@ -1422,7 +1422,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 ScriptCompiler.NONE,
                 null,
                 indexSettings,
-                null,
                 query -> {
                     throw new UnsupportedOperationException();
                 },

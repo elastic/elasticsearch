@@ -31,9 +31,11 @@ import java.util.Optional;
  * {@code do_lower_case} is not applied by the byte-level BPE analyzer and must not be set to {@code true};
  * requests that set it to {@code true} are rejected like {@link RobertaTokenization}.
  * When {@code with_special_tokens} is {@code true}, the configured BOS and EOS strings must be present
- * in the vocabulary; the configured mask string is optional for encoding-only inference, and the mask
- * token id may be unset if that token is missing from the vocabulary (masking-oriented tasks should
- * ensure it exists).
+ * in the vocabulary; that requirement is enforced when the inference tokenizer is constructed for the model (not only in
+ * {@link #validateVocabulary(org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction.Request)}), consistent with
+ * {@link RobertaTokenization}.
+ * The configured mask string is optional for encoding-only inference, and the mask token id may be unset if that token
+ * is missing from the vocabulary (masking-oriented tasks should ensure it exists).
  */
 public class ByteLevelBpeTokenization extends Tokenization {
 

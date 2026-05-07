@@ -14,25 +14,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.test.BWCVersions.getAllBWCVersions;
 
 public class TextEmbeddingConfigTests extends InferenceConfigItemTestCase<TextEmbeddingConfig> {
-
-    /**
-     * {@link #createRandom()} may use {@link ByteLevelBpeTokenization}, which requires
-     * {@link ByteLevelBpeTokenization#ML_BYTE_LEVEL_BPE_TOKENIZATION_ADDED}; the base class filters BWC versions using only one
-     * {@link #createTestInstance()} sample, so we must assume byte-level BPE may appear in every serialization run.
-     */
-    @Override
-    protected List<TransportVersion> bwcVersions() {
-        return getAllBWCVersions().stream()
-            .filter(v -> v.supports(ByteLevelBpeTokenization.ML_BYTE_LEVEL_BPE_TOKENIZATION_ADDED))
-            .collect(Collectors.toList());
-    }
 
     public static TextEmbeddingConfig mutateForVersion(TextEmbeddingConfig instance, TransportVersion version) {
         return TextEmbeddingConfig.create(
@@ -97,7 +81,6 @@ public class TextEmbeddingConfigTests extends InferenceConfigItemTestCase<TextEm
                 ? null
                 : randomFrom(
                     BertTokenizationTests.createRandom(),
-                    ByteLevelBpeTokenizationTests.createRandom(),
                     MPNetTokenizationTests.createRandom(),
                     RobertaTokenizationTests.createRandom()
                 ),

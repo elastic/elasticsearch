@@ -46,7 +46,7 @@ public final class InferenceConfigTestScaffolding {
             );
         } else if (tokenization instanceof ByteLevelBpeTokenization byteLevelBpeTokenization) {
             return new ByteLevelBpeTokenization(
-                false,
+                byteLevelBpeTokenization.doLowerCase(),
                 byteLevelBpeTokenization.withSpecialTokens(),
                 byteLevelBpeTokenization.maxSequenceLength(),
                 truncate,

@@ -104,7 +104,6 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                                 requiredAttrBuilder.remove(attribute);
                             }
                         }
-                        var noFieldsPlan = output.equals(Analyzer.NO_FIELDS);
                         // requiredAttrBuilder should be empty unless the plan is inconsistent due to a bug.
                         // This can happen in case of remote ENRICH, see https://github.com/elastic/elasticsearch/issues/118531
                         // TODO: stop adding the remaining required attributes once remote ENRICH is fixed.
@@ -127,7 +126,6 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                             fragmentExec.esFilter(),
                             fragmentExec.estimatedRowSize()
                         );
-
                         return new ExchangeExec(exec.source(), output, exec.inBetweenAggs(), newChild);
                     }
                 }

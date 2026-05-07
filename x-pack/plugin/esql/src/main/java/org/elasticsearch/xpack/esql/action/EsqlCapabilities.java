@@ -2685,6 +2685,11 @@ public class EsqlCapabilities {
          */
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
+        /**
+         * Fix for column pruning when FORK branches return no columns.
+         */
+        FORK_PROJECT_AWAY_COLUMNS_FIX,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

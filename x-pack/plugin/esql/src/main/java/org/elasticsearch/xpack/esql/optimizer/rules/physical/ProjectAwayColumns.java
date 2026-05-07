@@ -24,11 +24,9 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static java.lang.Boolean.FALSE;
@@ -116,7 +114,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                         // however until a proper fix (see https://github.com/elastic/elasticsearch/issues/98703)
                         // add a synthetic field (so it doesn't clash with the user defined one) to return a constant
                         // to avoid the block from being trimmed
-                        if ((output.isEmpty() && isForkBranch == false) || (noFieldsPlan && isForkBranch)) {
+                        if (output.isEmpty() && isForkBranch == false) {
                             var alias = new Alias(logicalFragment.source(), ALL_FIELDS_PROJECTED, Literal.NULL, null, true);
                             List<Alias> fields = singletonList(alias);
                             logicalFragment = new Eval(logicalFragment.source(), logicalFragment, fields);
@@ -129,13 +127,8 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                             fragmentExec.esFilter(),
                             fragmentExec.estimatedRowSize()
                         );
-                        var exchange = new ExchangeExec(exec.source(), output, exec.inBetweenAggs(), newChild);
-                        if (isForkBranch && noFieldsPlan) {
-                            // if there is no aggregation that is building the final projection, proactively remove the synthetic field
-                            return new ProjectExec(exec.source(), exchange, Collections.emptyList());
-                        }
 
-                        return exchange;
+                        return new ExchangeExec(exec.source(), output, exec.inBetweenAggs(), newChild);
                     }
                 }
             } else {

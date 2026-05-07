@@ -1064,3 +1064,35 @@ from employees
 y:long
 0
 ;
+
+forkWithMixedBranchesUsingSortNoBranchOutputAndFinalFilterAndStats
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+FROM employees
+| EVAL x = 1
+| FORK (SORT x | LIMIT 10) (WHERE true)
+| WHERE _fork == "fork1"
+| STATS y = COUNT(*)
+;
+
+y:long
+10
+;
+
+forkWithMixedBranchesAndFinalStats
+
+required_capability: fork_v9
+required_capability: fork_project_away_columns_fix
+
+from employees
+| fork (stats z = count(*) by first_name)
+       (where emp_no > 10000)
+       (stats x = count(*))
+| stats y = count(*)
+;
+
+y:long
+192
+;

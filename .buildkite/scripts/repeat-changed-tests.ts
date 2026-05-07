@@ -441,9 +441,8 @@ export function generateBatchCommand(batch: ClassifiedTest[]): string {
       // share agent and cluster setup. MutedTestPlugin sets
       // `failOnNoMatchingTests = false` in CI, making cross-project batching
       // safe even when a filter matches nothing in some of the selected tasks.
-      const projects = [...new Set(batch.map((t) => `${t.gradleProject}:yamlRestTest`))];
-      const testFilters = batch.map((t) => `--tests "${t.fqcn}.${t.yamlTest}"`).join(" ");
-      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${projects.join(" ")} ${testFilters} --rerun`;
+      const tasks = tasksWithFilters(batch, "yamlRestTest", (t) => `--tests "${t.fqcn}.${t.yamlTest}"`, "--rerun");
+      return `.ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh ${tasks}`;
     }
   }
 }

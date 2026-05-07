@@ -7558,7 +7558,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
-        assertThat(evalBucket.fields(), hasSize(1));
+        // bucket alias + ToDouble(network.bytes_in) extracted from Sum's nested expression
+        assertThat(evalBucket.fields(), hasSize(2));
         EsRelation relation = as(evalBucket.child(), EsRelation.class);
         assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
 
@@ -7569,7 +7570,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         Sum sumTs = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), Sum.class);
         assertThat(sumTs.summationMode(), equalTo(SummationMode.LOSSY_LITERAL));
-        assertThat(Expressions.attribute(sumTs.field()).name(), equalTo("network.bytes_in"));
+        // Avg(long) surrogate casts to double; the cast is extracted into the eval below the time-series agg.
+        Alias toDoubleAlias = as(evalBucket.fields().get(1), Alias.class);
+        ToDouble toDouble = as(toDoubleAlias.child(), ToDouble.class);
+        assertThat(Expressions.attribute(toDouble.field()).name(), equalTo("network.bytes_in"));
+        assertThat(Expressions.attribute(sumTs.field()).id(), equalTo(toDoubleAlias.id()));
         Count countTs = as(Alias.unwrap(aggsByTsid.aggregates().get(1)), Count.class);
         assertThat(Expressions.attribute(countTs.field()).name(), equalTo("network.bytes_in"));
         assertThat(Expressions.attribute(aggsByTsid.groupings().get(1)).id(), equalTo(evalBucket.fields().get(0).id()));

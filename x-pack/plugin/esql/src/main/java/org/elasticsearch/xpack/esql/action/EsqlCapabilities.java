@@ -2182,6 +2182,13 @@ public class EsqlCapabilities {
         FIX_SUM_AGG_LONG_OVERFLOW,
 
         /**
+         * AVG(long) casts the field to double up-front in its surrogate, so the intermediate sum
+         * can no longer overflow.
+         * https://github.com/elastic/elasticsearch/issues/99575
+         */
+        FIX_AVG_AGG_LONG_OVERFLOW,
+
+        /**
          * Support for requesting the "_tier" metadata field.
          */
         METADATA_TIER_FIELD(Build.current().isSnapshot()),

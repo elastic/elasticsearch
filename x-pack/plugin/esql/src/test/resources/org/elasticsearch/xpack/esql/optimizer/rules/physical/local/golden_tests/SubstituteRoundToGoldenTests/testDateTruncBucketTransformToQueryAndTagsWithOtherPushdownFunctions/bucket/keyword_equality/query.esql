@@ -1,3 +1,0 @@
-from all_types
-| where keyword == "keyword"
-| stats count(*) by x = bucket(date, 1 day)

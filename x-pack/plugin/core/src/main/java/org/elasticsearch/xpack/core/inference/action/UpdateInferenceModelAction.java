@@ -229,8 +229,9 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
                         parsedBodyTaskType = TaskType.fromStringOrStatusException(taskTypeString);
                     } else {
                         throw new ElasticsearchStatusException(
-                            "Failed to parse [task_type] in update request [{}]",
+                            "Failed to parse [{}] in update request [{}]",
                             RestStatus.BAD_REQUEST,
+                            TaskType.NAME,
                             unvalidatedMap.toString()
                         );
                     }

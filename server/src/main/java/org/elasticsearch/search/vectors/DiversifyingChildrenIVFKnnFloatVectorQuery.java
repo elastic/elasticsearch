@@ -114,8 +114,10 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
     public Query createRetryQuery(IndexReader reader, int[] excludedDocs, int[] seedDocs, int remainingK) {
         Map<Integer, FixedBitSet> skipCentroids = buildSkipCentroids();
         Query filter = excludedDocs != null && excludedDocs.length > 0 ? new ExcludeDocsQuery(excludedDocs, reader) : null;
-        // Derive retry numCands from this query's k/numCands ratio so the IVF beam scales with retry K.
-        int retryNumCands = (int) Math.clamp(Math.ceil((double) remainingK * numCands / k), remainingK, NUM_CANDS_LIMIT);
+        // Keep the full beam from this query — scaling numCands down with remainingK collapses to a
+        // pathologically narrow beam when remainingK is tiny (e.g., 1 of 500), making it likely the
+        // retry's heap fills with docs that are already excluded or fail the post-hoc filter.
+        int retryNumCands = Math.clamp(numCands, remainingK, NUM_CANDS_LIMIT);
         // Widen visit ratio by POST_FILTER_OVERSAMPLE_FLOOR for the retry round.
         float scaledVisitRatio = providedVisitRatio > 0f ? Math.min(1.0f, providedVisitRatio * POST_FILTER_OVERSAMPLE_FLOOR) : 0f;
         return new DiversifyingChildrenIVFKnnFloatVectorQuery(
@@ -128,6 +130,23 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
             scaledVisitRatio,
             doPrecondition,
             skipCentroids
+        );
+    }
+
+    @Override
+    public Query createFallbackQuery(IndexReader reader, int[] excludedDocs, int remainingK) {
+        Query newFilter = KnnQueryUtils.augmentFilter(this.filter, excludedDocs, reader);
+        int retryNumCands = Math.clamp(numCands, remainingK, NUM_CANDS_LIMIT);
+        return new DiversifyingChildrenIVFKnnFloatVectorQuery(
+            field,
+            getOriginalQuery().clone(),
+            remainingK,
+            retryNumCands,
+            newFilter,
+            parentsFilter,
+            providedVisitRatio,
+            doPrecondition,
+            null
         );
     }
 

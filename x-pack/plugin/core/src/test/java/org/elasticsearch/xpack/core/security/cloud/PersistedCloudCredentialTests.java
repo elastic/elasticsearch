@@ -73,6 +73,11 @@ public class PersistedCloudCredentialTests extends AbstractXContentSerializingTe
         assertThat(npe2.getMessage(), containsString("credential"));
     }
 
+    public void testNewInstanceStampsCurrentVersion() {
+        var instance = createTestInstance();
+        assertThat(instance.version(), is(equalTo(PersistedCloudCredential.CURRENT_VERSION)));
+    }
+
     public void testToStringRedactsCredential() {
         var instance = createTestInstance();
         var str = instance.toString();

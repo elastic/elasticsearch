@@ -18,14 +18,14 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 
-public abstract class AbstractBulkIndexBySearchRequest<Self extends AbstractBulkIndexBySearchRequest<Self>> extends
+public abstract class AbstractBulkIndexByPaginatedSearchRequest<Self extends AbstractBulkIndexByPaginatedSearchRequest<Self>> extends
     AbstractBulkByScrollRequest<Self> {
     /**
      * Script to modify the documents before they are processed.
      */
     private Script script;
 
-    public AbstractBulkIndexBySearchRequest(StreamInput in) throws IOException {
+    public AbstractBulkIndexByPaginatedSearchRequest(StreamInput in) throws IOException {
         super(in);
         if (in.readBoolean()) {
             script = new Script(in);
@@ -39,7 +39,7 @@ public abstract class AbstractBulkIndexBySearchRequest<Self extends AbstractBulk
      * @param setDefaults should this request set the defaults on the search request? Usually set to true but leave it false to support
      *        request slicing
      */
-    protected AbstractBulkIndexBySearchRequest(SearchRequest searchRequest, boolean setDefaults) {
+    protected AbstractBulkIndexByPaginatedSearchRequest(SearchRequest searchRequest, boolean setDefaults) {
         super(searchRequest, setDefaults);
     }
 

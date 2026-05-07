@@ -898,10 +898,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
 
                 List<String> inputs = useLegacyFormat
-                    ? responses.stream()
-                        .filter(r -> r.sourceField().equals(fieldName))
-                        .map(r -> ((ChunkedStringFieldInferenceResponse) r).input())
-                        .collect(Collectors.toList())
+                    ? responses.stream().filter(r -> r.sourceField().equals(fieldName)).map(FieldInferenceResponse::legacyInput).toList()
                     : null;
 
                 // The model can be null if we are only processing update requests that clear inference results. This is ok because we will

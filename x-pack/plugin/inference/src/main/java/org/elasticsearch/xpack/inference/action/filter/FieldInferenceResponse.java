@@ -59,6 +59,13 @@ abstract sealed class FieldInferenceResponse permits InferenceStringFieldInferen
 
     public abstract List<SemanticTextField.Chunk> toChunks(boolean useLegacyFormat, XContentType contentType) throws IOException;
 
+    /**
+     * Returns the original input as recorded for the legacy semantic text format, or throws if this response shape
+     * does not participate in the legacy format.
+     */
+    @Nullable
+    public abstract String legacyInput();
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

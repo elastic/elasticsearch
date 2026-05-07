@@ -57,6 +57,13 @@ final class InferenceStringFieldInferenceResponse extends FieldInferenceResponse
     }
 
     @Override
+    public String legacyInput() {
+        throw new IllegalStateException(
+            "legacyInput should not be called on " + InferenceStringFieldInferenceResponse.class.getSimpleName()
+        );
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (super.equals(o) == false) return false;
         InferenceStringFieldInferenceResponse that = (InferenceStringFieldInferenceResponse) o;

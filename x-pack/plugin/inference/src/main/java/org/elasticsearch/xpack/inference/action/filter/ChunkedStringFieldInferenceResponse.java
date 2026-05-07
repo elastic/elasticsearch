@@ -43,11 +43,6 @@ final class ChunkedStringFieldInferenceResponse extends FieldInferenceResponse {
         this.chunkedResults = chunkedResults;
     }
 
-    @Nullable
-    public String input() {
-        return input;
-    }
-
     public int offsetAdjustment() {
         return offsetAdjustment;
     }
@@ -61,6 +56,11 @@ final class ChunkedStringFieldInferenceResponse extends FieldInferenceResponse {
         return useLegacyFormat
             ? SemanticTextField.toSemanticTextFieldChunksLegacy(input, chunkedResults, contentType)
             : SemanticTextField.toSemanticTextFieldChunks(offsetAdjustment, chunkedResults, contentType);
+    }
+
+    @Override
+    public String legacyInput() {
+        return input;
     }
 
     @Override

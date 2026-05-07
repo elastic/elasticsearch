@@ -376,7 +376,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkWithSortBranchBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkTopNIndexOutOfBoundsBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isForkOptimizedIncorrectlyBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isForkOptimizedIncorrectlyBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isRenameMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query), };
 
     private static boolean isAllowedFailure(FailureContext ctx) {
         if (ctx == null || ctx.errorMessage == null) {
@@ -863,6 +864,27 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return FORK_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern RENAME_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*RENAME\\b");
+    private static final Pattern MV_EXPAND_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*MV_EXPAND\\b");
+    private static final Pattern FUNCTION_GENERATING_COMMAND_PATTERN = Pattern.compile(
+        "(?i)\\|\\s*(?:REGISTERED_DOMAIN|URI_PARTS|USER_AGENT)\\b"
+    );
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/148500
+     */
+    static boolean isRenameMvExpandOrderByBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_ORDERBY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return RENAME_COMMAND_PATTERN.matcher(query).find()
+            && MV_EXPAND_COMMAND_PATTERN.matcher(query).find()
+            && FUNCTION_GENERATING_COMMAND_PATTERN.matcher(query).find();
     }
 
     @Override

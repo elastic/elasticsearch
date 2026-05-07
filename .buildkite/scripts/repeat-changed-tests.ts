@@ -159,38 +159,54 @@ export function locateUnmutedTest(entry: MutedEntry, repoFiles: string[]): Class
     if (match === null) continue;
 
     const gradleProject = toGradleProject(match[1]);
+    const kind = pattern.kind;
 
-    if (pattern.kind === "yamlRestTestRunner") {
-      // A parameterized yaml test case is identified by its full descriptor
-      // "test {yaml=<path>/<test name>}". We target it exactly via
-      // `-Dtests.method=...` rather than `tests.rest.suite`, which only
-      // accepts file/directory paths and cannot address an individual case.
-      if (entry.method !== undefined && YAML_METHOD_REGEX.test(entry.method)) {
+    switch (kind) {
+      case "test":
+      case "internalClusterTest":
+      case "javaRestTest":
         return {
           gradleProject,
-          kind: "yamlRestTestCase",
-          sourceSet: "yamlRestTest",
-          fqcn: entry.className,
-          yamlTest: entry.method,
+          kind,
+          sourceSet: pattern.sourceSet,
+          fqcn: toFqcn(match[2]),
         };
-      }
-      return {
-        gradleProject,
-        kind: "yamlRestTestRunner",
-        sourceSet: "yamlRestTest",
-      };
+      case "yamlRestTestRunner":
+        // A parameterized yaml test case is identified by its full descriptor
+        // "test {yaml=<path>/<test name>}". We target it exactly via
+        // `--tests "<FQCN>.test {yaml=...}"` rather than `tests.rest.suite`,
+        // which only accepts file/directory paths and cannot address an
+        // individual case.
+        if (entry.method !== undefined && YAML_METHOD_REGEX.test(entry.method)) {
+          return {
+            gradleProject,
+            kind: "yamlRestTestCase",
+            sourceSet: "yamlRestTest",
+            fqcn: entry.className,
+            yamlTest: entry.method,
+          };
+        }
+        return {
+          gradleProject,
+          kind: "yamlRestTestRunner",
+          sourceSet: "yamlRestTest",
+        };
+      case "yamlRestTestSuite":
+        // Unreachable: muted-tests entries reference a Java class, but
+        // yamlRestTestSuite only matches `.yml` resources. Fail loudly so
+        // any future change to SOURCE_SET_PATTERNS that breaks this
+        // invariant surfaces here rather than later as a malformed
+        // ClassifiedTest in generateBatchCommand.
+        throw new Error(`yamlRestTestSuite pattern unexpectedly matched Java file ${candidate}`);
+      default:
+        return assertNever(kind);
     }
-
-    // yamlRestTestSuite is only produced from .yml resources, never from a muted-tests entry
-    // (muted entries reference a Java class, so we never reach that branch here).
-    return {
-      gradleProject,
-      kind: pattern.kind,
-      sourceSet: pattern.sourceSet,
-      fqcn: toFqcn(match[2]),
-    };
   }
   return null;
+}
+
+function assertNever(x: never): never {
+  throw new Error(`Unhandled SOURCE_SET_PATTERN kind: ${x as string}`);
 }
 
 export interface UnmuteDetectionResult {

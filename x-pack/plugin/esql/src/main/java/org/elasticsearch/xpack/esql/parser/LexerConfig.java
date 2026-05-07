@@ -69,7 +69,7 @@ public abstract class LexerConfig extends Lexer {
      * and exposing the remaining input to the next {@link #nextToken()} call.
      *
      * <p>Used by lookahead-style lexer rules (see {@code IN_SUBQUERY_LP} and
-     * {@code IN_EXPR_FALLBACK} in {@code InSubquery.g4}) that match more text than
+     * {@code IN_EXPR_FALLBACK} in {@code InExpression.g4}) that match more text than
      * they want to consume — e.g. peek at {@code '(' KEYWORD WS*} but only emit
      * {@code '('}, leaving the keyword to be re-lexed in a different mode.
      *

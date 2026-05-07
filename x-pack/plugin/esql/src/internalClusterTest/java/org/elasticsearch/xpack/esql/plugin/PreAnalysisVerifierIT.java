@@ -17,7 +17,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.containsString;
 
 /**
- * End-to-end coverage for the PreAnalalysisVerifier
+ * End-to-end coverage for the PreAnalysisVerifier
  *
  * <p>Unit tests in {@code PreAnalysisVerifierTests} cover the verifier in isolation,
  * but they call {@code PreAnalysisVerifier.verify} directly — they don't exercise
@@ -43,50 +43,51 @@ public class PreAnalysisVerifierIT extends AbstractEsqlIntegTestCase {
 
     // TODO: Remove once WHERE IN subquery is fully in snapshot
     public void testWhereInSubqueryRejectedAtRuntime() {
-        assumeTrue("IN subquery is snapshot-only", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("IN subquery is not enabled", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
         expectThrows(
             VerificationException.class,
-            containsString("IN (subquery) is not yet supported"),
+            containsString("IN subquery is not yet supported"),
             () -> run(syncEsqlQueryRequest("FROM main_index | WHERE x IN (FROM sub_index)"))
         );
     }
 
     public void testInSubqueryOutsideWhereRejectedAtRuntime() {
-        assumeTrue("IN subquery is snapshot-only", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("IN subquery is not enabled", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
         expectThrows(
             VerificationException.class,
-            containsString("IN (subquery) can only be used in a top level WHERE clause"),
+            containsString("IN subquery is not supported in Eval [EVAL y = x IN (FROM sub_index)]"),
             () -> run(syncEsqlQueryRequest("FROM main_index | EVAL y = x IN (FROM sub_index)"))
         );
     }
 
-    /*
-     * STATS ... WHERE ... is an aggregation-level filter (a FilteredExpression on the
-     * Aggregate node), not a Filter plan node, so it doesn't qualify as a top-level
-     * WHERE. PreAnalysisVerifier surfaces a STATS/INLINE STATS-specific message so the
-     * user isn't left wondering why their WHERE-looking clause doesn't count.
-     */
     public void testInSubqueryInStatsWhereRejectedAtRuntime() {
-        assumeTrue("IN subquery is snapshot-only", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("IN subquery is not enabled", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
         expectThrows(
             VerificationException.class,
-            containsString("IN (subquery) is not allowed in STATS or INLINE STATS aggregation filter"),
+            containsString("IN subquery is not supported in Aggregate [STATS c = COUNT(*) WHERE x IN (FROM sub_index)]"),
             () -> run(syncEsqlQueryRequest("FROM main_index | STATS c = COUNT(*) WHERE x IN (FROM sub_index)"))
         );
     }
 
-    /*
-     * Same shape as STATS WHERE: INLINE STATS ... WHERE ... is a per-aggregation filter
-     * on the inner Aggregate (which InlineStats wraps), not a Filter. Same message as
-     * STATS — both per-aggregation filters share the same "not allowed" branch.
-     */
     public void testInSubqueryInInlineStatsWhereRejectedAtRuntime() {
-        assumeTrue("IN subquery is snapshot-only", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("IN subquery is not enabled", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
 
         expectThrows(
             VerificationException.class,
-            containsString("IN (subquery) is not allowed in STATS or INLINE STATS aggregation filter"),
+            containsString("IN subquery is not supported in Aggregate [INLINE STATS c = COUNT(*) WHERE x IN (FROM sub_index)]"),
             () -> run(syncEsqlQueryRequest("FROM main_index | INLINE STATS c = COUNT(*) WHERE x IN (FROM sub_index)"))
+        );
+    }
+
+    public void testInSubqueryUsedAsValueRejectedAtRuntime() {
+        assumeTrue("IN subquery is not enabled", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+
+        expectThrows(
+            VerificationException.class,
+            containsString(
+                "IN subquery is not supported in Filter [WHERE emp_no > 0 and MV_CONTAINS(x IN (FROM main_index), [true, false])]"
+            ),
+            () -> run(syncEsqlQueryRequest("FROM main_index | WHERE emp_no > 0 and MV_CONTAINS(x IN (FROM main_index), [true, false])"))
         );
     }
 }

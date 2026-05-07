@@ -30,38 +30,74 @@ public class PreAnalysisVerifierTests extends AbstractStatementParserTests {
     }
 
     public void testWhereInSubqueryRejected() {
-        expectVerifierError("from test | where emp_no in (from test)", containsString("IN (subquery) is not yet supported"));
+        expectVerifierError("from test | where emp_no in (from test)", containsString("IN subquery is not yet supported"));
     }
 
     public void testWhereNotInSubqueryRejected() {
-        expectVerifierError("from test | where emp_no not in (from test)", containsString("IN (subquery) is not yet supported"));
+        expectVerifierError("from test | where emp_no not in (from test)", containsString("IN subquery is not yet supported"));
     }
 
     public void testInSubqueryInEvalRejected() {
         expectVerifierError(
             "from test | eval x = emp_no in (from test)",
-            containsString("IN (subquery) can only be used in a top level WHERE clause")
+            containsString("IN subquery is not supported in Eval [eval x = emp_no in (from test)]")
         );
     }
 
     public void testInSubqueryInSortRejected() {
         expectVerifierError(
             "from test | sort emp_no in (from test)",
-            containsString("IN (subquery) can only be used in a top level WHERE clause")
+            containsString(" IN subquery is not supported in OrderBy [sort emp_no in (from test)]")
         );
     }
 
     public void testInSubqueryInStatsFilterRejected() {
         expectVerifierError(
             "from test | stats c = count(*) where emp_no in (from test)",
-            containsString("IN (subquery) is not allowed in STATS or INLINE STATS aggregation filter")
+            containsString("IN subquery is not supported in Aggregate [stats c = count(*) where emp_no in (from test)]")
         );
     }
 
     public void testInSubqueryInInlineStatsFilterRejected() {
         expectVerifierError(
             "from test | inline stats c = count(*) where emp_no in (from test)",
-            containsString("IN (subquery) is not allowed in STATS or INLINE STATS aggregation filter")
+            containsString("IN subquery is not supported in Aggregate [inline stats c = count(*) where emp_no in (from test)]")
+        );
+    }
+
+    public void testWhereInSubqueryUnderAndRejectedAsNotYetSupported() {
+        expectVerifierError("from test | where emp_no > 0 and emp_no in (from test)", containsString("IN subquery is not yet supported"));
+    }
+
+    public void testWhereInSubqueryUnderOrRejectedAsNotYetSupported() {
+        expectVerifierError("from test | where emp_no in (from test) or emp_no > 0", containsString("IN subquery is not yet supported"));
+    }
+
+    public void testWhereInSubqueryUnderNestedLogicalOpsRejectedAsNotYetSupported() {
+        expectVerifierError(
+            "from test | where not (emp_no > 0 and (emp_no in (from test) or emp_no < 100))",
+            containsString("IN subquery is not yet supported")
+        );
+    }
+
+    public void testInSubqueryAsValueUnderAndRejected() {
+        expectVerifierError(
+            "from test | where emp_no > 0 and MV_CONTAINS(x IN (from test), [true, false])",
+            containsString("IN subquery is not supported as value")
+        );
+    }
+
+    public void testInSubqueryAsValueUnderOrRejected() {
+        expectVerifierError(
+            "from test | where MV_CONTAINS(x IN (from test), [true, false]) or emp_no > 0",
+            containsString("IN subquery is not supported as value")
+        );
+    }
+
+    public void testInSubqueryAsValueUnderNotRejected() {
+        expectVerifierError(
+            "from test | where not MV_CONTAINS(x IN (from test), [true, false])",
+            containsString("IN subquery is not supported as value")
         );
     }
 

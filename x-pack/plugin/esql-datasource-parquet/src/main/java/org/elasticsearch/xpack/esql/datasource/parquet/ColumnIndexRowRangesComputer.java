@@ -27,8 +27,10 @@ import java.util.List;
  *
  * <p>For each leaf predicate, the visitor checks every page's min/max values against the
  * predicate and builds row ranges from surviving pages. Logical operators compose these
- * ranges via set operations: AND → intersect, OR → union. NOT conservatively returns all
- * rows because complement of page-level ranges would drop rows from mixed pages.
+ * ranges via set operations: AND → intersect, OR → union. The logical {@code NOT}
+ * conservatively returns all rows because complement of page-level ranges would drop rows
+ * from mixed pages. Leaf {@code NotEq} is handled directly: pages with min == max == value
+ * can be pruned because every row on such a page fails {@code != value}.
  *
  * <p>When a column has no ColumnIndex or OffsetIndex (e.g., columns with no statistics,
  * or very old Parquet writers), the visitor conservatively returns {@link RowRanges#all}.
@@ -88,9 +90,14 @@ final class ColumnIndexRowRangesComputer implements FilterPredicate.Visitor<RowR
 
     @Override
     public <T extends Comparable<T>> RowRanges visit(Operators.NotEq<T> notEq) {
-        // NotEq can only skip a page when ALL values equal the target (min==max==value, no nulls).
-        // This is rare and checking null counts adds complexity. Conservative: keep all pages.
-        return all();
+        T value = notEq.getValue();
+        if (value == null) {
+            return all();
+        }
+        // A page survives NotEq(value) unless every non-null value on the page equals `value`,
+        // i.e. min == max == value. Null rows also fail NotEq (NULL != X is NULL/false), so
+        // when min == max == value all rows on the page can be pruned safely.
+        return evaluateLeaf(notEq.getColumn(), (min, max) -> min.compareTo(value) != 0 || max.compareTo(value) != 0);
     }
 
     @Override

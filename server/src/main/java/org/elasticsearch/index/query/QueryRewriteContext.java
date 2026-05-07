@@ -24,12 +24,14 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
@@ -60,6 +62,7 @@ import static org.elasticsearch.search.SearchService.DEFAULT_ALLOW_PARTIAL_SEARC
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
  */
 public class QueryRewriteContext {
+
     protected final MapperService mapperService;
     protected final MappingLookup mappingLookup;
     protected final Map<String, MappedFieldType> runtimeMappings;
@@ -389,8 +392,13 @@ public class QueryRewriteContext {
         if (allowedFields != null && false == allowedFields.test(name)) {
             return null;
         }
-        MappedFieldType fieldType = runtimeMappings.get(name);
-        return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
+        final String fieldName = resolveSliceAlias(name);
+        MappedFieldType fieldType = runtimeMappings.get(fieldName);
+        return fieldType == null ? mappingLookup.getFieldType(fieldName) : fieldType;
+    }
+
+    private String resolveSliceAlias(String fieldName) {
+        return isSliceFieldAlias(fieldName) ? RoutingFieldMapper.NAME : fieldName;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -404,7 +412,7 @@ public class QueryRewriteContext {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
-            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
+            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, indexSettings, getIndexAnalyzers(), false);
             return builder.build(MapperBuilderContext.root(false, false)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
@@ -563,6 +571,9 @@ public class QueryRewriteContext {
      * @param pattern the field name pattern
      */
     public Set<String> getMatchingFieldNames(String pattern) {
+        if (isSliceFieldAlias(pattern)) {
+            return Set.of(SliceIndexing.PARAM_NAME);
+        }
         Set<String> matches;
         if (runtimeMappings.isEmpty()) {
             matches = mappingLookup.getMatchingFieldNames(pattern);
@@ -585,6 +596,14 @@ public class QueryRewriteContext {
         }
         // If the field is not allowed, behave as if it is not mapped
         return allowedFields == null ? matches : matches.stream().filter(allowedFields).collect(Collectors.toSet());
+    }
+
+    protected final boolean isSliceFieldAlias(String fieldName) {
+        return isSliceFieldAliasEnabled() && SliceIndexing.PARAM_NAME.equals(fieldName);
+    }
+
+    private boolean isSliceFieldAliasEnabled() {
+        return SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && indexSettings != null && indexSettings.isSliceEnabled();
     }
 
     /**

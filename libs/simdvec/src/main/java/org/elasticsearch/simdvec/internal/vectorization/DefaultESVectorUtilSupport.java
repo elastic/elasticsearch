@@ -13,7 +13,13 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.BFloat16Support;
 import org.elasticsearch.simdvec.MathUtils;
+import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
+import org.elasticsearch.simdvec.MultiByteVectorsSource;
+import org.elasticsearch.simdvec.MultiFloatVectorsSource;
+
+import java.nio.ShortBuffer;
 
 final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
@@ -23,6 +29,28 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         } else {
             return a * b + c;
         }
+    }
+
+    static void floatToBFloat16(float[] floats, ShortBuffer bFloats, int startOffset) {
+        for (int i = startOffset; i < floats.length; i++) {
+            bFloats.put(BFloat16Support.floatToBFloat16(floats[i]));
+        }
+    }
+
+    static void bFloat16ToFloat(ShortBuffer bFloats, float[] floats, int startOffset) {
+        for (int i = startOffset; i < floats.length; i++) {
+            floats[i] = BFloat16Support.bFloat16ToFloat(bFloats.get());
+        }
+    }
+
+    @Override
+    public void floatToBFloat16(float[] floats, ShortBuffer bFloats) {
+        floatToBFloat16(floats, bFloats, 0);
+    }
+
+    @Override
+    public void bFloat16ToFloat(ShortBuffer bFloats, float[] floats) {
+        bFloat16ToFloat(bFloats, floats, 0);
     }
 
     @Override
@@ -54,6 +82,48 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public float dotProduct(byte[] a, byte[] b) {
         return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+        float sum = 0f;
+        for (float[] floats : query) {
+            float max = Float.NEGATIVE_INFINITY;
+            var vectorValues = source.vectorValues();
+            while (vectorValues.hasNext()) {
+                max = Math.max(max, dotProduct(floats, vectorValues.next()));
+            }
+            sum += max;
+        }
+        return sum;
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        float sum = 0f;
+        for (float[] floats : query) {
+            float max = Float.NEGATIVE_INFINITY;
+            var vectorValues = source.vectorValues();
+            while (vectorValues.hasNext()) {
+                max = Math.max(max, dotProduct(floats, vectorValues.next()));
+            }
+            sum += max;
+        }
+        return sum;
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
+        float sum = 0f;
+        for (byte[] bytes : query) {
+            float max = Float.NEGATIVE_INFINITY;
+            var vectorValues = source.vectorValues();
+            while (vectorValues.hasNext()) {
+                max = Math.max(max, dotProduct(bytes, vectorValues.next()));
+            }
+            sum += max;
+        }
+        return sum;
     }
 
     @Override
@@ -521,6 +591,17 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        assert values.length % 8 == 0 && matches.length == values.length / 64;
+        for (int i = 0; i < values.length; i++) {
+            long v = values[i];
+            if (lowerValue <= v && v <= upperValue) {
+                matches[i >>> 6] |= 1L << (i & 0x3f);
+            }
+        }
+    }
+
+    @Override
     public void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
         if (other.length != dest.length) {
             throw new IllegalArgumentException("vector dimensions differ: " + other.length + "!=" + dest.length);
@@ -586,4 +667,5 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             result[j] = MathUtils.pow2NQT((a + v1[j] - v2[j]) / eps);
         }
     }
+
 }

@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.nio.ShortBuffer;
 import java.util.Objects;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
@@ -75,6 +76,14 @@ public class ESVectorUtil {
         return ESVectorizationProvider.getInstance().newES93BinaryQuantizedVectorScorer(input, dimension, vectorLengthInBytes);
     }
 
+    public static void bFloat16ToFloat(ShortBuffer bfloats, float[] floats) {
+        IMPL.bFloat16ToFloat(bfloats, floats);
+    }
+
+    public static void floatToBFloat16(float[] floats, ShortBuffer bfloats) {
+        IMPL.floatToBFloat16(floats, bfloats);
+    }
+
     public static float dotProduct(float[] a, float[] b) {
         if (a.length != b.length) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
@@ -109,6 +118,42 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
         }
         return IMPL.dotProduct(a, b);
+    }
+
+    /**
+     * Computes max-sim dot product for float query vectors against a multi-vector source.
+     * <p>
+     * The provided {@code scoresScratch} buffer is reused as temporary per-document scores for
+     * each query vector to avoid per-call allocations. Its length must be at least
+     * {@code source.vectorCount()}.
+     */
+    public static float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+        ensureScoresScratchCapacity(source, scoresScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch);
+    }
+
+    /**
+     * Computes max-sim dot product for float query vectors against a bfloat16 multi-vector source.
+     * <p>
+     * The provided {@code scoresScratch} buffer is reused as temporary per-document scores for
+     * each query vector to avoid per-call allocations. Its length must be at least
+     * {@code source.vectorCount()}.
+     */
+    public static float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        ensureScoresScratchCapacity(source, scoresScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch);
+    }
+
+    /**
+     * Computes max-sim dot product for byte query vectors against a multi-vector source.
+     * <p>
+     * The provided {@code scoresScratch} buffer is reused as temporary per-document scores for
+     * each query vector to avoid per-call allocations. Its length must be at least
+     * {@code source.vectorCount()}.
+     */
+    public static float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
+        ensureScoresScratchCapacity(source, scoresScratch);
+        return IMPL.maxSimDotProduct(source, query, scoresScratch);
     }
 
     public static float squareDistance(byte[] a, byte[] b) {
@@ -220,6 +265,30 @@ public class ESVectorUtil {
             distance += Integer.bitCount((a[i] & b[i]) & 0xFF);
         }
         return distance;
+    }
+
+    public static float max(float[] values, int length) {
+        Objects.checkFromIndexSize(0, length, values.length);
+        float max = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < length; i++) {
+            max = Math.max(max, values[i]);
+        }
+        return max;
+    }
+
+    public static float sum(float[] values, int length) {
+        Objects.checkFromIndexSize(0, length, values.length);
+        float sum = 0f;
+        for (int i = 0; i < length; i++) {
+            sum += values[i];
+        }
+        return sum;
+    }
+
+    private static void ensureScoresScratchCapacity(MultiVectorsSource<?> source, float[] scoresScratch) {
+        if (scoresScratch.length < source.vectorCount()) {
+            throw new IllegalArgumentException("scores array too small: " + scoresScratch.length + " < " + source.vectorCount());
+        }
     }
 
     /**
@@ -633,5 +702,17 @@ public class ESVectorUtil {
      */
     public static void pow2DiffAndScaleNQT(float[] v1, float[] v2, float a, float eps, float[] result) {
         IMPL.pow2DiffAndScaleNQT(v1, v2, a, eps, result);
+    }
+
+    /**
+     * For every index {@code i} in {@code [0, values.length)}, sets bit {@code i} in
+     * {@code matches} ({@code matches[i>>>6]}, bit position {@code i & 0x3f}) when
+     * {@code values[i]} lies in {@code [lowerValue, upperValue]}.
+     *
+     * <p>Requires {@code values.length} to be a multiple of 8 (the maximum supported SIMD lane
+     * count, for AVX-512) and {@code matches.length == values.length / 64}.
+     */
+    public static void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        IMPL.inRangeBitmask(values, lowerValue, upperValue, matches);
     }
 }

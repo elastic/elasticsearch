@@ -23,6 +23,7 @@ import org.elasticsearch.logging.Logger;
 import java.time.Clock;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.indexMarkedForFrozen;
 import static org.elasticsearch.logging.LogManager.getLogger;
@@ -37,7 +38,7 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
     static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
         "dlm.frozen_transition.poll_interval",
         TimeValue.timeValueMinutes(5),
-        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueSeconds(1),
         Setting.Property.NodeScope
     );
 
@@ -60,6 +61,7 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
     private static final Logger logger = getLogger(DLMFrozenTransitionService.class);
     private final int maxConcurrency;
     private final int maxQueueSize;
+    private final DLMFrozenTransitionSettings transitionSettings;
     private final DataStreamLifecycleErrorStore errorStore;
     private final BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory;
     private volatile DLMFrozenTransitionExecutor transitionExecutor;
@@ -67,13 +69,15 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
     DLMFrozenTransitionService(
         ClusterService clusterService,
         Client client,
-        XPackLicenseState licenseState,
+        Supplier<XPackLicenseState> licenseStateSupplier,
+        DLMFrozenTransitionSettings transitionSettings,
         DataStreamLifecycleErrorStore errorStore
     ) {
         this(
             clusterService,
-            (index, pid) -> new DLMConvertToFrozen(index, pid, client, clusterService, licenseState, Clock.systemUTC()),
+            (index, pid) -> new DLMConvertToFrozen(index, pid, client, clusterService, licenseStateSupplier, Clock.systemUTC()),
             POLL_INTERVAL_SETTING.get(clusterService.getSettings()).millis(),
+            transitionSettings,
             errorStore
         );
     }
@@ -83,19 +87,27 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
         ClusterService clusterService,
         BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory
     ) {
-        this(clusterService, transitionRunnableFactory, 0, new DataStreamLifecycleErrorStore(System::currentTimeMillis));
+        this(
+            clusterService,
+            transitionRunnableFactory,
+            0,
+            DLMFrozenTransitionSettings.create(clusterService),
+            new DataStreamLifecycleErrorStore(System::currentTimeMillis)
+        );
     }
 
     private DLMFrozenTransitionService(
         ClusterService clusterService,
         BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory,
         long initialDelayMillis,
+        DLMFrozenTransitionSettings transitionSettings,
         DataStreamLifecycleErrorStore errorStore
     ) {
         super(clusterService, POLL_INTERVAL_SETTING.get(clusterService.getSettings()), initialDelayMillis);
         this.maxConcurrency = MAX_CONCURRENCY_SETTING.get(clusterService.getSettings());
         this.maxQueueSize = MAX_QUEUE_SIZE.get(clusterService.getSettings());
         this.transitionRunnableFactory = transitionRunnableFactory;
+        this.transitionSettings = transitionSettings;
         this.errorStore = errorStore;
     }
 
@@ -116,9 +128,9 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
             maxConcurrency,
             maxQueueSize,
             clusterService.getSettings(),
+            transitionSettings,
             errorStore
         );
-        transitionExecutor.init();
     }
 
     @Override

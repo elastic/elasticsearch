@@ -163,8 +163,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static Path localFixturesPath;
 
     /**
-     * Load fixtures from src/test/resources/iceberg-fixtures/ into the S3 and GCS fixtures.
-     * Compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv and .ndjson files are generated
+     * Load fixtures from src/test/resources/iceberg-fixtures/ into the S3, GCS, and Azure fixtures.
+     * Compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv, .ndjson, and .tsv files are generated
      * on the fly rather than checked in.
      */
     @BeforeClass
@@ -177,7 +177,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
-     * Generate compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv and .ndjson fixtures
+     * Generate compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv, .ndjson, and .tsv fixtures
      * on the fly and add them to the S3, GCS, and Azure fixtures. This avoids checking in binary
      * compressed files.
      */
@@ -188,7 +188,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 AbstractExternalSourceSpecTestCase.class.getClassLoader(),
                 (relativePath, content) -> {
                     String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
-                    if (fileName.endsWith(".csv") == false && fileName.endsWith(".ndjson") == false) {
+                    if (fileName.endsWith(".csv") == false && fileName.endsWith(".ndjson") == false && fileName.endsWith(".tsv") == false) {
                         return;
                     }
                     String relativeDir = relativePath.contains("/") ? relativePath.substring(0, relativePath.lastIndexOf('/')) : "";
@@ -258,6 +258,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     private final StorageBackend storageBackend;
     private final String format;
+    /**
+     * Per-test choice of Azure URI form, set once in {@link #doTest()} so that all template
+     * substitutions within a single test (including wildcard expansions returning multiple files)
+     * see a consistent form. Both forms are equivalent; randomising per test exercises both.
+     */
+    private boolean useAzureHadoopForm;
 
     protected AbstractExternalSourceSpecTestCase(
         String fileName,
@@ -294,6 +300,9 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
             assumeTrue("CSV format does not support multi-file glob patterns", "csv".equals(format) == false);
 
         }
+
+        // Pick the Azure URI form once per test so wildcard expansion sees a single, consistent form.
+        useAzureHadoopForm = storageBackend == StorageBackend.AZURE && randomBoolean();
 
         // Transform templates like {{employees}} to actual paths
         query = transformTemplates(query);
@@ -385,7 +394,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 return "gs://" + GcsFixtureUtils.BUCKET + "/" + WAREHOUSE + "/" + relativePath;
 
             case AZURE:
-                // Azure path: wasbs://account.blob.core.windows.net/container/warehouse/standalone/employees.parquet
+                // Azure has two equivalent URI forms; the choice is made once per test in doTest().
+                // Path-style: wasbs://account.blob.core.windows.net/container/warehouse/.../employees.parquet
+                // Hadoop: wasbs://container@account.blob.core.windows.net/warehouse/.../employees.parquet
+                if (useAzureHadoopForm) {
+                    return "wasbs://" + CONTAINER + "@" + ACCOUNT + ".blob.core.windows.net/" + WAREHOUSE + "/" + relativePath;
+                }
                 return "wasbs://" + ACCOUNT + ".blob.core.windows.net/" + CONTAINER + "/" + WAREHOUSE + "/" + relativePath;
 
             default:

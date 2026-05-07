@@ -223,6 +223,16 @@ $endif$
     @Override
     $Type$Block expand();
 
+    /**
+     * The maximum size in bytes of any single value stored in this block, or {@code 0} if there are no values.
+$if(BytesRef)$
+     * Scans all value indices to find the maximum.
+$else$
+     * Always {@code $BYTES$} since all $type$ values encode to the same number of bytes.
+$endif$
+     */
+    int valueMaxByteSize();
+
     static $Type$Block readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {

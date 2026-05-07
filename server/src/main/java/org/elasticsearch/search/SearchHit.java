@@ -13,7 +13,6 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
@@ -52,7 +51,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -200,7 +198,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.refCounted = refCounted == null ? LeakTracker.wrap(new SimpleRefCounted()) : refCounted;
     }
 
-    public static SearchHit readFrom(StreamInput in, boolean pooled) throws IOException {
+    public static SearchHit readFrom(StreamInput in) throws IOException {
         final float score = in.readFloat();
         final int rank;
         rank = in.readVInt();
@@ -209,7 +207,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         final long version = in.readLong();
         final long seqNo = in.readZLong();
         final long primaryTerm = in.readVLong();
-        BytesReference source = pooled ? in.readReleasableBytesReference() : in.readBytesReference();
+        BytesReference source = in.readReleasableBytesReference();
         if (source.length() == 0) {
             source = null;
         }
@@ -245,14 +243,14 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             clusterAlias = shardTarget.getClusterAlias();
         }
 
-        boolean isPooled = pooled && source != null;
+        boolean isPooled = source != null;
         final Map<String, SearchHits> innerHits;
         int size = in.readVInt();
         if (size > 0) {
             innerHits = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 var key = in.readString();
-                var nestedHits = SearchHits.readFrom(in, pooled);
+                var nestedHits = SearchHits.readFrom(in);
                 innerHits.put(key, nestedHits);
                 isPooled = isPooled || nestedHits.isPooled();
             }
@@ -771,37 +769,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             cloneIfHashMap(documentFields),
             cloneIfHashMap(metaFields),
             null
-        );
-    }
-
-    public SearchHit asUnpooled() {
-        assert hasReferences();
-        if (isPooled() == false) {
-            return this;
-        }
-        return new SearchHit(
-            docId,
-            score,
-            rank,
-            id,
-            nestedIdentity,
-            version,
-            seqNo,
-            primaryTerm,
-            source instanceof RefCounted ? new BytesArray(source.toBytesRef(), true) : source,
-            highlightFields,
-            sortValues,
-            matchedQueries,
-            explanation,
-            shard,
-            index,
-            clusterAlias,
-            innerHits == null
-                ? null
-                : innerHits.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().asUnpooled())),
-            cloneIfHashMap(documentFields),
-            cloneIfHashMap(metaFields),
-            ALWAYS_REFERENCED
         );
     }
 

@@ -9,20 +9,50 @@
 
 package org.elasticsearch.gradle.internal.doc
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
-import org.gradle.api.Plugin
+import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
-class DocsTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
-    Class<? extends Plugin> pluginClassUnderTest = DocsTestPlugin.class
+class DocsTestPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
+        // DocsTestPlugin now applies elasticsearch.internal-yaml-rest-test, which transitively
+        // applies RestTestBasePlugin. RestTestBasePlugin requires bwcVersions to be resolvable
+        // at apply time, so set them up via internalBuild() before applying the plugin.
+        settingsFile.text = """
+        plugins {
+            id 'elasticsearch.java-toolchain'
+        }
+
+        toolchainManagement {
+          jvm {
+            javaRepositories {
+              repository('bundledOracleOpendJdk') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+              }
+              repository('adoptiumJdks') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
+              }
+              repository('archivedOracleJdks') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
+              }
+            }
+          }
+        }
+        """ + settingsFile.text
+
         File docDir = new File(projectDir, 'doc')
         docDir.mkdirs()
         addSampleDoc(docDir)
         buildApiRestrictionsDisabled = true
         configurationCacheCompatible = false
+
+        internalBuild()
+
         buildFile << """
+import org.elasticsearch.gradle.internal.doc.DocsTestPlugin
+
+plugins.apply(DocsTestPlugin)
+
 tasks.named('listSnippets') {
    docs = fileTree('doc')
 }

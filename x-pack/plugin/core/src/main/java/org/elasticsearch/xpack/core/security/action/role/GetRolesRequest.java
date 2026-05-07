@@ -25,6 +25,13 @@ public class GetRolesRequest extends LegacyActionRequest {
 
     private boolean nativeOnly = false;
 
+    /**
+     * Opt-in flag that controls whether the response includes implicitly-granted index
+     * privileges contributed by registered {@link org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider}s.
+     * Defaults to {@code false} so the API surface is backwards compatible.
+     */
+    private boolean includeImplicit = false;
+
     public GetRolesRequest() {}
 
     @Override
@@ -50,6 +57,14 @@ public class GetRolesRequest extends LegacyActionRequest {
 
     public boolean nativeOnly() {
         return this.nativeOnly;
+    }
+
+    public void includeImplicit(boolean includeImplicit) {
+        this.includeImplicit = includeImplicit;
+    }
+
+    public boolean includeImplicit() {
+        return this.includeImplicit;
     }
 
     @Override

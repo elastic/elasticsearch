@@ -1,5 +1,0 @@
-area: Infra/Entitlements
-issues: []
-pr: 148537
-summary: "[8.19] Key plugin entitlement policies by descriptor name"
-type: bug

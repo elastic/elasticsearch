@@ -132,19 +132,25 @@ final class FileSourceFactory implements ExternalSourceFactory {
             String scheme = storagePath.scheme();
 
             StorageProvider provider;
+            Configured<FormatReader> readerConfigured;
             if (config != null && config.isEmpty() == false) {
-                provider = storageRegistry.createProvider(scheme, settings, config).value();
+                Configured<StorageProvider> storageConfigured = storageRegistry.createProvider(scheme, settings, config);
+                provider = storageConfigured.value();
+                readerConfigured = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
+                WithClauseValidator.check(
+                    config,
+                    List.of(storageConfigured.consumedKeys(), readerConfigured.consumedKeys(), COORDINATOR_KEYS)
+                );
             } else {
                 provider = storageRegistry.provider(storagePath);
+                readerConfigured = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
             }
 
             StorageObject storageObject = provider.newObject(storagePath);
             if (storageObject.exists() == false) {
                 throw new IOException("File does not exist: " + location);
             }
-            validateConfig(location, config);
-            FormatReader reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config).value();
-            return reader.metadata(storageObject);
+            return readerConfigured.value().metadata(storageObject);
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);
         }

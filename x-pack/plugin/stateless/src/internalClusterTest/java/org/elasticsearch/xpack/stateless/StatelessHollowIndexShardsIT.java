@@ -847,7 +847,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         for (int i = 0; i < numberOfShards; i++) {
             var indexShard = findIndexShard(index, i);
             indexShard.withEngine(e -> {
-                // Some shards might have achieved to be hollowed
+                // Some shards might already be hollowed
                 assertThat(e, either(instanceOf(IndexEngine.class)).or(instanceOf(HollowIndexEngine.class)));
                 return null;
             });
@@ -872,6 +872,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         final ExecutorService ingestPool = Executors.newFixedThreadPool(writers);
         final AtomicBoolean stopIngest = new AtomicBoolean(false);
         final List<Throwable> unexpected = new CopyOnWriteArrayList<>();
+        final CountDownLatch writersReady = new CountDownLatch(writers);
         final CountDownLatch writersStart = new CountDownLatch(1);
         final var moreDocs = new AtomicLong(0);
         try {
@@ -879,6 +880,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 int finalI = i;
                 ingestPool.submit(() -> {
                     try {
+                        writersReady.countDown();
                         safeAwait(writersStart);
                         while (stopIngest.get() == false) {
                             final int newDocs = randomIntBetween(1, clusterInfo.numberOfShards * 10);
@@ -895,6 +897,14 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                             for (int j = 0; j < bulkResponse.getItems().length; j++) {
                                 BulkItemResponse response = bulkResponse.getItems()[j];
                                 if (response.isFailed()) {
+                                    if (response.getFailureMessage().contains("close") == false) {
+                                        logger.error(
+                                            "unexpected failure from writer [{}]: {}",
+                                            finalI,
+                                            response.getFailureMessage(),
+                                            response.getFailure().getCause()
+                                        );
+                                    }
                                     assertThat(
                                         response.getFailureMessage(),
                                         either(containsString("closed")).or(containsString("preparing to close"))
@@ -910,12 +920,16 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                     }
                 });
             }
+            safeAwait(writersReady);
             writersStart.countDown();
             assertAcked(indicesAdmin().prepareClose(clusterInfo.indexName));
         } finally {
             stopIngest.set(true);
             ingestPool.shutdown();
             assertTrue(ingestPool.awaitTermination(2, TimeUnit.MINUTES));
+            if (unexpected.isEmpty() == false) {
+                logger.error("unexpected exceptions from writers: {}", unexpected);
+            }
             assertThat(unexpected, empty());
         }
 
@@ -935,7 +949,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         for (int i = 0; i < clusterInfo.numberOfShards; i++) {
             var indexShard = findIndexShard(index, i);
             indexShard.withEngine(e -> {
-                // Some shards might not have made to be unhollowed
+                // Some shards might not have been unhollowed yet
                 assertThat(e, either(instanceOf(IndexEngine.class)).or(instanceOf(HollowIndexEngine.class)));
                 return null;
             });

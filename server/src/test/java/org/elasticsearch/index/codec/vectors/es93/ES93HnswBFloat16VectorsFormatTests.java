@@ -22,8 +22,12 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 
 import static java.lang.String.format;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
@@ -33,23 +37,89 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
 
     @Override
     protected KnnVectorsFormat createFormat() {
-        return new ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16);
+        return new ES93HnswVectorsFormat(
+            DEFAULT_MAX_CONN,
+            DEFAULT_BEAM_WIDTH,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            DEFAULT_NUM_MERGE_WORKER,
+            null,
+            random().nextInt(1, 20)
+        );
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES93HnswVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.BFLOAT16);
+        return new ES93HnswVectorsFormat(
+            maxConn,
+            beamWidth,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            DEFAULT_NUM_MERGE_WORKER,
+            null,
+            random().nextInt(1, 20)
+        );
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService service) {
-        return new ES93HnswVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.BFLOAT16, numMergeWorkers, service);
+        return new ES93HnswVectorsFormat(
+            maxConn,
+            beamWidth,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            numMergeWorkers,
+            service,
+            random().nextInt(1, 20)
+        );
+    }
+
+    protected KnnVectorsFormat createFormat(
+        int maxConn,
+        int beamWidth,
+        int numMergeWorkers,
+        ExecutorService service,
+        int hnswGraphThreshold
+    ) {
+        return new ES93HnswVectorsFormat(
+            maxConn,
+            beamWidth,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            numMergeWorkers,
+            service,
+            hnswGraphThreshold
+        );
+    }
+
+    public void testDefaultHnswGraphThreshold() {
+        KnnVectorsFormat format = new ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType.BFLOAT16);
+        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD)));
+    }
+
+    public void testHnswGraphThresholdWithCustomValue() {
+        int customThreshold = random().nextInt(1, 1001);
+        KnnVectorsFormat format = createFormat(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, customThreshold);
+        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + customThreshold)));
+    }
+
+    public void testHnswGraphThresholdWithZeroValue() {
+        // When threshold is 0, hnswGraphThreshold is omitted from toString (always build graph)
+        KnnVectorsFormat format = createFormat(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, 0);
+        assertThat(format.toString().contains("hnswGraphThreshold"), is(false));
+    }
+
+    public void testHnswGraphThresholdWithNegativeValueFallsBackToDefault() {
+        KnnVectorsFormat format = createFormat(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, -1);
+        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD)));
     }
 
     public void testToString() {
+        int hnswGraphThreshold = random().nextInt(1, 1001);
         String expected =
-            "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn=10, beamWidth=20, hnswGraphThreshold=150, flatVectorFormat=%s)";
-        expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
+            "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn=10, beamWidth=20, hnswGraphThreshold=%s, flatVectorFormat=%s)";
+        expected = format(
+            Locale.ROOT,
+            expected,
+            hnswGraphThreshold,
+            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)"
+        );
         expected = format(
             Locale.ROOT,
             expected,
@@ -58,14 +128,21 @@ public class ES93HnswBFloat16VectorsFormatTests extends BaseHnswBFloat16VectorsF
         String defaultScorer = format(Locale.ROOT, expected, "DefaultFlatVectorScorer");
         String memSegScorer = format(Locale.ROOT, expected, "Lucene99MemorySegmentFlatVectorsScorer");
 
-        KnnVectorsFormat format = createFormat(10, 20, 1, null);
+        KnnVectorsFormat format = createFormat(10, 20, 1, null, hnswGraphThreshold);
         assertThat(format, hasToString(is(oneOf(defaultScorer, memSegScorer))));
     }
 
     public void testSimpleOffHeapSize() throws IOException {
         float[] vector = randomVector(random().nextInt(12, 500));
         // Use threshold=0 to ensure HNSW graph is always built
-        var format = new ES93HnswVectorsFormat(16, 100, DenseVectorFieldMapper.ElementType.BFLOAT16, 1, null, 0);
+        var format = new ES93HnswVectorsFormat(
+            DEFAULT_MAX_CONN,
+            DEFAULT_BEAM_WIDTH,
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            DEFAULT_NUM_MERGE_WORKER,
+            null,
+            0
+        );
         IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         try (Directory dir = newDirectory()) {
             testSimpleOffHeapSize(

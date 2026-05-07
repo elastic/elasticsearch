@@ -27,6 +27,7 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
@@ -78,6 +79,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEntry;
+import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMultipleInferenceStrings;
 import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
@@ -746,6 +749,34 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         if ((TaskType.TEXT_EMBEDDING.equals(model.getTaskType()) || TaskType.SPARSE_EMBEDDING.equals(model.getTaskType())) == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(model.getTaskType(), NAME), RestStatus.BAD_REQUEST)
+            );
+            return;
+        }
+
+        var inputsAsInferenceStringGroupList = input.stream().map(ChunkInferenceInput::input).toList();
+        if (supportsNonTextEmbeddingContent() == false && containsNonTextEntry(inputsAsInferenceStringGroupList)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    Strings.format("The %s service does not support embedding with non-text inputs", name()),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+            return;
+        }
+        var index = indexContainingMultipleInferenceStrings(inputsAsInferenceStringGroupList);
+        if (index != null) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    Strings.format(
+                        "Field [%1$s] must contain a single item for [%2$s] service. "
+                            + "[%1$s] object with multiple items found at $.%3$s.%1$s[%4$d]",
+                        InferenceStringGroup.CONTENT_FIELD,
+                        name(),
+                        EmbeddingRequest.INPUT_FIELD,
+                        index
+                    ),
+                    RestStatus.BAD_REQUEST
+                )
             );
             return;
         }

@@ -142,6 +142,14 @@ public interface InferenceService extends Closeable {
     void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener);
 
     /**
+     * Override as necessary for services which support images in embedding inputs
+     * @return true if the service supports images in embedding inputs
+     */
+    default boolean supportsNonTextEmbeddingContent() {
+        return false;
+    }
+
+    /**
      * Perform rerank inference on the model.
      *
      * @param model The model
@@ -180,6 +188,14 @@ public interface InferenceService extends Closeable {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     );
+
+    /**
+     * Override as necessary for services which do not support chunked inference
+     * @return true if the service supports chunked inference
+     */
+    default boolean supportsChunkedInfer() {
+        return true;
+    }
 
     /**
      * Start or prepare the model for use.

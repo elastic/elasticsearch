@@ -343,14 +343,6 @@ public abstract class SenderService<M extends Model> implements InferenceService
         return false;
     }
 
-    /**
-     * Override as necessary for services which support images in embedding inputs
-     * @return true if the service supports images in embedding inputs
-     */
-    protected boolean supportsNonTextEmbeddingContent() {
-        return false;
-    }
-
     @Override
     public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         try {
@@ -403,8 +395,8 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 if (input.isEmpty()) {
                     listener.onResponse(List.of());
                 } else {
-                    if (supportsNonTextEmbeddingContent() == false
-                        && containsNonTextEntry(input.stream().map(ChunkInferenceInput::input).toList())) {
+                    var inputsAsInferenceStringGroupList = input.stream().map(ChunkInferenceInput::input).toList();
+                    if (supportsNonTextEmbeddingContent() == false && containsNonTextEntry(inputsAsInferenceStringGroupList)) {
                         listener.onFailure(
                             new ElasticsearchStatusException(
                                 Strings.format("The %s service does not support embedding with non-text inputs", name()),
@@ -413,8 +405,25 @@ public abstract class SenderService<M extends Model> implements InferenceService
                         );
                         return;
                     }
-                    // a non-null query is not supported and is dropped by all providers
-                    doChunkedInfer(model, input, taskSettings, inputType, resolvedInferenceTimeout, listener);
+                    var index = indexContainingMultipleInferenceStrings(inputsAsInferenceStringGroupList);
+                    if (index == null) {
+                        // a non-null query is not supported and is dropped by all providers
+                        doChunkedInfer(model, input, taskSettings, inputType, resolvedInferenceTimeout, listener);
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                Strings.format(
+                                    "Field [%1$s] must contain a single item for [%2$s] service. "
+                                        + "[%1$s] object with multiple items found at $.%3$s.%1$s[%4$d]",
+                                    InferenceStringGroup.CONTENT_FIELD,
+                                    name(),
+                                    EmbeddingRequest.INPUT_FIELD,
+                                    index
+                                ),
+                                RestStatus.BAD_REQUEST
+                            )
+                        );
+                    }
                 }
             } else {
                 listener.onFailure(
@@ -466,10 +475,6 @@ public abstract class SenderService<M extends Model> implements InferenceService
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     );
-
-    protected boolean supportsChunkedInfer() {
-        return true;
-    }
 
     @Override
     public void start(Model model, @Nullable TimeValue timeout, ActionListener<Boolean> listener) {

@@ -24,6 +24,7 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -49,6 +50,8 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEntry;
+import static org.elasticsearch.inference.InferenceStringGroup.indexContainingMultipleInferenceStrings;
 import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
@@ -296,6 +299,35 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
         if (input.isEmpty()) {
             listener.onResponse(List.of());
         }
+
+        var inputsAsInferenceStringGroupList = input.stream().map(ChunkInferenceInput::input).toList();
+        if (supportsNonTextEmbeddingContent() == false && containsNonTextEntry(inputsAsInferenceStringGroupList)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    Strings.format("The %s service does not support embedding with non-text inputs", name()),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+            return;
+        }
+        var index = indexContainingMultipleInferenceStrings(inputsAsInferenceStringGroupList);
+        if (index != null) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    Strings.format(
+                        "Field [%1$s] must contain a single item for [%2$s] service. "
+                            + "[%1$s] object with multiple items found at $.%3$s.%1$s[%4$d]",
+                        InferenceStringGroup.CONTENT_FIELD,
+                        name(),
+                        EmbeddingRequest.INPUT_FIELD,
+                        index
+                    ),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+            return;
+        }
+
         var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
         try {
             var sageMakerModel = ((SageMakerModel) model).override(taskSettings);

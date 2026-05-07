@@ -879,7 +879,8 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         double resets;
 
         // Points to offsets into IntervalBuffer for the intervals belonging to this group
-        // Once sorted, the intervals will be stored in reverse chronological order (highest timestamp first)
+        // Once sorted (after calling combineIntervals()), the intervals will be stored in reverse chronological order (highest timestamp
+        // first)
         int[] intervals = EMPTY_INTERVALS;
 
         // Delta tracking fields: in contrast to cumulative intervals, they need to be mutable
@@ -887,23 +888,6 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         long deltaFirstTs = Long.MAX_VALUE;
         $type$ deltaFirstValue;
         long deltaLastTs = Long.MIN_VALUE;
-
-        // The accessor methods first*/last* must only be called after combineIntervals()!
-        long lastTs() {
-            return intervalBuffer.lastTs(intervals[0]);
-        }
-
-        $type$ lastValue() {
-            return intervalBuffer.lastValue(intervals[0]);
-        }
-
-        long firstTs() {
-            return intervalBuffer.firstTs(intervals[intervals.length - 1]);
-        }
-
-        $type$ firstValue() {
-            return intervalBuffer.firstValue(intervals[intervals.length - 1]);
-        }
 
         boolean hasDelta() {
             return deltaLastTs >= deltaFirstTs;
@@ -928,30 +912,24 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         }
 
         void writeIntervalsToBlocks(LongBlock.Builder timestamps, $Type$Block.Builder values) {
-            flushDeltaInterval();
             timestamps.beginPositionEntry();
             values.beginPositionEntry();
-            for (int intervalId : intervals) {
-                timestamps.appendLong(intervalBuffer.lastTs(intervalId));
-                timestamps.appendLong(intervalBuffer.firstTs(intervalId));
-                values.append$Type$(intervalBuffer.lastValue(intervalId));
-                values.append$Type$(intervalBuffer.firstValue(intervalId));
+            if (hasDelta()) {
+                // delta data gets converted to a single, cumulative interval
+                timestamps.appendLong(lastTs());
+                timestamps.appendLong(firstTs());
+                values.append$Type$(lastValue());
+                values.append$Type$(firstValue());
+            } else {
+                for (int intervalId : intervals) {
+                    timestamps.appendLong(intervalBuffer.lastTs(intervalId));
+                    timestamps.appendLong(intervalBuffer.firstTs(intervalId));
+                    values.append$Type$(intervalBuffer.lastValue(intervalId));
+                    values.append$Type$(intervalBuffer.firstValue(intervalId));
+                }
             }
             timestamps.endPositionEntry();
             values.endPositionEntry();
-        }
-
-        void combineIntervals() {
-            flushDeltaInterval();
-            // combine intervals for the final evaluation
-            intervalBuffer.sort(intervals);
-            for (int i = 1; i < intervals.length; i++) {
-                int next = intervals[i - 1]; // reversed
-                int prev = intervals[i];
-                if (intervalBuffer.lastValue(prev) > intervalBuffer.firstValue(next)) {
-                    resets += intervalBuffer.lastValue(prev);
-                }
-            }
         }
 
         public void appendDeltaValue(long timestamp, $type$ value) {
@@ -965,19 +943,49 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
             }
         }
 
-        /**
-         * Flushes the accumulated delta data into the intervals array and resets the delta fields.
-         */
-        void flushDeltaInterval() {
+        void combineIntervals() {
+            // only applies to cumulative metrics, we don't need to do anything for delta
             if (hasDelta() == false) {
-                return;
+                // combine intervals for the final evaluation
+                intervalBuffer.sort(intervals);
+                for (int i = 1; i < intervals.length; i++) {
+                    int next = intervals[i - 1]; // reversed
+                    int prev = intervals[i];
+                    if (intervalBuffer.lastValue(prev) > intervalBuffer.firstValue(next)) {
+                        resets += intervalBuffer.lastValue(prev);
+                    }
+                }
             }
-            long lastTs = deltaLastTs;
-            long firstTs = deltaFirstTs;
-            deltaFirstTs = Long.MAX_VALUE;
-            deltaLastTs = Long.MIN_VALUE;
-            appendInterval(lastTs, 0, firstTs, deltaFirstValue);
-            deltaFirstValue = 0;
+        }
+
+        // The accessor methods first*/last* must only be called after combineIntervals() for non-delta states!
+        long lastTs() {
+            if (hasDelta()) {
+                return deltaLastTs;
+            }
+            return intervalBuffer.lastTs(intervals[0]);
+        }
+
+        $type$ lastValue() {
+            if (hasDelta()) {
+                // We use 0 as lastvalue for delta to force resets, the reset counter already has the real value in it
+                return 0;
+            }
+            return intervalBuffer.lastValue(intervals[0]);
+        }
+
+        long firstTs() {
+            if (hasDelta()) {
+                return deltaFirstTs;
+            }
+            return intervalBuffer.firstTs(intervals[intervals.length - 1]);
+        }
+
+        $type$ firstValue() {
+            if (hasDelta()) {
+                return deltaFirstValue;
+            }
+            return intervalBuffer.firstValue(intervals[intervals.length - 1]);
         }
     }
 

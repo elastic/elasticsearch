@@ -36,9 +36,9 @@ $$$xpack-security-audit-enabled$$$
     This setting can be changed at runtime using the [cluster update settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) without requiring a node restart.
     
     :::{note} 
-    :applies_to: stack: ga 9.0-9.2
+    :applies_to: stack: ga 9.0-9.4
     
-    In {{stack}} versions 9.2 and earlier, this setting was [static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting). Static settings must be configured manually in `elasticsearch.yml` on all nodes in the cluster.
+    In {{stack}} versions 9.4 and earlier, this setting was [static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting). Static settings must be configured manually in `elasticsearch.yml` on all nodes in the cluster.
     :::
 
 

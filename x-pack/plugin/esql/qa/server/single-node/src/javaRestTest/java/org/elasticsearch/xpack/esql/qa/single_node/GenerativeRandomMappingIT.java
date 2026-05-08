@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
 import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeRandomMappingRestTest;
 import org.junit.ClassRule;
 
@@ -20,10 +19,6 @@ public class GenerativeRandomMappingIT extends GenerativeRandomMappingRestTest {
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
-
-    public GenerativeRandomMappingIT(GenerativeFeature feature) {
-        super(feature);
-    }
 
     @Override
     protected String getTestRestCluster() {

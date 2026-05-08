@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
-import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeRestTest;
 import org.junit.ClassRule;
@@ -21,10 +20,6 @@ import org.junit.ClassRule;
 public class GenerativeMetricsIT extends GenerativeRestTest {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
-
-    public GenerativeMetricsIT(GenerativeFeature feature) {
-        super(feature);
-    }
 
     @Override
     protected String getTestRestCluster() {

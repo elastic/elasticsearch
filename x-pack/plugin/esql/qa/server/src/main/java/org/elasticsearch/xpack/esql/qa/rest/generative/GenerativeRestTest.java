@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -77,24 +75,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     public static final int MAX_DEPTH = 20;
 
     /**
-     * One parameter case per opt-in {@link GenerativeFeature}, plus a {@code null} baseline with no feature.
-     * Each case can be muted independently in CI via test names like {@code test \{feature:SUBQUERIES\}}, so
-     * a feature still under stabilization doesn't block the rest of the suite.
-     */
-    @ParametersFactory(argumentFormatting = "feature:%1$s")
-    public static List<Object[]> parameters() {
-        List<Object[]> args = new ArrayList<>();
-        args.add(new Object[] { null });
-        for (GenerativeFeature feature : GenerativeFeature.values()) {
-            args.add(new Object[] { feature });
-        }
-        return args;
-    }
-
-    /**
-     * Allowed error patterns that are tolerated only when the corresponding {@link GenerativeFeature} is the
-     * active one for a parameter run. Layered onto the global {@link #ALLOWED_ERRORS} via {@link #getAllowedErrors()}
-     * so muting a feature-specific failure doesn't widen the surface for the baseline run.
+     * Allowed error patterns that are tolerated only when the corresponding {@link GenerativeFeature} is in
+     * {@link #enabledFeatures()}. Layered onto the global {@link #ALLOWED_ERRORS} via {@link #getAllowedErrors()}
+     * so muting a feature-specific failure doesn't widen the surface for runs that don't enable the feature.
      */
     private static final Map<GenerativeFeature, Set<String>> FEATURE_ALLOWED_ERRORS = Map.of(
         GenerativeFeature.SUBQUERIES,
@@ -106,13 +89,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             "has conflicting data types in subqueries"
         )
     );
-
-    private final GenerativeFeature feature;
-
-    @SuppressWarnings("this-escape")
-    protected GenerativeRestTest(GenerativeFeature feature) {
-        this.feature = feature;
-    }
 
     public static final Set<String> ALLOWED_ERRORS = Set.of(
         "Reference \\[.*\\] is ambiguous",
@@ -399,11 +375,19 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     /**
-     * Returns the root {@link GenerationContext} for a single iteration of the test loop, populated with the
-     * {@link GenerativeFeature feature} for the current parameter run (or none if {@code feature} is {@code null}).
+     * Opt-in {@link GenerativeFeature features} active for this run. Subclasses may override to enable specific
+     * features; the default is none. {@link PerFeatureGenerativeRestTest} returns the per-parameter feature here.
+     */
+    protected Set<GenerativeFeature> enabledFeatures() {
+        return Set.of();
+    }
+
+    /**
+     * Returns the root {@link GenerationContext} for a single iteration of the test loop, populated with
+     * {@link #enabledFeatures()}.
      */
     protected GenerationContext rootGenerationContext() {
-        return GenerationContext.root(feature == null ? Set.of() : Set.of(feature));
+        return GenerationContext.root(enabledFeatures());
     }
 
     protected CommandGenerator.ValidationResult checkPipelineResults(
@@ -459,16 +443,21 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
-     * Returns extra error-message patterns the active {@link GenerativeFeature feature} is allowed to surface.
-     * Looked up in {@link #FEATURE_ALLOWED_ERRORS}; subclasses may override to add more (e.g. tests with a
-     * different source command). Returned strings are wrapped to {@code .*<pattern>.*} and OR-ed with the base
+     * Returns extra error-message patterns the {@link #enabledFeatures()} are allowed to surface. Aggregated
+     * from {@link #FEATURE_ALLOWED_ERRORS}; subclasses may override to add more (e.g. tests with a different
+     * source command). Returned strings are wrapped to {@code .*<pattern>.*} and OR-ed with the base
      * {@link #ALLOWED_ERRORS}.
      */
     protected Set<String> getAllowedErrors() {
-        if (feature == null) {
+        Set<GenerativeFeature> features = enabledFeatures();
+        if (features.isEmpty()) {
             return Set.of();
         }
-        return FEATURE_ALLOWED_ERRORS.getOrDefault(feature, Set.of());
+        Set<String> result = new HashSet<>();
+        for (GenerativeFeature feature : features) {
+            result.addAll(FEATURE_ALLOWED_ERRORS.getOrDefault(feature, Set.of()));
+        }
+        return result;
     }
 
     private boolean isAllowedFailure(FailureContext ctx) {

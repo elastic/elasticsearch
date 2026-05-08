@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeRestTest;
@@ -21,10 +20,6 @@ import org.junit.ClassRule;
 public class GenerativePromQLIT extends GenerativeRestTest {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
-
-    public GenerativePromQLIT(GenerativeFeature feature) {
-        super(feature);
-    }
 
     @Override
     protected boolean supportsSourceFieldMapping() {

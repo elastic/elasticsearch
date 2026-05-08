@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
 import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeUnmappedLoadRestTest;
 import org.junit.ClassRule;
 
@@ -33,10 +32,6 @@ import org.junit.ClassRule;
 public class GenerativeUnmappedLoadIT extends GenerativeUnmappedLoadRestTest {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
-
-    public GenerativeUnmappedLoadIT(GenerativeFeature feature) {
-        super(feature);
-    }
 
     @Override
     protected String getTestRestCluster() {

@@ -23,7 +23,6 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -32,7 +31,6 @@ import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
@@ -43,8 +41,6 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
-import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.function.BooleanSupplier;
 
@@ -154,53 +150,9 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                     n
                 )
             );
-            return new IndexFieldData.Builder() {
-                @Override
-                public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-                    deprecationLogger.warn(DeprecationCategory.AGGREGATIONS, "id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
-                    final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache, breakerService);
-                    return new IndexFieldData<>() {
-                        @Override
-                        public String getFieldName() {
-                            return fieldData.getFieldName();
-                        }
-
-                        @Override
-                        public ValuesSourceType getValuesSourceType() {
-                            return fieldData.getValuesSourceType();
-                        }
-
-                        @Override
-                        public LeafFieldData load(LeafReaderContext context) {
-                            return wrap(fieldData.load(context));
-                        }
-
-                        @Override
-                        public LeafFieldData loadDirect(LeafReaderContext context) throws Exception {
-                            return wrap(fieldData.loadDirect(context));
-                        }
-
-                        @Override
-                        public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-                            XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
-                            return new SortField(getFieldName(), source, reverse);
-                        }
-
-                        @Override
-                        public BucketedSort newBucketedSort(
-                            BigArrays bigArrays,
-                            Object missingValue,
-                            MultiValueMode sortMode,
-                            Nested nested,
-                            SortOrder sortOrder,
-                            DocValueFormat format,
-                            int bucketSize,
-                            BucketedSort.ExtraData extra
-                        ) {
-                            throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
-                        }
-                    };
-                }
+            return (cache, breakerService) -> {
+                deprecationLogger.warn(DeprecationCategory.AGGREGATIONS, "id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
+                return new WrappingIdFieldData(fieldDataBuilder.build(cache, breakerService));
             };
         }
     }
@@ -218,58 +170,111 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
-        }
-
-        @Override
-        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            return DocValueFormat.ID;
+            var actualFieldDataBuilder = new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
+            return (cache, breakerService) -> new WrappingIdFieldData(actualFieldDataBuilder.build(cache, breakerService));
         }
 
     }
 
-    private static LeafFieldData wrap(LeafFieldData in) {
-        return new LeafFieldData() {
+    private static final class WrappingIdFieldData implements IndexFieldData<LeafFieldData> {
+        private final IndexFieldData<?> delegate;
 
-            @Override
-            public long ramBytesUsed() {
-                return in.ramBytesUsed();
-            }
+        WrappingIdFieldData(IndexFieldData<?> delegate) {
+            this.delegate = delegate;
+        }
 
-            @Override
-            public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
-                return new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(getBytesValues())), name);
-            }
+        @Override
+        public String getFieldName() {
+            return delegate.getFieldName();
+        }
 
-            @Override
-            public SortedBinaryDocValues getBytesValues() {
-                SortedBinaryDocValues inValues = in.getBytesValues();
-                return new SortedBinaryDocValues() {
+        @Override
+        public ValuesSourceType getValuesSourceType() {
+            return delegate.getValuesSourceType();
+        }
 
-                    @Override
-                    public BytesRef nextValue() throws IOException {
-                        BytesRef encoded = inValues.nextValue();
-                        return new BytesRef(
-                            Uid.decodeId(Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length))
-                        );
-                    }
+        @Override
+        public LeafFieldData load(LeafReaderContext context) {
+            return wrap(delegate.load(context));
+        }
 
-                    @Override
-                    public int docValueCount() {
-                        final int count = inValues.docValueCount();
-                        // If the count is not 1 then the impl is not correct as the binary representation
-                        // does not preserve order. But id fields only have one value per doc so we are good.
-                        assert count == 1;
-                        return inValues.docValueCount();
-                    }
+        @Override
+        public LeafFieldData loadDirect(LeafReaderContext context) throws Exception {
+            return wrap(delegate.loadDirect(context));
+        }
 
-                    @Override
-                    public boolean advanceExact(int doc) throws IOException {
-                        return inValues.advanceExact(doc);
-                    }
-                };
-            }
-        };
+        @Override
+        public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+            XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+            return new SortField(getFieldName(), source, reverse);
+        }
+
+        @Override
+        public BucketedSort newBucketedSort(
+            BigArrays bigArrays,
+            Object missingValue,
+            MultiValueMode sortMode,
+            Nested nested,
+            SortOrder sortOrder,
+            DocValueFormat format,
+            int bucketSize,
+            BucketedSort.ExtraData extra
+        ) {
+            throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
+        }
+
+        private static LeafFieldData wrap(LeafFieldData in) {
+            return new LeafFieldData() {
+
+                @Override
+                public long ramBytesUsed() {
+                    return in.ramBytesUsed();
+                }
+
+                @Override
+                public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+                    return new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(getBytesValues())), name);
+                }
+
+                @Override
+                public SortedBinaryDocValues getBytesValues() {
+                    SortedBinaryDocValues inValues = in.getBytesValues();
+                    return new SortedBinaryDocValues() {
+
+                        @Override
+                        public BytesRef nextValue() throws IOException {
+                            BytesRef encoded = inValues.nextValue();
+                            String decoded = Uid.decodeId(encoded);
+                            return new BytesRef(decoded);
+                        }
+
+                        @Override
+                        public int docValueCount() {
+                            final int count = inValues.docValueCount();
+                            // If the count is not 1 then the impl is not correct as the binary representation
+                            // does not preserve order. But id fields only have one value per doc so we are good.
+                            assert count == 1;
+                            return inValues.docValueCount();
+                        }
+
+                        @Override
+                        public boolean advanceExact(int doc) throws IOException {
+                            return inValues.advanceExact(doc);
+                        }
+
+                        @Override
+                        public Sparsity getSparsity() {
+                            return inValues.getSparsity();
+                        }
+
+                        @Override
+                        public ValueMode getValueMode() {
+                            return inValues.getValueMode();
+                        }
+                    };
+                }
+            };
+        }
     }
 
     private final IdFieldMapper.Mode mode;

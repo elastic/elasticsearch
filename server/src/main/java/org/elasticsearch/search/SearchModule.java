@@ -1007,7 +1007,6 @@ public class SearchModule {
         registerValueFormat(DocValueFormat.DENSE_VECTOR.getWriteableName(), in -> DocValueFormat.DENSE_VECTOR);
         registerValueFormat(DocValueFormat.UNSIGNED_LONG_SHIFTED.getWriteableName(), in -> DocValueFormat.UNSIGNED_LONG_SHIFTED);
         registerValueFormat(DocValueFormat.TIME_SERIES_ID.getWriteableName(), in -> DocValueFormat.TIME_SERIES_ID);
-        registerValueFormat(DocValueFormat.ID.getWriteableName(), in -> DocValueFormat.ID);
         registerValueFormat(TS_ROUTING_HASH_DOC_VALUE_FORMAT.getWriteableName(), in -> TS_ROUTING_HASH_DOC_VALUE_FORMAT);
     }
 

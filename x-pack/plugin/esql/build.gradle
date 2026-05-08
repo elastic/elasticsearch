@@ -531,7 +531,10 @@ def findGoldenTestClasses = { FileCollection runtimeClasspath, FileCollection cl
     if (dir.exists() == false) {
       return
     }
-    fileTree(dir).matching { include "**/*.class" }.each { File f ->
+    dir.eachFileRecurse(groovy.io.FileType.FILES) { File f ->
+      if (f.name.endsWith('.class') == false) {
+        return
+      }
       def rel = dir.toPath().relativize(f.toPath()).toString()
       def name = rel.replace(File.separatorChar, '.' as char).replaceAll(/\.class$/, '')
       if (name.endsWith('package-info') || name.endsWith('module-info') || name.contains('$')) {

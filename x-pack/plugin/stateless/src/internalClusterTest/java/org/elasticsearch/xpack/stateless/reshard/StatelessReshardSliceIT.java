@@ -13,7 +13,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
-import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
@@ -35,7 +34,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.hamcrest.Matchers.equalTo;
@@ -176,7 +174,7 @@ public class StatelessReshardSliceIT extends AbstractStatelessPluginIntegTestCas
         ensureStableCluster(2);
 
         logger.info("--> creating {} docs in index [{}] with {} shards for {} slices", numDocs, indexName, numShards, numSlices);
-        createIndex(indexName, indexSettings(numShards, 1).put(SETTING_VERSION_CREATED, indexVersion).build());
+        createIndex(indexName, indexSettings(indexVersion, numShards, 1).build());
         ensureGreen(indexName);
 
         indexDocsAndRefresh(indexName, numDocs);
@@ -197,9 +195,6 @@ public class StatelessReshardSliceIT extends AbstractStatelessPluginIntegTestCas
     @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings()
-            // Test framework randomly sets this to 0, but we rely on retries to handle target shards still being in recovery
-            // when we start re-splitting bulk requests.
-            .put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), "60s")
             // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
             .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
     }

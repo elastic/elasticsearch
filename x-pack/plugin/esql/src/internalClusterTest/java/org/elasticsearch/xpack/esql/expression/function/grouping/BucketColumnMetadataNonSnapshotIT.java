@@ -25,10 +25,7 @@ public class BucketColumnMetadataNonSnapshotIT extends AbstractEsqlIntegTestCase
 
     @Before
     public void requireNonSnapshot() {
-        assumeFalse(
-            "this test only runs in release builds",
-            Build.current().isSnapshot()
-        );
+        assumeFalse("this test only runs in release builds", Build.current().isSnapshot());
     }
 
     public void testNoBucketMetadataInReleaseBuild() {

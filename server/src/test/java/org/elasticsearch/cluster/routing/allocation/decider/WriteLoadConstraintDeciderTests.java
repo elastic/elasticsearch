@@ -824,13 +824,17 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         float hotspotUtilization,
         long latencyMillis
     ) {
+        final var defaultMaxShardWriteLoadProportion =
+            WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_HOTSPOT_MAX_SHARD_WRITE_LOAD_PROPORTION_THRESHOLD_SETTING.getDefault(
+                Settings.EMPTY
+            );
         return buildRoutingAllocation(
             state,
             decider,
             hotspotNodeId,
             hotspotUtilization,
             latencyMillis,
-            randomDoubleBetween(0.5, 0.7, true)
+            randomDoubleBetween(0.5, defaultMaxShardWriteLoadProportion.getAsRatio() - 0.01, false)
         );
     }
 

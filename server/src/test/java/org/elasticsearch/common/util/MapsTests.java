@@ -418,10 +418,9 @@ public class MapsTests extends ESTestCase {
     public void testMergeMergerThrowingPropagates() {
         Map<String, Integer> a = Map.of("x", 1);
         Map<String, Integer> b = Map.of("x", 2);
-        IllegalStateException ex = expectThrows(
-            IllegalStateException.class,
-            () -> Maps.merge(a, b, (l, r) -> { throw new IllegalStateException("collision on " + l + "/" + r); })
-        );
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> Maps.merge(a, b, (l, r) -> {
+            throw new IllegalStateException("collision on " + l + "/" + r);
+        }));
         assertThat(ex.getMessage(), equalTo("collision on 1/2"));
     }
 

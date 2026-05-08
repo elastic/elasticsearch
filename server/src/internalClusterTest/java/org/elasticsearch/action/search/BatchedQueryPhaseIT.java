@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.ResponseCollectorService;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;

@@ -181,7 +181,11 @@ public class Reindexer {
         this.featureService = featureService;
         this.taskResultsService = Objects.requireNonNull(taskResultsService);
         this.reindexShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
-        this.requestBreaker = Objects.requireNonNull(circuitBreakerService).getBreaker(CircuitBreaker.REQUEST);
+        Objects.requireNonNull(circuitBreakerService, "circuitBreakerService must not be null");
+        this.requestBreaker = Objects.requireNonNull(
+            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST),
+            "REQUEST circuit breaker must be available — reindex relies on it for per-batch heap reservations"
+        );
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -997,19 +1001,19 @@ public class Reindexer {
                 maxTaskShutdownGracePeriod
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperForReindex();
-            this.requestBreaker = requestBreaker;
+            this.requestBreaker = Objects.requireNonNull(requestBreaker, "requestBreaker must not be null");
         }
 
         @Override
         protected void reserveBatchAllocation(long bytes) {
-            if (requestBreaker != null && bytes > 0) {
+            if (bytes > 0) {
                 requestBreaker.addEstimateBytesAndMaybeBreak(bytes, "reindex_bulk_batch");
             }
         }
 
         @Override
         protected void releaseBatchAllocation(long bytes) {
-            if (requestBreaker != null && bytes > 0) {
+            if (bytes > 0) {
                 requestBreaker.addWithoutBreaking(-bytes);
             }
         }

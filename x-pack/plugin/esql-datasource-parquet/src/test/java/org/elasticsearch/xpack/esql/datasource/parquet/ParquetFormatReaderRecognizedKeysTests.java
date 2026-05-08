@@ -14,6 +14,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -59,5 +61,38 @@ public class ParquetFormatReaderRecognizedKeysTests extends ESTestCase {
 
     public void testNullConfigConsumesNothing() {
         assertThat(new ParquetFormatReader(NOOP_BLOCK_FACTORY).withConfigTrackingConsumedKeys(null).consumedKeys(), empty());
+    }
+
+    /**
+     * Bidirectional symmetry: every {@code static final String CONFIG_*} constant on
+     * {@link ParquetFormatReader} appears in {@link ParquetFormatReader#RECOGNIZED_KEYS}, and
+     * every entry in {@code RECOGNIZED_KEYS} is backed by a matching constant. Catches both
+     * 'added a new {@code CONFIG_X} constant + a {@code config.get(CONFIG_X)} read but forgot
+     * to register' and 'added a string to {@code RECOGNIZED_KEYS} with no backing constant
+     * (likely dead)'.
+     */
+    public void testRecognizedKeysMatchConfigConstants() {
+        Set<String> fromConstants = new TreeSet<>();
+        for (Field f : ParquetFormatReader.class.getDeclaredFields()) {
+            int mods = f.getModifiers();
+            if (Modifier.isStatic(mods) == false || Modifier.isFinal(mods) == false) continue;
+            if (f.getType() != String.class) continue;
+            if (f.getName().startsWith("CONFIG_") == false) continue;
+            f.setAccessible(true);
+            try {
+                String value = (String) f.get(null);
+                if (value != null) {
+                    fromConstants.add(value);
+                }
+            } catch (IllegalAccessException e) {
+                throw new AssertionError("cannot read constant " + f.getName(), e);
+            }
+        }
+        Set<String> missingFromKeys = new TreeSet<>(fromConstants);
+        missingFromKeys.removeAll(ParquetFormatReader.RECOGNIZED_KEYS);
+        Set<String> extraInKeys = new TreeSet<>(ParquetFormatReader.RECOGNIZED_KEYS);
+        extraInKeys.removeAll(fromConstants);
+        assertTrue("ParquetFormatReader CONFIG_* constants missing from RECOGNIZED_KEYS: " + missingFromKeys, missingFromKeys.isEmpty());
+        assertTrue("ParquetFormatReader RECOGNIZED_KEYS entries with no backing CONFIG_* constant: " + extraInKeys, extraInKeys.isEmpty());
     }
 }

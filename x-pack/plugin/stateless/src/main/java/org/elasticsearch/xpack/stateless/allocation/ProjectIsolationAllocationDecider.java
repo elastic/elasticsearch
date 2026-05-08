@@ -42,6 +42,9 @@ public class ProjectIsolationAllocationDecider extends AllocationDecider {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Allocation is the hotpath, so it is more efficient to define the decision upfront rather than recomputing it
+     */
     private static final Decision YES_ISOLATION_MATCH = Decision.single(
         Type.YES,
         NAME,
@@ -75,7 +78,7 @@ public class ProjectIsolationAllocationDecider extends AllocationDecider {
     private Decision decide(ShardRouting shardRouting, RoutingNode routingNode, RoutingAllocation routingAllocation) {
         IsolationShardTier isolationShardTier = IsolationShardTier.fromShardRole(shardRouting.role());
 
-        // Project isolation applies only to stateless index vs search shard copies.
+        // Project isolation applies only to stateless index vs search shards
         if (isolationShardTier == null) {
             return Decision.ALWAYS;
         }
@@ -120,7 +123,7 @@ public class ProjectIsolationAllocationDecider extends AllocationDecider {
         }
 
         // The project is not marked as isolated
-        // This is not an isolated node, so default to normal allocation
+        // This is not an isolated node, so default to the other allocators
         return Decision.ALWAYS;
     }
 }

@@ -22,7 +22,7 @@ import java.util.Optional;
 
 /**
  * Parsed cluster setting mapping projects to isolated tier names per tier.
- * Parsed from JSON (cluster setting value) shaped as:
+ * Parsed from JSON shaped as:
  * {@code [{"project":"<id>","tiers":{"index":"<name>","search":"<name>"}}, ...]}.
  */
 public final class IsolatedProjects {
@@ -38,6 +38,16 @@ public final class IsolatedProjects {
         this.projectIdToTierIsolationNamesMap = projectIdToTierIsolationNamesMap;
     }
 
+    /**
+     * Returns the configured isolated tier name for {@code projectId} and shard tier, if that project is listed
+     * in {@code cluster.routing.allocation.isolated_projects} and has a value for that tier.
+     * <p>
+     * If the project is missing from the map, or the tier key is absent from its {@code tiers} object, returns empty.
+     *
+     * @param projectId         project to look up
+     * @param isolationShardTier index or search isolation tier
+     * @return non-empty when a non-null tier name was configured, and empty when unknown or unset
+     */
     public Optional<String> isolatedTierName(ProjectId projectId, IsolationShardTier isolationShardTier) {
         TierIsolationNames tierIsolationNames = projectIdToTierIsolationNamesMap.get(projectId);
         if (tierIsolationNames == null) {
@@ -49,6 +59,22 @@ public final class IsolatedProjects {
         });
     }
 
+    /**
+     * Parses the {@code cluster.routing.allocation.isolated_projects} setting value from JSON.
+     * <p>
+     * Expects a JSON <em>array</em> of objects, each with {@code project} (project id string) and {@code tiers}
+     * (object with optional {@code index} and {@code search} string values). Unknown fields are rejected.
+     * Duplicate {@code project} entries are merged, with later non-null tier values overriding earlier ones.
+     * <p>
+     * Tier names must be non-empty, at most {@link #MAX_ISOLATED_TIER_NAME_LENGTH} characters, and use only
+     * DNS-label characters {@code [a-z0-9-]} without a leading or trailing {@code '-'}.
+     *
+     * @param rawSettingValue serialized JSON, or {@code null} / blank for no isolation configuration
+     * @return {@link #EMPTY} when {@code rawSettingValue} is null, blank, or parses to an empty array.
+     *         Otherwise, returns an immutable map of projects to tier names
+     * @throws IllegalArgumentException if JSON is invalid, required fields are missing, extra fields appear,
+     *                                  or a tier name fails validation
+     */
     public static IsolatedProjects parse(String rawSettingValue) {
         if (rawSettingValue == null || rawSettingValue.isBlank()) {
             return EMPTY;

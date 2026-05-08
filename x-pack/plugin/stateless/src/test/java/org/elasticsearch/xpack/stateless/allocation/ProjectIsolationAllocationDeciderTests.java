@@ -47,27 +47,24 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class ProjectIsolationAllocationDeciderTests extends ESAllocationTestCase {
 
-    private static final ProjectId ISOLATION_TEST_PROJECT_ID = ProjectId.fromId("projisolatedaaaa");
-
-    private static final String ALLOC_TEST_INDEX_NAME = "alloc-test-idx";
-
+    /**
+     * For a project configured with index tier isolation, {@code canAllocate} returns yes only when the node's
+     * {@code isolated_tier} attribute matches the configured pool name.
+     */
     public void testIsolatedProjectRequiresMatchingNodeAttribute() {
+        ProjectId isolationTestProjectId = randomIsolationTestProjectId();
+        String testIndexName = randomTestIndexName();
         ProjectIsolationAllocationDecider projectIsolationAllocationDecider = newProjectIsolationAllocationDecider(
             Settings.builder()
                 .put(
                     ProjectIsolationAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ISOLATED_PROJECTS_SETTING.getKey(),
-                    isolatedProjectTierJson(ISOLATION_TEST_PROJECT_ID, "index", "iso-pool")
+                    isolatedProjectTierJson(isolationTestProjectId, "index", "iso-pool")
                 )
                 .build()
         );
-        ClusterState clusterState = newClusterStateForIsolationFixture(ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME);
+        ClusterState clusterState = newClusterStateForIsolationFixture(isolationTestProjectId, testIndexName);
         RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
-        ShardRouting indexOnlyShardRouting = findShardRoutingByRole(
-            clusterState,
-            ISOLATION_TEST_PROJECT_ID,
-            ALLOC_TEST_INDEX_NAME,
-            INDEX_ONLY
-        );
+        ShardRouting indexOnlyShardRouting = findShardRoutingByRole(clusterState, isolationTestProjectId, testIndexName, INDEX_ONLY);
 
         assertThat(
             projectIsolationAllocationDecider.canAllocate(
@@ -95,18 +92,24 @@ public class ProjectIsolationAllocationDeciderTests extends ESAllocationTestCase
         );
     }
 
+    /**
+     * For a project configured with search tier isolation, a {@link Role#SEARCH_ONLY} shard is allowed on a node only when that node's
+     * {@code isolated_tier} attribute matches the pool, using the same matching idea as the index tier.
+     */
     public void testIsolatedProjectSearchTierRequiresMatchingNodeAttribute() {
+        ProjectId isolationTestProjectId = randomIsolationTestProjectId();
+        String testIndexName = randomTestIndexName();
         ProjectIsolationAllocationDecider decider = newProjectIsolationAllocationDecider(
             Settings.builder()
                 .put(
                     ProjectIsolationAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ISOLATED_PROJECTS_SETTING.getKey(),
-                    isolatedProjectTierJson(ISOLATION_TEST_PROJECT_ID, "search", "iso-pool")
+                    isolatedProjectTierJson(isolationTestProjectId, "search", "iso-pool")
                 )
                 .build()
         );
-        ClusterState clusterState = newClusterStateForIsolationFixture(ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME);
+        ClusterState clusterState = newClusterStateForIsolationFixture(isolationTestProjectId, testIndexName);
         RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
-        ShardRouting searchOnlyShard = findShardRoutingByRole(clusterState, ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME, SEARCH_ONLY);
+        ShardRouting searchOnlyShard = findShardRoutingByRole(clusterState, isolationTestProjectId, testIndexName, SEARCH_ONLY);
 
         assertThat(
             decider.canAllocate(searchOnlyShard, clusterState.getRoutingNodes().node("n-iso"), routingAllocation).type(),
@@ -122,16 +125,17 @@ public class ProjectIsolationAllocationDeciderTests extends ESAllocationTestCase
         );
     }
 
+    /**
+     * If isolation is not configured for the cluster, the decider rejects placing the shard on any node that still carries an
+     * {@code isolated_tier} attribute.
+     */
     public void testNonIsolatedProjectRejectedOnIsolatedNodes() {
+        ProjectId isolationTestProjectId = randomIsolationTestProjectId();
+        String testIndexName = randomTestIndexName();
         ProjectIsolationAllocationDecider projectIsolationAllocationDecider = newProjectIsolationAllocationDecider(Settings.EMPTY);
-        ClusterState clusterState = newClusterStateForIsolationFixture(ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME);
+        ClusterState clusterState = newClusterStateForIsolationFixture(isolationTestProjectId, testIndexName);
         RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
-        ShardRouting indexOnlyShardRouting = findShardRoutingByRole(
-            clusterState,
-            ISOLATION_TEST_PROJECT_ID,
-            ALLOC_TEST_INDEX_NAME,
-            INDEX_ONLY
-        );
+        ShardRouting indexOnlyShardRouting = findShardRoutingByRole(clusterState, isolationTestProjectId, testIndexName, INDEX_ONLY);
 
         RoutingNode isolatedIndexingRoutingNode = clusterState.getRoutingNodes().node("n-iso");
         assertThat(
@@ -140,33 +144,40 @@ public class ProjectIsolationAllocationDeciderTests extends ESAllocationTestCase
         );
     }
 
+    /**
+     * If isolation is not configured for the cluster, a shard on a shared node without an {@code isolated_tier} attribute gets
+     * {@link Decision#ALWAYS} so other allocation deciders can apply.
+     */
     public void testNonIsolatedProjectAllowedOnSharedNode() {
+        ProjectId isolationTestProjectId = randomIsolationTestProjectId();
+        String testIndexName = randomTestIndexName();
         ProjectIsolationAllocationDecider decider = newProjectIsolationAllocationDecider(Settings.EMPTY);
-        ClusterState clusterState = newClusterStateForIsolationFixture(ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME);
+        ClusterState clusterState = newClusterStateForIsolationFixture(isolationTestProjectId, testIndexName);
         RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).immutable();
-        ShardRouting indexOnlyShardRouting = findShardRoutingByRole(
-            clusterState,
-            ISOLATION_TEST_PROJECT_ID,
-            ALLOC_TEST_INDEX_NAME,
-            INDEX_ONLY
-        );
+        ShardRouting indexOnlyShardRouting = findShardRoutingByRole(clusterState, isolationTestProjectId, testIndexName, INDEX_ONLY);
         RoutingNode sharedNode = clusterState.getRoutingNodes().node("n-shared");
         Decision decision = decider.canAllocate(indexOnlyShardRouting, sharedNode, routingAllocation);
         assertThat(decision.type(), equalTo(Type.YES));
         assertThat(decision, sameInstance(Decision.ALWAYS));
     }
 
+    /**
+     * A shard with {@link Role#DEFAULT} does not participate in project isolation. This decider always defers, even when the owning
+     * project is configured as isolated for index tiers.
+     */
     public void testNonStatefulShardRolesAlwaysDefer() {
+        ProjectId isolationTestProjectId = randomIsolationTestProjectId();
+        String testIndexName = randomTestIndexName();
         ProjectIsolationAllocationDecider decider = newProjectIsolationAllocationDecider(
             Settings.builder()
                 .put(
                     ProjectIsolationAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ISOLATED_PROJECTS_SETTING.getKey(),
-                    isolatedProjectTierJson(ISOLATION_TEST_PROJECT_ID, "index", "iso-pool")
+                    isolatedProjectTierJson(isolationTestProjectId, "index", "iso-pool")
                 )
                 .build()
         );
-        ClusterState clusterState = newClusterStateForIsolationFixture(ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME);
-        IndexMetadata indexMetadata = routingIndexMetadata(clusterState, ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME);
+        ClusterState clusterState = newClusterStateForIsolationFixture(isolationTestProjectId, testIndexName);
+        IndexMetadata indexMetadata = routingIndexMetadata(clusterState, isolationTestProjectId, testIndexName);
         ShardId shardId = new ShardId(indexMetadata.getIndex().getName(), indexMetadata.getIndexUUID(), 0);
         ShardRouting defaultRoleShard = ShardRouting.newUnassigned(
             shardId,
@@ -182,19 +193,25 @@ public class ProjectIsolationAllocationDeciderTests extends ESAllocationTestCase
         assertThat(decision, sameInstance(Decision.ALWAYS));
     }
 
+    /**
+     * For {@link Role#INDEX_ONLY} shards under index tier isolation, {@code canRemain} agrees with {@code canAllocate} on isolated nodes
+     * versus shared nodes.
+     */
     public void testCanRemainMatchesCanAllocateIndexTier() {
+        ProjectId isolationTestProjectId = randomIsolationTestProjectId();
+        String testIndexName = randomTestIndexName();
         ProjectIsolationAllocationDecider decider = newProjectIsolationAllocationDecider(
             Settings.builder()
                 .put(
                     ProjectIsolationAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ISOLATED_PROJECTS_SETTING.getKey(),
-                    isolatedProjectTierJson(ISOLATION_TEST_PROJECT_ID, "index", "iso-pool")
+                    isolatedProjectTierJson(isolationTestProjectId, "index", "iso-pool")
                 )
                 .build()
         );
-        ClusterState clusterState = newClusterStateForIsolationFixture(ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME);
+        ClusterState clusterState = newClusterStateForIsolationFixture(isolationTestProjectId, testIndexName);
         RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).immutable();
-        ShardRouting indexOnlyShard = findShardRoutingByRole(clusterState, ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME, INDEX_ONLY);
-        IndexMetadata indexMetadata = routingIndexMetadata(clusterState, ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME);
+        ShardRouting indexOnlyShard = findShardRoutingByRole(clusterState, isolationTestProjectId, testIndexName, INDEX_ONLY);
+        IndexMetadata indexMetadata = routingIndexMetadata(clusterState, isolationTestProjectId, testIndexName);
 
         assertThat(
             decider.canRemain(indexMetadata, indexOnlyShard, clusterState.getRoutingNodes().node("n-iso"), routingAllocation).type(),
@@ -206,19 +223,25 @@ public class ProjectIsolationAllocationDeciderTests extends ESAllocationTestCase
         );
     }
 
+    /**
+     * For {@link Role#SEARCH_ONLY} shards under search tier isolation, {@code canRemain} agrees with {@code canAllocate} on isolated
+     * nodes versus shared nodes.
+     */
     public void testCanRemainMatchesCanAllocateSearchTier() {
+        ProjectId isolationTestProjectId = randomIsolationTestProjectId();
+        String testIndexName = randomTestIndexName();
         ProjectIsolationAllocationDecider decider = newProjectIsolationAllocationDecider(
             Settings.builder()
                 .put(
                     ProjectIsolationAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ISOLATED_PROJECTS_SETTING.getKey(),
-                    isolatedProjectTierJson(ISOLATION_TEST_PROJECT_ID, "search", "iso-pool")
+                    isolatedProjectTierJson(isolationTestProjectId, "search", "iso-pool")
                 )
                 .build()
         );
-        ClusterState clusterState = newClusterStateForIsolationFixture(ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME);
+        ClusterState clusterState = newClusterStateForIsolationFixture(isolationTestProjectId, testIndexName);
         RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).immutable();
-        ShardRouting searchOnlyShard = findShardRoutingByRole(clusterState, ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME, SEARCH_ONLY);
-        IndexMetadata indexMetadata = routingIndexMetadata(clusterState, ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME);
+        ShardRouting searchOnlyShard = findShardRoutingByRole(clusterState, isolationTestProjectId, testIndexName, SEARCH_ONLY);
+        IndexMetadata indexMetadata = routingIndexMetadata(clusterState, isolationTestProjectId, testIndexName);
 
         assertThat(
             decider.canRemain(indexMetadata, searchOnlyShard, clusterState.getRoutingNodes().node("n-iso"), routingAllocation).type(),
@@ -230,34 +253,46 @@ public class ProjectIsolationAllocationDeciderTests extends ESAllocationTestCase
         );
     }
 
+    /**
+     * With allocation debug enabled and a tier mismatch, the decider returns {@link Decision.Type#NO} as a {@link Decision.Single} whose
+     * explanation names the project, tier, and pool values involved.
+     */
     public void testDebugDecisionExplainsIsolationTierMismatch() {
+        ProjectId isolationTestProjectId = randomIsolationTestProjectId();
+        String testIndexName = randomTestIndexName();
         ProjectIsolationAllocationDecider decider = newProjectIsolationAllocationDecider(
             Settings.builder()
                 .put(
                     ProjectIsolationAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ISOLATED_PROJECTS_SETTING.getKey(),
-                    isolatedProjectTierJson(ISOLATION_TEST_PROJECT_ID, "index", "iso-pool")
+                    isolatedProjectTierJson(isolationTestProjectId, "index", "iso-pool")
                 )
                 .build()
         );
-        ClusterState clusterState = newClusterStateForIsolationFixture(ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME);
+        ClusterState clusterState = newClusterStateForIsolationFixture(isolationTestProjectId, testIndexName);
         RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).mutable();
         routingAllocation.debugDecision(true);
-        ShardRouting indexOnlyShard = findShardRoutingByRole(clusterState, ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME, INDEX_ONLY);
+        ShardRouting indexOnlyShard = findShardRoutingByRole(clusterState, isolationTestProjectId, testIndexName, INDEX_ONLY);
 
         Single decision = (Single) decider.canAllocate(indexOnlyShard, clusterState.getRoutingNodes().node("n-shared"), routingAllocation);
         assertThat(decision.type(), equalTo(Type.NO));
         String explanation = decision.getExplanation();
         assertThat(explanation, containsString("iso-pool"));
-        assertThat(explanation, containsString(ISOLATION_TEST_PROJECT_ID.id()));
+        assertThat(explanation, containsString(isolationTestProjectId.id()));
         assertThat(explanation, containsString("index"));
     }
 
+    /**
+     * With allocation debug enabled, a non-isolated shard proposed on an isolated-capable node gets {@link Decision.Type#NO} with an
+     * explanation that calls out the non-isolated case and the node's pool name.
+     */
     public void testDebugDecisionExplainsNonIsolatedShardOnIsolationNode() {
+        ProjectId isolationTestProjectId = randomIsolationTestProjectId();
+        String testIndexName = randomTestIndexName();
         ProjectIsolationAllocationDecider decider = newProjectIsolationAllocationDecider(Settings.EMPTY);
-        ClusterState clusterState = newClusterStateForIsolationFixture(ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME);
+        ClusterState clusterState = newClusterStateForIsolationFixture(isolationTestProjectId, testIndexName);
         RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).mutable();
         routingAllocation.debugDecision(true);
-        ShardRouting indexOnlyShard = findShardRoutingByRole(clusterState, ISOLATION_TEST_PROJECT_ID, ALLOC_TEST_INDEX_NAME, INDEX_ONLY);
+        ShardRouting indexOnlyShard = findShardRoutingByRole(clusterState, isolationTestProjectId, testIndexName, INDEX_ONLY);
 
         Single decision = (Single) decider.canAllocate(indexOnlyShard, clusterState.getRoutingNodes().node("n-iso"), routingAllocation);
         assertThat(decision.type(), equalTo(Type.NO));
@@ -325,5 +360,16 @@ public class ProjectIsolationAllocationDeciderTests extends ESAllocationTestCase
         clusterSettingsRegistrations.add(ProjectIsolationAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ISOLATED_PROJECTS_SETTING);
         ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, clusterSettingsRegistrations);
         return new ProjectIsolationAllocationDecider(clusterSettings);
+    }
+
+    /** Random lowercase index name valid for allocation tests. */
+    private String randomTestIndexName() {
+        return randomIdentifier("test-i-");
+    }
+
+    /** Random id valid for {@link ProjectId#fromId(String)} (not {@link ProjectId#DEFAULT}). */
+    private ProjectId randomIsolationTestProjectId() {
+        String id = randomValueOtherThan(ProjectId.DEFAULT.id(), () -> randomAlphanumericOfLength(randomIntBetween(12, 32)));
+        return ProjectId.fromId(id);
     }
 }

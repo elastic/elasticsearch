@@ -19,50 +19,76 @@ import static org.hamcrest.Matchers.equalTo;
 public class IsolatedProjectsTests extends ESTestCase {
 
     public void testIsolatedTierNameReturnsEmptyWhenParsedTiersObjectHasNoTierKeys() {
-        IsolatedProjects isolatedProjects = IsolatedProjects.parse("[{\"project\":\"pz\",\"tiers\":{}}]");
-        ProjectId projectId = ProjectId.fromId("pz");
+        String projectIdRaw = randomProjectIdString();
+        IsolatedProjects isolatedProjects = IsolatedProjects.parse(isolatedProjectsEntryJson(projectIdRaw, "{}", ""));
+        ProjectId projectId = ProjectId.fromId(projectIdRaw);
         assertFalse(isolatedProjects.isolatedTierName(projectId, IsolationShardTier.INDEX).isPresent());
         assertFalse(isolatedProjects.isolatedTierName(projectId, IsolationShardTier.SEARCH).isPresent());
     }
 
     public void testIsolatedTierNameReturnsEmptyWhenProjectAbsentFromParsedMap() {
-        IsolatedProjects isolatedProjects = IsolatedProjects.parse("[{\"project\":\"knownp\",\"tiers\":{\"index\":\"pool\"}}]");
-        ProjectId unknownProjectId = ProjectId.fromId("otherpr");
+        String configuredProjectRaw = randomProjectIdString();
+        String randomIsolatedTierName = randomValidIsolatedTierName();
+        String unknownProjectRaw = randomValueOtherThan(configuredProjectRaw, IsolatedProjectsTests::randomProjectIdString);
+
+        IsolatedProjects isolatedProjects = IsolatedProjects.parse(
+            isolatedProjectsEntryJson(configuredProjectRaw, "{\"index\":\"" + randomIsolatedTierName + "\"}", "")
+        );
+        ProjectId unknownProjectId = ProjectId.fromId(unknownProjectRaw);
         assertFalse(isolatedProjects.isolatedTierName(unknownProjectId, IsolationShardTier.INDEX).isPresent());
         assertFalse(isolatedProjects.isolatedTierName(unknownProjectId, IsolationShardTier.SEARCH).isPresent());
     }
 
-    public void testParseThenIsolatedTierNameReturnsPoolsForIndexAndSearch() {
+    public void testIsolatedTierNameReturnsTierNamesForIndexAndSearch() {
+        String projectIdRaw = randomProjectIdString();
+        String indexTier = randomValidIsolatedTierName();
+        String searchTier = randomValidIsolatedTierName();
         IsolatedProjects isolatedProjects = IsolatedProjects.parse(
-            "[{\"project\":\"proj1abcd\",\"tiers\":{\"index\":\"iso-n1\",\"search\":\"iso-s1\"}}]"
+            isolatedProjectsEntryJson(
+                projectIdRaw,
+                String.format(Locale.ROOT, "{\"index\":\"%s\",\"search\":\"%s\"}", indexTier, searchTier),
+                ""
+            )
         );
-        ProjectId projectId = ProjectId.fromId("proj1abcd");
-        assertThat(isolatedProjects.isolatedTierName(projectId, IsolationShardTier.INDEX).orElse(null), equalTo("iso-n1"));
-        assertThat(isolatedProjects.isolatedTierName(projectId, IsolationShardTier.SEARCH).orElse(null), equalTo("iso-s1"));
+        ProjectId projectId = ProjectId.fromId(projectIdRaw);
+        assertThat(isolatedProjects.isolatedTierName(projectId, IsolationShardTier.INDEX).orElse(null), equalTo(indexTier));
+        assertThat(isolatedProjects.isolatedTierName(projectId, IsolationShardTier.SEARCH).orElse(null), equalTo(searchTier));
     }
 
     public void testParseMergesTierIsolationWhenSameProjectAppearsMultipleTimes() {
-        IsolatedProjects isolatedProjects = IsolatedProjects.parse("""
+        String projectIdRaw = randomProjectIdString();
+        String indexFirst = randomValidIsolatedTierName();
+        String searchSecond = randomValidIsolatedTierName();
+        String indexOverride = randomValidIsolatedTierName();
+
+        IsolatedProjects isolatedProjects = IsolatedProjects.parse(String.format(Locale.ROOT, """
             [
-              {"project":"p1","tiers":{"index":"first"}},
-              {"project":"p1","tiers":{"search":"second","index":"override"}}
-            ]""");
-        ProjectId projectId = ProjectId.fromId("p1");
-        assertThat(isolatedProjects.isolatedTierName(projectId, IsolationShardTier.INDEX).orElse(null), equalTo("override"));
-        assertThat(isolatedProjects.isolatedTierName(projectId, IsolationShardTier.SEARCH).orElse(null), equalTo("second"));
+              {"project":"%s","tiers":{"index":"%s"}},
+              {"project":"%s","tiers":{"search":"%s","index":"%s"}}
+            ]""", projectIdRaw, indexFirst, projectIdRaw, searchSecond, indexOverride));
+        ProjectId projectId = ProjectId.fromId(projectIdRaw);
+        assertThat(isolatedProjects.isolatedTierName(projectId, IsolationShardTier.INDEX).orElse(null), equalTo(indexOverride));
+        assertThat(isolatedProjects.isolatedTierName(projectId, IsolationShardTier.SEARCH).orElse(null), equalTo(searchSecond));
     }
 
     public void testParseAllowsTierNameAtMaximumLength() {
-        String isolatedTierNameAtMaxLength = "abcdefghijklmno";
+        String isolatedTierNameAtMaxLength = randomValidIsolatedTierNameExactly(IsolatedProjects.MAX_ISOLATED_TIER_NAME_LENGTH);
+        String projectIdRaw = randomProjectIdString();
+
         IsolatedProjects isolatedProjects = IsolatedProjects.parse(
-            String.format(
-                Locale.ROOT,
-                "[{\"project\":\"plen\",\"tiers\":{\"index\":\"%s\",\"search\":\"%s\"}}]",
-                isolatedTierNameAtMaxLength,
-                isolatedTierNameAtMaxLength
+            isolatedProjectsEntryJson(
+                projectIdRaw,
+                String.format(
+                    Locale.ROOT,
+                    "{\"index\":\"%s\",\"search\":\"%s\"}",
+                    isolatedTierNameAtMaxLength,
+                    isolatedTierNameAtMaxLength
+                ),
+                ""
             )
         );
-        ProjectId projectId = ProjectId.fromId("plen");
+
+        ProjectId projectId = ProjectId.fromId(projectIdRaw);
         assertThat(
             isolatedProjects.isolatedTierName(projectId, IsolationShardTier.INDEX).orElseThrow(),
             equalTo(isolatedTierNameAtMaxLength)
@@ -83,22 +109,39 @@ public class IsolatedProjectsTests extends ESTestCase {
     }
 
     public void testParseThrowsIllegalArgumentWhenEntryHasUnknownField() {
+        String projectIdRaw = randomProjectIdString();
         IllegalArgumentException illegalArgumentException = expectThrows(
             IllegalArgumentException.class,
-            () -> IsolatedProjects.parse("[{\"project\":\"p1\",\"tiers\":{},\"x\":1}]")
+            () -> IsolatedProjects.parse("[{\"project\":\"" + projectIdRaw + "\",\"tiers\":{},\"x\":1}]")
         );
         assertThat(illegalArgumentException.getMessage().contains("unknown field"), equalTo(true));
     }
 
     public void testParseThrowsIllegalArgumentWhenTiersObjectHasUnknownField() {
-        expectThrows(IllegalArgumentException.class, () -> IsolatedProjects.parse("[{\"project\":\"p1\",\"tiers\":{\"ml\":\"x\"}}]"));
-    }
-
-    public void testParseThrowsIllegalArgumentWhenTierNameHasIllegalCharactersOrLength() {
-        expectThrows(IllegalArgumentException.class, () -> IsolatedProjects.parse("[{\"project\":\"p1\",\"tiers\":{\"index\":\"BAD\"}}]"));
+        String projectIdRaw = randomProjectIdString();
         expectThrows(
             IllegalArgumentException.class,
-            () -> IsolatedProjects.parse("[{\"project\":\"p1\",\"tiers\":{\"index\":\"name-longer-than-15\"}}]")
+            () -> IsolatedProjects.parse("[{\"project\":\"" + projectIdRaw + "\",\"tiers\":{\"ml\":\"x\"}}]")
+        );
+    }
+
+    public void testParseThrowsIllegalArgumentWhenTierNameHasIllegalCharacters() {
+        String projectIdRaw = randomProjectIdString();
+        String uppercaseIllegalTier = randomAlphaOfLength(randomIntBetween(3, IsolatedProjects.MAX_ISOLATED_TIER_NAME_LENGTH)).toUpperCase(
+            Locale.ROOT
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> IsolatedProjects.parse(isolatedProjectsEntryJson(projectIdRaw, "{\"index\":\"" + uppercaseIllegalTier + "\"}", ""))
+        );
+    }
+
+    public void testParseThrowsIllegalArgumentWhenTierNameIsTooLong() {
+        String projectIdRaw = randomProjectIdString();
+        String tooLongTierName = randomAlphanumericOfLength(IsolatedProjects.MAX_ISOLATED_TIER_NAME_LENGTH + 1).toLowerCase(Locale.ROOT);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> IsolatedProjects.parse(isolatedProjectsEntryJson(projectIdRaw, "{\"index\":\"" + tooLongTierName + "\"}", ""))
         );
     }
 
@@ -111,11 +154,15 @@ public class IsolatedProjectsTests extends ESTestCase {
     }
 
     public void testParseThrowsIllegalArgumentWhenTiersFieldMissing() {
+        String projectIdMissingTiersRaw = randomProjectIdString();
         IllegalArgumentException illegalArgumentException = expectThrows(
             IllegalArgumentException.class,
-            () -> IsolatedProjects.parse("[{\"project\":\"p1only\"}]")
+            () -> IsolatedProjects.parse("[{\"project\":\"" + projectIdMissingTiersRaw + "\"}]")
         );
-        assertThat(illegalArgumentException.getMessage(), equalTo("missing required field [tiers] for project [p1only]"));
+        assertThat(
+            illegalArgumentException.getMessage(),
+            equalTo("missing required field [tiers] for project [" + projectIdMissingTiersRaw + "]")
+        );
     }
 
     public void testParseThrowsIllegalArgumentWhenProjectFieldIsEmptyString() {
@@ -127,31 +174,50 @@ public class IsolatedProjectsTests extends ESTestCase {
     }
 
     public void testParseThrowsIllegalArgumentWhenTierNameIsEmptyString() {
+        String projectIdRaw = randomProjectIdString();
         IllegalArgumentException illegalArgumentException = expectThrows(
             IllegalArgumentException.class,
-            () -> IsolatedProjects.parse("[{\"project\":\"p1\",\"tiers\":{\"index\":\"\"}}]")
+            () -> IsolatedProjects.parse("[{\"project\":\"" + projectIdRaw + "\",\"tiers\":{\"index\":\"\"}}]")
         );
         assertThat(illegalArgumentException.getMessage(), equalTo("isolated tier name cannot be empty"));
     }
 
     public void testParseThrowsIllegalArgumentWhenTierNameStartsWithHyphen() {
+        String projectIdRaw = randomProjectIdString();
+        String tierStartingWithHyphen = "-" + randomAlphanumericOfLength(1).toLowerCase(Locale.ROOT);
         IllegalArgumentException illegalArgumentException = expectThrows(
             IllegalArgumentException.class,
-            () -> IsolatedProjects.parse("[{\"project\":\"p1\",\"tiers\":{\"index\":\"-x\"}}]")
+            () -> IsolatedProjects.parse(isolatedProjectsEntryJson(projectIdRaw, "{\"index\":\"" + tierStartingWithHyphen + "\"}", ""))
         );
-        assertThat(illegalArgumentException.getMessage(), equalTo("isolated tier name [-x] must not start or end with '-'"));
+        assertThat(
+            illegalArgumentException.getMessage(),
+            equalTo("isolated tier name [" + tierStartingWithHyphen + "] must not start or end with '-'")
+        );
     }
 
     public void testParseThrowsIllegalArgumentWhenTierNameEndsWithHyphen() {
+        String projectIdRaw = randomProjectIdString();
+        String tierEndingWithHyphen = randomValidIsolatedTierNameExactly(randomIntBetween(1, 5)) + "-";
         IllegalArgumentException illegalArgumentException = expectThrows(
             IllegalArgumentException.class,
-            () -> IsolatedProjects.parse("[{\"project\":\"p1\",\"tiers\":{\"search\":\"ab-\"}}]")
+            () -> IsolatedProjects.parse(isolatedProjectsEntryJson(projectIdRaw, "{\"search\":\"" + tierEndingWithHyphen + "\"}", ""))
         );
-        assertThat(illegalArgumentException.getMessage(), equalTo("isolated tier name [ab-] must not start or end with '-'"));
+        assertThat(
+            illegalArgumentException.getMessage(),
+            equalTo("isolated tier name [" + tierEndingWithHyphen + "] must not start or end with '-'")
+        );
     }
 
     public void testParseThrowsIllegalArgumentWhenTierNameContainsUnderscore() {
-        expectThrows(IllegalArgumentException.class, () -> IsolatedProjects.parse("[{\"project\":\"p1\",\"tiers\":{\"index\":\"a_b\"}}]"));
+        String projectIdRaw = randomProjectIdString();
+        String tierWithUnderscore = randomAlphanumericOfLength(randomIntBetween(1, 3)).toLowerCase(Locale.ROOT)
+            + "_"
+            + randomAlphanumericOfLength(randomIntBetween(1, 3)).toLowerCase(Locale.ROOT);
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> IsolatedProjects.parse(isolatedProjectsEntryJson(projectIdRaw, "{\"index\":\"" + tierWithUnderscore + "\"}", ""))
+        );
     }
 
     public void testParseThrowsParsingExceptionWhenJsonRootIsNotArray() {
@@ -166,5 +232,27 @@ public class IsolatedProjectsTests extends ESTestCase {
         assertTrue(illegalArgumentException.getMessage().startsWith("failed to parse "));
         assertNotNull(illegalArgumentException.getCause());
         assertEquals(IOException.class, illegalArgumentException.getCause().getClass());
+    }
+
+    private static String randomProjectIdString() {
+        return randomAlphanumericOfLength(randomIntBetween(12, 32));
+    }
+
+    /**
+     * Isolated tier name matching {@link IsolatedProjects} validation ([a-z0-9-], no leading/trailing '-').
+     */
+    private static String randomValidIsolatedTierName() {
+        return randomValidIsolatedTierNameExactly(randomIntBetween(1, IsolatedProjects.MAX_ISOLATED_TIER_NAME_LENGTH));
+    }
+
+    /** Lowercase alphanumeric, satisfying isolated tier naming rules ([a-z0-9]). */
+    private static String randomValidIsolatedTierNameExactly(int length) {
+        assert length >= 1 && length <= IsolatedProjects.MAX_ISOLATED_TIER_NAME_LENGTH;
+        return randomAlphanumericOfLength(length).toLowerCase(Locale.ROOT);
+    }
+
+    /** One JSON array entry */
+    private static String isolatedProjectsEntryJson(String projectIdRawString, String tiersJsonObjectBody, String suffixAfterEntry) {
+        return "[" + "{\"project\":\"" + projectIdRawString + "\",\"tiers\":" + tiersJsonObjectBody + "}" + suffixAfterEntry + "]";
     }
 }

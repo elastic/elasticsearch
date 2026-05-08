@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.contextualai;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -17,10 +16,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModel;
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankServiceSettings;
@@ -28,14 +24,11 @@ import org.elasticsearch.xpack.inference.services.contextualai.rerank.Contextual
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.CoreMatchers;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.EnumSet;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRerankTestFixtures.TEST_API_KEY;
@@ -46,20 +39,6 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class ContextualAiServiceTests extends InferenceServiceTestCase {
-    private ThreadPool threadPool;
-    private HttpClientManager clientManager;
-
-    @Before
-    public void init() throws Exception {
-        threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-    }
-
-    @After
-    public void shutDown() throws Exception {
-        clientManager.close();
-        terminate(threadPool);
-    }
 
     @Override
     public ContextualAiService createInferenceService() {

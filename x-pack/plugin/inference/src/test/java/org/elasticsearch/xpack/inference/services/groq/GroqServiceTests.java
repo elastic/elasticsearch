@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -22,10 +21,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -33,8 +29,6 @@ import org.elasticsearch.xpack.inference.services.groq.completion.GroqChatComple
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -42,8 +36,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
-import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.groq.action.GroqActionCreatorTests.createModel;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -54,20 +46,6 @@ import static org.mockito.Mockito.mock;
 public class GroqServiceTests extends InferenceServiceTestCase {
 
     private static final String INFERENCE_ENTITY_ID_VALUE = "id";
-    private ThreadPool threadPool;
-    private HttpClientManager clientManager;
-
-    @Before
-    public void init() throws Exception {
-        threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-    }
-
-    @After
-    public void shutdown() throws Exception {
-        clientManager.close();
-        terminate(threadPool);
-    }
 
     public void testUnifiedHandlerUsesOpenAiUnifiedChatCompletionHandler() {
         var handler = GroqService.UNIFIED_CHAT_COMPLETION_HANDLER;

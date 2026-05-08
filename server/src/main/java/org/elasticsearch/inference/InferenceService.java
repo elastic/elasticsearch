@@ -63,9 +63,9 @@ public interface InferenceService extends Closeable {
     Model parsePersistedConfig(UnparsedModel unparsedModel);
 
     /**
-     * Override as needed. Services that create the task settings using a parser do not remove entries from the task settings map, which
-     * causes the existing validation that there are no unknown values left in the map to fail. Rather than explicitly checking that the
-     * task settings map is empty, these services will throw an exception from the parser.
+     * Override as needed. Services that create the task settings using a parser do not remove entries from the map used to create the
+     * {@link TaskSettings}, which causes the existing validation that there are no unknown values left in the map to fail. Rather than
+     * explicitly checking that the map is empty, these services will throw an exception from the parser.
      * @return whether this service implements a parser for task settings
      */
     default boolean usesParserForTaskSettings() {

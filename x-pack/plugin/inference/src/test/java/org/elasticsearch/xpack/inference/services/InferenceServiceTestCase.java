@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -18,8 +19,14 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
+import org.junit.After;
 import org.junit.Assume;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -28,13 +35,47 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 /**
  * This class is for tests that apply to all implementations of {@link InferenceService} but which are not parameterized.
  */
 public abstract class InferenceServiceTestCase extends ESTestCase {
+    public final MockWebServer webServer = new MockWebServer();
+    public ThreadPool threadPool;
+    public HttpClientManager clientManager;
+
+    @Before
+    public void init() throws Exception {
+        doInit();
+    }
+
+    /**
+     * This method should be overridden by implementations that need to do non-standard set-up
+     */
+    public void doInit() throws IOException {
+        webServer.start();
+        threadPool = createThreadPool(inferenceUtilityExecutors());
+        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
+    }
+
+    @After
+    public void shutdown() throws IOException {
+        doShutdown();
+    }
+
+    /**
+     * This method should be overridden by implementations that need to do non-standard shutdown
+     */
+    public void doShutdown() throws IOException {
+        clientManager.close();
+        terminate(threadPool);
+        webServer.close();
+    }
 
     public abstract InferenceService createInferenceService();
 

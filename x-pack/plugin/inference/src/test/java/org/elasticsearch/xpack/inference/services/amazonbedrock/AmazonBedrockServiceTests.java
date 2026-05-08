@@ -39,7 +39,6 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
@@ -48,10 +47,8 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockMockRequestSender;
@@ -65,8 +62,6 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.Amazo
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsTaskSettingsTests;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -81,7 +76,6 @@ import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTe
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettingsTests.getAmazonBedrockSecretSettingsMap;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
@@ -108,20 +102,6 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
     private static final AmazonBedrockProvider AMAZON_BEDROCK_PROVIDER_VALUE = AmazonBedrockProvider.AMAZONTITAN;
     private static final String ACCESS_KEY_VALUE = "access";
     private static final String SECRET_KEY_VALUE = "secret";
-    private ThreadPool threadPool;
-    private HttpClientManager clientManager;
-
-    @Before
-    public void init() throws Exception {
-        threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-    }
-
-    @After
-    public void shutdown() throws IOException {
-        clientManager.close();
-        terminate(threadPool);
-    }
 
     public void testParseRequestConfig_CreatesAnAmazonBedrockModel() throws IOException {
         try (var service = createAmazonBedrockService()) {

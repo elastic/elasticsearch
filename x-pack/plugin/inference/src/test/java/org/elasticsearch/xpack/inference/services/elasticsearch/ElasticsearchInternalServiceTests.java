@@ -50,7 +50,6 @@ import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
@@ -95,8 +94,6 @@ import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -121,7 +118,6 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Response.RESULTS_FIELD;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
@@ -149,22 +145,14 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
     private InferenceStats inferenceStats;
     private LongHistogram mockDeploymentDurationHistogram;
 
-    private static ThreadPool threadPool;
-
     private final String TEST_SENTENCE = "This is a test sentence that has ten total words. ";
 
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    @Override
+    public void doInit() throws IOException {
+        super.doInit();
         randomInferenceEntityId = randomAlphaOfLength(10);
         mockDeploymentDurationHistogram = mock(LongHistogram.class);
         inferenceStats = new InferenceStats(mock(), mock(), mockDeploymentDurationHistogram, Map.of());
-        threadPool = createThreadPool(inferenceUtilityExecutors());
-    }
-
-    @After
-    public void shutdownThreadPool() {
-        terminate(threadPool);
     }
 
     public void testParseRequestConfig() {

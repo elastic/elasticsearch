@@ -530,6 +530,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 ? Optional.of(new CrossProjectSearchMetrics())
                 : Optional.empty();
 
+            Long requestArrivalTime = threadPool.getThreadContext().getTransient(Task.REQUEST_ARRIVAL_NANOS);
+            if (requestArrivalTime != null) {
+                // This tells us how much time was spent for preprocessing a request (which also includes the auth code).
+                cpsMetrics.ifPresent(
+                    c -> c.trackPreProcessingTookTime(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - requestArrivalTime))
+                );
+            }
+
             if (resolvedIndices.getRemoteClusterIndices().isEmpty()) {
                 if (resolvesCrossProject && rewritten.getResolvedIndexExpressions() != null) {
                     ElasticsearchException ex = CrossProjectIndexResolutionValidator.validate(

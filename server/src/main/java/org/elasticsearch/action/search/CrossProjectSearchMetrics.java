@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.TreeSet;
 
 public class CrossProjectSearchMetrics implements Writeable, ToXContentFragment {
+    private long preProcessingTookTime;
     private long planningPhaseTookTime;
     private long mergingPhaseTookTime;
     /*
@@ -35,21 +36,28 @@ public class CrossProjectSearchMetrics implements Writeable, ToXContentFragment 
     private final Map<String, Long> perProjectRoundtripTime;
 
     public static final String CPS_PROFILE_FIELD = "cps_profile";
+    public static final ParseField PRE_PROCESSING_TOOK_TIME_FIELD = new ParseField("preprocessing_took_time");
     public static final ParseField PLANNING_PHASE_TOOK_TIME_FIELD = new ParseField("planning_phase_took_time");
     public static final ParseField MERGING_PHASE_TOOK_TIME_FIELD = new ParseField("merging_phase_took_time");
     public static final String PROJECTS_ROUND_TRIP_TIME = "projects_round_trip_time";
     public static final String PROJECTS_NAME = "projects";
 
     public CrossProjectSearchMetrics() {
+        this.preProcessingTookTime = 0;
         this.planningPhaseTookTime = 0L;
         this.mergingPhaseTookTime = 0L;
         this.perProjectRoundtripTime = new HashMap<>();
     }
 
     public CrossProjectSearchMetrics(StreamInput in) throws IOException {
+        this.preProcessingTookTime = in.readLong();
         this.planningPhaseTookTime = in.readLong();
         this.perProjectRoundtripTime = in.readMap(StreamInput::readLong);
         this.mergingPhaseTookTime = in.readLong();
+    }
+
+    public void trackPreProcessingTookTime(long time) {
+        this.preProcessingTookTime = time;
     }
 
     public void trackPlanningPhaseTookTime(long planningPhaseTookTime) {
@@ -84,6 +92,7 @@ public class CrossProjectSearchMetrics implements Writeable, ToXContentFragment 
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(CPS_PROFILE_FIELD);
 
+        builder.field(PRE_PROCESSING_TOOK_TIME_FIELD.getPreferredName(), preProcessingTookTime);
         builder.field(PLANNING_PHASE_TOOK_TIME_FIELD.getPreferredName(), planningPhaseTookTime);
         builder.field(MERGING_PHASE_TOOK_TIME_FIELD.getPreferredName(), mergingPhaseTookTime);
 
@@ -107,6 +116,7 @@ public class CrossProjectSearchMetrics implements Writeable, ToXContentFragment 
     @Override
     public boolean equals(Object obj) {
         return obj instanceof CrossProjectSearchMetrics other
+            && other.preProcessingTookTime == this.preProcessingTookTime
             && other.planningPhaseTookTime == this.planningPhaseTookTime
             && other.mergingPhaseTookTime == this.mergingPhaseTookTime
             && other.perProjectRoundtripTime.equals(this.perProjectRoundtripTime);
@@ -114,7 +124,7 @@ public class CrossProjectSearchMetrics implements Writeable, ToXContentFragment 
 
     @Override
     public int hashCode() {
-        return Objects.hash(planningPhaseTookTime, mergingPhaseTookTime, perProjectRoundtripTime);
+        return Objects.hash(preProcessingTookTime, planningPhaseTookTime, mergingPhaseTookTime, perProjectRoundtripTime);
     }
 
     @Override
@@ -124,6 +134,7 @@ public class CrossProjectSearchMetrics implements Writeable, ToXContentFragment 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(preProcessingTookTime);
         out.writeLong(planningPhaseTookTime);
         out.writeMap(perProjectRoundtripTime, StreamOutput::writeLong);
         out.writeLong(mergingPhaseTookTime);

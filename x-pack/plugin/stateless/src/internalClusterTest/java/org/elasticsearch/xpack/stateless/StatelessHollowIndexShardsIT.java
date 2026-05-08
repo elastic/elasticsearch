@@ -898,7 +898,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                                 BulkItemResponse response = bulkResponse.getItems()[j];
                                 if (response.isFailed()) {
                                     boolean containsClose = response.getFailureMessage().contains("close")
-                                        || response.getFailure().getCause().getMessage().contains("close");
+                                        || ExceptionsHelper.unwrapCause(response.getFailure().getCause()).getMessage().contains("close");
                                     if (containsClose == false) {
                                         logger.error(
                                             "unexpected non-close failure from writer [" + finalI + "]: " + response.getFailureMessage(),

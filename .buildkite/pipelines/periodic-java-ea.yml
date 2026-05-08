@@ -706,3 +706,15 @@ steps:
         env:
           ES_VERSION: "{{matrix.ES_VERSION}}"
           ES_COMMIT: "{{matrix.ES_COMMIT}}"
+  - wait: ~
+    continue_on_failure: true
+  - label: ea-failure-classification
+    command: .buildkite/scripts/ea-classify-failures.sh
+    timeout_in_minutes: 15
+    soft_fail: true
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-standard-8
+      diskType: hyperdisk-balanced
+      buildDirectory: /dev/shm/bk

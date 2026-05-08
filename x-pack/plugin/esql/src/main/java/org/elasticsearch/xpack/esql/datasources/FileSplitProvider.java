@@ -108,7 +108,7 @@ public class FileSplitProvider implements SplitProvider {
      * must be added here so the {@link org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator}
      * recognises them — pinned by {@code FileSourceFactoryValidationTests}.
      */
-    public static final java.util.Set<String> CONFIG_KEYS = java.util.Set.of(CONFIG_TARGET_SPLIT_SIZE);
+    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_TARGET_SPLIT_SIZE);
 
     /**
      * Macro-split starts on a newline-aligned record boundary (see {@link #tryNewlineAlignedMacroSplits}).

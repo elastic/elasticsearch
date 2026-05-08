@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -116,12 +117,11 @@ public class OrcFormatReader implements RangeAwareFormatReader {
     }
 
     @Override
-    public org.elasticsearch.xpack.esql.datasources.spi.Configured<FormatReader> withConfigTrackingConsumedKeys(
-        Map<String, Object> config
-    ) {
-        // No per-query configuration keys recognised yet. Acknowledged via empty body so a future
-        // contributor adding ORC-specific WITH-clause options has to update this method too.
-        return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+        // ORC has no per-query keys today; the empty consumed-keys set lets the coordinator-side
+        // validator reject anything the user passes that isn't claimed elsewhere. A future
+        // contributor adding ORC-specific options must update this method.
+        return Configured.empty(this);
     }
 
     @Override

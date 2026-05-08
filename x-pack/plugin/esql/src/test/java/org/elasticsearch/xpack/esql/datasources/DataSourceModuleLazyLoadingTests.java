@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
@@ -326,10 +327,8 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
     private static class StubFormatReader implements FormatReader {
 
         @Override
-        public
-            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            return Configured.empty(this);
         }
 
         private final String name;

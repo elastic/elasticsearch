@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.sameInstance;
@@ -153,16 +154,13 @@ public class StorageProviderCacheTests extends ESTestCase {
         StorageProviderCache cache = new StorageProviderCache();
         StorageProviderCache.CacheKey key = new StorageProviderCache.CacheKey("s3", Map.of("access_key", "ak"));
 
-        Configured<StorageProvider> first = cache.getOrCreate(
-            key,
-            () -> new Configured<>(new TrackingProvider(), java.util.Set.of("access_key"))
-        );
+        Configured<StorageProvider> first = cache.getOrCreate(key, () -> new Configured<>(new TrackingProvider(), Set.of("access_key")));
         Configured<StorageProvider> second = cache.getOrCreate(
             key,
             () -> { throw new AssertionError("supplier must not be re-invoked on hit"); }
         );
 
         assertThat(second, sameInstance(first));
-        assertEquals(java.util.Set.of("access_key"), second.consumedKeys());
+        assertEquals(Set.of("access_key"), second.consumedKeys());
     }
 }

@@ -89,7 +89,7 @@ import java.util.regex.Pattern;
  * {@code ip}, {@code version} ({@code v}), {@code null} ({@code n}).
  *
  * <h2>Configurable options</h2>
- * All options are set via the {@code WITH} clause and parsed by {@link #withConfig(java.util.Map)}.
+ * All options are set via the {@code WITH} clause and parsed by {@link #withConfig(Map)}.
  *
  * <table>
  *   <caption>CSV options</caption>

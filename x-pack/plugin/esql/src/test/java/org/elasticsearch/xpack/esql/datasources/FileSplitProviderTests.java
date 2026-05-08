@@ -23,9 +23,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
@@ -872,10 +874,8 @@ public class FileSplitProviderTests extends ESTestCase {
         RangeAwareFormatReader mockReader = new RangeAwareFormatReader() {
 
             @Override
-            public
-                org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-                withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-                return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+                return Configured.empty(this);
             }
 
             private int callCount = 0;
@@ -956,10 +956,8 @@ public class FileSplitProviderTests extends ESTestCase {
         return new RangeAwareFormatReader() {
 
             @Override
-            public
-                org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-                withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-                return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+                return Configured.empty(this);
             }
 
             @Override

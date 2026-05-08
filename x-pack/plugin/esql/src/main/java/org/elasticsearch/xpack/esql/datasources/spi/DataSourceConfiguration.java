@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Base class for datasource configurations. Handles map-backed storage, unknown field
@@ -134,7 +135,7 @@ public abstract class DataSourceConfiguration {
     protected static <T> Configured<T> filterAndConstruct(
         Map<String, Object> raw,
         Map<String, DataSourceConfigDefinition> fieldDefs,
-        java.util.function.Function<Map<String, Object>, T> constructor
+        Function<Map<String, Object>, T> constructor
     ) {
         Configured<Map<String, Object>> filtered = filterKnown(raw, fieldDefs);
         T value = (filtered.value() == null || filtered.value().isEmpty()) ? null : constructor.apply(filtered.value());

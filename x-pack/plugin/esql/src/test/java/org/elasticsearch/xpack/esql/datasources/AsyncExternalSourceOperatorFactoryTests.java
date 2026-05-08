@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -2521,10 +2522,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     private static class TrackingReader implements FormatReader {
 
         @Override
-        public
-            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            return Configured.empty(this);
         }
 
         private final AtomicInteger readCount;
@@ -2609,10 +2608,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     private static class PageCountingFormatReader implements FormatReader {
 
         @Override
-        public
-            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            return Configured.empty(this);
         }
 
         private final AtomicInteger readCount;
@@ -2669,10 +2666,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     private static class FailOnSecondFileFormatReader implements FormatReader {
 
         @Override
-        public
-            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            return Configured.empty(this);
         }
 
         private final AtomicInteger callCount = new AtomicInteger(0);
@@ -2804,10 +2799,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     private static class TestSyncFormatReader implements FormatReader {
 
         @Override
-        public
-            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            return Configured.empty(this);
         }
 
         @Override
@@ -2846,10 +2839,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     private static class SplitCapturingFormatReader implements FormatReader {
 
         @Override
-        public
-            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            return Configured.empty(this);
         }
 
         private final List<StorageObject> capturedObjects;
@@ -2916,10 +2907,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     private static class TrackingSegmentableFormatReader implements SegmentableFormatReader {
 
         @Override
-        public
-            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            return Configured.empty(this);
         }
 
         final AtomicInteger readCount = new AtomicInteger(0);
@@ -3099,10 +3088,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     private static class AlwaysFailFormatReader implements FormatReader {
 
         @Override
-        public
-            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            return Configured.empty(this);
         }
 
         @Override
@@ -3135,10 +3122,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     private static class MultiPageFormatReader implements FormatReader {
 
         @Override
-        public
-            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            return Configured.empty(this);
         }
 
         private final AtomicInteger readCount;
@@ -3203,10 +3188,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     private static class FailAfterNReadsFormatReader implements FormatReader {
 
         @Override
-        public
-            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            return Configured.empty(this);
         }
 
         private final AtomicInteger readCount;
@@ -3267,10 +3250,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     private static class TestAsyncFormatReader implements FormatReader {
 
         @Override
-        public
-            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            return Configured.empty(this);
         }
 
         @Override

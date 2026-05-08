@@ -41,6 +41,7 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -500,7 +501,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         List<Attribute> originalSchema = List.of(attr("a", DataType.INTEGER), attr("b", DataType.KEYWORD));
         ExternalSourceMetadata metadata = createStubMetadata("s3://bucket/file.parquet", originalSchema);
 
-        java.util.LinkedHashMap<String, DataType> partCols = new java.util.LinkedHashMap<>();
+        LinkedHashMap<String, DataType> partCols = new LinkedHashMap<>();
         partCols.put("year", DataType.INTEGER);
         partCols.put("region", DataType.KEYWORD);
         PartitionMetadata partitions = new PartitionMetadata(partCols, Map.of());
@@ -943,7 +944,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
                 if (config == null || config.isEmpty()) {
                     return Configured.empty(provider);
                 }
-                return new Configured<>(provider, java.util.Set.copyOf(config.keySet()));
+                return new Configured<>(provider, Set.copyOf(config.keySet()));
             }
         };
     }
@@ -995,10 +996,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     private static class StubFormatReader implements FormatReader {
 
         @Override
-        public
-            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            return Configured.empty(this);
         }
 
         private final Map<String, List<Attribute>> schemasByPath;
@@ -1068,10 +1067,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
     private static class StubFormatReaderWithStats implements FormatReader {
 
         @Override
-        public
-            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            return Configured.empty(this);
         }
 
         private final Map<String, List<Attribute>> schemasByPath;

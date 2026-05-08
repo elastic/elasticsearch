@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Configures how format readers handle malformed or unparseable rows.
@@ -101,7 +102,7 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     public static final String CONFIG_ERROR_MODE = "error_mode";
 
     /** Keys recognised by {@link #fromConfig}. */
-    public static final java.util.Set<String> CONFIG_KEYS = java.util.Set.of(CONFIG_MAX_ERRORS, CONFIG_MAX_ERROR_RATIO, CONFIG_ERROR_MODE);
+    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_MAX_ERRORS, CONFIG_MAX_ERROR_RATIO, CONFIG_ERROR_MODE);
 
     public ErrorPolicy {
         if (mode == null) {

@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -28,6 +29,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.zip.GZIPOutputStream;
 
@@ -68,10 +70,8 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         FormatReader innerReader = new FormatReader() {
 
             @Override
-            public
-                org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-                withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-                return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+                return Configured.empty(this);
             }
 
             @Override
@@ -128,7 +128,7 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         DecompressionCodec codec = mockCodec();
         CompressionDelegatingFormatReader delegating = new CompressionDelegatingFormatReader(inner, codec);
 
-        FormatReader configured = delegating.withConfig(java.util.Map.of());
+        FormatReader configured = delegating.withConfig(Map.of());
         assertSame(delegating, configured);
 
         if (configured instanceof CompressionDelegatingFormatReader cdr) {
@@ -184,10 +184,8 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
     private static class CapturingFormatReader implements FormatReader {
 
         @Override
-        public
-            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
-            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
-            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
+            return Configured.empty(this);
         }
 
         boolean metadataCalled;

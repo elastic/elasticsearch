@@ -179,7 +179,7 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
         return new ExternalSourceFactory() {
 
             @Override
-            public void validateConfig(String location, java.util.Map<String, Object> config) {
+            public void validateConfig(String location, Map<String, Object> config) {
                 throw new UnsupportedOperationException("test stub does not implement validation");
             }
 

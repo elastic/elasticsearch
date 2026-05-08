@@ -259,6 +259,22 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         as(applyRule(agg), AggregateExec.class);
     }
 
+    public void testNotPushedWhenSourceHasPushedFilter() {
+        ExternalSourceExec ext = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            defaultAttrs(),
+            Map.of(),
+            statsMetadata(1000L, null, null, null),
+            "some_pushed_filter",
+            null
+        );
+        var agg = aggregateExec(ext, countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
     public void testSerializerRoundTrip() {
         Map<String, Object> original = new HashMap<>();
         original.put("existing_key", "value");

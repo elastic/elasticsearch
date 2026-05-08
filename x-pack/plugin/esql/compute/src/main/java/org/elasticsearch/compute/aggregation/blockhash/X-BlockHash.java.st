@@ -33,6 +33,9 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe$Type$;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
+$if(BytesRef)$
+import org.elasticsearch.swisshash.BytesRefSwissHash;
+$endif$
 import java.util.BitSet;
 // end generated imports
 
@@ -52,6 +55,18 @@ final class $Type$BlockHash extends BlockHash {
      * </p>
      */
     private boolean seenNull;
+
+$if(BytesRef)$
+    private static final int PREFETCH_BATCH = 128;
+    private final PrefetchBarrier prefetchBarrier = new PrefetchBarrier();
+    private final int[] batchHashes = new int[PREFETCH_BATCH];
+    private final BytesRef[] batchKeys = new BytesRef[PREFETCH_BATCH];
+    {
+        for (int i = 0; i < PREFETCH_BATCH; i++) {
+            batchKeys[i] = new BytesRef();
+        }
+    }
+$endif$
 
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
@@ -97,6 +112,9 @@ $if(BytesRef)$
         if (ordinals != null) {
             return addOrdinalsVector(ordinals);
         }
+        if (hash instanceof BytesRefSwissHash swiss && swiss.shouldPrefetch()) {
+            return addWithPrefetch(vector, swiss);
+        }
         BytesRef scratch = new BytesRef();
 $endif$
         int positions = vector.getPositionCount();
@@ -114,6 +132,32 @@ $endif$
             return builder.build();
         }
     }
+
+$if(BytesRef)$
+    private IntVector addWithPrefetch(BytesRefVector vector, BytesRefSwissHash swiss) {
+        int positions = vector.getPositionCount();
+        int dummy = 0;
+        try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+            for (int offset = 0; offset < positions; offset += PREFETCH_BATCH) {
+                int batchSize = Math.min(PREFETCH_BATCH, positions - offset);
+                for (int i = 0; i < batchSize; i++) {
+                    vector.getBytesRef(offset + i, batchKeys[i]);
+                    batchHashes[i] = BytesRefSwissHash.hash(batchKeys[i]);
+                    dummy ^= swiss.prefetch(batchHashes[i]);
+                }
+                for (int i = 0; i < batchSize; i++) {
+                    final long id = swiss.addWithHash(batchKeys[i], batchHashes[i]);
+                    builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(id)));
+                }
+            }
+            for (int i = 0; i < PREFETCH_BATCH; i++) {
+                batchKeys[i].bytes = BytesRef.EMPTY_BYTES;
+            }
+            prefetchBarrier.consume(dummy);
+            return builder.build();
+        }
+    }
+$endif$
 
     /**
      *  Adds the block values to the hash, and returns a new vector with the group IDs for those positions.
@@ -281,6 +325,9 @@ $endif$
 
     @Override
     public void close() {
+$if(BytesRef)$
+        prefetchBarrier.flush();
+$endif$
         hash.close();
     }
 

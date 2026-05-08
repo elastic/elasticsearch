@@ -131,7 +131,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
         true,
         DocValuesParameter.Values.Cardinality.LOW,
-        DocValuesParameter.Values.MultiValue.SORTED_SET
+        true
     );
 
     public static class Defaults {
@@ -197,7 +197,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.sortedSetWithCardinality(
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.ofWithCardinality(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParameters()
         );
@@ -512,7 +512,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             DocValuesParameter.Values docValuesParameters = this.docValuesParameters.get();
             if (docValuesParameters.enabled() && docValuesParameters.cardinality() == DocValuesParameter.Values.Cardinality.LOW) {
-                DocValuesType dvType = docValuesParameters.multiValue().isSingleValued() ? DocValuesType.SORTED : DocValuesType.SORTED_SET;
+                DocValuesType dvType = docValuesParameters.multiValue() ? DocValuesType.SORTED_SET : DocValuesType.SORTED;
                 fieldtype.setDocValuesType(dvType);
             } else {
                 // NOTE: we still set DocValuesType.NONE on the fieldtype even when using binary doc values (cardinality == HIGH).
@@ -694,7 +694,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         private boolean usesSingleValuedDocValues() {
-            return docValuesParams != null && docValuesParams.multiValue().isSingleValued();
+            return docValuesParams != null && docValuesParams.multiValue() == false;
         }
 
         @Override
@@ -920,7 +920,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 BlockLoaderFunctionConfig cfg = blContext.blockLoaderFunctionConfig();
                 if (cfg == null) {
                     if (usesBinaryDocValues) {
-                        if (docValuesParams != null && docValuesParams.multiValue().isSingleValued()) {
+                        if (docValuesParams != null && docValuesParams.multiValue() == false) {
                             return new BytesRefsFromBinaryBlockLoader(name());
                         } else {
                             return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
@@ -1382,7 +1382,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue().isSingleValued();
+        return docValuesParameters.multiValue() == false;
     }
 
     @Override

@@ -7,20 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.GoldenTestCase;
-import org.junit.BeforeClass;
 
 import java.util.EnumSet;
 
 public class ReplaceChangePointByExpressionWithEvalGoldenTests extends GoldenTestCase {
 
     private static final EnumSet<Stage> STAGES = EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION);
-
-    @BeforeClass
-    public static void checkChangePointByCapability() {
-        assumeTrue("CHANGE_POINT BY requires snapshot builds", EsqlCapabilities.Cap.CHANGE_POINT_BY.isEnabled());
-    }
 
     public void testAttributeGroupingUnchanged() {
         runGoldenTest("""

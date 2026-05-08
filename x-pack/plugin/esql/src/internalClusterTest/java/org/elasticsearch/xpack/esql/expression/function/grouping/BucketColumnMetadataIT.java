@@ -378,6 +378,107 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testBucketWithZeroSpan() {
+        // BUCKET(field, 0, 0, 0) is accepted by the analyzer but fails at evaluation (NaN/divide-by-zero).
+        // Such impossible bucket definitions must not surface any metadata.
+        client().prepareIndex("numbers")
+            .setSource("number", 1)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM numbers
+            | STATS max=max(number) BY b = BUCKET(number, 0, 0, 0)
+            """))) {
+            assertThat(findColumn(response, "b").meta(), nullValue());
+        }
+    }
+
+    public void testBucketWithNegativeSpan() {
+        // Mirrors testBucketWithZeroSpan for a negative bucket count.
+        client().prepareIndex("numbers")
+            .setSource("number", 1)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM numbers
+            | STATS max=max(number) BY b = BUCKET(number, -1, 0, 0)
+            """))) {
+            assertThat(findColumn(response, "b").meta(), nullValue());
+        }
+    }
+
+    public void testBucketDateWithZeroBucketsHasNoMetadata() {
+        // BUCKET(date, 0, from, to) is nonsensical: a zero bucket count means "give me no histogram". The
+        // metadata path must not surface any interval/unit for it.
+        client().prepareIndex("dates")
+            .setSource("date", "1985-07-09T00:00:00.000Z")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM dates
+            | STATS c=COUNT(*) BY b = BUCKET(date, 0, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            """))) {
+            assertThat(findColumn(response, "b").meta(), nullValue());
+        }
+    }
+
+    public void testBucketDateWithNegativeBucketsHasNoMetadata() {
+        client().prepareIndex("dates")
+            .setSource("date", "1985-07-09T00:00:00.000Z")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM dates
+            | STATS c=COUNT(*) BY b = BUCKET(date, -1, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            """))) {
+            assertThat(findColumn(response, "b").meta(), nullValue());
+        }
+    }
+
+    public void testBucketDateNanosWithZeroBucketsHasNoMetadata() {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("date_nanos_idx")
+                .setMapping("date", "type=date_nanos")
+        );
+        client().prepareIndex("date_nanos_idx")
+            .setSource("date", "1985-07-09T00:00:00.000Z")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM date_nanos_idx
+            | STATS c=COUNT(*) BY b = BUCKET(date, 0, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            """))) {
+            assertThat(findColumn(response, "b").meta(), nullValue());
+        }
+    }
+
+    public void testBucketDateNanosWithNegativeBucketsHasNoMetadata() {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("date_nanos_idx")
+                .setMapping("date", "type=date_nanos")
+        );
+        client().prepareIndex("date_nanos_idx")
+            .setSource("date", "1985-07-09T00:00:00.000Z")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM date_nanos_idx
+            | STATS c=COUNT(*) BY b = BUCKET(date, -1, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            """))) {
+            assertThat(findColumn(response, "b").meta(), nullValue());
+        }
+    }
+
     public void testBucketWithNullFieldLiteralHasNoMetadata() {
         // A null literal in the field position: after constant folding the alias' child is no longer a Bucket,
         // so no metadata is attached to the column.

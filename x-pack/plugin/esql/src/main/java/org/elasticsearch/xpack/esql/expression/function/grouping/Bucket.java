@@ -589,12 +589,25 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     protected Map<String, Object> getIntervalMetadata(FoldContext foldContext) {
         if (buckets.foldable() && (from == null || from.foldable()) && (to == null || to.foldable())) {
             if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
+                // Auto-mode date BUCKET (whole-number bucket count + range): a non-positive count is nonsensical.
+                // The picker would silently fall through to YEAR_OF_CENTURY and surface a misleading "1 year" interval;
+                // skip metadata emission instead. Period/duration spans go through createRounding which already rejects
+                // zero/negative values at fold time, so they don't reach here in an impossible state.
+                if (buckets.dataType().isWholeNumber() && ((Number) buckets.fold(foldContext)).intValue() <= 0) {
+                    return null;
+                }
                 Rounding rounding = getDateRounding(foldContext).getUnprepared();
                 Rounding.Interval interval = rounding.getInterval();
                 return Map.of("bucket", Map.of("interval", interval.size(), "unit", interval.unit()));
             }
             if (field.dataType().isNumeric()) {
                 double roundTo = getNumberRoundTo(foldContext);
+                // Impossible bucket configurations (zero/negative buckets count, zero/inverted ranges) yield NaN,
+                // ±Infinity, or non-positive widths. Skip metadata emission in those cases — the query itself fails
+                // at runtime, and surfacing garbage values on the column descriptor would be misleading.
+                if (Double.isFinite(roundTo) == false || roundTo <= 0.0) {
+                    return null;
+                }
                 return Map.of("bucket", Map.of("interval", roundTo));
             }
         }

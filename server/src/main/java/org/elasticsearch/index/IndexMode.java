@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -46,7 +45,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -102,13 +100,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
-        }
-
-        @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -214,13 +207,7 @@ public enum IndexMode {
             return TimeSeriesRoutingHashFieldMapper.INSTANCE;
         }
 
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return TsidExtractingIdFieldMapper.INSTANCE;
-        }
-
-        @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            // We don't support field data on TSDB's _id
+        public IdFieldMapper idFieldMapperForReindex() {
             return TsidExtractingIdFieldMapper.INSTANCE;
         }
 
@@ -254,7 +241,12 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean isColumnar() {
+        public boolean useTimeSeriesDocValuesCodec() {
+            return true;
+        }
+
+        @Override
+        public boolean useEs812PostingsFormat() {
             return true;
         }
     },
@@ -290,13 +282,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
-        }
-
-        @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -344,184 +331,12 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean isColumnar() {
+        public boolean useTimeSeriesDocValuesCodec() {
             return true;
         }
-    },
-    COLUMNAR("columnar") {
-        @Override
-        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            validateRoutingPathSettings(settings);
-        }
 
         @Override
-        public void validateMapping(MappingLookup lookup) {}
-
-        @Override
-        public void validateAlias(String indexRouting, String searchRouting) {
-
-        }
-
-        @Override
-        public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException {
-            if (isDataStream) {
-                MetadataCreateDataStreamService.validateTimestampFieldMapping(mappingLookup);
-            }
-        }
-
-        @Override
-        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            return DEFAULT_MAPPING_TIMESTAMP;
-        }
-
-        @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
-        }
-
-        @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
-        }
-
-        @Override
-        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
-            return null;
-        }
-
-        @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c) {
-            // non time-series indices must not have a TimeSeriesIdFieldMapper
-            return null;
-        }
-
-        @Override
-        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
-            // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
-            return null;
-        }
-
-        @Override
-        public RoutingFields buildRoutingFields(IndexSettings settings) {
-            return RoutingFields.Noop.INSTANCE;
-        }
-
-        @Override
-        public boolean shouldValidateTimestamp() {
-            return false;
-        }
-
-        @Override
-        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
-            if (sourceFieldMapper.enabled() == false) {
-                throw new IllegalArgumentException("_source can not be disabled in index using [" + IndexMode.COLUMNAR + "] index mode");
-            }
-        }
-
-        @Override
-        public SourceFieldMapper.Mode defaultSourceMode() {
-            return SourceFieldMapper.Mode.SYNTHETIC;
-        }
-
-        @Override
-        public String getDefaultCodec() {
-            return CodecService.BEST_COMPRESSION_CODEC;
-        }
-
-        @Override
-        public boolean isColumnar() {
-            return true;
-        }
-    },
-    COLUMNAR_LOGSDB("columnar_logsdb") {
-        @Override
-        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            var setting = settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS);
-            if (setting.equals(Boolean.FALSE)) {
-                validateRoutingPathSettings(settings);
-            }
-        }
-
-        @Override
-        public void validateMapping(MappingLookup lookup) {}
-
-        @Override
-        public void validateAlias(String indexRouting, String searchRouting) {
-
-        }
-
-        @Override
-        public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException {
-            if (isDataStream) {
-                MetadataCreateDataStreamService.validateTimestampFieldMapping(mappingLookup);
-            }
-        }
-
-        @Override
-        public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            return indexSettings != null && indexSettings.logsdbAddHostNameField()
-                ? DEFAULT_MAPPING_TIMESTAMP_HOSTNAME
-                : DEFAULT_MAPPING_TIMESTAMP;
-        }
-
-        @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
-        }
-
-        @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
-        }
-
-        @Override
-        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
-            return null;
-        }
-
-        @Override
-        public MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c) {
-            // non time-series indices must not have a TimeSeriesIdFieldMapper
-            return null;
-        }
-
-        @Override
-        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
-            // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
-            return null;
-        }
-
-        @Override
-        public RoutingFields buildRoutingFields(IndexSettings settings) {
-            return RoutingFields.Noop.INSTANCE;
-        }
-
-        @Override
-        public boolean shouldValidateTimestamp() {
-            return false;
-        }
-
-        @Override
-        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
-            if (sourceFieldMapper.enabled() == false) {
-                throw new IllegalArgumentException(
-                    "_source can not be disabled in index using [" + IndexMode.COLUMNAR_LOGSDB + "] index mode"
-                );
-            }
-        }
-
-        @Override
-        public SourceFieldMapper.Mode defaultSourceMode() {
-            return SourceFieldMapper.Mode.SYNTHETIC;
-        }
-
-        @Override
-        public String getDefaultCodec() {
-            return CodecService.BEST_COMPRESSION_CODEC;
-        }
-
-        @Override
-        public boolean isColumnar() {
+        public boolean useEs812PostingsFormat() {
             return true;
         }
     },
@@ -570,13 +385,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
-        }
-
-        @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -669,19 +479,6 @@ public enum IndexMode {
         ).collect(toSet())
     );
 
-    public static final FeatureFlag COLUMNAR_FEATURE_FLAG = new FeatureFlag("columnar_index_mode");
-
-    /**
-     * Returns only the index modes that are available in the current build.
-     * Columnar modes are excluded in non-snapshot builds where the feature flag is disabled.
-     */
-    public static IndexMode[] availableModes() {
-        if (COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            return values();
-        }
-        return Arrays.stream(values()).filter(m -> m != COLUMNAR && m != COLUMNAR_LOGSDB).toArray(IndexMode[]::new);
-    }
-
     private final String name;
 
     IndexMode(String name) {
@@ -716,15 +513,10 @@ public enum IndexMode {
     public abstract CompressedXContent getDefaultMapping(IndexSettings indexSettings);
 
     /**
-     * Build the {@link FieldMapper} for {@code _id}.
+     * Get the singleton {@link FieldMapper} for reindex to correctly reindex the id into the destination index.
+     * It can never support field data.
      */
-    public abstract IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled);
-
-    /**
-     * Get the singleton {@link FieldMapper} for {@code _id}. It can never support
-     * field data.
-     */
-    public abstract IdFieldMapper idFieldMapperWithoutFieldData();
+    public abstract IdFieldMapper idFieldMapperForReindex();
 
     /**
      * @return the time range based on the provided index metadata and index mode implementation.
@@ -772,10 +564,17 @@ public enum IndexMode {
     }
 
     /**
-     * Whether this index mode uses columnar storage optimizations.
-     * Columnar modes use specialized codecs for better compression and performance.
+     * Whether by default to use the ES 8.12 {@link org.apache.lucene.codecs.PostingsFormat}. This is a historical PostingsFormat we used
+     * for all indices by default. However, starting with Lucene 10.3, we began using a new, more modern format, for standard indices.
      */
-    public boolean isColumnar() {
+    public boolean useEs812PostingsFormat() {
+        return false;
+    }
+
+    /**
+     * Whether by default to use the time series doc values codec.
+     */
+    public boolean useTimeSeriesDocValuesCodec() {
         return false;
     }
 
@@ -783,12 +582,10 @@ public enum IndexMode {
      * Parse a string into an {@link IndexMode}.
      */
     public static IndexMode fromString(String value) {
-        IndexMode mode = switch (value.toLowerCase(Locale.ROOT)) {
+        return switch (value.toLowerCase(Locale.ROOT)) {
             case "standard" -> IndexMode.STANDARD;
             case "time_series" -> IndexMode.TIME_SERIES;
             case "logsdb" -> IndexMode.LOGSDB;
-            case "columnar" -> IndexMode.COLUMNAR;
-            case "columnar_logsdb" -> IndexMode.COLUMNAR_LOGSDB;
             case "lookup" -> IndexMode.LOOKUP;
             default -> throw new IllegalArgumentException(
                 "["
@@ -798,11 +595,6 @@ public enum IndexMode {
                     + "]"
             );
         };
-
-        if ((mode == IndexMode.COLUMNAR || mode == IndexMode.COLUMNAR_LOGSDB) && COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("[" + value + "] index mode is only available in snapshot builds.");
-        }
-        return mode;
     }
 
     /**
@@ -821,8 +613,6 @@ public enum IndexMode {
             case 1 -> TIME_SERIES;
             case 2 -> LOGSDB;
             case 3 -> LOOKUP;
-            case 4 -> COLUMNAR;
-            case 5 -> COLUMNAR_LOGSDB;
             default -> throw new IllegalStateException("unexpected index mode [" + mode + "]");
         };
     }
@@ -833,8 +623,6 @@ public enum IndexMode {
             case TIME_SERIES -> 1;
             case LOGSDB -> 2;
             case LOOKUP -> 3;
-            case COLUMNAR -> 4;
-            case COLUMNAR_LOGSDB -> 5;
         };
         out.writeByte((byte) code);
     }

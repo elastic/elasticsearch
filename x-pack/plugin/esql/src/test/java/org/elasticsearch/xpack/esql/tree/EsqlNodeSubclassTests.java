@@ -826,7 +826,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return new EsRelation(
             SourceTests.randomSource(),
             randomIdentifier(),
-            randomFrom(IndexMode.availableModes()),
+            randomFrom(IndexMode.values()),
             randomRemotesWithIndices(),
             randomRemotesWithIndices(),
             randomIndexNameWithModes(),

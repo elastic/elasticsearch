@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataSource;
 import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
+import org.junit.Before;
 import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -47,6 +48,14 @@ import static org.hamcrest.Matchers.not;
 public class DatasetRewriterTests extends ESTestCase {
 
     private static final IndexNameExpressionResolver RESOLVER = TestIndexNameExpressionResolver.newInstance();
+
+    @Before
+    public void requireFeatureFlag() {
+        assumeTrue(
+            "ES|QL external datasources feature flag must be enabled",
+            DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+        );
+    }
 
     public void testNoDatasetsLeavesPlanUnchanged() {
         UnresolvedRelation relation = relationOf("my_index");

@@ -86,11 +86,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     private static final String REST_TESTS_VALIDATE_SPEC = "tests.rest.validate_spec";
     /**
-     * Property that, when true, forces YAML tests to run grouped by suite (yaml file) — i.e.
-     * every test in a given file runs consecutively, in declared order — instead of being
-     * shuffled across files. Default is {@code false}: tests are still shuffled, preserving
-     * the existing randomization. Use this with the lazy-cleanup framework to maximize
-     * setup-state reuse within a file.
+     * Property controlling YAML test ordering. When {@code true} (the default), tests run
+     * grouped by suite (yaml file) — every test in a given file runs consecutively, in
+     * declared order. Set to {@code false} to instead shuffle tests across all files
+     * (preserved-seed randomization). Suite grouping pairs with the lazy-cleanup framework
+     * to maximize setup-state reuse within a file.
      *
      * <p>Note: this only takes effect for test classes that opt out of the framework-level
      * shuffle by declaring {@code @ParametersFactory(shuffle = false)}. Otherwise the runner
@@ -347,12 +347,12 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             }
         }
         // Sort by test path first for a deterministic baseline (suites grouped, sections in
-        // file order). Then either keep that order (when -Dtests.rest.suite.grouping=true)
-        // or shuffle internally to preserve randomization (default). Test classes that opt
-        // into this internal ordering must declare @ParametersFactory(shuffle = false), so
-        // that the runner does not re-shuffle and undo the grouping/seeded shuffle.
+        // file order). Then either keep that order (default, -Dtests.rest.suite.grouping=true)
+        // or shuffle internally when grouping is disabled. Test classes that opt into this
+        // internal ordering must declare @ParametersFactory(shuffle = false), so that the
+        // runner does not re-shuffle and undo the grouping/seeded shuffle.
         tests.sort(Comparator.comparing(o -> ((ClientYamlTestCandidate) o[0]).getTestPath()));
-        if (RandomizedTest.systemPropertyAsBoolean(REST_TESTS_SUITE_GROUPING, false) == false) {
+        if (RandomizedTest.systemPropertyAsBoolean(REST_TESTS_SUITE_GROUPING, true) == false) {
             Collections.shuffle(tests, RandomizedTest.getRandom());
         }
         return tests;

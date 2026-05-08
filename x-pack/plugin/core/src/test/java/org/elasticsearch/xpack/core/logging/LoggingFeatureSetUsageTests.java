@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.logging;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.logging.LoggingFeatureSetUsage.EsqlLoggingConfig;
 import org.elasticsearch.xpack.core.logging.LoggingFeatureSetUsage.LoggingConfig;
 import org.elasticsearch.xpack.core.logging.LoggingFeatureSetUsage.QueryLoggingConfig;
@@ -35,10 +34,10 @@ public class LoggingFeatureSetUsageTests extends AbstractWireSerializingTestCase
     protected LoggingFeatureSetUsage mutateInstance(LoggingFeatureSetUsage instance) throws IOException {
         var queryConfig = instance.queryConfig();
         var esqlConfig = instance.esqlConfig();
-        return switch (between(0, 5)) {
+        return switch (between(0, 6)) {
             case 0 -> {
                 var base = queryConfig.base();
-                var newBase = new LoggingConfig(randomValueOtherThan(base.enabled(), ESTestCase::randomBoolean), base.userInfo());
+                var newBase = new LoggingConfig(!base.enabled(), base.userInfo());
                 yield new LoggingFeatureSetUsage(
                     new QueryLoggingConfig(newBase, queryConfig.system(), queryConfig.threshold()),
                     esqlConfig
@@ -46,18 +45,14 @@ public class LoggingFeatureSetUsageTests extends AbstractWireSerializingTestCase
             }
             case 1 -> {
                 var base = queryConfig.base();
-                var newBase = new LoggingConfig(base.enabled(), randomValueOtherThan(base.userInfo(), ESTestCase::randomBoolean));
+                var newBase = new LoggingConfig(base.enabled(), !base.userInfo());
                 yield new LoggingFeatureSetUsage(
                     new QueryLoggingConfig(newBase, queryConfig.system(), queryConfig.threshold()),
                     esqlConfig
                 );
             }
             case 2 -> new LoggingFeatureSetUsage(
-                new QueryLoggingConfig(
-                    queryConfig.base(),
-                    randomValueOtherThan(queryConfig.system(), ESTestCase::randomBoolean),
-                    queryConfig.threshold()
-                ),
+                new QueryLoggingConfig(queryConfig.base(), !queryConfig.system(), queryConfig.threshold()),
                 esqlConfig
             );
             case 3 -> {
@@ -72,12 +67,17 @@ public class LoggingFeatureSetUsageTests extends AbstractWireSerializingTestCase
             }
             case 4 -> {
                 var base = esqlConfig.base();
-                var newBase = new LoggingConfig(randomValueOtherThan(base.enabled(), ESTestCase::randomBoolean), base.userInfo());
+                var newBase = new LoggingConfig(!base.enabled(), base.userInfo());
                 yield new LoggingFeatureSetUsage(queryConfig, new EsqlLoggingConfig(newBase, esqlConfig.thresholds()));
             }
             case 5 -> {
+                var base = esqlConfig.base();
+                var newBase = new LoggingConfig(base.enabled(), !base.userInfo());
+                yield new LoggingFeatureSetUsage(queryConfig, new EsqlLoggingConfig(newBase, esqlConfig.thresholds()));
+            }
+            case 6 -> {
                 Map<String, String> thresholds = new HashMap<>(esqlConfig.thresholds());
-                if (thresholds.isEmpty()) {
+                if (thresholds.isEmpty() || randomBoolean()) {
                     thresholds.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
                 } else {
                     String key = randomFrom(thresholds.keySet());

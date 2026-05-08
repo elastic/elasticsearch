@@ -130,7 +130,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         entry(PREFIX_LENGTH_FIELD.getPreferredName(), INTEGER),
         entry(ZERO_TERMS_QUERY_FIELD.getPreferredName(), KEYWORD)
     );
-    private final static String CONTENT_FIELD = "content_field";
+    private static final String CONTENT_FIELD = "content_field";
 
     private final Configuration configuration;
 

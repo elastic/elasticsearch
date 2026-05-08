@@ -30,6 +30,17 @@ public class VectorIndexTypeTelemetryTests extends ESTestCase {
         assertTrue("VectorIndexTypeTelemetry must fit in 4 bits", VectorIndexTypeTelemetry.values().length <= 16);
     }
 
+    public void testFromOrdinalIsStable() {
+        // Since this is serialized, the order must be stable.
+        assertEquals(VectorIndexTypeTelemetry.NONE, VectorIndexTypeTelemetry.fromOrdinal(0));
+        assertEquals(VectorIndexTypeTelemetry.UNKNOWN, VectorIndexTypeTelemetry.fromOrdinal(1));
+        assertEquals(VectorIndexTypeTelemetry.HNSW, VectorIndexTypeTelemetry.fromOrdinal(2));
+        assertEquals(VectorIndexTypeTelemetry.FLAT, VectorIndexTypeTelemetry.fromOrdinal(3));
+        assertEquals(VectorIndexTypeTelemetry.BBQ, VectorIndexTypeTelemetry.fromOrdinal(4));
+        assertEquals(VectorIndexTypeTelemetry.MIXED, VectorIndexTypeTelemetry.fromOrdinal(5));
+        assertEquals(VectorIndexTypeTelemetry.UNKNOWN, VectorIndexTypeTelemetry.fromOrdinal(6));
+    }
+
     public void testLabels() {
         assertNull(VectorIndexTypeTelemetry.NONE.label());
         assertEquals("unknown", VectorIndexTypeTelemetry.UNKNOWN.label());

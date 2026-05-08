@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -50,6 +51,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -309,6 +311,57 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             MlDailyMaintenanceService service = createService(indexName, testCase.hasIlmPolicy, testCase.isIlmEnabled);
             assertThat(testCase.description, service.hasIlm(indexName), equalTo(testCase.expected));
         }
+    }
+
+    /**
+     * Regression: {@link MlDailyMaintenanceService#hasIlm} must call {@code GetIndex} under
+     * {@link org.elasticsearch.xpack.core.ClientHelper#ML_ORIGIN}. Security authorizes internal ML actions via the origin on the
+     * thread context; without it the admin client runs as {@code _system} and {@code indices:admin/get} fails during nightly
+     * rollover checks.
+     */
+    public void testHasIlmInvokesGetIndexWithMlOriginInThreadContext() {
+        String indexName = randomAlphaOfLength(10);
+
+        AdminClient adminClient = mock(AdminClient.class);
+        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
+        @SuppressWarnings("unchecked")
+        ActionFuture<GetIndexResponse> actionFuture = mock(ActionFuture.class);
+
+        when(client.admin()).thenReturn(adminClient);
+        when(adminClient.indices()).thenReturn(indicesAdminClient);
+
+        Settings indexSettings = Settings.builder().put("index.lifecycle.name", "ml-policy").build();
+        GetIndexResponse getIndexResponse = new GetIndexResponse(
+            new String[] { indexName },
+            Map.of(),
+            Map.of(),
+            Map.of(indexName, indexSettings),
+            Map.of(),
+            Map.of()
+        );
+        when(actionFuture.actionGet()).thenReturn(getIndexResponse);
+
+        doAnswer(invocation -> {
+            assertThat(threadPool.getThreadContext().getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME), equalTo(ML_ORIGIN));
+            return actionFuture;
+        }).when(indicesAdminClient).getIndex(any());
+
+        MlDailyMaintenanceService service = new MlDailyMaintenanceService(
+            Settings.EMPTY,
+            threadPool,
+            client,
+            clusterService,
+            mlAssignmentNotifier,
+            () -> TimeValue.timeValueDays(1),
+            TestIndexNameExpressionResolver.newInstance(),
+            true,
+            true,
+            true,
+            true
+        );
+
+        assertThat(service.hasIlm(indexName), equalTo(true));
+        verify(indicesAdminClient).getIndex(any());
     }
 
     private MlDailyMaintenanceService createService(String indexName, boolean hasIlmPolicy, boolean isIlmEnabled) {

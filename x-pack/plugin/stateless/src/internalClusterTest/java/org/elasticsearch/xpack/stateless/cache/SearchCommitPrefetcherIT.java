@@ -190,7 +190,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             // TODO this does more reading & caching because it reads all referenced CCs
             .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
             .build();
-        startMasterAndIndexNode(nodeSettings);
+        var indexNode = startMasterAndIndexNode(nodeSettings);
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
@@ -217,39 +217,6 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         // no new commits were created since the search node started, so it didn't receive any commit notifications, nothing to prefetch
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(0L));
 
-        var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
-        var oldBccReads = new AtomicLong();
-        var newBccBytes = new AtomicLong();
-        setNodeRepositoryStrategy(searchNode, new StatelessMockRepositoryStrategy() {
-            @Override
-            public InputStream blobContainerReadBlob(
-                CheckedSupplier<InputStream, IOException> originalSupplier,
-                OperationPurpose purpose,
-                String blobName,
-                long position,
-                long length
-            ) throws IOException {
-                if (blobName.startsWith(StatelessCompoundCommit.PREFIX)) {
-                    long blobGeneration = Long.parseLong(blobName.substring(StatelessCompoundCommit.PREFIX.length()));
-                    if (blobGeneration <= latestCommitGeneration) {
-                        oldBccReads.incrementAndGet();
-                    } else {
-                        return new FilterInputStream(originalSupplier.get()) {
-                            @Override
-                            public int read(byte[] b, int off, int len) throws IOException {
-                                var bytesRead = super.read(b, off, len);
-                                if (bytesRead > 0) {
-                                    newBccBytes.addAndGet(bytesRead);
-                                }
-                                return bytesRead;
-                            }
-                        };
-                    }
-                }
-                return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
-            }
-        });
-
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
         String prewarmThreadPool = StatelessPlugin.PREWARM_THREAD_POOL;
         // number of completed tasks in the prewarming threadpool before we start indexing
@@ -259,16 +226,23 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         // create a new commit and upload it
         indexDocs(indexName, 10_000);
         refresh(indexName);
+
+        // Get the actual pending VBCC after refresh rather than predicting generation+1
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+        var pendingVbcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
+        assertThat(pendingVbcc, notNullValue());
+        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(pendingVbcc.getPrimaryTermAndGeneration().generation());
+        var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
+        var beforeNewCommit = bytesReadFromBlobStore.get();
+
         flush(indexName);
 
         // wait for the refreshes to complete
         assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, preIngestTasksRefreshPool);
         assertNoRunningAndQueueTasks(threadPool, prewarmThreadPool, preIngestTasksPrewarmingPool);
 
-        // BCC blobs that existed before the search node received its first commit notification must not be read
-        assertThat(oldBccReads.get(), is(0L));
-        // all prefetched bytes must come from new BCC generations created since the search node started
-        assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(newBccBytes.get())));
+        // we should have prefetched the latest commit generation only
+        assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(bytesReadFromBlobStore.get() - beforeNewCommit)));
     }
 
     public void testSkipFetchingForSearchIdleIndices() throws Exception {

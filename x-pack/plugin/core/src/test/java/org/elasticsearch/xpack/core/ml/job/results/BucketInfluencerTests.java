@@ -12,6 +12,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Date;
 
 import static org.hamcrest.Matchers.containsString;
@@ -42,6 +43,9 @@ public class BucketInfluencerTests extends AbstractXContentSerializingTestCase<B
         }
         if (randomBoolean()) {
             bucketInfluencer.setIsInterim(randomBoolean());
+        }
+        if (randomBoolean()) {
+            bucketInfluencer.setEventIngested(Instant.ofEpochMilli(randomNonNegativeLong()));
         }
         return bucketInfluencer;
     }

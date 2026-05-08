@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -85,6 +86,9 @@ public class BucketTests extends AbstractXContentSerializingTestCase<Bucket> {
             List<String> scheduledEvents = new ArrayList<>(size);
             IntStream.range(0, size).forEach(i -> scheduledEvents.add(randomAlphaOfLength(20)));
             bucket.setScheduledEvents(scheduledEvents);
+        }
+        if (randomBoolean()) {
+            bucket.setEventIngested(Instant.ofEpochMilli(randomNonNegativeLong()));
         }
         return bucket;
     }

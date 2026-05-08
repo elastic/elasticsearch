@@ -158,6 +158,23 @@ public final class TimeUtils {
     }
 
     /**
+     * Parses the ECS {@code event.ingested} nested object from an XContentParser positioned at the start of the {@code event} object.
+     * Returns the value of the nested {@code ingested} field, or {@code null} if it is absent.
+     */
+    public static Instant parseEventIngested(XContentParser parser) throws IOException {
+        Instant ingested = null;
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            if (parser.currentToken() == XContentParser.Token.FIELD_NAME && "ingested".equals(parser.currentName())) {
+                parser.nextToken();
+                ingested = parseTimeFieldToInstant(parser, "ingested");
+            } else {
+                parser.skipChildren();
+            }
+        }
+        return ingested;
+    }
+
+    /**
      * Check the given {@code timeValue} is a multiple of the {@code baseUnit}
      */
     public static void checkMultiple(TimeValue timeValue, TimeUnit baseUnit, ParseField field) {

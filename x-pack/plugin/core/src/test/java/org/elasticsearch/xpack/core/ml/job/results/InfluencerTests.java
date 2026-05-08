@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Date;
 
 public class InfluencerTests extends AbstractXContentSerializingTestCase<Influencer> {
@@ -32,6 +33,9 @@ public class InfluencerTests extends AbstractXContentSerializingTestCase<Influen
         influencer.setInfluencerScore(randomDouble());
         influencer.setInitialInfluencerScore(randomDouble());
         influencer.setProbability(randomDouble());
+        if (randomBoolean()) {
+            influencer.setEventIngested(Instant.ofEpochMilli(randomNonNegativeLong()));
+        }
         return influencer;
     }
 

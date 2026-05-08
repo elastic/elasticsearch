@@ -844,7 +844,7 @@ public class VerifierTests extends ESTestCase {
             .error(
                 "FROM decades | LIMIT 1 BY date_range",
                 equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V4.isEnabled()
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V5.isEnabled()
                         ? "1:27: cannot group by on [date_range] type for grouping [date_range]"
                         : "1:27: Cannot use field [date_range] with unsupported type [date_range]"
                 )
@@ -873,7 +873,7 @@ public class VerifierTests extends ESTestCase {
             .error(
                 "FROM decades | STATS count(*) BY date_range",
                 equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V4.isEnabled()
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V5.isEnabled()
                         ? "1:34: cannot group by on [date_range] type for grouping [date_range]"
                         : "1:34: Cannot use field [date_range] with unsupported type [date_range]"
                 )

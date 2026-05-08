@@ -120,14 +120,30 @@ public interface FormatReader extends Closeable {
     List<String> fileExtensions();
 
     /**
-     * Returns a format reader configured with the given config map (from the WITH clause).
-     * Implementations should parse format-specific options from the config
-     * and return a new reader instance if any options are present.
-     * The default returns {@code this} (no configuration).
+     * Returns a reader configured from the input config map.
+     * Default delegates to {@link #withConfigTrackingConsumedKeys(Map)} and discards the consumed-keys set;
+     * use this overload when the caller does not need to validate against the consumed keys.
+     * <p>
+     * <b>Override target:</b> implementations must override {@link #withConfigTrackingConsumedKeys(Map)},
+     * NOT this method. The default {@code withConfig} delegates through the tracking variant, so an
+     * override here alone would be silently bypassed by every caller. The tracking variant is the
+     * single configuration entry point for the SPI.
      */
     default FormatReader withConfig(Map<String, Object> config) {
-        return this;
+        return withConfigTrackingConsumedKeys(config).value();
     }
+
+    /**
+     * Returns a reader configured from the input config map, paired with the keys consumed from it.
+     * <p>
+     * <b>Required override.</b> Every reader must explicitly declare which keys it claims, even if
+     * the answer is "none" (return {@code Configured.empty(this)}). The previous {@code default}
+     * silently dropped any unknown keys; that footgun is the reason this is no longer optional.
+     * Implementations that read configuration from the map should override this method (not
+     * {@link #withConfig(Map)}); the consumed-keys set is required by {@link ConfigKeyValidator}
+     * for unknown-key rejection at planning time.
+     */
+    Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config);
 
     /**
      * Returns a format reader configured with the given pushed filter from the optimizer.

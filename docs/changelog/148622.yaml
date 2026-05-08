@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 148622
+summary: Remove the feature flag for batched query phase
+type: enhancement

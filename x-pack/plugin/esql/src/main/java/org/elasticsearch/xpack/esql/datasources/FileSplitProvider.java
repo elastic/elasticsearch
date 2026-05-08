@@ -66,9 +66,25 @@ import java.util.function.BiFunction;
  * <p>When filter hints contain resolved {@link Expression} objects, evaluates them against
  * each file's partition values to prune files that cannot match the filter.
  *
- * <p>Newline-delimited JSON ({@code .ndjson}, {@code .jsonl}, {@code .json}) uses record-aligned macro splits:
- * {@link SegmentableFormatReader#findNextRecordBoundary} probes near {@code target_split_size} strides so each
- * {@link FileSplit} starts on a line boundary. Cross-node parallelism is restored without fixed-byte mid-record cuts.
+ * <p><b>Splitting modes.</b>
+ * This provider supports two distinct splitting strategies. The downstream reader's behaviour
+ * (partial-line skip vs. no skip) differs between them, gated by
+ * {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext#recordAligned()}.
+ *
+ * <ul>
+ *   <li><b>Record-aligned macro splits</b> — for uncompressed line-oriented formats
+ *       (NDJSON/JSONL/JSON, CSV/TSV). {@link SegmentableFormatReader#findNextRecordBoundary}
+ *       probes near {@code target_split_size} strides so each {@link FileSplit} starts on a
+ *       record boundary. Splits are tagged with {@link #RECORD_ALIGNED_MACRO_SPLIT_KEY} and
+ *       readers receive {@code recordAligned=true}, so they must <em>not</em> drop any leading
+ *       bytes.
+ *       See {@link #tryNewlineAlignedMacroSplits}.</li>
+ *   <li><b>Block-aligned splits</b> — for splittable compressed formats (e.g. bzip2) via
+ *       {@link SplittableDecompressionCodec#findBlockBoundaries}. Splits land on compression
+ *       block boundaries, not record boundaries. Readers receive {@code recordAligned=false}
+ *       and must skip a leading partial record on every non-first split.
+ *       See {@link #tryBlockAlignedSplits}.</li>
+ * </ul>
  */
 public class FileSplitProvider implements SplitProvider {
 
@@ -552,8 +568,8 @@ public class FileSplitProvider implements SplitProvider {
     }
 
     /**
-     * Macro-splits newline-delimited JSON at record boundaries near {@code targetStrideBytes}, enabling multiple workers
-     * per file without mid-line cuts.
+     * Macro-splits supported line-oriented formats at record boundaries near {@code targetStrideBytes},
+     * enabling multiple workers per file without mid-record cuts.
      */
     private boolean tryNewlineAlignedMacroSplits(
         StoragePath filePath,
@@ -618,7 +634,7 @@ public class FileSplitProvider implements SplitProvider {
             return false;
         }
         String f = format.toLowerCase(Locale.ROOT);
-        return ".ndjson".equals(f) || ".jsonl".equals(f) || ".json".equals(f);
+        return ".ndjson".equals(f) || ".jsonl".equals(f) || ".json".equals(f) || ".csv".equals(f) || ".tsv".equals(f);
     }
 
     /** Whether this leaf split came from {@link #tryNewlineAlignedMacroSplits}. */

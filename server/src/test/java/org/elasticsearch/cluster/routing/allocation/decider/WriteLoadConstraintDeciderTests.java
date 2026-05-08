@@ -868,9 +868,10 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
     }
 
     private Map<ShardId, Double> generateWriteLoads(ClusterState state, String nodeId, double maxConcentration) {
-        assert maxConcentration >= 0.5 && maxConcentration < 0.95
-            : "maxConcentration must be between 0.5 and 0.95, was " + maxConcentration;
+        assert maxConcentration > 0.5 && maxConcentration < 1
+            : "maxConcentration must be greater than 0.5 and less than 1.0, was " + maxConcentration;
         final var startedShards = state.getRoutingNodes().node(nodeId).shardsWithState(ShardRoutingState.STARTED).toList();
+        assert startedShards.size() > 1 : "you need at least two shards for this to work";
         final var writeLoads = new HashMap<ShardId, Double>();
         final double totalWriteLoad = randomDoubleBetween(1.0, 10.0, true);
         final double busiestShardLoad = totalWriteLoad * maxConcentration;

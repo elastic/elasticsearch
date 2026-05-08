@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.BackoffPolicy;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -579,7 +580,24 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
 
-        final Releasable releaseBatchHits = Releasables.releaseOnce(() -> releaseHits(hits));
+        // Estimate how much heap the bulk request we're about to build will consume and reserve it
+        // against the action's circuit breaker (if any). If the breaker trips we fail the operation
+        // before allocating the bulk request, returning the CircuitBreakingException to the client
+        // rather than letting the allocation push the node into OOM.
+        final long estimatedBulkRequestBytes = estimateBulkRequestBytes(hits);
+        try {
+            reserveBatchAllocation(estimatedBulkRequestBytes);
+        } catch (CircuitBreakingException e) {
+            releaseHits(hits);
+            asyncResponse.releaseRemainingHits();
+            finishHim(e);
+            return;
+        }
+
+        final Releasable releaseBatchHits = Releasables.releaseOnce(() -> {
+            releaseHits(hits);
+            releaseBatchAllocation(estimatedBulkRequestBytes);
+        });
         boolean releaseBatchHitsHandedOff = false;
         try {
             final BulkRequest request = buildBulk(hits);
@@ -600,6 +618,40 @@ public abstract class AbstractAsyncBulkByScrollAction<
             }
         }
     }
+
+    /**
+     * Estimate the heap bytes the bulk request built from {@code hits} will consume. The estimate sums each hit's
+     * {@code _source} bytes plus a fixed per-request overhead matching {@code BulkRequest.REQUEST_OVERHEAD}.
+     * It is intentionally a lower bound on actual allocation — the breaker's job is to give an early signal of
+     * heap pressure, not to be a precise accountant.
+     */
+    static long estimateBulkRequestBytes(List<? extends PaginatedHitSource.Hit> hits) {
+        // Mirror BulkRequest.REQUEST_OVERHEAD, which is private. The constant is small and stable; if it changes
+        // we'll just under- or over-estimate by a few bytes per doc — which the breaker tolerates.
+        final int perRequestOverhead = 50;
+        long total = 0;
+        for (PaginatedHitSource.Hit hit : hits) {
+            BytesReference source = hit.getSource();
+            if (source != null) {
+                total += source.length();
+            }
+            total += perRequestOverhead;
+        }
+        return total;
+    }
+
+    /**
+     * Reserve heap budget for the bulk request that is about to be built. The default is a no-op; subclasses can
+     * override to consult a {@link org.elasticsearch.common.breaker.CircuitBreaker} and throw
+     * {@link CircuitBreakingException} when the reservation would push the node past its limit.
+     */
+    protected void reserveBatchAllocation(long bytes) throws CircuitBreakingException {}
+
+    /**
+     * Release heap budget previously reserved via {@link #reserveBatchAllocation(long)}. Always called once per
+     * successful reservation, regardless of whether the bulk request succeeded, failed, or was rejected.
+     */
+    protected void releaseBatchAllocation(long bytes) {}
 
     /**
      * Send a bulk request, handling retries. Releases {@code releaseBatchHits} on cancellation, terminal finish, and before the bulk

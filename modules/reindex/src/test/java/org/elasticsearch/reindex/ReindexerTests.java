@@ -66,6 +66,7 @@ import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHits;
@@ -1017,7 +1018,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    mock(CircuitBreakerService.class)
                 );
 
                 // Simulate a worker request: PIT already set by leader, slice info from leader
@@ -1258,7 +1260,8 @@ public class ReindexerTests extends ESTestCase {
                 mock(TransportService.class),
                 mock(ReindexRelocationNodePicker.class),
                 featureService,
-                mock(TaskResultsService.class)
+                mock(TaskResultsService.class),
+                mock(CircuitBreakerService.class)
             );
 
             final ReindexRequest request = new ReindexRequest();
@@ -1326,7 +1329,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    mock(CircuitBreakerService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1403,7 +1407,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    mock(CircuitBreakerService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1476,7 +1481,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    mock(CircuitBreakerService.class)
                 );
 
                 final var termQuery = QueryBuilders.termQuery("field", "value");
@@ -1548,7 +1554,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    mock(CircuitBreakerService.class)
                 );
 
                 final String projectRouting = "_alias:linked";
@@ -1622,7 +1629,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    mock(CircuitBreakerService.class)
                 );
 
                 // Simulate a worker request: PIT already set by leader, slice info from leader
@@ -1699,7 +1707,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    mock(CircuitBreakerService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1772,7 +1781,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    mock(CircuitBreakerService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1845,7 +1855,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    mock(CircuitBreakerService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1949,7 +1960,8 @@ public class ReindexerTests extends ESTestCase {
                     transportService,
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    mock(CircuitBreakerService.class)
                 );
                 reindexerRef.set(reindexer);
 
@@ -2134,7 +2146,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    mock(CircuitBreakerService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -2206,7 +2219,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    mock(CircuitBreakerService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -2278,7 +2292,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    mock(CircuitBreakerService.class)
                 );
 
                 final IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
@@ -2350,7 +2365,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    mock(CircuitBreakerService.class)
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -2471,7 +2487,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    mock(CircuitBreakerService.class)
                 );
 
                 ReindexRequest request = new ReindexRequest();
@@ -2580,7 +2597,8 @@ public class ReindexerTests extends ESTestCase {
             mock(TransportService.class),
             mock(ReindexRelocationNodePicker.class),
             mock(FeatureService.class),
-            mock(TaskResultsService.class)
+            mock(TaskResultsService.class),
+            mock(CircuitBreakerService.class)
         );
         RestClient restClient = mock(RestClient.class);
         IOException ioException = new IOException("simulated close failure");
@@ -2946,7 +2964,8 @@ public class ReindexerTests extends ESTestCase {
                 mock(TransportService.class),
                 mock(ReindexRelocationNodePicker.class),
                 featureService,
-                mock(TaskResultsService.class)
+                mock(TaskResultsService.class),
+                mock(CircuitBreakerService.class)
             );
 
             BulkByScrollTask task = new BulkByScrollTask(
@@ -3123,7 +3142,8 @@ public class ReindexerTests extends ESTestCase {
             mock(ReindexRelocationNodePicker.class),
             // Will default REINDEX_PIT_SEARCH_FEATURE to false
             mock(FeatureService.class),
-            taskResultsService
+            taskResultsService,
+            mock(CircuitBreakerService.class)
         );
     }
 

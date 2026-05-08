@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -105,7 +106,8 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
             listener(),
             randomBoolean() ? null : Version.CURRENT,
             randomPositiveTimeValue(),
-            null
+            null,
+            new NoopCircuitBreaker("test")
         );
     }
 }

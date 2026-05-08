@@ -44,6 +44,8 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -69,6 +71,7 @@ import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
 import org.elasticsearch.reindex.remote.RemoteReindexingUtils;
@@ -145,6 +148,7 @@ public class Reindexer {
     private final FeatureService featureService;
     private final TaskResultsService taskResultsService;
     private final TimeValue reindexShutdownGracePeriod;
+    private final CircuitBreaker requestBreaker;
 
     Reindexer(
         ClusterService clusterService,
@@ -159,7 +163,8 @@ public class Reindexer {
         TransportService transportService,
         ReindexRelocationNodePicker relocationNodePicker,
         FeatureService featureService,
-        TaskResultsService taskResultsService
+        TaskResultsService taskResultsService,
+        CircuitBreakerService circuitBreakerService
     ) {
         this.clusterService = clusterService;
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
@@ -176,6 +181,7 @@ public class Reindexer {
         this.featureService = featureService;
         this.taskResultsService = Objects.requireNonNull(taskResultsService);
         this.reindexShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
+        this.requestBreaker = Objects.requireNonNull(circuitBreakerService).getBreaker(CircuitBreaker.REQUEST);
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -299,7 +305,8 @@ public class Reindexer {
                 listener,
                 remoteVersion,
                 reindexShutdownGracePeriod,
-                bulkByScrollSearchContextMetrics
+                bulkByScrollSearchContextMetrics,
+                requestBreaker
             );
             searchAction.start();
         };
@@ -936,6 +943,13 @@ public class Reindexer {
         private final IdFieldMapper destinationIndexIdMapper;
 
         /**
+         * The REQUEST circuit breaker, used to reserve heap budget for each batch's bulk request before it is
+         * built. When the breaker trips a {@link CircuitBreakingException} is returned to the client (HTTP 429)
+         * rather than allowing the allocation to push the node into OOM.
+         */
+        private final CircuitBreaker requestBreaker;
+
+        /**
          * List of threads created by this process. Usually actions don't create threads in Elasticsearch. Instead they use the builtin
          * {@link ThreadPool}s. But reindex-from-remote uses Elasticsearch's {@link RestClient} which doesn't use the
          * {@linkplain ThreadPool}s because it uses httpasyncclient. It'd be a ton of trouble to work around creating those threads. So
@@ -956,7 +970,8 @@ public class Reindexer {
             ActionListener<BulkByScrollResponse> listener,
             @Nullable Version remoteVersion,
             TimeValue maxTaskShutdownGracePeriod,
-            @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics
+            @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+            CircuitBreaker requestBreaker
         ) {
             super(
                 task,
@@ -982,6 +997,21 @@ public class Reindexer {
                 maxTaskShutdownGracePeriod
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperForReindex();
+            this.requestBreaker = requestBreaker;
+        }
+
+        @Override
+        protected void reserveBatchAllocation(long bytes) {
+            if (requestBreaker != null && bytes > 0) {
+                requestBreaker.addEstimateBytesAndMaybeBreak(bytes, "reindex_bulk_batch");
+            }
+        }
+
+        @Override
+        protected void releaseBatchAllocation(long bytes) {
+            if (requestBreaker != null && bytes > 0) {
+                requestBreaker.addWithoutBreaking(-bytes);
+            }
         }
 
         private IndexMode destinationIndexMode(ProjectState state) {

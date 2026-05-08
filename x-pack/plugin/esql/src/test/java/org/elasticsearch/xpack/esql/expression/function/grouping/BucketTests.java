@@ -48,6 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 // The amount of date trunc cases sometimes exceed the 20 minutes
 @TimeoutSuite(millis = 60 * TimeUnits.MINUTE)
@@ -643,15 +644,33 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
      * expected value can be set.
      */
     public void testGetIntervalMetadata() {
-        if (testCase.getData().stream().anyMatch(d -> d.data() == null)) {
-            // anyNullIsNull cases inject null literals; getIntervalMetadata is not meaningful there
-            // (and would NPE when folding a null buckets/from/to literal).
-            return;
-        }
-
         Expression expr = buildFieldExpression(testCase);
         assertThat(expr, instanceOf(Bucket.class));
         Bucket bucket = (Bucket) expr;
+
+        TestCaseSupplier.TypedData fieldData = testCase.getData().get(0);
+        if (fieldData.data() == null && fieldData.type() != DataType.NULL) {
+            // anyNullIsNull's first flavor sets data=null at position 0 but keeps the original field type.
+            // Because the field is built as an Attribute (not a Literal), null data never reaches the
+            // metadata path; this case doesn't represent a null-arg-to-BUCKET scenario (production folds a
+            // null field literal at the optimizer instead). Skip rather than assert.
+            return;
+        }
+
+        if (testCase.getData().stream().anyMatch(d -> d.data() == null)) {
+            // Null literal in a forceLiteral argument (buckets/from/to) or a NULL-typed field. In production
+            // the optimizer folds null inputs before metadata extraction (verified end-to-end in
+            // BucketColumnMetadataIT), so getIntervalMetadata is never invoked with null fold values in real
+            // queries. Direct invocation surfaces no metadata — null return or null-cast NPE both qualify.
+            Map<String, Object> metadata = null;
+            try {
+                metadata = bucket.getIntervalMetadata(FoldContext.small());
+            } catch (RuntimeException | AssertionError ignored) {
+                // Expected for null fold values in buckets/from/to.
+            }
+            assertThat(metadata, nullValue());
+            return;
+        }
 
         Map<String, Object> metadata = bucket.getIntervalMetadata(FoldContext.small());
 

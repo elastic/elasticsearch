@@ -1,0 +1,6 @@
+area: Allocation
+issues:
+ - 148219
+pr: 148273
+summary: Invalidate cache of max shard write load proportion on shard movements
+type: bug

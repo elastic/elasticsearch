@@ -85,13 +85,13 @@ public class IpFieldMapper extends FieldMapper {
     public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
         true,
         DocValuesParameter.Values.Cardinality.LOW,
-        DocValuesParameter.Values.MultiValue.SORTED_SET
+        true
     );
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.sortedSetWithCardinality(
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.ofWithCardinality(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParameters()
         );
@@ -693,7 +693,7 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue().isSingleValued();
+        return docValuesParameters.multiValue() == false;
     }
 
     @Override
@@ -704,6 +704,17 @@ public class IpFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return fieldType().typeName();
+    }
+
+    @Override
+    public boolean supportsBatchIndexing() {
+        // Plain ip mappers can be driven through parseCreateField by the bulk batch path.
+        // ignore_malformed and null_value are allowed. Dimensions, copy_to, multi-fields, and
+        // scripts pull in behavior that the batch path does not support.
+        return hasScript() == false
+            && copyTo().copyToFields().isEmpty()
+            && multiFields().iterator().hasNext() == false
+            && fieldType().isDimension() == false;
     }
 
     @Override

@@ -241,7 +241,7 @@ public class IndexModuleTests extends ESTestCase {
             mapperRegistry,
             new IndicesFieldDataCache(settings, listener),
             writableRegistry(),
-            module.indexSettings().getMode().idFieldMapperWithoutFieldData(),
+            () -> false,
             null,
             indexDeletionListener,
             emptyMap()

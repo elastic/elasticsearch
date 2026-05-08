@@ -51,6 +51,7 @@ import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.internal.PitReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -324,11 +325,6 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     }
 
     private void doHandleStartHandoff(StartHandoffRequest request, ActionListener<RelocationHandoffResponse> listener) {
-        if (searchService.isPitRelocationEnabled() == false) {
-            listener.onResponse(EMPTY_RESPONSE);
-            return;
-        }
-
         try {
             ShardId shardId = request.getShardId();
             final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
@@ -348,6 +344,11 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                 );
             }
 
+            if (searchService.isPitRelocationEnabled() == false) {
+                listener.onResponse(EMPTY_RESPONSE);
+                return;
+            }
+
             getOpenPITContextInfos(shardId, listener.map(RelocationHandoffResponse::new));
         } catch (Exception e) {
             listener.onFailure(e);
@@ -355,17 +356,17 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     }
 
     private void getOpenPITContextInfos(ShardId shardId, ActionListener<PITHandoffResponse> listener) {
-        List<ReaderContext> activeContexts = searchService.getActivePITContexts(shardId);
+        List<PitReaderContext> activeContexts = searchService.getActivePITContexts(shardId);
         List<OpenPITContextInfo> pitContextInfos = Collections.synchronizedList(new ArrayList<>(activeContexts.size()));
 
         try (var listeners = new RefCountingListener(listener.map(r -> new PITHandoffResponse(pitContextInfos)))) {
-            for (ReaderContext context : activeContexts) {
+            for (PitReaderContext context : activeContexts) {
                 fetchOpenPitContextInfo(shardId, context, listeners.acquire(r -> r.ifPresent(pitContextInfos::add)));
             }
         }
     }
 
-    private void fetchOpenPitContextInfo(ShardId shardId, ReaderContext context, ActionListener<Optional<OpenPITContextInfo>> listener) {
+    private void fetchOpenPitContextInfo(ShardId shardId, PitReaderContext context, ActionListener<Optional<OpenPITContextInfo>> listener) {
         // In case of a failure we want just to ignore this PIT and continue with the relocation process
         listener = listener.delegateResponse((l, e) -> {
             logger.debug("Unexpected exception while fetching Open PIT context info for shard " + shardId + " " + context, e);

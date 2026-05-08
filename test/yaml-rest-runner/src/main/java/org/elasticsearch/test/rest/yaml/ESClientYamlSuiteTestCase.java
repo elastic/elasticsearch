@@ -593,6 +593,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         // setup (or by @Before hooks) are not what determines whether end-of-test cleanup must run.
         org.elasticsearch.client.LazyRefreshRestClient.resetWriteOccurred();
 
+        // Mark that we've reached the body. If a test was skipped (assumeFalse) or setup
+        // threw, this stays false and preserveClusterUponCompletion won't mark this file's
+        // setup as cached on the cluster.
+        testBodyRan = true;
+
         try {
             for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
                 executeSection(executableSection);
@@ -664,6 +669,12 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      *  side effects run exactly once even though the framework calls it twice
      *  ({@code cleanUpCluster} and {@code assertEmptyProjects}). */
     private Boolean cachedPreserve = null;
+
+    /** Set to {@code true} once execution reaches the body section of {@link #test()}. Stays
+     *  {@code false} when a test is skipped early (blacklist, fips, prerequisite features) or
+     *  when setup throws before the body. Used to avoid claiming "this file's setup is on the
+     *  cluster" when nothing actually got loaded. */
+    private boolean testBodyRan = false;
 
     /**
      * Yaml runner feature name a test (or its setup section) can declare to opt out of the
@@ -779,7 +790,17 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         boolean writeHappened = org.elasticsearch.client.LazyRefreshRestClient.writeOccurred();
         boolean persistentResourceCreated = org.elasticsearch.client.LazyRefreshRestClient.persistentResourceCreated();
         cachedPreserve = (writeHappened == false && persistentResourceCreated == false);
-        deferredCleanupForFile = cachedPreserve ? testCandidate.getSuitePath() : null;
+        if (cachedPreserve) {
+            // Only mark this file's setup as cached on the cluster when the body actually
+            // executed. If the test was skipped (assumeFalse for blacklist/fips/prerequisites)
+            // setup never ran, so leaving deferredCleanupForFile untouched prevents the next
+            // same-file test from skipping its own setup against an empty cluster.
+            if (testBodyRan) {
+                deferredCleanupForFile = testCandidate.getSuitePath();
+            }
+        } else {
+            deferredCleanupForFile = null;
+        }
         return cachedPreserve;
     }
 

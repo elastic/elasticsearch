@@ -27,7 +27,6 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -110,19 +109,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         if (config == null || config.isEmpty()) {
             return Configured.empty(this);
         }
-        Set<String> consumed = new HashSet<>();
-        for (String key : config.keySet()) {
-            if (RECOGNIZED_KEYS.contains(key)) {
-                consumed.add(key);
-            }
-        }
         int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
         Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         long newSegmentSize = parseSegmentSize(config.get(CONFIG_SEGMENT_SIZE), segmentSizeBytes);
         FormatReader result = (newSampleSize == schemaSampleSize && newSegmentSize == segmentSizeBytes)
             ? this
             : new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize, newSegmentSize);
-        return new Configured<>(result, consumed);
+        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
     private List<Attribute> inferSchemaIfNeeded(List<Attribute> attributes, StorageObject object, boolean skipFirstLine)

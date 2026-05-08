@@ -51,7 +51,9 @@ public class ConfigKeyValidatorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> ConfigKeyValidator.check(config, List.of(Set.of("known")))
         );
-        assertThat(e.getMessage(), containsString("[alpha_typo, zebra_typo]"));
+        String msg = e.getMessage();
+        assertThat(msg, allOf(containsString("alpha_typo"), containsString("zebra_typo")));
+        assertTrue("alpha_typo should appear before zebra_typo in [" + msg + "]", msg.indexOf("alpha_typo") < msg.indexOf("zebra_typo"));
     }
 
     public void testRecognisedSetUnionMentionedInError() {
@@ -83,6 +85,6 @@ public class ConfigKeyValidatorTests extends ESTestCase {
     public void testNoClaimedSetsRejectsAnyConfigKey() {
         Map<String, Object> config = Map.of("anything", 1);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ConfigKeyValidator.check(config, List.of()));
-        assertThat(e.getMessage(), containsString("anything"));
+        assertThat(e.getMessage(), allOf(containsString("anything"), containsString("no options are recognised in this context")));
     }
 }

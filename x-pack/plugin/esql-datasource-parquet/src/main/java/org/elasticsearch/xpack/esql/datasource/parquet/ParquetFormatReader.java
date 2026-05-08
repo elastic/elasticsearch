@@ -70,7 +70,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -111,7 +110,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     static final String CONFIG_OPTIMIZED_READER = "optimized_reader";
     static final String CONFIG_LATE_MATERIALIZATION = "late_materialization";
 
-    /** Keys recognised by {@link #withConfig(Map)}. */
+    /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
     static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_OPTIMIZED_READER, CONFIG_LATE_MATERIALIZATION);
 
     public ParquetFormatReader(BlockFactory blockFactory) {
@@ -170,18 +169,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         if (config == null || config.isEmpty()) {
             return Configured.empty(this);
         }
-        Set<String> consumed = new HashSet<>();
-        for (String key : config.keySet()) {
-            if (RECOGNIZED_KEYS.contains(key)) {
-                consumed.add(key);
-            }
-        }
         boolean newOptimized = parseBooleanConfig(config, CONFIG_OPTIMIZED_READER, optimizedReader);
         boolean newLateMat = parseBooleanConfig(config, CONFIG_LATE_MATERIALIZATION, lateMaterializationEnabled);
         FormatReader result = (newOptimized == optimizedReader && newLateMat == lateMaterializationEnabled)
             ? this
             : new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, forceBaselinePath, newOptimized, newLateMat);
-        return new Configured<>(result, consumed);
+        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
     private static boolean parseBooleanConfig(Map<String, Object> config, String key, boolean defaultValue) {

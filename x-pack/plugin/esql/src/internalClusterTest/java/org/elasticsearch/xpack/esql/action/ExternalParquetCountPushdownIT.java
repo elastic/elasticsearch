@@ -37,6 +37,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -169,6 +170,40 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
 
                 assertNoPushdownBypass(response);
             }
+        } finally {
+            Files.deleteIfExists(parquetFile);
+        }
+    }
+
+    /**
+     * End-to-end pin for the unknown-key rejection path. A query with a typo'd configuration key
+     * must surface as {@code IllegalArgumentException} naming the typo and the recognised options,
+     * proving the {@code ExternalSourceFactory.validateConfig} SPI hook fires before any read.
+     */
+    public void testUnknownConfigKeyIsRejectedAtPlanningTime() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        Path parquetFile = writeParquetFile(10, 100);
+        try {
+            String query = "EXTERNAL \""
+                + StoragePath.fileUri(parquetFile)
+                + "\" WITH { \"obviously_not_a_real_key\": \"x\" } | STATS c = COUNT(*)";
+            var request = syncEsqlQueryRequest(query);
+
+            Exception e = expectThrows(Exception.class, () -> { run(request).close(); });
+            // The validator's IllegalArgumentException is wrapped twice on the way up
+            // (resolveSingleSource → ExternalSourceResolver). Walk the cause chain to find it.
+            Throwable validatorIae = null;
+            for (Throwable t = e; t != null; t = t.getCause()) {
+                if (t instanceof IllegalArgumentException
+                    && t.getMessage() != null
+                    && t.getMessage().contains("obviously_not_a_real_key")) {
+                    validatorIae = t;
+                    break;
+                }
+            }
+            assertNotNull("expected validator IAE mentioning 'obviously_not_a_real_key' in cause chain of: " + e, validatorIae);
+            assertThat(validatorIae.getMessage(), containsString("unknown option"));
         } finally {
             Files.deleteIfExists(parquetFile);
         }

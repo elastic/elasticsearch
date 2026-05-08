@@ -106,7 +106,7 @@ public class FileSplitProvider implements SplitProvider {
      * Configuration keys this splitter consumes from a query-time configuration map. Aggregated by
      * {@link FileSourceFactory#COORDINATOR_KEYS}. New keys read by this class via {@code config.get(...)}
      * must be added here so the {@link org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator}
-     * recognises them — pinned by {@code FileSplitProviderConfigKeysTests}.
+     * recognises them — pinned by {@code FileSourceFactoryValidationTests}.
      */
     public static final java.util.Set<String> CONFIG_KEYS = java.util.Set.of(CONFIG_TARGET_SPLIT_SIZE);
 

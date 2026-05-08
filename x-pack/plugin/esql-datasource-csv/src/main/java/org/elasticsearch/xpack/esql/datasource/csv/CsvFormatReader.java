@@ -419,7 +419,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
         if (config == null || config.isEmpty()) {
             return Configured.empty(this);
         }
-        Set<String> consumed = consumedKeys(config, RECOGNIZED_KEYS);
         CsvFormatOptions parsed = parseOptionsFromConfig(config, options);
         int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
         Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
@@ -436,17 +435,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 resolvedPolicy
             );
         }
-        return new Configured<>(result, consumed);
-    }
-
-    private static Set<String> consumedKeys(Map<String, Object> config, Set<String> recognized) {
-        Set<String> consumed = new HashSet<>();
-        for (String key : config.keySet()) {
-            if (recognized.contains(key)) {
-                consumed.add(key);
-            }
-        }
-        return consumed;
+        return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
     @Override

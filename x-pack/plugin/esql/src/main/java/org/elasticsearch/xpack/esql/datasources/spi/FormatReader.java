@@ -123,6 +123,11 @@ public interface FormatReader extends Closeable {
      * Returns a reader configured from the input config map.
      * Default delegates to {@link #withConfigTrackingConsumedKeys(Map)} and discards the consumed-keys set;
      * use this overload when the caller does not need to validate against the consumed keys.
+     * <p>
+     * <b>Override target:</b> implementations must override {@link #withConfigTrackingConsumedKeys(Map)},
+     * NOT this method. The default {@code withConfig} delegates through the tracking variant, so an
+     * override here alone would be silently bypassed by every caller. The tracking variant is the
+     * single configuration entry point for the SPI.
      */
     default FormatReader withConfig(Map<String, Object> config) {
         return withConfigTrackingConsumedKeys(config).value();
@@ -131,8 +136,11 @@ public interface FormatReader extends Closeable {
     /**
      * Returns a reader configured from the input config map, paired with the keys consumed from it.
      * Default returns {@code this} with an empty consumed-keys set (formats with no options).
-     * Implementations that read configuration from the map should override this method
-     * (not {@link #withConfig(Map)}); the simple overload is a default convenience.
+     * <p>
+     * <b>This is the canonical override target</b> — overriding only {@link #withConfig(Map)} would
+     * be silently bypassed because {@code withConfig}'s default delegates to this method. The
+     * consumed-keys set is required by {@link ConfigKeyValidator} for unknown-key rejection at
+     * planning time.
      */
     default Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
         return Configured.empty(this);

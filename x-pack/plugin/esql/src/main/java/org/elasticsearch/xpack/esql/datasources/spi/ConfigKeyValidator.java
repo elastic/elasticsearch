@@ -51,13 +51,15 @@ public final class ConfigKeyValidator {
             allRecognised.addAll(set);
         }
         unknown.sort(String::compareTo);
-        throw new IllegalArgumentException(
-            "unknown option"
-                + (unknown.size() == 1 ? "" : "s")
-                + " "
-                + unknown
-                + " in data source configuration; recognised options are "
-                + allRecognised
-        );
+        StringBuilder message = new StringBuilder("unknown option").append(unknown.size() == 1 ? "" : "s")
+            .append(" ")
+            .append(unknown)
+            .append(" in data source configuration");
+        if (allRecognised.isEmpty()) {
+            message.append("; no options are recognised in this context");
+        } else {
+            message.append("; recognised options are ").append(allRecognised);
+        }
+        throw new IllegalArgumentException(message.toString());
     }
 }

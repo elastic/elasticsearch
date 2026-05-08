@@ -30,6 +30,12 @@ import java.util.TreeSet;
  *       'added an entry to {@code CONFIG_KEYS} that no constant declares (dead entry)'.
  * </ul>
  *
+ * <p><b>Naming contract:</b> the bidirectional reflection check enumerates fields whose name starts
+ * with {@code CONFIG_}. User-facing configuration keys MUST follow this prefix; otherwise the test
+ * silently misses them (a {@code MY_OPTION_KEY}-style suffix would not be picked up). Internal
+ * marker strings unrelated to user-facing config (split markers, file metadata keys, etc.) should
+ * use a different naming pattern to keep the contract clear.
+ *
  * <p>The generic validator contract lives in {@code ConfigKeyValidatorTests}.
  */
 public class FileSourceFactoryValidationTests extends ESTestCase {

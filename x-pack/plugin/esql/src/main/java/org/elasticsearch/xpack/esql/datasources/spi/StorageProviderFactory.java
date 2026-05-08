@@ -27,6 +27,11 @@ public interface StorageProviderFactory {
      * Per-query overload that takes a configuration map.
      * Default delegates to {@link #createTrackingConsumedKeys(Settings, Map)} and discards the consumed-keys set;
      * use this overload when the caller does not need to validate against the consumed keys.
+     * <p>
+     * <b>Override target:</b> implementations must override {@link #createTrackingConsumedKeys(Settings, Map)},
+     * NOT this method. The default {@code create(Settings, Map)} delegates through the tracking variant,
+     * so an override here alone would be silently bypassed by every caller. The tracking variant is the
+     * single configuration entry point for the SPI.
      */
     default StorageProvider create(Settings settings, Map<String, Object> config) {
         return createTrackingConsumedKeys(settings, config).value();
@@ -35,8 +40,11 @@ public interface StorageProviderFactory {
     /**
      * Per-query overload paired with the keys consumed from {@code config}.
      * Default ignores config and returns an empty consumed-keys set.
-     * Implementations that read configuration from the map should override this method
-     * (not {@link #create(Settings, Map)}); the simple overload is a default convenience.
+     * <p>
+     * <b>This is the canonical override target</b> — overriding only {@link #create(Settings, Map)} would
+     * be silently bypassed because {@code create(Settings, Map)}'s default delegates to this method.
+     * The consumed-keys set is required by {@link ConfigKeyValidator} for unknown-key rejection at
+     * planning time.
      */
     default Configured<StorageProvider> createTrackingConsumedKeys(Settings settings, Map<String, Object> config) {
         return Configured.empty(create(settings));
@@ -66,7 +74,8 @@ public interface StorageProviderFactory {
                     return Configured.empty(defaultProvider.get());
                 }
                 Configured<C> resolved = configFactory.apply(config);
-                return new Configured<>(providerCtor.apply(resolved.value()), resolved.consumedKeys());
+                StorageProvider provider = resolved.value() != null ? providerCtor.apply(resolved.value()) : defaultProvider.get();
+                return new Configured<>(provider, resolved.consumedKeys());
             }
         };
     }

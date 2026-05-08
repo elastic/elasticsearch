@@ -61,7 +61,9 @@ public final class LazyRefreshRestClient extends RestClient {
         "_search_shards",
         "_explain",
         "_pit",
-        "_async_search"
+        "_async_search",
+        "_query",
+        "_query/async"
     );
 
     /**
@@ -77,7 +79,8 @@ public final class LazyRefreshRestClient extends RestClient {
         "_follow",
         "_resume_follow",
         "_pit",
-        "_async_search"
+        "_async_search",
+        "_query/async"
     );
 
     private final RestClient delegate;

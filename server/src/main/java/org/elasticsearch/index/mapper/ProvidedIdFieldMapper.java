@@ -60,7 +60,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             + "body of your documents, and map this field as a keyword field that has [doc_values] enabled";
 
     public static final ProvidedIdFieldMapper DOCUMENT_ID = new ProvidedIdFieldMapper(IdFieldMapper.Mode.DEFAULT);
-    public static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(Mode.COLUMNAR);
+    static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(Mode.COLUMNAR);
 
     /**
      * Builder for {@link ProvidedIdFieldMapper} that supports the {@code mode} mapping parameter.
@@ -97,8 +97,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                 case COLUMNAR:
                     return COLUMNAR_ID;
                 case DEFAULT:
-                    // TODO: return constant:
-                    return new ProvidedIdFieldMapper(mode);
+                    return DOCUMENT_ID;
                 default:
                     throw new IllegalArgumentException("Unsupported id field mode [" + mode + "]");
             }

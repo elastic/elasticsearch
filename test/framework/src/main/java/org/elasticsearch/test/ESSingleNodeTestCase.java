@@ -10,15 +10,19 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
@@ -29,21 +33,27 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
@@ -63,6 +73,7 @@ import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -73,6 +84,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -123,6 +135,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         }
     }
 
+    private boolean useColumnarId;
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -133,6 +147,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (NODE == null) {
             startNode(seed);
         }
+        useColumnarId = true;//ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled() && randomBoolean();
     }
 
     @Override
@@ -335,7 +350,60 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     public Client wrapClient(final Client client) {
-        return client;
+        if (useColumnarId) {
+            return new FilterClient(client) {
+                @Override
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    if (action == TransportCreateIndexAction.TYPE) {
+                        CreateIndexRequest createRequest = (CreateIndexRequest) request;
+                        Settings settings = createRequest.settings();
+                        if (skipEnablingColumnarId(settings) == false) {
+                            createRequest.mapping(updateMappingToUseColumnarId(createRequest.mappings()));
+                        }
+                    } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
+                        TransportPutComposableIndexTemplateAction.Request templateRequest =
+                            (TransportPutComposableIndexTemplateAction.Request) request;
+                        ComposableIndexTemplate indexTemplate = templateRequest.indexTemplate();
+                        Template existingTemplate = indexTemplate.template();
+                        Settings templateSettings = existingTemplate != null ? existingTemplate.settings() : null;
+                        if (skipEnablingColumnarId(templateSettings) == false) {
+                            CompressedXContent existingMappings = existingTemplate != null ? existingTemplate.mappings() : null;
+                            try {
+                                var updatedMapping = new CompressedXContent(
+                                    Strings.toString(updateMappingToUseColumnarId(existingMappings.uncompressed().utf8ToString()))
+                                );
+                                Template newTemplate = Template.builder(existingTemplate).mappings(updatedMapping).build();
+                                templateRequest.indexTemplate(indexTemplate.toBuilder().template(newTemplate).build());
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    }
+                    super.doExecute(action, request, listener);
+                }
+            };
+        } else {
+            return client;
+        }
+    }
+
+    private static boolean skipEnablingColumnarId(Settings settings) {
+        String indexMode = settings != null ? settings.get("index.mode") : null;
+        return indexMode != null && IndexMode.fromString(indexMode) == IndexMode.TIME_SERIES;
+    }
+
+    private static XContentBuilder updateMappingToUseColumnarId(String mapping) {
+        Map<String, Object> parsedMapping = XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true);
+        parsedMapping.put("_id", Map.of("mode", "columnar"));
+        try {
+            return JsonXContent.contentBuilder().map(parsedMapping);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**

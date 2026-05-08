@@ -11,6 +11,7 @@ package org.elasticsearch.xcontent.provider.smile;
 
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
@@ -27,6 +28,7 @@ import org.elasticsearch.xcontent.provider.XContentImplUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.PushbackInputStream;
 import java.io.Reader;
 import java.util.Set;
 
@@ -103,7 +105,24 @@ public final class SmileXContentImpl implements XContent {
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, InputStream is) throws IOException {
-        return new SmileXContentParser(config, smileFactory.createParser(is));
+        return new SmileXContentParser(config, smileFactory.createParser(validateSmileHeader(is)));
+    }
+
+    private static InputStream validateSmileHeader(InputStream is) throws IOException {
+        PushbackInputStream input = new PushbackInputStream(is, 3);
+        byte[] header = new byte[3];
+        int length = input.readNBytes(header, 0, header.length);
+        input.unread(header, 0, length);
+        if (length == 0) {
+            return input;
+        }
+        if (length < 3
+            || header[0] != SmileConstants.HEADER_BYTE_1
+            || header[1] != SmileConstants.HEADER_BYTE_2
+            || header[2] != SmileConstants.HEADER_BYTE_3) {
+            throw new JsonParseException(null, "Input does not start with Smile format header");
+        }
+        return input;
     }
 
     @Override

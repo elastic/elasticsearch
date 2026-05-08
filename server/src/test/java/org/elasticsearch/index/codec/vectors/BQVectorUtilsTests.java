@@ -23,6 +23,10 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 
 public class BQVectorUtilsTests extends LuceneTestCase {
 
+    static {
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
+
     public static int popcount(byte[] a, int aOffset, byte[] b, int length) {
         int res = 0;
         for (int j = 0; j < length; j++) {

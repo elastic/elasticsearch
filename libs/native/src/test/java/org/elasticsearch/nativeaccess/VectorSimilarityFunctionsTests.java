@@ -18,6 +18,11 @@ import static org.hamcrest.Matchers.not;
 
 public class VectorSimilarityFunctionsTests extends ESTestCase {
 
+    static {
+        NodeNamePatternConverter.setGlobalNodeName("foo");
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
+
     final Optional<VectorSimilarityFunctions> vectorSimilarityFunctions;
 
     public VectorSimilarityFunctionsTests() {

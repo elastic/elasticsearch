@@ -813,7 +813,7 @@ public class ApproximationPlan {
                 // This is a bit of a back, because ES|QL generally does not support NaN values,
                 // but these values stay inside here and the confidence interval computation, and
                 // never reach the user.
-                // TODO: don't use NaNs, perhaps when nulls in multivalued are supported, se
+                // TODO: don't use NaNs, perhaps when nulls in multivalued are supported, see:
                 // https://github.com/elastic/elasticsearch/issues/141383
                 Expression bucketsMv = null;
                 for (int i = 0; i < TRIAL_COUNT * BUCKET_COUNT; i++) {

@@ -80,10 +80,6 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
 
         assert (double) Foldables.literalValueOf(plan.sampleProbability()) < 1.0;
 
-        if (plan.getMode().isInputPartial()) {
-            return plan;
-        }
-
         PhysicalPlan child = addSample(plan.child(), plan.sampleProbability());
 
         List<Alias> sampleCorrections = new ArrayList<>();
@@ -121,13 +117,18 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
         return result;
     }
 
+    /**
+     * Adds random sampling in the appropriate place(s).
+     */
     private PhysicalPlan addSample(PhysicalPlan plan, Expression sampleProbability) {
         return switch (plan) {
             case FragmentExec fragment -> fragment.withFragment(addSample(fragment.fragment(), sampleProbability));
+            // For join: add sampling to the left branch, which is the larger index.
             case LookupJoinExec lookupJoin -> lookupJoin.replaceChildren(
                 addSample(lookupJoin.left(), sampleProbability),
                 lookupJoin.right()
             );
+            // For fork: add sampling in every branch.
             case MergeExec merge -> merge.replaceChildren(
                 merge.children().stream().map(child -> addSample(child, sampleProbability)).toList()
             );
@@ -139,6 +140,7 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
 
     private LogicalPlan addSample(LogicalPlan plan, Expression sampleProbability) {
         return switch (plan) {
+            // For join: add sampling to the left branch, which is the larger index.
             case Join join -> join.replaceLeft(addSample(join.left(), sampleProbability));
             case UnaryPlan unary -> unary.replaceChild(addSample(unary.child(), sampleProbability));
             case LeafPlan leaf -> new Sample(Source.EMPTY, sampleProbability, leaf);

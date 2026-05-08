@@ -16,14 +16,17 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.List;
 
@@ -82,6 +85,53 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
         assertNotNull(mapper);
         assertThat(mapper.fieldType().getIndexOptions(), instanceOf(DenseVectorFieldMapper.BBQIVFIndexOptions.class));
         assertEquals(DenseVectorFieldMapper.VectorIndexType.BBQ_DISK, mapper.fieldType().getIndexOptions().getType());
+    }
+
+    public void testSliceEnabledInjectsRoutingSliceFieldIntoESNextFormat() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", org.elasticsearch.index.SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        assumeTrue("ESNext DiskBBQ format is only used in snapshots", Build.current().isSnapshot());
+        final Settings settings = IndexSettingsModule.newIndexSettings(
+            "foo",
+            Settings.builder()
+                .put(IndexSettings.SLICE_ENABLED.getKey(), true)
+                .put(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.getKey(), true)
+                .build()
+        ).getSettings();
+        MapperService mapperService = createMapperService(getVersion(), settings, () -> true, fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", 64);
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+            b.startObject("index_options");
+            b.field("type", "bbq_disk");
+            b.endObject();
+        }));
+        try (var tp = new TestThreadPool(getTestName())) {
+            CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, tp);
+            Codec codec = codecService.codec("default");
+            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+                codec = deduplicateFieldInfosCodec.delegate();
+            }
+            KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+            KnnVectorsFormat innerFormat = unwrapKnnVectorsFormat(knnVectorsFormat);
+            assertThat(innerFormat, instanceOf(ESNextDiskBBQVectorsFormat.class));
+            var sliceField = ESNextDiskBBQVectorsFormat.class.getDeclaredField("sliceField");
+            sliceField.setAccessible(true);
+            assertEquals(RoutingFieldMapper.NAME, sliceField.get(innerFormat));
+        }
+    }
+
+    private static KnnVectorsFormat unwrapKnnVectorsFormat(KnnVectorsFormat format) throws IllegalAccessException {
+        for (Field field : format.getClass().getDeclaredFields()) {
+            if (KnnVectorsFormat.class.isAssignableFrom(field.getType())) {
+                field.setAccessible(true);
+                Object inner = field.get(format);
+                if (inner instanceof KnnVectorsFormat knnVectorsFormat) {
+                    return knnVectorsFormat;
+                }
+            }
+        }
+        return format;
     }
 
 }

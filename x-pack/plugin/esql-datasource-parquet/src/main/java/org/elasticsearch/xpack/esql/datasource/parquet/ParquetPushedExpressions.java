@@ -1272,18 +1272,14 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * Returns {@code true} when running the predicate over the dictionary entries is expected
-     * to be cheaper than running it over every row. Dictionary scan cost is
-     * {@code O(dictionarySize)} compares; the per-row scalar path is {@code O(rowCount)}
-     * compares plus the same indirection through the ordinal block. The optimization is a
-     * clear win only when the dictionary is materially smaller than the row count.
-     *
-     * <p>Reuses {@link OrdinalBytesRefBlock#isDense}, which encodes the same crossover
-     * heuristic ({@code rowCount >= 2 * dictionarySize}). This also filters out tiny blocks
-     * where the constant cost of allocating the {@code boolean[]} dominates.
+     * Returns {@code true} when evaluating the predicate against dictionary entries is expected
+     * to be cheaper than per-row evaluation. For ordinal-encoded blocks, the dictionary path
+     * runs the predicate once per unique value and then scatters results via integer lookups —
+     * always cheaper than running the predicate per row since dictionary size &lt;= row count.
+     * The minimum of 10 positions avoids the boolean[] allocation overhead for tiny blocks.
      */
     private static boolean shouldShortCircuitOnDictionary(OrdinalBytesRefBlock block) {
-        return block.isDense();
+        return block.getPositionCount() >= 10;
     }
 
     /**

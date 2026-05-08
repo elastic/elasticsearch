@@ -39,7 +39,9 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
@@ -901,6 +903,216 @@ public class TwoPhaseReaderTests extends ESTestCase {
                     equalTo(oracleCount)
                 );
             }
+        }
+    }
+
+    /**
+     * Dictionary short-circuit for high-cardinality LIKE: 500 rows with unique URLs (density
+     * ratio ~1.0, well below the old isDense() threshold of 2.0). Every 25th row contains
+     * "google". The relaxed threshold (positionCount >= 10) enables dictionary evaluation
+     * even when dictSize ~= rowCount. Oracle-validated.
+     */
+    public void testDictionaryShortCircuitForHighCardinalityLike() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("test_schema");
+
+        int rowCount = 500;
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            if (i % 25 == 0) {
+                g.add("url", "http://google.com/search?q=" + i);
+            } else {
+                g.add("url", "http://site" + i + ".com/page");
+            }
+            return g;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, urlAttr, new WildcardPattern("*google*"));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        int oracleCount = countWithApacheMrOracle(parquetData, schema, g -> g.getString("url", 0).contains("google"));
+        assertThat("oracle count", oracleCount, equalTo(20));
+
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id", "url")).build();
+            try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
+                int engineCount = 0;
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    engineCount += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                assertThat(
+                    "high-cardinality LIKE dict short-circuit (nativeAsync=" + nativeAsync + ") must match oracle",
+                    engineCount,
+                    equalTo(oracleCount)
+                );
+            }
+        }
+    }
+
+    /**
+     * Dictionary short-circuit for high-cardinality Equals: same high-cardinality URL data
+     * as the LIKE test. Equals matches exactly one row. Verifies Equals still works correctly
+     * with the relaxed dictionary threshold. Oracle-validated.
+     */
+    public void testDictionaryShortCircuitForHighCardinalityEquals() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("test_schema");
+
+        int rowCount = 500;
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            if (i % 25 == 0) {
+                g.add("url", "http://google.com/search?q=" + i);
+            } else {
+                g.add("url", "http://site" + i + ".com/page");
+            }
+            return g;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        Expression filter = new Equals(
+            Source.EMPTY,
+            urlAttr,
+            new Literal(Source.EMPTY, new BytesRef("http://google.com/search?q=100"), DataType.KEYWORD),
+            null
+        );
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        int oracleCount = countWithApacheMrOracle(parquetData, schema, g -> g.getString("url", 0).equals("http://google.com/search?q=100"));
+        assertThat("oracle count", oracleCount, equalTo(1));
+
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id", "url")).build();
+            try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
+                int engineCount = 0;
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    engineCount += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                assertThat(
+                    "high-cardinality Equals dict short-circuit (nativeAsync=" + nativeAsync + ") must match oracle",
+                    engineCount,
+                    equalTo(oracleCount)
+                );
+            }
+        }
+    }
+
+    /**
+     * Dictionary short-circuit for high-cardinality StartsWith: same high-cardinality URL data.
+     * StartsWith matches the 20 google URLs. Oracle-validated.
+     */
+    public void testDictionaryShortCircuitForHighCardinalityStartsWith() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("test_schema");
+
+        int rowCount = 500;
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            if (i % 25 == 0) {
+                g.add("url", "http://google.com/search?q=" + i);
+            } else {
+                g.add("url", "http://site" + i + ".com/page");
+            }
+            return g;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        Expression filter = new StartsWith(
+            Source.EMPTY,
+            urlAttr,
+            new Literal(Source.EMPTY, new BytesRef("http://google"), DataType.KEYWORD)
+        );
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        int oracleCount = countWithApacheMrOracle(parquetData, schema, g -> g.getString("url", 0).startsWith("http://google"));
+        assertThat("oracle count", oracleCount, equalTo(20));
+
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id", "url")).build();
+            try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
+                int engineCount = 0;
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    engineCount += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                assertThat(
+                    "high-cardinality StartsWith dict short-circuit (nativeAsync=" + nativeAsync + ") must match oracle",
+                    engineCount,
+                    equalTo(oracleCount)
+                );
+            }
+        }
+    }
+
+    /**
+     * Tiny block (5 rows, below the >= 10 threshold): dictionary short-circuit is skipped
+     * but the per-row evaluation path must still produce correct results. Oracle-validated.
+     */
+    public void testDictionaryShortCircuitTinyBlockSkipped() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("test_schema");
+
+        int rowCount = 5;
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            g.add("url", (i == 2) ? "http://google.com/page" : "http://example.com/" + i);
+            return g;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, urlAttr, new WildcardPattern("*google*"));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        int oracleCount = countWithApacheMrOracle(parquetData, schema, g -> g.getString("url", 0).contains("google"));
+        assertThat("oracle count", oracleCount, equalTo(1));
+
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            List<Page> pages = readAllPages(reader, obj);
+            int engineCount = pages.stream().mapToInt(Page::getPositionCount).sum();
+
+            assertThat("tiny block LIKE (nativeAsync=" + nativeAsync + ") must match oracle", engineCount, equalTo(oracleCount));
         }
     }
 

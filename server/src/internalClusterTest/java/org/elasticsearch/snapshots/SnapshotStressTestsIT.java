@@ -362,7 +362,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 logger.warn("--> failed to acquire all permits: {}", failedPermitAcquisitions);
                 logger.info(
                     "--> current cluster state:\n{}",
-                    Strings.toString(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), true, true)
+                    Strings.toTruncatedString(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), true, true)
                 );
                 fail("failed to acquire all permits: " + failedPermitAcquisitions);
             }
@@ -372,7 +372,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 logger.warn("--> threadpool termination timed out");
                 logger.info(
                     "--> current cluster state:\n{}",
-                    Strings.toString(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), true, true)
+                    Strings.toTruncatedString(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), true, true)
                 );
             }
         }
@@ -393,7 +393,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                         logger.warn("--> failed to acquire permit [{}]", label);
                         logger.info(
                             "--> current cluster state:\n{}",
-                            Strings.toString(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), true, true)
+                            Strings.toTruncatedString(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(), true, true)
                         );
                         HotThreads.logLocalHotThreads(
                             logger,
@@ -1232,7 +1232,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                                     @Override
                                     public ClusterState execute(ClusterState currentState) {
                                         assertTrue(
-                                            Strings.toString(currentState),
+                                            Strings.toTruncatedString(currentState),
                                             currentState.metadata().nodeShutdowns().getAll().isEmpty()
                                         );
                                         final var discoveryNode = currentState.nodes().resolveNode(node.nodeName);

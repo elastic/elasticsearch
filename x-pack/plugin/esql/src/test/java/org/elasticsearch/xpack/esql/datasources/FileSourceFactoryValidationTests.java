@@ -51,6 +51,19 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
         );
     }
 
+    /**
+     * Pins {@code StorageProviderRegistry.FRAMEWORK_KEYS ⊆ FileSourceFactory.COORDINATOR_KEYS}.
+     * Both sets describe coordinator/framework-level config keys; if a future change adds a key
+     * to FRAMEWORK_KEYS (for the storage-side strip step) but forgets the coordinator side, the
+     * validator silently rejects every query that uses it. This unit-time check catches that
+     * drift before it ships.
+     */
+    public void testFrameworkKeysAreSubsetOfCoordinatorKeys() {
+        Set<String> missing = new TreeSet<>(StorageProviderRegistry.FRAMEWORK_KEYS);
+        missing.removeAll(FileSourceFactory.COORDINATOR_KEYS);
+        assertTrue("FRAMEWORK_KEYS not in COORDINATOR_KEYS: " + missing, missing.isEmpty());
+    }
+
     public void testCoordinatorKeysIncludesAllErrorPolicyKeys() {
         for (String key : ErrorPolicy.CONFIG_KEYS) {
             assertTrue("ErrorPolicy key " + key + " must be a coordinator key", FileSourceFactory.COORDINATOR_KEYS.contains(key));

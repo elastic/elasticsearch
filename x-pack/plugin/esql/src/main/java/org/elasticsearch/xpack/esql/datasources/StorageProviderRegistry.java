@@ -110,7 +110,7 @@ public class StorageProviderRegistry implements Closeable {
      * and must not be forwarded to storage provider configurations. References the canonical
      * constants so adding/renaming a framework option in one place updates the filter here too.
      */
-    private static final Set<String> FRAMEWORK_KEYS = Set.of(
+    static final Set<String> FRAMEWORK_KEYS = Set.of(
         FormatNameResolver.CONFIG_FORMAT,
         FormatNameResolver.CONFIG_READER,
         ErrorPolicy.CONFIG_MAX_ERRORS,

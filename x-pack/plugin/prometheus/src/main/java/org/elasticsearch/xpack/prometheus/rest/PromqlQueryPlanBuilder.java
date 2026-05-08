@@ -8,11 +8,9 @@
 package org.elasticsearch.xpack.prometheus.rest;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.parser.PromqlParser;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
@@ -20,13 +18,14 @@ import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -39,7 +38,7 @@ class PromqlQueryPlanBuilder {
 
     /**
      * Builds an {@link EsqlStatement} containing a {@link PromqlCommand} with an {@link Eval} node
-     * for the {@code TO_LONG(step)} conversion.
+     * for the {@code TO_LONG(step)} conversion used by the Prometheus response writer.
      */
     static EsqlStatement buildStatement(String query, String index, String startStr, String endStr, String stepStr) {
         Instant startInstant = PromqlParserUtils.parseDate(Source.EMPTY, startStr);
@@ -76,18 +75,31 @@ class PromqlQueryPlanBuilder {
             new UnresolvedTimestamp(Source.EMPTY)
         );
 
-        // TO_LONG converts the step datetime to epoch millis, avoiding the need to parse a date string in the response listener.
-        Alias stepAlias = new Alias(Source.EMPTY, promqlCommand.stepColumnName(), new ToLong(Source.EMPTY, promqlCommand.stepAttribute()));
+        // Wrap in TimeSeriesCollapse so PrometheusQueryResponseListener reads one MV row per series.
+        // Bounds (start/end/stepMillis) are populated by the lowering rule from the PromqlCommand.
+        TimeSeriesCollapse collapse = new TimeSeriesCollapse(
+            Source.EMPTY,
+            promqlCommand,
+            promqlCommand.valueAttribute(),
+            promqlCommand.stepAttribute(),
+            new ArrayList<>(promqlPlan.output())
+        );
+
+        // TO_LONG converts the collapsed MV step datetime column to epoch millis so the response listener reads Long values directly.
+        Alias stepAlias = new Alias(
+            Source.EMPTY,
+            promqlCommand.stepColumnName(),
+            new ToLong(
+                Source.EMPTY,
+                collapse.output().stream().filter(a -> a.name().equals(promqlCommand.stepColumnName())).findFirst().get()
+            )
+        );
         // Eval's mergeOutputAttributes drops step(datetime) and appends step_alias(long) at the end,
         // producing [value, ...dimensions, step(long)] — the order the response listener expects.
-        Eval eval = new Eval(Source.EMPTY, promqlCommand, List.of(stepAlias));
+        Eval eval = new Eval(Source.EMPTY, collapse, List.of(stepAlias));
 
-        // Sort by step (timestamp) ascending so Prometheus clients receive values in chronological order.
-        Attribute stepOutput = stepAlias.toAttribute();
-        Order stepOrder = new Order(Source.EMPTY, stepOutput, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
-        OrderBy orderBy = new OrderBy(Source.EMPTY, eval, List.of(stepOrder));
-
-        return new EsqlStatement(orderBy, List.of());
+        // No OrderBy: TimeSeriesCollapseOperator emits each series' MV samples in fixed step-ordinal order.
+        return new EsqlStatement(eval, List.of());
     }
 
     private static Duration parseStep(Source source, String value) {

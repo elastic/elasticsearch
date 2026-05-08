@@ -60,21 +60,62 @@ public final class FirstTDigestByTimestampGroupingAggregatorFunction implements 
       Page page) {
     TDigestBlock tdigestBlock = page.getBlock(channels.get(0));
     LongBlock timestampBlock = page.getBlock(channels.get(1));
-    maybeEnableGroupIdTracking(seenGroupIds, tdigestBlock, timestampBlock);
+    if (tdigestBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block. But we
+       * still need to track that some groups may not have been seen
+       * so that they are initialized to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
+      return null;
+    }
+    if (timestampBlock.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block. But we
+       * still need to track that some groups may not have been seen
+       * so that they are initialized to null when we read their values.
+       */
+      state.enableGroupIdTracking(seenGroupIds);
+      return null;
+    }
+    LongVector timestampVector = timestampBlock.asVector();
+    if (timestampVector == null) {
+      maybeEnableGroupIdTracking(seenGroupIds, tdigestBlock, timestampBlock);
+      return new GroupingAggregatorFunction.AddInput() {
+        @Override
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, tdigestBlock, timestampBlock);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, tdigestBlock, timestampBlock);
+        }
+
+        @Override
+        public void add(int positionOffset, IntVector groupIds) {
+          addRawInput(positionOffset, groupIds, tdigestBlock, timestampBlock);
+        }
+
+        @Override
+        public void close() {
+        }
+      };
+    }
     return new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, tdigestBlock, timestampBlock);
+        addRawInput(positionOffset, groupIds, tdigestBlock, timestampVector);
       }
 
       @Override
       public void add(int positionOffset, IntBigArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, tdigestBlock, timestampBlock);
+        addRawInput(positionOffset, groupIds, tdigestBlock, timestampVector);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        addRawInput(positionOffset, groupIds, tdigestBlock, timestampBlock);
+        addRawInput(positionOffset, groupIds, tdigestBlock, timestampVector);
       }
 
       @Override
@@ -116,22 +157,72 @@ public final class FirstTDigestByTimestampGroupingAggregatorFunction implements 
     }
   }
 
+  private void addRawInput(int positionOffset, IntArrayBlock groups, TDigestBlock tdigestBlock,
+      LongVector timestampVector) {
+    TDigestHolder tdigestScratch = new TDigestHolder();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        int tdigestStart = tdigestBlock.getFirstValueIndex(valuesPosition);
+        int tdigestEnd = tdigestStart + tdigestBlock.getValueCount(valuesPosition);
+        for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
+          TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
+          FirstTDigestByTimestampAggregator.combine(state, groupId, tdigestValue, timestampValue);
+        }
+      }
+    }
+  }
+
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block timestampsUncast = page.getBlock(channels.get(0));
     if (timestampsUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
     Block valuesUncast = page.getBlock(channels.get(1));
     if (valuesUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     TDigestBlock values = (TDigestBlock) valuesUncast;
     Block seenUncast = page.getBlock(channels.get(2));
     if (seenUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
@@ -184,22 +275,72 @@ public final class FirstTDigestByTimestampGroupingAggregatorFunction implements 
     }
   }
 
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, TDigestBlock tdigestBlock,
+      LongVector timestampVector) {
+    TDigestHolder tdigestScratch = new TDigestHolder();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        int tdigestStart = tdigestBlock.getFirstValueIndex(valuesPosition);
+        int tdigestEnd = tdigestStart + tdigestBlock.getValueCount(valuesPosition);
+        for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
+          TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
+          FirstTDigestByTimestampAggregator.combine(state, groupId, tdigestValue, timestampValue);
+        }
+      }
+    }
+  }
+
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block timestampsUncast = page.getBlock(channels.get(0));
     if (timestampsUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
     Block valuesUncast = page.getBlock(channels.get(1));
     if (valuesUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     TDigestBlock values = (TDigestBlock) valuesUncast;
     Block seenUncast = page.getBlock(channels.get(2));
     if (seenUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
@@ -245,22 +386,65 @@ public final class FirstTDigestByTimestampGroupingAggregatorFunction implements 
     }
   }
 
+  private void addRawInput(int positionOffset, IntVector groups, TDigestBlock tdigestBlock,
+      LongVector timestampVector) {
+    TDigestHolder tdigestScratch = new TDigestHolder();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int valuesPosition = groupPosition + positionOffset;
+      int groupId = groups.getInt(groupPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      int tdigestStart = tdigestBlock.getFirstValueIndex(valuesPosition);
+      int tdigestEnd = tdigestStart + tdigestBlock.getValueCount(valuesPosition);
+      for (int tdigestOffset = tdigestStart; tdigestOffset < tdigestEnd; tdigestOffset++) {
+        TDigestHolder tdigestValue = tdigestBlock.getTDigestHolder(tdigestOffset, tdigestScratch);
+        FirstTDigestByTimestampAggregator.combine(state, groupId, tdigestValue, timestampValue);
+      }
+    }
+  }
+
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block timestampsUncast = page.getBlock(channels.get(0));
     if (timestampsUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
     Block valuesUncast = page.getBlock(channels.get(1));
     if (valuesUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     TDigestBlock values = (TDigestBlock) valuesUncast;
     Block seenUncast = page.getBlock(channels.get(2));
     if (seenUncast.areAllValuesNull()) {
+      /*
+       * All values are null so we can skip processing this block.
+       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
+       *       being fast without this. Likely the branch predictor is kicking
+       *       in there. But we do this anyway, just so we don't have to trust
+       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
+       *       always have long sequences of ConstantNullBlock. And this code
+       *       shows readers we've thought about this.
+       */
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
@@ -276,9 +460,19 @@ public final class FirstTDigestByTimestampGroupingAggregatorFunction implements 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, TDigestBlock tdigestBlock,
       LongBlock timestampBlock) {
     if (tdigestBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
     if (timestampBlock.mayHaveNulls()) {
+      /*
+       * Some values in the block are null so some group ids may not
+       * be seen. We need to track which ones so we can initialize
+       * them to null when we read their values.
+       */
       state.enableGroupIdTracking(seenGroupIds);
     }
   }

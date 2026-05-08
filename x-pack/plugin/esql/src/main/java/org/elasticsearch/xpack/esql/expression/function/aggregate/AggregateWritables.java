@@ -27,6 +27,7 @@ public class AggregateWritables {
             Percentile.ENTRY,
             Rate.ENTRY,
             Irate.ENTRY,
+            LegacyIrate.ENTRY,
             Idelta.ENTRY,
             Increase.ENTRY,
             Delta.ENTRY,
@@ -56,7 +57,10 @@ public class AggregateWritables {
             AbsentOverTime.ENTRY,
             DimensionValues.ENTRY,
             HistogramMerge.ENTRY,
-            HistogramMergeOverTime.ENTRY
+            HistogramMergeOverTime.ENTRY,
+            Sparkline.ENTRY,
+            ToPartial.ENTRY,
+            FromPartial.ENTRY
         );
     }
 }

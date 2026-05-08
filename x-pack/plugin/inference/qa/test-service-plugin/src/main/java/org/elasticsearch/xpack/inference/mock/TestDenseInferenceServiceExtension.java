@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -29,6 +30,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -45,6 +47,7 @@ import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloat
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -130,7 +133,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                 return;
             }
             switch (model.getConfigurations().getTaskType()) {
-                case ANY, TEXT_EMBEDDING, EMBEDDING -> {
+                case TEXT_EMBEDDING -> {
                     ServiceSettings modelServiceSettings = model.getServiceSettings();
                     listener.onResponse(makeTextEmbeddingResults(input, modelServiceSettings));
                 }
@@ -160,18 +163,27 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
-            switch (model.getConfigurations().getTaskType()) {
-                case ANY, EMBEDDING -> {
-                    ServiceSettings modelServiceSettings = model.getServiceSettings();
-                    listener.onResponse(makeGenericEmbeddingResults(request.inputs(), modelServiceSettings));
-                }
-                default -> listener.onFailure(
+            if (model.getConfigurations().getTaskType() == TaskType.EMBEDDING) {
+                ServiceSettings modelServiceSettings = model.getServiceSettings();
+                listener.onResponse(makeGenericEmbeddingResults(request.inputs(), modelServiceSettings));
+            } else {
+                listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
                         RestStatus.BAD_REQUEST
                     )
                 );
             }
+        }
+
+        @Override
+        public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                    RestStatus.BAD_REQUEST
+                )
+            );
         }
 
         @Override
@@ -185,7 +197,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             ActionListener<List<ChunkedInference>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case ANY, TEXT_EMBEDDING -> {
+                case TEXT_EMBEDDING, EMBEDDING -> {
                     ServiceSettings modelServiceSettings = model.getServiceSettings();
                     listener.onResponse(makeChunkedResults(input, modelServiceSettings));
                 }
@@ -220,26 +232,35 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             for (var inputContent : input) {
                 // For multiple inputs that generate one embedding, average the embeddings for each input
                 List<InferenceString> inferenceStrings = inputContent.inferenceStrings();
-                List<Float> averagedFloatEmbeddings = inferenceStrings.stream()
-                    .map(
-                        inferenceString -> generateEmbedding(
-                            inferenceString.value(),
-                            serviceSettings.dimensions(),
-                            serviceSettings.elementType(),
-                            serviceSettings.similarity()
-                        )
-                    )
-                    .reduce((list1, list2) -> {
-                        List<Float> summedValues = new ArrayList<>(list1.size());
-                        for (int i = 0; i < list1.size(); i++) {
-                            summedValues.add(list1.get(i) + list2.get(i));
+                List<Float> averagedFloatEmbeddings = inferenceStrings.stream().map(inferenceString -> {
+                    String inputValue = inferenceString.value();
+                    if (inferenceString.dataFormat() == DataFormat.BASE64) {
+                        // Check for base64 data URI format and extract the base64 content if it exists,
+                        // otherwise treat the entire string as base64 content
+                        String[] split = inputValue.split("base64,");
+                        if (split.length > 1) {
+                            inputValue = split[1];
                         }
-                        return summedValues;
-                    })
-                    .orElse(Collections.emptyList())
-                    .stream()
-                    .map(f -> f / inferenceStrings.size())
-                    .toList();
+
+                        inputValue = new String(Base64.getDecoder().decode(inputValue), StandardCharsets.UTF_8);
+                    }
+                    List<Float> embedding = generateEmbedding(
+                        inputValue,
+                        serviceSettings.dimensions(),
+                        serviceSettings.elementType(),
+                        serviceSettings.similarity()
+                    );
+                    if (inferenceString.isImage()) {
+                        return embedding.stream().map(f -> -f).toList();
+                    }
+                    return embedding;
+                }).reduce((list1, list2) -> {
+                    List<Float> summedValues = new ArrayList<>(list1.size());
+                    for (int i = 0; i < list1.size(); i++) {
+                        summedValues.add(list1.get(i) + list2.get(i));
+                    }
+                    return summedValues;
+                }).orElse(Collections.emptyList()).stream().map(f -> f / inferenceStrings.size()).toList();
                 embeddings.add(GenericDenseEmbeddingFloatResults.Embedding.of(averagedFloatEmbeddings));
             }
             return new GenericDenseEmbeddingFloatResults(embeddings);

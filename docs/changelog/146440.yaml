@@ -1,0 +1,6 @@
+area: Snapshot/Restore
+issues: []
+pr: 146440
+summary: Adding a check to verify that `BlobContainer::listBlobsByPrefix` works as
+  expected
+type: enhancement

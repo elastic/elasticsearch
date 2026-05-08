@@ -536,6 +536,44 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().requireReason, equalTo("required-feature1 is required"));
     }
 
+    public void testParseSkipAllNodesClusterFeatures() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            ---
+            setup:
+              - skip:
+                  cluster_features:  ["feature-a","feature-b"]
+                  all_nodes: true
+                  reason:      "skip in setup"
+            ---
+            "Skip on all nodes":
+
+              - skip:
+                  cluster_features:  ["feature-a","feature-b"]
+                  all_nodes: true
+                  reason:      "skip in test section"
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+
+              - match: {test_type.properties.text.type: string}
+            """);
+
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser);
+
+        assertThat(restTestSuite.getSetupSection(), notNullValue());
+        assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(false));
+        assertThat(restTestSuite.getSetupSection().getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(restTestSuite.getSetupSection().getPrerequisiteSection().skipReason, equalTo("skip in setup"));
+        assertThat(restTestSuite.getSetupSection().getPrerequisiteSection().skipOnAllNodes, equalTo(true));
+
+        assertThat(restTestSuite, notNullValue());
+        assertThat(restTestSuite.getTestSections().size(), equalTo(1));
+        assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Skip on all nodes"));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().skipReason, equalTo("skip in test section"));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().skipOnAllNodes, equalTo(true));
+    }
+
     public void testParseFileWithSingleTestSection() throws Exception {
         final Path filePath = createTempFile("tyf", ".yml");
         Files.writeString(filePath, """
@@ -766,7 +804,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
     }
 
     private static PrerequisiteSection createPrerequisiteSection(String yamlTestRunnerFeature) {
-        return new PrerequisiteSection(emptyList(), null, emptyList(), null, singletonList(yamlTestRunnerFeature));
+        return new PrerequisiteSection(emptyList(), null, emptyList(), null, singletonList(yamlTestRunnerFeature), false);
     }
 
     public void testAddingDoWithWarningWithSkip() {

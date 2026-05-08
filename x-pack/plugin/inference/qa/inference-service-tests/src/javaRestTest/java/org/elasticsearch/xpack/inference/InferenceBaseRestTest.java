@@ -11,6 +11,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -395,6 +396,21 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return (List<Map<String, Object>>) getInternalAsMap("_inference/_all").get("endpoints");
     }
 
+    /**
+     * Ensure that the internal inference indices shards have been initialized.
+     */
+    public static void initInferenceIndices() throws Exception {
+        assertBusy(() -> {
+            try {
+                var request = new Request("GET", "_inference/_all");
+                client().performRequest(request);
+            } catch (ResponseException e) {
+                // Translate the exception to an AssertionError so assertBusy can retry it
+                fail();
+            }
+        });
+    }
+
     private static Map<String, Object> getInternalAsMap(String endpoint) throws IOException {
         var request = new Request("GET", endpoint);
         var response = client().performRequest(request);
@@ -402,9 +418,19 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return entityAsMap(response);
     }
 
+    protected static Map<String, Object> getTrainedModelStats(String modelId) throws IOException {
+        var request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
+        return entityAsMap(client().performRequest(request));
+    }
+
     protected Map<String, Object> infer(String modelId, List<String> input) throws IOException {
         var endpoint = Strings.format("_inference/%s", modelId);
         return inferInternal(endpoint, input, null, Map.of());
+    }
+
+    protected Map<String, Object> rerankInfer(String modelId, List<String> input, String query) throws IOException {
+        var endpoint = Strings.format("_inference/%s", modelId);
+        return inferInternal(endpoint, input, query, Map.of());
     }
 
     protected Deque<ServerSentEvent> streamInferOnMockService(

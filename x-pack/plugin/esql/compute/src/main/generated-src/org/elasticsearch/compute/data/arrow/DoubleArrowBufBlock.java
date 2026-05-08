@@ -18,7 +18,8 @@ import org.elasticsearch.core.Nullable;
 // end generated imports
 
 /**
- * Arrow buffer backed DoubleBlock.
+ * Implementation of DoubleBlock backed by an Arrow buffer holding 64 bits floats.
+ * <p>
  * This class is generated. Edit {@code X-ArrowBufBlock.java.st} instead.
  */
 public final class DoubleArrowBufBlock extends AbstractArrowBufBlock<DoubleVector, DoubleBlock> implements DoubleBlock {
@@ -48,6 +49,11 @@ public final class DoubleArrowBufBlock extends AbstractArrowBufBlock<DoubleVecto
 
     @Override
     protected int byteSize() {
+        return Double.BYTES;
+    }
+
+    @Override
+    public int valueMaxByteSize() {
         return Double.BYTES;
     }
 

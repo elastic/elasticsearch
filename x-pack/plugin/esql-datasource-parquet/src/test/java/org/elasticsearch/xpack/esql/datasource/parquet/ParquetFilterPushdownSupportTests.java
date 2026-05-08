@@ -8,15 +8,17 @@
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.parquet.filter2.compat.FilterCompat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -49,7 +51,7 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
 
         assertTrue(result.hasPushedFilter());
-        assertThat(result.pushedFilter(), instanceOf(FilterCompat.Filter.class));
+        assertThat(result.pushedFilter(), instanceOf(ParquetPushedExpressions.class));
         assertEquals(1, result.remainder().size());
     }
 
@@ -197,7 +199,7 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
     }
 
     public void testIsNullUnsupportedTypeNotPushed() {
-        Attribute col = attr("ts", DataType.DATETIME);
+        Attribute col = attr("loc", DataType.GEO_POINT);
         Expression filter = new IsNull(Source.EMPTY, col);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
@@ -245,9 +247,9 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
     }
 
     public void testRangeUnsupportedTypeNotPushed() {
-        Attribute col = attr("ts", DataType.DATETIME);
-        Literal lower = new Literal(Source.EMPTY, 1000L, DataType.DATETIME);
-        Literal upper = new Literal(Source.EMPTY, 2000L, DataType.DATETIME);
+        Attribute col = attr("loc", DataType.GEO_POINT);
+        Literal lower = new Literal(Source.EMPTY, new BytesRef("point1"), DataType.GEO_POINT);
+        Literal upper = new Literal(Source.EMPTY, new BytesRef("point2"), DataType.GEO_POINT);
         Expression filter = new Range(Source.EMPTY, col, lower, true, upper, true, ZoneOffset.UTC);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
@@ -332,9 +334,9 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
 
     public void testAndPartialPushdown() {
         Attribute salary = attr("salary", DataType.LONG);
-        Attribute ts = attr("ts", DataType.DATETIME);
+        Attribute loc = attr("loc", DataType.GEO_POINT);
         Expression supported = new GreaterThan(Source.EMPTY, salary, longLit(50000L), null);
-        Expression unsupported = new Equals(Source.EMPTY, ts, new Literal(Source.EMPTY, 1234567890L, DataType.DATETIME), null);
+        Expression unsupported = new Equals(Source.EMPTY, loc, new Literal(Source.EMPTY, new BytesRef("point"), DataType.GEO_POINT), null);
         Expression filter = new And(Source.EMPTY, supported, unsupported);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
@@ -344,10 +346,10 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
     }
 
     public void testAndBothUnsupportedNotPushed() {
-        Attribute ts1 = attr("ts1", DataType.DATETIME);
-        Attribute ts2 = attr("ts2", DataType.DATETIME);
-        Expression left = new Equals(Source.EMPTY, ts1, new Literal(Source.EMPTY, 1000L, DataType.DATETIME), null);
-        Expression right = new Equals(Source.EMPTY, ts2, new Literal(Source.EMPTY, 2000L, DataType.DATETIME), null);
+        Attribute loc1 = attr("loc1", DataType.GEO_POINT);
+        Attribute loc2 = attr("loc2", DataType.GEO_POINT);
+        Expression left = new Equals(Source.EMPTY, loc1, new Literal(Source.EMPTY, new BytesRef("p1"), DataType.GEO_POINT), null);
+        Expression right = new Equals(Source.EMPTY, loc2, new Literal(Source.EMPTY, new BytesRef("p2"), DataType.GEO_POINT), null);
         Expression filter = new And(Source.EMPTY, left, right);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
@@ -371,9 +373,9 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
 
     public void testOrWithUnsupportedSideNotPushed() {
         Attribute salary = attr("salary", DataType.LONG);
-        Attribute ts = attr("ts", DataType.DATETIME);
+        Attribute loc = attr("loc", DataType.GEO_POINT);
         Expression supported = new GreaterThan(Source.EMPTY, salary, longLit(50000L), null);
-        Expression unsupported = new Equals(Source.EMPTY, ts, new Literal(Source.EMPTY, 1234567890L, DataType.DATETIME), null);
+        Expression unsupported = new Equals(Source.EMPTY, loc, new Literal(Source.EMPTY, new BytesRef("point"), DataType.GEO_POINT), null);
         Expression filter = new Or(Source.EMPTY, supported, unsupported);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
@@ -395,8 +397,8 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
     }
 
     public void testNotWithUnsupportedInnerNotPushed() {
-        Attribute ts = attr("ts", DataType.DATETIME);
-        Expression inner = new Equals(Source.EMPTY, ts, new Literal(Source.EMPTY, 1234567890L, DataType.DATETIME), null);
+        Attribute loc = attr("loc", DataType.GEO_POINT);
+        Expression inner = new Equals(Source.EMPTY, loc, new Literal(Source.EMPTY, new BytesRef("point"), DataType.GEO_POINT), null);
         Expression filter = new Not(Source.EMPTY, inner);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
@@ -404,15 +406,79 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         assertFalse(result.hasPushedFilter());
     }
 
-    // --- Unsupported types ---
+    // --- DATETIME pushdown tests ---
 
-    public void testUnsupportedDatetimeNotPushed() {
+    public void testDatetimeEqualsPushed() {
         Attribute col = attr("ts", DataType.DATETIME);
-        Expression filter = new Equals(Source.EMPTY, col, new Literal(Source.EMPTY, 1234567890L, DataType.DATETIME), null);
+        Expression filter = new Equals(Source.EMPTY, col, datetimeLit(1234567890L), null);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
 
-        assertFalse(result.hasPushedFilter());
+        assertTrue(result.hasPushedFilter());
+        assertThat(result.pushedFilter(), instanceOf(ParquetPushedExpressions.class));
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testDatetimeRangePushed() {
+        Attribute col = attr("ts", DataType.DATETIME);
+        Expression filter = new Range(Source.EMPTY, col, datetimeLit(1000L), true, datetimeLit(2000L), true, ZoneOffset.UTC);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testDatetimeGreaterThanPushed() {
+        Attribute col = attr("ts", DataType.DATETIME);
+        Expression filter = new GreaterThan(Source.EMPTY, col, datetimeLit(1700000000000L), null);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+    }
+
+    public void testDatetimeIsNullPushed() {
+        Attribute col = attr("ts", DataType.DATETIME);
+        Expression filter = new IsNull(Source.EMPTY, col);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+    }
+
+    public void testDatetimeInListPushed() {
+        Attribute col = attr("ts", DataType.DATETIME);
+        Expression filter = new In(Source.EMPTY, col, List.of(datetimeLit(1000L), datetimeLit(2000L), datetimeLit(3000L)));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+    }
+
+    public void testDatetimeAndLongBothPushed() {
+        Attribute salary = attr("salary", DataType.LONG);
+        Attribute ts = attr("ts", DataType.DATETIME);
+        Expression left = new GreaterThan(Source.EMPTY, salary, longLit(50000L), null);
+        Expression right = new Equals(Source.EMPTY, ts, datetimeLit(1234567890L), null);
+        Expression filter = new And(Source.EMPTY, left, right);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testDatetimeOrIntegerBothPushed() {
+        Attribute ts = attr("ts", DataType.DATETIME);
+        Attribute status = attr("status", DataType.INTEGER);
+        Expression left = new GreaterThan(Source.EMPTY, ts, datetimeLit(1000L), null);
+        Expression right = new Equals(Source.EMPTY, status, intLit(1), null);
+        Expression filter = new Or(Source.EMPTY, left, right);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
     }
 
     // --- Mixed filters ---
@@ -424,7 +490,7 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
 
         Expression eq = new Equals(Source.EMPTY, name, keywordLit("alice"), null);
         Expression gt = new GreaterThan(Source.EMPTY, salary, longLit(50000L), null);
-        Expression tsFilter = new Equals(Source.EMPTY, ts, new Literal(Source.EMPTY, 1234567890L, DataType.DATETIME), null);
+        Expression tsFilter = new Equals(Source.EMPTY, ts, datetimeLit(1234567890L), null);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(eq, gt, tsFilter));
 
@@ -446,8 +512,8 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
     }
 
     public void testNoTranslatableExpressions() {
-        Attribute ts = attr("ts", DataType.DATETIME);
-        Expression filter = new Equals(Source.EMPTY, ts, new Literal(Source.EMPTY, 1234567890L, DataType.DATETIME), null);
+        Attribute loc = attr("loc", DataType.GEO_POINT);
+        Expression filter = new Equals(Source.EMPTY, loc, new Literal(Source.EMPTY, new BytesRef("point"), DataType.GEO_POINT), null);
 
         FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
 
@@ -465,13 +531,20 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
     }
 
     public void testCanPushReturnsNoForUnsupported() {
-        Attribute col = attr("ts", DataType.DATETIME);
-        Expression filter = new Equals(Source.EMPTY, col, new Literal(Source.EMPTY, 1234567890L, DataType.DATETIME), null);
+        Attribute col = attr("loc", DataType.GEO_POINT);
+        Expression filter = new Equals(Source.EMPTY, col, new Literal(Source.EMPTY, new BytesRef("point"), DataType.GEO_POINT), null);
 
         assertEquals(FilterPushdownSupport.Pushability.NO, support.canPush(filter));
     }
 
     // --- canConvert tests ---
+
+    public void testCanConvertDatetime() {
+        Attribute col = attr("ts", DataType.DATETIME);
+        Expression filter = new Equals(Source.EMPTY, col, datetimeLit(1234567890L), null);
+
+        assertTrue(ParquetFilterPushdownSupport.canConvert(filter));
+    }
 
     public void testCanConvertNotEquals() {
         Attribute col = attr("salary", DataType.INTEGER);
@@ -503,18 +576,18 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
 
     public void testCanConvertAndPartial() {
         Attribute salary = attr("salary", DataType.LONG);
-        Attribute ts = attr("ts", DataType.DATETIME);
+        Attribute loc = attr("loc", DataType.GEO_POINT);
         Expression supported = new Equals(Source.EMPTY, salary, longLit(50000L), null);
-        Expression unsupported = new Equals(Source.EMPTY, ts, new Literal(Source.EMPTY, 1000L, DataType.DATETIME), null);
+        Expression unsupported = new Equals(Source.EMPTY, loc, new Literal(Source.EMPTY, new BytesRef("point"), DataType.GEO_POINT), null);
 
         assertTrue(ParquetFilterPushdownSupport.canConvert(new And(Source.EMPTY, supported, unsupported)));
     }
 
     public void testCanConvertOrRequiresBothSides() {
         Attribute salary = attr("salary", DataType.LONG);
-        Attribute ts = attr("ts", DataType.DATETIME);
+        Attribute loc = attr("loc", DataType.GEO_POINT);
         Expression supported = new Equals(Source.EMPTY, salary, longLit(50000L), null);
-        Expression unsupported = new Equals(Source.EMPTY, ts, new Literal(Source.EMPTY, 1000L, DataType.DATETIME), null);
+        Expression unsupported = new Equals(Source.EMPTY, loc, new Literal(Source.EMPTY, new BytesRef("point"), DataType.GEO_POINT), null);
 
         assertFalse(ParquetFilterPushdownSupport.canConvert(new Or(Source.EMPTY, supported, unsupported)));
     }
@@ -527,8 +600,8 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
     }
 
     public void testCanConvertNotWithUnsupportedInner() {
-        Attribute ts = attr("ts", DataType.DATETIME);
-        Expression inner = new Equals(Source.EMPTY, ts, new Literal(Source.EMPTY, 1000L, DataType.DATETIME), null);
+        Attribute loc = attr("loc", DataType.GEO_POINT);
+        Expression inner = new Equals(Source.EMPTY, loc, new Literal(Source.EMPTY, new BytesRef("point"), DataType.GEO_POINT), null);
 
         assertFalse(ParquetFilterPushdownSupport.canConvert(new Not(Source.EMPTY, inner)));
     }
@@ -544,6 +617,244 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         Expression filter = new Range(Source.EMPTY, col, boolLit(false), true, boolLit(true), true, ZoneOffset.UTC);
 
         assertFalse(ParquetFilterPushdownSupport.canConvert(filter));
+    }
+
+    // --- StartsWith tests ---
+
+    public void testStartsWithKeywordPushed() {
+        Attribute col = attr("name", DataType.KEYWORD);
+        Expression filter = new StartsWith(Source.EMPTY, col, keywordLit("alice"));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testStartsWithNonKeywordNotPushed() {
+        Attribute col = attr("age", DataType.INTEGER);
+        Expression filter = new StartsWith(Source.EMPTY, col, intLit(10));
+
+        assertFalse(ParquetFilterPushdownSupport.canConvert(filter));
+    }
+
+    public void testStartsWithNonFoldableNotPushed() {
+        Attribute col = attr("name", DataType.KEYWORD);
+        Attribute prefix = attr("prefix", DataType.KEYWORD);
+        Expression filter = new StartsWith(Source.EMPTY, col, prefix);
+
+        assertFalse(ParquetFilterPushdownSupport.canConvert(filter));
+    }
+
+    public void testStartsWithNullPrefixNotPushed() {
+        Attribute col = attr("name", DataType.KEYWORD);
+        Expression filter = new StartsWith(Source.EMPTY, col, new Literal(Source.EMPTY, null, DataType.KEYWORD));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertFalse(result.hasPushedFilter());
+    }
+
+    public void testStartsWithCombinedWithEquals() {
+        Attribute name = attr("name", DataType.KEYWORD);
+        Attribute age = attr("age", DataType.INTEGER);
+        Expression sw = new StartsWith(Source.EMPTY, name, keywordLit("alice"));
+        Expression eq = new Equals(Source.EMPTY, age, intLit(30), null);
+        Expression filter = new And(Source.EMPTY, sw, eq);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
+    }
+
+    public void testStartsWithInOr() {
+        Attribute col = attr("name", DataType.KEYWORD);
+        Expression sw = new StartsWith(Source.EMPTY, col, keywordLit("a"));
+        Expression eq = new Equals(Source.EMPTY, col, keywordLit("z"), null);
+        Expression filter = new Or(Source.EMPTY, sw, eq);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(1, result.remainder().size());
+    }
+
+    // --- WildcardLike (LIKE) tests ---
+
+    public void testWildcardLikeKeywordPushedAsYes() {
+        Attribute col = attr("url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*google*"));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertThat(result.pushedFilter(), instanceOf(ParquetPushedExpressions.class));
+        // YES semantics: the late-mat evaluator is TVL-correct for WildcardLike (nulls already
+        // map to bit 0, and Not(WildcardLike) AND-s out the null mask before negation), so the
+        // FilterExec re-check is unnecessary. Keeping it would double the per-row LIKE cost on
+        // every surviving row — the entire motivation for switching this conjunct off RECHECK.
+        assertEquals("WildcardLike must be dropped from the remainder under YES", 0, result.remainder().size());
+    }
+
+    public void testWildcardLikeCaseInsensitivePushedAsYes() {
+        Attribute col = attr("url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*Google*"), true);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(0, result.remainder().size());
+    }
+
+    public void testWildcardLikeNonKeywordNotPushed() {
+        Attribute col = attr("loc", DataType.GEO_POINT);
+        Expression filter = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*"));
+
+        assertFalse(ParquetFilterPushdownSupport.canConvert(filter));
+    }
+
+    public void testWildcardLikeMatchAllPattern() {
+        // LIKE "*" is still convertible — evaluation has a fast path that returns all non-null rows
+        // without invoking the automaton runner.
+        Attribute col = attr("name", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*"));
+
+        assertTrue(ParquetFilterPushdownSupport.canConvert(filter));
+    }
+
+    public void testWildcardLikeCanPushReturnsYes() {
+        Attribute col = attr("url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*google*"));
+
+        // The bare LIKE is fully evaluable by the late-mat evaluator (two-valued mask is
+        // TVL-correct because null rows already map to bit 0); FilterExec is not needed.
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(filter));
+    }
+
+    public void testWildcardLikeCombinedWithEqualsKeepsEqualsInRemainder() {
+        Attribute url = attr("url", DataType.KEYWORD);
+        Attribute searchPhrase = attr("searchPhrase", DataType.KEYWORD);
+        Expression like = new WildcardLike(Source.EMPTY, url, new WildcardPattern("*google*"));
+        Expression neq = new NotEquals(Source.EMPTY, searchPhrase, keywordLit(""), null);
+        // A single AND conjunct with one YES (LIKE) and one RECHECK (!=) leaf — pushed as a
+        // whole because the RECHECK leaf forces the safer side to win for the combined expr.
+        Expression filter = new And(Source.EMPTY, like, neq);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        // Mixed AND keeps the conjunct in remainder so FilterExec re-applies the != per-row.
+        // Promoting it to YES would silently drop the != bit semantics (the bitmask path's
+        // Not handling for binary comparisons does not encode TVL).
+        assertEquals(1, result.remainder().size());
+    }
+
+    /**
+     * Regression test for the trivially-passes shortcut leak (companion of
+     * {@code OptimizedFilteredReaderTests.testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak}).
+     *
+     * <p>The realistic input that {@code PushFiltersToSource} produces from a query like
+     * {@code WHERE url LIKE "*google*" AND status = 200} is the decomposed
+     * {@code [LIKE, status = 200]} list, NOT a single AND-wrapped expression (see
+     * {@link #testWildcardLikeCombinedWithEqualsKeepsEqualsInRemainder} for the AND-wrapped
+     * shape, which behaves differently because mixed-AND pushability falls back to RECHECK).
+     *
+     * <p>This shape is the one that triggered the trivially-passes shortcut leak: LIKE pushes
+     * as YES (no FilterExec safety net) and is silently absent from the parquet
+     * {@link org.apache.parquet.filter2.predicate.FilterPredicate} translation; status = 200
+     * pushes as RECHECK and IS in the FilterPredicate; for any row group whose stats prove
+     * status = 200 the shortcut would bypass late-mat entirely, leaking rows that don't match
+     * the LIKE. This test asserts the planner-side classification that the integration test
+     * relies on (LIKE → YES → not in remainder; status = 200 → RECHECK → in remainder).
+     *
+     * <p>DO NOT change this assertion without auditing every path that consumes
+     * {@code ParquetPushedExpressions} — the trivially-passes shortcut in
+     * {@code OptimizedParquetColumnIterator} relies on {@code hasYesConjunctOutsideFilterPredicate}
+     * being able to detect this exact split.
+     */
+    public void testWildcardLikeAsSeparateConjunctWithEqualsRecheckedOnly() {
+        Attribute url = attr("url", DataType.KEYWORD);
+        Attribute status = attr("status", DataType.LONG);
+        Expression like = new WildcardLike(Source.EMPTY, url, new WildcardPattern("*google*"));
+        Expression statusEq = new Equals(Source.EMPTY, status, longLit(200L), null);
+
+        // splitAnd in PushFiltersToSource hands us the decomposed conjuncts independently.
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(like, statusEq));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(like));
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(statusEq));
+        // The remainder must contain ONLY status = 200 — the LIKE has been dropped from
+        // FilterExec because it pushes as YES. The trivially-passes guard in the reader has to
+        // keep that promise: late-mat MUST run for the LIKE because nothing else will.
+        assertEquals("LIKE must be dropped from remainder; only status = 200 RECHECK remains", 1, result.remainder().size());
+        assertTrue("remainder must be the status = 200 conjunct", result.remainder().contains(statusEq));
+        assertFalse("remainder must not contain the LIKE conjunct", result.remainder().contains(like));
+    }
+
+    public void testWildcardLikeAndWildcardLikePushedAsYes() {
+        // Two LIKE conjuncts in a single AND — both arms YES-eligible, so the combined
+        // expression is YES and the conjunct is dropped from the remainder.
+        Attribute url = attr("url", DataType.KEYWORD);
+        Attribute title = attr("title", DataType.KEYWORD);
+        Expression likeUrl = new WildcardLike(Source.EMPTY, url, new WildcardPattern("*google*"));
+        Expression likeTitle = new WildcardLike(Source.EMPTY, title, new WildcardPattern("*Google*"), true);
+        Expression filter = new And(Source.EMPTY, likeUrl, likeTitle);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(filter));
+        assertEquals(0, result.remainder().size());
+    }
+
+    public void testNotOverAndOfWildcardLikesIsRecheck() {
+        // Regression: NOT (LIKE AND LIKE) must NOT be YES. The evaluator's generic Not branch
+        // would compute ~(m1 & m2), which is not SQL NOT(a AND b) under TVL — e.g. row with
+        // a=NULL, b=match: (NULL AND TRUE)=UNKNOWN, must NOT survive NOT(...), but the bitwise
+        // path gives ~(0 & 1) = ~0 = 1 → row incorrectly survives. Only Not(WildcardLike) has
+        // a TVL-aware special case in evaluateExpression; anything else under Not stays RECHECK
+        // so FilterExec can fix the null handling.
+        Attribute url = attr("url", DataType.KEYWORD);
+        Attribute title = attr("title", DataType.KEYWORD);
+        Expression likeUrl = new WildcardLike(Source.EMPTY, url, new WildcardPattern("*google*"));
+        Expression likeTitle = new WildcardLike(Source.EMPTY, title, new WildcardPattern("*Google*"));
+        Expression notAnd = new Not(Source.EMPTY, new And(Source.EMPTY, likeUrl, likeTitle));
+
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(notAnd));
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(notAnd));
+        assertTrue(result.hasPushedFilter());
+        assertEquals("RECHECK keeps the conjunct in remainder so FilterExec re-applies", 1, result.remainder().size());
+    }
+
+    public void testNotOverNotOfWildcardLikeIsRecheck() {
+        // NOT (NOT (col LIKE p)) is logically equivalent to col LIKE p but goes through the
+        // generic Not branch (the special case only fires for the immediate Not(WildcardLike)
+        // shape). Stay RECHECK to keep FilterExec available; promoting to YES would need
+        // either De Morgan / double-negation simplification or a deeper TVL-aware evaluator.
+        Attribute url = attr("url", DataType.KEYWORD);
+        Expression like = new WildcardLike(Source.EMPTY, url, new WildcardPattern("*google*"));
+        Expression notNot = new Not(Source.EMPTY, new Not(Source.EMPTY, like));
+
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(notNot));
+    }
+
+    public void testWildcardLikeNegatedPushedAsYes() {
+        // NOT (URL LIKE "*google*"): YES is safe because evaluateExpression has a Not(WildcardLike)
+        // special case that AND-s out the null mask before negation, restoring SQL three-valued
+        // logic. Without that special case, dropping FilterExec would let null rows survive the
+        // predicate (the generic two-valued negate flips null bits from 0 to 1).
+        Attribute col = attr("url", DataType.KEYWORD);
+        Expression like = new WildcardLike(Source.EMPTY, col, new WildcardPattern("*google*"));
+        Expression filter = new Not(Source.EMPTY, like);
+
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(filter));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(filter));
+        assertEquals(0, result.remainder().size());
     }
 
     // --- helpers ---
@@ -570,5 +881,9 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
 
     private static Literal boolLit(boolean value) {
         return new Literal(Source.EMPTY, value, DataType.BOOLEAN);
+    }
+
+    private static Literal datetimeLit(long millis) {
+        return new Literal(Source.EMPTY, millis, DataType.DATETIME);
     }
 }

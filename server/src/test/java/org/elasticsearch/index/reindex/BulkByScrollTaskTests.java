@@ -9,8 +9,10 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -23,29 +25,40 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.Math.min;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class BulkByScrollTaskTests extends ESTestCase {
 
     /**
      * Creates a minimal {@link BulkByScrollTask} with random id, type, action, description and optional relocation eligibility.
-     * The task is neither a leader nor a worker until {@link BulkByScrollTask#setWorkerCount(int)} or
+     * The task is neither a leader nor a worker until {@link BulkByScrollTask#setWorkerCount(int, float)} or
      * {@link BulkByScrollTask#setWorker(float, Integer)} is called.
      */
     private static BulkByScrollTask createTask(boolean eligibleForRelocationOnShutdown) {
+        return createTask(eligibleForRelocationOnShutdown, randomBoolean());
+    }
+
+    private static BulkByScrollTask createTask(boolean eligibleForRelocationOnShutdown, boolean isRelocated) {
+        return createTask(eligibleForRelocationOnShutdown, isRelocated, randomTaskId());
+    }
+
+    private static BulkByScrollTask createTask(boolean eligibleForRelocationOnShutdown, boolean isRelocated, TaskId parentTaskId) {
         TaskId taskId = randomTaskId();
         String type = randomAlphaOfLengthBetween(1, 10);
         String action = randomAlphaOfLengthBetween(1, 10);
         String description = randomAlphaOfLengthBetween(0, 20);
-        TaskId parentTaskId = randomTaskId();
         Map<String, String> headers = randomBoolean() ? Collections.emptyMap() : Map.of("header", randomAlphaOfLength(5));
-        ResumeInfo.RelocationOrigin origin = randomBoolean()
-            ? null
-            : new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()), randomNonNegativeLong());
+        ResumeInfo.RelocationOrigin origin = isRelocated
+            ? new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()), randomNonNegativeLong())
+            : null;
         return new BulkByScrollTask(taskId, type, action, description, parentTaskId, headers, eligibleForRelocationOnShutdown, origin);
     }
 
@@ -145,7 +158,8 @@ public class BulkByScrollTaskTests extends ESTestCase {
         );
         BulkByScrollTask.Status status = new BulkByScrollTask.Status(
             Arrays.asList(null, null, new BulkByScrollTask.StatusOrException(completedStatus)),
-            null
+            null,
+            0f
         );
         status.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), containsString("\"slices\":[null,null,{\"slice_id\":2"));
@@ -156,7 +170,8 @@ public class BulkByScrollTaskTests extends ESTestCase {
         Exception e = new Exception();
         BulkByScrollTask.Status status = new BulkByScrollTask.Status(
             Arrays.asList(null, null, new BulkByScrollTask.StatusOrException(e)),
-            null
+            null,
+            0f
         );
         status.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertThat(Strings.toString(builder), containsString("\"slices\":[null,null,{\"type\":\"exception\""));
@@ -226,7 +241,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
             mergedThrottledUntil = timeValueNanos(min(mergedThrottledUntil.nanos(), throttledUntil.nanos()));
         }
         String reasonCancelled = randomBoolean() ? randomAlphaOfLength(10) : null;
-        BulkByScrollTask.Status merged = new BulkByScrollTask.Status(Arrays.asList(statuses), reasonCancelled);
+        BulkByScrollTask.Status merged = new BulkByScrollTask.Status(Arrays.asList(statuses), reasonCancelled, mergedRequestsPerSecond);
         assertEquals(mergedTotal, merged.getTotal());
         assertEquals(mergedUpdated, merged.getUpdated());
         assertEquals(mergedCreated, merged.getCreated());
@@ -261,13 +276,13 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
     /**
      * Verifies that {@link BulkByScrollTask#isLeader()} returns false for a freshly created task and true after
-     * {@link BulkByScrollTask#setWorkerCount(int)} is called.
+     * {@link BulkByScrollTask#setWorkerCount(int, float)} is called.
      */
     public void testIsLeader() {
         BulkByScrollTask task = createTask(randomBoolean());
         assertFalse(task.isLeader());
         int slices = between(2, 20);
-        task.setWorkerCount(slices);
+        task.setWorkerCount(slices, Float.POSITIVE_INFINITY);
         assertTrue(task.isLeader());
     }
 
@@ -285,22 +300,28 @@ public class BulkByScrollTaskTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#setWorkerCount(int)} throws when the task is already a leader.
+     * Verifies that {@link BulkByScrollTask#setWorkerCount(int, float)} throws when the task is already a leader.
      */
     public void testSetWorkerCountThrowsWhenAlreadyLeader() {
         BulkByScrollTask task = createTask(randomBoolean());
-        task.setWorkerCount(between(2, 10));
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> task.setWorkerCount(between(2, 10)));
+        task.setWorkerCount(between(2, 10), Float.POSITIVE_INFINITY);
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> task.setWorkerCount(between(2, 10), Float.POSITIVE_INFINITY)
+        );
         assertThat(exception.getMessage(), containsString("already a leader"));
     }
 
     /**
-     * Verifies that {@link BulkByScrollTask#setWorkerCount(int)} throws when the task is already a worker.
+     * Verifies that {@link BulkByScrollTask#setWorkerCount(int, float)} throws when the task is already a worker.
      */
     public void testSetWorkerCountThrowsWhenAlreadyWorker() {
         BulkByScrollTask task = createTask(randomBoolean());
         task.setWorker(randomFloatBetween(0.1f, 100f), null);
-        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> task.setWorkerCount(between(2, 10)));
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> task.setWorkerCount(between(2, 10), Float.POSITIVE_INFINITY)
+        );
         assertThat(exception.getMessage(), containsString("already a worker"));
     }
 
@@ -322,7 +343,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
      */
     public void testSetWorkerThrowsWhenAlreadyLeader() {
         BulkByScrollTask task = createTask(randomBoolean());
-        task.setWorkerCount(between(2, 10));
+        task.setWorkerCount(between(2, 10), Float.POSITIVE_INFINITY);
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
             () -> task.setWorker(randomFloatBetween(0.1f, 100f), between(0, 5))
@@ -332,7 +353,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
     /**
      * Verifies that {@link BulkByScrollTask#getLeaderState()} returns the leader state after
-     * {@link BulkByScrollTask#setWorkerCount(int)} and throws when the task is not a leader.
+     * {@link BulkByScrollTask#setWorkerCount(int, float)} and throws when the task is not a leader.
      */
     public void testGetLeaderState() {
         BulkByScrollTask task = createTask(randomBoolean());
@@ -340,7 +361,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("not set to be a leader"));
 
         int slices = between(2, 20);
-        task.setWorkerCount(slices);
+        task.setWorkerCount(slices, Float.POSITIVE_INFINITY);
         LeaderBulkByScrollTaskState leaderState = task.getLeaderState();
         assertNotNull(leaderState);
         assertEquals(slices, leaderState.getSlices());
@@ -416,7 +437,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
     public void testTaskInfoGivenSubtaskInfo() {
         int slices = between(2, 8);
         BulkByScrollTask task = createTask(randomBoolean());
-        task.setWorkerCount(slices);
+        task.setWorkerCount(slices, Float.POSITIVE_INFINITY);
 
         String localNodeId = randomAlphaOfLength(5);
         List<TaskInfo> sliceInfoList = Arrays.asList(new TaskInfo[slices]);
@@ -474,6 +495,144 @@ public class BulkByScrollTaskTests extends ESTestCase {
             () -> task.taskInfoGivenSubtaskInfo(localNodeId, sliceInfoList)
         );
         assertThat(exception.getMessage(), containsString("not set to be a leader"));
+    }
+
+    public void testTaskIsRelocatedIfRelocationOriginIsSet() {
+        final boolean isRelocated = randomBoolean();
+        final BulkByScrollTask task = createTask(randomBoolean(), isRelocated);
+        assertThat(task.isRelocatedTask(), equalTo(isRelocated));
+    }
+
+    public void testTaskInfo_notRelocated() {
+        BulkByScrollTask task = createTask(randomBoolean(), false);
+        String localNodeId = randomAlphaOfLength(5);
+        TaskInfo info = task.taskInfo(localNodeId, true);
+        assertThat(info.originalTaskId(), equalTo(new TaskId(localNodeId, task.getId())));
+        assertThat(info.originalStartTimeMillis(), equalTo(task.getStartTime()));
+    }
+
+    public void testTaskInfo_relocatedParent() {
+        BulkByScrollTask task = createTask(true, true, TaskId.EMPTY_TASK_ID);
+        String localNodeId = randomAlphaOfLength(5);
+        TaskInfo info = task.taskInfo(localNodeId, true);
+        assertThat(info.originalTaskId(), equalTo(task.relocationOrigin().originalTaskId()));
+        assertThat(info.originalStartTimeMillis(), equalTo(task.relocationOrigin().originalStartTimeMillis()));
+    }
+
+    public void testTaskInfo_relocatedSliceDoesNotExposeOriginalTaskInfo() {
+        final TaskId parentTaskId = new TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
+        final BulkByScrollTask task = createTask(true, true, parentTaskId);
+        final String localNodeId = randomAlphaOfLength(5);
+        final TaskInfo info = task.taskInfo(localNodeId, true);
+        // Falls back to the task's own identity, not the parent's relocation origin
+        assertThat(info.originalTaskId(), equalTo(new TaskId(localNodeId, task.getId())));
+        assertThat(info.originalTaskId(), not(equalTo(task.relocationOrigin().originalTaskId())));
+        assertThat(info.originalStartTimeMillis(), equalTo(task.getStartTime()));
+    }
+
+    /** A freshly created task's relocation progress is in the NOT_STARTED state. */
+    public void testRelocationProgressStartsNotStarted() {
+        BulkByScrollTask task = createTask(true);
+        assertEquals(BulkByScrollTask.RelocationProgress.State.NOT_STARTED, task.getRelocationProgress().current());
+        assertFalse(task.useCreateSemanticsForResultStorage());
+    }
+
+    /**
+     * {@link BulkByScrollTask#tryInitiateRelocationHandoff()} transitions NOT_STARTED -> HANDOFF_INITIATED on first
+     * call, is idempotent on subsequent calls, and flips {@link BulkByScrollTask#useCreateSemanticsForResultStorage()}.
+     */
+    public void testTryInitiateRelocationHandoff() {
+        BulkByScrollTask task = createTask(true);
+        assertTrue(task.tryInitiateRelocationHandoff());
+        assertEquals(BulkByScrollTask.RelocationProgress.State.HANDOFF_INITIATED, task.getRelocationProgress().current());
+        assertTrue(task.useCreateSemanticsForResultStorage());
+        // idempotent
+        assertTrue(task.tryInitiateRelocationHandoff());
+        assertEquals(BulkByScrollTask.RelocationProgress.State.HANDOFF_INITIATED, task.getRelocationProgress().current());
+    }
+
+    /**
+     * {@link BulkByScrollTask#ensureCancellable()} transitions NOT_STARTED -> TASK_CANCELLED on first call and is idempotent.
+     */
+    public void testEnsureCancellable() {
+        BulkByScrollTask task = createTask(randomBoolean());
+        task.ensureCancellable();
+        assertEquals(BulkByScrollTask.RelocationProgress.State.TASK_CANCELLED, task.getRelocationProgress().current());
+        // idempotent
+        task.ensureCancellable();
+        assertEquals(BulkByScrollTask.RelocationProgress.State.TASK_CANCELLED, task.getRelocationProgress().current());
+    }
+
+    /**
+     * Once relocation handoff is initiated, a subsequent cancellation attempt must be rejected because the
+     * continuation of this task is being resumed on the destination node; cancelling the source here would leave
+     * the resumed task running on the destination unaware.
+     */
+    public void testCancellationRejectedAfterHandoffInitiated() {
+        BulkByScrollTask task = createTask(true);
+        assertTrue(task.tryInitiateRelocationHandoff());
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, task::ensureCancellable);
+        assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        assertThat(e.getMessage(), equalTo("cannot cancel task [" + task.getId() + "] because it is being relocated"));
+        assertEquals(BulkByScrollTask.RelocationProgress.State.HANDOFF_INITIATED, task.getRelocationProgress().current());
+        assertTrue(task.useCreateSemanticsForResultStorage());
+    }
+
+    /**
+     * Once cancellation has begun, the relocation handoff must be aborted so the task is not resumed on the
+     * destination node while the source is being cancelled.
+     */
+    public void testHandoffRejectedAfterCancellationBegan() {
+        BulkByScrollTask task = createTask(true);
+        task.ensureCancellable();
+        assertFalse("relocation handoff must be rejected after cancellation began", task.tryInitiateRelocationHandoff());
+        assertEquals(BulkByScrollTask.RelocationProgress.State.TASK_CANCELLED, task.getRelocationProgress().current());
+        assertFalse(task.useCreateSemanticsForResultStorage());
+    }
+
+    /**
+     * Stresses the CAS gate under concurrent relocation and cancellation attempts: exactly one side wins and the
+     * other observes a refusal, never both.
+     */
+    public void testConcurrentHandoffVsCancellationMutuallyExclusive() throws Exception {
+        final BulkByScrollTask task = createTask(true);
+        final CountDownLatch start = new CountDownLatch(1);
+        final AtomicBoolean handoffResult = new AtomicBoolean();
+        final AtomicBoolean cancelResult = new AtomicBoolean();
+        Thread t1 = new Thread(() -> {
+            try {
+                start.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            handoffResult.set(task.tryInitiateRelocationHandoff());
+        });
+        Thread t2 = new Thread(() -> {
+            try {
+                start.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            try {
+                task.ensureCancellable();
+                cancelResult.set(true);
+            } catch (ElasticsearchStatusException e) {
+                cancelResult.set(false);
+            }
+        });
+        t1.start();
+        t2.start();
+        start.countDown();
+        t1.join();
+        t2.join();
+        assertNotSame(
+            "at least one side must win (state cannot remain NOT_STARTED)",
+            BulkByScrollTask.RelocationProgress.State.NOT_STARTED,
+            task.getRelocationProgress().current()
+        );
+        assertTrue("handoff and cancellation are mutually exclusive", handoffResult.get() ^ cancelResult.get());
     }
 
     private static float randomFloatBetween(float min, float max) {

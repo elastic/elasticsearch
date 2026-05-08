@@ -29,11 +29,13 @@ import java.util.stream.IntStream;
  *     positions.
  * </p>
  */
-record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, ExpressionEvaluator filter)
+public record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, ExpressionEvaluator filter)
     implements
         GroupingAggregatorFunction {
 
-    FilteredGroupingAggregatorFunction {
+    public FilteredGroupingAggregatorFunction {
+        // Filtered aggregators may filter out entire pages, so the underlying aggregator
+        // may not see all groups. It needs to know this so it can initialize unseen groups to null.
         next.selectedMayContainUnseenGroups(new SeenGroupIds.Empty());
     }
 
@@ -45,6 +47,9 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, Expre
             AddInput nextAdd = null;
             try {
                 nextAdd = next.prepareProcessRawInputPage(seenGroupIds, page);
+                if (nextAdd == null) {
+                    return null;
+                }
                 AddInput result = new FilteredAddInput(mask.mask(), nextAdd, page.getPositionCount());
                 mask = null;
                 nextAdd = null;

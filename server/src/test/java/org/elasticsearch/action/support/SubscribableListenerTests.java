@@ -113,6 +113,17 @@ public class SubscribableListenerTests extends ESTestCase {
         assertEquals(subscriberCount + 2, order.get());
     }
 
+    public void testOnNullResponse() throws Exception {
+        final var nullSuccess = SubscribableListener.nullSuccess();
+        assertSame(nullSuccess, SubscribableListener.newSucceeded(null));
+        assertNull(nullSuccess.rawResult());
+
+        final var listener = new SubscribableListener<>();
+        assertNotSame(nullSuccess, listener);
+        listener.onResponse(null);
+        assertNull(listener.rawResult());
+    }
+
     public void testOnFailure() {
         var listener = new SubscribableListener<>();
         var order = new AtomicInteger();

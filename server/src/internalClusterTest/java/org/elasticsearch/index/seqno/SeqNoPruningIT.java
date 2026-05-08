@@ -57,8 +57,6 @@ public class SeqNoPruningIT extends ESIntegTestCase {
     }
 
     public void testSeqNoPrunedAfterMerge() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         ensureStableCluster(3);
@@ -140,8 +138,6 @@ public class SeqNoPruningIT extends ESIntegTestCase {
     }
 
     public void testSeqNoPartiallyPrunedWithRetentionLease() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         ensureStableCluster(3);
@@ -189,27 +185,19 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         ).actionGet();
 
         // wait for peer recovery retention leases to advance past all docs; the custom lease stays
-        assertBusy(() -> {
-            for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
-                for (var indexService : indicesServices) {
-                    if (indexService.index().getName().equals(indexName)) {
-                        for (var indexShard : indexService) {
-                            for (RetentionLease lease : indexShard.getRetentionLeases().leases()) {
-                                if (lease.id().equals(retentionLeaseId)) {
-                                    assertThat(lease.retainingSequenceNumber(), equalTo(retentionLeaseSeqNo));
-                                } else {
-                                    assertThat(
-                                        "retention lease [" + lease.id() + "] should have advanced",
-                                        lease.retainingSequenceNumber(),
-                                        equalTo(maxSeqNo + 1)
-                                    );
-                                }
-                            }
-                        }
-                    }
+        assertBusy(() -> internalCluster().forEveryIndexShard(shardId.getIndex(), indexShard -> {
+            for (RetentionLease lease : indexShard.getRetentionLeases().leases()) {
+                if (lease.id().equals(retentionLeaseId)) {
+                    assertThat(lease.retainingSequenceNumber(), equalTo(retentionLeaseSeqNo));
+                } else {
+                    assertThat(
+                        "retention lease [" + lease.id() + "] should have advanced",
+                        lease.retainingSequenceNumber(),
+                        equalTo(maxSeqNo + 1)
+                    );
                 }
             }
-        });
+        }));
 
         var forceMerge = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
         assertThat(forceMerge.getFailedShards(), equalTo(0));
@@ -228,43 +216,37 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         // verify only docs with seq_no >= retentionLeaseSeqNo retained their doc values
         final long expectedRetainedDocs = maxSeqNo + 1 - retentionLeaseSeqNo;
 
-        int checkedShards = 0;
-        for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
-            for (var indexService : indicesServices) {
-                if (indexService.index().getName().equals(indexName)) {
-                    for (var indexShard : indexService) {
-                        Long docsWithSeqNoOnShard = indexShard.withEngineOrNull(engine -> {
-                            if (engine == null) {
-                                return null;
+        final var checkedShards = new AtomicInteger();
+        internalCluster().forEveryIndexShard(shardId.getIndex(), indexShard -> {
+            Long docsWithSeqNoOnShard = indexShard.withEngineOrNull(engine -> {
+                if (engine == null) {
+                    return null;
+                }
+                try (var searcher = engine.acquireSearcher("assert_seq_no_count")) {
+                    long nbDocsWithSeqNo = 0;
+                    for (var leaf : searcher.getLeafContexts()) {
+                        NumericDocValues seqNoDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+                        if (seqNoDV != null) {
+                            while (seqNoDV.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                                nbDocsWithSeqNo++;
                             }
-                            try (var searcher = engine.acquireSearcher("assert_seq_no_count")) {
-                                long nbDocsWithSeqNo = 0;
-                                for (var leaf : searcher.getLeafContexts()) {
-                                    NumericDocValues seqNoDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
-                                    if (seqNoDV != null) {
-                                        while (seqNoDV.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                                            nbDocsWithSeqNo++;
-                                        }
-                                    }
-                                }
-                                return nbDocsWithSeqNo;
-                            } catch (IOException e) {
-                                throw new AssertionError(e);
-                            }
-                        });
-                        if (docsWithSeqNoOnShard != null) {
-                            assertThat(
-                                "docs with seq_no >= " + retentionLeaseSeqNo + " should retain doc values",
-                                docsWithSeqNoOnShard,
-                                equalTo(expectedRetainedDocs)
-                            );
-                            checkedShards++;
                         }
                     }
+                    return nbDocsWithSeqNo;
+                } catch (IOException e) {
+                    throw new AssertionError(e);
                 }
+            });
+            if (docsWithSeqNoOnShard != null) {
+                assertThat(
+                    "docs with seq_no >= " + retentionLeaseSeqNo + " should retain doc values",
+                    docsWithSeqNoOnShard,
+                    equalTo(expectedRetainedDocs)
+                );
+                checkedShards.incrementAndGet();
             }
-        }
-        assertThat("expected to verify at least one shard", checkedShards, equalTo(1));
+        });
+        assertThat("expected to verify at least one shard", checkedShards.get(), equalTo(1));
 
         // remove the custom retention lease, index more data and force merge again to verify full pruning
         client().execute(RetentionLeaseActions.REMOVE, new RetentionLeaseActions.RemoveRequest(shardId, retentionLeaseId)).actionGet();
@@ -302,8 +284,6 @@ public class SeqNoPruningIT extends ESIntegTestCase {
      * that still need to be replayed to the replica.
      */
     public void testSeqNoRetainedDuringInProgressRecovery() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         ensureStableCluster(3);
@@ -424,8 +404,6 @@ public class SeqNoPruningIT extends ESIntegTestCase {
     }
 
     public void testSeqNoPrunedAfterMergeWithTsdbCodec() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
@@ -492,8 +470,6 @@ public class SeqNoPruningIT extends ESIntegTestCase {
      * by a force merge.
      */
     public void testWritesSucceedOnReplicaAfterSeqNoPruning() throws Exception {
-        assumeTrue("requires disable_sequence_numbers feature flag", IndexSettings.DISABLE_SEQUENCE_NUMBERS_FEATURE_FLAG);
-
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         ensureStableCluster(3);

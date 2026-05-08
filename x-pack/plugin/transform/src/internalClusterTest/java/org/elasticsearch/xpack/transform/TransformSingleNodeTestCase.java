@@ -160,12 +160,16 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
     protected Set<String> getAuditMessages(String transformId) {
         var searchRequest = new SearchRequest(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN);
         var searchResponse = client().search(searchRequest).actionGet(TimeValue.THIRTY_SECONDS);
-        return Arrays.stream(searchResponse.getHits().getHits())
-            .map(SearchHit::getSourceAsMap)
-            .filter(source -> Objects.equals(source.get("transform_id"), transformId))
-            .map(source -> source.get("message"))
-            .map(Object::toString)
-            .collect(Collectors.toSet());
+        try {
+            return Arrays.stream(searchResponse.getHits().getHits())
+                .map(SearchHit::getSourceAsMap)
+                .filter(source -> Objects.equals(source.get("transform_id"), transformId))
+                .map(source -> source.get("message"))
+                .map(Object::toString)
+                .collect(Collectors.toSet());
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
 }

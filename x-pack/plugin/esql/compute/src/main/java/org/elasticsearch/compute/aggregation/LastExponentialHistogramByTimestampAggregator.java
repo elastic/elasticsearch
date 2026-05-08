@@ -20,7 +20,8 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
  *
  */
 @Aggregator(
-    {
+    processNulls = true,
+    value = {
         @IntermediateState(name = "timestamps", type = "LONG"),
         @IntermediateState(name = "values", type = "EXPONENTIAL_HISTOGRAM"),
         @IntermediateState(name = "seen", type = "BOOLEAN") }

@@ -12,6 +12,10 @@ package org.elasticsearch.index;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.index.shard.IndexShard;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -60,5 +64,44 @@ public class IndexReshardService {
         } else {
             return false;
         }
+    }
+
+    /// Determines if an operation with the provided summary is impacted by an ongoing resharding split.
+    /// This is currently specifically designed for realtime read operations like term vectors API.
+    /// As such it is intended to be called in scope of the realtime read operation on the _index_ shard.
+    public static boolean isRealtimeReadPossiblyStale(IndexShard indexShard, SplitShardCountSummary splitShardCountSummary) {
+        if (splitShardCountSummary.isUnset()) {
+            // If the coordinator didn't provide the summary it won't know how to perform retries either.
+            // So we don't retry.
+            return false;
+        }
+
+        IndexMetadata indexMetadata = indexShard.indexSettings().getIndexMetadata();
+
+        return switch (splitShardCountSummary.check(indexMetadata)) {
+            case OLDER -> {
+                IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+                // Otherwise it would be INVALID.
+                assert reshardingMetadata != null;
+
+                // If we see an older summary it means that this request was routed to the source shard, possibly
+                // due to the target shard being not ready as seen by the coordinator.
+                // However, it is possible that this document has moved to the target shard since (and maybe was updated).
+                // But that is only a concern if we are post handoff.
+                // If handoff didn't start yet, we can trust the data that the source shard has since all writes are still performed
+                // by the source.
+                // If handoff is in progress, writes are queued and we again can trust the data that the source shard has so far.
+                // We will only unblock writes once we observe HANDOFF state of the target shard locally on the source index shard
+                // (which is where we assume we are) and therefore we can trust what we read from index metadata.
+                assert reshardingMetadata.isSplit();
+                IndexReshardingState.Split split = reshardingMetadata.getSplit();
+                assert split.isSourceShard(indexShard.shardId().id());
+
+                int targetShard = split.targetShard(indexShard.shardId().id());
+                yield reshardingMetadata.getSplit().targetStateAtLeast(targetShard, IndexReshardingState.Split.TargetShardState.HANDOFF);
+            }
+            case CURRENT -> false;
+            case INVALID -> true;
+        };
     }
 }

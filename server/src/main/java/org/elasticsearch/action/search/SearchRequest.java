@@ -27,6 +27,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -78,6 +79,9 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
 
     @Nullable
     private ResolvedIndexExpressions resolvedIndexExpressions = null;
+
+    @Nullable
+    private transient TargetProjects resolvedTargetProjects = null;
 
     @Nullable
     private String routing;
@@ -188,6 +192,13 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     }
 
     /**
+     * Clears {@link #getProjectRouting()}
+     */
+    public void clearProjectRouting() {
+        this.projectRouting = null;
+    }
+
+    /**
      * Creates a new sub-search request starting from the original search request that is provided.
      * For internal use only, allows to fork a search request into multiple search requests that will be executed independently.
      * Such requests will not be finally reduced, so that their results can be merged together in one response at completion.
@@ -252,6 +263,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         this.forceSyntheticSource = searchRequest.forceSyntheticSource;
         this.projectRouting = searchRequest.projectRouting;
         this.resolvedIndexExpressions = searchRequest.resolvedIndexExpressions;
+        this.resolvedTargetProjects = searchRequest.resolvedTargetProjects;
     }
 
     /**
@@ -437,6 +449,17 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     @Nullable
     public ResolvedIndexExpressions getResolvedIndexExpressions() {
         return resolvedIndexExpressions;
+    }
+
+    @Override
+    public void setResolvedTargetProjects(TargetProjects targetProjects) {
+        this.resolvedTargetProjects = targetProjects;
+    }
+
+    @Override
+    @Nullable
+    public TargetProjects getResolvedTargetProjects() {
+        return resolvedTargetProjects;
     }
 
     private static void validateIndices(String... indices) {

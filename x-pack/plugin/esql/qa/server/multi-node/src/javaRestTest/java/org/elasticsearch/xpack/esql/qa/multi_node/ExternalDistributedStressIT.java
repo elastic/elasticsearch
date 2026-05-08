@@ -12,12 +12,14 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.TestClustersThreadFilter;
+import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
@@ -30,17 +32,28 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.addBlobToF
  * content for formula-based assertions across all distribution modes.
  * <p>
  * All synthetic data is held entirely in-memory via the S3 fixture's blob map.
+ * <p>
+ * Each test method uses a unique sub-prefix under {@code warehouse/stress/} so the
+ * coordinator's external source listing cache (keyed by glob path) cannot return a
+ * stale {@code FileList} from a previous method after blobs were cleared and
+ * repopulated (see elasticsearch#145559).
  */
 @SuppressForbidden(reason = "uses S3 fixture handler for direct blob population")
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class })
 public class ExternalDistributedStressIT extends AbstractExternalDistributedIT {
 
-    private static final String STRESS_PREFIX = WAREHOUSE + "/stress/";
+    /** Per-test run prefix; includes a random segment so listing cache keys differ each method. */
+    private String stressRunPrefix;
+
+    @Before
+    public void initStressRunPrefix() {
+        stressRunPrefix = WAREHOUSE + "/stress/" + UUID.randomUUID() + "/";
+    }
 
     @org.junit.After
     public void clearStressSplits() {
         var handler = s3Fixture.getHandler();
-        String blobPrefix = Strings.format("/%s/%s", BUCKET, STRESS_PREFIX);
+        String blobPrefix = Strings.format("/%s/%s", BUCKET, stressRunPrefix);
         Iterator<String> it = handler.blobs().keySet().iterator();
         while (it.hasNext()) {
             if (it.next().startsWith(blobPrefix)) {
@@ -62,7 +75,7 @@ public class ExternalDistributedStressIT extends AbstractExternalDistributedIT {
     private void populateStressSplits(int numSplits, int rowsPerSplit) {
         var handler = s3Fixture.getHandler();
         for (int i = 0; i < numSplits; i++) {
-            String key = String.format(Locale.ROOT, "%spart-%05d.csv", STRESS_PREFIX, i);
+            String key = String.format(Locale.ROOT, "%spart-%05d.csv", stressRunPrefix, i);
             addBlobToFixture(handler, key, generateCsvSplit(i, rowsPerSplit));
         }
     }
@@ -79,13 +92,13 @@ public class ExternalDistributedStressIT extends AbstractExternalDistributedIT {
                 sb.append(i).append(",").append(rowId).append(",").append(value).append("\n");
             }
             globalOffset += numRows;
-            String key = String.format(Locale.ROOT, "%spart-%05d.csv", STRESS_PREFIX, i);
+            String key = String.format(Locale.ROOT, "%spart-%05d.csv", stressRunPrefix, i);
             addBlobToFixture(handler, key, sb.toString().getBytes(StandardCharsets.UTF_8));
         }
     }
 
     private String stressQuery(String suffix) {
-        return externalS3Query(STRESS_PREFIX + "*.csv") + suffix;
+        return externalS3Query(stressRunPrefix + "*.csv") + suffix;
     }
 
     public void testManyUniformSplits() throws Exception {

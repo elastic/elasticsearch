@@ -22,6 +22,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
@@ -83,7 +84,8 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
             new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new),
-            new NamedWriteableRegistry.Entry(WorkerResumeInfo.class, ScrollWorkerResumeInfo.NAME, ScrollWorkerResumeInfo::new)
+            new NamedWriteableRegistry.Entry(WorkerResumeInfo.class, ScrollWorkerResumeInfo.NAME, ScrollWorkerResumeInfo::new),
+            new NamedWriteableRegistry.Entry(WorkerResumeInfo.class, PitWorkerResumeInfo.NAME, PitWorkerResumeInfo::new)
         );
     }
 
@@ -108,9 +110,11 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
         return List.of(
             new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService()),
             new ReindexMetrics(services.telemetryProvider().getMeterRegistry()),
+            new BulkByScrollSearchContextMetrics(services.telemetryProvider().getMeterRegistry()),
             new UpdateByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
             new DeleteByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
-            new PluginComponentBinding<>(ReindexRelocationNodePicker.class, getReindexRelocationNodePicker(services.environment()))
+            new PluginComponentBinding<>(ReindexRelocationNodePicker.class, getReindexRelocationNodePicker(services.environment())),
+            new ReindexSettings(services.clusterService().getClusterSettings())
         );
     }
 
@@ -118,6 +122,8 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
     public List<Setting<?>> getSettings() {
         final List<Setting<?>> settings = new ArrayList<>();
         settings.add(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
+        settings.add(TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST);
+        settings.add(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING);
         settings.addAll(ReindexSslConfig.getSettings());
         return settings;
     }

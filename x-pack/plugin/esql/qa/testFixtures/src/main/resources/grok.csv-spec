@@ -321,7 +321,8 @@ avoidAttributesRemoval
 required_capability: union_types
 required_capability: join_lookup_v12
 required_capability: keep_regex_extract_attributes
-from multivalue_points,h*,messa* 
+
+from multivalue_points,heights,histogram*,host*,messa*
 | eval  `card` = true, PbehoQUqKSF = "VLGjhcgNkQiEVyCLo", DsxMWtGL = true, qSxTIvUorMim = true, `location` = 8593178066470220111, type = -446161601, FSkGQkgmS = false 
 | eval  PbehoQUqKSF = 753987034, HLNMQfQj = true, `within` = true, `id` = "JDKKkYwhhh", lk = null, aecuvjTkgZza = 510616700, aDAMpuVtNX = null, qCopgNZPt = "AjhJUtZefqKdJYH", BxHHlFoA = "isBrmhKLc"
 | rename message as message 

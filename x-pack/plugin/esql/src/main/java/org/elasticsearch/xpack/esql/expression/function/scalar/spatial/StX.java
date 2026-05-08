@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -40,6 +41,7 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpat
  */
 public class StX extends SpatialUnaryDocValuesFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StX", StX::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StX.class).unary(StX::new).name("st_x");
 
     @FunctionInfo(
         returnType = "double",

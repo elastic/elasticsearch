@@ -166,6 +166,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
         throw new UnsupportedOperationException("not serialized");
     }
 
+    // TODO: Move this to DataType
     public static boolean isDocAttribute(Attribute attr) {
         // While the user can create columns with the same name as DOC_ID_FIELD, they cannot create a field with the DOC_DATA_TYPE.
         return attr.typeResolved().resolved() && attr.dataType() == DataType.DOC_DATA_TYPE;
@@ -347,24 +348,18 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
     }
 
     @Override
-    public String nodeString(NodeStringFormat format) {
-        return nodeName()
-            + "["
-            + indexPattern
-            + "], "
-            + "indexMode["
-            + indexMode
-            + "], "
-            + NodeUtils.toString(attrs, format)
-            + ", limit["
-            + (limit != null ? limit.toString(format) : "")
-            + "], sort["
-            + (sorts != null ? sorts.toString() : "")
-            + "] estimatedRowSize["
-            + estimatedRowSize
-            + "] queryBuilderAndTags ["
-            + (queryBuilderAndTags != null ? queryBuilderAndTags.toString() : "")
-            + "]";
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[").append(indexPattern).append("], ").append("indexMode[").append(indexMode).append("], ");
+        NodeUtils.toString(sb, attrs, format);
+        sb.append(", limit[")
+            .append(limit != null ? limit.toString(format) : "")
+            .append("], sort[")
+            .append(sorts != null ? sorts.toString() : "")
+            .append("] estimatedRowSize[")
+            .append(estimatedRowSize)
+            .append("] queryBuilderAndTags [")
+            .append(queryBuilderAndTags != null ? queryBuilderAndTags.toString() : "")
+            .append("]");
     }
 
     public enum Direction {

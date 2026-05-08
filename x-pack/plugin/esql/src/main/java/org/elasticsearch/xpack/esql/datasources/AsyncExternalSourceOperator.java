@@ -47,13 +47,29 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         if (page != null) {
             pagesEmitted++;
             rowsEmitted += page.getPositionCount();
+            return page;
         }
-        return page;
+        if (buffer.failure() != null) {
+            throw propagateFailure(buffer.failure());
+        }
+        return null;
+    }
+
+    private static RuntimeException propagateFailure(Throwable t) {
+        if (t instanceof RuntimeException re) {
+            return re;
+        }
+        if (t instanceof Error e) {
+            throw e;
+        }
+        return new RuntimeException(t);
     }
 
     @Override
     public boolean isFinished() {
-        return buffer.isFinished();
+        // Keep "not finished" while a failure is pending so the driver calls getOutput() and the
+        // exception propagates instead of treating the source as a clean EOF.
+        return buffer.isFinished() && buffer.failure() == null;
     }
 
     @Override

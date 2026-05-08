@@ -18,7 +18,8 @@ import org.elasticsearch.core.Nullable;
 // end generated imports
 
 /**
- * Arrow buffer backed IntBlock.
+ * Implementation of IntBlock backed by an Arrow buffer holding 32 bits signed integers.
+ * <p>
  * This class is generated. Edit {@code X-ArrowBufBlock.java.st} instead.
  */
 public final class IntArrowBufBlock extends AbstractArrowBufBlock<IntVector, IntBlock> implements IntBlock {
@@ -48,6 +49,11 @@ public final class IntArrowBufBlock extends AbstractArrowBufBlock<IntVector, Int
 
     @Override
     protected int byteSize() {
+        return Integer.BYTES;
+    }
+
+    @Override
+    public int valueMaxByteSize() {
         return Integer.BYTES;
     }
 

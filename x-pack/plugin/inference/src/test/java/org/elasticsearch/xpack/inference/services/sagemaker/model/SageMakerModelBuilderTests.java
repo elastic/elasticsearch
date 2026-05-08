@@ -12,12 +12,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.inference.TaskTypeTests;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemasTests;
 import org.junit.Before;
@@ -32,7 +32,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SageMakerModelBuilderTests extends ESTestCase {
     private static final String inferenceId = "inferenceId";
-    private static final TaskType taskType = TaskType.ANY;
     private static final String service = "service";
     private SageMakerModelBuilder builder;
 
@@ -266,7 +265,7 @@ public class SageMakerModelBuilderTests extends ESTestCase {
     }
 
     private SageMakerModel fromRequest(String json) {
-        return builder.fromRequest(inferenceId, taskType, service, map(json));
+        return builder.fromRequest(inferenceId, TaskTypeTests.randomTaskTypeOtherThanAny(), service, map(json));
     }
 
     private void testExceptionFromRequest(String json, Class<? extends Exception> exceptionClass, String message) {

@@ -44,8 +44,6 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
     private static final String CLIENT_ID_CONFIG_DESCRIPTION = "ID of application registered with the authorization server.";
     private static final String SCOPES_CONFIG_DESCRIPTION = "The permissions that the application is requesting.";
 
-    private record UpdateSettings(@Nullable String clientId, @Nullable List<String> scopes) {}
-
     private final String clientId;
     private final List<String> scopes;
 
@@ -125,20 +123,30 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
         return scopes;
     }
 
-    public ValidationResult<OAuth2Settings> updateServiceSettings(Map<String, Object> map, ValidationException validationException) {
-        var updated = fromMapForUpdate(map, validationException);
-
-        var clientIdToUpdate = updated.clientId() != null ? updated.clientId() : this.clientId;
-        var scopesToUpdate = updated.scopes() != null ? updated.scopes() : this.scopes;
-
-        return validateFields(clientIdToUpdate, scopesToUpdate, validationException);
-    }
-
-    private static UpdateSettings fromMapForUpdate(Map<String, Object> map, ValidationException validationException) {
-        var clientId = extractOptionalString(map, CLIENT_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var scopes = extractStringList(map, SCOPES_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        return new UpdateSettings(clientId, scopes);
+    /**
+     * Updates the current settings with any new values provided in the map.
+     * If a field is not present in the map, the existing value is retained.
+     * @param serviceSettingsMap the map containing the new settings values
+     * @param validationException the exception to which any validation errors should be added
+     * @return a new {@link OAuth2Settings} object with the updated values, or the existing values if not updated
+     */
+    public OAuth2Settings updateServiceSettings(Map<String, Object> serviceSettingsMap, ValidationException validationException) {
+        var extractedClientId = extractOptionalString(
+            serviceSettingsMap,
+            CLIENT_ID_FIELD,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedScopes = extractStringList(
+            serviceSettingsMap,
+            SCOPES_FIELD,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        return new OAuth2Settings(
+            extractedClientId != null ? extractedClientId : this.clientId,
+            extractedScopes != null ? extractedScopes : this.scopes
+        );
     }
 
     @Override
@@ -152,6 +160,11 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
         builder.field(CLIENT_ID_FIELD, clientId);
         builder.field(SCOPES_FIELD, scopes);
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     @Override

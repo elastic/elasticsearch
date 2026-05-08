@@ -341,6 +341,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 getIndexSettings(),
                 () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()),
                 this::sourcePath,
+                mapperService.getIdFieldDataEnabled(),
                 fielddataOperation
             )
         );
@@ -529,6 +530,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                     getIndexSettings(),
                     searchLookup,
                     this::sourcePath,
+                    () -> false,
                     fielddataOperation
                 )
             ),
@@ -742,6 +744,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
     @Nullable
     public ShardSearchStats stats() {
         return shardSearchStats;
+    }
+
+    /**
+     * Returns the circuit breaker used for query construction memory accounting, or {@code null}
+     * if none was configured.
+     */
+    @Nullable
+    public CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
     }
 
     /**

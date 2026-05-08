@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,10 +24,13 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -53,6 +57,7 @@ import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 public class EqlSearchResponse extends ActionResponse implements ToXContentObject, QlStatusResponse.AsyncStatus {
 
     private final Hits hits;
+    private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
     private final long tookInMillis;
     private final boolean isTimeout;
     private final String asyncExecutionId;
@@ -223,6 +228,45 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     }
 
     @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        if (refCounted.decRef()) {
+            releaseEventSources(hits);
+            return true;
+        }
+        return false;
+    }
+
+    private static void releaseEventSources(Hits h) {
+        if (h.events != null) {
+            for (Event event : h.events) {
+                event.releaseSource();
+            }
+        }
+        if (h.sequences != null) {
+            for (Sequence sequence : h.sequences) {
+                for (Event event : sequence.events()) {
+                    event.releaseSource();
+                }
+            }
+        }
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
+    @Override
     public String toString() {
         return Strings.toString(this);
     }
@@ -230,7 +274,9 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
     // Event
     public static class Event implements Writeable, ToXContentObject {
 
-        public static final Event MISSING_EVENT = new Event("", "", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), null, true);
+        private static final BytesArray EMPTY_SOURCE = new BytesArray("{}".getBytes(StandardCharsets.UTF_8));
+
+        public static final Event MISSING_EVENT = new Event("", "", EMPTY_SOURCE, null, true);
 
         private static final class Fields {
             static final String INDEX = GetResult._INDEX;
@@ -265,7 +311,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             PARSER.declareObject(constructorArg(), (p, c) -> {
                 try (XContentBuilder builder = XContentBuilder.builder(p.contentType().xContent())) {
                     builder.copyCurrentStructure(p);
-                    return BytesReference.bytes(builder);
+                    return ReleasableBytesReference.wrap(BytesReference.bytes(builder));
                 }
             }, SOURCE);
             PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
@@ -281,7 +327,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
         private String index;
         private final String id;
-        private final BytesReference source;
+        private final ReleasableBytesReference source;
         private final Map<String, DocumentField> fetchFields;
 
         private final boolean missing;
@@ -290,19 +336,29 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             this(qualifiedIndex(hit), hit.getId(), hit.getSourceRef(), hit.getDocumentFields(), false);
         }
 
+        /**
+         * @param source pooled or heap-backed bytes for {@code _source}; normalized with refcount discipline for {@link #source()}.
+         */
         public Event(String index, String id, BytesReference source, Map<String, DocumentField> fetchFields, Boolean missing) {
             this.index = index;
             this.id = id;
-            this.source = source;
+            this.source = normalizeSourceBytes(source);
             this.fetchFields = fetchFields;
             this.missing = missing != null && missing;
+        }
+
+        private static ReleasableBytesReference normalizeSourceBytes(@Nullable BytesReference src) {
+            if (src == null) {
+                return ReleasableBytesReference.wrap(EMPTY_SOURCE);
+            }
+            // Retain refcount on pooled / composite _source bytes (CCS, fetch) without copying the buffer payload.
+            return ReleasableBytesReference.adopt(src);
         }
 
         private Event(StreamInput in) throws IOException {
             index = in.readString();
             id = in.readString();
-            // TODO: make this pooled?
-            source = in.readBytesReference();
+            source = in.readReleasableBytesReference();
             if (in.readBoolean()) {
                 fetchFields = in.readMap(DocumentField::new);
             } else {
@@ -313,7 +369,15 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
         public static Event readFrom(StreamInput in) throws IOException {
             Event result = new Event(in);
-            return result.missing() ? MISSING_EVENT : result;
+            if (result.missing()) {
+                result.releaseSource();
+                return MISSING_EVENT;
+            }
+            return result;
+        }
+
+        private void releaseSource() {
+            source.decRef();
         }
 
         @Override

@@ -7,19 +7,15 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
-import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class S3ConfigurationTests extends ESTestCase {
+import static org.hamcrest.Matchers.containsString;
 
-    private static final Source SOURCE = Source.EMPTY;
+public class S3ConfigurationTests extends ESTestCase {
 
     public void testFromFieldsWithAllFields() {
         S3Configuration config = S3Configuration.fromFields("ak", "sk", "http://endpoint", "us-west-2", null);
@@ -51,40 +47,31 @@ public class S3ConfigurationTests extends ESTestCase {
         S3Configuration config = S3Configuration.fromFields(null, null, "http://e", null, "NONE");
         assertNotNull(config);
         assertTrue(config.isAnonymous());
-        // auth is normalized to lowercase
+        // case-insensitive fields normalized to lowercase
         assertEquals("none", config.auth());
     }
 
     public void testUnsupportedAuthValueThrows() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        ValidationException e = expectThrows(
+            ValidationException.class,
             () -> S3Configuration.fromFields(null, null, "http://e", null, "unsupported")
         );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("Unsupported auth value"));
+        assertThat(e.getMessage(), containsString("Unsupported auth value"));
     }
 
     public void testAuthNoneConflictsWithAccessKey() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> S3Configuration.fromFields("ak", null, null, null, "none")
-        );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with access_key/secret_key"));
+        ValidationException e = expectThrows(ValidationException.class, () -> S3Configuration.fromFields("ak", null, null, null, "none"));
+        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
     }
 
     public void testAuthNoneConflictsWithSecretKey() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> S3Configuration.fromFields(null, "sk", null, null, "none")
-        );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with access_key/secret_key"));
+        ValidationException e = expectThrows(ValidationException.class, () -> S3Configuration.fromFields(null, "sk", null, null, "none"));
+        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
     }
 
     public void testAuthNoneConflictsWithBothKeys() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> S3Configuration.fromFields("ak", "sk", null, null, "none")
-        );
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("auth=none cannot be combined with access_key/secret_key"));
+        ValidationException e = expectThrows(ValidationException.class, () -> S3Configuration.fromFields("ak", "sk", null, null, "none"));
+        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
     }
 
     public void testAuthNoneAllowsEndpointAndRegion() {
@@ -99,23 +86,64 @@ public class S3ConfigurationTests extends ESTestCase {
         assertNull(S3Configuration.fromFields(null, null, null, null, null));
     }
 
-    public void testFromParamsWithAuth() {
-        Map<String, Expression> params = new HashMap<>();
-        params.put("auth", literal("none"));
-        params.put("endpoint", literal("http://localhost:9000"));
-
-        S3Configuration config = S3Configuration.fromParams(params);
+    public void testFromMapWithAuth() {
+        S3Configuration config = S3Configuration.fromMap(Map.of("auth", "none", "endpoint", "http://localhost:9000"));
         assertNotNull(config);
         assertTrue(config.isAnonymous());
         assertEquals("http://localhost:9000", config.endpoint());
     }
 
-    public void testFromParamsWithNullMapReturnsNull() {
-        assertNull(S3Configuration.fromParams(null));
+    public void testFromMapWithNullMapReturnsNull() {
+        assertNull(S3Configuration.fromMap(null));
     }
 
-    public void testFromParamsWithEmptyMapReturnsNull() {
-        assertNull(S3Configuration.fromParams(new HashMap<>()));
+    public void testFromMapWithEmptyMapReturnsNull() {
+        assertNull(S3Configuration.fromMap(new HashMap<>()));
+    }
+
+    public void testFromMapRejectsUnknownKeys() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("access_key", "ak");
+        raw.put("header_row", false);
+        ValidationException e = expectThrows(ValidationException.class, () -> S3Configuration.fromMap(raw));
+        assertThat(e.getMessage(), containsString("unknown setting [header_row]"));
+    }
+
+    public void testFromQueryConfigDropsUnknownKeys() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("access_key", "ak");
+        raw.put("secret_key", "sk");
+        raw.put("endpoint", "http://e");
+        // Format-level options that the WITH clause may carry; the storage plugin must ignore them.
+        raw.put("header_row", false);
+        raw.put("column_prefix", "f");
+
+        S3Configuration config = S3Configuration.fromQueryConfig(raw);
+        assertNotNull(config);
+        assertEquals("ak", config.accessKey());
+        assertEquals("sk", config.secretKey());
+        assertEquals("http://e", config.endpoint());
+        assertNull(config.region());
+    }
+
+    public void testFromQueryConfigStillEnforcesAuthConflict() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("auth", "none");
+        raw.put("access_key", "ak");
+        raw.put("header_row", false);
+        ValidationException e = expectThrows(ValidationException.class, () -> S3Configuration.fromQueryConfig(raw));
+        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
+    }
+
+    public void testFromQueryConfigWithOnlyUnknownKeysReturnsNull() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("header_row", false);
+        raw.put("column_prefix", "f");
+        assertNull(S3Configuration.fromQueryConfig(raw));
+    }
+
+    public void testFromQueryConfigWithNullReturnsNull() {
+        assertNull(S3Configuration.fromQueryConfig(null));
     }
 
     public void testEqualsWithAuth() {
@@ -129,11 +157,5 @@ public class S3ConfigurationTests extends ESTestCase {
         S3Configuration config1 = S3Configuration.fromFields(null, null, "ep", null, "none");
         S3Configuration config2 = S3Configuration.fromFields(null, null, "ep", null, null);
         assertNotEquals(config1, config2);
-    }
-
-    private Literal literal(Object value) {
-        Object literalValue = value instanceof String s ? new BytesRef(s) : value;
-        DataType dataType = value instanceof String ? DataType.KEYWORD : DataType.KEYWORD;
-        return new Literal(SOURCE, literalValue, dataType);
     }
 }

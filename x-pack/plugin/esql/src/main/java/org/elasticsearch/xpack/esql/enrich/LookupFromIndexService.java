@@ -185,11 +185,22 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     ) {
         PhysicalPlan lookupNodePlan = mapFragmentToPhysical(request.rightPreJoinPlan);
         Expression rightOnlyFilter = lookupNodePlan instanceof FilterExec filterExec ? filterExec.condition() : null;
-        return buildQueryGenerator(request.matchFields, request.joinOnConditions, rightOnlyFilter, null, context, aliasFilter, warnings);
+        List<String> extractFieldNames = request.extractFields.stream().map(f -> f.name()).toList();
+        return buildQueryGenerator(
+            request.matchFields,
+            extractFieldNames,
+            request.joinOnConditions,
+            rightOnlyFilter,
+            null,
+            context,
+            aliasFilter,
+            warnings
+        );
     }
 
     private LookupEnrichQueryGenerator buildQueryGenerator(
         List<MatchConfig> matchFields,
+        List<String> extractFieldNames,
         @Nullable Expression joinOnConditions,
         @Nullable Expression rightOnlyFilter,
         @Nullable QueryBuilder pushedQuery,
@@ -216,6 +227,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 pushedQuery,
                 clusterService,
                 matchFields,
+                extractFieldNames,
                 joinOnConditions,
                 aliasFilter,
                 warnings
@@ -235,7 +247,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         AliasFilter aliasFilter,
         Warnings warnings
     ) {
-        return buildQueryGenerator(matchFields, joinOnConditions, null, pushedQuery, context, aliasFilter, warnings);
+        return buildQueryGenerator(matchFields, List.of(), joinOnConditions, null, pushedQuery, context, aliasFilter, warnings);
     }
 
     /**
@@ -525,13 +537,23 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
         LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
             super(blockFactory);
+            List<Page> readPages;
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
-                this.pages = bsi.readCollectionAsList(Page::new);
+                readPages = bsi.readReleasableCollectionAsList(Page::new);
             }
-            if (in.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
-                this.planString = in.readOptionalString();
-            } else {
-                this.planString = null;
+            boolean success = false;
+            try {
+                if (in.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
+                    this.planString = in.readOptionalString();
+                } else {
+                    this.planString = null;
+                }
+                this.pages = readPages;
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(readPages);
+                }
             }
         }
 

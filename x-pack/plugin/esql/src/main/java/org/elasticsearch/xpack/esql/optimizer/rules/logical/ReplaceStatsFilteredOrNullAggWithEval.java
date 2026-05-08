@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
@@ -142,6 +143,7 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
     public static Object mapNullToValue(AggregateFunction aggFunction) {
         return switch (aggFunction) {
             case Count ignored -> 0L;
+            case CountApproximate ignored -> 0.0;
             case CountOverTime ignored -> 0L;
             case CountDistinct ignored -> 0L;
             case CountDistinctOverTime ignored -> 0L;

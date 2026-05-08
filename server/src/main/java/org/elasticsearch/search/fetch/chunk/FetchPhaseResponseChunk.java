@@ -26,6 +26,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
+import java.util.function.ObjIntConsumer;
 
 /**
  * A single chunk of fetch results streamed from a data node to the coordinator.
@@ -34,6 +35,19 @@ import java.io.IOException;
  * <p>Supports zero-copy transport by separating header metadata from serialized hits.
  * The header is created after hits are serialized (since we don't know hit count until
  * the buffer is full), then combined using {@link CompositeBytesReference} to avoid copying.
+ *
+ * <p>Lifecycle: on the coordinator path the stream constructor reads {@code serializedHits} as a
+ * {@link ReleasableBytesReference} retained slice of the transport buffer, enabling zero-copy
+ * deserialization of hit {@code _source} bytes in {@link #getHits()}. On the data-node path the
+ * direct constructor accepts any {@link BytesReference}. {@link #close()} releases
+ * {@code serializedHits} when it is {@link Releasable}, then {@link SearchHit#decRef()}s any
+ * cached deserialized hits so pooled sources are released in a refcount-safe way (hits retain
+ * their own refs until {@code decRef}).
+ *
+ * <p>Thread-safety: instances are single-owner. A chunk is constructed, drained via
+ * {@link #consumeHits} or {@link #toReleasableBytesReference}, and closed all on one thread;
+ * it is never shared between threads concurrently. Cross-thread publication of the produced
+ * {@link SearchHit}s happens downstream through {@link FetchPhaseResponseStream}'s queue.
  */
 public class FetchPhaseResponseChunk implements Writeable, Releasable {
 
@@ -53,11 +67,14 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
 
     private BytesReference serializedHits;
     private SearchHit[] deserializedHits;
+    private int[] hitPositions;
     private NamedWriteableRegistry namedWriteableRegistry;
 
     /**
      * Creates a chunk with pre-serialized hits.
-     * Takes ownership of serializedHits - caller must not release it.
+     * Takes ownership of {@code serializedHits}; the caller must not release it.
+     * {@link #close()} releases that buffer when it is {@link Releasable}, and also
+     * {@link SearchHit#decRef() release}s any hits produced by {@link #getHits()}.
      *
      * @param shardId          source shard
      * @param serializedHits   pre-serialized hit bytes
@@ -82,14 +99,17 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
     }
 
     /**
-     * Deserializes from stream (receiving side).
+     * Deserializes from stream (receiving side). When {@code in} is backed by a pooled buffer
+     * (e.g. a Netty transport frame), {@code serializedHits} is stored as a retained
+     * {@link ReleasableBytesReference} slice — no copy — so that subsequent {@link #getHits()}
+     * calls can in turn slice hit {@code _source} bytes directly from the same buffer.
      */
     public FetchPhaseResponseChunk(StreamInput in) throws IOException {
         this.shardId = new ShardId(in);
         this.hitCount = in.readVInt();
         this.expectedTotalDocs = in.readVInt();
         this.sequenceStart = in.readVLong();
-        this.serializedHits = in.readBytesReference();
+        this.serializedHits = in.readReleasableBytesReference();
         this.namedWriteableRegistry = in.namedWriteableRegistry();
     }
 
@@ -127,16 +147,59 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         return serializedHits == null ? 0 : serializedHits.length();
     }
 
-    public SearchHit[] getHits() throws IOException {
-        if (deserializedHits == null && serializedHits != null && hitCount > 0) {
-            deserializedHits = new SearchHit[hitCount];
-            try (StreamInput in = createStreamInput()) {
-                for (int i = 0; i < hitCount; i++) {
-                    deserializedHits[i] = SearchHit.readFrom(in, false);
-                }
+    /**
+     * Iterates the hits in this chunk, invoking {@code consumer} with each hit and its position.
+     * */
+    public void consumeHits(HitConsumer consumer) throws IOException {
+        ensureDeserialized();
+        drainDeserializedHits((hit, i) -> consumer.accept(hitPositions[i], hit));
+    }
+
+    /**
+     * Walks {@code deserializedHits}, invoking {@code visitor} for each non-null slot and clearing
+     * the slot afterwards so the same hit is never handed out twice. Shared by {@link #consumeHits}
+     * and {@link #close}.
+     */
+    private void drainDeserializedHits(ObjIntConsumer<SearchHit> visitor) {
+        if (deserializedHits == null) {
+            return;
+        }
+        for (int i = 0; i < deserializedHits.length; i++) {
+            SearchHit hit = deserializedHits[i];
+            if (hit != null) {
+                visitor.accept(hit, i);
+                deserializedHits[i] = null;
             }
         }
+    }
+
+    /* Visibility for tests */
+    SearchHit[] getHits() throws IOException {
+        ensureDeserialized();
         return deserializedHits != null ? deserializedHits : new SearchHit[0];
+    }
+
+    /* Visibility for tests */
+    int[] getHitPositions() throws IOException {
+        ensureDeserialized();
+        return hitPositions;
+    }
+
+    /**
+     * Deserializes the chunk's hits on first use.
+     * */
+    private void ensureDeserialized() throws IOException {
+        if (deserializedHits != null || serializedHits == null || hitCount == 0) {
+            return;
+        }
+        deserializedHits = new SearchHit[hitCount];
+        hitPositions = new int[hitCount];
+        try (StreamInput in = createStreamInput()) {
+            for (int i = 0; i < hitCount; i++) {
+                hitPositions[i] = in.readVInt();
+                deserializedHits[i] = SearchHit.readFrom(in);
+            }
+        }
     }
 
     private StreamInput createStreamInput() throws IOException {
@@ -163,6 +226,16 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         return sequenceStart;
     }
 
+    /**
+     * Releases {@code serializedHits} when releasable (always true on the coordinator path after
+     * the stream constructor), then releases deserialized hits.
+     * <p>
+     * Order is safe: {@link SearchHit#readFrom(StreamInput)} uses
+     * {@link StreamInput#readReleasableBytesReference()}, which on a pooled stream retains the
+     * underlying buffer (via {@link ReleasableBytesReference#retainedSlice(int, int)}), so
+     * releasing {@code serializedHits} first cannot free bytes that hits still own. On plain
+     * heap-backed streams {@code _source} is an independent copy and no ordering constraint applies.
+     */
     @Override
     public void close() {
         if (serializedHits instanceof Releasable) {
@@ -170,14 +243,16 @@ public class FetchPhaseResponseChunk implements Writeable, Releasable {
         }
         serializedHits = null;
 
-        if (deserializedHits != null) {
-            for (SearchHit hit : deserializedHits) {
-                if (hit != null) {
-                    hit.decRef();
-                }
-            }
-            deserializedHits = null;
-        }
+        drainDeserializedHits((hit, i) -> hit.decRef());
+        deserializedHits = null;
+    }
+
+    /**
+     * Callback invoked for each hit in a chunk together with its position.
+     * */
+    @FunctionalInterface
+    public interface HitConsumer {
+        void accept(int position, SearchHit hit);
     }
 
     /**

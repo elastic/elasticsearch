@@ -37,7 +37,6 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 
 /**
  * Base tests for {@link Operator}s that are not {@link SourceOperator} or {@link SinkOperator}.
@@ -286,9 +285,10 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
 
     // Returns the size of an empty bytesRefBlockHash depending on the underlying implementation.
     protected final String byteRefBlockHashSize() {
-        if (HashImplFactory.SWISS_TABLES_HASHING.isEnabled()) {
-            return "213120b";
+        if (HashImplFactory.SWISS_HASH_AVAILABLE) {
+            return "33080b";
         }
-        return "400b";
+        return "440b";
     }
+
 }

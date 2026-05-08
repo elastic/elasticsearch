@@ -28,6 +28,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class FilterOperatorTests extends OperatorTestCase {
     @Override
@@ -113,6 +114,22 @@ public class FilterOperatorTests extends OperatorTestCase {
 
     public void testNoResults() {
         assertSimple(driverContext(), 3);
+    }
+
+    /**
+     * {@link FilterOperator#toString()} is read by the {@link Driver} on every status update.
+     * Recomputing the (often deep) evaluator-tree string each time can dominate CPU. Verify that
+     * the same {@code String} instance is returned across calls so the description is computed
+     * at most once per operator.
+     */
+    public void testToStringIsCached() {
+        DriverContext ctx = driverContext();
+        try (FilterOperator op = new FilterOperator(new SameLastDigit(ctx, 3, 7))) {
+            String first = op.toString();
+            String second = op.toString();
+            assertThat(first, equalTo("FilterOperator[evaluator=SameLastDigit[lhs=3, rhs=7]]"));
+            assertThat(second, sameInstance(first));
+        }
     }
 
     public void testReadFromBlock() {

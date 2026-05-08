@@ -50,7 +50,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
 
     @Before
     public void checkCapability() {
-        assumeTrue("Subquery is behind snapshot", Build.current().isSnapshot());
+        assumeTrue("Run these tests in snapshot build", Build.current().isSnapshot());
     }
 
     public void testManyKeywordFieldsWith10UniqueValuesInSubqueryIntermediateResults() throws IOException {
@@ -80,7 +80,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
             columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", "keyword"));
         }
         try {
-            Map<?, ?> response = buildSubqueries(subqueries(false), "manybigfields");
+            Map<?, ?> response = buildSubqueries(subqueries(false), "manybigfields", serverlessExecuteBranchSequentially());
             assertMap(response, matchesMap().entry("columns", columns));
         } catch (ResponseException e) {
             verifyCircuitBreakingException(e);
@@ -153,7 +153,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
             columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", "text"));
         }
         try {
-            Map<?, ?> response = buildSubqueries(subqueries(false), "manybigfields");
+            Map<?, ?> response = buildSubqueries(subqueries(false), "manybigfields", serverlessExecuteBranchSequentially());
             assertMap(response, matchesMap().entry("columns", columns));
         } catch (ResponseException e) {
             verifyCircuitBreakingException(e);
@@ -254,7 +254,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     public void testGiantTextFieldInSubqueryIntermediateResults() throws IOException {
         int docs = 20;
         heapAttackIT.initGiantTextField(docs, false, 5);
-        assertCircuitBreaks(attempt -> buildSubqueries(subqueries(false), "bigtext"));
+        assertCircuitBreaks(attempt -> buildSubqueries(subqueries(false), "bigtext", serverlessExecuteBranchSequentially()));
     }
 
     public void testGiantTextFieldInSubqueryIntermediateResultsWithSort() throws IOException {
@@ -320,13 +320,17 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     }
 
     private Map<String, Object> buildSubqueries(int subqueries, String indexName) throws IOException {
+        return buildSubqueries(subqueries, indexName, null);
+    }
+
+    private Map<String, Object> buildSubqueries(int subqueries, String indexName, Integer branchParallelDegree) throws IOException {
         StringBuilder query = startQuery();
         String subquery = "(FROM " + indexName + " )";
         query.append("FROM ").append(subquery);
         for (int i = 1; i < subqueries; i++) {
             query.append(", ").append(subquery);
         }
-        query.append(endQuery());
+        query.append(endQuery(branchParallelDegree));
         return responseAsMap(query(query.toString(), "columns"));
     }
 
@@ -371,7 +375,18 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
     }
 
     private static String endQuery() {
+        return endQuery(null);
+    }
+
+    private static String endQuery(Integer branchParallelDegree) {
+        if (branchParallelDegree != null) {
+            return " \", \"pragma\": {\"branch_parallel_degree\": " + branchParallelDegree + "}}";
+        }
         return " \"}";
+    }
+
+    private static Integer serverlessExecuteBranchSequentially() throws IOException {
+        return isServerless() ? 1 : null;
     }
 
     private static int docs() {

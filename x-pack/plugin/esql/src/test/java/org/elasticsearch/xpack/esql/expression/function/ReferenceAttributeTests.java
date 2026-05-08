@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -18,11 +20,18 @@ import java.util.function.Supplier;
 
 public class ReferenceAttributeTests extends AbstractNamedExpressionSerializationTests<ReferenceAttribute> {
     public static ReferenceAttribute randomReferenceAttribute(boolean onlyRepresentable) {
+        return randomReferenceAttribute(onlyRepresentable, null);
+    }
+
+    public static ReferenceAttribute randomReferenceAttribute(boolean onlyRepresentable, TransportVersion supportedOn) {
         Source source = Source.EMPTY;
         String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
         String name = randomAlphaOfLength(5);
+        boolean isSnapshot = Build.current().isSnapshot();
         Supplier<DataType> randomType = () -> randomValueOtherThanMany(
-            t -> false == t.supportedVersion().supportedLocally(),
+            t -> false == t.supportedVersion().supportedLocally()
+                || DataType.UNDER_CONSTRUCTION.contains(t)
+                || (supportedOn != null && false == t.supportedVersion().supportedOn(supportedOn, isSnapshot)),
             () -> randomFrom(DataType.types())
         );
         DataType type = onlyRepresentable

@@ -21,7 +21,8 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface DoubleVector extends Vector permits ConstantDoubleVector, DoubleArrayVector, DoubleBigArrayVector,
-    ConstantNullVector, org.elasticsearch.compute.data.arrow.DoubleArrowBufVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.DoubleArrowBufVector,
+    org.elasticsearch.compute.data.arrow.Float16ArrowBufVector {
     double getDouble(int position);
 
     /**
@@ -66,6 +67,12 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
      */
     @Override
     DoubleVector slice(int beginInclusive, int endExclusive);
+
+    /**
+     * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
+     * Always {@code Double.BYTES} since all double values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

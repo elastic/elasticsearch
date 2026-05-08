@@ -19,6 +19,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
@@ -33,19 +34,28 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopKnnCollector;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.search.vectors.ESAcceptDocs;
+import org.elasticsearch.search.vectors.ESAcceptDocs.SliceAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 import org.junit.Before;
 
@@ -55,6 +65,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 
 import static java.lang.String.format;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION;
@@ -65,6 +76,7 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVe
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_PRECONDITIONING_BLOCK_DIMS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -102,7 +114,8 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 1,
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                flatVectorThreshold
+                flatVectorThreshold,
+                null
             );
         } else if (rarely()) {
             int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
@@ -117,7 +130,8 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 1,
                 true,
                 random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS),
-                flatVectorThreshold
+                flatVectorThreshold,
+                null
             );
         } else {
             // run with low numbers to force many clusters with parents
@@ -133,7 +147,8 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                 1,
                 false,
                 DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
-                flatVectorThreshold
+                flatVectorThreshold,
+                null
             );
         }
         super.setUp();
@@ -178,7 +193,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
             var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
             long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
             assertThat(offHeap.size(), equalTo(3));
-            assertThat(totalByteSize, equalTo(offHeap.values().stream().mapToLong(Long::longValue).sum()));
+            assertThat(totalByteSize, greaterThanOrEqualTo(0L));
         } else {
             throw new AssertionError("unexpected:" + r.getClass());
         }
@@ -193,7 +208,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         FilterCodec customCodec = new FilterCodec("foo", Codec.getDefault()) {
             @Override
             public KnnVectorsFormat knnVectorsFormat() {
-                return new ESNextDiskBBQVectorsFormat(128, 4);
+                return new ESNextDiskBBQVectorsFormat(128, 4, null);
             }
         };
         String expectedPattern = "ESNextDiskBBQVectorsFormat(vectorPerCluster=128, mergeExec=false)";
@@ -204,10 +219,10 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
     }
 
     public void testLimits() {
-        expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(MIN_VECTORS_PER_CLUSTER - 1, 16));
-        expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(MAX_VECTORS_PER_CLUSTER + 1, 16));
-        expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(128, MIN_CENTROIDS_PER_PARENT_CLUSTER - 1));
-        expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(128, MAX_CENTROIDS_PER_PARENT_CLUSTER + 1));
+        expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(MIN_VECTORS_PER_CLUSTER - 1, 16, null));
+        expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(MAX_VECTORS_PER_CLUSTER + 1, 16, null));
+        expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(128, MIN_CENTROIDS_PER_PARENT_CLUSTER - 1, null));
+        expectThrows(IllegalArgumentException.class, () -> new ESNextDiskBBQVectorsFormat(128, MAX_CENTROIDS_PER_PARENT_CLUSTER + 1, null));
     }
 
     public void testSimpleOffHeapSize() throws IOException {
@@ -466,7 +481,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                         collector = new TopKnnCollector(
                             random().nextInt(2 * matchingDocs, 3 * matchingDocs),
                             Integer.MAX_VALUE,
-                            new IVFKnnSearchStrategy(0.25f, null)
+                            new IVFKnnSearchStrategy(0.25f, 10, 10, null)
                         );
                     }
                     if (leafReader.postings(new Term("k", new BytesRef("B"))) == null) {
@@ -516,4 +531,197 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
         doc.add(new SortedDocValuesField("sort", new BytesRef(id)));
         writer.addDocument(doc);
     }
+
+    public void testSlicesDense() throws IOException {
+        doTestSlicesDense(false);
+    }
+
+    public void testSlicesDenseWithFilter() throws IOException {
+        doTestSlicesDense(true);
+    }
+
+    public void testSlicesSparse() throws IOException {
+        doTestSlicesSparse(false);
+    }
+
+    public void testSlicesSparseWithFilter() throws IOException {
+        doTestSlicesSparse(true);
+    }
+
+    private void doTestSlicesSparse(boolean applyFilter) throws IOException {
+        if (rarely()) {
+            doTestSlices(() -> random().nextInt(1000) == 0, applyFilter);
+        } else {
+            int bound = random().nextInt(2, 50);
+            doTestSlices(() -> random().nextInt(bound) == 0, applyFilter);
+        }
+    }
+
+    private void doTestSlicesDense(boolean applyFilter) throws IOException {
+        doTestSlices(() -> true, applyFilter);
+    }
+
+    private void doTestSlices(BooleanSupplier supplier, boolean applyFilter) throws IOException {
+        String sliceField = "_slice";
+        String filterField = "_filter";
+        String filterValue = "match";
+        String filterMiss = "miss";
+        String docIdField = "_doc_id";
+        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.values()[random().nextInt(
+            ESNextDiskBBQVectorsFormat.QuantEncoding.values().length
+        )];
+        int vectorPerCluster = random().nextInt(MIN_VECTORS_PER_CLUSTER, 2 * MIN_VECTORS_PER_CLUSTER);
+        ESNextDiskBBQVectorsFormat localFormat = new ESNextDiskBBQVectorsFormat(
+            encoding,
+            vectorPerCluster,
+            random().nextInt(MIN_CENTROIDS_PER_PARENT_CLUSTER, MAX_CENTROIDS_PER_PARENT_CLUSTER),
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            false,
+            DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+            0,
+            sliceField
+        );
+        int dimensions = random().nextInt(12, 500);
+        int slices = random().nextInt(2, 100);
+        int numDocs = random().nextInt(100, 10_000);
+        int[] docsPerSlice = new int[slices];
+        int[] docsPerSliceFiltered = new int[slices];
+        int[] docSlices = new int[numDocs];
+        boolean[] docHasVector = new boolean[numDocs];
+        boolean[] docFilterMatch = new boolean[numDocs];
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        iwc.setIndexSort(new Sort(new SortField(sliceField, SortField.Type.STRING)));
+        iwc.setCodec(TestUtil.alwaysKnnVectorsFormat(localFormat));
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, iwc)) {
+            for (int i = 0; i < numDocs; i++) {
+                int slice = random().nextInt(slices);
+                Document doc = new Document();
+                doc.add(SortedDocValuesField.indexedField(sliceField, new BytesRef("" + slice)));
+                boolean filterMatch = random().nextBoolean();
+                String filterText = filterMatch ? filterValue : filterMiss;
+                doc.add(new StringField(filterField, filterText, Field.Store.NO));
+                doc.add(new StoredField(filterField, new BytesRef(filterText)));
+                doc.add(new StringField(docIdField, "doc_" + i, Field.Store.NO));
+                boolean hasVector = supplier.getAsBoolean();
+                if (hasVector) {
+                    docsPerSlice[slice]++;
+                    if (filterMatch) {
+                        docsPerSliceFiltered[slice]++;
+                    }
+                    doc.add(new KnnFloatVectorField("vector", randomVector(dimensions), VectorSimilarityFunction.EUCLIDEAN));
+                }
+                doc.add(new StoredField(sliceField, new BytesRef("" + slice)));
+                w.addDocument(doc);
+                docSlices[i] = slice;
+                docHasVector[i] = hasVector;
+                docFilterMatch[i] = filterMatch;
+            }
+            w.commit();
+            if (random().nextBoolean()) {
+                int deleteCount = random().nextInt(0, Math.max(1, numDocs / 10));
+                Set<Integer> docsToDelete = new HashSet<>();
+                while (docsToDelete.size() < deleteCount) {
+                    docsToDelete.add(random().nextInt(numDocs));
+                }
+                for (int docId : docsToDelete) {
+                    if (docHasVector[docId]) {
+                        docsPerSlice[docSlices[docId]]--;
+                        if (docFilterMatch[docId]) {
+                            docsPerSliceFiltered[docSlices[docId]]--;
+                        }
+                    }
+                    w.deleteDocuments(new Term(docIdField, "doc_" + docId));
+                }
+                if (docsToDelete.isEmpty() == false) {
+                    w.commit();
+                }
+            } else if (random().nextBoolean()) {
+                w.forceMerge(1);
+            }
+            float[] vector = randomVector(dimensions);
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                Weight filterWeight = null;
+                if (applyFilter) {
+                    Query filterQuery = new TermQuery(new Term(filterField, filterValue));
+                    filterWeight = filterQuery.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1);
+                }
+                for (int slice = 0; slice < slices; slice++) {
+                    int expectedDocs = applyFilter ? docsPerSliceFiltered[slice] : docsPerSlice[slice];
+                    Query query = SortedDocValuesField.newSlowExactQuery(sliceField, new BytesRef("" + slice));
+                    Weight weight = query.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1);
+                    TopDocs[] topDocsArray = new TopDocs[reader.leaves().size()];
+                    for (int i = 0; i < reader.leaves().size(); i++) {
+                        LeafReaderContext context = reader.leaves().get(i);
+                        LeafReader leafReader = context.reader();
+
+                        int ord = leafReader.getSortedDocValues(sliceField).lookupTerm(new BytesRef("" + slice));
+                        if (ord < 0) {
+                            topDocsArray[i] = TopDocsCollector.EMPTY_TOPDOCS;
+                            continue;
+                        }
+                        ScorerSupplier scorerSupplier = weight.scorerSupplier(context);
+                        DocIdSetIterator iterator = scorerSupplier.get(DocIdSetIterator.NO_MORE_DOCS).iterator();
+                        int minDoc = iterator.nextDoc();
+                        if (minDoc == DocIdSetIterator.NO_MORE_DOCS) {
+                            assertEquals(0, expectedDocs);
+                            continue;
+                        }
+                        int maxDoc = minDoc;
+                        while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                            maxDoc = iterator.docID();
+                        }
+                        ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = new SliceAcceptDocs(minDoc, maxDoc);
+                        Bits liveDocs = leafReader.getLiveDocs();
+                        ESAcceptDocs acceptDocs;
+                        if (applyFilter) {
+                            ScorerSupplier filterSupplier = filterWeight.scorerSupplier(context);
+                            if (filterSupplier == null) {
+                                topDocsArray[i] = TopDocsCollector.EMPTY_TOPDOCS;
+                                continue;
+                            }
+                            acceptDocs = new ESAcceptDocs.ScorerSupplierAcceptDocs(
+                                filterSupplier,
+                                liveDocs,
+                                leafReader.maxDoc(),
+                                ord,
+                                () -> sliceAcceptDocs
+                            );
+                        } else if (liveDocs == null) {
+                            acceptDocs = new ESAcceptDocs.ESAcceptDocsAll(ord, () -> sliceAcceptDocs);
+                        } else {
+                            acceptDocs = new ESAcceptDocs.BitsAcceptDocs(liveDocs, leafReader.maxDoc(), ord, () -> sliceAcceptDocs);
+                        }
+
+                        // we might collect the same document twice because of soar assignments
+                        KnnCollector collector = new TopKnnCollector(2 * Math.max(1, expectedDocs), Integer.MAX_VALUE);
+                        weight.scorer(context);
+                        leafReader.searchNearestVectors("vector", vector, collector, acceptDocs);
+                        TopDocs leafTopDocs = collector.topDocs();
+                        ScoreDoc[] adjusted = new ScoreDoc[leafTopDocs.scoreDocs.length];
+                        for (int docIndex = 0; docIndex < leafTopDocs.scoreDocs.length; docIndex++) {
+                            ScoreDoc scoreDoc = leafTopDocs.scoreDocs[docIndex];
+                            adjusted[docIndex] = new ScoreDoc(scoreDoc.doc + context.docBase, scoreDoc.score);
+                        }
+                        topDocsArray[i] = new TopDocs(leafTopDocs.totalHits, adjusted);
+                    }
+                    TopDocs topDocs = TopDocs.merge(2 * expectedDocs, topDocsArray);
+                    Set<Integer> uniqueDocIds = new HashSet<>();
+                    for (int i = 0; i < topDocs.scoreDocs.length; i++) {
+                        uniqueDocIds.add(topDocs.scoreDocs[i].doc);
+                        Document document = reader.storedFields().document(topDocs.scoreDocs[i].doc);
+                        assertThat(document.getField(sliceField).binaryValue().utf8ToString(), equalTo("" + slice));
+                        if (applyFilter) {
+                            assertThat(document.getField(filterField).binaryValue().utf8ToString(), equalTo(filterValue));
+                        }
+                    }
+                    assertEquals(expectedDocs, uniqueDocIds.size());
+                }
+            }
+        }
+    }
+
 }

@@ -381,7 +381,7 @@ public class SearchContextStats implements SearchStats {
         } else if (fieldType instanceof KeywordFieldType) {
             tester = lr -> {
                 Terms terms = lr.terms(name);
-                return terms == null || terms.size() == terms.getDocCount();
+                return terms == null || terms.getSumDocFreq() == terms.getDocCount();
             };
         }
 

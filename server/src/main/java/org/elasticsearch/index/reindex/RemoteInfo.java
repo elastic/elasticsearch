@@ -133,7 +133,9 @@ public class RemoteInfo implements Writeable, ToXContentObject, Closeable {
 
     @Override
     public void close() throws IOException {
-        this.password.close();
+        if (password != null) {
+            password.close();
+        }
     }
 
     public String getScheme() {

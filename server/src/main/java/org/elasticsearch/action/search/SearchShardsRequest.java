@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -45,6 +46,15 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
     private final String clusterAlias;
 
     private ResolvedIndexExpressions resolvedIndexExpressions;
+    @Nullable
+    private transient TargetProjects resolvedTargetProjects;
+
+    /**
+     * Server-internal: set by the {@code search_shards} transport handler only; not serialized on the wire.
+     * When {@code true}, can-match includes every shard in returned iterators with {@code skip} flags (BWC for peers that
+     * do not support aggregate skipped-shard accounting on {@link SearchShardsResponse}). Defaults to {@code false}.
+     */
+    private transient boolean includeSkippedShardsInIterators;
 
     public SearchShardsRequest(
         String[] indices,
@@ -116,6 +126,17 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new SearchTask(id, type, action, this::description, parentTaskId, headers);
+    }
+
+    /**
+     * Server-internal: invoked from the transport request handler before the action runs.
+     */
+    public void setIncludeSkippedShardsInIterators(boolean includeSkippedShardsInIterators) {
+        this.includeSkippedShardsInIterators = includeSkippedShardsInIterators;
+    }
+
+    public boolean includeSkippedShardsInIterators() {
+        return includeSkippedShardsInIterators;
     }
 
     public String clusterAlias() {
@@ -191,5 +212,16 @@ public final class SearchShardsRequest extends LegacyActionRequest implements In
     @Override
     public ResolvedIndexExpressions getResolvedIndexExpressions() {
         return resolvedIndexExpressions;
+    }
+
+    @Override
+    public void setResolvedTargetProjects(TargetProjects targetProjects) {
+        this.resolvedTargetProjects = targetProjects;
+    }
+
+    @Override
+    @Nullable
+    public TargetProjects getResolvedTargetProjects() {
+        return resolvedTargetProjects;
     }
 }

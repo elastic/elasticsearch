@@ -1,5 +1,0 @@
-area: Mapping
-issues: []
-pr: 144698
-summary: Lazily create matcher in `BinaryDvConfirmedQuery`
-type: bug

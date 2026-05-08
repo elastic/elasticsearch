@@ -230,6 +230,8 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     public void testExponentialHistogramsAsTDigest() throws Exception {
+        setHistogramFieldTypeClusterSetting("histogram");
+
         long now = Clock.getDefault().now();
         export(List.of(createExponentialHistogram(now, "exponential_histogram", DELTA, Attributes.empty())));
 
@@ -246,8 +248,6 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     public void testExponentialHistogramsAsExponentialHistogram() throws Exception {
-        setHistogramFieldTypeClusterSetting("exponential_histogram");
-
         long now = Clock.getDefault().now();
         export(List.of(createExponentialHistogram(now, "exponential_histogram", DELTA, Attributes.empty())));
 
@@ -298,6 +298,8 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     public void testHistogramAsTDigest() throws Exception {
+        setHistogramFieldTypeClusterSetting("histogram");
+
         long now = Clock.getDefault().now();
         export(List.of(createHistogram(now, "histogram", DELTA, Attributes.empty())));
 
@@ -315,8 +317,6 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
     }
 
     public void testHistogramsAsExponentialHistogram() throws Exception {
-        setHistogramFieldTypeClusterSetting("exponential_histogram");
-
         long now = Clock.getDefault().now();
         export(List.of(createHistogram(now, "histogram", DELTA, Attributes.empty())));
 
@@ -462,10 +462,6 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         }
         assertThat(result.isSuccess(), is(true));
         refreshMetricsIndices();
-    }
-
-    private ObjectPath search(String target) throws IOException {
-        return ObjectPath.createFromResponse(client().performRequest(new Request("GET", target + "/_search")));
     }
 
     private static void refreshMetricsIndices() throws IOException {

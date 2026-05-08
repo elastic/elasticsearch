@@ -11,16 +11,11 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
-import org.openjdk.jmh.annotations.Param;
-
-import java.util.Arrays;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 
-public class VectorScorerInt4OperationBenchmarkTests extends ESTestCase {
+public class VectorScorerInt4OperationBenchmarkTests extends BenchmarkTest {
 
     private final int size;
 
@@ -30,7 +25,6 @@ public class VectorScorerInt4OperationBenchmarkTests extends ESTestCase {
 
     @BeforeClass
     public static void skipUnsupported() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
         assumeTrue("native requires JDK22+", supportsHeapSegments());
     }
 
@@ -48,12 +42,7 @@ public class VectorScorerInt4OperationBenchmarkTests extends ESTestCase {
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        try {
-            String[] sizes = VectorScorerInt4OperationBenchmark.class.getField("size").getAnnotationsByType(Param.class)[0].value();
-            return () -> Arrays.stream(sizes).map(Integer::parseInt).map(s -> new Object[] { s }).iterator();
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError(e);
-        }
+    public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
+        return generateParameters(VectorScorerInt4OperationBenchmark.class.getField("size"));
     }
 }

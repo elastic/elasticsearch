@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -86,6 +87,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isTimeDuration;
 public class Decay extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Decay", Decay::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Decay.class).quaternary(Decay::new).name("decay");
 
     public static final String ORIGIN = "origin";
     public static final String SCALE = "scale";
@@ -509,7 +511,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         Point originPoint = SpatialCoordinateTypes.UNSPECIFIED.wkbAsPoint(origin);
         GeoPoint originGeoPoint = new GeoPoint(originPoint.getY(), originPoint.getX());
 
-        String originStr = originGeoPoint.getX() + "," + originGeoPoint.getY();
+        // GeoUtils.parseGeoPoint expects coordinate strings in "lat,lon" order; use getY (lat) then getX (lon).
+        String originStr = originGeoPoint.getY() + "," + originGeoPoint.getX();
         String scaleStr = scale.utf8ToString();
         String offsetStr = offset.utf8ToString();
 

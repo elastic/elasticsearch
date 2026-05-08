@@ -1555,6 +1555,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
         );
     }
 
+    @Override
     public EnumSet<TaskType> expectedStreamingTasks() {
         return EnumSet.of(TaskType.COMPLETION);
     }

@@ -271,7 +271,7 @@ public abstract class AbstractParsePersistedConfigTests extends AbstractInferenc
                             new UnparsedModel(
                                 INFERENCE_ENTITY_ID,
                                 TaskType.ANY,
-                                "test_service",
+                                params.testConfig.serviceName(),
                                 params.persistedConfig.config(),
                                 params.persistedConfig.secrets()
                             )
@@ -403,7 +403,7 @@ public abstract class AbstractParsePersistedConfigTests extends AbstractInferenc
             new UnparsedModel(
                 INFERENCE_ENTITY_ID,
                 taskType,
-                "test_service",
+                params.testConfig.serviceName(),
                 params.persistedConfig.config(),
                 params.persistedConfig.secrets()
             )
@@ -421,7 +421,7 @@ public abstract class AbstractParsePersistedConfigTests extends AbstractInferenc
             new UnparsedModel(
                 INFERENCE_ENTITY_ID,
                 params.testConfig.arbitraryTaskType(),
-                "test_service",
+                params.testConfig.serviceName(),
                 params.persistedConfig.config(),
                 params.persistedConfig.secrets()
             )

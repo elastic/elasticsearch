@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableDoubleGauge;
 
+import org.elasticsearch.telemetry.apm.AbstractAsyncInstrument;
 import org.elasticsearch.telemetry.apm.AbstractInstrument;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 
@@ -23,11 +24,9 @@ import java.util.function.Supplier;
 /**
  * DoubleGaugeAdapter wraps an otel ObservableLongGauge
  */
-public class DoubleGaugeAdapter extends AbstractInstrument<ObservableDoubleGauge>
+public class DoubleGaugeAdapter extends AbstractAsyncInstrument<ObservableDoubleGauge>
     implements
         org.elasticsearch.telemetry.metric.DoubleGauge {
-
-    private final Consumer<AbstractInstrument<?>> deregisterFunc;
 
     public DoubleGaugeAdapter(
         Meter meter,
@@ -37,16 +36,7 @@ public class DoubleGaugeAdapter extends AbstractInstrument<ObservableDoubleGauge
         Supplier<Collection<DoubleWithAttributes>> observer,
         Consumer<AbstractInstrument<?>> deregisterFunc
     ) {
-        super(meter, new Builder(name, description, unit, observer));
-        this.deregisterFunc = deregisterFunc;
-    }
-
-    @Override
-    public void close() {
-        // deregister this instrument first and close the underlying one second: this avoids the setProvider() method being called in the
-        // meantime and creating a new OTel instrument that'd leak out
-        deregisterFunc.accept(this);
-        getInstrument().close();
+        super(meter, new Builder(name, description, unit, observer), deregisterFunc);
     }
 
     private static class Builder extends AbstractInstrument.Builder<ObservableDoubleGauge> {

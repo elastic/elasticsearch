@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 import io.opentelemetry.api.metrics.Meter;
 import io.opentelemetry.api.metrics.ObservableLongCounter;
 
+import org.elasticsearch.telemetry.apm.AbstractAsyncInstrument;
 import org.elasticsearch.telemetry.apm.AbstractInstrument;
 import org.elasticsearch.telemetry.metric.LongAsyncCounter;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
@@ -21,9 +22,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class LongAsyncCounterAdapter extends AbstractInstrument<ObservableLongCounter> implements LongAsyncCounter {
-
-    private final Consumer<AbstractInstrument<?>> deregisterFunc;
+public class LongAsyncCounterAdapter extends AbstractAsyncInstrument<ObservableLongCounter> implements LongAsyncCounter {
 
     public LongAsyncCounterAdapter(
         Meter meter,
@@ -33,16 +32,7 @@ public class LongAsyncCounterAdapter extends AbstractInstrument<ObservableLongCo
         Supplier<Collection<LongWithAttributes>> observer,
         Consumer<AbstractInstrument<?>> deregisterFunc
     ) {
-        super(meter, new Builder(name, description, unit, observer));
-        this.deregisterFunc = deregisterFunc;
-    }
-
-    @Override
-    public void close() {
-        // deregister this instrument first and close the underlying one second: this avoids the setProvider() method being called in the
-        // meantime and creating a new OTel instrument that'd leak out
-        deregisterFunc.accept(this);
-        getInstrument().close();
+        super(meter, new Builder(name, description, unit, observer), deregisterFunc);
     }
 
     private static class Builder extends AbstractInstrument.Builder<ObservableLongCounter> {

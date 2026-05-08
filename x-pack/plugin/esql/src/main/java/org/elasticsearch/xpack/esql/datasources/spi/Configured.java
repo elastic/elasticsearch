@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /** Carrier for "configure with this map" operations: a value plus the keys it consumed. */
 public record Configured<T>(T value, Set<String> consumedKeys) {
@@ -32,12 +32,8 @@ public record Configured<T>(T value, Set<String> consumedKeys) {
         if (config == null || config.isEmpty()) {
             return Configured.empty(value);
         }
-        Set<String> consumed = new HashSet<>();
-        for (String key : config.keySet()) {
-            if (recognized.contains(key)) {
-                consumed.add(key);
-            }
-        }
+        // Stream straight into an unmodifiable set so the compact constructor's Set.copyOf is a no-op.
+        Set<String> consumed = config.keySet().stream().filter(recognized::contains).collect(Collectors.toUnmodifiableSet());
         return new Configured<>(value, consumed);
     }
 }

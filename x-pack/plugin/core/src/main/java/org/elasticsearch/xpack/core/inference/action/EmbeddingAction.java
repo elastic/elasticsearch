@@ -24,7 +24,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.inference.EmbeddingRequest.INPUT_FIELD;
-import static org.elasticsearch.inference.MinimalServiceSettings.TASK_TYPE_FIELD;
 
 public class EmbeddingAction extends ActionType<InferenceAction.Response> {
     public static final EmbeddingAction INSTANCE = new EmbeddingAction();
@@ -108,7 +107,7 @@ public class EmbeddingAction extends ActionType<InferenceAction.Response> {
             }
 
             if (taskType.isAnyOrSame(TaskType.EMBEDDING) == false) {
-                e = addValidationError(Strings.format("Field [%s] must be [embedding]", TASK_TYPE_FIELD), e);
+                e = addValidationError(Strings.format("Field [%s] must be [embedding]", TaskType.NAME), e);
             }
 
             return e;

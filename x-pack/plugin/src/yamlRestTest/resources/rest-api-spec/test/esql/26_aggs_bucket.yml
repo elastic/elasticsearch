@@ -317,11 +317,12 @@
         body:
           query: 'FROM test_dates | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")'
 
-  - match: { columns.0.name: date }
-  - match: { columns.1.name: bucket }
-  - match: { columns.1.type: date }
-  - match: { columns.1._meta.bucket.interval: 1 }
-  - match: { columns.1._meta.bucket.unit: month }
+  - match:    { columns.0.name: date }
+  - is_false: columns.0._meta
+  - match:    { columns.1.name: bucket }
+  - match:    { columns.1.type: date }
+  - match:    { columns.1._meta.bucket.interval: 1 }
+  - match:    { columns.1._meta.bucket.unit: month }
 
   - do:
       allowed_warnings_regex:
@@ -330,11 +331,25 @@
         body:
           query: 'FROM test_numbers | STATS c = COUNT(*) BY b = BUCKET(number, 10)'
 
-  - match: { columns.0.name: c }
-  - match: { columns.0.type: long }
-  - match: { columns.1.name: b }
-  - match: { columns.1.type: double }
-  - match: { columns.1._meta.bucket.interval: 10.0 }
+  - match:    { columns.0.name: c }
+  - match:    { columns.0.type: long }
+  - is_false: columns.0._meta
+  - match:    { columns.1.name: b }
+  - match:    { columns.1.type: double }
+  - match:    { columns.1._meta.bucket.interval: 10.0 }
+
+  # Sanity: a query without BUCKET produces no _meta on any column.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_numbers | STATS c = COUNT(*) BY number'
+
+  - match:    { columns.0.name: c }
+  - is_false: columns.0._meta
+  - match:    { columns.1.name: number }
+  - is_false: columns.1._meta
 
 ---
 "BUCKET column metadata in columnar response":
@@ -363,11 +378,12 @@
           query: 'FROM test_dates | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month)'
           columnar: true
 
-  - match: { columns.0.name: c }
-  - match: { columns.1.name: bucket }
-  - match: { columns.1.type: date }
-  - match: { columns.1._meta.bucket.interval: 1 }
-  - match: { columns.1._meta.bucket.unit: month }
+  - match:    { columns.0.name: c }
+  - is_false: columns.0._meta
+  - match:    { columns.1.name: bucket }
+  - match:    { columns.1.type: date }
+  - match:    { columns.1._meta.bucket.interval: 1 }
+  - match:    { columns.1._meta.bucket.unit: month }
 
 ---
 "BUCKET in CSV/text formats does not break the response writer":
@@ -438,16 +454,17 @@
         body:
           query: 'SET approximation={"rows":10000}; FROM test_dates | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month)'
 
-  - match: { columns.0.name: c }
-  - match: { columns.1.name: bucket }
-  - match: { columns.1._meta.bucket.interval: 1 }
-  - match: { columns.1._meta.bucket.unit: month }
-  - match: { columns.2.name: "_approximation_confidence_interval(c)" }
-  - match: { columns.2._meta.approximation.type: confidence_interval }
-  - match: { columns.2._meta.approximation.column: c }
-  - match: { columns.3.name: "_approximation_certified(c)" }
-  - match: { columns.3._meta.approximation.type: certified }
-  - match: { columns.3._meta.approximation.column: c }
+  - match:    { columns.0.name: c }
+  - is_false: columns.0._meta
+  - match:    { columns.1.name: bucket }
+  - match:    { columns.1._meta.bucket.interval: 1 }
+  - match:    { columns.1._meta.bucket.unit: month }
+  - match:    { columns.2.name: "_approximation_confidence_interval(c)" }
+  - match:    { columns.2._meta.approximation.type: confidence_interval }
+  - match:    { columns.2._meta.approximation.column: c }
+  - match:    { columns.3.name: "_approximation_certified(c)" }
+  - match:    { columns.3._meta.approximation.type: certified }
+  - match:    { columns.3._meta.approximation.column: c }
 
 ---
 "TBUCKET column metadata in REST response":
@@ -497,7 +514,8 @@
         body:
           query: 'TS ts_metrics | STATS max(metric) BY tb = TBUCKET(30 minutes)'
 
-  - match: { columns.1.name: tb }
-  - match: { columns.1.type: date }
-  - match: { columns.1._meta.bucket.interval: 30 }
-  - match: { columns.1._meta.bucket.unit: minute }
+  - is_false: columns.0._meta
+  - match:    { columns.1.name: tb }
+  - match:    { columns.1.type: date }
+  - match:    { columns.1._meta.bucket.interval: 30 }
+  - match:    { columns.1._meta.bucket.unit: minute }

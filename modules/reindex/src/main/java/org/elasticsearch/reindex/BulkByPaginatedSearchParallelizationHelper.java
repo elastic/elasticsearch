@@ -24,7 +24,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.LeaderBulkByScrollTaskState;
+import org.elasticsearch.index.reindex.LeaderBulkByPaginatedSearchTaskState;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResult;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -177,7 +177,7 @@ class BulkByPaginatedSearchParallelizationHelper {
         Request request,
         ActionListener<BulkByScrollResponse> listener
     ) {
-        LeaderBulkByScrollTaskState leader = task.getLeaderState();
+        LeaderBulkByPaginatedSearchTaskState leader = task.getLeaderState();
         int totalSlices = leader.getSlices();
         assert request.getResumeInfo().isEmpty() || totalSlices == request.getResumeInfo().get().getTotalSlices()
             : "If resuming, the total slices in the resume info should match the total slices in the task state";

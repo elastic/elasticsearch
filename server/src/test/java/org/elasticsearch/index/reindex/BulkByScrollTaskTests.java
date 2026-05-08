@@ -362,7 +362,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
 
         int slices = between(2, 20);
         task.setWorkerCount(slices, Float.POSITIVE_INFINITY);
-        LeaderBulkByScrollTaskState leaderState = task.getLeaderState();
+        LeaderBulkByPaginatedSearchTaskState leaderState = task.getLeaderState();
         assertNotNull(leaderState);
         assertEquals(slices, leaderState.getSlices());
     }

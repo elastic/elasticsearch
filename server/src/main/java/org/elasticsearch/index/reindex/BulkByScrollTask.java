@@ -64,7 +64,7 @@ public class BulkByScrollTask extends CancellableTask {
     // if task is a slice, RelocationOrigin won't be correct because it won't be the leader here, but it's overridden in the leader state
     private final ResumeInfo.RelocationOrigin relocationOrigin;
     private final RelocationProgress relocationProgress = new RelocationProgress();
-    private volatile LeaderBulkByScrollTaskState leaderState;
+    private volatile LeaderBulkByPaginatedSearchTaskState leaderState;
     private volatile WorkerBulkByScrollTaskState workerState;
     private volatile boolean relocationRequested = false;
 
@@ -140,14 +140,14 @@ public class BulkByScrollTask extends CancellableTask {
             throw new IllegalStateException("This task is already a worker");
         }
 
-        leaderState = new LeaderBulkByScrollTaskState(this, slices, requestsPerSecond);
+        leaderState = new LeaderBulkByPaginatedSearchTaskState(this, slices, requestsPerSecond);
     }
 
     /**
      * Returns the object that tracks the state of sliced subtasks. Throws IllegalStateException if this task is not set to be
      * a leader task.
      */
-    public LeaderBulkByScrollTaskState getLeaderState() {
+    public LeaderBulkByPaginatedSearchTaskState getLeaderState() {
         if (isLeader() == false) {
             throw new IllegalStateException("This task is not set to be a leader for other slice subtasks");
         }

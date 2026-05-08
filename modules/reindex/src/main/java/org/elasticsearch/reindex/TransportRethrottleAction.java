@@ -24,7 +24,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.LeaderBulkByScrollTaskState;
+import org.elasticsearch.index.reindex.LeaderBulkByPaginatedSearchTaskState;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -167,7 +167,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         float newRequestsPerSecond,
         ActionListener<TaskInfo> listener
     ) {
-        final LeaderBulkByScrollTaskState leaderState = task.getLeaderState();
+        final LeaderBulkByPaginatedSearchTaskState leaderState = task.getLeaderState();
 
         try {
             leaderState.setRequestsPerSecondWithRelocationGuard(newRequestsPerSecond);

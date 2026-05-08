@@ -38,10 +38,10 @@ import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
+public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
     private int slices;
     private BulkByScrollTask task;
-    private LeaderBulkByScrollTaskState taskState;
+    private LeaderBulkByPaginatedSearchTaskState taskState;
 
     @Before
     public void createTask() {
@@ -333,7 +333,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             null
         );
         leaderTask.setWorkerCount(sliceCount, leaderRps);
-        final LeaderBulkByScrollTaskState state = leaderTask.getLeaderState();
+        final LeaderBulkByPaginatedSearchTaskState state = leaderTask.getLeaderState();
 
         final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
         for (int i = 0; i < sliceCount; i++) {
@@ -381,7 +381,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             null
         );
         leaderTask.setWorkerCount(sliceCount, leaderRps);
-        final LeaderBulkByScrollTaskState state = leaderTask.getLeaderState();
+        final LeaderBulkByPaginatedSearchTaskState state = leaderTask.getLeaderState();
 
         // Simulate children completing with various per-child RPS that don't sum to leaderRps
         for (int i = 0; i < sliceCount; i++) {
@@ -430,7 +430,7 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
             randomBoolean() ? null : randomOrigin()
         );
         leaderTask.setWorkerCount(between(2, 10), initialRPS);
-        final LeaderBulkByScrollTaskState state = leaderTask.getLeaderState();
+        final LeaderBulkByPaginatedSearchTaskState state = leaderTask.getLeaderState();
 
         assertThat(state.captureRequestsPerSecondForRelocation(), equalTo(initialRPS));
     }

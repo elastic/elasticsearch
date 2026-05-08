@@ -335,6 +335,11 @@ public final class DataSourceModule implements Closeable {
         }
 
         @Override
+        public void validateConfig(String location, Map<String, Object> config) {
+            resolveDelegate().validateConfig(location, config);
+        }
+
+        @Override
         public Connector open(Map<String, Object> config) {
             return resolveDelegate().open(config);
         }
@@ -427,6 +432,11 @@ public final class DataSourceModule implements Closeable {
         @Override
         public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
             return resolveDelegate().resolveMetadata(location, config);
+        }
+
+        @Override
+        public void validateConfig(String location, Map<String, Object> config) {
+            resolveDelegate().validateConfig(location, config);
         }
 
         @Override

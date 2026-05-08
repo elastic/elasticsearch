@@ -676,6 +676,14 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * Minimal SegmentableFormatReader that scans for newlines.
      */
     private static class NewlineSegmentableReader implements SegmentableFormatReader {
+
+        @Override
+        public
+            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        }
+
         private final long minSegmentSize;
 
         NewlineSegmentableReader(long minSegmentSize) {
@@ -740,6 +748,14 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * single-column pages with keyword blocks. Used for testing parallel parsing.
      */
     private static class LineFormatReader implements SegmentableFormatReader {
+
+        @Override
+        public
+            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        }
+
         private final BlockFactory blockFactory;
 
         LineFormatReader(BlockFactory blockFactory) {
@@ -867,6 +883,14 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * parsing.
      */
     private static class ContextRecordingFormatReader implements SegmentableFormatReader {
+
+        @Override
+        public
+            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        }
+
         private final BlockFactory blockFactory;
         private final long minSegmentSize;
         private final List<FormatReadContext> contexts = new CopyOnWriteArrayList<>();
@@ -949,6 +973,14 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * A line-oriented reader that throws after producing a configurable number of lines.
      */
     private static class FailingFormatReader implements SegmentableFormatReader {
+
+        @Override
+        public
+            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        }
+
         private final BlockFactory blockFactory;
         private final int failAfterLines;
 

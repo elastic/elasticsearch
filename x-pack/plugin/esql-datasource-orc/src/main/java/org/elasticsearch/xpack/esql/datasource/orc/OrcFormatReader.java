@@ -116,6 +116,15 @@ public class OrcFormatReader implements RangeAwareFormatReader {
     }
 
     @Override
+    public org.elasticsearch.xpack.esql.datasources.spi.Configured<FormatReader> withConfigTrackingConsumedKeys(
+        Map<String, Object> config
+    ) {
+        // No per-query configuration keys recognised yet. Acknowledged via empty body so a future
+        // contributor adding ORC-specific WITH-clause options has to update this method too.
+        return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+    }
+
+    @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());

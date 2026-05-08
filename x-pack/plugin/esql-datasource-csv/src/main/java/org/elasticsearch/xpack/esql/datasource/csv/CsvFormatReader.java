@@ -160,6 +160,35 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /** Sentinel passed to {@link CsvBatchIterator#onRowError} when the offending row could not be tokenised. */
     private static final String[] EMPTY_ROW = new String[0];
 
+    static final String CONFIG_DELIMITER = "delimiter";
+    static final String CONFIG_QUOTE = "quote";
+    static final String CONFIG_ESCAPE = "escape";
+    static final String CONFIG_COMMENT = "comment";
+    static final String CONFIG_NULL_VALUE = "null_value";
+    static final String CONFIG_ENCODING = "encoding";
+    static final String CONFIG_DATETIME_FORMAT = "datetime_format";
+    static final String CONFIG_MAX_FIELD_SIZE = "max_field_size";
+    static final String CONFIG_MULTI_VALUE_SYNTAX = "multi_value_syntax";
+    static final String CONFIG_HEADER_ROW = "header_row";
+    static final String CONFIG_COLUMN_PREFIX = "column_prefix";
+    static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
+
+    /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
+    static final Set<String> RECOGNIZED_KEYS = Set.of(
+        CONFIG_DELIMITER,
+        CONFIG_QUOTE,
+        CONFIG_ESCAPE,
+        CONFIG_COMMENT,
+        CONFIG_NULL_VALUE,
+        CONFIG_ENCODING,
+        CONFIG_DATETIME_FORMAT,
+        CONFIG_MAX_FIELD_SIZE,
+        CONFIG_MULTI_VALUE_SYNTAX,
+        CONFIG_HEADER_ROW,
+        CONFIG_COLUMN_PREFIX,
+        CONFIG_SCHEMA_SAMPLE_SIZE
+    );
+
     private final BlockFactory blockFactory;
     private final CsvMapper sharedCsvMapper;
     private final CsvFormatOptions options;
@@ -384,35 +413,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
     public CsvFormatReader withSchema(List<Attribute> schema) {
         return new CsvFormatReader(blockFactory, options, format, extensions, schema, schemaSampleSize, effectivePolicy);
     }
-
-    static final String CONFIG_DELIMITER = "delimiter";
-    static final String CONFIG_QUOTE = "quote";
-    static final String CONFIG_ESCAPE = "escape";
-    static final String CONFIG_COMMENT = "comment";
-    static final String CONFIG_NULL_VALUE = "null_value";
-    static final String CONFIG_ENCODING = "encoding";
-    static final String CONFIG_DATETIME_FORMAT = "datetime_format";
-    static final String CONFIG_MAX_FIELD_SIZE = "max_field_size";
-    static final String CONFIG_MULTI_VALUE_SYNTAX = "multi_value_syntax";
-    static final String CONFIG_HEADER_ROW = "header_row";
-    static final String CONFIG_COLUMN_PREFIX = "column_prefix";
-    static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
-
-    /** Keys recognised by {@link #withConfig(Map)}. */
-    static final Set<String> RECOGNIZED_KEYS = Set.of(
-        CONFIG_DELIMITER,
-        CONFIG_QUOTE,
-        CONFIG_ESCAPE,
-        CONFIG_COMMENT,
-        CONFIG_NULL_VALUE,
-        CONFIG_ENCODING,
-        CONFIG_DATETIME_FORMAT,
-        CONFIG_MAX_FIELD_SIZE,
-        CONFIG_MULTI_VALUE_SYNTAX,
-        CONFIG_HEADER_ROW,
-        CONFIG_COLUMN_PREFIX,
-        CONFIG_SCHEMA_SAMPLE_SIZE
-    );
 
     @Override
     public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {

@@ -93,6 +93,16 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
     /** Skip all malformed rows without limit, logging each one. */
     public static final ErrorPolicy LENIENT = new ErrorPolicy(Mode.SKIP_ROW, Long.MAX_VALUE, 1.0, true);
 
+    /** Config keys recognised by {@link #fromConfig}. Mirrored as constants so format
+     *  plugins do not have to hard-code the strings. */
+    public static final String CONFIG_MAX_ERRORS = "max_errors";
+
+    public static final String CONFIG_MAX_ERROR_RATIO = "max_error_ratio";
+    public static final String CONFIG_ERROR_MODE = "error_mode";
+
+    /** Keys recognised by {@link #fromConfig}. */
+    public static final java.util.Set<String> CONFIG_KEYS = java.util.Set.of(CONFIG_MAX_ERRORS, CONFIG_MAX_ERROR_RATIO, CONFIG_ERROR_MODE);
+
     public ErrorPolicy {
         if (mode == null) {
             throw new IllegalArgumentException("mode must not be null");
@@ -154,16 +164,6 @@ public record ErrorPolicy(Mode mode, long maxErrors, double maxErrorRatio, boole
         }
         return false;
     }
-
-    /** Config keys recognised by {@link #fromConfig}. Mirrored as constants so format
-     *  plugins do not have to hard-code the strings. */
-    public static final String CONFIG_MAX_ERRORS = "max_errors";
-
-    public static final String CONFIG_MAX_ERROR_RATIO = "max_error_ratio";
-    public static final String CONFIG_ERROR_MODE = "error_mode";
-
-    /** Keys recognised by {@link #fromConfig}. */
-    public static final java.util.Set<String> CONFIG_KEYS = java.util.Set.of(CONFIG_MAX_ERRORS, CONFIG_MAX_ERROR_RATIO, CONFIG_ERROR_MODE);
 
     /**
      * Resolves an {@link ErrorPolicy} from the user's {@code WITH} options. Returns

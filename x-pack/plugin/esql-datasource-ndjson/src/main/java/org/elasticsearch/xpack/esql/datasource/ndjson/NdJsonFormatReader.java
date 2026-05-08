@@ -65,6 +65,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     /** Buffer size used to accelerate {@link #scanForTerminator} on cold (unbuffered) streams. */
     private static final int SCAN_BUFFER_SIZE = 8 * 1024;
 
+    static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
+    static final String CONFIG_SEGMENT_SIZE = "segment_size";
+
+    /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
+    static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_SCHEMA_SAMPLE_SIZE, CONFIG_SEGMENT_SIZE);
+
     private final BlockFactory blockFactory;
     private final Settings settings;
     private final List<Attribute> resolvedSchema;
@@ -97,12 +103,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     public NdJsonFormatReader withSchema(List<Attribute> schema) {
         return new NdJsonFormatReader(settings, blockFactory, schema, schemaSampleSize, segmentSizeBytes);
     }
-
-    static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
-    static final String CONFIG_SEGMENT_SIZE = "segment_size";
-
-    /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
-    static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_SCHEMA_SAMPLE_SIZE, CONFIG_SEGMENT_SIZE);
 
     @Override
     public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {

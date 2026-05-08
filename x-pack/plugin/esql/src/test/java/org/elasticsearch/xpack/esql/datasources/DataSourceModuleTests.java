@@ -79,7 +79,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-            return Map.of("file", s -> new MockFileStorageProvider());
+            return Map.of("file", StorageProviderFactory.noConfigKeys(MockFileStorageProvider::new));
         }
 
         @Override
@@ -130,6 +130,14 @@ public class DataSourceModuleTests extends ESTestCase {
      * Mock CSV format reader for testing.
      */
     private static class MockCsvFormatReader implements FormatReader {
+
+        @Override
+        public
+            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        }
+
         private final String format;
         private final List<String> extensions;
 
@@ -166,6 +174,14 @@ public class DataSourceModuleTests extends ESTestCase {
      * Mock TSV format reader for testing.
      */
     private static class MockTsvFormatReader implements FormatReader {
+
+        @Override
+        public
+            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        }
+
         @Override
         public SourceMetadata metadata(StorageObject object) {
             throw new UnsupportedOperationException("Mock reader");
@@ -213,7 +229,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-            return Map.of("file", s -> new PayloadFileStorageProvider(payloadByPath));
+            return Map.of("file", StorageProviderFactory.noConfigKeys(() -> new PayloadFileStorageProvider(payloadByPath)));
         }
 
         @Override
@@ -305,6 +321,14 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     private static class SegmentableTestNdjsonReader implements SegmentableFormatReader {
+
+        @Override
+        public
+            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        }
+
         @Override
         public SourceMetadata metadata(StorageObject object) {
             throw new UnsupportedOperationException("Mock reader");
@@ -680,7 +704,7 @@ public class DataSourceModuleTests extends ESTestCase {
             public java.util.Map<String, org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory> storageProviders(
                 Settings settings
             ) {
-                return java.util.Map.of("custom", s -> new MockStorageProvider());
+                return java.util.Map.of("custom", StorageProviderFactory.noConfigKeys(MockStorageProvider::new));
             }
         };
 

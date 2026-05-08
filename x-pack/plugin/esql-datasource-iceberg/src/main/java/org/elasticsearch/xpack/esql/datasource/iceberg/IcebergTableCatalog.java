@@ -45,6 +45,14 @@ public class IcebergTableCatalog implements TableCatalog {
     }
 
     @Override
+    public void validateConfig(String location, Map<String, Object> config) {
+        // Iceberg claims no per-query configuration keys today. Delegate to the generic validator
+        // with an empty claimed-set so any non-empty config map is rejected with "unknown option"
+        // — preserving the strict-validation contract until per-query options are wired in.
+        org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator.check(config, java.util.List.of());
+    }
+
+    @Override
     public SourceMetadata metadata(String tablePath, Map<String, Object> config) throws IOException {
         S3Configuration s3Config = extractS3Config(config);
         try {

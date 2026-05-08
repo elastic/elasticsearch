@@ -256,7 +256,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         @Override
         public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
             SPY_STORAGE_FACTORY_CALLED.set(true);
-            return Map.of("spy", s -> new StubStorageProvider());
+            return Map.of("spy", StorageProviderFactory.noConfigKeys(StubStorageProvider::new));
         }
     }
 
@@ -324,6 +324,14 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
     }
 
     private static class StubFormatReader implements FormatReader {
+
+        @Override
+        public
+            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        }
+
         private final String name;
         private final List<String> extensions;
 

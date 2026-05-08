@@ -27,9 +27,15 @@ public interface ExternalSourceFactory {
 
     /**
      * Reject configuration keys this factory doesn't recognize at the given location. Implementations
-     * compose their claimed-key sets and call {@link ConfigKeyValidator#check}. Default no-op.
+     * compose their claimed-key sets and call {@link ConfigKeyValidator#check}.
+     * <p>
+     * <b>Required override.</b> Every factory must explicitly state its validation contract — either
+     * by composing claimed-key sets and delegating to {@link ConfigKeyValidator#check}, or by leaving
+     * the body empty to acknowledge "this factory has no per-query config keys". A silent inherited
+     * no-op would let typo'd configurations slip through; that footgun is the reason this method is
+     * not a {@code default}.
      */
-    default void validateConfig(String location, Map<String, Object> config) {}
+    void validateConfig(String location, Map<String, Object> config);
 
     default FilterPushdownSupport filterPushdownSupport() {
         return null;

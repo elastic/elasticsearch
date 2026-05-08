@@ -45,6 +45,25 @@ import java.util.concurrent.ExecutorService;
  */
 final class FileSourceFactory implements ExternalSourceFactory {
 
+    static final String CONFIG_FORMAT = "format";
+
+    /**
+     * Aggregated set of keys the coordinator-side path claims from a per-query configuration map.
+     * Built from each component's own {@code CONFIG_KEYS} set so adding a new coordinator-level
+     * configuration consumer requires updating only the consumer's own constant — the union here
+     * picks it up automatically. Components contributing today: {@link ErrorPolicy} and
+     * {@link FileSplitProvider}, plus the {@link #CONFIG_FORMAT} override read by this class.
+     */
+    static final Set<String> COORDINATOR_KEYS;
+
+    static {
+        Set<String> keys = new HashSet<>();
+        keys.add(CONFIG_FORMAT);
+        keys.addAll(ErrorPolicy.CONFIG_KEYS);
+        keys.addAll(FileSplitProvider.CONFIG_KEYS);
+        COORDINATOR_KEYS = Set.copyOf(keys);
+    }
+
     private final StorageProviderRegistry storageRegistry;
     private final FormatReaderRegistry formatRegistry;
     private final DecompressionCodecRegistry codecRegistry;
@@ -231,25 +250,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .onClose(onClose)
                 .build();
         };
-    }
-
-    static final String CONFIG_FORMAT = "format";
-
-    /**
-     * Aggregated set of keys the coordinator-side path claims from a per-query configuration map.
-     * Built from each component's own {@code CONFIG_KEYS} set so adding a new coordinator-level
-     * configuration consumer requires updating only the consumer's own constant — the union here
-     * picks it up automatically. Components contributing today: {@link ErrorPolicy} and
-     * {@link FileSplitProvider}, plus the {@link #CONFIG_FORMAT} override read by this class.
-     */
-    static final Set<String> COORDINATOR_KEYS;
-
-    static {
-        Set<String> keys = new HashSet<>();
-        keys.add(CONFIG_FORMAT);
-        keys.addAll(ErrorPolicy.CONFIG_KEYS);
-        keys.addAll(FileSplitProvider.CONFIG_KEYS);
-        COORDINATOR_KEYS = Set.copyOf(keys);
     }
 
     /** Delegates to {@link ErrorPolicy#fromConfig(Map, ErrorPolicy)} with the format's default

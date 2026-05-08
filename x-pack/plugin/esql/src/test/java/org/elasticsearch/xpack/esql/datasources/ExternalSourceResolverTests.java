@@ -840,7 +840,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-                return Map.of("s3", s -> storageProvider);
+                return Map.of("s3", StorageProviderFactory.noConfigKeys(() -> storageProvider));
             }
 
             @Override
@@ -993,6 +993,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
     // ===== Stub implementations =====
 
     private static class StubFormatReader implements FormatReader {
+
+        @Override
+        public
+            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        }
+
         private final Map<String, List<Attribute>> schemasByPath;
 
         StubFormatReader(Map<String, List<Attribute>> schemasByPath) {
@@ -1058,6 +1066,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * Used to test the aggregated stats path in multi-file resolution.
      */
     private static class StubFormatReaderWithStats implements FormatReader {
+
+        @Override
+        public
+            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        }
+
         private final Map<String, List<Attribute>> schemasByPath;
         private final Map<String, Long> rowCountsByPath;
 

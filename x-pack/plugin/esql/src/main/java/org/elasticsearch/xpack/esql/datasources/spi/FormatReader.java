@@ -135,16 +135,15 @@ public interface FormatReader extends Closeable {
 
     /**
      * Returns a reader configured from the input config map, paired with the keys consumed from it.
-     * Default returns {@code this} with an empty consumed-keys set (formats with no options).
      * <p>
-     * <b>This is the canonical override target</b> — overriding only {@link #withConfig(Map)} would
-     * be silently bypassed because {@code withConfig}'s default delegates to this method. The
-     * consumed-keys set is required by {@link ConfigKeyValidator} for unknown-key rejection at
-     * planning time.
+     * <b>Required override.</b> Every reader must explicitly declare which keys it claims, even if
+     * the answer is "none" (return {@code Configured.empty(this)}). The previous {@code default}
+     * silently dropped any unknown keys; that footgun is the reason this is no longer optional.
+     * Implementations that read configuration from the map should override this method (not
+     * {@link #withConfig(Map)}); the consumed-keys set is required by {@link ConfigKeyValidator}
+     * for unknown-key rejection at planning time.
      */
-    default Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-        return Configured.empty(this);
-    }
+    Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config);
 
     /**
      * Returns a format reader configured with the given pushed filter from the optimizer.

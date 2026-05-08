@@ -15,10 +15,21 @@ import java.util.function.Supplier;
 
 /**
  * Factory for creating {@link StorageProvider} instances.
- * This functional interface allows data source plugins to provide
- * storage provider implementations without exposing implementation details.
+ * <p>
+ * Two abstract methods: {@link #create(Settings)} for cluster-settings-only construction, and
+ * {@link #createTrackingConsumedKeys(Settings, Map)} for per-query construction paired with the
+ * keys this factory claims from the configuration map. Both must be implemented explicitly so a
+ * factory cannot silently drop per-query configuration keys.
+ * <p>
+ * Two static helpers cover the common shapes:
+ * <ul>
+ *   <li>{@link #noConfigKeys(Supplier)} — for factories that recognise no per-query keys today.
+ *       Forwards to the supplier in both methods; any non-empty config map is rejected by the
+ *       generic validator at planning time as "unknown options".
+ *   <li>{@link #of(Supplier, Function, Function)} — for factories that resolve a typed
+ *       {@code Configuration} from the map and construct a provider from it.
+ * </ul>
  */
-@FunctionalInterface
 public interface StorageProviderFactory {
 
     StorageProvider create(Settings settings);
@@ -27,11 +38,6 @@ public interface StorageProviderFactory {
      * Per-query overload that takes a configuration map.
      * Default delegates to {@link #createTrackingConsumedKeys(Settings, Map)} and discards the consumed-keys set;
      * use this overload when the caller does not need to validate against the consumed keys.
-     * <p>
-     * <b>Override target:</b> implementations must override {@link #createTrackingConsumedKeys(Settings, Map)},
-     * NOT this method. The default {@code create(Settings, Map)} delegates through the tracking variant,
-     * so an override here alone would be silently bypassed by every caller. The tracking variant is the
-     * single configuration entry point for the SPI.
      */
     default StorageProvider create(Settings settings, Map<String, Object> config) {
         return createTrackingConsumedKeys(settings, config).value();
@@ -39,15 +45,32 @@ public interface StorageProviderFactory {
 
     /**
      * Per-query overload paired with the keys consumed from {@code config}.
-     * Default ignores config and returns an empty consumed-keys set.
      * <p>
-     * <b>This is the canonical override target</b> — overriding only {@link #create(Settings, Map)} would
-     * be silently bypassed because {@code create(Settings, Map)}'s default delegates to this method.
-     * The consumed-keys set is required by {@link ConfigKeyValidator} for unknown-key rejection at
-     * planning time.
+     * <b>Required override.</b> Every factory must explicitly declare which per-query keys it
+     * claims, even if the answer is "none" (use {@link #noConfigKeys(Supplier)} for that case).
+     * The consumed-keys set is required by {@link ConfigKeyValidator} for unknown-key rejection
+     * at planning time; a silent default would let typo'd configurations slip through.
      */
-    default Configured<StorageProvider> createTrackingConsumedKeys(Settings settings, Map<String, Object> config) {
-        return Configured.empty(create(settings));
+    Configured<StorageProvider> createTrackingConsumedKeys(Settings settings, Map<String, Object> config);
+
+    /**
+     * Builds a {@link StorageProviderFactory} for providers that have no per-query configuration
+     * keys. Both {@link #create(Settings)} and {@link #createTrackingConsumedKeys(Settings, Map)}
+     * delegate to {@code provider}; the tracking variant returns {@link Configured#empty} so
+     * {@link ConfigKeyValidator} rejects any non-empty config map at planning time.
+     */
+    static <P extends StorageProvider> StorageProviderFactory noConfigKeys(Supplier<P> provider) {
+        return new StorageProviderFactory() {
+            @Override
+            public StorageProvider create(Settings settings) {
+                return provider.get();
+            }
+
+            @Override
+            public Configured<StorageProvider> createTrackingConsumedKeys(Settings settings, Map<String, Object> config) {
+                return Configured.empty(provider.get());
+            }
+        };
     }
 
     /**

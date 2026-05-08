@@ -66,6 +66,14 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
 
     public void testFormatNameAndExtensionsDelegated() {
         FormatReader innerReader = new FormatReader() {
+
+            @Override
+            public
+                org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+                withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+                return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+            }
+
             @Override
             public SourceMetadata metadata(StorageObject object) {
                 return null;
@@ -174,6 +182,14 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
     }
 
     private static class CapturingFormatReader implements FormatReader {
+
+        @Override
+        public
+            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        }
+
         boolean metadataCalled;
         boolean readCalled;
 

@@ -220,6 +220,14 @@ public class ExternalSourceLimitTests extends ESTestCase {
     }
 
     private static class RowGeneratingFormatReader implements FormatReader {
+
+        @Override
+        public
+            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        }
+
         private final AtomicInteger filesRead;
         private final int rowsPerFile;
 

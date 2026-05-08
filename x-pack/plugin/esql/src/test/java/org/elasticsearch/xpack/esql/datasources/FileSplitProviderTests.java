@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -869,6 +870,14 @@ public class FileSplitProviderTests extends ESTestCase {
         SplitRange range3 = new SplitRange(4, 196, Map.of("_stats.row_count", 200L));
 
         RangeAwareFormatReader mockReader = new RangeAwareFormatReader() {
+
+            @Override
+            public
+                org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+                withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+                return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+            }
+
             private int callCount = 0;
             private final List<List<SplitRange>> perFileRanges = List.of(List.of(range1), List.of(range2), List.of(range3));
 
@@ -945,6 +954,14 @@ public class FileSplitProviderTests extends ESTestCase {
 
     private static RangeAwareFormatReader createMockRangeReader(List<SplitRange> ranges) {
         return new RangeAwareFormatReader() {
+
+            @Override
+            public
+                org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+                withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+                return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+            }
+
             @Override
             public List<SplitRange> discoverSplitRanges(StorageObject object) {
                 return ranges;
@@ -982,7 +999,7 @@ public class FileSplitProviderTests extends ESTestCase {
 
     private static StorageProviderRegistry createMockStorageRegistry() {
         StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY);
-        registry.registerFactory("s3", settings -> new StorageProvider() {
+        StorageProvider mockProvider = new StorageProvider() {
             @Override
             public StorageObject newObject(StoragePath path) {
                 return newObject(path, 0);
@@ -1058,14 +1075,15 @@ public class FileSplitProviderTests extends ESTestCase {
 
             @Override
             public void close() {}
-        });
+        };
+        registry.registerFactory("s3", StorageProviderFactory.noConfigKeys(() -> mockProvider));
         return registry;
     }
 
     /** S3 mock that serves {@code payload} for range reads (newline boundary scanning during split discovery). */
     private static StorageProviderRegistry createPayloadStorageRegistry(byte[] payload) {
         StorageProviderRegistry registry = new StorageProviderRegistry(Settings.EMPTY);
-        registry.registerFactory("s3", settings -> new StorageProvider() {
+        StorageProvider payloadProvider = new StorageProvider() {
             @Override
             public StorageObject newObject(StoragePath path) {
                 return newObject(path, payload.length);
@@ -1144,7 +1162,8 @@ public class FileSplitProviderTests extends ESTestCase {
 
             @Override
             public void close() {}
-        });
+        };
+        registry.registerFactory("s3", StorageProviderFactory.noConfigKeys(() -> payloadProvider));
         return registry;
     }
 

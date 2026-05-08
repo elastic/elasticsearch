@@ -363,6 +363,14 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * dispatches every parser-thread read to the schema-bound variant.
      */
     private static class LineFormatReader implements SegmentableFormatReader {
+
+        @Override
+        public
+            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        }
+
         private final long minSegment;
         private final List<Attribute> resolvedSchema;
         final AtomicInteger metadataCalls;
@@ -512,6 +520,14 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * A format reader that fails after reading a configured number of lines.
      */
     private static class FailingFormatReader implements SegmentableFormatReader {
+
+        @Override
+        public
+            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        }
+
         private final int failAfterLines;
         private final long minSegment;
 

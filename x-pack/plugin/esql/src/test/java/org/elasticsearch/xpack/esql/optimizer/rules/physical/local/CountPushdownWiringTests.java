@@ -474,6 +474,14 @@ public class CountPushdownWiringTests extends ESTestCase {
     }
 
     private static class StubFormatReader implements FormatReader {
+
+        @Override
+        public
+            org.elasticsearch.xpack.esql.datasources.spi.Configured<org.elasticsearch.xpack.esql.datasources.spi.FormatReader>
+            withConfigTrackingConsumedKeys(java.util.Map<String, Object> config) {
+            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        }
+
         private final AggregatePushdownSupport support;
 
         StubFormatReader(AggregatePushdownSupport support) {

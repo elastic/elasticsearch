@@ -70,7 +70,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             (clusterAlias, nodeId) -> createMockConnection(nodeId),
             null,
-            null,
+            IndexBoosts.EMPTY,
             Runnable::run,
             new SearchRequest(),
             ActionListener.noop(),

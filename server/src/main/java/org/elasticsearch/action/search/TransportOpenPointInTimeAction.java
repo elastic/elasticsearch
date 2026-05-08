@@ -313,7 +313,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState,
             Map<String, AliasFilter> aliasFilter,
-            Map<String, Float> concreteIndexBoosts,
+            IndexBoosts concreteIndexBoosts,
             boolean preFilter,
             ThreadPool threadPool,
             SearchResponse.Clusters clusters,
@@ -387,7 +387,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState,
             Map<String, AliasFilter> aliasFilter,
-            Map<String, Float> concreteIndexBoosts,
+            IndexBoosts concreteIndexBoosts,
             SearchResponse.Clusters clusters,
             Map<String, Object> searchRequestAttributes
         ) {

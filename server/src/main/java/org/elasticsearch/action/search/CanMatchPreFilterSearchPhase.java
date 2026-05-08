@@ -80,7 +80,7 @@ final class CanMatchPreFilterSearchPhase {
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTransportService searchTransportService;
     private final Map<SearchShardIterator, Integer> shardItIndexMap;
-    private final Map<String, Float> concreteIndexBoosts;
+    private final IndexBoosts concreteIndexBoosts;
     private final Map<String, AliasFilter> aliasFilter;
     private final SearchTask task;
     private final Executor executor;
@@ -103,7 +103,7 @@ final class CanMatchPreFilterSearchPhase {
         SearchTransportService searchTransportService,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         Map<String, AliasFilter> aliasFilter,
-        Map<String, Float> concreteIndexBoosts,
+        IndexBoosts concreteIndexBoosts,
         Executor executor,
         SearchRequest request,
         List<SearchShardIterator> shardsIts,
@@ -150,7 +150,7 @@ final class CanMatchPreFilterSearchPhase {
         SearchTransportService searchTransportService,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         Map<String, AliasFilter> aliasFilter,
-        Map<String, Float> concreteIndexBoosts,
+        IndexBoosts concreteIndexBoosts,
         Executor executor,
         SearchRequest request,
         List<SearchShardIterator> shardsIts,
@@ -453,12 +453,10 @@ final class CanMatchPreFilterSearchPhase {
         );
     }
 
-    private static final float DEFAULT_INDEX_BOOST = 1.0f;
-
     private CanMatchNodeRequest.Shard buildShardLevelRequest(SearchShardIterator shardIt) {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
-        float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
+        float indexBoost = concreteIndexBoosts.lookup(shardIt.shardId().getIndex());
         int shardRequestIndex = shardItIndexMap.get(shardIt);
         return new CanMatchNodeRequest.Shard(
             shardIt.getOriginalIndices().indices(),

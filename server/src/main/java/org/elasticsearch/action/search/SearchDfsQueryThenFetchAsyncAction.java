@@ -40,7 +40,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         BigArrays bigArrays,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         Map<String, AliasFilter> aliasFilter,
-        Map<String, Float> concreteIndexBoosts,
+        IndexBoosts concreteIndexBoosts,
         Executor executor,
         SearchPhaseResults<SearchPhaseResult> queryPhaseResultConsumer,
         SearchRequest request,

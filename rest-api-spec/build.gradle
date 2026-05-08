@@ -174,4 +174,7 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("tsdb/25_id_generation/get", "ids have changed after introduction of synthetic id")
   task.skipTest("tsdb/25_id_generation/routing_path matches deep object", "ids have changed after introduction of synthetic id")
   task.skipTest("tsdb/25_id_generation/index a new document on top of an old one over bulk", "ids have changed after introduction of synthetic id")
+  // Changes to index_boost
+  task.skipTest("search/40_indices_boost/Indices boost for nonexistent index/alias", "index_boost handling changed")
+  task.skipTest("search/40_indices_boost/Remote expressions not supported in indices boost", "index_boost handling changed")
 })

@@ -308,29 +308,102 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return aliasFilterMap;
     }
 
-    private Map<String, Float> resolveIndexBoosts(SearchRequest searchRequest, ClusterState clusterState) {
+    // This is called when resolving index boosts.
+    // On MRT=true, it will be called on both coordinator and remote sides, and the clusterAlias will show which side it is.
+    // In this case, the resolution should ignore qualified indices that belong to another cluster. remoteShardIterators is empty in this
+    // case.
+    // On MRT=false, it will be called only on the coordinator side. remoteShardIterators will provide the list of remote shards, from which
+    // we can extract remote indices that can be used to resolve index boosts.
+    private IndexBoosts resolveIndexBoosts(
+        SearchRequest searchRequest,
+        ClusterState clusterState,
+        List<SearchShardIterator> remoteShardIterators
+    ) {
         if (searchRequest.source() == null) {
-            return Collections.emptyMap();
+            return IndexBoosts.EMPTY;
         }
 
         SearchSourceBuilder source = searchRequest.source();
         if (source.indexBoosts() == null) {
-            return Collections.emptyMap();
+            return IndexBoosts.EMPTY;
         }
 
-        Map<String, Float> concreteIndexBoosts = new HashMap<>();
-        for (SearchSourceBuilder.IndexBoost ib : source.indexBoosts()) {
-            Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(
-                clusterState,
-                searchRequest.indicesOptions(),
-                ib.getIndex()
-            );
-
-            for (Index concreteIndex : concreteIndices) {
-                concreteIndexBoosts.putIfAbsent(concreteIndex.getUUID(), ib.getBoost());
+        // Map index name -> map of indices per remote cluster alias.
+        final Map<String, Map<String, String>> remoteIndices;
+        if (remoteShardIterators.isEmpty()) {
+            remoteIndices = Collections.emptyMap();
+        } else {
+            remoteIndices = new HashMap<>();
+            for (SearchShardIterator remoteShardIterator : remoteShardIterators) {
+                var idx = remoteShardIterator.shardId().getIndex();
+                remoteIndices.computeIfAbsent(idx.getName(), a -> new HashMap<>())
+                    .put(remoteShardIterator.getClusterAlias(), idx.getUUID());
             }
         }
-        return Collections.unmodifiableMap(concreteIndexBoosts);
+
+        String clusterAlias = searchRequest.getLocalClusterAlias();
+        if (Strings.isNullOrEmpty(clusterAlias)) {
+            clusterAlias = ProjectRoutingResolver.ORIGIN;
+        } else {
+            // We can't resolve remotes on remote cluster - and this should be only non-empty on MRT=false where this
+            // method is not run on the remote side.
+            assert remoteShardIterators.isEmpty() : "Unexpected: trying to resolve remote indices on remote cluster [" + clusterAlias + "]";
+        }
+        Map<String, Float> concreteIndexBoosts = new HashMap<>();
+        // Always set ignore_unavailable for the options
+        IndicesOptions options = IndicesOptions.builder(searchRequest.indicesOptions())
+            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
+            .build();
+        for (SearchSourceBuilder.IndexBoost ib : source.indexBoosts()) {
+            String[] split = RemoteClusterAware.splitIndexName(ib.getIndex());
+            final String indexClusterAlias = split[0];
+            final String indexName = split[1];
+            if (indexClusterAlias != null) {
+                // We have the qualified index name. For _origin we still go to the local branch, otherwise we look up for the remote index.
+                if (remoteIndices.isEmpty() == false && indexClusterAlias.equals(ProjectRoutingResolver.ORIGIN) == false) {
+                    var remotesOfIndex = remoteIndices.get(indexName); // remote instances of this index name
+                    if (remotesOfIndex == null || remotesOfIndex.containsKey(indexClusterAlias) == false) {
+                        // For now, we're just ignoring boosts that do not match anything.
+                        continue;
+                    }
+                    // This is a remote index, which has been already resolved for us, so we just add it
+                    concreteIndexBoosts.putIfAbsent(remotesOfIndex.get(indexClusterAlias), ib.getBoost());
+                } else {
+                    // If this is an index on a different cluster, we just ignore it
+                    if (indexClusterAlias.equals(clusterAlias)) {
+                        resolveLocalBoost(options, clusterState, ib.getBoost(), indexName, concreteIndexBoosts);
+                    }
+                }
+            } else {
+                // unqualified index - if we have remote indices with this name, we add them
+                if (remoteIndices.isEmpty() == false) {
+                    // Add UUIDs from remote iterators with this index name directly
+                    remoteIndices.getOrDefault(indexName, Collections.emptyMap()).forEach((_cluster, uuid) -> {
+                        concreteIndexBoosts.putIfAbsent(uuid, ib.getBoost());
+                    });
+                }
+                // then add local index
+                resolveLocalBoost(options, clusterState, ib.getBoost(), indexName, concreteIndexBoosts);
+            }
+        }
+        return concreteIndexBoosts.isEmpty() ? IndexBoosts.EMPTY : new IndexBoosts(Collections.unmodifiableMap(concreteIndexBoosts));
+    }
+
+    /**
+     * Resolve index boost for local indices.
+     */
+    private void resolveLocalBoost(
+        IndicesOptions options,
+        ClusterState clusterState,
+        float boost,
+        String indexExpression,
+        Map<String, Float> concreteIndexBoosts
+    ) {
+        Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, options, indexExpression);
+
+        for (Index concreteIndex : concreteIndices) {
+            concreteIndexBoosts.putIfAbsent(concreteIndex.getUUID(), boost);
+        }
     }
 
     /**
@@ -1879,7 +1952,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
 
-        Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, projectState.cluster());
+        IndexBoosts concreteIndexBoosts = resolveIndexBoosts(searchRequest, projectState.cluster(), remoteShardIterators);
 
         adjustSearchType(searchRequest, shardIterators.size() == 1);
 
@@ -2055,7 +2128,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState,
             Map<String, AliasFilter> aliasFilter,
-            Map<String, Float> concreteIndexBoosts,
+            IndexBoosts concreteIndexBoosts,
             boolean preFilter,
             ThreadPool threadPool,
             SearchResponse.Clusters clusters,
@@ -2081,7 +2154,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState,
             Map<String, AliasFilter> aliasFilter,
-            Map<String, Float> concreteIndexBoosts,
+            IndexBoosts concreteIndexBoosts,
             boolean preFilter,
             ThreadPool threadPool,
             SearchResponse.Clusters clusters,

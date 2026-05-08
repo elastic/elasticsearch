@@ -270,6 +270,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         if (IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()) {
             settings.add(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
         }
+        if (IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()) {
+            settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
+        }
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);
     };

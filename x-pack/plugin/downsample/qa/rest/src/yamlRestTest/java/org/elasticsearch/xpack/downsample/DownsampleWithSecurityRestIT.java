@@ -46,7 +46,7 @@ public class DownsampleWithSecurityRestIT extends ESClientYamlSuiteTestCase {
         return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", authentication).build();
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters("downsample-with-security");
     }

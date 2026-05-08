@@ -34,7 +34,7 @@ public class IndexLifecycleRestIT extends ESClientYamlSuiteTestCase {
         .user(USER, PASSWORD)
         .build();
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
     }

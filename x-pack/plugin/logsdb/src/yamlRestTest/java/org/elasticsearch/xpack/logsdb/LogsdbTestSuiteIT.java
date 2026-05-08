@@ -53,7 +53,7 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
         super(testCandidate);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         // Filter out 52_esql_insist_operator_synthetic_source.yml suite for snapshot builds:
         // (esql doesn't use feature flags and all experimental features are just enabled if build is snapshot)

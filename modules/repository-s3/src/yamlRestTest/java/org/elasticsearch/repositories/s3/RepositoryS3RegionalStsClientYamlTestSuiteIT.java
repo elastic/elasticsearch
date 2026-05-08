@@ -32,7 +32,7 @@ public class RepositoryS3RegionalStsClientYamlTestSuiteIT extends AbstractReposi
         .environment("AWS_REGION", "ap-southeast-2")
         .build();
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         // Run just the basic sanity test to make sure ES starts up and loads the S3 repository with a regional endpoint without an error.
         // It would be great to make actual requests against a test fixture, but setting the region means using a production endpoint.

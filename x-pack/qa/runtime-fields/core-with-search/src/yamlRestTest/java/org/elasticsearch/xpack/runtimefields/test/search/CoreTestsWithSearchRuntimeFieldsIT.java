@@ -38,7 +38,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
         super(testCandidate);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return new SearchRequestRuntimeFieldTranslater().parameters();
     }

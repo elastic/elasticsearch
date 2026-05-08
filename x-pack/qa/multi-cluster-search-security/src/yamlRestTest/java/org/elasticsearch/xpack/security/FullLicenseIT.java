@@ -38,7 +38,7 @@ public class FullLicenseIT extends LicenseYamlSuiteTestCase {
         super(testCandidate);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters("full_license");
     }

@@ -51,7 +51,7 @@ public class BasicLicenseIT extends LicenseYamlSuiteTestCase {
         super(testCandidate);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters("basic_license");
     }

@@ -30,7 +30,7 @@ public class SearchBusinessRulesClientYamlTestSuiteIT extends ESClientYamlSuiteT
         super(testCandidate);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters("search-business-rules/10_pinned_retriever");
     }

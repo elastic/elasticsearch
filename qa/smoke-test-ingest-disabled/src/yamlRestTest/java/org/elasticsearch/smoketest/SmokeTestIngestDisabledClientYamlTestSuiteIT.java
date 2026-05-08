@@ -30,7 +30,7 @@ public class SmokeTestIngestDisabledClientYamlTestSuiteIT extends ESClientYamlSu
         super(testCandidate);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
     }

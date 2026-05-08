@@ -85,6 +85,18 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * Property that allows to control whether spec validation is enabled or not (default true).
      */
     private static final String REST_TESTS_VALIDATE_SPEC = "tests.rest.validate_spec";
+    /**
+     * Property that, when true, forces YAML tests to run grouped by suite (yaml file) — i.e.
+     * every test in a given file runs consecutively, in declared order — instead of being
+     * shuffled across files. Default is {@code false}: tests are still shuffled, preserving
+     * the existing randomization. Use this with the lazy-cleanup framework to maximize
+     * setup-state reuse within a file.
+     *
+     * <p>Note: this only takes effect for test classes that opt out of the framework-level
+     * shuffle by declaring {@code @ParametersFactory(shuffle = false)}. Otherwise the runner
+     * re-shuffles the parameters after this method returns and the grouping is lost.</p>
+     */
+    public static final String REST_TESTS_SUITE_GROUPING = "tests.rest.suite.grouping";
 
     private static final String TESTS_PATH = "rest-api-spec/test";
     private static final String SPEC_PATH = "rest-api-spec/api";
@@ -334,8 +346,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 tests.add(new Object[] { new ClientYamlTestCandidate(yamlTestSuite, testSection) });
             }
         }
-        // sort the candidates so they will always be in the same order before being shuffled, for repeatability
+        // Sort by test path first for a deterministic baseline (suites grouped, sections in
+        // file order). Then either keep that order (when -Dtests.rest.suite.grouping=true)
+        // or shuffle internally to preserve randomization (default). Test classes that opt
+        // into this internal ordering must declare @ParametersFactory(shuffle = false), so
+        // that the runner does not re-shuffle and undo the grouping/seeded shuffle.
         tests.sort(Comparator.comparing(o -> ((ClientYamlTestCandidate) o[0]).getTestPath()));
+        if (RandomizedTest.systemPropertyAsBoolean(REST_TESTS_SUITE_GROUPING, false) == false) {
+            Collections.shuffle(tests, RandomizedTest.getRandom());
+        }
         return tests;
     }
 

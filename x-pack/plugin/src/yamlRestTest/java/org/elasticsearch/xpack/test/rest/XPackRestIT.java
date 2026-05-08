@@ -60,7 +60,7 @@ public class XPackRestIT extends AbstractXPackRestTest {
         super(testCandidate);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
     }

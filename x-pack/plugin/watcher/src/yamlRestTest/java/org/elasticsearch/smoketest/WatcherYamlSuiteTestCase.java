@@ -58,7 +58,7 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
             .user(ADMIN_USER, TEST_PASSWORD, "superuser", true);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return ESClientYamlSuiteTestCase.createParameters();
     }

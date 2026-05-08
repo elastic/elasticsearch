@@ -28,7 +28,7 @@ public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCas
         super(testCandidate);
     }
 
-    @ParametersFactory
+    @ParametersFactory(shuffle = false)
     public static Iterable<Object[]> parameters() throws Exception {
         return createParameters("10_fail");
     }

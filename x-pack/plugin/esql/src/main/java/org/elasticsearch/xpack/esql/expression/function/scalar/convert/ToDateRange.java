@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,14 +48,6 @@ public class ToDateRange extends AbstractConvertFunction implements Configuratio
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToDateRange.class)
         .unaryConfig(ToDateRange::new)
         .name("to_date_range", "to_daterange");
-
-    private static final Map<DataType, BuildFactory> STATIC_EVALUATORS = Map.ofEntries(
-        Map.entry(DATE_RANGE, (source, fieldEval) -> fieldEval),
-
-        // Evaluators dynamically created in #factories(), since they need the query timezone.
-        Map.entry(KEYWORD, (source, fieldEval) -> null),
-        Map.entry(TEXT, (source, fieldEval) -> null)
-    );
 
     private Map<DataType, BuildFactory> lazyEvaluators = null;
 
@@ -98,15 +89,13 @@ public class ToDateRange extends AbstractConvertFunction implements Configuratio
     @Override
     protected Map<DataType, BuildFactory> factories() {
         if (lazyEvaluators == null) {
-            Map<DataType, BuildFactory> evaluators = new HashMap<>(STATIC_EVALUATORS);
             DateFormatter formatter = DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId());
-            evaluators.putAll(
-                Map.ofEntries(
-                    Map.entry(KEYWORD, (source, fieldEval) -> new ToDateRangeFromStringEvaluator.Factory(source, fieldEval, formatter)),
-                    Map.entry(TEXT, (source, fieldEval) -> new ToDateRangeFromStringEvaluator.Factory(source, fieldEval, formatter))
-                )
+            BuildFactory fromString = (source, fieldEval) -> new ToDateRangeFromStringEvaluator.Factory(source, fieldEval, formatter);
+            lazyEvaluators = Map.ofEntries(
+                Map.entry(DATE_RANGE, (source, fieldEval) -> fieldEval),
+                Map.entry(KEYWORD, fromString),
+                Map.entry(TEXT, fromString)
             );
-            lazyEvaluators = evaluators;
         }
         return lazyEvaluators;
     }

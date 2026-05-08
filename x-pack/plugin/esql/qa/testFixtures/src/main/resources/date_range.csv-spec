@@ -122,14 +122,32 @@ str:keyword                                          | range:date_range
 ;
 
 
+// TO_DATE_RANGE honors the query timezone via SET. Europe/Paris is UTC+1 in winter, so
+// "2021-01-01" parses to 2020-12-31T23:00:00Z in millis; RANGE_MIN/MAX return datetimes (always
+// serialised in UTC) and TO_STRING formats with the query timezone — both confirm end-to-end.
+toDateRangeRespectsQueryTimezone
+required_capability: date_range_field_type_v5
+required_capability: type_conversion_timezone_support
+SET time_zone="Europe/Paris"\;
+
+ROW src = "2021-01-01..2021-01-02"
+| EVAL r = TO_DATE_RANGE(src), min = RANGE_MIN(TO_DATE_RANGE(src)), max = RANGE_MAX(TO_DATE_RANGE(src)), formatted = TO_STRING(TO_DATE_RANGE(src))
+| KEEP src, min, max, formatted
+;
+
+src:keyword            | min:datetime              | max:datetime              | formatted:keyword
+2021-01-01..2021-01-02 | 2020-12-31T23:00:00.000Z  | 2021-01-01T23:00:00.000Z  | 2021-01-01T00:00:00.000+01:00..2021-01-02T00:00:00.000+01:00
+;
+
+
 toDateRangeMalformedInput
 required_capability: date_range_field_type_v5
 
 ROW s = "not-a-range"
 | EVAL r = TO_DATE_RANGE(s)
 ;
-warningRegex:evaluation of \[TO_DATE_RANGE\(s\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: expected date range in the form 'from..to', got \[not-a-range\]
+warning:Line 2:12: evaluation of [TO_DATE_RANGE(s)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.IllegalArgumentException: expected date range in the form 'from..to', got [not-a-range]
 
 s:keyword   | r:date_range
 not-a-range | null

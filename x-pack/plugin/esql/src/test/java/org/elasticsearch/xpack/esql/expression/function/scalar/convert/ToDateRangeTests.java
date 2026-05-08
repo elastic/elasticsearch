@@ -102,6 +102,23 @@ public class ToDateRangeTests extends AbstractConfigurationFunctionTestCase {
                 "java.lang.IllegalArgumentException: failed to parse date field [not-a-date] with format [strict_date_optional_time]"
             )
         );
+        // No range separator: parseDateRange used to assert (which degraded to ArrayIndexOutOfBoundsException
+        // with assertions disabled in production); now throws IllegalArgumentException, surfaced as a warning.
+        suppliers.add(
+            caseForKeywordInvalid(
+                "no range separator",
+                "not-a-range",
+                "java.lang.IllegalArgumentException: expected date range in the form 'from..to', got [not-a-range]"
+            )
+        );
+        suppliers.add(
+            caseForKeywordInvalid(
+                "too many separators",
+                "2020-01-01..2021-01-01..2022-01-01",
+                "java.lang.IllegalArgumentException: expected date range in the form 'from..to', "
+                    + "got [2020-01-01..2021-01-01..2022-01-01]"
+            )
+        );
         suppliers.addAll(
             casesForKeyword("0001-01-01T00:00:00.000Z..0002-01-01T00:00:00.000Z", "0001-01-01T00:00:00.000Z", "0002-01-01T00:00:00.000Z")
         );

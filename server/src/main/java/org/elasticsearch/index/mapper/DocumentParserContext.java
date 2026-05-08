@@ -359,14 +359,14 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Enforces that a field configured with {@code multi_value=no} receives at most one value per document. The first call for a given
+     * Enforces that a field configured with {@code multi_value=false} receives at most one value per document. The first call for a given
      * field name succeeds; a subsequent call for the same name throws {@link IllegalArgumentException}. Shared across all child contexts
      * so the constraint is respected regardless of which context sub-tree the duplicate value comes from.
      */
     public final void enforceSingleValue(String fieldName) {
         if (singleValuedFields.add(fieldName) == false) {
             throw new IllegalArgumentException(
-                "Field [" + fieldName + "] is configured with [multi_value=no] but encountered multiple values in the same document"
+                "Field [" + fieldName + "] is configured with [multi_value=false] but encountered multiple values in the same document"
             );
         }
     }

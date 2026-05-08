@@ -91,28 +91,8 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
         testFieldValueRange(false, IndexMode.LOOKUP);
     }
 
-    public void testFieldValueRangeForColumnarModeWithCFS() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        testFieldValueRange(true, IndexMode.COLUMNAR);
-    }
-
-    public void testFieldValueRangeForColumnarModeNoCFS() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        testFieldValueRange(false, IndexMode.COLUMNAR);
-    }
-
-    public void testFieldValueRangeForColumnarLogsdbModeWithCFS() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        testFieldValueRange(true, IndexMode.COLUMNAR_LOGSDB);
-    }
-
-    public void testFieldValueRangeForColumnarLogsdbModeNoCFS() throws Exception {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        testFieldValueRange(false, IndexMode.COLUMNAR_LOGSDB);
-    }
-
     public void testSoftDeletesAreAlmostAlwaysDisregardedForTimestampRange() throws Exception {
-        IndexMode indexMode = randomFrom(IndexMode.availableModes());
+        IndexMode indexMode = randomFrom(IndexMode.values());
         DocumentMapper mapper = getDocumentMapper(indexMode);
         boolean useCFS = randomBoolean();
         IndexWriterConfig indexWriterConfig = getIndexWriterConfig(useCFS, randomBoolean());
@@ -174,7 +154,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
     }
 
     public void testFieldValueRangeForBatchedCompoundCommit() throws Exception {
-        IndexMode indexMode = randomFrom(IndexMode.availableModes());
+        IndexMode indexMode = randomFrom(IndexMode.values());
         DocumentMapper mapper = getDocumentMapper(indexMode);
         boolean useCFS = randomBoolean();
         Map<String, BlobLocation> uploadedBlobLocations = new HashMap<>();
@@ -349,7 +329,7 @@ public class IndexCommitTimestampFieldRangeTests extends MapperServiceTestCase {
 
     private void deleteDoc(String docIdToDelete, IndexWriter indexWriter, IndexMode indexMode) throws IOException {
         var deletedDoc = ParsedDocument.deleteTombstone(
-            indexMode.isColumnar()
+            indexMode == IndexMode.TIME_SERIES || indexMode == IndexMode.LOGSDB
                 ? SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY
                 : SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES,
             docIdToDelete

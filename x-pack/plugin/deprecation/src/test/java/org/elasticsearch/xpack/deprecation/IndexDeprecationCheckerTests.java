@@ -288,7 +288,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             false,
             false,
             randomBoolean(),
-            randomFrom(IndexMode.availableModes()),
+            randomFrom(IndexMode.values()),
             null,
             randomFrom(DataStreamOptions.EMPTY, DataStreamOptions.FAILURE_STORE_DISABLED, DataStreamOptions.FAILURE_STORE_ENABLED, null),
             List.of(),

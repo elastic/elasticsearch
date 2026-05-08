@@ -380,7 +380,7 @@ public class Analysis {
             }
             boolean notFound = e instanceof ResourceNotFoundException;
             String message = Strings.format(
-                "Synonyms set %s %s. Synonyms will not be applied to search results on indices that use this synonym set",
+                "Synonyms sets %s %s. Synonyms will not be applied to search results on indices that use this synonym set",
                 synonymsSets,
                 notFound ? "not found" : "could not be loaded"
             );

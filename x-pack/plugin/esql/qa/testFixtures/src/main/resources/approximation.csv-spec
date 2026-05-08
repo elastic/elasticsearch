@@ -1202,6 +1202,26 @@ null            | fork2         | 3          | null                             
 ;
 
 
+Fork with stats and rename in both branches
+required_capability: approximation_v7
+required_capability: approximation_fork
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+| FORK (STATS count = COUNT() | RENAME count1 = count)
+       (STATS count = COUNT() | RENAME count2 = count)
+| SORT _fork
+;
+
+documents_found: 1..10
+
+count1:long | _fork:keyword | count2:long | _approximation_confidence_interval(count1):long | _approximation_certified(count1):boolean | _approximation_confidence_interval(count2):long | _approximation_certified(count2):boolean
+245350      | fork1         | null        | [245350, 245350]                                | true                                     | null                                            | null
+null        | fork2         | 245350      | null                                            | null                                     | [245350, 245350]                                | true
+;
+
+
 Fork with inline stats and stats in branches
 required_capability: approximation_v7
 required_capability: approximation_fork

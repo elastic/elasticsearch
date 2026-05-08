@@ -664,30 +664,40 @@ public class ApproximationPlan {
             return project;
         }
 
-        for (NamedExpression projection : project.projections()) {
-            if (projection instanceof Alias alias
-                && alias.child() instanceof NamedExpression named
-                && fieldBuckets.containsKey(named.id())) {
-                fieldBuckets.put(alias.id(), fieldBuckets.get(named.id()));
-            }
-        }
-
-        // When PROJECT keeps a field with buckets, also keep the buckets.
         List<NamedExpression> projections = null;
-        Set<Attribute> seen = new HashSet<>();
+
         for (NamedExpression projection : project.projections()) {
-            if (fieldBuckets.containsKey(projection.id())) {
+            if (projection instanceof Alias alias && alias.child() instanceof NamedExpression named
+                && fieldBuckets.containsKey(named.id())) {
+                // This PROJECT is a RENAME, so rename the buckets too and keep them.
                 if (projections == null) {
                     projections = new ArrayList<>(project.projections());
                 }
-                for (Attribute bucket : fieldBuckets.get(projection.id())) {
-                    if (seen.add(bucket)) {
-                        projections.add(bucket);
+                List<Attribute> buckets = fieldBuckets.get(named.id());
+                List<Attribute> projectedBuckets = new ArrayList<>();
+                for (int bucketId = 0; bucketId < TRIAL_COUNT * BUCKET_COUNT; bucketId++) {
+                    Alias projectedBucket = new Alias(
+                        Source.EMPTY,
+                        Attribute.rawTemporaryName(alias.name(), BUCKET_NAME_PART, Integer.toString(bucketId)),
+                        buckets.get(bucketId)
+                    );
+                    projections.add(projectedBucket);
+                    projectedBuckets.add(projectedBucket.toAttribute());
+                }
+                fieldBuckets.put(alias.id(), projectedBuckets);
+            } else {
+                // This PROJECT is a KEEP, so keep the buckets too.
+                if (fieldBuckets.containsKey(projection.id())) {
+                    if (projections == null) {
+                        projections = new ArrayList<>(project.projections());
                     }
+                    projections.addAll(fieldBuckets.get(projection.id()));
                 }
             }
         }
+
         if (projections != null) {
+            // For each kept field, keep its not-rounded expression too.
             List<Attribute> notRoundedProjections = new ArrayList<>();
             for (NamedExpression projection : projections) {
                 if (notRoundedExpressions.containsKey(projection.id())) {

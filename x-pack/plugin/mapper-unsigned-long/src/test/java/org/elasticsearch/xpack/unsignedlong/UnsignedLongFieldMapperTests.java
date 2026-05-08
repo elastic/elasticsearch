@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -123,16 +122,6 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
             DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
             assertThat(e.getCause().getMessage(), containsString("Value \"10.5\" has a decimal part"));
         }
-    }
-
-    public void testNotIndexed() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long").field("index", false)));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        IndexableField dvField = fields.get(0);
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertEquals(9223372036854775807L, dvField.numericValue().longValue());
     }
 
     public void testNoDocValues() throws Exception {

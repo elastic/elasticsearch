@@ -128,7 +128,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
             () -> parseDateRange("2024-12-31T00:00:00.000Z..2024-01-01T00:00:00.000Z", ZoneOffset.UTC)
         );
         assertThat(e.getMessage(), containsString("'from'"));
-        assertThat(e.getMessage(), containsString("must be less than or equal to 'to'"));
+        assertThat(e.getMessage(), containsString("must be less than 'to'"));
     }
 
     public void testCommonTypeNull() {

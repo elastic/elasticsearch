@@ -518,6 +518,10 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
         }
     }
 
+    public void invalidateNodeMaxShardWriteLoadProportion(String nodeId) {
+        nodeMaxShardWriteLoadProportion.remove(nodeId);
+    }
+
     /**
      * Return true if the shard has moved since the time ClusterInfo was created.
      */

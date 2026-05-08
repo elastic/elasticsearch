@@ -130,6 +130,29 @@ public class RestIndexActionIT extends ESIntegTestCase {
         assertThat(response, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
     }
 
+    public void testRoutingRejectedWhenSliceEnabled() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request create = new Request("PUT", "/slice-index-routing-rejected");
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request request = new Request("POST", "/slice-index-routing-rejected/_doc/1");
+        request.addParameter("routing", "r1");
+        request.setJsonEntity("""
+            {
+              "field": "value"
+            }""");
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(response, containsString("[routing] is not allowed when [index.slice.enabled] is true"));
+        assertThat(response, containsString("use [_slice] instead"));
+    }
+
     public void testSliceParamRejectedWhenFeatureFlagDisabled() throws Exception {
         assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request request = new Request("POST", "/test_index/_doc/1");

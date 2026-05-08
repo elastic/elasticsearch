@@ -16,6 +16,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
@@ -55,6 +56,7 @@ class BulkPrimaryExecutionContext {
 
     private final BulkShardRequest request;
     private final IndexShard primary;
+    private final IndexingPressure.PrimaryExpansionTracker pressureExpansionTracker;
     private Translog.Location locationToSync = null;
     private int currentIndex = -1;
 
@@ -65,8 +67,17 @@ class BulkPrimaryExecutionContext {
     private long noopMappingUpdateRetryForMappingVersion;
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
+        this(request, primary, IndexingPressure.PrimaryExpansionTracker.noop());
+    }
+
+    BulkPrimaryExecutionContext(
+        BulkShardRequest request,
+        IndexShard primary,
+        IndexingPressure.PrimaryExpansionTracker pressureExpansionTracker
+    ) {
         this.request = request;
         this.primary = primary;
+        this.pressureExpansionTracker = pressureExpansionTracker;
         advance();
     }
 
@@ -165,7 +176,18 @@ class BulkPrimaryExecutionContext {
         assert assertInvariants(ItemProcessingState.INITIAL);
         requestToExecute = writeRequest;
         currentItemState = ItemProcessingState.TRANSLATED;
+        pressureExpansionTracker.addExpandedBytes(expansionDeltaBytes(getCurrent(), writeRequest));
         assert assertInvariants(ItemProcessingState.TRANSLATED);
+    }
+
+    /**
+     * Additional bytes to reserve when the prepared write is larger than the incoming update in RAM estimates
+     * ({@link org.apache.lucene.util.Accountable#ramBytesUsed()}), or zero otherwise.
+     */
+    static long expansionDeltaBytes(DocWriteRequest<?> update, DocWriteRequest<?> translated) {
+        long prepared = translated.ramBytesUsed();
+        long reserved = update.ramBytesUsed();
+        return Math.max(0L, prepared - reserved);
     }
 
     /** returns the request that should be executed on the shard. */
@@ -224,6 +246,9 @@ class BulkPrimaryExecutionContext {
     /** resets the current item state, prepare for a new execution */
     private void resetForExecutionRetry() {
         currentItemState = ItemProcessingState.INITIAL;
+        if (requestToExecute != null) {
+            pressureExpansionTracker.removeExpandedBytes(expansionDeltaBytes(getCurrent(), requestToExecute));
+        }
         requestToExecute = null;
         executionResult = null;
         noopMappingUpdateRetryForMappingVersion = -1;
@@ -328,6 +353,9 @@ class BulkPrimaryExecutionContext {
         // If the primary is not searchable we know that we are in serverless and that we do not need to hold the request into memory
         // anymore.
         if (primary.routingEntry().isSearchable() == false) {
+            if (requestToExecute != null) {
+                pressureExpansionTracker.removeExpandedBytes(expansionDeltaBytes(getCurrent(), requestToExecute));
+            }
             requestToExecute = null;
         }
 

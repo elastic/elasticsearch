@@ -24,3 +24,6 @@ serverless: preview
 
 :::{include} ../examples/st_buffer.md
 :::
+
+:::{include} ../diagrams/st_buffer.md
+:::

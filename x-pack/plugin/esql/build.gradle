@@ -520,6 +520,67 @@ tasks.named("test").configure {
 
 }
 
+/**
+ * Discovers all non-abstract subclasses of {@code GoldenTestCase} reachable from the test
+ * source set's compiled output. Uses reflection over an isolated {@link URLClassLoader}; classes
+ * are loaded with {@code initialize=false} so static initializers do not run.
+ */
+def findGoldenTestClasses = { FileCollection runtimeClasspath, FileCollection classesDirs ->
+  def names = []
+  classesDirs.each { File dir ->
+    if (dir.exists() == false) {
+      return
+    }
+    fileTree(dir).matching { include "**/*.class" }.each { File f ->
+      def rel = dir.toPath().relativize(f.toPath()).toString()
+      def name = rel.replace(File.separatorChar, '.' as char).replaceAll(/\.class$/, '')
+      if (name.endsWith('package-info') || name.endsWith('module-info') || name.contains('$')) {
+        return
+      }
+      names << name
+    }
+  }
+
+  def urls = runtimeClasspath.files.collect { it.toURI().toURL() } as URL[]
+  def cl = new URLClassLoader(urls, ClassLoader.systemClassLoader)
+  try {
+    def base = cl.loadClass("org.elasticsearch.xpack.esql.optimizer.GoldenTestCase")
+    return names.findAll { String n ->
+      try {
+        def c = Class.forName(n, false, cl)
+        return base.isAssignableFrom(c) && java.lang.reflect.Modifier.isAbstract(c.modifiers) == false
+      } catch (Throwable ignored) {
+        return false
+      }
+    }.sort()
+  } finally {
+    cl.close()
+  }
+}
+
+tasks.register("goldenTestingConventions") {
+  description = "Verifies all GoldenTestCase subclasses are suffixed with 'GoldenTests'."
+  group = "verification"
+  dependsOn tasks.named("compileTestJava")
+  def runtimeClasspath = sourceSets.test.runtimeClasspath
+  def classesDirs = sourceSets.test.output.classesDirs
+  doLast {
+    def violators = findGoldenTestClasses(runtimeClasspath, classesDirs).findAll {
+      it.endsWith("GoldenTests") == false
+    }
+    if (violators.isEmpty() == false) {
+      throw new GradleException(
+        "Subclasses of GoldenTestCase must be suffixed with 'GoldenTests':\n\t"
+          + violators.join("\n\t")
+      )
+    }
+  }
+}
+
+tasks.named("precommit").configure {
+  dependsOn tasks.named("goldenTestingConventions")
+}
+
 tasks.register("analyzePromqlQueries", JavaExec) {
   mainClass = 'org.elasticsearch.xpack.esql.optimizer.promql.PromqlCoverageAnalyzer'
   classpath = sourceSets.test.runtimeClasspath

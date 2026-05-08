@@ -55,7 +55,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
 
     public void testInferenceStringListConstructor() {
         InferenceString inferenceString1 = new InferenceString(DataType.IMAGE, DataFormat.BASE64, TEST_DATA_URI);
-        InferenceString inferenceString2 = new InferenceString(TEXT, DataFormat.TEXT, "a string");
+        InferenceString inferenceString2 = new InferenceString(TEXT, "a string");
         var input = new InferenceStringGroup(List.of(inferenceString1, inferenceString2));
         assertThat(input.inferenceStrings(), contains(inferenceString1, inferenceString2));
         assertThat(input.containsNonTextEntry(), is(true));

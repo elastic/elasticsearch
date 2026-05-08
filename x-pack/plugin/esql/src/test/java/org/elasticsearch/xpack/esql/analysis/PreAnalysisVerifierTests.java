@@ -83,21 +83,21 @@ public class PreAnalysisVerifierTests extends AbstractStatementParserTests {
     public void testInSubqueryAsValueUnderAndRejected() {
         expectVerifierError(
             "from test | where emp_no > 0 and MV_CONTAINS(x IN (from test), [true, false])",
-            containsString("IN subquery is not supported as value")
+            containsString("IN subquery is not supported in Filter [where emp_no > 0 and MV_CONTAINS(x IN (from test), [true, false])]")
         );
     }
 
     public void testInSubqueryAsValueUnderOrRejected() {
         expectVerifierError(
             "from test | where MV_CONTAINS(x IN (from test), [true, false]) or emp_no > 0",
-            containsString("IN subquery is not supported as value")
+            containsString("IN subquery is not supported in Filter [where MV_CONTAINS(x IN (from test), [true, false]) or emp_no > 0]")
         );
     }
 
     public void testInSubqueryAsValueUnderNotRejected() {
         expectVerifierError(
             "from test | where not MV_CONTAINS(x IN (from test), [true, false])",
-            containsString("IN subquery is not supported as value")
+            containsString("IN subquery is not supported in Filter [where not MV_CONTAINS(x IN (from test), [true, false])]")
         );
     }
 

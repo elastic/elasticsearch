@@ -147,6 +147,22 @@ public abstract class DocumentParserContext {
     }
 
     /**
+     * Tracks the cumulative number of object elements encountered inside arrays while parsing the
+     * current document. The same mutable instance is shared across every {@link DocumentParserContext}
+     * spawned from the root context (child, nested, copy-to, switched parser, etc.) so the count
+     * reflects every nested or sibling array in the same document. This is what
+     * {@link MapperService#INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING} bounds; tracking per array
+     * invocation would let a caller bypass the limit by chunking a payload across many arrays.
+     */
+    private static final class ObjectArrayElementCounter {
+        private long count = 0;
+
+        long incrementAndGet() {
+            return ++count;
+        }
+    }
+
+    /**
      * Defines the scope parser is currently in.
      * This is used for synthetic source related logic during parsing.
      */
@@ -179,6 +195,8 @@ public abstract class DocumentParserContext {
 
     private FieldArrayContext fieldArrayContext;
 
+    private final ObjectArrayElementCounter objectArrayElementCounter;
+
     /**
      * Fields that are copied from values of other fields via copy_to.
      * This per-document state is needed since it is possible
@@ -210,6 +228,7 @@ public abstract class DocumentParserContext {
         Set<String> fieldsAppliedFromTemplates,
         Set<String> copyToFields,
         DynamicMapperSize dynamicMapperSize,
+        ObjectArrayElementCounter objectArrayElementCounter,
         boolean recordedSource
     ) {
         this.mappingLookup = mappingLookup;
@@ -231,6 +250,7 @@ public abstract class DocumentParserContext {
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
+        this.objectArrayElementCounter = objectArrayElementCounter;
         this.recordedSource = recordedSource;
     }
 
@@ -255,6 +275,7 @@ public abstract class DocumentParserContext {
             in.fieldsAppliedFromTemplates,
             in.copyToFields,
             in.dynamicMappersSize,
+            in.objectArrayElementCounter,
             in.recordedSource
         );
     }
@@ -286,6 +307,7 @@ public abstract class DocumentParserContext {
             new HashSet<>(),
             new HashSet<>(mappingLookup.fieldTypesLookup().getCopyToDestinationFields()),
             new DynamicMapperSize(),
+            new ObjectArrayElementCounter(),
             false
         );
     }
@@ -396,6 +418,26 @@ public abstract class DocumentParserContext {
         BytesRef encoded = XContentDataHelper.encodeToken(parser());
         path().setWithinLeafObject(old);
         return encoded;
+    }
+
+    /**
+     * Counts the next object element parsed inside an array against {@link MapperService#INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING}
+     * and throws if the per-document cumulative limit has been exceeded. The counter is shared across every sub-context spawned
+     * for the document (nested objects, sibling arrays, copy-to, switched parsers), so chunking a payload across many arrays
+     * cannot bypass the limit.
+     */
+    public final void checkObjectArrayElementLimit() {
+        long limit = indexSettings().getMappingArrayObjectsLimit();
+        if (objectArrayElementCounter.incrementAndGet() > limit) {
+            throw new DocumentParsingException(
+                parser().getTokenLocation(),
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of ["
+                    + limit
+                    + "]. This limit can be set by changing the ["
+                    + MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey()
+                    + "] index level setting."
+            );
+        }
     }
 
     /**

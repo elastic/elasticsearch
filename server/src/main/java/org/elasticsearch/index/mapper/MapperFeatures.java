@@ -83,6 +83,7 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX = new NodeFeature(
         "mapper.dense_vector.dynamic_template_nested_object_fix"
     );
+    static final NodeFeature ARRAY_OBJECTS_LIMIT = new NodeFeature("mapper.array_objects_limit");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -141,7 +142,8 @@ public class MapperFeatures implements FeatureSpecification {
             DENSE_VECTOR_DYNAMIC_TEMPLATE_DOTTED_FIELD_FIX,
             DOC_VALUES_MULTI_VALUE,
             DENSE_VECTOR_DYNAMIC_TEMPLATE_NESTED_OBJECT_FIX,
-            FLATTENED_MAPPED_SUBFIELDS_FEATURE
+            FLATTENED_MAPPED_SUBFIELDS_FEATURE,
+            ARRAY_OBJECTS_LIMIT
         );
     }
 }

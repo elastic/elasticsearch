@@ -139,19 +139,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.Dynamic,
         Property.IndexScope
     );
-    /**
-     * Maximum allowed number of object elements in a single array field within a document.
-     * This safeguard prevents ingestion of "poison documents" containing arrays with an
-     * extremely large number of objects, which can cause excessive memory consumption during
-     * parsing and dynamic mapping materialization. The default of 20,000 is deliberately
-     * higher than {@link #INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING} (10,000) because plain
-     * object arrays are cheaper per element than nested documents, while still low enough to
-     * prevent the OOM scenarios observed with unbounded arrays.
-     */
+
     public static final Setting<Long> INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.array_objects.limit",
         20000L,
-        0,
+        1,
         Property.Dynamic,
         Property.IndexScope
     );

@@ -784,23 +784,10 @@ public final class DocumentParser {
         XContentParser parser = context.parser();
         XContentParser.Token token;
         XContentParser.Token previousToken = parser.currentToken();
-        int elements = 0;
-        long objectCount = 0;
-        long arrayObjectsLimit = context.indexSettings().getMappingArrayObjectsLimit();
         int valueElements = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
-                elements = 2;
-                if (++objectCount > arrayObjectsLimit) {
-                    throw new DocumentParsingException(
-                        parser.getTokenLocation(),
-                        "The number of objects in an array has exceeded the allowed limit of ["
-                            + arrayObjectsLimit
-                            + "]. This limit can be set by changing the ["
-                            + MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey()
-                            + "] index level setting."
-                    );
-                }
+                context.checkObjectArrayElementLimit();
                 parseObject(context, lastFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
                 parseArray(context, lastFieldName);

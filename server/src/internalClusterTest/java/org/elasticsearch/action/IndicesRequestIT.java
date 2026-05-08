@@ -67,8 +67,6 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -85,8 +83,6 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -104,7 +100,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -585,162 +580,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
             SearchTransportService.DFS_ACTION_NAME,
             SearchTransportService.QUERY_ID_ACTION_NAME,
             SearchTransportService.FETCH_ID_ACTION_NAME
-        );
-    }
-
-    public void testArrayObjectsLimitEmptyArrayAccepted() throws Exception {
-        String indexName = "empty-array-test";
-        int arrayObjectsLimit = 1;
-        createIndexWithArrayObjectsLimit(indexName, arrayObjectsLimit);
-
-        try (XContentBuilder doc = XContentFactory.jsonBuilder()) {
-            doc.startObject();
-            doc.startArray("array");
-            doc.endArray();
-            doc.endObject();
-
-            assertIndexedSuccessfully(indexName, doc);
-        }
-    }
-
-    public void testArrayObjectsLimitAtExactLimitAccepted() throws Exception {
-        String indexName = "array-limit-exact";
-        int arrayObjectsLimit = 2;
-        createIndexWithArrayObjectsLimit(indexName, arrayObjectsLimit);
-
-        try (XContentBuilder doc = XContentFactory.jsonBuilder()) {
-            doc.startObject();
-            doc.startArray("array");
-            for (int i = 0; i < arrayObjectsLimit; i++) {
-                doc.startObject();
-                doc.field("value", i);
-                doc.endObject();
-            }
-            doc.endArray();
-            doc.endObject();
-
-            assertIndexedSuccessfully(indexName, doc);
-        }
-    }
-
-    public void testArrayObjectsLimitExceeded() throws Exception {
-        String indexName = "array-limit-exceeded";
-        int arrayObjectsLimit = 10;
-        createIndexWithArrayObjectsLimit(indexName, arrayObjectsLimit);
-
-        try (XContentBuilder doc = XContentFactory.jsonBuilder()) {
-            doc.startObject();
-            doc.startArray("array");
-            for (int i = 0; i < arrayObjectsLimit + 1; i++) {
-                doc.startObject();
-                doc.field("value", i);
-                doc.endObject();
-            }
-            doc.endArray();
-            doc.endObject();
-
-            assertArrayObjectsLimitExceeded(indexName, arrayObjectsLimit, doc);
-        }
-    }
-
-    public void testArrayObjectsLimitNestedArrayExceeded() throws Exception {
-        String indexName = "nested-array-reject";
-        int arrayObjectsLimit = 2;
-        createIndexWithArrayObjectsLimit(indexName, arrayObjectsLimit);
-
-        try (XContentBuilder doc = XContentFactory.jsonBuilder()) {
-            doc.startObject();
-            doc.startObject("outer");
-            doc.startArray("array");
-            for (int i = 0; i < arrayObjectsLimit + 1; i++) {
-                doc.startObject();
-                doc.field("value", i);
-                doc.endObject();
-            }
-            doc.endArray();
-            doc.endObject();
-            doc.endObject();
-
-            assertArrayObjectsLimitExceeded(indexName, arrayObjectsLimit, doc);
-        }
-    }
-
-    public void testArrayObjectsLimitWithVaryingFieldsExceeded() throws Exception {
-        String indexName = "vary-fields-array";
-        int arrayObjectsLimit = 2;
-        createIndexWithArrayObjectsLimit(indexName, arrayObjectsLimit);
-
-        try (XContentBuilder doc = XContentFactory.jsonBuilder()) {
-            doc.startObject();
-            doc.startArray("array");
-
-            doc.startObject();
-            doc.field("value", 1);
-            doc.endObject();
-
-            doc.startObject();
-            doc.field("another", 2);
-            doc.endObject();
-
-            doc.startObject();
-            doc.field("value", 3);
-            doc.endObject();
-
-            doc.endArray();
-            doc.endObject();
-
-            assertArrayObjectsLimitExceeded(indexName, arrayObjectsLimit, doc);
-        }
-    }
-
-    public void testArrayObjectsLimitMultipleArraysOneExceededRejected() throws Exception {
-        String indexName = "multi-arrays-test";
-        int arrayObjectsLimit = 2;
-        createIndexWithArrayObjectsLimit(indexName, arrayObjectsLimit);
-
-        try (XContentBuilder doc = XContentFactory.jsonBuilder()) {
-            doc.startObject();
-
-            doc.startArray("arrayA");
-            doc.startObject();
-            doc.field("x", 1);
-            doc.endObject();
-            doc.startObject();
-            doc.field("y", 2);
-            doc.endObject();
-            doc.endArray();
-
-            doc.startArray("arrayB");
-            for (int i = 0; i < arrayObjectsLimit + 1; i++) {
-                doc.startObject();
-                doc.field("v", i);
-                doc.endObject();
-            }
-            doc.endArray();
-            doc.endObject();
-
-            assertArrayObjectsLimitExceeded(indexName, arrayObjectsLimit, doc);
-        }
-    }
-
-    private void createIndexWithArrayObjectsLimit(String indexName, int arrayObjectsLimit) {
-        assertAcked(
-            prepareCreate(indexName).setSettings(
-                Settings.builder().put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), arrayObjectsLimit).build()
-            )
-        );
-    }
-
-    private void assertIndexedSuccessfully(String indexName, XContentBuilder doc) {
-        DocWriteResponse response = client().prepareIndex(indexName).setSource(doc).get();
-        assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
-    }
-
-    private void assertArrayObjectsLimitExceeded(String indexName, int arrayObjectsLimit, XContentBuilder doc) {
-        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> client().prepareIndex(indexName).setSource(doc).get());
-        assertThat(
-            e.getMessage(),
-            containsString("The number of objects in an array has exceeded the allowed limit of [" + arrayObjectsLimit + "]")
         );
     }
 

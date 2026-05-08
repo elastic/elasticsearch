@@ -186,7 +186,7 @@ class FieldCapabilitiesFetcher {
                     ft.familyTypeName(),
                     context.isMetadataField(field),
                     ft.isSearchable(),
-                    ft.isAggregatable(),
+                    ft.isAggregatable(context.idFieldDataEnabled()),
                     isTimeSeriesIndex ? ft.isDimension() : false,
                     isTimeSeriesIndex ? ft.getMetricType() : null,
                     ft.meta()

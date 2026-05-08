@@ -119,21 +119,13 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         ParsedDocument document = mapper.parse(source(id, b -> {}, null));
 
         List<IndexableField> idFields = document.rootDoc().getFields(IdFieldMapper.NAME);
-        assertEquals(2, idFields.size());
-
-        IndexableField invertedIndexField = idFields.stream()
-            .filter(f -> f.fieldType().docValuesType() == DocValuesType.NONE)
-            .findFirst()
-            .orElseThrow();
-        assertEquals(IndexOptions.DOCS, invertedIndexField.fieldType().indexOptions());
-        assertFalse("_id should not be stored in columnar mode", invertedIndexField.fieldType().stored());
-
-        IndexableField docValuesField = idFields.stream()
-            .filter(f -> f.fieldType().docValuesType() == DocValuesType.BINARY)
-            .findFirst()
-            .orElseThrow();
-        assertThat(docValuesField, instanceOf(BinaryDocValuesField.class));
-        assertEquals(Uid.encodeId(id), docValuesField.binaryValue());
+        assertEquals(1, idFields.size());
+        IndexableField idField = idFields.get(0);
+        assertEquals(IndexOptions.DOCS, idField.fieldType().indexOptions());
+        assertEquals(DocValuesType.BINARY, idField.fieldType().docValuesType());
+        assertFalse("_id should not be stored in columnar mode", idField.fieldType().stored());
+        assertThat(idField, instanceOf(ProvidedIdFieldMapper.ColumnarIdField.class));
+        assertEquals(Uid.encodeId(id), idField.binaryValue());
     }
 
     public void testColumnarModeMappingSerialization() throws IOException {

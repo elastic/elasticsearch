@@ -125,9 +125,7 @@ public class ParsedDocument {
             document.add(field);
 
         } else if (useColumnarId) {
-            BytesRef encoded = Uid.encodeId(id);
-            document.add(IdFieldMapper.standardIdField(encoded, Field.Store.NO));
-            document.add(new BinaryDocValuesField(IdFieldMapper.NAME, encoded));
+            document.add(ProvidedIdFieldMapper.columnarIdField(id));
         } else {
             // Use standard _id field (indexed and stored, some indices also trim the stored field at some point)
             document.add(IdFieldMapper.standardIdField(id));

@@ -16,6 +16,7 @@ import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -314,8 +315,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
         context.id(context.sourceToParse().id());
         if (mode == IdFieldMapper.Mode.COLUMNAR) {
-            BytesRef encoded = Uid.encodeId(context.id());
-            context.doc().add(new ColumnarIdField(NAME, encoded));
+            context.doc().add(columnarIdField(context.id()));
         } else {
             context.doc().add(standardIdField(context.id()));
         }
@@ -347,6 +347,11 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     @Override
     public String reindexId(String id) {
         return id;
+    }
+
+    public static IndexableField columnarIdField(String id) {
+        BytesRef encoded = Uid.encodeId(id);
+        return new ColumnarIdField(NAME, encoded);
     }
 
     static final class ColumnarIdField extends Field {

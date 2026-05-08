@@ -53,6 +53,7 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
     public static final String TYPE = "primary_encryption_key";
 
     public static final TransportVersion PRIMARY_ENCRYPTION_KEY_VERSION = TransportVersion.fromName("primary_encryption_key");
+    public static final TransportVersion PRIMARY_ENCRYPTION_KEY_ROTATION = TransportVersion.fromName("primary_encryption_key_rotation");
 
     /**
      * Lifecycle state of the keys held in this metadata.
@@ -104,8 +105,8 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
         this(
             in.readImmutableMap(StreamInput::readString, StreamInput::readByteArray),
             in.readString(),
-            in.readVLong(),
-            in.readEnum(RotationState.class)
+            in.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_ROTATION) ? in.readVLong() : 0L,
+            in.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_ROTATION) ? in.readEnum(RotationState.class) : RotationState.STABLE
         );
     }
 
@@ -188,8 +189,10 @@ public class PrimaryEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(keys, StreamOutput::writeString, StreamOutput::writeByteArray);
         out.writeString(activeKeyId);
-        out.writeVLong(lastRotatedMillis);
-        out.writeEnum(rotationState);
+        if (out.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_ROTATION)) {
+            out.writeVLong(lastRotatedMillis);
+            out.writeEnum(rotationState);
+        }
     }
 
     public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {

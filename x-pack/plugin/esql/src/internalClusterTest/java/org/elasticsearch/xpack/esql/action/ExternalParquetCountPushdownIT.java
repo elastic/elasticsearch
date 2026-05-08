@@ -17,6 +17,7 @@ import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
@@ -150,14 +151,16 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
         int totalRows = 500;
         Path parquetFile = writeParquetFile(totalRows, 80);
         try {
-            // {@code external_distribution} is a query-pragma, not a per-query configuration option;
-            // there is no bridge from the EXTERNAL command's option map to {@link QueryPragmas} today.
-            // The test exercises the default adaptive strategy, which picks coordinator-only for a
-            // count-only query against a single Parquet file (no Async* operators in the resulting plan).
             String query = "EXTERNAL \"" + StoragePath.fileUri(parquetFile) + "\" | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);
             request.profile(true);
+            // Force the coordinator-only distribution strategy via the dedicated query pragma
+            // (the EXTERNAL command's WITH-clause does not bridge into pragmas).
+            request.pragmas(
+                new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "coordinator_only").build())
+            );
+            request.acceptedPragmaRisks(true);
 
             try (var response = run(request)) {
                 List<List<Object>> rows = getValuesList(response);

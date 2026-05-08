@@ -124,30 +124,11 @@ Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node 
 
 ## Debugging Missing Tests
 
-When expected test methods are absent from results (not failed, not skipped — simply not present in the XML or binary event stream), follow this order **before** reading test-runner source code:
-
-1. **Check `muted-tests.yml` first.** The build translates every entry into a Gradle `TestFilter.excludePattern`, which silently drops matching tests before the randomized runner receives them. A muted test fires no `testStarted` event and leaves no trace in `results-generic.bin`.
+When expected test methods are absent from results (not failed, not skipped — simply not present in the XML or binary event stream), check `muted-tests.yml` first. The build translates every entry into a Gradle `TestFilter.excludePattern`, which silently drops matching tests before the randomized runner receives them. A muted test fires no `testStarted` event and leaves no trace in `results-generic.bin`.
    ```bash
    grep 'ClassName\|methodName' muted-tests.yml
    ```
-
-2. **Print Gradle's `TestFilter` at execution time.** If `muted-tests.yml` is clean, inspect what Gradle's filter actually contains when the task runs — it may have been mutated by a plugin (e.g. `InternalTestRerunPlugin`):
-   ```groovy
-   // drop this in a --init-script file
-   afterProject { proj ->
-     proj.tasks.withType(Test).configureEach { t ->
-       t.doFirst {
-         println "includePatterns : ${t.filter.includePatterns}"
-         println "excludePatterns : ${t.filter.excludePatterns}"
-       }
-     }
-   }
-   ```
-
-3. **Only then** investigate the randomized runner (carrotsearch `RandomizedRunner`) or Lucene test-framework internals.
-
-The invariant: **Gradle-level filters are applied before the test runner sees any candidates.** `muted-tests.yml` → `TestFilter.excludePatterns` is the most common source of silently absent tests in this repository.
-
+   
 ## Best Practices for Automation Agents
 - Never edit unrelated files; keep diffs tightly scoped to the task at hand.
 - Prefer Gradle tasks over ad-hoc scripts.

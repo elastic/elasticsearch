@@ -239,7 +239,6 @@ null                   | 523.18        | 11.0          | 998.0         | 667    
 tdigestAggsWithoutTBucket
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v5
-required_capability: casting_operator_for_histogram_types
 
 TS metric_temporality
  | STATS cnt = COUNT(bytes_per_request::tdigest), med = MEDIAN(bytes_per_request::tdigest), avg = AVG(bytes_per_request::tdigest), mn = MIN(bytes_per_request::tdigest), mx = MAX(bytes_per_request::tdigest) BY cluster
@@ -248,10 +247,10 @@ TS metric_temporality
  | SORT cluster
 ;
 
-cluster:keyword | cnt:long | med:double | avg:double | mn:double | mx:double
-prod-cumulative | 10354    | 567.0      | 516.11     | 11.0      | 998.0
-prod-delta      | 667      | 553.0      | 523.18     | 11.0      | 998.0
-prod-null       | 667      | 553.0      | 523.18     | 11.0      | 998.0
+cluster:keyword | cnt:long | med:double    | avg:double | mn:double | mx:double
+prod-cumulative | 10354    | 517.0..617.0  | 516.11     | 11.0      | 998.0
+prod-delta      | 667      | 503.0..603.0  | 523.18     | 11.0      | 998.0
+prod-null       | 667      | 503.0..603.0  | 523.18     | 11.0      | 998.0
 ;
 
 // ---------------------------------------------------------------------------------
@@ -260,7 +259,6 @@ prod-null       | 667      | 553.0      | 523.18     | 11.0      | 998.0
 tdigestAggsGroupedByTemporality
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v5
-required_capability: casting_operator_for_histogram_types
 
 TS metric_temporality
  | STATS cnt = COUNT(bytes_per_request::tdigest), med = MEDIAN(bytes_per_request::tdigest), avg = AVG(bytes_per_request::tdigest), mn = MIN(bytes_per_request::tdigest), mx = MAX(bytes_per_request::tdigest) BY my_temporality
@@ -269,10 +267,10 @@ TS metric_temporality
  | SORT my_temporality
 ;
 
-my_temporality:keyword | cnt:long | med:double | avg:double | mn:double | mx:double
-cumulative             | 10354    | 567.0      | 516.11     | 11.0      | 998.0
-delta                  | 667      | 553.0      | 523.18     | 11.0      | 998.0
-null                   | 667      | 553.0      | 523.18     | 11.0      | 998.0
+my_temporality:keyword | cnt:long | med:double    | avg:double | mn:double | mx:double
+cumulative             | 10354    | 517.0..617.0  | 516.11     | 11.0      | 998.0
+delta                  | 667      | 503.0..603.0  | 523.18     | 11.0      | 998.0
+null                   | 667      | 503.0..603.0  | 523.18     | 11.0      | 998.0
 ;
 
 // ---------------------------------------------------------------------------------
@@ -281,7 +279,6 @@ null                   | 667      | 553.0      | 523.18     | 11.0      | 998.0
 tdigestAggsByTBucket
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v5
-required_capability: casting_operator_for_histogram_types
 
 TS metric_temporality
  | STATS cnt = COUNT(bytes_per_request::tdigest), med = MEDIAN(bytes_per_request::tdigest), avg = AVG(bytes_per_request::tdigest), mn = MIN(bytes_per_request::tdigest), mx = MAX(bytes_per_request::tdigest) BY cluster, bucket = TBUCKET(300s)
@@ -290,19 +287,19 @@ TS metric_temporality
  | SORT bucket, cluster
 ;
 
-bucket:datetime          | cluster:keyword | cnt:long | med:double | avg:double | mn:double | mx:double
-2024-05-10T00:00:00.000Z | prod-cumulative | 1283     | 482.0      | 507.93     | 11.0      | 998.0
-2024-05-10T00:00:00.000Z | prod-delta      | 228      | 477.0      | 502.75     | 11.0      | 998.0
-2024-05-10T00:00:00.000Z | prod-null       | 228      | 477.0      | 502.75     | 11.0      | 998.0
-2024-05-10T00:05:00.000Z | prod-cumulative | 4943     | 528.0      | 506.84     | 11.0      | 998.0
-2024-05-10T00:05:00.000Z | prod-delta      | 195      | 564.0      | 506.65     | 11.0      | 994.0
-2024-05-10T00:05:00.000Z | prod-null       | 195      | 564.0      | 506.65     | 11.0      | 994.0
-2024-05-10T00:10:00.000Z | prod-cumulative | 3959     | 595.0      | 528.81     | 11.0      | 998.0
-2024-05-10T00:10:00.000Z | prod-delta      | 226      | 583.0      | 558.87     | 28.0      | 998.0
-2024-05-10T00:10:00.000Z | prod-null       | 226      | 583.0      | 558.87     | 28.0      | 998.0
-2024-05-10T00:15:00.000Z | prod-cumulative | 169      | 596.0      | 552.09     | 27.0      | 997.0
-2024-05-10T00:15:00.000Z | prod-delta      | 18       | 596.0      | 513.06     | 27.0      | 995.0
-2024-05-10T00:15:00.000Z | prod-null       | 18       | 596.0      | 513.06     | 27.0      | 995.0
+bucket:datetime          | cluster:keyword | cnt:long | med:double    | avg:double | mn:double | mx:double
+2024-05-10T00:00:00.000Z | prod-cumulative | 1283     | 432.0..532.0  | 507.93     | 11.0      | 998.0
+2024-05-10T00:00:00.000Z | prod-delta      | 228      | 427.0..527.0  | 502.75     | 11.0      | 998.0
+2024-05-10T00:00:00.000Z | prod-null       | 228      | 427.0..527.0  | 502.75     | 11.0      | 998.0
+2024-05-10T00:05:00.000Z | prod-cumulative | 4943     | 478.0..578.0  | 506.84     | 11.0      | 998.0
+2024-05-10T00:05:00.000Z | prod-delta      | 195      | 514.0..614.0  | 506.65     | 11.0      | 994.0
+2024-05-10T00:05:00.000Z | prod-null       | 195      | 514.0..614.0  | 506.65     | 11.0      | 994.0
+2024-05-10T00:10:00.000Z | prod-cumulative | 3959     | 545.0..645.0  | 528.81     | 11.0      | 998.0
+2024-05-10T00:10:00.000Z | prod-delta      | 226      | 533.0..633.0  | 558.87     | 28.0      | 998.0
+2024-05-10T00:10:00.000Z | prod-null       | 226      | 533.0..633.0  | 558.87     | 28.0      | 998.0
+2024-05-10T00:15:00.000Z | prod-cumulative | 169      | 546.0..646.0  | 552.09     | 27.0      | 997.0
+2024-05-10T00:15:00.000Z | prod-delta      | 18       | 546.0..646.0  | 513.06     | 27.0      | 995.0
+2024-05-10T00:15:00.000Z | prod-null       | 18       | 546.0..646.0  | 513.06     | 27.0      | 995.0
 ;
 
 // ---------------------------------------------------------------------------------
@@ -311,7 +308,6 @@ bucket:datetime          | cluster:keyword | cnt:long | med:double | avg:double 
 tdigestOverTimeAggsByTemporality
 required_capability: ts_command_v0
 required_capability: tsdb_temporality_support_v5
-required_capability: casting_operator_for_histogram_types
 
 TS metric_temporality
  | STATS avg_ot = SUM(avg_over_time(bytes_per_request::tdigest)),
@@ -327,8 +323,8 @@ TS metric_temporality
  | SORT my_temporality
 ;
 
-my_temporality:keyword | avg_ot:double | min_ot:double | max_ot:double | cnt_ot:long | sum_ot:double | p50_ot:double | p95_ot:double
-cumulative             | 516.11        | 11.0          | 998.0         | 10354       | 5343818.0     | 567.0         | 874.0
-delta                  | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 553.0         | 943.0
-null                   | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 553.0         | 943.0
+my_temporality:keyword | avg_ot:double | min_ot:double | max_ot:double | cnt_ot:long | sum_ot:double | p50_ot:double   | p95_ot:double
+cumulative             | 516.11        | 11.0          | 998.0         | 10354       | 5343818.0     | 517.0..617.0    | 824.0..924.0
+delta                  | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 503.0..603.0    | 893.0..993.0
+null                   | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 503.0..603.0    | 893.0..993.0
 ;

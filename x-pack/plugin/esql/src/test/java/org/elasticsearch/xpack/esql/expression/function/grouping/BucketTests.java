@@ -251,8 +251,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
                         DataType.DATETIME,
                         resultsMatcher(args)
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
-                        .withExtra(META_DAY_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
                 }));
                 // same as above, but a low bucket count and datetime bounds that match it (at hour span)
                 suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATETIME, DataType.INTEGER, fromType, toType), () -> {
@@ -266,8 +265,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         "DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
                         DataType.DATETIME,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
-                        .withExtra(META_HOUR_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
                 }));
             }
         }
@@ -290,8 +288,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         Matchers.containsString("rounding=Rounding[WEEK_OF_WEEKYEAR in Z][fixed to midnight]"),
                         DataType.DATETIME,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR).build().prepareForUnknown().round(date))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
-                        .withExtra(META_WEEK_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_WEEK_1);
                 }
             )
         );
@@ -312,97 +309,83 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         Matchers.containsString("rounding=Rounding[MONTH_OF_YEAR in Z][fixed to midnight]"),
                         DataType.DATETIME,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.MONTH_OF_YEAR).build().prepareForUnknown().round(date))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
-                        .withExtra(META_MONTH_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_MONTH_1);
                 }
             )
         );
     }
 
     private static void dateTruncCases(List<TestCaseSupplier> suppliers) {
+        // To keep the parameter set small enough to avoid OOM during candidate collection, register only one of the
+        // (millis, nanos) variants per upstream truncation case. We can't call randomBoolean() here (parameters() runs
+        // before the per-class random context is set), so we deterministically split using the data's hashCode — different
+        // periods/durations land on different sides, so both DATETIME and DATE_NANOS branches are exercised across the
+        // suite without doubling the candidate count.
         makeTruncPeriodTestCases().stream().map(data -> {
-            List<TestCaseSupplier> caseSuppliers = new ArrayList<>();
-
-            caseSuppliers.add(
-                new TestCaseSupplier(
-                    data.testCaseNameForMillis(),
-                    List.of(DataType.DATETIME, DataType.DATE_PERIOD),
+            if (data.canBeConvertedToNanos() && (data.hashCode() & 1) == 0) {
+                return new TestCaseSupplier(
+                    data.testCaseNameForNanos(),
+                    List.of(DataType.DATE_NANOS, DataType.DATE_PERIOD),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
-                            new TestCaseSupplier.TypedData(data.inputDateAsMillis(), DataType.DATETIME, "field"),
+                            new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "field"),
                             new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral()
                         ),
-                        DATETIME_TRUNC_EVAL_PREFIX,
-                        DataType.DATETIME,
-                        matchesDateMillis(data.expectedDate())
+                        DATE_NANOS_TRUNC_EVAL_PREFIX,
+                        DataType.DATE_NANOS,
+                        matchesDateNanos(data.expectedDate())
                     ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
                         .withExtra(expectedDateMetadataForSpan(data.period()))
-                )
-            );
-
-            if (data.canBeConvertedToNanos()) {
-                caseSuppliers.add(
-                    new TestCaseSupplier(
-                        data.testCaseNameForNanos(),
-                        List.of(DataType.DATE_NANOS, DataType.DATE_PERIOD),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "field"),
-                                new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral()
-                            ),
-                            DATE_NANOS_TRUNC_EVAL_PREFIX,
-                            DataType.DATE_NANOS,
-                            matchesDateNanos(data.expectedDate())
-                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
-                            .withExtra(expectedDateMetadataForSpan(data.period()))
-                    )
                 );
             }
-
-            return caseSuppliers;
-        }).forEach(suppliers::addAll);
+            return new TestCaseSupplier(
+                data.testCaseNameForMillis(),
+                List.of(DataType.DATETIME, DataType.DATE_PERIOD),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(data.inputDateAsMillis(), DataType.DATETIME, "field"),
+                        new TestCaseSupplier.TypedData(data.period(), DataType.DATE_PERIOD, "interval").forceLiteral()
+                    ),
+                    DATETIME_TRUNC_EVAL_PREFIX,
+                    DataType.DATETIME,
+                    matchesDateMillis(data.expectedDate())
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                    .withExtra(expectedDateMetadataForSpan(data.period()))
+            );
+        }).forEach(suppliers::add);
 
         makeTruncDurationTestCases().stream().map(data -> {
-            List<TestCaseSupplier> caseSuppliers = new ArrayList<>();
-
-            caseSuppliers.add(
-                new TestCaseSupplier(
-                    data.testCaseNameForMillis(),
-                    List.of(DataType.DATETIME, DataType.TIME_DURATION),
+            if (data.canBeConvertedToNanos() && (data.hashCode() & 1) == 0) {
+                return new TestCaseSupplier(
+                    data.testCaseNameForNanos(),
+                    List.of(DataType.DATE_NANOS, DataType.TIME_DURATION),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
-                            new TestCaseSupplier.TypedData(data.inputDateAsMillis(), DataType.DATETIME, "field"),
+                            new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "field"),
                             new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral()
                         ),
-                        DATETIME_TRUNC_EVAL_PREFIX,
-                        DataType.DATETIME,
-                        matchesDateMillis(data.expectedDate())
+                        DATE_NANOS_TRUNC_EVAL_PREFIX,
+                        DataType.DATE_NANOS,
+                        matchesDateNanos(data.expectedDate())
                     ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
                         .withExtra(expectedDateMetadataForSpan(data.duration()))
-                )
-            );
-
-            if (data.canBeConvertedToNanos()) {
-                caseSuppliers.add(
-                    new TestCaseSupplier(
-                        data.testCaseNameForNanos(),
-                        List.of(DataType.DATE_NANOS, DataType.TIME_DURATION),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(data.inputDateAsNanos(), DataType.DATE_NANOS, "field"),
-                                new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral()
-                            ),
-                            DATE_NANOS_TRUNC_EVAL_PREFIX,
-                            DataType.DATE_NANOS,
-                            matchesDateNanos(data.expectedDate())
-                        ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
-                            .withExtra(expectedDateMetadataForSpan(data.duration()))
-                    )
                 );
             }
-
-            return caseSuppliers;
-        }).forEach(suppliers::addAll);
+            return new TestCaseSupplier(
+                data.testCaseNameForMillis(),
+                List.of(DataType.DATETIME, DataType.TIME_DURATION),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(data.inputDateAsMillis(), DataType.DATETIME, "field"),
+                        new TestCaseSupplier.TypedData(data.duration(), DataType.TIME_DURATION, "interval").forceLiteral()
+                    ),
+                    DATETIME_TRUNC_EVAL_PREFIX,
+                    DataType.DATETIME,
+                    matchesDateMillis(data.expectedDate())
+                ).withConfiguration(TEST_SOURCE, configurationForTimezone(data.zoneId()))
+                    .withExtra(expectedDateMetadataForSpan(data.duration()))
+            );
+        }).forEach(suppliers::add);
     }
 
     /**
@@ -541,8 +524,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                             + "rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
                         DataType.DATE_NANOS,
                         resultsMatcher(args)
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
-                        .withExtra(META_DAY_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_DAY_1);
                 }));
                 // same as above, but a low bucket count and datetime bounds that match it (at hour span)
                 suppliers.add(new TestCaseSupplier(name, List.of(DataType.DATE_NANOS, DataType.INTEGER, fromType, toType), () -> {
@@ -556,8 +538,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
                         "DateTruncDateNanosEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[3600000 in Z][fixed]]",
                         DataType.DATE_NANOS,
                         equalTo(Rounding.builder(Rounding.DateTimeUnit.HOUR_OF_DAY).build().prepareForUnknown().round(date.getAsLong()))
-                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
-                        .withExtra(META_HOUR_1);
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC)).withExtra(META_HOUR_1);
                 }));
             }
         }

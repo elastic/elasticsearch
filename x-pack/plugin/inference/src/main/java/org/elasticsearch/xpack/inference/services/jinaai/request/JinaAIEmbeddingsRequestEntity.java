@@ -77,9 +77,9 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, @N
     public static final String INPUT_FIELD = "input";
     public static final String INPUT_TEXT_FIELD = "text";
     public static final String MODEL_FIELD = "model";
-    private static final String SEARCH_DOCUMENT = "retrieval.passage";
-    private static final String SEARCH_QUERY = "retrieval.query";
-    private static final String CLUSTERING = "separation";
+    private static final String RETRIEVAL_PASSAGE = "retrieval.passage";
+    private static final String RETRIEVAL_QUERY = "retrieval.query";
+    private static final String SEPARATION = "separation";
     private static final String CLASSIFICATION = "classification";
     private static final String INPUT_CONTENT_FIELD = "content";
     private static final String INPUT_IMAGE_FIELD = "image";
@@ -180,10 +180,10 @@ public record JinaAIEmbeddingsRequestEntity(List<InferenceStringGroup> input, @N
     // default for testing
     static String convertInputType(InputType inputType) {
         return switch (inputType) {
-            case INGEST, INTERNAL_INGEST -> SEARCH_DOCUMENT;
-            case SEARCH, INTERNAL_SEARCH -> SEARCH_QUERY;
+            case INGEST, INTERNAL_INGEST -> RETRIEVAL_PASSAGE;
+            case SEARCH, INTERNAL_SEARCH -> RETRIEVAL_QUERY;
             case CLASSIFICATION -> CLASSIFICATION;
-            case CLUSTERING -> CLUSTERING;
+            case CLUSTERING -> SEPARATION;
             default -> {
                 assert false : invalidInputTypeMessage(inputType);
                 yield null;

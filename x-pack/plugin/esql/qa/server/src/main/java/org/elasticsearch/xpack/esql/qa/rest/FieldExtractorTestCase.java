@@ -1573,7 +1573,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     private void assumeDateRangeFieldTypeSupported() throws IOException {
-        var capsName = EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V4.name().toLowerCase(Locale.ROOT);
+        var capsName = EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V5.name().toLowerCase(Locale.ROOT);
         boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
         assumeTrue("date_range field type not supported in this version", requiredClusterCapability);
     }

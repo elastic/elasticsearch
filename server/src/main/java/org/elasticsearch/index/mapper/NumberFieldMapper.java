@@ -109,13 +109,13 @@ public class NumberFieldMapper extends FieldMapper {
     public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
         true,
         DocValuesParameter.Values.Cardinality.LOW,
-        DocValuesParameter.Values.MultiValue.SORTED
+        true
     );
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.sorted(
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.of(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParameters()
         );
@@ -1753,8 +1753,8 @@ public class NumberFieldMapper extends FieldMapper {
         /**
          * Maps the given {@code value} to one or more Lucene field values ands them to the given {@code document} under the given
          * {@code name}. Delegates to {@link #addFields(LuceneDocument, String, Number, IndexType, boolean, DocValuesFieldFactory)}
-         * with a {@link DocValuesParameter.Values.MultiValue#SORTED}-configured factory — kept so test callers and other non-mapper
-         * callers don't need to thread a {@code DocValuesFieldFactory} through when they only care about the default multi-valued behavior.
+         * with a multi-valued factory — kept so test callers and other non-mapper callers don't need to thread a
+         * {@code DocValuesFieldFactory} through when they only care about the default multi-valued behavior.
          */
         public final void addFields(LuceneDocument document, String name, Number value, IndexType indexType, boolean stored) {
             addFields(
@@ -1763,11 +1763,7 @@ public class NumberFieldMapper extends FieldMapper {
                 value,
                 indexType,
                 stored,
-                new DocValuesFieldFactory(
-                    DocValuesParameter.Values.MultiValue.SORTED,
-                    indexType.hasDocValuesSkipper(),
-                    IndexVersion.current()
-                )
+                new DocValuesFieldFactory(true, indexType.hasDocValuesSkipper(), IndexVersion.current())
             );
         }
 
@@ -2489,7 +2485,7 @@ public class NumberFieldMapper extends FieldMapper {
 
     @Override
     protected boolean isSingleValueEnforced() {
-        return allowMultipleValues == false || docValuesParameters.multiValue().isSingleValued();
+        return allowMultipleValues == false || docValuesParameters.multiValue() == false;
     }
 
     @Override

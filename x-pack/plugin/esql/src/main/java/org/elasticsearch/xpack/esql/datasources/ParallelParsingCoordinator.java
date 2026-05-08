@@ -96,6 +96,10 @@ public final class ParallelParsingCoordinator {
     }
 
     /**
+     * Convenience overload that forwards {@code splitIncludesFileLeader=true}. This assumes the
+     * storage object includes the file's leading bytes (header row). For non-leading macro-splits,
+     * use the nine-argument overload with explicit {@code splitIncludesFileLeader=false}.
+     *
      * @param splitStartsAtRecordBoundary when {@code true}, {@code storageObject} is a byte range that already begins
      *                                     on a record boundary (e.g. newline-aligned macro {@link FileSplit});
      *                                     single-threaded fallback reads must set {@link FormatReadContext#recordAligned()}.
@@ -110,14 +114,47 @@ public final class ParallelParsingCoordinator {
         ErrorPolicy errorPolicy,
         boolean splitStartsAtRecordBoundary
     ) throws IOException {
+        return parallelRead(
+            reader,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            splitStartsAtRecordBoundary,
+            true
+        );
+    }
+
+    /**
+     * @param splitStartsAtRecordBoundary when {@code true}, {@code storageObject} is a byte range that already begins
+     *                                     on a record boundary (e.g. newline-aligned macro {@link FileSplit});
+     *                                     single-threaded fallback reads must set {@link FormatReadContext#recordAligned()}.
+     * @param splitIncludesFileLeader     whether this split contains the file-leading bytes (and therefore file header for
+     *                                     header-bearing formats). For whole-file reads this is {@code true}; for
+     *                                     non-leading macro-splits this is {@code false}.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary,
+        boolean splitIncludesFileLeader
+    ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
 
         // COUNT(*) and similar: projectedColumns is empty while rows still need structural validation
-        // against the file width. Non-first parallel segments do not re-scan the header; bind the
-        // full on-disk schema before segment workers run (see CsvFormatReader#read firstSplit/recordAligned).
+        // against the file width. When this read includes the file-leading bytes (and therefore any
+        // header), bind the full on-disk schema before segment workers run. For non-leading macro
+        // splits, rebinding via metadata is unsafe because the split-local first row is data, not header.
         SegmentableFormatReader parallelReader = reader;
-        if (projectedColumns != null && projectedColumns.isEmpty()) {
+        if (projectedColumns != null && projectedColumns.isEmpty() && splitIncludesFileLeader) {
             var meta = parallelReader.metadata(storageObject);
             if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
                 parallelReader = (SegmentableFormatReader) parallelReader.withSchema(meta.schema());
@@ -129,6 +166,7 @@ public final class ParallelParsingCoordinator {
             .projectedColumns(projectedColumns)
             .batchSize(batchSize)
             .errorPolicy(effectivePolicy)
+            .firstSplit(splitIncludesFileLeader)
             .recordAligned(splitStartsAtRecordBoundary)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
@@ -141,7 +179,16 @@ public final class ParallelParsingCoordinator {
             return parallelReader.read(storageObject, baseCtx);
         }
 
-        return new OrderedParallelIterator(parallelReader, storageObject, projectedColumns, batchSize, segments, executor, effectivePolicy);
+        return new OrderedParallelIterator(
+            parallelReader,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            segments,
+            executor,
+            effectivePolicy,
+            splitIncludesFileLeader
+        );
     }
 
     /**
@@ -215,6 +262,7 @@ public final class ParallelParsingCoordinator {
         private final List<String> projectedColumns;
         private final int batchSize;
         private final ErrorPolicy errorPolicy;
+        private final boolean splitIncludesFileLeader;
 
         private final List<BlockingQueue<Page>> segmentQueues;
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
@@ -231,13 +279,15 @@ public final class ParallelParsingCoordinator {
             int batchSize,
             List<long[]> segments,
             Executor executor,
-            ErrorPolicy errorPolicy
+            ErrorPolicy errorPolicy,
+            boolean splitIncludesFileLeader
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
             this.projectedColumns = projectedColumns;
             this.batchSize = batchSize;
             this.errorPolicy = errorPolicy;
+            this.splitIncludesFileLeader = splitIncludesFileLeader;
             this.allDone = new CountDownLatch(segments.size());
 
             this.segmentQueues = new ArrayList<>(segments.size());
@@ -284,7 +334,7 @@ public final class ParallelParsingCoordinator {
                     .projectedColumns(projectedColumns)
                     .batchSize(batchSize)
                     .errorPolicy(errorPolicy)
-                    .firstSplit(segmentIndex == 0)
+                    .firstSplit(splitIncludesFileLeader && segmentIndex == 0)
                     .lastSplit(lastSplit)
                     .recordAligned(true)
                     .build();

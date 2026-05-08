@@ -18,7 +18,7 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 
-public abstract class AbstractBulkIndexByPaginatedSearchRequest<Self extends AbstractBulkIndexByScrollRequest<Self>> extends
+public abstract class AbstractBulkIndexByPaginatedSearchRequest<Self extends AbstractBulkIndexByPaginatedSearchRequest<Self>> extends
     AbstractBulkByPaginatedSearchRequest<Self> {
     /**
      * Script to modify the documents before they are processed.

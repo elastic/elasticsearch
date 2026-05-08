@@ -16,7 +16,9 @@ import org.elasticsearch.script.Script;
 
 public abstract class AbstractBulkIndexByPaginatedSearchRequestBuilder<
     Request extends AbstractBulkIndexByPaginatedSearchRequest<Request>,
-    Self extends AbstractBulkIndexByPaginatedSearchRequestBuilder<Request, Self>> extends AbstractBulkByPaginatedSearchRequestBuilder<Request, Self> {
+    Self extends AbstractBulkIndexByPaginatedSearchRequestBuilder<Request, Self>> extends AbstractBulkByPaginatedSearchRequestBuilder<
+        Request,
+        Self> {
     private Script script;
 
     protected AbstractBulkIndexByPaginatedSearchRequestBuilder(

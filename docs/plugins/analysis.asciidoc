@@ -53,6 +53,7 @@ A number of analysis plugins have been contributed by our community:
 * https://github.com/medcl/elasticsearch-analysis-pinyin[Pinyin Analysis Plugin] (by Medcl)
 * https://github.com/duydo/elasticsearch-analysis-vietnamese[Vietnamese Analysis Plugin] (by Duy Do)
 * https://github.com/medcl/elasticsearch-analysis-stconvert[STConvert Analysis Plugin] (by Medcl)
+* https://github.com/TocharianOU/elastic-uyghur-analyzer[Uyghur Analysis Plugin] (by TocharianOU)
 
 include::analysis-icu.asciidoc[]
 

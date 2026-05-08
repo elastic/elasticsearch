@@ -378,7 +378,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isForkTopNIndexOutOfBoundsBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isForkOptimizedIncorrectlyBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isRenameMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isLimitByMvExpandBug(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isLimitByMvExpandBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query), };
 
     private static boolean isAllowedFailure(FailureContext ctx) {
         if (ctx == null || ctx.errorMessage == null) {
@@ -909,6 +911,39 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return MV_EXPAND_COMMAND_PATTERN.matcher(query).find() && LIMIT_BY_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern INLINE_STATS_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*INLINE\\s+STATS\\b");
+    private static final Pattern DROP_RENAME_KEEP_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*(?:DROP|RENAME|KEEP)\\b");
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/148612
+     */
+    static boolean isInlineStatsMvExpandOrderByBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_ORDERBY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return INLINE_STATS_COMMAND_PATTERN.matcher(query).find()
+            && MV_EXPAND_COMMAND_PATTERN.matcher(query).find()
+            && DROP_RENAME_KEEP_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern CHANGE_POINT_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*CHANGE_POINT\\b");
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/148617
+     */
+    static boolean isChangePointLimitByBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_LIMITBY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return CHANGE_POINT_COMMAND_PATTERN.matcher(query).find();
     }
 
     @Override

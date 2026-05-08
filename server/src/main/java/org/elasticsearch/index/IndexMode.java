@@ -426,13 +426,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
-        }
-
-        @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
         }
 
         @Override
@@ -516,13 +511,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return new ProvidedIdFieldMapper(fieldDataEnabled);
-        }
-
-        @Override
-        public IdFieldMapper idFieldMapperWithoutFieldData() {
-            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+        public IdFieldMapper idFieldMapperForReindex() {
+            return ProvidedIdFieldMapper.INSTANCE;
         }
 
         @Override

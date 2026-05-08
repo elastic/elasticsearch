@@ -378,6 +378,93 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testBucketWrappedInArithmeticHasNoMetadata() {
+        client().prepareIndex("dates")
+            .setSource("date", "1985-07-09T00:00:00.000Z")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM dates
+            | STATS c=COUNT(*) BY b = BUCKET(date + 1 HOUR, 1 YEAR) - 1 HOUR
+            """))) {
+            assertThat(findColumn(response, "b").meta(), nullValue());
+        }
+    }
+
+    public void testBucketWrappedInRoundHasNoMetadata() {
+        client().prepareIndex("test")
+            .setSource("value", 150)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM test
+            | STATS c=COUNT(*) BY bh = ROUND(BUCKET(value, 100.0), 0)
+            """))) {
+            assertThat(findColumn(response, "bh").meta(), nullValue());
+        }
+    }
+
+    public void testBucketInsideAggregateHasNoMetadata() {
+        client().prepareIndex("test")
+            .setSource("value", 150)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM test
+            | STATS avg_b = AVG(BUCKET(value, 100.0)) BY bucket = BUCKET(value, 100.0)
+            """))) {
+            assertThat(findColumn(response, "avg_b").meta(), nullValue());
+            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 100.0))));
+        }
+    }
+
+    public void testBucketColumnCastHasNoMetadata() {
+        client().prepareIndex("test")
+            .setSource("value", 150)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM test
+            | STATS c=COUNT(*) BY bucket=BUCKET(value, 100.0)
+            | EVAL bucket_int = bucket::INTEGER
+            """))) {
+            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 100.0))));
+            assertThat(findColumn(response, "bucket_int").meta(), nullValue());
+        }
+    }
+
+    public void testBucketWithFieldArithmetic() {
+        client().prepareIndex("dates")
+            .setSource("date", "1985-07-09T00:00:00.000Z")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM dates
+            | STATS c=COUNT(*) BY bucket = BUCKET(date + 1 HOUR, 1 YEAR)
+            """))) {
+            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 1L, "unit", "year"))));
+        }
+    }
+
+    public void testBucketWithFoldableBucketsArg() {
+        client().prepareIndex("test")
+            .setSource("value", 150)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM test
+            | STATS c=COUNT(*) BY bucket = BUCKET(value, 2.0 + 3.0)
+            """))) {
+            assertThat(findColumn(response, "bucket").meta(), equalTo(Map.of("bucket", Map.of("interval", 5.0))));
+        }
+    }
+
     private static ColumnInfoImpl findColumn(EsqlQueryResponse response, String name) {
         return response.columns().stream().filter(c -> Objects.equals(c.name(), name)).findFirst().orElseThrow();
     }

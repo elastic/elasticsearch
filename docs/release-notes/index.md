@@ -104,7 +104,7 @@ is backwards compatible.
 ::::{dropdown} Time series aggregations support windows that are smaller than the time bucket
 Time series aggregations in ES|QL are enhanced to support windows smaller than the time bucket.
 
-```yaml
+```esql
 TS metrics | STATS AVG(RATE(requests, 5m)) BY TBUCKET(10m), host
 ```
 
@@ -114,7 +114,7 @@ Previously, only window values that were equal or exact multiples of the time bu
 ::::{dropdown} Time series aggregations support windows that are not an exact multiple of the bucket
 Time series aggregations in ES|QL are enhanced to support windows that are not an exact multiple of the time bucket.
 
-```yaml
+```esql
 TS metrics | STATS AVG(RATE(requests, 15m)) BY TBUCKET(10m), host
 ```
 

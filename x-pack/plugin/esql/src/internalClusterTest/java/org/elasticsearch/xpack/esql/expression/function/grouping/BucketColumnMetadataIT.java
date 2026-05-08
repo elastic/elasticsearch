@@ -405,10 +405,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
     public void testBucketWithZeroSpan() {
         // BUCKET(field, 0, 0, 0) is accepted by the analyzer but fails at evaluation (NaN/divide-by-zero).
         // Such impossible bucket definitions must not surface any metadata.
-        client().prepareIndex("numbers")
-            .setSource("number", 1)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        client().prepareIndex("numbers").setSource("number", 1).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM numbers
@@ -420,10 +417,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
 
     public void testBucketWithNegativeSpan() {
         // Mirrors testBucketWithZeroSpan for a negative bucket count.
-        client().prepareIndex("numbers")
-            .setSource("number", 1)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        client().prepareIndex("numbers").setSource("number", 1).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM numbers
@@ -464,12 +458,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testBucketDateNanosWithZeroBucketsHasNoMetadata() {
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("date_nanos_idx")
-                .setMapping("date", "type=date_nanos")
-        );
+        assertAcked(client().admin().indices().prepareCreate("date_nanos_idx").setMapping("date", "type=date_nanos"));
         client().prepareIndex("date_nanos_idx")
             .setSource("date", "1985-07-09T00:00:00.000Z")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -484,12 +473,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testBucketDateNanosWithNegativeBucketsHasNoMetadata() {
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("date_nanos_idx")
-                .setMapping("date", "type=date_nanos")
-        );
+        assertAcked(client().admin().indices().prepareCreate("date_nanos_idx").setMapping("date", "type=date_nanos"));
         client().prepareIndex("date_nanos_idx")
             .setSource("date", "1985-07-09T00:00:00.000Z")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)

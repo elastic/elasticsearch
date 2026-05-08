@@ -1492,10 +1492,17 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertEquals("timestamp", ((FieldSortBuilder) preparedSearchRequest.source().sorts().getFirst()).getFieldName());
     }
 
-    public void testPrepareSearchRequestEnablesAccurateTrackTotalHitsByDefault() {
-        configurePitOrScroll(randomBoolean());
+    public void testPrepareSearchRequestEnablesAccurateTrackTotalHitsForPit() {
+        configurePitOrScroll(true);
         var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
         assertEquals(Integer.valueOf(Integer.MAX_VALUE), preparedSearchRequest.source().trackTotalHitsUpTo());
+    }
+
+    public void testPrepareSearchRequestDoesNotSetTrackTotalHitsForScroll() {
+        configurePitOrScroll(false);
+        assertNull(testRequest.getSearchRequest().source().trackTotalHitsUpTo());
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        assertNull(preparedSearchRequest.source().trackTotalHitsUpTo());
     }
 
     public void testPrepareSearchRequestPreservesExplicitTrackTotalHits() {

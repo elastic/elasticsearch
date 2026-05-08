@@ -52,7 +52,7 @@ public class ReindexFromRemoteIT extends ESIntegTestCase {
     }
 
     public void testTotalIsAccurateWhenSourceExceedsDefaultTrackTotalHitsCap() {
-        int numDocs = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO + randomIntBetween(1, 100);
+        int numDocs = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO + randomIntBetween(1, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
         indexRandom(true, "source", numDocs);
         // The verification searches must opt into accurate total tracking themselves; otherwise they hit the same default
         // cap we are testing reindex's behaviour around.

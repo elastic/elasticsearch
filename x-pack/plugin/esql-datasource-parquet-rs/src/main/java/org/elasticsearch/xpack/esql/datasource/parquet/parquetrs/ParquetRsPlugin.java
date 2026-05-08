@@ -7,12 +7,41 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet.parquetrs;
 
+import org.elasticsearch.Build;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+
+import java.util.Map;
+import java.util.Set;
 
 /**
- * Stub plugin for the parquet-rs native library integration. This plugin currently
- * serves as a placeholder so the module is recognized by the Elasticsearch distribution
- * build. The full DataSourcePlugin implementation will be added when the parquet-rs
- * reader is integrated into the ESQL data source framework.
+ * Data source plugin providing a parquet-rs backed native Parquet reader.
+ * <p>
+ * Registration is gated on snapshot builds: the reader is a prototype and the matching
+ * {@code reader=parquet-rs} alias in {@code FormatNameResolver} is snapshot-only. Exposing the
+ * {@code format=parquet-rs} entry in release builds would silently route queries to a reader that
+ * cannot be selected via the public {@code reader} alias.
  */
-public class ParquetRsPlugin extends Plugin {}
+public class ParquetRsPlugin extends Plugin implements DataSourcePlugin {
+
+    @Override
+    public Set<FormatSpec> formatSpecs() {
+        if (Build.current().isSnapshot() == false) {
+            return Set.of();
+        }
+        return Set.of(new FormatSpec(FormatNameResolver.FORMAT_PARQUET_RS, Set.of()));
+    }
+
+    @Override
+    public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+        if (Build.current().isSnapshot() == false) {
+            return Map.of();
+        }
+        FormatReaderFactory factory = (s, blockFactory) -> new ParquetRsFormatReader(blockFactory);
+        return Map.of(FormatNameResolver.FORMAT_PARQUET_RS, factory);
+    }
+}

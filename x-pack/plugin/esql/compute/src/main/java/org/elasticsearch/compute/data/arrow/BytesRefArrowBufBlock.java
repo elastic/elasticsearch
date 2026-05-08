@@ -57,7 +57,11 @@ public final class BytesRefArrowBufBlock extends AbstractArrowBufBlock<BytesRefV
         this.valueOffsetsBuffer = valueOffsetsBuffer;
     }
 
-    public static BytesRefArrowBufBlock of(ValueVector arrowVector, BlockFactory blockFactory) {
+    public static BytesRefBlock of(ValueVector arrowVector, BlockFactory blockFactory) {
+        BytesRefBlock constant = tryConstant(arrowVector, blockFactory);
+        if (constant != null) {
+            return constant;
+        }
 
         BytesRefArrowBufBlock result;
 
@@ -98,6 +102,59 @@ public final class BytesRefArrowBufBlock extends AbstractArrowBufBlock<BytesRefV
 
         result.retainBuffers();
         return result;
+    }
+
+    /**
+     * Returns a constant block when the variable-width vector is fully present and all values
+     * are byte-identical, a constant-null block when all values are null, or {@code null} when
+     * the caller should fall through to the zero-copy {@link BytesRefArrowBufBlock} path.
+     * <p>
+     * Multi-valued ({@link ListVector}) inputs return {@code null}; the value-level offsets
+     * inside a list make uniformity comparison position-by-position more involved and the
+     * benefit is rare.
+     * <p>
+     * Two-step check: first the per-row lengths via the offset buffer (cheap, single-int
+     * compare per row), then the bytes themselves once a uniform length is established.
+     */
+    private static BytesRefBlock tryConstant(ValueVector arrowVector, BlockFactory blockFactory) {
+        if (arrowVector instanceof BaseVariableWidthVector base) {
+            int rowCount = base.getValueCount();
+            if (rowCount == 0) {
+                return null;
+            }
+            if (base.getNullCount() == rowCount) {
+                return (BytesRefBlock) blockFactory.newConstantNullBlock(rowCount);
+            }
+            if (base.getNullCount() != 0) {
+                return null;
+            }
+            ArrowBuf offsets = base.getOffsetBuffer();
+            int firstStart = offsets.getInt(0);
+            int firstEnd = offsets.getInt(Integer.BYTES);
+            int firstLen = firstEnd - firstStart;
+            for (int i = 1; i < rowCount; i++) {
+                int s = offsets.getInt((long) i * Integer.BYTES);
+                int e = offsets.getInt((long) (i + 1) * Integer.BYTES);
+                if (e - s != firstLen) {
+                    return null;
+                }
+            }
+            ArrowBuf data = base.getDataBuffer();
+            for (int i = 1; i < rowCount; i++) {
+                int s = offsets.getInt((long) i * Integer.BYTES);
+                for (int j = 0; j < firstLen; j++) {
+                    if (data.getByte(s + j) != data.getByte(firstStart + j)) {
+                        return null;
+                    }
+                }
+            }
+            byte[] bytes = new byte[firstLen];
+            for (int j = 0; j < firstLen; j++) {
+                bytes[j] = data.getByte(firstStart + j);
+            }
+            return blockFactory.newConstantBytesRefBlockWith(new BytesRef(bytes), rowCount);
+        }
+        return null;
     }
 
     @Override

@@ -108,6 +108,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final FilterPushdownSupport pushdownSupport;
     private final Closeable onClose;
     private final AtomicInteger operatorRefCount = new AtomicInteger(0);
+    /** Number of driver instances created for this factory. Used for batch-size heuristics. */
+    private final int parallelism;
+    /**
+     * True when the reader supports multi-file batch reads and there are no partition columns
+     * that require per-split injection. When set, {@link #openNextSliceQueueLeaf} claims batches
+     * of splits and calls {@link RangeAwareFormatReader#readAll} instead of individual
+     * {@link RangeAwareFormatReader#readRange} calls.
+     */
+    private final boolean batchReadCapable;
 
     private AsyncExternalSourceOperatorFactory(
         StorageProvider storageProvider,
@@ -126,7 +135,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         int parsingParallelism,
         @Nullable List<Expression> pushedExpressions,
         @Nullable FilterPushdownSupport pushdownSupport,
-        @Nullable Closeable onClose
+        @Nullable Closeable onClose,
+        int parallelism
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -167,6 +177,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.pushedExpressions = pushedExpressions != null ? pushedExpressions : List.of();
         this.pushdownSupport = pushdownSupport;
         this.onClose = onClose;
+        this.parallelism = Math.max(1, parallelism);
+        this.batchReadCapable = formatReader instanceof RangeAwareFormatReader rr
+            && rr.supportsBatchRead()
+            && this.partitionColumnNames.isEmpty();
     }
 
     public static Builder builder(
@@ -207,6 +221,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private List<Expression> pushedExpressions;
         private FilterPushdownSupport pushdownSupport;
         private Closeable onClose;
+        private int parallelism = 1;
 
         private Builder(
             StorageProvider storageProvider,
@@ -284,6 +299,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        public Builder parallelism(int parallelism) {
+            this.parallelism = parallelism;
+            return this;
+        }
+
         public AsyncExternalSourceOperatorFactory build() {
             return new AsyncExternalSourceOperatorFactory(
                 storageProvider,
@@ -302,7 +322,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 parsingParallelism,
                 pushedExpressions,
                 pushdownSupport,
-                onClose
+                onClose,
+                parallelism
             );
         }
     }
@@ -661,8 +682,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /**
      * Open the next leaf iterator in the slice-queue path. Pulls a new split from the queue when
      * the current split's leaves are exhausted. Returns {@code false} if the queue is exhausted.
+     * <p>
+     * When {@link #batchReadCapable} is set, delegates to {@link #openNextBatch} to claim and
+     * process multiple splits at once via {@link RangeAwareFormatReader#readAll}.
      */
     private boolean openNextSliceQueueLeaf(ProducerState state) throws IOException {
+        if (batchReadCapable && state.leaves == null) {
+            return openNextBatch(state);
+        }
         if (state.leaves == null || state.leafIndex >= state.leaves.size()) {
             ExternalSplit split = state.queue.nextSplit();
             if (split == null) {
@@ -743,6 +770,58 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             }
             CloseableIterator<Page> adapted = adaptSchema(pages, fileSplit.columnMapping(), state.driverContext);
             state.pages = wrapWithInjector(adapted, injector);
+            return true;
+        } catch (Exception e) {
+            closeQuietly(pages);
+            if (e instanceof IOException io) throw io;
+            if (e instanceof RuntimeException re) throw re;
+            throw new IOException(e);
+        }
+    }
+
+    /**
+     * Batch-read path: claims {@code max(1, ceil(remaining / (parallelism * 2)))} splits from the
+     * queue at once and opens a single {@link RangeAwareFormatReader#readAll} iterator over all of
+     * them. This allows the reader (e.g. parquet-rs) to process the files concurrently in a single
+     * async call rather than paying one sequential S3 round-trip per file.
+     * <p>
+     * Only called when {@link #batchReadCapable} is {@code true}, which requires no partition-column
+     * injection (incompatible with a unified batch iterator).
+     */
+    private boolean openNextBatch(ProducerState state) throws IOException {
+        int remaining = state.queue.remaining();
+        if (remaining == 0) {
+            return false;
+        }
+        int claimSize = Math.max(1, Math.ceilDiv(remaining, parallelism * 2));
+        List<ExternalSplit> claims = state.queue.nextSplits(claimSize);
+        if (claims.isEmpty()) {
+            return false;
+        }
+
+        List<RangeAwareFormatReader.SplitRef> splitRefs = new ArrayList<>(claims.size());
+        for (ExternalSplit claim : claims) {
+            for (ExternalSplit leaf : flattenToLeaves(claim)) {
+                if (leaf instanceof FileSplit fs) {
+                    String fileLengthStr = (String) fs.config().get(FileSplitProvider.FILE_LENGTH_KEY);
+                    StorageObject obj = fileLengthStr != null
+                        ? storageProvider.newObject(fs.path(), Long.parseLong(fileLengthStr))
+                        : storageProvider.newObject(fs.path());
+                    splitRefs.add(new RangeAwareFormatReader.SplitRef(obj, fs.offset(), fs.length()));
+                }
+            }
+        }
+
+        if (splitRefs.isEmpty()) {
+            return false;
+        }
+
+        List<String> cols = projectedColumns(null);
+        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) formatReader;
+        CloseableIterator<Page> pages = null;
+        try {
+            pages = rangeReader.readAll(splitRefs, cols, batchSize);
+            state.pages = pages;
             return true;
         } catch (Exception e) {
             closeQuietly(pages);

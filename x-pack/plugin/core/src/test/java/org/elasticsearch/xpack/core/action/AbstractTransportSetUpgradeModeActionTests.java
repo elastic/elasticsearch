@@ -13,13 +13,17 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -55,6 +59,30 @@ public class AbstractTransportSetUpgradeModeActionTests extends ESTestCase {
                 fail("We should create the task queue before we submit tasks to it");
             } else {
                 executor.get().executeTask(ans.getArgument(1), ClusterState.EMPTY_STATE);
+                executor.get().taskSucceeded(ans.getArgument(1), null);
+            }
+            return null;
+        }).when(taskQueue).submitTask(any(), any(), any());
+        return clusterService;
+    }
+
+    /**
+     * Creates a TaskQueue that invokes the SimpleBatchedExecutor with the given ClusterState and captures the result.
+     */
+    public static ClusterService clusterService(ClusterState inputState, AtomicReference<ClusterState> resultCapture) {
+        AtomicReference<SimpleBatchedExecutor<? extends ClusterStateTaskListener, Void>> executor = new AtomicReference<>();
+        MasterServiceTaskQueue<ClusterStateTaskListener> taskQueue = mock();
+        ClusterService clusterService = mock();
+        doAnswer(ans -> {
+            executor.set(ans.getArgument(2));
+            return taskQueue;
+        }).when(clusterService).createTaskQueue(any(), any(), any());
+        doAnswer(ans -> {
+            if (executor.get() == null) {
+                fail("We should create the task queue before we submit tasks to it");
+            } else {
+                Tuple<ClusterState, Void> result = executor.get().executeTask(ans.getArgument(1), inputState);
+                resultCapture.set(result.v1());
                 executor.get().taskSucceeded(ans.getArgument(1), null);
             }
             return null;
@@ -154,6 +182,85 @@ public class AbstractTransportSetUpgradeModeActionTests extends ESTestCase {
 
         assertThat(response.v1(), is(AcknowledgedResponse.TRUE));
         assertThat(response.v2(), nullValue());
+    }
+
+    public void testProjectIsolation() throws Exception {
+        var projectA = ProjectId.fromId("project-a");
+        var projectB = ProjectId.fromId("project-b");
+
+        // Build a cluster state with two projects (plus default for routing table), neither having TransformMetadata
+        var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(
+                Metadata.builder()
+                    .put(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID))
+                    .put(ProjectMetadata.builder(projectA))
+                    .put(ProjectMetadata.builder(projectB))
+            )
+            .build();
+
+        // Capture the resulting cluster state after the task executes
+        AtomicReference<ClusterState> resultState = new AtomicReference<>();
+        ClusterService clusterServiceWithState = clusterService(clusterState, resultState);
+
+        // Create an action targeting project A that puts TransformMetadata with upgradeMode=true
+        var action = new ProjectIsolationTestAction(clusterServiceWithState, TestProjectResolvers.singleProject(projectA), clusterState);
+        action.run(true);
+
+        // Verify project A was modified
+        assertNotNull(resultState.get());
+        TransformMetadata projectAMeta = resultState.get().metadata().getProject(projectA).custom(TransformMetadata.TYPE);
+        assertThat(projectAMeta, is(notNullValue()));
+        assertTrue(projectAMeta.upgradeMode());
+
+        // Verify project B was NOT modified
+        TransformMetadata projectBMeta = resultState.get().metadata().getProject(projectB).custom(TransformMetadata.TYPE);
+        assertThat(projectBMeta, is(nullValue()));
+    }
+
+    private static class ProjectIsolationTestAction extends AbstractTransportSetUpgradeModeAction {
+        private final ClusterState stateForMasterOperation;
+
+        ProjectIsolationTestAction(ClusterService clusterService, ProjectResolver projectResolver, ClusterState state) {
+            super("actionName", "taskQueuePrefix", mock(), clusterService, mock(), mock(), projectResolver);
+            this.stateForMasterOperation = state;
+        }
+
+        @Override
+        protected String featureName() {
+            return "test-isolation";
+        }
+
+        @Override
+        protected boolean upgradeMode(ProjectMetadata project) {
+            return false;
+        }
+
+        @Override
+        protected Consumer<ProjectMetadata.Builder> createProjectUpdate(SetUpgradeModeActionRequest request, ProjectMetadata project) {
+            var updated = new TransformMetadata.Builder().upgradeMode(request.enabled()).build();
+            return b -> b.putCustom(TransformMetadata.TYPE, updated);
+        }
+
+        @Override
+        protected void upgradeModeSuccessfullyChanged(
+            Task task,
+            SetUpgradeModeActionRequest request,
+            ProjectMetadata project,
+            ActionListener<AcknowledgedResponse> listener
+        ) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+        }
+
+        public void run(boolean upgrade) throws Exception {
+            CountDownLatch latch = new CountDownLatch(1);
+            masterOperation(
+                mock(),
+                new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, upgrade),
+                stateForMasterOperation,
+                ActionListener.wrap(r -> latch.countDown(), e -> latch.countDown())
+            );
+            assertTrue("Failed to run in 10s", latch.await(10, TimeUnit.SECONDS));
+        }
     }
 
     private static class TestTransportSetUpgradeModeAction extends AbstractTransportSetUpgradeModeAction {

@@ -14,12 +14,14 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.script.Script;
 
-public abstract class AbstractBulkIndexByScrollRequestBuilder<
-    Request extends AbstractBulkIndexByScrollRequest<Request>,
-    Self extends AbstractBulkIndexByScrollRequestBuilder<Request, Self>> extends AbstractBulkByScrollRequestBuilder<Request, Self> {
+public abstract class AbstractBulkIndexByPaginatedSearchRequestBuilder<
+    Request extends AbstractBulkIndexByPaginatedSearchRequest<Request>,
+    Self extends AbstractBulkIndexByPaginatedSearchRequestBuilder<Request, Self>> extends AbstractBulkByScrollRequestBuilder<
+        Request,
+        Self> {
     private Script script;
 
-    protected AbstractBulkIndexByScrollRequestBuilder(
+    protected AbstractBulkIndexByPaginatedSearchRequestBuilder(
         ElasticsearchClient client,
         ActionType<BulkByScrollResponse> action,
         SearchRequestBuilder search

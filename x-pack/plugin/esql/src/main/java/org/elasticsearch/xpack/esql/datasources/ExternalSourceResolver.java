@@ -6,18 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -104,15 +100,15 @@ public class ExternalSourceResolver {
 
     public void resolve(
         List<String> paths,
-        Map<String, Map<String, Expression>> pathParams,
+        Map<String, Map<String, Object>> pathConfigs,
         ActionListener<ExternalSourceResolution> listener
     ) {
-        resolve(paths, pathParams, null, listener);
+        resolve(paths, pathConfigs, null, listener);
     }
 
     public void resolve(
         List<String> paths,
-        Map<String, Map<String, Expression>> pathParams,
+        Map<String, Map<String, Object>> pathConfigs,
         @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         ActionListener<ExternalSourceResolution> listener
     ) {
@@ -126,15 +122,14 @@ public class ExternalSourceResolver {
                 Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
 
                 for (String path : paths) {
-                    Map<String, Expression> params = pathParams.get(path);
-                    Map<String, Object> config = paramsToConfigMap(params);
+                    Map<String, Object> config = pathConfigs.getOrDefault(path, Map.of());
                     List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
                     boolean hivePartitioning = isHivePartitioningEnabled(config);
 
                     try {
                         ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config, hints, hivePartitioning);
                         resolved.put(path, resolvedSource);
-                        LOGGER.info("Successfully resolved external source: {}", path);
+                        LOGGER.debug("Successfully resolved external source: {}", path);
                     } catch (Exception e) {
                         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
                         String exceptionMessage = e.getMessage();
@@ -158,7 +153,7 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         boolean hivePartitioning
     ) throws Exception {
-        LOGGER.info("Resolving external source: path=[{}]", path);
+        LOGGER.debug("Resolving external source: path=[{}]", path);
 
         if (GlobExpander.isMultiFile(path)) {
             return resolveMultiFileSource(path, config, hints, hivePartitioning);
@@ -801,27 +796,6 @@ public class ExternalSourceResolver {
                 return metadata.config();
             }
         };
-    }
-
-    private Map<String, Object> paramsToConfigMap(@Nullable Map<String, Expression> params) {
-        if (params == null || params.isEmpty()) {
-            return Map.of();
-        }
-
-        Map<String, Object> config = Maps.newHashMapWithExpectedSize(params.size());
-        for (Map.Entry<String, Expression> entry : params.entrySet()) {
-            String key = entry.getKey();
-            Expression expr = entry.getValue();
-            if (expr instanceof Literal literal) {
-                Object value = literal.value();
-                if (value instanceof BytesRef bytesRef) {
-                    config.put(key, BytesRefs.toString(bytesRef));
-                } else if (value != null) {
-                    config.put(key, value.toString());
-                }
-            }
-        }
-        return config;
     }
 
     /**

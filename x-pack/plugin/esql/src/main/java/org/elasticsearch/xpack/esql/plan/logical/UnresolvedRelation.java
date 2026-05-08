@@ -26,6 +26,15 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 
+/**
+ * Unresolved index-side relation produced by the parser for {@code FROM <index>} (and other
+ * index-pattern source commands). Pre-analysis machinery and optimizer rules typically pattern-match
+ * on this class.
+ *
+ * @see UnresolvedExternalRelation external-side counterpart for {@code FROM <dataset>} and inline
+ * {@code EXTERNAL}; if you traverse one and care about FROM-style leaves, consider whether you need
+ * the other too.
+ */
 public class UnresolvedRelation extends LeafPlan implements Unresolvable, TelemetryAware {
 
     private final IndexPattern indexPattern;

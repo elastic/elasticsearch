@@ -138,7 +138,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         }
     }
 
-    private boolean useColumnarId;
+    protected boolean useColumnarId;
 
     @Override
     public void setUp() throws Exception {

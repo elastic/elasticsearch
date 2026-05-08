@@ -43,6 +43,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
@@ -267,7 +268,13 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         var mapping = jsonBuilder().startObject().startObject("properties").startObject("field");
         minimalMapping(mapping);
         mapping.endObject().endObject().endObject();
-        verifySyntheticArray(arrays, mapping, "_id");
+        String[] expectedStoredFields;
+        if (useColumnarId) {
+            expectedStoredFields = new String[0];
+        } else {
+            expectedStoredFields = new String[] { "_id" };
+        }
+        verifySyntheticArray(arrays, mapping, expectedStoredFields);
     }
 
     protected void verifySyntheticArray(Object[][] arrays, XContentBuilder mapping, String... expectedStoredFields) throws IOException {
@@ -329,7 +336,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 var document = reader.storedFields().document(i);
                 // Verify that there is no ignored source:
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
-                assertThat(storedFieldNames, contains(expectedStoredFields));
+                if (expectedStoredFields.length == 0) {
+                    assertThat(storedFieldNames, empty());
+                } else {
+                    assertThat(storedFieldNames, contains(expectedStoredFields));
+                }
             }
             var fieldInfos = getFieldInfos(reader);
             var fieldInfo = fieldInfos.fieldInfo("field.offsets");
@@ -457,7 +468,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 var document = reader.storedFields().document(i);
                 // Verify that there is no ignored source:
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
-                assertThat(storedFieldNames, contains("_id"));
+                if (useColumnarId) {
+                    assertThat(storedFieldNames, empty());
+                } else {
+                    assertThat(storedFieldNames, contains("_id"));
+                }
             }
             var fieldInfos = getFieldInfos(reader);
             var fieldInfo = fieldInfos.fieldInfo("object.field.offsets");

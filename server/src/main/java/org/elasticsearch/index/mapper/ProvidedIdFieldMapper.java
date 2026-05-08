@@ -11,6 +11,11 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.InvertableType;
+import org.apache.lucene.document.StoredValue;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -310,8 +315,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         context.id(context.sourceToParse().id());
         if (mode == IdFieldMapper.Mode.COLUMNAR) {
             BytesRef encoded = Uid.encodeId(context.id());
-            context.doc().add(standardIdField(encoded, Field.Store.NO));
-            context.doc().add(new BinaryDocValuesField(NAME, encoded));
+            context.doc().add(new ColumnarIdField(NAME, encoded));
         } else {
             context.doc().add(standardIdField(context.id()));
         }
@@ -343,5 +347,53 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     @Override
     public String reindexId(String id) {
         return id;
+    }
+
+    final static class ColumnarIdField extends Field {
+
+        public static final FieldType TYPE = new FieldType();
+
+        static {
+            TYPE.setOmitNorms(true);
+            TYPE.setIndexOptions(IndexOptions.DOCS);
+            TYPE.setTokenized(false);
+            TYPE.setDocValuesType(DocValuesType.BINARY);
+            TYPE.freeze();
+        }
+
+        private BytesRef binaryValue;
+
+        public ColumnarIdField(String name, BytesRef value) {
+            super(name, value, TYPE);
+            binaryValue = value;
+        }
+
+        @Override
+        public InvertableType invertableType() {
+            return InvertableType.BINARY;
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            return binaryValue;
+        }
+
+        @Override
+        public void setStringValue(String value) {
+            super.setStringValue(value);
+            binaryValue = new BytesRef(value);
+        }
+
+        @Override
+        public void setBytesValue(BytesRef value) {
+            super.setBytesValue(value);
+            binaryValue = value;
+        }
+
+        @Override
+        public StoredValue storedValue() {
+            return null;
+        }
+
     }
 }

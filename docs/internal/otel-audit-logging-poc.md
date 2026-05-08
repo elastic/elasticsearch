@@ -1,6 +1,6 @@
 # OTel audit log delivery: POC writeup for ES-14356
 
-This PoC validates the ES side of the OTel audit-log pipeline: an audit event emitted by `LoggingAuditTrail` reaches an in-process recording OTLP server through log4j and the OTel SDK, in a security-enabled multi-node test, with `project.id` attached and the SDK's `BatchLogRecordProcessor` keeping I/O off the calling thread. The real `otel-delivery-gateway`, MOTel, and destination project aren't exercised here; closing that gap is [§4.12](#sec-4-12). Around half of the cross-team requirements are satisfied or close to it; the meaningful gaps are mTLS to the gateway, a stdout fallback for exhausted retries, per-project filtering, dynamic configuration, and a few field-shape problems caused by the upstream `OpenTelemetryAppender`. Separately, `security_config_change` events bypass `withThreadContext` in the existing audit-emit code and so don't carry `project.id` today.
+This PoC validates the ES side of the OTel audit-log pipeline: an audit event emitted by `LoggingAuditTrail` reaches an in-process recording OTLP server through log4j and the OTel SDK, in a security-enabled multi-node test, with `project.id` attached and the SDK's `BatchLogRecordProcessor` keeping I/O off the calling thread. The real `otel-delivery-gateway`, MOTel, and destination project aren't exercised here; closing that gap is [§4.12](#sec-4-12). Around half of the cross-team requirements are satisfied or close to it; the meaningful gaps are mTLS to the gateway, a stdout fallback for exhausted retries, per-project filtering, dynamic configuration, and a few field-shape problems caused by the upstream `OpenTelemetryAppender`. R3 specifically has three open gaps that are larger than the PoC suggests: `security_config_change` events bypass `withThreadContext` in the existing audit-emit code ([§4.3](#sec-4-3)); cross-cluster CPS strips the project header at the boundary, so linked-side events have no `project.id` ([§4.4](#sec-4-4)); and Cloud API key audit (the dominant serverless path) is structurally incomplete and gets `project.id` only because the platform ingress sets it ([§4.13](#sec-4-13)).
 
 I'm not expecting anyone to read this doc end-to-end;
 I've arranged it so you can skip to the parts you care about.
@@ -48,11 +48,11 @@ Sources: Gateway TDD §"Standardized Audit Log schema" + §"How services emit"; 
 
 ### <a id="sec-2-3"></a>2.3 R3: Enrich audit events with `project.id`
 
-*Partially satisfied ([§3.3](#sec-3-3)). Two open gaps: `security_config_change` events bypass the chokepoint ([§4.3](#sec-4-3)); CPS routing direction is unconfirmed ([§4.4](#sec-4-4)).*
+*Partially satisfied ([§3.3](#sec-3-3)). Three open gaps: `security_config_change` events bypass the chokepoint ([§4.3](#sec-4-3)); cross-cluster CPS leaves linked-side events without `project.id` ([§4.4](#sec-4-4)); Cloud API key audit shape is incomplete and the chokepoint is fragile under UIAM ([§4.13](#sec-4-13)).*
 
 Audit events must carry `project.id` so the gateway can route per-project. The PoC plumbs the field through `LoggingAuditTrail.LogEntryBuilder.withThreadContext()`. The 12 public audit-emit methods all reach this chokepoint; however, `accessGranted` also emits a parallel `security_config_change` log entry through a private builder factory that bypasses `withThreadContext()`, so events of `event.type=security_config_change` (put_user, put_role, change_password, create_api_key, etc.) do not carry `project.id`. End-to-end OTLP delivery has been verified for one event type only.
 
-Cross-Project Search introduces a design question: when a query fans out from project A to project B within a cluster, audit events on project B's side carry project B's ID, not project A's. Whether this matches the gateway's routing intent has not been confirmed; see [§4.4](#sec-4-4). (Cluster-internal traffic, by contrast, is explicitly out of scope per [§2.14](#sec-2-14).)
+Cross-Project Search audits today's `withThreadContext`-based plumbing in two directions: the cross-cluster boundary strips `X-Elastic-Project-Id`, leaving linked-side events without a `project.id` at all (we initially believed the linked side carried project B's ID; a local IT showed otherwise — see [§4.4](#sec-4-4)); and UIAM-authenticated requests don't populate the header themselves, so the chokepoint depends on the platform ingress doing it (see [§4.13](#sec-4-13)). (Cluster-internal traffic, by contrast, is explicitly out of scope per [§2.14](#sec-2-14).)
 
 Sources: Audit TDD §"Requirement 7"; Gateway TDD §"Standardized Audit Log schema" / Appendix 5.
 
@@ -257,13 +257,22 @@ We should do the following to make this robust:
 
 Cross-Project Search has a separate R3 question ([§4.4](#sec-4-4)).
 
-### <a id="sec-4-4"></a>4.4 R3 (CPS): `project.id` direction for Cross-Project Search
+### <a id="sec-4-4"></a>4.4 R3 (CPS): `project.id` is absent on linked-cluster audit events
 
-When a CPS query in project A reaches into project B, audit events on project B's side carry project B's `project.id`, not project A's. The mechanism is `AbstractProjectResolver.executeOnProject(...)` for the same-cluster case, and header strip-and-reset at the cluster boundary (`ThreadContext.getRequestHeadersToCopy(...)` removes `X_ELASTIC_PROJECT_ID_HTTP_HEADER` for `REMOTE_CLUSTER`) for the cross-cluster case.
+The original framing of this section asked "should an audit event for a CPS query in project A reaching into project B be routed to A (originator) or B (data-owner)?" That question is downstream of a more fundamental gap: under cross-cluster CPS today, **linked-side audit events carry no `project.id` at all**. The PoC's R3 mechanism (`LoggingAuditTrail.LogEntryBuilder.withThreadContext(...)` reads `X_ELASTIC_PROJECT_ID_HTTP_HEADER` from `ThreadContext`) depends on something upstream populating that header. On the linked side of a cross-cluster fan-out, nothing does:
 
-Empirically, the Audit TDD's "Audit Logging x CPS: Current State" section reports that a single ESQL CPS query against `*:my-index` produced 5 audit events in a Serverless QA test: 2 from the local (project A) cluster and 3 from the remote (project B) cluster, all sharing the same `request.id`, with varying `origin.type` values (`rest`, `local_node`, `transport`). So this isn't a one-event-per-query question; it's a fan-out where each side's events would carry its own `project.id` under today's mechanism.
+- The origin cluster strips `X_ELASTIC_PROJECT_ID_HTTP_HEADER` at the cross-cluster boundary (`ThreadContext.getRequestHeadersToCopy(...)` for `REMOTE_CLUSTER`), so the header doesn't ride the transport request to the linked cluster.
+- The linked cluster receives the request via transport, not HTTP, so the platform ingress that would normally set `X-Elastic-Project-Id` on inbound HTTP requests is never in the call path.
+- There is no equivalent mechanism today that resets the header from the linked cluster's own configuration on inbound cross-cluster traffic.
 
-That matches the gateway's intent if each event should be delivered to the project that *owns the data touched*; it doesn't if events should follow the *originator*. A design call with the gateway team is needed. Implementation is mechanical once decided: leave as-is, or capture an `originating_project.id` separately. For the cross-cluster case, propagate it explicitly, since `X_ELASTIC_PROJECT_ID_HTTP_HEADER` is intentionally stripped at the boundary.
+Empirically: a local `internalClusterTest` we ran (subclassing `AbstractServerlessMultiProjectIntegTestCase`, attaching a capturing log4j appender to `LoggingAuditTrail`, issuing `FROM my-index | LIMIT 10` from origin's UIAM-authenticated client against an index that lives only on the linked side) produced 13 `access_granted` events — 3 from `my_origin_cluster`, 10 from `my_linked_cluster` — with `project.id` absent on every event. The fan-out is real; the field is not. The same-cluster (multi-tenant) CPS path via `AbstractProjectResolver.executeOnProject(...)` is a different code path and was not exercised here; whether it carries `project.id` correctly is a separate question.
+
+Decisions and work needed:
+
+1. **Decide how the linked cluster derives `project.id`.** Options: (a) cluster-config-derived (the linked cluster's `serverless.project_id` setting populates the audit field on inbound cross-cluster traffic, perhaps via the `CustomAuditLoggingMetadataProvider` extension proposed in [§5.4](#sec-5-4)); (b) propagate the originator's project ID explicitly via cross-cluster transport headers and capture it as `originating_project.id`; (c) both, depending on which routing intent the gateway team picks.
+2. **Then** the original A-vs-B routing-direction call with the gateway team becomes meaningful. Until (1) is implemented, the linked side has no project ID to route on and the question is moot.
+
+Caveat on the origin side: our local IT had no platform ingress, so origin events also lacked `project.id` — but this is a test-setup limitation rather than a production gap. In production, the ingress sets `X-Elastic-Project-Id` on inbound HTTP, so `withThreadContext` populates it correctly on the originating cluster. UIAM auth alone (no ingress) does *not* populate the header — see [§4.13](#sec-4-13).
 
 ### <a id="sec-4-5"></a>4.5 R4: mTLS to the gateway
 
@@ -304,6 +313,19 @@ The choice between default-off, redaction, and sampling needs security review be
 ### <a id="sec-4-12"></a>4.12 Integration test against the real gateway
 
 The PoC's IT uses an in-process recording server, and that test still serves its purpose: it pins down the ES-side behavior without a cross-component dependency. What's missing is an additional IT that runs against the real `otel-delivery-gateway` component, to validate the contract between ES and the gateway end-to-end.
+
+### <a id="sec-4-13"></a>4.13 Cloud API key audit shape is structurally incomplete
+
+`LoggingAuditTrail.addAuthenticationFieldsToLogEntry(...)` carries an `assert false == authentication.isCloudApiKey()` (added in [PR #129227](https://github.com/elastic/elasticsearch/pull/129227), June 2025) labelled *"audit logging for Cloud API keys is not supported"*. The assert is a Java-`assert` only — it's a no-op in production (`-ea` is off) but fires in tests. Inspecting the method body, the path runs cleanly for Cloud API keys; the assert is documenting a structural-shape gap, not guarding a crash:
+
+- `Authentication.isApiKey()` returns `false` for Cloud API keys (their `Subject.Type` is `CLOUD_API_KEY`, not `API_KEY`), so the `if (authentication.isApiKey() || authentication.isCrossClusterAccess())` branch on the API-key path never runs. As a result, **`api_key.id` and `api_key.name` are not populated** for any Cloud-API-key-authenticated audit event. The event ends up with `principal_realm = _cloud_api_key` and an `authentication_type = api_key` but no key identifier. An audit consumer expecting `api_key.id` for API-key-typed events sees a hole.
+- Separately, on serverless the dominant authentication method is UIAM (Cloud API keys), and UIAM doesn't put `X-Elastic-Project-Id` into `ThreadContext` itself — its project context lives in `CloudAuthenticateProjectContext` carried through auth metadata. So when only UIAM is in the picture (no platform ingress also setting the header), `withThreadContext` finds nothing and `project.id` is absent. In production the platform ingress *also* sets `X-Elastic-Project-Id`, so the header path works; but the dependency on the ingress for the R3 chokepoint to fire is a fragility worth noting, and any non-ingress UIAM call path (e.g. service-to-service inside ECP) would emit audit events with no `project.id`.
+
+Decisions and work needed:
+
+1. **Decide the audit shape for Cloud-API-key-authenticated requests.** Specifically: which fields populate the `api_key.*` namespace, given the source values live in Cloud API key metadata rather than the regular API key store? This is mostly an alignment conversation with the UIAM team (Slobodan Adamović owns the original assert).
+2. **Source `project.id` from somewhere other than (or in addition to) the HTTP header.** Options: read from `CloudAuthenticateProjectContext` if present; pull from the `serverless.project_id` node setting; use the `CustomAuditLoggingMetadataProvider` extension point ([§5.4](#sec-5-4)) to let the serverless module inject project ID independently of the ingress header path. Whichever choice is made, decoupling R3 from ingress fragility is the win.
+3. **Implement the chosen shape and remove the assert.** The fix unblocks the [§4.4](#sec-4-4) routing-direction conversation (which is gated on linked-side `project.id` being populated at all).
 
 ## <a id="sec-5"></a>5. Decision points
 
@@ -362,12 +384,13 @@ Concrete items pulled from [§4](#sec-4) and [§5](#sec-5), split by what kind o
 
 1. <a id="sec-6-1-1"></a>**Attribute-key shape ([§5.1](#sec-5-1)).** Pick one of: custom log4j appender, `v3_preview` wrapper, refactor to `AutoConfiguredOpenTelemetrySdk`, or `LogRecordProcessor` post-hoc rename. Gates [6.2.8](#sec-6-2-8) and [6.2.9](#sec-6-2-9).
 2. <a id="sec-6-1-2"></a>**Per-field semconv/ECS/custom mapping ([§5.2](#sec-5-2)).** Resolve the "Hard" rows: `apikey.*` namespace, `indices` array, `security_config_change` nested blobs (flatten vs opaque-JSON-string).
-3. <a id="sec-6-1-3"></a>**CPS routing direction ([§4.4](#sec-4-4)).** Design call with the gateway team: when a CPS query in project A reaches project B, should the audit event be delivered to A (originator) or B (data-owner)?
+3. <a id="sec-6-1-3"></a>**CPS routing direction ([§4.4](#sec-4-4)).** Design call with the gateway team: when a CPS query in project A reaches project B, should the audit event be delivered to A (originator) or B (data-owner)? **Gated on [6.1.9](#sec-6-1-9) and [6.2.11](#sec-6-2-11)** — under today's mechanism the linked side has no `project.id` to route on at all, so the question is unanswerable until that's fixed.
 4. <a id="sec-6-1-4"></a>**R6 strip-fields placement ([§4.6](#sec-4-6)).** Use the existing `xpack.security.audit.logfile.emit_*` settings on serverless vs branch in `LoggingAuditTrail.EntryCommonFields` vs attribute filter on the OTel emit path. Doc leans toward the existing-settings option.
 5. <a id="sec-6-1-5"></a>**Where the SDK setup lives ([§5.3](#sec-5-3)).** Keep in `modules/apm/` or carve out a new `modules/customer-telemetry/`. Worth deciding before more audit-log code accumulates here.
 6. <a id="sec-6-1-6"></a>**`request.body` PII story ([§4.11](#sec-4-11)).** Default-off vs redaction vs sampling. Needs security review before the field can leave the cluster.
 7. <a id="sec-6-1-7"></a>**gRPC vs HTTP ([§2.5](#sec-2-5)).** Confirm with the gateway team that OTLP/HTTP-protobuf is acceptable; the gateway TDD parenthetically says gRPC.
 8. <a id="sec-6-1-8"></a>**`LoggingAuditTrail` constructor ([§5.4](#sec-5-4)).** Inject `ProjectResolver` vs use the Audit TDD's `CustomAuditLoggingMetadataProvider` extension point vs keep the direct `ThreadContext` read. Not urgent.
+9. <a id="sec-6-1-9"></a>**Cloud API key audit shape ([§4.13](#sec-4-13)).** Decide what the `api_key.*` namespace should hold for Cloud-API-key-authenticated audit events, given the source values live in Cloud API key metadata (UIAM) rather than the regular API key store. Mostly an alignment conversation with the UIAM team; gates [6.2.12](#sec-6-2-12).
 
 ### <a id="sec-6-2"></a>6.2 Implementation work
 
@@ -381,6 +404,8 @@ Concrete items pulled from [§4](#sec-4) and [§5](#sec-5), split by what kind o
 8. <a id="sec-6-2-8"></a>**Bare semconv keys on the wire ([§4.1](#sec-4-1)).** Implementation follows [6.1.1](#sec-6-1-1).
 9. <a id="sec-6-2-9"></a>**Per-field translation ([§4.2](#sec-4-2)).** Implementation follows [6.1.1](#sec-6-1-1) and [6.1.2](#sec-6-1-2).
 10. <a id="sec-6-2-10"></a>**Integration test against the real gateway ([§4.12](#sec-4-12)).** Add an IT that runs against the real `otel-delivery-gateway` component, alongside (not replacing) the existing in-process recording-server IT.
+11. <a id="sec-6-2-11"></a>**Populate `project.id` on linked-cluster audit events ([§4.4](#sec-4-4)).** Pick the mechanism (cluster-config-derived via `serverless.project_id`, propagated through cross-cluster transport, or via [`CustomAuditLoggingMetadataProvider`](#sec-5-4)) and implement it. Without this, [6.1.3](#sec-6-1-3) cannot be discussed concretely.
+12. <a id="sec-6-2-12"></a>**Decouple R3 chokepoint from the platform ingress ([§4.13](#sec-4-13)).** Source `project.id` from the UIAM auth context (`CloudAuthenticateProjectContext`) or from a per-node setting, in addition to or instead of the `X-Elastic-Project-Id` header. Implementation follows [6.1.9](#sec-6-1-9). Removes the assert in `LoggingAuditTrail.addAuthenticationFieldsToLogEntry` once the Cloud API key audit shape is finalized, and populates `api_key.id`/`api_key.name` on those events.
 
 ## <a id="sec-appendix-a"></a>Appendix A: Options considered and rejected
 

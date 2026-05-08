@@ -96,6 +96,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node NODE = null;
 
+    protected boolean useColumnarId;
+
     protected void startNode(long seed) throws Exception {
         assert NODE == null;
         NODE = RandomizedContext.current().runWithPrivateRandomness(seed, this::newNode);
@@ -114,6 +116,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .setOrder(0)
             .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000)))
             .get();
+        useColumnarId = ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled() && randomlyUseColumnarId() && randomBoolean();
         if (useColumnarId) {
             indicesAdmin().preparePutTemplate("random-columnar-id-mode-template")
                 .setPatterns(Collections.singletonList("*"))
@@ -138,8 +141,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         }
     }
 
-    protected boolean useColumnarId;
-
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -147,7 +148,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         long seed = random().nextLong();
         // Create the node lazily, on the first test. This is ok because we do not randomize any settings,
         // only the cluster name. This allows us to have overridden properties for plugins and the version to use.
-        useColumnarId = ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled() && randomBoolean();
         if (NODE == null) {
             startNode(seed);
         }
@@ -257,6 +257,13 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                     + "See the deprecation documentation for the next major version."
             )
         ).collect(Collectors.toList());
+    }
+
+    /**
+     * @return allows concrete test suites to control whether to randomly use columnar id.
+     */
+    protected boolean randomlyUseColumnarId() {
+        return true;
     }
 
     private Node newNode() {

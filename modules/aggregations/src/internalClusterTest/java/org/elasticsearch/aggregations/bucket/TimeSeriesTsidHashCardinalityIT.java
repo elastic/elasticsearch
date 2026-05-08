@@ -65,6 +65,11 @@ public class TimeSeriesTsidHashCardinalityIT extends ESSingleNodeTestCase {
     }
 
     @Override
+    protected boolean randomlyUseColumnarId() {
+        return false;
+    }
+
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         beforeIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);

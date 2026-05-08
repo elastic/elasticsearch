@@ -175,6 +175,11 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         );
     }
 
+    @Override
+    protected boolean randomlyUseColumnarId() {
+        return false;
+    }
+
     @Before
     public void setup() throws IOException {
         sourceIndex = randomAlphaOfLength(14).toLowerCase(Locale.ROOT);

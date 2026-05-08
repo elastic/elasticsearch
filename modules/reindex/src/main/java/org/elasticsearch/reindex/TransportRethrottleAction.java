@@ -66,11 +66,18 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
     @Override
     protected void doExecute(Task task, RethrottleRequest request, ActionListener<ListTasksResponse> listener) {
         super.doExecute(task, request, listener.delegateFailureAndWrap((l, response) -> {
+            final ListTasksResponse responseWithOriginalIdentityTasks = new ListTasksResponse(
+                response.getTasks().stream().map(TaskInfo::withOriginalRelocationIdentity).toList(),
+                response.getTaskFailures(),
+                response.getNodeFailures()
+            );
             // follow relocation chain even if there is a node failure, node might be gone, but the task is still running elsewhere.
-            if (request.followRelocations() && response.getTasks().isEmpty() && response.getTaskFailures().isEmpty()) {
-                followRelocationAndRethrottle(task, request, response, l);
+            if (request.followRelocations()
+                && responseWithOriginalIdentityTasks.getTasks().isEmpty()
+                && responseWithOriginalIdentityTasks.getTaskFailures().isEmpty()) {
+                followRelocationAndRethrottle(task, request, responseWithOriginalIdentityTasks, l);
             } else {
-                l.onResponse(response);
+                l.onResponse(responseWithOriginalIdentityTasks);
             }
         }));
     }

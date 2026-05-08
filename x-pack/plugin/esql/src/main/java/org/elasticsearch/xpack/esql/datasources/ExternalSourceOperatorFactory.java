@@ -312,6 +312,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                     .rowLimit(FormatReader.NO_LIMIT)
                     .firstSplit(firstSplit)
                     .lastSplit(lastSplit)
+                    .recordAligned(FileSplitProvider.isRecordAlignedMacroSplit(fileSplit))
                     .build();
                 CloseableIterator<Page> pages = formatReader.read(obj, ctx);
 

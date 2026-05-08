@@ -1595,6 +1595,19 @@ public class EsqlCapabilities {
         DECAY_FUNCTION_PARAMETER_CONVERSION,
 
         /**
+         * Support DECAY with unsigned_long parameters for {@code DECAY}.
+         */
+        DECAY_FUNCTION_UNSIGNED_LONG,
+
+        /**
+         * Fix latitude/longitude ordering of the in geo-point {@code DECAY}.
+         * Previously the origin was serialized as "lon,lat" before being parsed by
+         * {@code GeoUtils.parseGeoPoint}, which expects "lat,lon", effectively swapping the
+         * origin's coordinates and producing incorrect distances whenever {@code lat != lon}.
+         */
+        DECAY_GEO_POINT_ORIGIN_LAT_LON_FIX,
+
+        /**
          * Support correct counting of skipped shards.
          */
         CORRECT_SKIPPED_SHARDS_COUNT,
@@ -1807,9 +1820,12 @@ public class EsqlCapabilities {
 
         /**
          * Support for the DATE_RANGE field type, RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX.
-         * V3: DATE_RANGE fields with {@code doc_values: false} now return null instead of throwing an exception.
+         * V5: TO_DATE_RANGE(string) honors the query timezone (Configuration); malformed input now produces a
+         * warning + null (via the standard {@code warnExceptions} path) rather than an assertion error
+         * in production. RANGE_MIN/MAX/WITHIN evaluators are now generated and warn on multi-valued input
+         * instead of silently aggregating across values.
          */
-        DATE_RANGE_FIELD_TYPE_V3(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V5(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -2368,6 +2384,12 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_HEADER_ROW_OPTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
+         * Gated on the same flag as {@link #EXTERNAL_COMMAND}.
+         */
+        DATASET_IN_FROM_COMMAND(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.
          * See <a href="https://github.com/elastic/elasticsearch/pull/145334">#145334</a>. Used to gate the affected
          * {@code external-basic.csv-spec} tests so they are skipped on mixed clusters where a pre-change coordinator
@@ -2523,6 +2545,11 @@ public class EsqlCapabilities {
          */
         MMR_FOLDABLE_QUERY_VECTOR_FIX,
 
+        /**
+         * Support the BY grouping clause in CHANGE_POINT to detect change points independently per group.
+         */
+        CHANGE_POINT_BY,
+
         FIX_DIV_ERROR_MESSAGE,
 
         /**
@@ -2639,7 +2666,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with INLINE STATS
          */
-        APPROXIMATION_INLINE_STATS(Build.current().isSnapshot()),
+        APPROXIMATION_INLINE_STATS_V2(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL year() function.
@@ -2678,6 +2705,12 @@ public class EsqlCapabilities {
          * see <a href="https://github.com/elastic/elasticsearch/issues/146364">ES|QL: _index LIKE with ? #146364</a>
          */
         FIX_INDEX_LIKE_QUESTION_MARK_WILDCARD,
+
+        /**
+         * Fix query approximation for queries with few source rows, that are expanded
+         * (e.g. by MV_EXPAND) into many rows reaching the STATS command.
+         */
+        APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

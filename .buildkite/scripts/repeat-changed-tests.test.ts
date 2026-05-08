@@ -347,7 +347,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":libs:core", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.core.BarTests" },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test :libs:core:test --tests org.elasticsearch.index.FooTests --tests org.elasticsearch.core.BarTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.FooTests :libs:core:test --tests org.elasticsearch.core.BarTests"
     );
   });
 
@@ -395,7 +395,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":mod:b", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "org.es.BarIT" },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :mod:a:javaRestTest :mod:b:javaRestTest --tests org.es.FooIT --tests org.es.BarIT --rerun"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :mod:a:javaRestTest --tests org.es.FooIT --rerun :mod:b:javaRestTest --tests org.es.BarIT --rerun"
     );
   });
 
@@ -418,7 +418,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest -Dtests.rest.suite=ml/anomaly_detectors_get --rerun"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/anomaly_detectors_get"
     );
   });
 
@@ -438,7 +438,27 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest -Dtests.rest.suite=ml/test1,ml/test2 --rerun"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test1,ml/test2"
+    );
+  });
+
+  test("YAML REST test suites across projects", () => {
+    const batch: ClassifiedTest[] = [
+      {
+        gradleProject: ":x-pack:plugin:ml",
+        kind: "yamlRestTestSuite",
+        sourceSet: "yamlRestTest",
+        suitePath: "ml/test1",
+      },
+      {
+        gradleProject: ":x-pack:plugin:security",
+        kind: "yamlRestTestSuite",
+        sourceSet: "yamlRestTest",
+        suitePath: "security/test1",
+      },
+    ];
+    expect(generateBatchCommand(batch)).toBe(
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun :x-pack:plugin:security:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test1 -Dtests.rest.suite.:x-pack:plugin:security:yamlRestTest=security/test1"
     );
   });
 });

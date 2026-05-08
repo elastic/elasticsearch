@@ -98,19 +98,27 @@ public class IcebergTableCatalog implements TableCatalog {
     }
 
     /**
-     * Extract S3 configuration from the config map.
+     * Extract S3 configuration from the config map. Secret values may arrive as
+     * {@link org.elasticsearch.common.settings.SecureString} (dataset path) or {@link String}
+     * (inline {@code EXTERNAL}); {@link Object#toString()} via {@link #stringOrNull} handles both.
+     * The plaintext {@link String} the SDK consumes lives on the heap until GC — bounding that
+     * lifetime is out of scope here.
      */
     private S3Configuration extractS3Config(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             return null;
         }
 
-        String accessKey = (String) config.get("access_key");
-        String secretKey = (String) config.get("secret_key");
-        String endpoint = (String) config.get("endpoint");
-        String region = (String) config.get("region");
+        String accessKey = stringOrNull(config.get("access_key"));
+        String secretKey = stringOrNull(config.get("secret_key"));
+        String endpoint = stringOrNull(config.get("endpoint"));
+        String region = stringOrNull(config.get("region"));
 
         return S3Configuration.fromFields(accessKey, secretKey, endpoint, region);
+    }
+
+    private static String stringOrNull(Object value) {
+        return value == null ? null : value.toString();
     }
 
     /**

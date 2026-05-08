@@ -82,6 +82,7 @@ Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node 
 
 ## Formatting & Imports
 - Absolutely no wildcard imports; keep existing import order and avoid reordering untouched lines.
+- In `switch` statements, do not use `default` as a branch for valid or expected options. Enumerate those cases explicitly and reserve `default` for throwing an exception for unexpected values, or an assertion error if this code branch is unreachable.
 
 ## Types, Generics, and Suppressions
 - Prefer type-safe constructs; avoid raw types and unchecked casts.

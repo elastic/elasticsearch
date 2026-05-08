@@ -716,6 +716,13 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportUpdateSettingsAction.TYPE.name(),
                         "indices:admin/data_stream/lifecycle/put"
                     )
+                    .build(),
+                // For Agent Builder OTLP telemetry. Kibana ships OpenTelemetry spans
+                // via the /_otlp/v1/traces endpoint; span events are extracted by
+                // ES as log records into the logs data stream.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("traces-agent_builder.otel-*", "logs-agent_builder.otel-*")
+                    .privileges("auto_configure", "create_doc")
                     .build() },
             null,
             new ConfigurableClusterPrivilege[] {

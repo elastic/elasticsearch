@@ -44,39 +44,9 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
         this.parentsFilter = parentsFilter;
     }
 
-    /**
-     * Creates a new {@link DiversifyingChildrenIVFKnnFloatVectorQuery} with per-segment BBQ-IVF
-     * rescore-oversample sizing. See
-     * {@link IVFKnnFloatVectorQuery#IVFKnnFloatVectorQuery(String, float[], int, int, Query, float, boolean, int, float)}
-     * for the semantics of {@code kRequest} and {@code oversampleFallback}.
-     */
-    public DiversifyingChildrenIVFKnnFloatVectorQuery(
-        String field,
-        float[] query,
-        int k,
-        int numCands,
-        Query childFilter,
-        BitSetProducer parentsFilter,
-        float visitRatio,
-        boolean doPrecondition,
-        int kRequest,
-        float oversampleFallback
-    ) {
-        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, kRequest, oversampleFallback);
-        this.parentsFilter = parentsFilter;
-    }
-
     @Override
     protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        return new DiversifiedIVFKnnCollectorManager(
-            k,
-            searcher,
-            parentsFilter,
-            field,
-            kRequest,
-            oversampleFallback,
-            usePerSegmentRescoreOversampling
-        );
+        return new DiversifiedIVFKnnCollectorManager(k, searcher, parentsFilter);
     }
 
     @Override

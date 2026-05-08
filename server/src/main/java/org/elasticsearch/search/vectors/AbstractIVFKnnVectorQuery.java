@@ -9,13 +9,9 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.BooleanClause;
@@ -36,10 +32,8 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsReader;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -60,40 +54,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final int k;
     protected final int numCands;
     protected final Query filter;
-    /**
-     * The base k requested by the caller (before BBQ-IVF rescore oversample expansion).
-     * When {@link #usePerSegmentRescoreOversampling} is true (derived once in the constructor), the IVF
-     * collector manager sizes each leaf via {@link #perSegmentCollectorK}.
-     */
-    protected final int kRequest;
-    /**
-     * Mapping-default rescore oversample used when a segment has no finite persisted value.
-     * {@code NaN} means no fallback; in that case a leaf without a persisted value collects
-     * exactly {@code kRequest} items (no oversample work).
-     */
-    protected final float oversampleFallback;
-    /**
-     * True when IVF should size each leaf collector from persisted oversample (+ fallback), instead of {@link #k}.
-     * Derived once per query ({@code kRequest < k} after validation); collector code branches only on this flag.
-     */
-    protected final boolean usePerSegmentRescoreOversampling;
     protected int vectorOpsCount;
     protected boolean doPrecondition;
 
     protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, boolean doPrecondition) {
-        this(field, visitRatio, k, numCands, filter, doPrecondition, k, Float.NaN);
-    }
-
-    protected AbstractIVFKnnVectorQuery(
-        String field,
-        float visitRatio,
-        int k,
-        int numCands,
-        Query filter,
-        boolean doPrecondition,
-        int kRequest,
-        float oversampleFallback
-    ) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
@@ -103,21 +67,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (numCands < k) {
             throw new IllegalArgumentException("numCands must be at least k, got: " + numCands);
         }
-        if (kRequest < 1) {
-            throw new IllegalArgumentException("kRequest must be at least 1, got: " + kRequest);
-        }
-        if (kRequest > k) {
-            throw new IllegalArgumentException("kRequest [" + kRequest + "] must not exceed k [" + k + "]");
-        }
         this.field = field;
         this.providedVisitRatio = visitRatio;
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
         this.doPrecondition = doPrecondition;
-        this.kRequest = kRequest;
-        this.oversampleFallback = oversampleFallback;
-        this.usePerSegmentRescoreOversampling = kRequest < k;
     }
 
     @Override
@@ -134,8 +89,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         AbstractIVFKnnVectorQuery that = (AbstractIVFKnnVectorQuery) o;
         return k == that.k
             && numCands == that.numCands
-            && kRequest == that.kRequest
-            && Float.compare(oversampleFallback, that.oversampleFallback) == 0
             && Objects.equals(field, that.field)
             && Objects.equals(filter, that.filter)
             && Objects.equals(providedVisitRatio, that.providedVisitRatio);
@@ -143,7 +96,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, k, numCands, filter, providedVisitRatio, kRequest, oversampleFallback);
+        return Objects.hash(field, k, numCands, filter, providedVisitRatio);
     }
 
     @Override
@@ -290,7 +243,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     ) throws IOException;
 
     protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        return new IVFCollectorManager(k, searcher, field, kRequest, oversampleFallback, usePerSegmentRescoreOversampling);
+        return new IVFCollectorManager(k, searcher);
     }
 
     @Override
@@ -298,86 +251,19 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         queryProfiler.addVectorOpsCount(vectorOpsCount);
     }
 
-    /**
-     * Resolve the per-segment kNN collector size when the BBQ-IVF per-segment rescore-oversample
-     * path is active. Each leaf consults its own persisted oversample (see
-     * {@link ESNextDiskBBQVectorsReader#getRescoreOversample}); when no persisted value is
-     * available the {@code oversampleFallback} (mapping default) is used. The result is bounded
-     * above by the global {@code maxK} (today {@code round(2 * adjustedK)}) so the overall budget
-     * never grows beyond what the merge stage can absorb.
-     */
-    static int perSegmentCollectorK(LeafReaderContext context, String field, int kRequest, float oversampleFallback, int maxK) {
-        return resolveCollectorK(readPersistedOversample(context, field), kRequest, oversampleFallback, maxK);
-    }
-
-    /**
-     * given a possibly non-finite {@code oversampleSeg} (the segment's persisted value),
-     * apply the fallback / clamp / 2x-overspill rules to produce the collector size capped at {@code maxK}.
-     */
-    static int resolveCollectorK(float oversampleSeg, int kRequest, float oversampleFallback, int maxK) {
-        if (Float.isFinite(oversampleSeg) == false) {
-            oversampleSeg = oversampleFallback;
-        }
-        if (Float.isFinite(oversampleSeg) == false || oversampleSeg < 1.0f) {
-            // without a usable per-segment oversample, fall back to retrieving exactly kRequest items
-            // (no oversample work for this leaf). The merge stage still caps at maxK.
-            oversampleSeg = 1.0f;
-        }
-        // preserve the existing 2x overspill multiplier
-        int innerK = (int) Math.ceil(kRequest * oversampleSeg);
-        int collectorK = Math.round(2f * innerK);
-        return Math.clamp(collectorK, 1, Math.max(1, maxK));
-    }
-
-    private static float readPersistedOversample(LeafReaderContext context, String field) {
-        LeafReader leaf = context.reader();
-        SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf);
-        if (segmentReader == null) {
-            return Float.NaN;
-        }
-        FieldInfo fieldInfo = segmentReader.getFieldInfos().fieldInfo(field);
-        if (fieldInfo == null) {
-            return Float.NaN;
-        }
-        KnnVectorsReader kvr = segmentReader.getVectorReader();
-        if (kvr instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
-            kvr = perField.getFieldReader(field);
-        }
-        if (kvr instanceof ESNextDiskBBQVectorsReader next) {
-            return next.getRescoreOversample(fieldInfo);
-        }
-        return Float.NaN;
-    }
-
     static class IVFCollectorManager implements KnnCollectorManager {
-        protected final int k;
-        protected final String field;
-        protected final int kRequest;
-        protected final float oversampleFallback;
-        protected final boolean usePerSegmentRescoreOversampling;
+        private final int k;
         final LongAccumulator longAccumulator;
 
-        IVFCollectorManager(
-            int k,
-            IndexSearcher searcher,
-            String field,
-            int kRequest,
-            float oversampleFallback,
-            boolean usePerSegmentRescoreOversampling
-        ) {
+        IVFCollectorManager(int k, IndexSearcher searcher) {
             this.k = k;
-            this.field = field;
-            this.kRequest = kRequest;
-            this.oversampleFallback = oversampleFallback;
-            this.usePerSegmentRescoreOversampling = usePerSegmentRescoreOversampling;
             longAccumulator = searcher.getIndexReader().leaves().size() > 1 ? new LongAccumulator(Long::max, LEAST_COMPETITIVE) : null;
         }
 
         @Override
         public AbstractMaxScoreKnnCollector newCollector(int visitedLimit, KnnSearchStrategy searchStrategy, LeafReaderContext context)
             throws IOException {
-            int collectorK = usePerSegmentRescoreOversampling ? perSegmentCollectorK(context, field, kRequest, oversampleFallback, k) : k;
-            return new MaxScoreTopKnnCollector(collectorK, visitedLimit, searchStrategy);
+            return new MaxScoreTopKnnCollector(k, visitedLimit, searchStrategy);
         }
     }
 }

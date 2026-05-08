@@ -52,33 +52,6 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         this.query = query;
     }
 
-    /**
-     * Creates a new {@link IVFKnnFloatVectorQuery} with per-segment BBQ-IVF rescore-oversample
-     * sizing.
-     *
-     * @param kRequest           the base number of neighbors requested by the caller (before the
-     *                           rescore-oversample expansion); each leaf's collector is sized as
-     *                           {@code ceil(kRequest * oversample_seg)}, capped by {@code k}.
-     * @param oversampleFallback the mapping default used when a segment has no finite persisted
-     *                           {@code rescoreOversample}; when {@link Float#isFinite(float)} is
-     *                           {@code false} the per-segment path is disabled and every leaf
-     *                           falls back to the legacy single-{@code k} collector.
-     */
-    public IVFKnnFloatVectorQuery(
-        String field,
-        float[] query,
-        int k,
-        int numCands,
-        Query filter,
-        float visitRatio,
-        boolean doPrecondition,
-        int kRequest,
-        float oversampleFallback
-    ) {
-        super(field, visitRatio, k, numCands, filter, doPrecondition, kRequest, oversampleFallback);
-        this.query = query;
-    }
-
     public float[] getQuery() {
         return query;
     }
@@ -95,9 +68,6 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
             .append("[")
             .append(k)
             .append("]");
-        if (usePerSegmentRescoreOversampling) {
-            buffer.append("[kRequest=").append(kRequest).append(",oversampleFallback=").append(oversampleFallback).append("]");
-        }
         if (this.filter != null) {
             buffer.append("[").append(this.filter).append("]");
         }

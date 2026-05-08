@@ -9,18 +9,14 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
-import org.apache.lucene.store.Directory;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfMergeConfigResolver;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -775,125 +771,6 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         checkRescoreQueryParameters(fieldType, 10, 20, 10f, 2.5F, 25, 25, 10);
         // Oversampling limits for k
         checkRescoreQueryParameters(fieldType, 1000, 1000, 10f, 11.0F, OVERSAMPLE_LIMIT, OVERSAMPLE_LIMIT, 1000);
-    }
-
-    public void testBBQDiskPerSegmentOversampleWiringWithMappingFallback() throws Exception {
-        // BBQ-IVF + mapping rescore_vector + no query override -> per-segment path is active:
-        // kRequest == user k, oversampleFallback == mapping default, IVF query's k is the
-        // expanded adjustedK (= ceil(k * mapping_oversample)).
-        DenseVectorFieldMapper.BBQIVFIndexOptions bbqIvf = new DenseVectorFieldMapper.BBQIVFIndexOptions(
-            384,
-            -1,
-            10f,
-            randomBoolean(),
-            new DenseVectorFieldMapper.RescoreVector(2.0f),
-            IndexVersion.current(),
-            randomBoolean(),
-            randomFrom(1, 2, 4),
-            randomBoolean()
-        );
-        DenseVectorFieldType fieldType = new DenseVectorFieldType(
-            "f",
-            IndexVersion.current(),
-            FLOAT,
-            BBQ_MIN_DIMS,
-            true,
-            VectorSimilarity.COSINE,
-            bbqIvf,
-            Collections.emptyMap(),
-            false
-        );
-        float[] queryVec = new float[BBQ_MIN_DIMS];
-        for (int i = 0; i < queryVec.length; i++) {
-            queryVec[i] = randomFloat();
-        }
-        Query query = fieldType.createKnnQuery(
-            VectorData.fromFloats(queryVec),
-            10,
-            100,
-            10f,
-            null,
-            null,
-            null,
-            null,
-            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-            randomBoolean(),
-            null
-        );
-        assertThat(query, instanceOf(RescoreKnnVectorQuery.class));
-        Query inner = ((RescoreKnnVectorQuery) query).innerQuery();
-        assertThat(inner, instanceOf(IVFKnnFloatVectorQuery.class));
-        IVFKnnFloatVectorQuery ivf = (IVFKnnFloatVectorQuery) inner;
-        // adjustedK = ceil(10 * 2.0) = 20; the per-segment toString block exposes kRequest and the fallback.
-        assertThat(ivf.toString("ignored"), containsString("[kRequest=10,oversampleFallback=2.0]"));
-        assertThat(ivf.toString("ignored"), containsString("[20]"));
-    }
-
-    public void testBBQDiskAdjustedKUsesMaxPersistedForRescoring() throws IOException {
-        float oLow = 2.0f;
-        float oHigh = 5.0f;
-        try (
-            Directory dir = newDirectory();
-            DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegments(
-                dir,
-                random(),
-                BBQ_MIN_DIMS,
-                12,
-                oLow,
-                oHigh,
-                IvfMergeConfigResolver.useCodecDefault()
-            )
-        ) {
-            ESNextRescoreOversampleTestFixture.assertLeafOversamples(reader, oLow, oHigh);
-
-            DenseVectorFieldMapper.BBQIVFIndexOptions bbqIvf = new DenseVectorFieldMapper.BBQIVFIndexOptions(
-                384,
-                -1,
-                10f,
-                randomBoolean(),
-                new DenseVectorFieldMapper.RescoreVector(1.5f),
-                IndexVersion.current(),
-                randomBoolean(),
-                randomFrom(1, 2, 4),
-                randomBoolean()
-            );
-            DenseVectorFieldType fieldType = new DenseVectorFieldType(
-                ESNextRescoreOversampleTestFixture.FIELD_NAME,
-                IndexVersion.current(),
-                FLOAT,
-                BBQ_MIN_DIMS,
-                true,
-                VectorSimilarity.L2_NORM,
-                bbqIvf,
-                Collections.emptyMap(),
-                false
-            );
-            float[] queryVec = new float[BBQ_MIN_DIMS];
-            for (int i = 0; i < queryVec.length; i++) {
-                queryVec[i] = randomFloat();
-            }
-            int k = 10;
-            int adjustedKExpected = Math.min((int) Math.ceil(k * oHigh), OVERSAMPLE_LIMIT);
-            Query query = fieldType.createKnnQuery(
-                VectorData.fromFloats(queryVec),
-                k,
-                100,
-                10f,
-                null,
-                null,
-                null,
-                null,
-                randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean(),
-                reader
-            );
-            assertThat(query, instanceOf(RescoreKnnVectorQuery.class));
-            Query inner = ((RescoreKnnVectorQuery) query).innerQuery();
-            assertThat(inner, instanceOf(IVFKnnFloatVectorQuery.class));
-            IVFKnnFloatVectorQuery ivf = (IVFKnnFloatVectorQuery) inner;
-            assertThat(ivf.toString("ignored"), containsString("[kRequest=" + k + ",oversampleFallback=1.5]"));
-            assertThat(ivf.toString("ignored"), containsString("[" + adjustedKExpected + "]"));
-        }
     }
 
     public void testBBQDiskQueryOverrideKeepsUniformSingleK() throws Exception {

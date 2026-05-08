@@ -3156,41 +3156,59 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return knnQuery;
         }
 
+        private static final int MAX_PERSISTED_OVERSAMPLE_SEGMENTS = 10;
+
         /**
-         * read max rescore oversample across leaves.
-         * it reads at most 10 segments.
+         * Reads max persisted rescore oversample across at most 10 leaves.
          */
         private static float readStoredRescoreOversample(IndexReader reader, String fieldName) {
+            return readMax(reader, fieldName, MAX_PERSISTED_OVERSAMPLE_SEGMENTS);
+        }
+
+        /**
+         * Reads the persisted rescore oversample for one leaf/field.
+         * @return the persisted oversample, or {@link Float#NaN} when unavailable.
+         */
+        private static float read(LeafReaderContext context, String field) {
+            LeafReader leaf = context.reader();
+            SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf);
+            if (segmentReader == null) {
+                return Float.NaN;
+            }
+            FieldInfo fieldInfo = segmentReader.getFieldInfos().fieldInfo(field);
+            if (fieldInfo == null) {
+                return Float.NaN;
+            }
+            KnnVectorsReader vectorsReader = segmentReader.getVectorReader();
+            if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
+                vectorsReader = perField.getFieldReader(field);
+            }
+            if (vectorsReader instanceof ESNextDiskBBQVectorsReader diskBBQVectorsReader) {
+                return diskBBQVectorsReader.getRescoreOversample(fieldInfo);
+            }
+            return Float.NaN;
+        }
+
+        /**
+         * Reads the maximum persisted rescore oversample over at most {@code maxSegments} leaves
+         * (to avoid perf problems with large number of segments).
+         * @return the maximum finite persisted oversample, or {@link Float#NaN} when unavailable.
+         */
+        private static float readMax(IndexReader reader, String field, int maxSegments) {
             if (reader == null) {
                 return Float.NaN;
             }
             float best = Float.NaN;
-            int i = 0;
-            for (LeafReaderContext ctx : reader.leaves()) {
-                if (i >= 10) {
-                    // avoid reading from too many segments
+            int inspected = 0;
+            for (LeafReaderContext context : reader.leaves()) {
+                if (maxSegments > 0 && inspected >= maxSegments) {
                     break;
                 }
-                LeafReader leaf = ctx.reader();
-                SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf);
-                if (segmentReader == null) {
-                    continue;
+                float value = read(context, field);
+                if (Float.isFinite(value) && (Float.isNaN(best) || value > best)) {
+                    best = value;
                 }
-                FieldInfo fieldInfo = segmentReader.getFieldInfos().fieldInfo(fieldName);
-                if (fieldInfo == null) {
-                    continue;
-                }
-                KnnVectorsReader kvr = segmentReader.getVectorReader();
-                if (kvr instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
-                    kvr = perField.getFieldReader(fieldName);
-                }
-                if (kvr instanceof ESNextDiskBBQVectorsReader next) {
-                    float v = next.getRescoreOversample(fieldInfo);
-                    if (Float.isFinite(v) && (Float.isNaN(best) || v > best)) {
-                        best = v;
-                    }
-                }
-                i++;
+                inspected++;
             }
             return best;
         }
@@ -3268,9 +3286,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         filter,
                         parentFilter,
                         visitRatio,
-                        bbqIndexOptions.doPrecondition(),
-                        kRequest,
-                        oversampleFallback
+                        bbqIndexOptions.doPrecondition()
                     )
                     : new IVFKnnFloatVectorQuery(
                         name(),
@@ -3279,9 +3295,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         numCands,
                         filter,
                         visitRatio,
-                        bbqIndexOptions.doPrecondition(),
-                        kRequest,
-                        oversampleFallback
+                        bbqIndexOptions.doPrecondition()
                     );
             } else {
                 knnQuery = parentFilter != null

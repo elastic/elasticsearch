@@ -683,11 +683,23 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     public static final String CLEAN_SETUP_FEATURE = "clean_setup";
 
     /**
+     * Set by the {@code yamlRestCompatTest} task. When true, the lazy-cleanup optimization is
+     * suppressed for the entire JVM run because the compat task replays yaml tests checked
+     * out from a prior branch, which won't carry any {@link #CLEAN_SETUP_FEATURE} markers we
+     * add going forward.
+     */
+    private static final boolean REST_COMPAT_MODE = Boolean.parseBoolean(System.getProperty("tests.restCompat", "false"));
+
+    /**
      * Whether the current test (or its setup section) requires a clean cluster setup. Tests
      * marked with the {@link #CLEAN_SETUP_FEATURE} yaml runner feature opt out of the
-     * lazy-cleanup optimization for the current invocation.
+     * lazy-cleanup optimization for the current invocation. Also returns {@code true}
+     * unconditionally when running under {@code yamlRestCompatTest}.
      */
     private boolean requiresCleanSetup() {
+        if (REST_COMPAT_MODE) {
+            return true;
+        }
         return testCandidate.getTestSection().getPrerequisiteSection().hasYamlRunnerFeature(CLEAN_SETUP_FEATURE)
             || testCandidate.getSetupSection().getPrerequisiteSection().hasYamlRunnerFeature(CLEAN_SETUP_FEATURE);
     }

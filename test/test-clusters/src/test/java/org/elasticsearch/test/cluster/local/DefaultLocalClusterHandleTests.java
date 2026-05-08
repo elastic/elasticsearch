@@ -292,6 +292,82 @@ public class DefaultLocalClusterHandleTests {
         assertThat("health check probe must not have been called during callback", probe.checks.get(), is(0));
     }
 
+    @Test
+    public void testWithSuppressedHealthChecksPreventsProbesDuringAction() throws Exception {
+        // withSuppressedHealthChecks is the protected hook that subclasses (e.g.
+        // ServerlessLocalClusterHandle) must call around their own rolling-upgrade callback
+        // invocation. This test verifies the suppression and the automatic un-suppression.
+        CountingFailingWaitForHttpResource probe = new CountingFailingWaitForHttpResource();
+        DefaultLocalClusterHandle handle = new DefaultLocalClusterHandle("cluster", List.of(newNode("node-0", true))) {
+            @Override
+            protected List<WaitForHttpResource> createHealthChecks() {
+                return List.of(probe);
+            }
+
+            @Override
+            protected long healthCheckCacheTtlNanos() {
+                return 0L;
+            }
+        };
+        setStarted(handle, true);
+
+        handle.withSuppressedHealthChecks(handle::checkNodesAlive);
+
+        assertThat("probe must not fire while health checks are suppressed", probe.checks.get(), is(0));
+    }
+
+    @Test
+    public void testWithSuppressedHealthChecksRestoresProbesAfterAction() throws Exception {
+        // Health checks must resume after withSuppressedHealthChecks completes so that
+        // failures AFTER the rolling-upgrade window are still detected.
+        CountingFailingWaitForHttpResource probe = new CountingFailingWaitForHttpResource();
+        DefaultLocalClusterHandle handle = new DefaultLocalClusterHandle("cluster", List.of(newNode("node-0", true))) {
+            @Override
+            protected List<WaitForHttpResource> createHealthChecks() {
+                return List.of(probe);
+            }
+
+            @Override
+            protected long healthCheckCacheTtlNanos() {
+                return 0L;
+            }
+        };
+        setStarted(handle, true);
+
+        handle.withSuppressedHealthChecks(() -> {});
+
+        // After withSuppressedHealthChecks returns, probes must fire again.
+        assertThrows(IllegalStateException.class, handle::checkNodesAlive);
+        assertThat("probe must fire after suppression window ends", probe.checks.get(), is(1));
+    }
+
+    @Test
+    public void testWithSuppressedHealthChecksRestoresProbesEvenOnException() throws Exception {
+        // Suppression must be lifted even when the action throws.
+        CountingFailingWaitForHttpResource probe = new CountingFailingWaitForHttpResource();
+        DefaultLocalClusterHandle handle = new DefaultLocalClusterHandle("cluster", List.of(newNode("node-0", true))) {
+            @Override
+            protected List<WaitForHttpResource> createHealthChecks() {
+                return List.of(probe);
+            }
+
+            @Override
+            protected long healthCheckCacheTtlNanos() {
+                return 0L;
+            }
+        };
+        setStarted(handle, true);
+
+        assertThrows(
+            RuntimeException.class,
+            () -> handle.withSuppressedHealthChecks(() -> { throw new RuntimeException("upgrade failed"); })
+        );
+
+        // Even after an exception, health checks must be re-enabled.
+        assertThrows(IllegalStateException.class, handle::checkNodesAlive);
+        assertThat("probe must fire after suppression window ends (even on exception)", probe.checks.get(), is(1));
+    }
+
     private static class TestProcess extends Process {
         private final boolean alive;
 

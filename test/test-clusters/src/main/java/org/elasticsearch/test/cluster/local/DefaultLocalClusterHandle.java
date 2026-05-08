@@ -211,20 +211,48 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         waitUntilReady();
     }
 
+    /**
+     * Executes {@code action} with health-check probes suppressed on this cluster handle.
+     * <p>
+     * Health-check probes fire whenever {@link #getHttpAddresses()} (and similar methods) are
+     * called.  During a rolling upgrade a node that was just restarted may momentarily refuse
+     * direct HTTP connections even though the cluster is healthy, producing a false-positive
+     * "Cluster may be in a bad state" failure.  Wrapping both the per-node restart <em>and</em>
+     * the post-upgrade callback with this method prevents those false positives.
+     * </p>
+     * <p>
+     * Subclasses that override {@link #upgradeToVersion(Version, Runnable)} <strong>must</strong>
+     * wrap every invocation of {@code onNodeUpgradeComplete} with this method so that health checks
+     * are suppressed for the entire upgrade+callback window.
+     * </p>
+     */
+    protected final void withSuppressedHealthChecks(Runnable action) {
+        suppressHealthChecks = true;
+        try {
+            action.run();
+        } finally {
+            suppressHealthChecks = false;
+        }
+    }
+
+    /**
+     * Performs a rolling upgrade, upgrading one node at a time and invoking {@code onNodeUpgradeComplete}
+     * after each node is restarted.
+     * <p>
+     * Health-check probes are suppressed for the duration of each node-upgrade+callback window via
+     * {@link #withSuppressedHealthChecks(Runnable)}.  Subclasses that override this method
+     * <strong>must</strong> apply the same suppression; see {@link #withSuppressedHealthChecks}.
+     * </p>
+     */
     @Override
     public void upgradeToVersion(Version version, Runnable onNodeUpgradeComplete) {
         int numNodes = getNumNodes();
         for (int index = 0; index < numNodes; index++) {
-            // Suppress health-check probes for the entire upgrade+callback window. A node being
-            // restarted may momentarily refuse direct HTTP connections even after waitUntilReady()
-            // returns, producing a false-positive "Cluster may be in a bad state" failure.
-            suppressHealthChecks = true;
-            try {
-                upgradeNodeToVersion(index, version);
+            final int nodeIndex = index;
+            withSuppressedHealthChecks(() -> {
+                upgradeNodeToVersion(nodeIndex, version);
                 onNodeUpgradeComplete.run();
-            } finally {
-                suppressHealthChecks = false;
-            }
+            });
         }
     }
 

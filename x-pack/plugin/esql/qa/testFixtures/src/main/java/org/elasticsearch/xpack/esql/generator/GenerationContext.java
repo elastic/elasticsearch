@@ -23,13 +23,6 @@ public final class GenerationContext {
     }
 
     /**
-     * Root context for a top-level query with no opt-in features. Used by the main generative suite.
-     */
-    public static GenerationContext root() {
-        return root(Set.of());
-    }
-
-    /**
      * Root context for a top-level query with the given opt-in features.
      */
     public static GenerationContext root(Set<GenerativeFeature> features) {

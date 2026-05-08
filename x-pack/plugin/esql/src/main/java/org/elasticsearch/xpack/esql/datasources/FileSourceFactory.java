@@ -243,8 +243,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
     static final String CONFIG_FORMAT = "format";
 
     /**
-     * Keys claimed by the coordinator itself: {@link #CONFIG_FORMAT}, {@link ErrorPolicy#CONFIG_KEYS},
-     * and split-tuning options consumed by {@link FileSplitProvider} (e.g. {@code target_split_size}).
+     * Aggregated set of keys the coordinator-side path claims from a per-query configuration map.
+     * Built from each component's own {@code CONFIG_KEYS} set so adding a new coordinator-level
+     * configuration consumer requires updating only the consumer's own constant — the union here
+     * picks it up automatically. Components contributing today: {@link ErrorPolicy} and
+     * {@link FileSplitProvider}, plus the {@link #CONFIG_FORMAT} override read by this class.
      */
     static final Set<String> COORDINATOR_KEYS;
 
@@ -252,7 +255,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         Set<String> keys = new HashSet<>();
         keys.add(CONFIG_FORMAT);
         keys.addAll(ErrorPolicy.CONFIG_KEYS);
-        keys.add(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE);
+        keys.addAll(FileSplitProvider.CONFIG_KEYS);
         COORDINATOR_KEYS = Set.copyOf(keys);
     }
 

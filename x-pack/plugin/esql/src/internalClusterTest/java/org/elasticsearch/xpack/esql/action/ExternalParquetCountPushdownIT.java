@@ -150,9 +150,11 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
         int totalRows = 500;
         Path parquetFile = writeParquetFile(totalRows, 80);
         try {
-            String query = "EXTERNAL \""
-                + StoragePath.fileUri(parquetFile)
-                + "\" WITH { \"external_distribution\": \"coordinator_only\" } | STATS c = COUNT(*)";
+            // {@code external_distribution} is a query-pragma, not a per-query configuration option;
+            // there is no bridge from the EXTERNAL command's option map to {@link QueryPragmas} today.
+            // The test exercises the default adaptive strategy, which picks coordinator-only for a
+            // count-only query against a single Parquet file (no Async* operators in the resulting plan).
+            String query = "EXTERNAL \"" + StoragePath.fileUri(parquetFile) + "\" | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);
             request.profile(true);

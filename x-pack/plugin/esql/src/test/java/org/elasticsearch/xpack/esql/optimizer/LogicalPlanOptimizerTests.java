@@ -7593,7 +7593,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(eval.child(), Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        // Avg(long) surrogate wraps Sum's input in ToDouble; the cast is extracted into an Eval above the TimeSeriesAggregate.
+        Eval evalToDouble = as(finalAgg.child(), Eval.class);
+        assertThat(evalToDouble.fields(), hasSize(1));
+        as(Alias.unwrap(evalToDouble.fields().get(0)), ToDouble.class);
+        TimeSeriesAggregate aggsByTsid = as(evalToDouble.child(), TimeSeriesAggregate.class);
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);
@@ -7695,7 +7699,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var limit = as(eval.child(), Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
         assertThat(finalAgg, not(instanceOf(TimeSeriesAggregate.class)));
-        TimeSeriesAggregate aggsByTsid = as(finalAgg.child(), TimeSeriesAggregate.class);
+        // Avg(long) surrogate wraps Sum's input in ToDouble; the cast is extracted into an Eval above the TimeSeriesAggregate.
+        Eval evalToDouble = as(finalAgg.child(), Eval.class);
+        assertThat(evalToDouble.fields(), hasSize(1));
+        as(Alias.unwrap(evalToDouble.fields().get(0)), ToDouble.class);
+        TimeSeriesAggregate aggsByTsid = as(evalToDouble.child(), TimeSeriesAggregate.class);
         assertNotNull(aggsByTsid.timeBucket());
         assertThat(aggsByTsid.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
         Eval evalBucket = as(aggsByTsid.child(), Eval.class);

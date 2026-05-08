@@ -15,8 +15,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,6 +29,23 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class BytesRefArrayTests extends ESTestCase {
+
+    @Before
+    public void setIntOffsetLimit() {
+        if (randomBoolean()) {
+            BytesRefArray.MAX_INT_OFFSET = randomIntBetween(1, 1024);
+        } else if (randomBoolean()) {
+            BytesRefArray.MAX_INT_OFFSET = randomIntBetween(
+                (int) ByteSizeValue.ofKb(1).getBytes(),
+                (int) ByteSizeValue.ofMb(10).getBytes()
+            );
+        } else {
+            BytesRefArray.MAX_INT_OFFSET = randomIntBetween(
+                (int) ByteSizeValue.ofMb(10).getBytes(),
+                (int) ByteSizeValue.ofGb(1).getBytes()
+            );
+        }
+    }
 
     public static BytesRefArray randomArray() {
         return randomArray(randomIntBetween(0, 100), randomIntBetween(10, 50), mockBigArrays());
@@ -251,6 +270,48 @@ public class BytesRefArrayTests extends ESTestCase {
             BytesRef scratch = new BytesRef();
             for (int i = 0; i < count; i++) {
                 assertThat(array.get(i, scratch), equalTo(expected[i]));
+            }
+        }
+    }
+
+    public void testEmptyEquals() {
+        final int pageSize = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        try (BytesRefArray array = new BytesRefArray(pageSize, mockBigArrays())) {
+            var v0 = new BytesRef(randomByteArrayOfLength(pageSize / 2));
+            var v1 = new BytesRef(randomByteArrayOfLength(pageSize / 2));
+            var empty = new BytesRef();
+            array.append(v0);
+            array.append(v1);
+            array.append(empty);
+            assertTrue(array.bytesEqual(0, v0));
+            assertTrue(array.bytesEqual(1, v1));
+            assertTrue(array.bytesEqual(2, empty));
+            assertFalse(array.bytesEqual(0, empty));
+            assertFalse(array.bytesEqual(1, empty));
+        }
+    }
+
+    public void testRandomEquals() {
+        final int pageSize = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        try (BytesRefArray array = new BytesRefArray(randomIntBetween(1, pageSize), mockBigArrays())) {
+            int numValues = between(10, 100);
+            BytesRef[] values = new BytesRef[numValues];
+            for (int i = 0; i < numValues; i++) {
+                int length = randomFrom(0, between(1, 1024), pageSize / 2, pageSize, pageSize * 2);
+                var value = new BytesRef(length);
+                array.append(value);
+                values[i] = value;
+            }
+            for (int i = 0; i < numValues; i++) {
+                assertTrue(array.bytesEqual(i, values[i]));
+            }
+            for (int i = 0; i < numValues; i++) {
+                BytesRef other = randomFrom(values);
+                if (other.equals(values[i])) {
+                    assertTrue(array.bytesEqual(i, other));
+                } else {
+                    assertFalse(array.bytesEqual(i, other));
+                }
             }
         }
     }

@@ -256,6 +256,10 @@ public class ReshardSearchFilters {
         }
 
         private static int calculateNumDocs(LeafReader reader, BitSet unownedDocs) {
+            if (unownedDocs == null) {
+                return reader.numDocs();
+            }
+
             final Bits liveDocs = reader.getLiveDocs();
 
             // No deleted documents are present, therefore number of documents is total minus unowned.

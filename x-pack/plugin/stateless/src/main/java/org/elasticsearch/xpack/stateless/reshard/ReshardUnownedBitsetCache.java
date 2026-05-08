@@ -166,23 +166,31 @@ public final class ReshardUnownedBitsetCache implements IndexReader.ClosedListen
                 keys.add(cacheKey);
                 return keys;
             });
-            final BitSet result = computeBitSet(query, context);
-            if (result == null) {
-                return NULL_MARKER;
+            try {
+                final BitSet result = computeBitSet(query, context);
+                if (result == null) {
+                    return NULL_MARKER;
+                }
+                final long bitSetBytes = result.ramBytesUsed();
+                if (bitSetBytes > this.maxWeightBytes) {
+                    logger.warn(
+                        "built a resharding unowned-doc BitSet that uses [{}] bytes; the cache maximum size is [{}] bytes;"
+                            + " consider increasing [{}]",
+                        bitSetBytes,
+                        maxWeightBytes,
+                        CACHE_SIZE_SETTING.getKey()
+                    );
+                } else if (bitSetBytes + bitsetCache.weight() > maxWeightBytes) {
+                    maybeLogCacheFullWarning();
+                }
+                return result;
+            } catch (Exception e) {
+                keysByIndex.computeIfPresent(indexKey, (ignore2, keys) -> {
+                    keys.remove(cacheKey);
+                    return keys.isEmpty() ? null : keys;
+                });
+                throw e;
             }
-            final long bitSetBytes = result.ramBytesUsed();
-            if (bitSetBytes > this.maxWeightBytes) {
-                logger.warn(
-                    "built a resharding unowned-doc BitSet that uses [{}] bytes; the cache maximum size is [{}] bytes;"
-                        + " consider increasing [{}]",
-                    bitSetBytes,
-                    maxWeightBytes,
-                    CACHE_SIZE_SETTING.getKey()
-                );
-            } else if (bitSetBytes + bitsetCache.weight() > maxWeightBytes) {
-                maybeLogCacheFullWarning();
-            }
-            return result;
         });
         if (cacheKeyWasPresent[0]) {
             hitsTimeInNanos.add(relativeNanoTimeProvider.getAsLong() - cacheStart);

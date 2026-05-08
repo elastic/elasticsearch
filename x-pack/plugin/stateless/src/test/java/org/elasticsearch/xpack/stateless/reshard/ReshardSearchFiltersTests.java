@@ -308,21 +308,24 @@ public class ReshardSearchFiltersTests extends ESTestCase {
                 .settings(indexSettings(IndexVersion.current(), 2, 0))
                 .build();
             var query = new ShardSplittingQuery(indexMetadata, 0, false);
-            var wrapper1 = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader1, query, cache);
-            var wrapper2 = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader2, query, cache);
+            try (
+                var wrapper1 = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader1, query, cache);
+                var wrapper2 = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader2, query, cache)
+            ) {
 
-            wrapper1.leaves().get(0).reader().getLiveDocs();
+                wrapper1.leaves().get(0).reader().getLiveDocs();
 
-            Map<String, Object> afterFirst = cache.usageStats();
-            assertEquals(1L, afterFirst.get("misses"));
+                Map<String, Object> afterFirst = cache.usageStats();
+                assertEquals(1L, afterFirst.get("misses"));
 
-            wrapper2.leaves().get(0).reader().getLiveDocs();
+                wrapper2.leaves().get(0).reader().getLiveDocs();
 
-            Map<String, Object> afterSecond = cache.usageStats();
-            assertEquals(1L, afterSecond.get("misses"));
-            assertEquals(1L, afterSecond.get("hits"));
+                Map<String, Object> afterSecond = cache.usageStats();
+                assertEquals(1L, afterSecond.get("misses"));
+                assertEquals(1L, afterSecond.get("hits"));
 
-            cache.verifyInternalConsistency();
+                cache.verifyInternalConsistency();
+            }
         } finally {
             cache.close();
         }

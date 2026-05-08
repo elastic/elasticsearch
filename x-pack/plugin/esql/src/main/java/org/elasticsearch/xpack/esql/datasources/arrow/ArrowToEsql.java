@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasource.grpc;
+package org.elasticsearch.xpack.esql.datasources.arrow;
 
 import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.FieldVector;
@@ -18,7 +18,7 @@ import org.elasticsearch.compute.data.arrow.BooleanArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.BytesRefArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.DoubleArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.Float16ArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.FloatArrowBufBlock;
+import org.elasticsearch.compute.data.arrow.Float32ArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.Int16ArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.Int8ArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.IntArrowBufBlock;
@@ -30,9 +30,12 @@ import org.elasticsearch.xpack.esql.arrow.ArrowToBlockConverter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.EnumMap;
+import java.util.List;
 
 /**
- * Mapping information from Arrow vectors to an ES|QL blocks.
+ * Mapping information from Arrow vectors to ES|QL blocks.
+ * Provides both schema conversion (Arrow {@link Field} to ESQL {@link DataType}) and
+ * data conversion (Arrow {@link FieldVector} to ESQL {@link Block}).
  *
  * @param dataType the logical type, used to convert the Arrow schema to ES|QL attributes
  * @param elementType the primitive type used to represent Arrow vector values
@@ -50,7 +53,24 @@ public record ArrowToEsql(DataType dataType, ElementType elementType, ArrowToBlo
         var type = Types.getMinorTypeForArrowType(field.getType());
 
         return switch (type) {
-            case LIST -> forField(field.getChildren().get(1));
+            case LIST -> {
+                // forField recurses into the (single) child to determine the schema-level dataType/elementType,
+                // but the *converter* must be the LIST registry entry, which dispatches on the runtime ListVector
+                // (the per-type leaf converters from forType0 expect a flat FieldVector and would crash with a
+                // ClassCastException on a ListVector input). The runtime registry only supports a subset of
+                // child types today (see ArrowToBlockConverter#isListChildTypeSupported); reject the rest at
+                // schema time so callers get a clear error before any rows are read.
+                Field child = field.getChildren().get(0);
+                Types.MinorType childType = Types.getMinorTypeForArrowType(child.getType());
+                if (ArrowToBlockConverter.isListChildTypeSupported(childType) == false) {
+                    yield null;
+                }
+                ArrowToEsql leaf = forField(child);
+                if (leaf == null) {
+                    yield null;
+                }
+                yield new ArrowToEsql(leaf.dataType(), leaf.elementType(), ArrowToBlockConverter.forType(Types.MinorType.LIST));
+            }
 
             // TODO: handle these
             case LISTVIEW -> null;
@@ -62,13 +82,60 @@ public record ArrowToEsql(DataType dataType, ElementType elementType, ArrowToBlo
         };
     }
 
+    /**
+     * Returns the ESQL {@link DataType} for an Arrow field, applying wide coercions suitable
+     * for schema inference from file formats like Parquet where the full range of Arrow types
+     * may appear. Unlike {@link #forField}, this method maps all common Arrow types to an ESQL
+     * type (e.g. Decimal → DOUBLE, Binary → KEYWORD, UInt8 → INTEGER).
+     */
+    public static DataType dataTypeForField(Field field) {
+        var type = Types.getMinorTypeForArrowType(field.getType());
+
+        if (type == Types.MinorType.LIST) {
+            List<Field> children = field.getChildren();
+            if (children.isEmpty()) {
+                return DataType.UNSUPPORTED;
+            }
+            Field child = children.get(0);
+            // Mirror the runtime registry's gating: advertising a child type the LIST converter can't handle
+            // would let schema inference accept a column that batch conversion later rejects.
+            Types.MinorType childType = Types.getMinorTypeForArrowType(child.getType());
+            if (ArrowToBlockConverter.isListChildTypeSupported(childType) == false) {
+                return DataType.UNSUPPORTED;
+            }
+            return dataTypeForField(child);
+        }
+        // LARGELIST/LISTVIEW/LARGELISTVIEW/FIXED_SIZE_LIST have no runtime converter today
+        // (forField rejects them); fall through to wideDataType which returns UNSUPPORTED.
+
+        return wideDataType(type);
+    }
+
+    /**
+     * Must only advertise types that the runtime converter registry
+     * ({@link org.elasticsearch.xpack.esql.arrow.ArrowToBlockConverter#forType}) can actually convert,
+     * otherwise schema inference would accept a column that batch conversion rejects at runtime with
+     * {@code Unsupported Arrow type}.
+     */
+    private static DataType wideDataType(Types.MinorType type) {
+        return switch (type) {
+            case TINYINT, SMALLINT, INT, UINT1, UINT2 -> DataType.INTEGER;
+            case BIGINT, UINT4 -> DataType.LONG;
+            case FLOAT2, FLOAT4, FLOAT8 -> DataType.DOUBLE;
+            case BIT -> DataType.BOOLEAN;
+            case VARCHAR, VARBINARY -> DataType.KEYWORD;
+            case TIMESTAMPSEC, TIMESTAMPMILLI, TIMESTAMPSECTZ, TIMESTAMPMILLITZ -> DataType.DATETIME;
+            case TIMESTAMPMICRO, TIMESTAMPNANO, TIMESTAMPMICROTZ, TIMESTAMPNANOTZ -> DataType.DATE_NANOS;
+            default -> DataType.UNSUPPORTED;
+        };
+    }
+
     public Block convert(FieldVector vector, BlockFactory blockFactory) {
         return converter.convert(vector, blockFactory);
     }
 
     static {
         var map = new EnumMap<Types.MinorType, ArrowToEsql>(Types.MinorType.class);
-        // Using a switch in forType0 ensures that all enum members are covered.
         for (var type : Types.MinorType.values()) {
             map.put(type, forType0(type));
         }
@@ -93,7 +160,7 @@ public record ArrowToEsql(DataType dataType, ElementType elementType, ArrowToBlo
 
             // Floating point numbers: data type is always double
             case FLOAT2 -> new ArrowToEsql(DataType.HALF_FLOAT, ElementType.DOUBLE, Float16ArrowBufBlock::of);
-            case FLOAT4 -> new ArrowToEsql(DataType.FLOAT, ElementType.DOUBLE, FloatArrowBufBlock::of);
+            case FLOAT4 -> new ArrowToEsql(DataType.FLOAT, ElementType.DOUBLE, Float32ArrowBufBlock::of);
             case FLOAT8 -> new ArrowToEsql(DataType.DOUBLE, ElementType.DOUBLE, DoubleArrowBufBlock::of);
 
             // Unsupported number types
@@ -137,7 +204,7 @@ public record ArrowToEsql(DataType dataType, ElementType elementType, ArrowToBlo
             case VIEWVARBINARY -> null;
             case LARGEVARBINARY -> null;
 
-            // Lists are handled in esqlTypes(Field)
+            // Lists are handled in forField(Field)
             case LIST -> null;
             case LISTVIEW -> null;
             case LARGELIST -> null;

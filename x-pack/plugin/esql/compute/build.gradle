@@ -159,9 +159,10 @@ tasks.named('stringTemplates').configure {
   floatProperties["valueRead"] = 'valueBuffer.getFloat((long) valueIndex * Float.BYTES)'
   floatProperties["arrowDesc"] = '32 bits floats'
 
-  doubleProperties["extraArrowBufBlockPermits"] = ", org.elasticsearch.compute.data.arrow.Float16ArrowBufBlock"
+  doubleProperties["extraArrowBufBlockPermits"] = """, org.elasticsearch.compute.data.arrow.Float16ArrowBufBlock,
+    org.elasticsearch.compute.data.arrow.Float32ArrowBufBlock"""
   doubleProperties["extraArrowBufVectorPermits"] = """,
-    org.elasticsearch.compute.data.arrow.Float16ArrowBufVector"""
+    org.elasticsearch.compute.data.arrow.Float16ArrowBufVector, org.elasticsearch.compute.data.arrow.Float32ArrowBufVector"""
   doubleProperties["byteSize"] = "Double.BYTES"
   doubleProperties["valueRead"] = 'valueBuffer.getDouble((long) valueIndex * Double.BYTES)'
   doubleProperties["arrowDesc"] = '64 bits floats'
@@ -210,6 +211,12 @@ tasks.named('stringTemplates').configure {
   float16Properties["arrowDesc"] = "16 bits floats"
   float16Properties["byteSize"] = "Short.BYTES"
   float16Properties["valueRead"] = 'Float.float16ToFloat(valueBuffer.getShort((long) valueIndex * Short.BYTES))'
+
+  // 32-bit floats widened to ESQL DOUBLE on read; backing buffer stays 4 bytes per value (zero-copy).
+  var float32Properties = prop("Float32", "Double", "double", "Double", "DOUBLE", "Double.BYTES", "DoubleArray", "LongHash")
+  float32Properties["arrowDesc"] = "32 bits floats"
+  float32Properties["byteSize"] = "Float.BYTES"
+  float32Properties["valueRead"] = 'valueBuffer.getFloat((long) valueIndex * Float.BYTES)'
 
   // primitive vectors
   File vectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Vector.java.st")
@@ -820,6 +827,11 @@ tasks.named('stringTemplates').configure {
     it.inputFile = arrowBufBlockInputFile
     it.outputFile = "org/elasticsearch/compute/data/arrow/Float16ArrowBufBlock.java"
   }
+  template {
+    it.properties = float32Properties
+    it.inputFile = arrowBufBlockInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/Float32ArrowBufBlock.java"
+  }
   // Arrow buffer vector implementations for narrower/transformed types
   template {
     it.properties = uint8Properties
@@ -855,6 +867,11 @@ tasks.named('stringTemplates').configure {
     it.properties = float16Properties
     it.inputFile = arrowBufVectorInputFile
     it.outputFile = "org/elasticsearch/compute/data/arrow/Float16ArrowBufVector.java"
+  }
+  template {
+    it.properties = float32Properties
+    it.inputFile = arrowBufVectorInputFile
+    it.outputFile = "org/elasticsearch/compute/data/arrow/Float32ArrowBufVector.java"
   }
   File arrayStateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ArrayState.java.st")
   template {

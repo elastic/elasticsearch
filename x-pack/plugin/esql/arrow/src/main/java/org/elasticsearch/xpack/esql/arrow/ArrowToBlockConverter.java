@@ -39,4 +39,13 @@ public interface ArrowToBlockConverter {
     static ArrowToBlockConverter forType(Types.MinorType arrowType) {
         return ArrowToBlockConverters.forType(arrowType);
     }
+
+    /**
+     * Returns true if a {@code ListVector} whose child has the given Arrow minor type can be
+     * converted to an ESQL Block today. Schema-inference helpers should consult this so they
+     * don't advertise list columns that batch conversion would later reject.
+     */
+    static boolean isListChildTypeSupported(Types.MinorType childType) {
+        return ArrowToBlockConverters.isListChildTypeSupported(childType);
+    }
 }

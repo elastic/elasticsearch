@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.arrow;
 
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.BitVector;
+import org.apache.arrow.vector.BitVectorHelper;
 import org.apache.arrow.vector.Float2Vector;
+import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.SmallIntVector;
@@ -24,7 +27,9 @@ import org.apache.arrow.vector.UInt2Vector;
 import org.apache.arrow.vector.UInt4Vector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.types.Types;
+import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
@@ -462,8 +467,170 @@ public class ArrowToBlockConverterTests extends ESTestCase {
         assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.TIMESTAMPMICROTZ));
         assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.TIMESTAMPNANO));
         assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.TIMESTAMPNANOTZ));
+        assertNotNull(ArrowToBlockConverter.forType(Types.MinorType.LIST));
         assertNull(ArrowToBlockConverter.forType(Types.MinorType.NULL));
         assertNull(ArrowToBlockConverter.forType(Types.MinorType.STRUCT));
+    }
+
+    public void testFromFloat32() {
+        try (Float4Vector vector = new Float4Vector("test", allocator)) {
+            vector.allocateNew(4);
+            vector.set(0, 1.5f);
+            vector.set(1, -3.0f);
+            vector.setNull(2);
+            vector.set(3, 0.125f);
+            vector.setValueCount(4);
+
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(vector.getMinorType());
+            try (Block block = converter.convert(vector, blockFactory)) {
+                assertTrue(block instanceof DoubleBlock);
+                DoubleBlock db = (DoubleBlock) block;
+                assertEquals(4, db.getPositionCount());
+                assertEquals(1.5, db.getDouble(0), 0.0);
+                assertEquals(-3.0, db.getDouble(1), 0.0);
+                assertTrue(db.isNull(2));
+                assertEquals(0.125, db.getDouble(3), 0.0);
+            }
+        }
+    }
+
+    /**
+     * LIST&lt;FLOAT4&gt; is rejected at conversion time, mirroring LIST&lt;BIGINT&gt;/LIST&lt;INT&gt;:
+     * the registered {@code Float32ArrowBufBlock} converter inherits the zero-copy
+     * {@code AbstractArrowBufBlock} list path which throws on null children and yields malformed
+     * blocks for empty lists in non-null positions, so the LIST registry refuses to dispatch to
+     * it. See {@code ArrowToBlockConverters#SUPPORTED_LIST_CHILD_TYPES}.
+     */
+    public void testConvertListOfFloat32ThrowsUnsupported() {
+        ListVector listVector = ListVector.empty("test", allocator);
+        listVector.addOrGetVector(FieldType.nullable(Types.MinorType.FLOAT4.getType()));
+        listVector.setValueCount(0);
+
+        try (listVector) {
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(Types.MinorType.LIST);
+            expectThrows(UnsupportedOperationException.class, () -> converter.convert(listVector, blockFactory));
+        }
+    }
+
+    public void testFromListOfBoolean() {
+        ListVector listVector = ListVector.empty("test", allocator);
+        listVector.addOrGetVector(FieldType.nullable(Types.MinorType.BIT.getType()));
+        listVector.allocateNew();
+        BitVector child = (BitVector) listVector.getDataVector();
+        child.allocateNew(2);
+        child.set(0, 1);
+        child.set(1, 0);
+        child.setValueCount(2);
+
+        // pos 0: [true, false], pos 1: null list
+        ArrowBuf offsetBuf = listVector.getOffsetBuffer();
+        offsetBuf.setInt(0, 0);
+        offsetBuf.setInt(4, 2);
+        offsetBuf.setInt(8, 2);
+
+        ArrowBuf validityBuf = listVector.getValidityBuffer();
+        validityBuf.setZero(0, validityBuf.capacity());
+        BitVectorHelper.setBit(validityBuf, 0);
+
+        listVector.setLastSet(1);
+        listVector.setValueCount(2);
+
+        try (listVector) {
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(Types.MinorType.LIST);
+            try (Block block = converter.convert(listVector, blockFactory)) {
+                assertTrue(block instanceof BooleanBlock);
+                BooleanBlock bb = (BooleanBlock) block;
+                assertEquals(2, bb.getPositionCount());
+                assertEquals(2, bb.getValueCount(0));
+                int p0 = bb.getFirstValueIndex(0);
+                assertTrue(bb.getBoolean(p0));
+                assertFalse(bb.getBoolean(p0 + 1));
+                assertTrue(bb.isNull(1));
+            }
+        }
+    }
+
+    public void testFromListOfVarChar() {
+        ListVector listVector = ListVector.empty("test", allocator);
+        listVector.addOrGetVector(FieldType.nullable(Types.MinorType.VARCHAR.getType()));
+        listVector.allocateNew();
+        VarCharVector child = (VarCharVector) listVector.getDataVector();
+        child.allocateNew();
+        child.set(0, "hello".getBytes(StandardCharsets.UTF_8));
+        child.set(1, "world".getBytes(StandardCharsets.UTF_8));
+        child.setValueCount(2);
+
+        // pos 0: ["hello", "world"], pos 1: null list
+        ArrowBuf offsetBuf = listVector.getOffsetBuffer();
+        offsetBuf.setInt(0, 0);
+        offsetBuf.setInt(4, 2);
+        offsetBuf.setInt(8, 2);
+
+        ArrowBuf validityBuf = listVector.getValidityBuffer();
+        validityBuf.setZero(0, validityBuf.capacity());
+        BitVectorHelper.setBit(validityBuf, 0);
+
+        listVector.setLastSet(1);
+        listVector.setValueCount(2);
+
+        try (listVector) {
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(Types.MinorType.LIST);
+            try (Block block = converter.convert(listVector, blockFactory)) {
+                assertTrue(block instanceof BytesRefBlock);
+                BytesRefBlock bb = (BytesRefBlock) block;
+                assertEquals(2, bb.getPositionCount());
+                assertEquals(2, bb.getValueCount(0));
+                int p0 = bb.getFirstValueIndex(0);
+                assertEquals(new BytesRef("hello"), bb.getBytesRef(p0, new BytesRef()));
+                assertEquals(new BytesRef("world"), bb.getBytesRef(p0 + 1, new BytesRef()));
+                assertTrue(bb.isNull(1));
+            }
+        }
+    }
+
+    public void testConvertListUnsupportedElementTypeThrows() {
+        ListVector listVector = ListVector.empty("test", allocator);
+        listVector.addOrGetVector(FieldType.nullable(Types.MinorType.STRUCT.getType()));
+        listVector.setValueCount(0);
+
+        try (listVector) {
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(Types.MinorType.LIST);
+            expectThrows(UnsupportedOperationException.class, () -> converter.convert(listVector, blockFactory));
+        }
+    }
+
+    /**
+     * LIST&lt;BIGINT&gt; is rejected even though BIGINT itself has a registered (zero-copy) converter:
+     * the zero-copy {@code AbstractArrowBufBlock} list path throws on null children and produces
+     * malformed blocks for empty lists in non-null positions, so we don't dispatch to it. See
+     * {@code ArrowToBlockConverters#SUPPORTED_LIST_CHILD_TYPES}.
+     */
+    public void testConvertListOfBigIntThrowsUnsupported() {
+        ListVector listVector = ListVector.empty("test", allocator);
+        listVector.addOrGetVector(FieldType.nullable(Types.MinorType.BIGINT.getType()));
+        listVector.setValueCount(0);
+
+        try (listVector) {
+            ArrowToBlockConverter converter = ArrowToBlockConverter.forType(Types.MinorType.LIST);
+            expectThrows(UnsupportedOperationException.class, () -> converter.convert(listVector, blockFactory));
+        }
+    }
+
+    public void testIsListChildTypeSupported() {
+        assertTrue(ArrowToBlockConverter.isListChildTypeSupported(Types.MinorType.BIT));
+        assertTrue(ArrowToBlockConverter.isListChildTypeSupported(Types.MinorType.VARCHAR));
+        assertTrue(ArrowToBlockConverter.isListChildTypeSupported(Types.MinorType.VARBINARY));
+
+        // Registered as a flat converter but not yet list-safe.
+        assertFalse(ArrowToBlockConverter.isListChildTypeSupported(Types.MinorType.BIGINT));
+        assertFalse(ArrowToBlockConverter.isListChildTypeSupported(Types.MinorType.INT));
+        assertFalse(ArrowToBlockConverter.isListChildTypeSupported(Types.MinorType.FLOAT4));
+        assertFalse(ArrowToBlockConverter.isListChildTypeSupported(Types.MinorType.FLOAT8));
+        assertFalse(ArrowToBlockConverter.isListChildTypeSupported(Types.MinorType.TIMESTAMPMILLI));
+
+        // Not registered at all.
+        assertFalse(ArrowToBlockConverter.isListChildTypeSupported(Types.MinorType.STRUCT));
+        assertFalse(ArrowToBlockConverter.isListChildTypeSupported(Types.MinorType.LIST));
     }
 
     public void testFromFloat64EmptyVector() {

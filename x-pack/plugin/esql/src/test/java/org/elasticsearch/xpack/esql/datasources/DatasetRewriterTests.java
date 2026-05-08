@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataSource;
 import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
-import org.junit.Before;
 import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -33,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.List;

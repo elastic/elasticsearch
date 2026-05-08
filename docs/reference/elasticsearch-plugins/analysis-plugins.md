@@ -42,6 +42,7 @@ A number of analysis plugins have been contributed by our community:
 * [Pinyin Analysis Plugin](https://github.com/medcl/elasticsearch-analysis-pinyin) (by Medcl)
 * [Vietnamese Analysis Plugin](https://github.com/duydo/elasticsearch-analysis-vietnamese) (by Duy Do)
 * [STConvert Analysis Plugin](https://github.com/medcl/elasticsearch-analysis-stconvert) (by Medcl)
+* [Uyghur Analysis Plugin](https://github.com/TocharianOU/elastic-uyghur-analyzer) (by TocharianOU)
 
 
 

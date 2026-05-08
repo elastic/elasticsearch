@@ -683,7 +683,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
      * as IN_PROGRESS rather than STALLED.
      */
     public void testNotStalledIfShardCanMigrateToNotPreferredNode() {
-        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
+        Index index = new Index(randomIndexName(), randomUUID());
         IndexMetadata imd = generateIndexMetadata(index, 1, 0);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.STARTED))

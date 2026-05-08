@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -46,7 +45,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null, EsqlTestUtils.TEST_CFG);
+        return new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null, testCase.getConfiguration());
     }
 
     protected static List<TestCaseSupplier> testCaseSuppliers() {

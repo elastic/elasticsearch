@@ -339,8 +339,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     // Optimizing slicing by shard isn't compatible with resharding, but disabling it may have
     // a performance impact that is noticeable in some workflows. This setting exists to allow
     // us to toggle it quickly if such a case is discovered, but should not exist permanently.
-    public static final Setting<Boolean> SLICE_SHARD_OPTIMIZATION_ENABLED = Setting.boolSetting(
-        "search.slice.shard_optimization_enabled",
+    public static final Setting<Boolean> SCROLL_SLICE_SHARD_OPTIMIZATION_ENABLED = Setting.boolSetting(
+        "search.scroll.slice_shard_optimization_enabled",
         // matches logic before setting was introduced
         true,
         Property.OperatorDynamic,
@@ -396,7 +396,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile boolean pitRelocationEnabled;
 
-    private volatile boolean sliceShardOptimizationEnabled;
+    private volatile boolean scrollSliceShardOptimizationEnabled;
 
     private final int minimumDocsPerSlice;
 
@@ -513,10 +513,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(
-                SLICE_SHARD_OPTIMIZATION_ENABLED,
-                slicedShardOptimizationEnabled -> this.sliceShardOptimizationEnabled = slicedShardOptimizationEnabled
+                SCROLL_SLICE_SHARD_OPTIMIZATION_ENABLED,
+                slicedShardOptimizationEnabled -> this.scrollSliceShardOptimizationEnabled = slicedShardOptimizationEnabled
             );
-        sliceShardOptimizationEnabled = SLICE_SHARD_OPTIMIZATION_ENABLED.get(settings);
+        scrollSliceShardOptimizationEnabled = SCROLL_SLICE_SHARD_OPTIMIZATION_ENABLED.get(settings);
     }
 
     public boolean isPitRelocationEnabled() {
@@ -2111,7 +2111,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         if (source.slice() != null) {
-            context.sliceBuilder(sliceShardOptimizationEnabled ? source.slice() : SliceBuilder.withoutShardOptimization(source.slice()));
+            context.sliceBuilder(
+                scrollSliceShardOptimizationEnabled ? source.slice() : SliceBuilder.withoutShardOptimization(source.slice())
+            );
         }
 
         if (source.storedFields() != null) {

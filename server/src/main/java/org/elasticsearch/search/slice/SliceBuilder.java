@@ -208,7 +208,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         int numShards = request.shardRequestIndex() != -1 ? request.numberOfShards() : context.getIndexSettings().getNumberOfShards();
         boolean isScroll = request.scroll() != null;
 
-        if (numShards == 1 || optimizeByShard == false) {
+        if (numShards == 1 || (isScroll && optimizeByShard == false)) {
             return createSliceQuery(id, max, context, isScroll);
         }
         if (max > numShards) {

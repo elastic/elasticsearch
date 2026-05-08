@@ -353,7 +353,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     public Client wrapClient(final Client client) {
-       return client;
+        return client;
     }
 
     /**

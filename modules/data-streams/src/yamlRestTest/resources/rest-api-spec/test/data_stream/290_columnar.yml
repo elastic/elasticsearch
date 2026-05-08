@@ -58,12 +58,15 @@ setup:
   - match: { hits.hits.0._source.agent_id: "agent-1" }
   - match: { hits.hits.0._source.process_id: 101 }
   - match: { hits.hits.0._source.http_method: "GET" }
+  - match: { hits.hits.0._source.message: "Hello from columnar" }
   - match: { hits.hits.1._source.agent_id: "agent-2" }
   - match: { hits.hits.1._source.process_id: 102 }
   - match: { hits.hits.1._source.http_method: "POST" }
+  - match: { hits.hits.1._source.message: "Second doc in columnar" }
   - match: { hits.hits.2._source.agent_id: "agent-1" }
   - match: { hits.hits.2._source.process_id: 103 }
   - match: { hits.hits.2._source.http_method: "GET" }
+  - match: { hits.hits.2._source.message: "Third doc in columnar" }
 
   - do:
       indices.get_settings:
@@ -120,8 +123,10 @@ setup:
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._source.agent_id: "agent-1" }
   - match: { hits.hits.0._source.process_id: 101 }
+  - match: { hits.hits.0._source.message: "First log entry" }
   - match: { hits.hits.1._source.agent_id: "agent-2" }
   - match: { hits.hits.1._source.process_id: 102 }
+  - match: { hits.hits.1._source.message: "Second log entry" }
 
 ---
 "Create columnar_logsdb index, index docs, and retrieve them":
@@ -174,12 +179,19 @@ setup:
   - match: { hits.total.value: 3 }
   - match: { hits.hits.0._source.agent_id: "agent-1" }
   - match: { hits.hits.0._source.process_id: 101 }
-  - match: { "hits.hits.0._source.host.name": "host-a" }
+  - match: { hits.hits.0._source.http_method: "GET" }
+  - match: { hits.hits.0._source.message: "Hello from columnar_logsdb" }
+  - match: { hits.hits.0._source.host\.name: "host-a" }
   - match: { hits.hits.1._source.agent_id: "agent-2" }
-  - match: { "hits.hits.1._source.host.name": "host-b" }
+  - match: { hits.hits.1._source.process_id: 102 }
+  - match: { hits.hits.1._source.http_method: "POST" }
+  - match: { hits.hits.1._source.message: "Second doc in columnar_logsdb" }
+  - match: { hits.hits.1._source.host\.name: "host-b" }
   - match: { hits.hits.2._source.agent_id: "agent-1" }
   - match: { hits.hits.2._source.process_id: 103 }
-  - match: { "hits.hits.2._source.host.name": "host-a" }
+  - match: { hits.hits.2._source.http_method: "GET" }
+  - match: { hits.hits.2._source.message: "Third doc in columnar_logsdb" }
+  - match: { hits.hits.2._source.host\.name: "host-a" }
 
   - do:
       indices.get_settings:
@@ -234,9 +246,14 @@ setup:
           query:
             match_all: {}
           sort: "@timestamp"
+          fields: [ "host.name" ]
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._source.agent_id: "agent-1" }
-  - match: { "hits.hits.0._source.host.name": "host-a" }
+  - match: { hits.hits.0._source.process_id: 101 }
+  - match: { hits.hits.0._source.message: "First log entry" }
+  - match: { hits.hits.0._source.host\.name: "host-a" }
   - match: { hits.hits.1._source.agent_id: "agent-2" }
-  - match: { "hits.hits.1._source.host.name": "host-b" }
+  - match: { hits.hits.1._source.process_id: 102 }
+  - match: { hits.hits.1._source.message: "Second log entry" }
+  - match: { hits.hits.1._source.host\.name: "host-b" }

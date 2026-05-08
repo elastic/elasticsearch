@@ -644,7 +644,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
             @Override
             public MappingLookup mappingLookup() {
-                return null;
+                return MappingLookup.EMPTY;
             }
         };
     }

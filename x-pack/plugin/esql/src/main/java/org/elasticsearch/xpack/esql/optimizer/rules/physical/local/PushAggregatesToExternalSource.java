@@ -66,6 +66,10 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         }
         ExternalSourceExec externalExec = (ExternalSourceExec) aggregateExec.child();
 
+        if (externalExec.pushedFilter() != null) {
+            return aggregateExec;
+        }
+
         AggregatorMode mode = aggregateExec.getMode();
         if (mode != AggregatorMode.SINGLE && mode != AggregatorMode.INITIAL) {
             return aggregateExec;

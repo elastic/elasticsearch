@@ -427,6 +427,38 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         as(applyRule(agg), AggregateExec.class);
     }
 
+    public void testNotPushedWhenSourceHasPushedFilter() {
+        var ext = externalSourceWithPushedFilter(statsMetadata(1000L, null, null), "some_pushed_filter");
+        var agg = aggregateExec(AggregatorMode.SINGLE, ext, countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
+    public void testNotPushedWhenSourceHasPushedFilterInInitialMode() {
+        var ext = externalSourceWithPushedFilter(statsMetadata(1000L, null, null), "some_pushed_filter");
+        var agg = aggregateExec(AggregatorMode.INITIAL, ext, countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
+    public void testNotPushedWhenSourceHasPushedFilterWithMinMax() {
+        Map<String, Object> meta = statsMetadata(1000L, "age", 0L);
+        meta.put("_stats.columns.age.min_value", 1);
+        meta.put("_stats.columns.age.max_value", 99);
+        var ext = externalSourceWithPushedFilter(meta, "like_filter");
+        var agg = aggregateExec(AggregatorMode.SINGLE, ext, alias("mn", new Min(Source.EMPTY, AGE)));
+
+        as(applyRule(agg), AggregateExec.class);
+    }
+
+    public void testStillPushedWhenSourceHasNoPushedFilter() {
+        var ext = externalSourceWithPushedFilter(statsMetadata(1000L, null, null), null);
+        var agg = aggregateExec(AggregatorMode.SINGLE, ext, countStarAlias());
+
+        LocalSourceExec local = as(applyRule(agg), LocalSourceExec.class);
+        assertEquals(1000L, as(local.supplier().get().getBlock(0), LongBlock.class).getLong(0));
+    }
+
     // --- helpers ---
 
     @SafeVarargs
@@ -458,6 +490,19 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
 
     private static ExternalSourceExec externalSource(Map<String, Object> sourceMetadata) {
         return new ExternalSourceExec(Source.EMPTY, "file:///test.parquet", "parquet", defaultAttrs(), Map.of(), sourceMetadata, null);
+    }
+
+    private static ExternalSourceExec externalSourceWithPushedFilter(Map<String, Object> sourceMetadata, Object pushedFilter) {
+        return new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            defaultAttrs(),
+            Map.of(),
+            sourceMetadata,
+            pushedFilter,
+            null
+        );
     }
 
     private static List<Attribute> defaultAttrs() {

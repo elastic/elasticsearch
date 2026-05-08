@@ -735,6 +735,106 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
         });
     }
 
+    public void testNegativeRemoteIndexNameEquivalentToRemoteNegativeIndexSyntax() throws Exception {
+        setupTwoClusters();
+        SearchRequest clusterPrefixExclusion = new SearchRequest(REMOTE_CLUSTER + ":*", "-" + REMOTE_CLUSTER + ":prod");
+        clusterPrefixExclusion.setCcsMinimizeRoundtrips(randomBoolean());
+        clusterPrefixExclusion.allowPartialSearchResults(false);
+        clusterPrefixExclusion.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+
+        SearchRequest indexPrefixExclusion = new SearchRequest(REMOTE_CLUSTER + ":*", REMOTE_CLUSTER + ":-prod");
+        indexPrefixExclusion.setCcsMinimizeRoundtrips(randomBoolean());
+        indexPrefixExclusion.allowPartialSearchResults(false);
+        indexPrefixExclusion.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+
+        final long[] clusterPrefixTotalHits = new long[1];
+        final String[] clusterPrefixIndexExpression = new String[1];
+        assertResponse(client(LOCAL_CLUSTER).search(clusterPrefixExclusion), clusterPrefixResponse -> {
+            assertNotNull(clusterPrefixResponse);
+            clusterPrefixTotalHits[0] = Objects.requireNonNull(clusterPrefixResponse.getHits().getTotalHits()).value();
+            Cluster clusterPrefixCluster = clusterPrefixResponse.getClusters().getCluster(REMOTE_CLUSTER);
+            assertNotNull(clusterPrefixCluster);
+            assertThat(clusterPrefixCluster.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
+            clusterPrefixIndexExpression[0] = clusterPrefixCluster.getIndexExpression();
+        });
+        assertResponse(client(LOCAL_CLUSTER).search(indexPrefixExclusion), indexPrefixResponse -> {
+            assertNotNull(indexPrefixResponse);
+            assertThat(Objects.requireNonNull(indexPrefixResponse.getHits().getTotalHits()).value(), equalTo(clusterPrefixTotalHits[0]));
+            Cluster indexPrefixCluster = indexPrefixResponse.getClusters().getCluster(REMOTE_CLUSTER);
+            assertNotNull(indexPrefixCluster);
+            assertThat(indexPrefixCluster.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
+            assertThat(indexPrefixCluster.getIndexExpression(), equalTo(clusterPrefixIndexExpression[0]));
+        });
+    }
+
+    public void testNegativeRemoteIndexNameBeforeInclusionIsAccepted() throws Exception {
+        String remoteIndex = (String) setupTwoClusters().get("remote.index");
+        SearchRequest searchRequest = new SearchRequest("-" + REMOTE_CLUSTER + ":prod", REMOTE_CLUSTER + ":*");
+        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+        searchRequest.allowPartialSearchResults(false);
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
+            assertNotNull(response);
+            Clusters clusters = response.getClusters();
+            assertThat(clusters.getTotal(), equalTo(1));
+            Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNull(localClusterSearchInfo);
+            Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getIndexExpression(), equalTo("-prod,*"));
+            for (var hit : response.getHits()) {
+                assertThat(hit.getIndex(), equalTo(remoteIndex));
+            }
+        });
+    }
+
+    public void testMixedRemoteIndexAndClusterExclusionsClusterExclusionLast() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        SearchRequest searchRequest = new SearchRequest(
+            localIndex,
+            REMOTE_CLUSTER + ":*",
+            "-" + REMOTE_CLUSTER + ":prod",
+            "-" + REMOTE_CLUSTER + ":*"
+        );
+        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+        searchRequest.allowPartialSearchResults(false);
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
+            assertNotNull(response);
+            Clusters clusters = response.getClusters();
+            assertNull(clusters.getCluster(REMOTE_CLUSTER));
+            assertThat(Objects.requireNonNull(response.getHits().getTotalHits()).value(), greaterThan(0L));
+            for (var hit : response.getHits()) {
+                assertThat(hit.getIndex(), equalTo(localIndex));
+            }
+        });
+    }
+
+    public void testMixedRemoteIndexAndClusterExclusionsClusterExclusionFirst() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        SearchRequest searchRequest = new SearchRequest(
+            localIndex,
+            REMOTE_CLUSTER + ":*",
+            "-" + REMOTE_CLUSTER + ":*",
+            "-" + REMOTE_CLUSTER + ":prod"
+        );
+        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+        searchRequest.allowPartialSearchResults(false);
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
+            assertNotNull(response);
+            Clusters clusters = response.getClusters();
+            assertNull(clusters.getCluster(REMOTE_CLUSTER));
+            assertThat(Objects.requireNonNull(response.getHits().getTotalHits()).value(), greaterThan(0L));
+            for (var hit : response.getHits()) {
+                assertThat(hit.getIndex(), equalTo(localIndex));
+            }
+        });
+    }
+
     public void testClusterDetailsWhenLocalClusterHasNoMatchingIndex() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String remoteIndex = (String) testClusterInfo.get("remote.index");

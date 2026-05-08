@@ -50,6 +50,7 @@ public final class LazyRefreshRestClient extends RestClient {
     private static volatile Predicate<Request> persistentResourcePredicate = LazyRefreshRestClient::defaultIsPersistentResourceRequest;
 
     private static final Set<String> DEFAULT_READ_PATH_SUFFIXES = Set.of(
+        // Core search / query
         "_search",
         "_msearch",
         "_count",
@@ -62,8 +63,38 @@ public final class LazyRefreshRestClient extends RestClient {
         "_explain",
         "_pit",
         "_async_search",
+        "_search/template",
+        "_msearch/template",
+        // ES|QL / SQL / EQL — POST is read-only (used when query body is too large for URL)
         "_query",
-        "_query/async"
+        "_query/async",
+        "_sql",
+        "_sql/translate",
+        "_eql/search",
+        // Term/document analysis
+        "_termvectors",
+        "_mtermvectors",
+        "_analyze",
+        // Script / template execution (read-only)
+        "_scripts/painless/_execute",
+        // Fleet variants of search
+        "_fleet/_fleet_search",
+        "_fleet/_fleet_msearch",
+        // Profiling queries
+        "_profiling/flamegraph",
+        "_profiling/stacktraces",
+        "_profiling/topn/functions",
+        // Security has-privileges / query
+        "_has_privileges",
+        "_security/_query/api_key",
+        "_security/_query/role",
+        "_security/_query/user",
+        // Simulate / preview (POST-only, but no state change)
+        "_index_template/_simulate",
+        "_preview",
+        // Read-only POST utilities
+        "_disk_usage",
+        "_verify_integrity"
     );
 
     /**

@@ -135,6 +135,13 @@ public class ParallelParsingBenchmark {
     private static class BenchLineReader implements SegmentableFormatReader {
 
         @Override
+        public org.elasticsearch.xpack.esql.datasources.spi.Configured<FormatReader> withConfigTrackingConsumedKeys(
+            java.util.Map<String, Object> config
+        ) {
+            return org.elasticsearch.xpack.esql.datasources.spi.Configured.empty(this);
+        }
+
+        @Override
         public long findNextRecordBoundary(InputStream stream) throws IOException {
             long consumed = 0;
             byte[] buf = new byte[8192];

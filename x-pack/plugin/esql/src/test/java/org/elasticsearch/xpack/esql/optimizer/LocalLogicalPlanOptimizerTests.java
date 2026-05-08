@@ -1629,7 +1629,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     public static EsRelation relation() {
-        return EsqlTestUtils.relation(randomFrom(IndexMode.availableModes()));
+        return EsqlTestUtils.relation(randomFrom(IndexMode.values()));
     }
 
     private static Analyzer analyzerWithNullifyMode() {

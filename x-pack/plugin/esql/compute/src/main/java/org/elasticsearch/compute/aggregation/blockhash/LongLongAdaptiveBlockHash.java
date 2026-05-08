@@ -92,10 +92,10 @@ public final class LongLongAdaptiveBlockHash extends AdaptiveBlockHash {
             blockFactory.adjustBreaker(bytes);
             this.batchUsedBytes = bytes;
             boolean success = false;
-            batchKeys1 = new long[vectorBatchSize];
-            batchKeys2 = new long[vectorBatchSize];
-            batchIds = new int[vectorBatchSize];
             try {
+                batchKeys1 = new long[vectorBatchSize];
+                batchKeys2 = new long[vectorBatchSize];
+                batchIds = new int[vectorBatchSize];
                 this.longLongHash = HashImplFactory.newLongLongHash(blockFactory);
                 success = true;
             } finally {
@@ -107,8 +107,8 @@ public final class LongLongAdaptiveBlockHash extends AdaptiveBlockHash {
 
         @Override
         public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-            LongVector vector1 = Objects.requireNonNull(vector1(page), "required long vector");
-            LongVector vector2 = Objects.requireNonNull(vector2(page), "required long vector");
+            LongVector vector1 = Objects.requireNonNull(vector1(page), () -> "required long vector for channel " + channel1);
+            LongVector vector2 = Objects.requireNonNull(vector2(page), () -> "required long vector for channel " + channel2);
             if (longLongHash.supportBulkAdd()) {
                 addBatch(vector1, vector2, addInput);
             } else {
@@ -159,8 +159,8 @@ public final class LongLongAdaptiveBlockHash extends AdaptiveBlockHash {
 
         @Override
         public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
-            LongVector vector1 = Objects.requireNonNull(vector1(page), "required long vector");
-            LongVector vector2 = Objects.requireNonNull(vector2(page), "required long vector");
+            LongVector vector1 = Objects.requireNonNull(vector1(page), () -> "required long vector for channel " + channel1);
+            LongVector vector2 = Objects.requireNonNull(vector2(page), () -> "required long vector for channel " + channel2);
             vector1.mustIncRef();
             vector2.mustIncRef();
             final long emitSize = targetBlockSize.getBytes() / (Integer.BYTES);

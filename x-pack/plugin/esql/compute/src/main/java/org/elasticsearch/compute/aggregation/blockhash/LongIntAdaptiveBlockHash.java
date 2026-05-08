@@ -94,10 +94,10 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
             blockFactory.adjustBreaker(bytes);
             this.batchUsedBytes = bytes;
             boolean success = false;
-            batchKeys1 = new long[vectorBatchSize];
-            batchKeys2 = new long[vectorBatchSize];
-            batchIds = new int[vectorBatchSize];
             try {
+                batchKeys1 = new long[vectorBatchSize];
+                batchKeys2 = new long[vectorBatchSize];
+                batchIds = new int[vectorBatchSize];
                 this.longLongHash = HashImplFactory.newLongLongHash(blockFactory);
                 success = true;
             } finally {

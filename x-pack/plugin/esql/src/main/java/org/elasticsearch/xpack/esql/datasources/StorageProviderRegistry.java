@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
@@ -19,9 +20,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -103,6 +106,19 @@ public class StorageProviderRegistry implements Closeable {
     }
 
     /**
+     * Framework-level WITH keys that are consumed by {@link FileSourceFactory} / format readers
+     * and must not be forwarded to storage provider configurations. References the canonical
+     * constants so adding/renaming a framework option in one place updates the filter here too.
+     */
+    private static final Set<String> FRAMEWORK_KEYS = Set.of(
+        FormatNameResolver.CONFIG_FORMAT,
+        FormatNameResolver.CONFIG_READER,
+        ErrorPolicy.CONFIG_MAX_ERRORS,
+        ErrorPolicy.CONFIG_MAX_ERROR_RATIO,
+        ErrorPolicy.CONFIG_ERROR_MODE
+    );
+
+    /**
      * Convenience: returns the StorageProvider only.
      * Use {@link #createProviderTrackingConsumedKeys(String, Settings, Map)} when the consumed-keys set is needed.
      */
@@ -113,7 +129,8 @@ public class StorageProviderRegistry implements Closeable {
     public Configured<StorageProvider> createProviderTrackingConsumedKeys(String scheme, Settings settings, Map<String, Object> config) {
         String normalizedScheme = scheme.toLowerCase(Locale.ROOT);
 
-        if (config == null || config.isEmpty()) {
+        Map<String, Object> storageConfig = stripFrameworkKeys(config);
+        if (storageConfig == null || storageConfig.isEmpty()) {
             StorageProvider provider = providers.get(normalizedScheme);
             if (provider == null) {
                 provider = createDefaultProvider(normalizedScheme);
@@ -126,12 +143,14 @@ public class StorageProviderRegistry implements Closeable {
             throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
         }
 
-        // Cache providers by (scheme, config) so queries with the same configuration map
+        // Cache providers by (scheme, storageConfig) so queries with the same configuration map
         // reuse the same cloud client and connection pool instead of constructing a new one.
-        StorageProviderCache.CacheKey cacheKey = new StorageProviderCache.CacheKey(normalizedScheme, config);
+        // The cache key uses the stripped config so framework-only keys (e.g. format) don't
+        // produce spurious cache misses.
+        StorageProviderCache.CacheKey cacheKey = new StorageProviderCache.CacheKey(normalizedScheme, storageConfig);
         try {
             return configuredProviderCache.getOrCreate(cacheKey, () -> {
-                Configured<StorageProvider> raw = factory.createTrackingConsumedKeys(settings, config);
+                Configured<StorageProvider> raw = factory.createTrackingConsumedKeys(settings, storageConfig);
                 return new Configured<>(wrapProvider(raw.value(), normalizedScheme), raw.consumedKeys());
             });
         } catch (RuntimeException e) {
@@ -140,6 +159,19 @@ public class StorageProviderRegistry implements Closeable {
             // The factory does not declare checked exceptions, so this path is unreachable.
             throw new RuntimeException("Unexpected checked exception from StorageProviderFactory", e);
         }
+    }
+
+    private static Map<String, Object> stripFrameworkKeys(Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return config;
+        }
+        boolean hasFrameworkKeys = config.keySet().stream().anyMatch(FRAMEWORK_KEYS::contains);
+        if (hasFrameworkKeys == false) {
+            return config;
+        }
+        Map<String, Object> filtered = new HashMap<>(config);
+        FRAMEWORK_KEYS.forEach(filtered::remove);
+        return filtered;
     }
 
     private synchronized StorageProvider createDefaultProvider(String normalizedScheme) {

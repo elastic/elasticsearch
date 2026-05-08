@@ -245,6 +245,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .sliceQueue(context.sliceQueue())
                 .errorPolicy(errorPolicy)
                 .parsingParallelism(context.parsingParallelism())
+                .parallelism(context.parallelism())
                 .pushedExpressions(pushedExpressions)
                 .pushdownSupport(pushdownSupport)
                 .onClose(onClose)
@@ -259,15 +260,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     private FormatReader resolveFormatReader(String objectName, Map<String, Object> config) {
-        if (config != null) {
-            Object formatOverride = config.get(CONFIG_FORMAT);
-            if (formatOverride != null) {
-                String formatName = formatOverride.toString();
-                if (formatName.isEmpty() == false) {
-                    return formatRegistry.byName(formatName);
-                }
-            }
-        }
-        return formatRegistry.byExtension(objectName);
+        return FormatNameResolver.resolveReader(config, objectName, formatRegistry);
     }
 }

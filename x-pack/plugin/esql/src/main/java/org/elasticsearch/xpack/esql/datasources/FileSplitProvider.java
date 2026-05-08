@@ -529,7 +529,7 @@ public class FileSplitProvider implements SplitProvider {
 
         FormatReader reader;
         try {
-            reader = formatRegistry.byExtension(filePath.objectName());
+            reader = FormatNameResolver.resolveReader(config, filePath.objectName(), formatRegistry).withConfig(config);
         } catch (Exception e) {
             return false;
         }

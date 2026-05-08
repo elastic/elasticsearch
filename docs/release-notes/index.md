@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.4.0 [elasticsearch-9.4.0-release-notes]
-```{applies_to}
-stack: ga 9.4.0
-```
 
 ### Highlights [elasticsearch-9.4.0-highlights]
 
@@ -185,18 +182,18 @@ The average was selected because in most cases it is a more representative signa
 operations such as `max`, `min`, `sum`, `avg`, and `count` will be supported natively by the respective sub-fields.
 
 For example, the following query is now supported where `network.eth0.tx` is a an `aggregate_metric_double`:
+
 ```esql
-FROM k8s-downsampled
-| STATS max = max(network.eth0.tx), std_dev = STD_DEV(network.eth0.tx) by pod
-| sort pod
+  FROM k8s-downsampled
+  | STATS max = max(network.eth0.tx), std_dev = STD_DEV(network.eth0.tx) by pod
+  | sort pod
 ```
 Response:
-
 ```
-max:double | std_dev:double | pod:keyword
-1060.0     | 275.6970067    | one
-824.0      | 184.1213952    | three
-1419.0     | 356.9865993    | two
+  max:double | std_dev:double | pod:keyword
+  1060.0     | 275.6970067    | one
+  824.0      | 184.1213952    | three
+  1419.0     | 356.9865993    | two
 ```
 ::::
 
@@ -470,9 +467,19 @@ Logs:
 * Store fallback match only text fields in binary doc values [#140189](https://github.com/elastic/elasticsearch/pull/140189)
 
 Machine Learning:
+* Add EuroBERT and Jina v5 ops to graph validation allowlist [#3015](https://github.com/elastic/ml-cpp/pull/3015)
 * Add a suggestion for fixing the ML node allocation error [#139520](https://github.com/elastic/elasticsearch/pull/139520)
 * Add exponential-backoff retry for AD job opening during system-initiated reassignments [#144478](https://github.com/elastic/elasticsearch/pull/144478)
 * Add support for nested NDJSON records in `TextStructure` endpoints [#141045](https://github.com/elastic/elasticsearch/pull/141045) (issue: [#127777](https://github.com/elastic/elasticsearch/issues/127777))
+* Better error handling regarding quantiles state documents [#2894](https://github.com/elastic/ml-cpp/pull/2894)
+* Better handling of invalid JSON state documents [#2895](https://github.com/elastic/ml-cpp/pull/2895)
+* Better messaging regarding OOM process termination [#2841](https://github.com/elastic/ml-cpp/pull/2841)
+* Downgrade log severity for a batch of recoverable errors [#2889](https://github.com/elastic/ml-cpp/pull/2889)
+* Harden pytorch_inference with TorchScript model graph validation [#3008](https://github.com/elastic/ml-cpp/pull/3008) (issue: [#2890](https://github.com/elastic/ml-cpp/issues/2890))
+* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
+* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
+* Restrict file system access for pytorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
+* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
 
 Mapping:
 * Add option to enable accurate leaf arrays for flattened fields [#145376](https://github.com/elastic/elasticsearch/pull/145376)
@@ -742,6 +749,7 @@ Logs:
 Machine Learning:
 * Fix AD job update overrides `categorization_examples_limit` with default [#140524](https://github.com/elastic/elasticsearch/pull/140524)
 * Fix NPE when preview datafeed checks `date_nanos` for an unmapped time field [#144909](https://github.com/elastic/elasticsearch/pull/144909) (issue: [#144888](https://github.com/elastic/elasticsearch/issues/144888))
+* Fix flaky CIoManagerTest/testFileIoGood test [#3017](https://github.com/elastic/ml-cpp/pull/3017)
 * Fix validation of anomaly detection job config [#139946](https://github.com/elastic/elasticsearch/pull/139946) (issue: [#29843](https://github.com/elastic/elasticsearch/issues/29843))
 * Handle null columns in ES|QL CHANGE_POINT [#144388](https://github.com/elastic/elasticsearch/pull/144388) (issue: [#142858](https://github.com/elastic/elasticsearch/issues/142858))
 * Omit uncomputed model stats [#146186](https://github.com/elastic/elasticsearch/pull/146186)
@@ -4909,4 +4917,5 @@ Vector Search:
 
 Watcher:
 * Watcher history index has too many indexed fields - [#117701](https://github.com/elastic/elasticsearch/pull/117701) (issue: [#71479](https://github.com/elastic/elasticsearch/issues/71479))
+
 

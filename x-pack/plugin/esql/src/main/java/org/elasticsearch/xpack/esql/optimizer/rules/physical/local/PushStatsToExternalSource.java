@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
@@ -53,11 +56,18 @@ import java.util.List;
  * Statistics are merged across splits (sum row counts, min-of-mins, max-of-maxes).
  * Falls back to normal execution when any split lacks stats.
  * <p>
+ * Substitution from metadata statistics is skipped when {@link ExternalSourceExec} carries
+ * {@link ExternalSourceExec#pushedExpressions()} or {@link ExternalSourceExec#pushedFilter()}:
+ * those predicates narrow the scanned rows; footer split stats do not reflect them after
+ * {@link PushFiltersToSource} removes the enclosing {@code FilterExec}.
+ * <p>
  * Note: MIN/MAX pushdown uses raw values from file metadata. For DATE/TIMESTAMP columns,
  * the raw values may not match ESQL's millisecond representation. A future enhancement
  * should convert these values using the column's data type.
  */
 public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerRule<AggregateExec> {
+
+    private static final Logger logger = LogManager.getLogger(PushStatsToExternalSource.class);
 
     @Override
     protected PhysicalPlan rule(AggregateExec aggregateExec) {
@@ -77,6 +87,22 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         }
 
         if (aggregateExec.groupings().isEmpty() == false) {
+            return aggregateExec;
+        }
+
+        // Row counts and column statistics in file metadata describe whole splits before scan-time predicates.
+        // COUNT(*), MIN/MAX from those stats ignore {@code pushedExpressions}/{@code pushedFilter} readers apply when
+        // {@link PushFiltersToSource} has already removed upstream FilterExec.
+        if (externalExec.pushedExpressions().isEmpty() == false || externalExec.pushedFilter() != null) {
+            logger.info(
+                () -> Strings.format(
+                    "PushStatsToExternalSource: skipping stats substitution (source has pushed scan predicates)"
+                        + " path=[{}] projections=[{}] type=[{}]",
+                    externalExec.sourcePath(),
+                    externalExec.pushedExpressions().size(),
+                    externalExec.sourceType()
+                )
+            );
             return aggregateExec;
         }
 

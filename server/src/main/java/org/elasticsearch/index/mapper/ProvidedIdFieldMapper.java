@@ -233,7 +233,10 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
                 @Override
                 public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
-                    return new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(getBytesValues())), name);
+                    return new DelegateDocValuesField(
+                        new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(getBytesValues())),
+                        name
+                    );
                 }
 
                 @Override

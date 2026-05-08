@@ -22,6 +22,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -226,8 +227,9 @@ class Elasticsearch {
         );
 
         // load the plugin Java modules and layers now for use in entitlements
-        var modulesBundles = PluginsLoader.loadModulesBundles(nodeEnv.modulesDir());
-        var pluginsBundles = PluginsLoader.loadPluginsBundles(nodeEnv.pluginsDir());
+        boolean isStatelessMode = DiscoveryNode.isStateless(nodeEnv.settings());
+        var modulesBundles = PluginsLoader.loadModulesBundles(nodeEnv.modulesDir(), isStatelessMode);
+        var pluginsBundles = PluginsLoader.loadPluginsBundles(nodeEnv.pluginsDir(), isStatelessMode);
 
         final PluginsLoader pluginsLoader;
 
@@ -235,8 +237,23 @@ class Elasticsearch {
 
         var pluginData = Stream.concat(
             modulesBundles.stream()
-                .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
-            pluginsBundles.stream().map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
+                .map(
+                    bundle -> new PolicyUtils.PluginData(
+                        bundle.getDir(),
+                        bundle.pluginDescriptor().getName(),
+                        bundle.pluginDescriptor().isModular(),
+                        false
+                    )
+                ),
+            pluginsBundles.stream()
+                .map(
+                    bundle -> new PolicyUtils.PluginData(
+                        bundle.getDir(),
+                        bundle.pluginDescriptor().getName(),
+                        bundle.pluginDescriptor().isModular(),
+                        true
+                    )
+                )
         ).toList();
 
         var pluginPolicyPatches = collectPluginPolicyPatches(modulesBundles, pluginsBundles, logger);

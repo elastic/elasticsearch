@@ -57,6 +57,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
             document.add(new SuggestField("otherfield", "anotherval", 1));
             document.add(new SuggestField("otherfield", "yetmoreval", 1));
             indexWriter.addDocument(document);
+            indexWriter.flush();
 
             final OpenCloseCounter openCloseCounter = new OpenCloseCounter();
             final CompletionStatsCache completionStatsCache = new CompletionStatsCache(() -> {
@@ -145,6 +146,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
             document2.add(new SuggestField("suggest2", "bar", 1));
             document2.add(new SuggestField("otherfield", "baz", 1));
             indexWriter.addDocument(document2);
+            indexWriter.flush();
             completionStatsCache.afterRefresh(true);
             final CompletionStats updatedStats = completionStatsCache.get();
             assertThat(updatedStats.getSizeInBytes(), greaterThan(totalSizeInBytes));

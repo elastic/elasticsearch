@@ -455,7 +455,27 @@ public class FileSplitProviderTests extends ESTestCase {
         assertNull(whole.config().get(FileSplitProvider.LAST_SPLIT_KEY));
     }
 
+    public void testNewlineMacroSplitCandidateExtensionsIncludeCsvAndTsv() {
+        assertTrue(FileSplitProvider.isNewlineMacroSplitCandidateExtension(".csv"));
+        assertTrue(FileSplitProvider.isNewlineMacroSplitCandidateExtension(".tsv"));
+        assertTrue(FileSplitProvider.isNewlineMacroSplitCandidateExtension(".ndjson"));
+        assertFalse(FileSplitProvider.isNewlineMacroSplitCandidateExtension(".parquet"));
+    }
+
     public void testNewlineAlignedNdjsonMacroSplitsAreDisjointAndMarked() throws IOException {
+        assertNewlineAlignedMacroSplitsDisjointAndMarked(".ndjson", "ndjson-macro-test", "abcdefgh\n", "s3://b/*.ndjson");
+    }
+
+    public void testNewlineAlignedCsvMacroSplitsAreDisjointAndMarked() throws IOException {
+        assertNewlineAlignedMacroSplitsDisjointAndMarked(".csv", "csv-macro-test", "a,b,c\n", "s3://b/*.csv");
+    }
+
+    private void assertNewlineAlignedMacroSplitsDisjointAndMarked(
+        String extension,
+        String registryName,
+        String lineContent,
+        String globPattern
+    ) throws IOException {
         SegmentableFormatReader mockReader = mock(SegmentableFormatReader.class);
         when(mockReader.minimumSegmentSize()).thenReturn(1024L);
         when(mockReader.findNextRecordBoundary(any())).thenAnswer(invocation -> {
@@ -471,18 +491,17 @@ public class FileSplitProviderTests extends ESTestCase {
             return -1L;
         });
 
-        String line = "abcdefgh\n";
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 4000; i++) {
-            sb.append(line);
+            sb.append(lineContent);
         }
         byte[] payload = sb.toString().getBytes(StandardCharsets.UTF_8);
         long fileLength = payload.length;
 
         FormatReaderRegistry formatRegistry = new FormatReaderRegistry(new DecompressionCodecRegistry());
-        formatRegistry.registerLazy("ndjson-macro-test", (s, bf) -> mockReader, Settings.EMPTY, null);
-        formatRegistry.registerExtension(".ndjson", "ndjson-macro-test");
-        formatRegistry.byName("ndjson-macro-test");
+        formatRegistry.registerLazy(registryName, (s, bf) -> mockReader, Settings.EMPTY, null);
+        formatRegistry.registerExtension(extension, registryName);
+        formatRegistry.byName(registryName);
 
         StorageProviderRegistry storageRegistry = createPayloadStorageRegistry(payload);
 
@@ -495,13 +514,14 @@ public class FileSplitProviderTests extends ESTestCase {
             Settings.EMPTY
         );
 
-        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/lines.ndjson"), fileLength, Instant.EPOCH);
-        FileList fileList = GlobExpander.fileListOf(List.of(entry), "s3://b/*.ndjson");
+        String fileName = "lines" + extension;
+        StorageEntry entry = new StorageEntry(StoragePath.of("s3://b/" + fileName), fileLength, Instant.EPOCH);
+        FileList fileList = GlobExpander.fileListOf(List.of(entry), globPattern);
 
         SplitDiscoveryContext ctx = new SplitDiscoveryContext(null, fileList, Map.of(), PartitionMetadata.EMPTY, List.of());
         List<ExternalSplit> splits = splitter.discoverSplits(ctx);
 
-        assertTrue("Expected multiple newline-aligned macro splits", splits.size() > 1);
+        assertTrue("Expected multiple newline-aligned macro splits for " + extension, splits.size() > 1);
         long expectedOffset = 0;
         for (int i = 0; i < splits.size(); i++) {
             FileSplit fs = (FileSplit) splits.get(i);
@@ -521,6 +541,122 @@ public class FileSplitProviderTests extends ESTestCase {
         }
         assertEquals(fileLength, expectedOffset);
         verify(mockReader, atLeastOnce()).findNextRecordBoundary(any());
+    }
+
+    /**
+     * Uses the real {@code CsvFormatReader#findNextRecordBoundary} with the default bracket-aware
+     * mode. Rows contain {@code ""}-escaped quotes inside quoted fields so that the boundary
+     * finder's quote-tracking logic is exercised. Asserts that boundaries land on real record
+     * starts and that reading each split yields the correct total row count.
+     */
+    public void testRecordAlignedMacroSplitBoundariesRespectCsvQuoting() throws IOException {
+        var blockFactory = org.elasticsearch.compute.data.BlockFactory.builder(
+            org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE
+        ).breaker(new org.elasticsearch.common.breaker.NoopCircuitBreaker("test")).build();
+
+        // Build a CSV payload exceeding 3 MiB so that at least two splits are produced
+        // (minimumSegmentSize defaults to 1 MiB). Every third row contains ""-escaped
+        // quotes inside a quoted field, exercising the boundary finder's quote tracking.
+        StringBuilder csv = new StringBuilder();
+        csv.append("id,name,note\n");
+        int dataRows = 0;
+        while (csv.length() < 3 * 1024 * 1024) {
+            if (dataRows % 3 == 0) {
+                csv.append(dataRows).append(",\"has \"\"escaped\"\" quotes\",ok\n");
+            } else if (dataRows % 3 == 1) {
+                csv.append(dataRows).append(",plain,\"another \"\"quoted\"\" value\"\n");
+            } else {
+                csv.append(dataRows).append(",simple,value\n");
+            }
+            dataRows++;
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        long fileLength = payload.length;
+        assertTrue("payload must exceed 2 MiB for multiple splits", fileLength > 2 * 1024 * 1024);
+
+        var csvReader = new org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader(blockFactory);
+        StorageObject obj = createInMemoryStorageObject(payload, StoragePath.of("mem://test.csv"));
+
+        long stride = fileLength / 4;
+        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(csvReader, obj, fileLength, stride);
+
+        assertTrue("Expected multiple macro-split boundaries, got " + starts.size(), starts.size() > 1);
+        assertEquals("First boundary must be 0", 0L, starts.get(0).longValue());
+
+        // Verify each boundary falls right after a \n (record terminator).
+        String payloadStr = csv.toString();
+        for (int i = 1; i < starts.size(); i++) {
+            long boundary = starts.get(i);
+            assertTrue("Boundary " + boundary + " exceeds file length " + fileLength, boundary < fileLength);
+            assertEquals(
+                "Byte before boundary " + boundary + " must be newline (record terminator)",
+                '\n',
+                payloadStr.charAt((int) boundary - 1)
+            );
+        }
+
+        // Read each split range with recordAligned=true and count total rows.
+        var meta = csvReader.metadata(obj);
+        var withSchema = (org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader) csvReader.withSchema(meta.schema());
+        long totalRows = 0;
+        for (int i = 0; i < starts.size(); i++) {
+            long start = starts.get(i);
+            long end = (i + 1 < starts.size()) ? starts.get(i + 1) : fileLength;
+            StorageObject range = new RangeStorageObject(
+                createInMemoryStorageObject(payload, StoragePath.of("mem://test.csv")),
+                start,
+                end - start
+            );
+            var ctx = org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext.builder()
+                .projectedColumns(List.of("id", "name", "note"))
+                .batchSize(500)
+                .firstSplit(i == 0)
+                .lastSplit(i == starts.size() - 1)
+                .recordAligned(true)
+                .build();
+            try (CloseableIterator<Page> pages = withSchema.read(range, ctx)) {
+                while (pages.hasNext()) {
+                    Page p = pages.next();
+                    totalRows += p.getPositionCount();
+                    p.releaseBlocks();
+                }
+            }
+        }
+        assertEquals("Total rows across all splits must match data row count", dataRows, totalRows);
+    }
+
+    private static StorageObject createInMemoryStorageObject(byte[] data, StoragePath path) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new java.io.ByteArrayInputStream(data);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                return new java.io.ByteArrayInputStream(data, (int) position, (int) length);
+            }
+
+            @Override
+            public long length() {
+                return data.length;
+            }
+
+            @Override
+            public java.time.Instant lastModified() {
+                return java.time.Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return path;
+            }
+        };
     }
 
     public void testTargetSplitSizeConfigOverride() {

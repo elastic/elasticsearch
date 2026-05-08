@@ -702,7 +702,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         final ResolvedIndices resolvedIndices = createMockResolvedIndices(Map.of(indexName, testDenseVectorFields));
         final Index localIndex = resolvedIndices.getConcreteLocalIndices()[0];
         final Predicate<String> nameMatcher = testDenseVectorFields::contains;
-        final MappingLookup mappingLookup = MappingLookup.fromMapping(getTestMapping(), randomFrom(IndexMode.availableModes()));
+        final MappingLookup mappingLookup = MappingLookup.fromMapping(getTestMapping(), randomFrom(IndexMode.values()));
 
         var indexMetadata = IndexMetadata.builder("index")
             .settings(

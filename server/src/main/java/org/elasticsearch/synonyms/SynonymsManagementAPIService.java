@@ -410,7 +410,7 @@ public class SynonymsManagementAPIService {
 
             for (SearchHit hit : hits) {
                 accumulated.add(hitToSynonymRule(hit));
-                seenSetIds.add(hit.field(SYNONYMS_SET_FIELD).<String>getValue());
+                seenSetIds.add(hit.field(SYNONYMS_SET_FIELD).getValue());
                 if (accumulated.size() >= maxSynonymRules) {
                     PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
                     closePitAndThen(currentPitId.get(), () -> listener.onResponse(result));

@@ -866,6 +866,17 @@ public class Strings {
     }
 
     /**
+     * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
+     * @deprecated don't add usages of this method, it will be removed eventually. Use {@link #toTruncatedString(ChunkedToXContent, int)}
+     *             instead.
+     * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
+     */
+    @Deprecated
+    public static String toString(ChunkedToXContent chunkedToXContent) {
+        return toString(chunkedToXContent, false, false);
+    }
+
+    /**
      * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
      * Wraps the output into an anonymous object if needed.
      * Allows to configure the params.
@@ -887,6 +898,18 @@ public class Strings {
         } else {
             return ((BytesStream) stream).bytes().utf8ToString();
         }
+    }
+
+    /**
+     * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
+     * Allows to control whether the outputted json needs to be pretty printed and human readable.
+     * @deprecated don't add usages of this method, it will be removed eventually. Use
+     *             {@link #toTruncatedString(ChunkedToXContent, int, boolean, boolean)} instead.
+     * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
+     */
+    @Deprecated
+    public static String toString(ChunkedToXContent chunkedToXContent, boolean pretty, boolean human) {
+        return toString(ChunkedToXContent.wrapAsToXContent(chunkedToXContent), pretty, human);
     }
 
     /**

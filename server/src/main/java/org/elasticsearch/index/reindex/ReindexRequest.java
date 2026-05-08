@@ -56,7 +56,10 @@ import static org.elasticsearch.index.VersionType.INTERNAL;
  * of reasons, not least of which that scripts are allowed to change the destination request in drastic ways, including changing the index
  * to which documents are written.
  */
-public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest> implements CompositeIndicesRequest, ToXContentObject {
+public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<ReindexRequest>
+    implements
+        CompositeIndicesRequest,
+        ToXContentObject {
     /**
      * Prototype for index requests.
      */

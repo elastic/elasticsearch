@@ -12,14 +12,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.lucene.tests.util.TimeUnits;
-import org.elasticsearch.client.LazyRefreshRestClient;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.junit.AfterClass;
 import org.junit.ClassRule;
 
 import java.util.Objects;
@@ -57,54 +55,13 @@ public class XpackWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProj
         })
         .build();
 
-    /**
-     * Whether the cluster currently has state from a prior test that we have <em>deferred</em>
-     * cleaning up. When true, the next test skips its YAML setup (the state is already there)
-     * and the YAML teardown / framework wipe stay deferred. When the body of any test issues a
-     * non-read HTTP request, that test's end-of-test cleanup runs and clears this flag, so the
-     * test after it runs setup against a fresh cluster.
-     */
-    private static boolean deferredCleanupPending = false;
-
-    /** Cached per-test result for {@link #preserveClusterUponCompletion()} so its decision and
-     *  side effects run exactly once even though the framework calls it twice
-     *  ({@code cleanUpCluster} and {@code assertEmptyProjects}). */
-    private Boolean cachedPreserve = null;
-
     public XpackWithMultipleProjectsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        deferredCleanupPending = false;
         return ESClientYamlSuiteTestCase.createParameters();
-    }
-
-    @AfterClass
-    public static void resetDeferredCleanupState() {
-        deferredCleanupPending = false;
-    }
-
-    @Override
-    protected boolean skipSetupSections() {
-        return deferredCleanupPending;
-    }
-
-    @Override
-    protected boolean skipTeardownSections() {
-        return LazyRefreshRestClient.writeOccurred() == false;
-    }
-
-    @Override
-    protected boolean preserveClusterUponCompletion() {
-        if (cachedPreserve != null) {
-            return cachedPreserve;
-        }
-        boolean writeHappened = LazyRefreshRestClient.writeOccurred();
-        cachedPreserve = (writeHappened == false);
-        deferredCleanupPending = cachedPreserve;
-        return cachedPreserve;
     }
 
     @Override

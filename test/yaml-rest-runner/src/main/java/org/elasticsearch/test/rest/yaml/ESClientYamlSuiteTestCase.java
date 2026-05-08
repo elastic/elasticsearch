@@ -211,6 +211,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             restTestExecutionContext = null;
             adminExecutionContext = null;
             clientYamlTestClient = null;
+            deferredCleanupForFile = null;
         }
     }
 
@@ -559,16 +560,71 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         });
     }
 
+    /**
+     * Yaml file path whose setup state is currently sitting in the cluster, awaiting a deferred
+     * cleanup. {@code null} when no deferred state is pending. Drives the default
+     * {@link #skipSetupSections()} / {@link #skipTeardownSections()} /
+     * {@link #preserveClusterUponCompletion()} behavior, which lets read-only tests reuse the
+     * previous test's setup state and write tests pay the normal setup+cleanup cost.
+     */
+    private static String deferredCleanupForFile = null;
+
+    /** Cached per-test result for {@link #preserveClusterUponCompletion()} so its decision and
+     *  side effects run exactly once even though the framework calls it twice
+     *  ({@code cleanUpCluster} and {@code assertEmptyProjects}). */
+    private Boolean cachedPreserve = null;
+
+    /**
+     * Default lazy-cleanup behavior: skip the YAML setup section when the previous test
+     * deferred cleanup AND it was from the same yaml file (so the current test's setup
+     * state is already in the cluster). When the previous test deferred cleanup but the
+     * current test is from a different yaml file, this method wipes the stale cluster state
+     * before returning {@code false}, so setup runs against a clean cluster. Subclasses may
+     * override to disable this.
+     */
     protected boolean skipSetupSections() {
+        String currentFile = testCandidate.getSuitePath();
+        if (deferredCleanupForFile == null) {
+            return false;
+        }
+        if (deferredCleanupForFile.equals(currentFile)) {
+            return true;
+        }
+        // File changed across a deferred cleanup. Wipe the stale state so this file's setup
+        // runs against a clean cluster.
+        try {
+            wipeCluster();
+        } catch (Exception e) {
+            throw new AssertionError("failed to wipe stale cluster state on yaml file change", e);
+        }
+        deferredCleanupForFile = null;
         return false;
     }
 
     /**
-     * Subclasses can override to skip running the YAML teardown section (e.g. when deferring
-     * cleanup so consecutive read-only tests can reuse the previous test's setup state).
+     * Default lazy-cleanup behavior: skip the YAML teardown section when the body issued no
+     * non-read HTTP requests, since cleanup is being deferred to the next test (or until a
+     * write happens). Subclasses may override.
      */
     protected boolean skipTeardownSections() {
-        return false;
+        return org.elasticsearch.client.LazyRefreshRestClient.writeOccurred() == false;
+    }
+
+    /**
+     * Default lazy-cleanup behavior: preserve cluster state (skip framework wipe and
+     * {@code assertEmptyProjects}) when the body issued no non-read HTTP requests. The
+     * deferred-cleanup marker is updated to the current file on the way out, so the next
+     * same-file test can skip its setup. Subclasses may override.
+     */
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        if (cachedPreserve != null) {
+            return cachedPreserve;
+        }
+        boolean writeHappened = org.elasticsearch.client.LazyRefreshRestClient.writeOccurred();
+        cachedPreserve = (writeHappened == false);
+        deferredCleanupForFile = cachedPreserve ? testCandidate.getSuitePath() : null;
+        return cachedPreserve;
     }
 
     protected boolean randomizeContentType() {

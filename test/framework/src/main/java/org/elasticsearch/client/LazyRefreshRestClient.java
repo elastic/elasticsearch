@@ -36,7 +36,19 @@ public final class LazyRefreshRestClient extends RestClient {
     /** Set to true on every non-read request. Reset by callers between tests/phases. */
     private static final AtomicBoolean WRITE_OCCURRED = new AtomicBoolean(false);
 
+    /**
+     * Set to true on requests that create a persistent or long-running cluster-side resource
+     * (transforms started, ML jobs/datafeeds opened, CCR follower indices, point-in-time and
+     * async-search handles, etc.). Unlike {@link #WRITE_OCCURRED}, this flag is NOT reset
+     * between YAML setup and body, so a setup-phase {@code _start} or {@code _open} still
+     * forces end-of-test teardown even if the body itself is read-only. Reset per test.
+     */
+    private static final AtomicBoolean PERSISTENT_RESOURCE_CREATED = new AtomicBoolean(false);
+
     private static volatile Predicate<Request> readPredicate = LazyRefreshRestClient::defaultIsReadRequest;
+
+    private static volatile Predicate<Request> persistentResourcePredicate =
+        LazyRefreshRestClient::defaultIsPersistentResourceRequest;
 
     private static final Set<String> DEFAULT_READ_PATH_SUFFIXES = Set.of(
         "_search",
@@ -49,6 +61,22 @@ public final class LazyRefreshRestClient extends RestClient {
         "_render/template",
         "_search_shards",
         "_explain",
+        "_pit",
+        "_async_search"
+    );
+
+    /**
+     * Path suffixes whose invocation creates a persistent or long-running resource on the
+     * cluster (background task, persistent task assignment, or stateful handle) that the test
+     * framework must clean up before the next test. Membership here is independent of
+     * {@link #DEFAULT_READ_PATH_SUFFIXES}: e.g. {@code _pit} and {@code _async_search} are
+     * "reads" in HTTP semantics but still leave behind handles that need cleanup.
+     */
+    private static final Set<String> DEFAULT_PERSISTENT_RESOURCE_PATH_SUFFIXES = Set.of(
+        "_start",
+        "_open",
+        "_follow",
+        "_resume_follow",
         "_pit",
         "_async_search"
     );
@@ -87,12 +115,33 @@ public final class LazyRefreshRestClient extends RestClient {
         WRITE_OCCURRED.set(false);
     }
 
+    /** Returns whether any request creating a persistent cluster-side resource has been issued
+     *  since the last reset. */
+    public static boolean persistentResourceCreated() {
+        return PERSISTENT_RESOURCE_CREATED.get();
+    }
+
+    /** Clears the persistent-resource flag. Callers reset this once per test (covering both
+     *  setup and body) so end-of-test cleanup decisions reflect this test's state. */
+    public static void resetPersistentResourceCreated() {
+        PERSISTENT_RESOURCE_CREATED.set(false);
+    }
+
     /**
      * Override the read/write classifier. Pass {@code null} to revert to the default heuristic
      * (HTTP method GET/HEAD/OPTIONS, plus a small set of POST read-paths like {@code _search}).
      */
     public static void setReadRequestPredicate(Predicate<Request> predicate) {
         readPredicate = predicate != null ? predicate : LazyRefreshRestClient::defaultIsReadRequest;
+    }
+
+    /**
+     * Override the persistent-resource classifier. Pass {@code null} to revert to the default
+     * suffix list ({@code _start}, {@code _open}, {@code _follow}, {@code _resume_follow},
+     * {@code _pit}, {@code _async_search}).
+     */
+    public static void setPersistentResourceRequestPredicate(Predicate<Request> predicate) {
+        persistentResourcePredicate = predicate != null ? predicate : LazyRefreshRestClient::defaultIsPersistentResourceRequest;
     }
 
     private static boolean defaultIsReadRequest(Request request) {
@@ -113,9 +162,29 @@ public final class LazyRefreshRestClient extends RestClient {
         return false;
     }
 
+    private static boolean defaultIsPersistentResourceRequest(Request request) {
+        String method = request.getMethod();
+        // Only POST/PUT can create resources; GETs that read state never qualify.
+        if ("POST".equals(method) == false && "PUT".equals(method) == false) {
+            return false;
+        }
+        String endpoint = request.getEndpoint();
+        int q = endpoint.indexOf('?');
+        String path = q >= 0 ? endpoint.substring(0, q) : endpoint;
+        for (String suffix : DEFAULT_PERSISTENT_RESOURCE_PATH_SUFFIXES) {
+            if (path.endsWith("/" + suffix) || path.equals(suffix) || path.equals("/" + suffix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void recordIfWrite(Request request) {
         if (readPredicate.test(request) == false) {
             WRITE_OCCURRED.set(true);
+        }
+        if (persistentResourcePredicate.test(request)) {
+            PERSISTENT_RESOURCE_CREATED.set(true);
         }
     }
 

@@ -486,6 +486,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             inFipsJvm() && testCandidate.getTestSection().getPrerequisiteSection().hasYamlRunnerFeature("fips_140")
         );
 
+        // Reset the persistent-resource flag so it tracks only this test's setup+body.
+        // Unlike the write-occurred flag (reset between setup and body), this one must span
+        // setup AND body so that a setup-phase _start/_open still forces teardown to run.
+        org.elasticsearch.client.LazyRefreshRestClient.resetPersistentResourceCreated();
+
         if (skipSetupSections() == false && testCandidate.getSetupSection().isEmpty() == false) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
             for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
@@ -603,18 +608,22 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     /**
      * Default lazy-cleanup behavior: skip the YAML teardown section when the body issued no
-     * non-read HTTP requests, since cleanup is being deferred to the next test (or until a
-     * write happens). Subclasses may override.
+     * non-read HTTP requests AND no persistent cluster-side resource (started transform, opened
+     * ML job, point-in-time, async search, etc.) was created during setup or body. Cleanup is
+     * deferred to the next test or until a write/persistent-resource event happens. Subclasses
+     * may override.
      */
     protected boolean skipTeardownSections() {
-        return org.elasticsearch.client.LazyRefreshRestClient.writeOccurred() == false;
+        return org.elasticsearch.client.LazyRefreshRestClient.writeOccurred() == false
+            && org.elasticsearch.client.LazyRefreshRestClient.persistentResourceCreated() == false;
     }
 
     /**
      * Default lazy-cleanup behavior: preserve cluster state (skip framework wipe and
-     * {@code assertEmptyProjects}) when the body issued no non-read HTTP requests. The
-     * deferred-cleanup marker is updated to the current file on the way out, so the next
-     * same-file test can skip its setup. Subclasses may override.
+     * {@code assertEmptyProjects}) when the body issued no non-read HTTP requests AND no
+     * persistent cluster-side resource was created during setup or body. The deferred-cleanup
+     * marker is updated to the current file on the way out, so the next same-file test can skip
+     * its setup. Subclasses may override.
      */
     @Override
     protected boolean preserveClusterUponCompletion() {
@@ -622,7 +631,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             return cachedPreserve;
         }
         boolean writeHappened = org.elasticsearch.client.LazyRefreshRestClient.writeOccurred();
-        cachedPreserve = (writeHappened == false);
+        boolean persistentResourceCreated = org.elasticsearch.client.LazyRefreshRestClient.persistentResourceCreated();
+        cachedPreserve = (writeHappened == false && persistentResourceCreated == false);
         deferredCleanupForFile = cachedPreserve ? testCandidate.getSuitePath() : null;
         return cachedPreserve;
     }

@@ -519,7 +519,11 @@ SET approximation={"rows":10000}\;
 FROM many_numbers | STATS count=COUNT(sv_and_one_mv)
 ;
 
-documents_found: 8000..12000
+// With one shard the field is multivalued, so 8000..12000 docs are processed.
+// With two shards: one shard has a multivalued field and processes 4000..6000
+// docs, and the other shard has a single-valued field, so processes near zero
+// docs. Therefore, depending on the setup, 4000..12000 docs are processed.
+documents_found: 4000..12000
 
 count:long     | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
 200000..300000 | [200000..300000,200000..300000]                | {any}

@@ -47,8 +47,7 @@ public final class LazyRefreshRestClient extends RestClient {
 
     private static volatile Predicate<Request> readPredicate = LazyRefreshRestClient::defaultIsReadRequest;
 
-    private static volatile Predicate<Request> persistentResourcePredicate =
-        LazyRefreshRestClient::defaultIsPersistentResourceRequest;
+    private static volatile Predicate<Request> persistentResourcePredicate = LazyRefreshRestClient::defaultIsPersistentResourceRequest;
 
     private static final Set<String> DEFAULT_READ_PATH_SUFFIXES = Set.of(
         "_search",

@@ -42,7 +42,7 @@ public class MappingLookupTests extends ESTestCase {
         List<ObjectMapper> objectMappers,
         List<RuntimeField> runtimeFields
     ) {
-        return createMappingLookup(fieldMappers, objectMappers, runtimeFields, randomFrom(IndexMode.availableModes()));
+        return createMappingLookup(fieldMappers, objectMappers, runtimeFields, randomFrom(IndexMode.values()));
     }
 
     private static MappingLookup createMappingLookup(
@@ -161,7 +161,7 @@ public class MappingLookupTests extends ESTestCase {
             List.of(dimMapper, metricMapper, plainMapper),
             emptyList(),
             emptyList(),
-            randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()))
+            randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()))
         );
         mappingLookup.validateDoesNotShadow("not_mapped");
         mappingLookup.validateDoesNotShadow("dim");
@@ -207,7 +207,7 @@ public class MappingLookupTests extends ESTestCase {
             List.of(dimMapper, metricMapper),
             emptyList(),
             List.of(shadowing),
-            randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()))
+            randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()))
         );
 
         Exception e = expectThrows(

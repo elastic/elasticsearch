@@ -285,8 +285,8 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
         }
 
         Map<String, IndexMode> concrete = new TreeMap<>();
-        keywordIndices.forEach(index -> concrete.put(index, randomFrom(IndexMode.availableModes())));
-        textIndices.forEach(index -> concrete.put(index, randomFrom(IndexMode.availableModes())));
+        keywordIndices.forEach(index -> concrete.put(index, randomFrom(IndexMode.values())));
+        textIndices.forEach(index -> concrete.put(index, randomFrom(IndexMode.values())));
         return EsIndexGenerator.esIndex("name", fields, concrete);
     }
 

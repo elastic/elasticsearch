@@ -48,6 +48,15 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         this.output = output;
     }
 
+    /**
+     * Branch-count predicate shared by {@link Fork}'s constructor and any caller that wants to fail
+     * earlier with a more user-facing message. Returns {@code true} if {@code count} would exceed the
+     * branch cap. Centralizes the comparison so the cap can move in one place.
+     */
+    public static boolean exceedsMaxBranches(int count) {
+        return count > MAX_BRANCHES;
+    }
+
     @Override
     public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
         return new Fork(source(), newChildren, output);
@@ -241,7 +250,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
     static void checkBranchCount(LogicalPlan plan, Failures failures) {
         if (plan instanceof Fork fork) {
             int size = fork.children().size();
-            if (size > MAX_BRANCHES) {
+            if (exceedsMaxBranches(size)) {
                 failures.add(Failure.fail(fork, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, size));
             } else if (size == 0) {
                 failures.add(Failure.fail(fork, "{} requires at least one branch", fork.getClass().getSimpleName()));

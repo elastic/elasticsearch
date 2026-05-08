@@ -981,7 +981,7 @@ public class Reindexer {
                 request.getRemoteInfo() != null,
                 maxTaskShutdownGracePeriod
             );
-            this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
+            this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperForReindex();
         }
 
         private IndexMode destinationIndexMode(ProjectState state) {

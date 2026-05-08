@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+ - 148004
+pr: 148111
+summary: "[DiskBBQ] Check that precondition should not be overwritten on update"
+type: bug

@@ -97,6 +97,11 @@ public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$
         return null;
     }
 
+    @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
 $if(BytesRef)$
     @Override
     public OrdinalBytesRefBlock asOrdinals() {

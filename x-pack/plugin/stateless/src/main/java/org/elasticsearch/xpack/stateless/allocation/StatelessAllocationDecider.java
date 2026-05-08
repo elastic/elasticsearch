@@ -1,0 +1,67 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.allocation;
+
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.xpack.stateless.StatelessPlugin;
+
+import java.util.Set;
+
+import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.INDEX_ROLE;
+import static org.elasticsearch.cluster.node.DiscoveryNodeRole.SEARCH_ROLE;
+
+public class StatelessAllocationDecider extends AllocationDecider {
+
+    private static final String NAME = "stateless_shard_role";
+
+    private static final Decision YES_SHARD_ROLE_MATCHES_NODE_ROLE = Decision.single(
+        Decision.Type.YES,
+        NAME,
+        "shard role matches stateless node role"
+    );
+
+    @Override
+    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return decideCanAllocateShardToNode(shardRouting, node, allocation);
+    }
+
+    @Override
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return decideCanAllocateShardToNode(shardRouting, node, allocation);
+    }
+
+    private Decision decideCanAllocateShardToNode(ShardRouting shardRouting, RoutingNode routingNode, RoutingAllocation allocation) {
+        var roles = routingNode.node().getRoles();
+        return canAllocateShardToNode(shardRouting, roles) ? YES_SHARD_ROLE_MATCHES_NODE_ROLE
+            : allocation.debugDecision()
+                ? allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "shard role [%s] does not match stateless node role [%s]",
+                    shardRouting.role(),
+                    statelessNodeRole(roles)
+                )
+            : Decision.NO;
+    }
+
+    private static boolean canAllocateShardToNode(ShardRouting shardRouting, Set<DiscoveryNodeRole> nodeRoles) {
+        return (shardRouting.isPromotableToPrimary() && nodeRoles.contains(INDEX_ROLE))
+            || (shardRouting.isSearchable() && nodeRoles.contains(SEARCH_ROLE));
+    }
+
+    private static String statelessNodeRole(Set<DiscoveryNodeRole> roles) {
+        return roles.stream().filter(StatelessPlugin.STATELESS_ROLES::contains).map(DiscoveryNodeRole::roleName).collect(joining(","));
+    }
+}

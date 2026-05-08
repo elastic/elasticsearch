@@ -452,9 +452,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.EsqlSecurityIT
   method: testDataSourceCrudForbiddenWithoutClusterManage
   issue: https://github.com/elastic/elasticsearch/issues/148187
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/148190
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsIntegTests
   method: testCreateAndRestoreSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/148217
@@ -476,9 +473,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.esnative.ReservedRealmElasticAutoconfigIntegTests
   method: testAutoconfigFailedPasswordPromotion
   issue: https://github.com/elastic/elasticsearch/issues/122668
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/148339
 - class: org.elasticsearch.xpack.esql.analysis.VerifierTests
   method: testFlattenedSorting
   issue: https://github.com/elastic/elasticsearch/issues/148374

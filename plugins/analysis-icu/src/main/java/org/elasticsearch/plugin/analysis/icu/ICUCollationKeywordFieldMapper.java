@@ -61,7 +61,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     private static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
         true,
         DocValuesParameter.Values.Cardinality.LOW,
-        DocValuesParameter.Values.MultiValue.SORTED_SET
+        true
     );
 
     public static final class CollationFieldType extends StringFieldType {
@@ -247,7 +247,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> indexed;
-        final DocValuesParameter docValuesPameters = DocValuesParameter.sortedSetWithCardinality(
+        final DocValuesParameter docValuesPameters = DocValuesParameter.ofWithCardinality(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParams()
         );

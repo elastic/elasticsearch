@@ -37,7 +37,9 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Page-level batch column reader that bypasses {@code ColumnReadStoreImpl} and works directly
@@ -217,6 +219,125 @@ final class PageColumnReader implements Releasable {
         } catch (RuntimeException e) {
             Releasables.closeExpectNoException(full);
             throw e;
+        }
+    }
+
+    /**
+     * Reads only the rows at the given positions within a batch of {@code sourceRows} total
+     * rows, interleaving {@link #skipRows} and {@link #readBatch} calls. Produces exactly
+     * {@code survivorCount} output rows. Unlike {@link #readBatchFiltered}, this method is
+     * safe when the reader has {@link RowRanges} that cause page skipping in
+     * {@link #loadNextPage()}, because every skip/read call advances the reader's cursor
+     * in the same sequential order as a plain read — no post-read coordinate translation
+     * is needed.
+     *
+     * @param sourceRows        total rows in the source batch (defines the coordinate space)
+     * @param blockFactory      factory for block construction
+     * @param survivorPositions ascending positions of rows to read (in {@code [0, sourceRows)})
+     * @param survivorCount     number of valid entries in {@code survivorPositions}
+     * @return a block with exactly {@code survivorCount} positions
+     */
+    Block readBatchSparse(int sourceRows, BlockFactory blockFactory, int[] survivorPositions, int survivorCount) {
+        assert survivorCount <= sourceRows : "survivorCount [" + survivorCount + "] > sourceRows [" + sourceRows + "]";
+        assert survivorCount <= survivorPositions.length
+            : "survivorCount [" + survivorCount + "] > array length [" + survivorPositions.length + "]";
+        assert survivorCount == 0 || survivorPositions[survivorCount - 1] < sourceRows
+            : "survivor position ["
+                + (survivorCount > 0 ? survivorPositions[survivorCount - 1] : -1)
+                + "] >= sourceRows ["
+                + sourceRows
+                + "]";
+
+        if (survivorCount == 0) {
+            skipRows(sourceRows);
+            return blockFactory.newConstantNullBlock(0);
+        }
+        if (survivorCount == sourceRows) {
+            return readBatch(sourceRows, blockFactory);
+        }
+
+        // Fast path: all survivors are contiguous — single skip/read/skip, no chunk list.
+        if (survivorPositions[survivorCount - 1] - survivorPositions[0] == survivorCount - 1) {
+            int leadingGap = survivorPositions[0];
+            if (leadingGap > 0) {
+                skipRows(leadingGap);
+            }
+            Block result = readBatch(survivorCount, blockFactory);
+            int trailing = sourceRows - survivorPositions[survivorCount - 1] - 1;
+            if (trailing > 0) {
+                skipRows(trailing);
+            }
+            return result;
+        }
+
+        // General path: decompose survivorPositions into (skip, read) runs of contiguous
+        // positions. Each run produces a small Block via readBatch; chunks are combined
+        // at the end.
+        List<Block> chunks = new ArrayList<>();
+        int cursor = 0;
+        int runStart = 0;
+
+        try {
+            while (runStart < survivorCount) {
+                int pos = survivorPositions[runStart];
+                int gap = pos - cursor;
+                if (gap > 0) {
+                    skipRows(gap);
+                    cursor += gap;
+                }
+
+                // Find the end of the contiguous run
+                int runEnd = runStart + 1;
+                while (runEnd < survivorCount && survivorPositions[runEnd] == survivorPositions[runEnd - 1] + 1) {
+                    runEnd++;
+                }
+                int runLength = runEnd - runStart;
+
+                chunks.add(readBatch(runLength, blockFactory));
+                cursor += runLength;
+                runStart = runEnd;
+            }
+
+            // Skip any trailing rows after the last survivor
+            int trailing = sourceRows - cursor;
+            if (trailing > 0) {
+                skipRows(trailing);
+            }
+
+            if (chunks.size() == 1) {
+                return chunks.get(0);
+            }
+            return combineBlocks(chunks, survivorCount, blockFactory);
+        } catch (RuntimeException e) {
+            for (Block chunk : chunks) {
+                Releasables.closeExpectNoException(chunk);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Concatenates multiple blocks produced by the sparse-read loop into a single block
+     * by copying values from each chunk sequentially via a {@link Block.Builder}.
+     * Closes the source chunks after copying.
+     */
+    private static Block combineBlocks(List<Block> chunks, int totalPositions, BlockFactory blockFactory) {
+        int actualTotal = 0;
+        for (Block b : chunks) {
+            actualTotal += b.getPositionCount();
+        }
+        assert actualTotal == totalPositions : "chunk total " + actualTotal + " != expected " + totalPositions;
+
+        Block first = chunks.get(0);
+        try (Block.Builder builder = first.elementType().newBlockBuilder(totalPositions, blockFactory)) {
+            for (Block chunk : chunks) {
+                builder.copyFrom(chunk, 0, chunk.getPositionCount());
+            }
+            Block result = builder.build();
+            for (Block chunk : chunks) {
+                Releasables.closeExpectNoException(chunk);
+            }
+            return result;
         }
     }
 

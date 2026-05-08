@@ -831,7 +831,7 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         DataStream.Builder dataStreamBuilder = DataStream.builder(dataStreamName, indices)
             .setMetadata(Map.of())
-            .setIndexMode(randomFrom(IndexMode.availableModes()));
+            .setIndexMode(randomFrom(IndexMode.values()));
         if (includeFailureStore) {
             List<Index> failureStoreIndices = new ArrayList<>();
             int totalFailureStoreIndices = randomIntBetween(1, 20);

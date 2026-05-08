@@ -39,7 +39,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -1127,7 +1126,7 @@ public class IndexSettingsTests extends ESTestCase {
             IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
             IndexVersion.current()
         );
-        IndexMode badMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()));
+        IndexMode badMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));
         String codec = CodecService.DEFAULT_CODEC;
 
         Settings settings = Settings.builder()
@@ -1203,11 +1202,7 @@ public class IndexSettingsTests extends ESTestCase {
     public void testDisableSequenceNumbersRequiresDocValuesOnlyForNonStandardModes() {
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
 
-        List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.LOGSDB));
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            modes.addAll(List.of(IndexMode.COLUMNAR_LOGSDB, IndexMode.COLUMNAR));
-        }
-        IndexMode mode = randomFrom(modes);
+        IndexMode mode = randomFrom(IndexMode.TIME_SERIES, IndexMode.LOGSDB);
         Settings.Builder builder = Settings.builder()
             .put(IndexSettings.MODE.getKey(), mode.getName())
             .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES)
@@ -1249,37 +1244,6 @@ public class IndexSettingsTests extends ESTestCase {
                     badVersion
                 )
             )
-        );
-    }
-
-    public void testDisableSequenceNumbersDefaultForColumnarModes() {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(IndexVersions.DISABLE_SEQUENCE_NUMBERS, IndexVersion.current());
-
-        // Test COLUMNAR mode
-        Settings columnarSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        IndexMetadata columnarMetadata = newIndexMeta("columnar-index", columnarSettings, indexVersion);
-        IndexSettings columnarIndexSettings = new IndexSettings(columnarMetadata, Settings.EMPTY);
-        assertThat("DISABLE_SEQUENCE_NUMBERS should be true for COLUMNAR mode", columnarIndexSettings.sequenceNumbersDisabled(), is(true));
-
-        // Test COLUMNAR_LOGSDB mode
-        Settings columnarLogsdbSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName()).build();
-        IndexMetadata columnarLogsdbMetadata = newIndexMeta("columnar-logsdb-index", columnarLogsdbSettings, indexVersion);
-        IndexSettings columnarLogsdbIndexSettings = new IndexSettings(columnarLogsdbMetadata, Settings.EMPTY);
-        assertThat(
-            "DISABLE_SEQUENCE_NUMBERS should be true for COLUMNAR_LOGSDB mode",
-            columnarLogsdbIndexSettings.sequenceNumbersDisabled(),
-            is(true)
-        );
-
-        // Test that STANDARD mode does not have sequence numbers disabled by default
-        Settings standardSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build();
-        IndexMetadata standardMetadata = newIndexMeta("standard-index", standardSettings, indexVersion);
-        IndexSettings standardIndexSettings = new IndexSettings(standardMetadata, Settings.EMPTY);
-        assertThat(
-            "DISABLE_SEQUENCE_NUMBERS should be false for STANDARD mode",
-            standardIndexSettings.sequenceNumbersDisabled(),
-            is(false)
         );
     }
 

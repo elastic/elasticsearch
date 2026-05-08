@@ -17,17 +17,28 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.mvdedupe.BatchEncoder;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.BytesRefSwissHash;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 
@@ -66,6 +77,8 @@ final class PackedValuesBlockHash extends BlockHash {
     private final int nullTrackingBytes;
     private final BreakingBytesRefBuilder bytes;
     private final List<GroupSpec> specs;
+    private final BatchWork batchWork;
+    private boolean seenNull;
 
     PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
         this(specs, blockFactory, blockFactory.breaker(), emitBatchSize);
@@ -80,13 +93,28 @@ final class PackedValuesBlockHash extends BlockHash {
         this.specs = specs;
         this.emitBatchSize = emitBatchSize;
         this.nullTrackingBytes = (specs.size() + 7) / 8;
+        final int[] columnOffsets = new int[specs.size()];
+        int keyLength = nullTrackingBytes;
+        for (int g = 0; g < specs.size(); g++) {
+            int size = elementSize(specs.get(g).elementType());
+            if (size < 0) {
+                keyLength = -1;
+                break;
+            }
+            columnOffsets[g] = keyLength;
+            keyLength += size;
+        }
+        this.bytesRefHash = HashImplFactory.newBytesRefHash(blockFactory);
         boolean success = false;
         try {
-            this.bytesRefHash = HashImplFactory.newBytesRefHash(blockFactory);
             this.bytes = new BreakingBytesRefBuilder(circuitBreaker, "PackedValuesBlockHash", this.nullTrackingBytes);
+            if (keyLength != -1 && bytesRefHash instanceof BytesRefSwissHash swiss) {
+                this.batchWork = new BatchWork(swiss, columnOffsets, keyLength, emitBatchSize, blockFactory, specs);
+            } else {
+                this.batchWork = null;
+            }
             success = true;
         } finally {
-            // close bytesRefHash and bytes to prevent memory leaks in case of the initialization fails
             if (success == false) {
                 close();
             }
@@ -95,7 +123,20 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
+        if (batchWork != null && allVectors(page)) {
+            batchWork.bulkAdd(page, addInput);
+            return;
+        }
         add(page, addInput, DEFAULT_BATCH_SIZE);
+    }
+
+    private boolean allVectors(Page page) {
+        for (GroupSpec spec : specs) {
+            if (page.getBlock(spec.channel()).asVector() == null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     void add(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
@@ -325,11 +366,13 @@ final class PackedValuesBlockHash extends BlockHash {
             assert group.writtenValues == 0;
             assert group.valueCount == 1;
             if (group.encoder.read(group.valueOffset++, bytes) == 0) {
+                seenNull = true;
                 int nullByte = g / 8;
                 int nullShift = g % 8;
                 bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
             }
         }
+        padZerosForFixedLengthKey();
     }
 
     private void fillBytesMv(Group[] groups, int startingGroup) {
@@ -338,11 +381,25 @@ final class PackedValuesBlockHash extends BlockHash {
             group.bytesStart = bytes.length();
             if (group.encoder.read(group.valueOffset + group.writtenValues, bytes) == 0) {
                 assert group.valueCount == 1 : "null value in non-singleton list";
+                seenNull = true;
                 int nullByte = g / 8;
                 int nullShift = g % 8;
                 bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
             }
             ++group.writtenValues;
+        }
+        padZerosForFixedLengthKey();
+    }
+
+    private void padZerosForFixedLengthKey() {
+        if (batchWork != null) {
+            final int keyLength = batchWork.keyLength;
+            final int len = bytes.length();
+            if (len < keyLength) {
+                bytes.grow(keyLength);
+                Arrays.fill(bytes.bytes(), len, keyLength, (byte) 0);
+                bytes.setLength(keyLength);
+            }
         }
     }
 
@@ -364,6 +421,13 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public Block[] getKeys(IntVector selected) {
+        if (batchWork != null && seenNull == false) {
+            return batchWork.getNonNullKeys(selected, bytesRefHash, blockFactory);
+        }
+        return getKeysWithNulls(selected);
+    }
+
+    private Block[] getKeysWithNulls(IntVector selected) {
         int positions = selected.getPositionCount();
         BatchEncoder.Decoder[] decoders = new BatchEncoder.Decoder[specs.size()];
         Block.Builder[] builders = new Block.Builder[specs.size()];
@@ -438,14 +502,13 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public void close() {
-        Releasables.close(bytesRefHash, bytes);
+        Releasables.close(bytesRefHash, bytes, batchWork);
     }
 
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
         b.append("PackedValuesBlockHash{groups=[");
-        boolean first = true;
         for (int i = 0; i < specs.size(); i++) {
             if (i > 0) {
                 b.append(", ");
@@ -456,5 +519,191 @@ final class PackedValuesBlockHash extends BlockHash {
         b.append("], entries=").append(bytesRefHash.size());
         b.append(", size=").append(ByteSizeValue.ofBytes(bytesRefHash.ramBytesUsed()));
         return b.append("}").toString();
+    }
+
+    private static int elementSize(ElementType type) {
+        return switch (type) {
+            case NULL -> 0;
+            case BOOLEAN -> 1;
+            case INT -> Integer.BYTES;
+            case LONG, DOUBLE -> Long.BYTES;
+            default -> -1;
+        };
+    }
+
+    // TODO: Support BytesRef
+    private static final class BatchWork implements Releasable {
+        private static final int BATCH_SIZE = 128;
+        private static final VarHandle LONG_HANDLE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
+        private static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
+        private static final VarHandle DOUBLE_HANDLE = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
+        private final PrefetchBarrier prefetchBarrier = new PrefetchBarrier();
+        final int[] offsets;
+        final int keyLength;
+        final byte[] keys;
+        final int[] hashes;
+        final int[] groupIds;
+        private final int emitBatchSize;
+        private final BytesRefSwissHash swiss;
+
+        private final BlockFactory blockFactory;
+        private final List<GroupSpec> specs;
+        private long usedBytes;
+
+        BatchWork(
+            BytesRefSwissHash swiss,
+            int[] offsets,
+            int keyLength,
+            int emitBatchSize,
+            BlockFactory blockFactory,
+            List<GroupSpec> specs
+        ) {
+            this.swiss = swiss;
+            this.offsets = offsets;
+            this.keyLength = keyLength;
+            this.blockFactory = blockFactory;
+            this.specs = specs;
+            this.usedBytes = (long) BATCH_SIZE * keyLength + (long) emitBatchSize * Integer.BYTES + (long) BATCH_SIZE * Integer.BYTES;
+            blockFactory.adjustBreaker(usedBytes);
+            this.keys = new byte[BATCH_SIZE * keyLength];
+            this.hashes = new int[BATCH_SIZE];
+            this.groupIds = new int[emitBatchSize];
+            this.emitBatchSize = emitBatchSize;
+        }
+
+        void bulkAdd(Page page, GroupingAggregatorFunction.AddInput addInput) {
+            int positionCount = page.getPositionCount();
+            int positionOffset = 0;
+            final BytesRef key = new BytesRef();
+            key.bytes = keys;
+            key.length = keyLength;
+            int dummy = 0;
+            while (positionOffset < positionCount) {
+                final int emitSize = Math.min(emitBatchSize, positionCount - positionOffset);
+                int batchOffset = 0;
+                while (batchOffset < emitSize) {
+                    final int chunkSize = Math.min(BATCH_SIZE, emitSize - batchOffset);
+                    fillKeys(page, positionOffset + batchOffset, chunkSize);
+                    if (swiss.shouldPrefetch()) {
+                        for (int i = 0; i < chunkSize; i++) {
+                            hashes[i] = BytesRefSwissHash.hash(keys, i * keyLength, keyLength);
+                            dummy ^= swiss.prefetch(hashes[i]);
+                        }
+                        for (int i = 0; i < chunkSize; i++) {
+                            key.offset = i * keyLength;
+                            long id = swiss.addWithHash(key, hashes[i]);
+                            groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
+                        }
+                    } else {
+                        for (int i = 0; i < chunkSize; i++) {
+                            key.offset = i * keyLength;
+                            long id = swiss.add(key);
+                            groupIds[batchOffset + i] = Math.toIntExact(hashOrdToGroup(id));
+                        }
+                    }
+                    batchOffset += chunkSize;
+                }
+                try (var groupIdsVec = blockFactory.newIntArrayVector(groupIds, emitSize)) {
+                    addInput.add(positionOffset, groupIdsVec);
+                }
+                positionOffset += emitSize;
+            }
+            prefetchBarrier.consume(dummy);
+        }
+
+        private void fillKeys(Page page, int positionOffset, int batchSize) {
+            for (int g = 0; g < specs.size(); g++) {
+                final int offset = offsets[g];
+                final Vector vector = page.getBlock(specs.get(g).channel()).asVector();
+                switch (specs.get(g).elementType()) {
+                    case LONG -> {
+                        LongVector longVector = (LongVector) vector;
+                        for (int i = 0; i < batchSize; i++) {
+                            LONG_HANDLE.set(keys, i * keyLength + offset, longVector.getLong(positionOffset + i));
+                        }
+                    }
+                    case INT -> {
+                        IntVector intVector = (IntVector) vector;
+                        for (int i = 0; i < batchSize; i++) {
+                            INT_HANDLE.set(keys, i * keyLength + offset, intVector.getInt(positionOffset + i));
+                        }
+                    }
+                    case DOUBLE -> {
+                        DoubleVector doubleVector = (DoubleVector) vector;
+                        for (int i = 0; i < batchSize; i++) {
+                            DOUBLE_HANDLE.set(keys, i * keyLength + offset, doubleVector.getDouble(positionOffset + i));
+                        }
+                    }
+                    case BOOLEAN -> {
+                        BooleanVector booleanVector = (BooleanVector) vector;
+                        for (int i = 0; i < batchSize; i++) {
+                            keys[i * keyLength + offset] = booleanVector.getBoolean(positionOffset + i) ? (byte) 1 : (byte) 0;
+                        }
+                    }
+                    default -> throw new IllegalStateException("unsupported type: " + specs.get(g).elementType());
+                }
+            }
+        }
+
+        Block[] getNonNullKeys(IntVector selected, BytesRefHashTable hash, BlockFactory blockFactory) {
+            final int positions = selected.getPositionCount();
+            final Block.Builder[] builders = new Block.Builder[specs.size()];
+            final BytesRef[] bytes = new BytesRef[BATCH_SIZE];
+            for (int i = 0; i < BATCH_SIZE; i++) {
+                bytes[i] = new BytesRef();
+            }
+            try {
+                for (int g = 0; g < builders.length; g++) {
+                    builders[g] = specs.get(g).elementType().newBlockBuilder(positions, blockFactory);
+                }
+                for (int p = 0; p < positions; p += BATCH_SIZE) {
+                    final int batchSize = Math.min(BATCH_SIZE, positions - p);
+                    for (int r = 0; r < batchSize; r++) {
+                        hash.get(selected.getInt(p + r), bytes[r]);
+                    }
+                    for (int g = 0; g < specs.size(); g++) {
+                        final int columnOffset = offsets[g];
+                        switch (specs.get(g).elementType()) {
+                            case LONG -> {
+                                var b = (LongBlock.Builder) builders[g];
+                                for (int r = 0; r < batchSize; r++) {
+                                    b.appendLong((long) LONG_HANDLE.get(bytes[r].bytes, bytes[r].offset + columnOffset));
+                                }
+                            }
+                            case INT -> {
+                                var b = (IntBlock.Builder) builders[g];
+                                for (int r = 0; r < batchSize; r++) {
+                                    b.appendInt((int) INT_HANDLE.get(bytes[r].bytes, bytes[r].offset + columnOffset));
+                                }
+                            }
+                            case DOUBLE -> {
+                                var b = (DoubleBlock.Builder) builders[g];
+                                for (int r = 0; r < batchSize; r++) {
+                                    b.appendDouble((double) DOUBLE_HANDLE.get(bytes[r].bytes, bytes[r].offset + columnOffset));
+                                }
+                            }
+                            case BOOLEAN -> {
+                                var b = (BooleanBlock.Builder) builders[g];
+                                for (int r = 0; r < batchSize; r++) {
+                                    b.appendBoolean(bytes[r].bytes[bytes[r].offset + columnOffset] != 0);
+                                }
+                            }
+                            default -> throw new IllegalStateException("unsupported type: " + specs.get(g).elementType());
+                        }
+                    }
+                }
+                return Block.Builder.buildAll(builders);
+            } finally {
+                Releasables.closeExpectNoException(builders);
+            }
+        }
+
+        @Override
+        public void close() {
+            final long bytes = usedBytes;
+            usedBytes = 0;
+            blockFactory.adjustBreaker(-bytes);
+            prefetchBarrier.flush();
+        }
     }
 }

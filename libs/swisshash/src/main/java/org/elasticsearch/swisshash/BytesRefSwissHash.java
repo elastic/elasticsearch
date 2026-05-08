@@ -15,6 +15,7 @@ import jdk.incubator.vector.VectorSpecies;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.util.BigArrays;
@@ -80,6 +81,9 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     // but we want to be consistent with the page-based sizing logic.
     // PAGE_SIZE / ID_AND_HASH_SIZE = 16384 / 8 = 2048.
     static final int INITIAL_CAPACITY = PageCacheRecycler.PAGE_SIZE_IN_BYTES / ID_AND_HASH_SIZE;
+
+    public static final int DEFAULT_PREFETCH_THRESHOLD = (int) ((1 << 17) * BytesRefSwissHash.BigCore.FILL_FACTOR); // ~114k entries
+    public static int PREFETCH_THRESHOLD = DEFAULT_PREFETCH_THRESHOLD;
 
     static {
         if (PageCacheRecycler.PAGE_SIZE_IN_BYTES >> PAGE_SHIFT != 1) {
@@ -152,6 +156,21 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     }
 
     /**
+     * Whether the hash table is large enough for prefetch to be useful
+     */
+    public boolean shouldPrefetch() {
+        return size >= PREFETCH_THRESHOLD && bigCore != null;
+    }
+
+    /**
+     * Prefetch the data at the slot of the given hash. The caller should only call this method
+     * when {@link #shouldPrefetch()} return true.
+     */
+    public int prefetch(int hash) {
+        return bigCore.prefetch(hash);
+    }
+
+    /**
      * Finds an {@code id} by a {@code key}.
      */
     public long find(PagedBytesCursor key) {
@@ -171,17 +190,20 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     @Override
     public long add(BytesRef key) {
         final int hash = hash(key);
-        return add(key, hash);
+        return addWithHash(key, hash);
     }
 
-    private long add(BytesRef key, int hash) {
+    /**
+     * Same semantic as {@link #add(BytesRef)} but accepts a pre-computed hash.
+     */
+    public int addWithHash(BytesRef key, int hash) {
         if (smallCore != null) {
             if (size < nextGrowSize) {
                 return smallCore.add(key, hash);
             }
             smallCore.transitionToBigCore();
         }
-        return bigCore.add(key, hash);
+        return bigCore.addWithHash(key, hash);
     }
 
     /**
@@ -514,7 +536,13 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             }
         }
 
-        private int add(final BytesRef key, final int hash) {
+        int prefetch(int hash) {
+            final int group = hash & mask;
+            final int idOff = idAndHashOffset(group);
+            return controlData[group] ^ idAndHashPages[idOff >> PAGE_SHIFT][idOff & PAGE_MASK];
+        }
+
+        private int addWithHash(final BytesRef key, final int hash) {
             maybeGrow();
             return bigCore.addImpl(key, hash);
         }
@@ -712,8 +740,12 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
         return (int) value;
     }
 
-    int hash(BytesRef v) {
+    public static int hash(BytesRef v) {
         return BitMixer.mix32(v.hashCode());
+    }
+
+    public static int hash(byte[] bytes, int offset, int length) {
+        return BitMixer.mix32(StringHelper.murmurhash3_x86_32(bytes, offset, length, StringHelper.GOOD_FAST_HASH_SEED));
     }
 
     int hash(PagedBytesCursor cursor) {

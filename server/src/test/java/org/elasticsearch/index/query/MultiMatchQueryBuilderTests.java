@@ -14,6 +14,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
-import org.elasticsearch.lucene.search.EsFuzzyQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
@@ -165,7 +165,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                     instanceOf(TermQuery.class),
                     instanceOf(BooleanQuery.class),
                     instanceOf(DisjunctionMaxQuery.class),
-                    instanceOf(EsFuzzyQuery.class),
+                    instanceOf(FuzzyQuery.class),
                     instanceOf(MultiPhrasePrefixQuery.class),
                     instanceOf(MatchAllDocsQuery.class),
                     instanceOf(MatchNoDocsQuery.class),
@@ -391,7 +391,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         qb.fuzzyTranspositions(false);
 
         Query query = qb.toQuery(createSearchExecutionContext());
-        EsFuzzyQuery expected = new EsFuzzyQuery(new Term(TEXT_FIELD_NAME, "text"), 2, 2, 5, false);
+        FuzzyQuery expected = new FuzzyQuery(new Term(TEXT_FIELD_NAME, "text"), 2, 2, 5, false);
 
         assertEquals(expected, query);
     }

@@ -14,6 +14,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -35,7 +36,6 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
-import org.elasticsearch.lucene.search.EsFuzzyQuery;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -114,7 +114,7 @@ public class PatternTextFieldTypeTests extends FieldTypeTestCase {
     public void testFuzzyQuery() {
         MappedFieldType ft = new PatternTextFieldType("field", hasPositions, syntheticSource, useBinaryDocValueArgs);
         assertEquals(
-            new ConstantScoreQuery(new EsFuzzyQuery(new Term("field", "foo"), 2, 1, 50, true)),
+            new ConstantScoreQuery(new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true)),
             ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
         );
 

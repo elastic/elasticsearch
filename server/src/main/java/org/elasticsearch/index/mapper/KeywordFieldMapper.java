@@ -798,10 +798,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                     context
                 );
             } else {
-                // DOC_VALUES_REWRITE uses a fresh AttributeSource per segment, so the lazy charge
-                // on CircuitBreakingEsFuzzyQuery fires once per segment (cumulative across the
-                // shard) rather than once per query. That is a deliberate tradeoff; see
-                // CircuitBreakingEsFuzzyQuery.
                 return FuzzyQueries.create(
                     new Term(name(), indexedValueForSearch(value)),
                     fuzziness.asDistance(BytesRefs.toString(value)),

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
@@ -27,7 +28,6 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
-import org.elasticsearch.lucene.search.EsFuzzyQuery;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -123,7 +123,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
     public void testFuzzyQuery() {
         RootFlattenedFieldType ft = createDefaultFieldType(Integer.MAX_VALUE);
 
-        Query expected = new EsFuzzyQuery(new Term("field", "value"), 2, 1, 50, true);
+        Query expected = new FuzzyQuery(new Term("field", "value"), 2, 1, 50, true);
         Query actual = ft.fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT);
         assertEquals(expected, actual);
 

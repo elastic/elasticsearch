@@ -30,7 +30,6 @@ import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
-import org.elasticsearch.lucene.search.EsFuzzyQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -457,10 +456,10 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
         // Fuzzy
         query = new SimpleQueryStringBuilder("aBc~1").field(TEXT_FIELD_NAME).analyzer("whitespace").toQuery(createSearchExecutionContext());
-        EsFuzzyQuery expected = new EsFuzzyQuery(new Term(TEXT_FIELD_NAME, "aBc"), 1);
+        FuzzyQuery expected = new FuzzyQuery(new Term(TEXT_FIELD_NAME, "aBc"), 1);
         assertEquals(expected, query);
         query = new SimpleQueryStringBuilder("aBc~1").field(TEXT_FIELD_NAME).analyzer("standard").toQuery(createSearchExecutionContext());
-        expected = new EsFuzzyQuery(new Term(TEXT_FIELD_NAME, "abc"), 1);
+        expected = new FuzzyQuery(new Term(TEXT_FIELD_NAME, "abc"), 1);
         assertEquals(expected, query);
     }
 
@@ -644,7 +643,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .fuzzyMaxExpansions(5)
             .fuzzyTranspositions(false)
             .toQuery(createSearchExecutionContext());
-        EsFuzzyQuery expected = new EsFuzzyQuery(new Term(TEXT_FIELD_NAME, "text"), 2, 2, 5, false);
+        FuzzyQuery expected = new FuzzyQuery(new Term(TEXT_FIELD_NAME, "text"), 2, 2, 5, false);
         assertEquals(expected, query);
     }
 

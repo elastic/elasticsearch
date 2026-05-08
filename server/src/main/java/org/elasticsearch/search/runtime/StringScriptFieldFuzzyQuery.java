@@ -10,10 +10,10 @@
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.search.EsFuzzyQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringFieldScript;
@@ -32,24 +32,20 @@ public class StringScriptFieldFuzzyQuery extends AbstractStringScriptFieldAutoma
         @Nullable SearchExecutionContext context
     ) {
         int maxExpansions = 1; // We don't actually expand anything so the value here doesn't matter
-        // This EsFuzzyQuery delegate is kept for toString / equality only; it's never rewritten
-        // (the outer AbstractStringScriptFieldAutomatonQuery runs the automaton directly). The
-        // lazy CB hook on CircuitBreakingEsFuzzyQuery therefore never fires on this instance, so
-        // we construct a plain EsFuzzyQuery and charge it explicitly via FuzzyQueries.chargeQuery.
-        EsFuzzyQuery delegate = new EsFuzzyQuery(new Term(fieldName, term), maxEdits, prefixLength, maxExpansions, transpositions);
+        FuzzyQuery delegate = new FuzzyQuery(new Term(fieldName, term), maxEdits, prefixLength, maxExpansions, transpositions);
         FuzzyQueries.chargeQuery(delegate, context, fieldName);
         ByteRunAutomaton automaton = delegate.getAutomata().runAutomaton;
         return new StringScriptFieldFuzzyQuery(script, leafFactory, fieldName, automaton, delegate);
     }
 
-    private final EsFuzzyQuery delegate;
+    private final FuzzyQuery delegate;
 
     private StringScriptFieldFuzzyQuery(
         Script script,
         StringFieldScript.LeafFactory leafFactory,
         String fieldName,
         ByteRunAutomaton automaton,
-        EsFuzzyQuery delegate
+        FuzzyQuery delegate
     ) {
         super(script, leafFactory, fieldName, automaton);
         this.delegate = delegate;
@@ -74,7 +70,7 @@ public class StringScriptFieldFuzzyQuery extends AbstractStringScriptFieldAutoma
         return delegate.equals(other.delegate);
     }
 
-    EsFuzzyQuery delegate() {
+    FuzzyQuery delegate() {
         return delegate;
     }
 }

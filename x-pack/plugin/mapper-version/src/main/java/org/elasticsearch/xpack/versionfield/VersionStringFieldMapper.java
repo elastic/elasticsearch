@@ -18,6 +18,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
@@ -54,7 +55,6 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.search.EsFuzzyQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -262,8 +262,8 @@ public class VersionStringFieldMapper extends FieldMapper {
             // upfront-charge path to keep CB accounting consistent across all fuzzy callsites.
             MultiTermQuery.RewriteMethod effectiveRewrite = rewriteMethod != null
                 ? rewriteMethod
-                : EsFuzzyQuery.defaultRewriteMethod(maxExpansions);
-            EsFuzzyQuery query = new EsFuzzyQuery(
+                : FuzzyQuery.defaultRewriteMethod(maxExpansions);
+            FuzzyQuery query = new FuzzyQuery(
                 new Term(name(), (BytesRef) value),
                 fuzziness.asDistance(BytesRefs.toString(value)),
                 prefixLength,

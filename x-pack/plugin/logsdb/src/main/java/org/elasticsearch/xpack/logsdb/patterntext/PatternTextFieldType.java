@@ -16,6 +16,7 @@ import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -38,7 +39,6 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryB
 import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
 import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.search.EsFuzzyQuery;
 import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -230,7 +230,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         boolean transpositions,
         SearchExecutionContext context
     ) {
-        EsFuzzyQuery fuzzyQuery = FuzzyQueries.create(
+        FuzzyQuery fuzzyQuery = FuzzyQueries.create(
             new Term(name(), term),
             maxDistance,
             prefixLength,

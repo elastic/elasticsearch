@@ -13,6 +13,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -32,7 +33,6 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.lucene.search.EsFuzzyQuery;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -107,7 +107,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
      * all binary doc values (but only for docs that also match a provided approximation query which is key
      * to getting good performance).
      */
-    public static Query fromFuzzyQuery(Query approximation, String field, String searchTerm, EsFuzzyQuery fuzzyQuery) {
+    public static Query fromFuzzyQuery(Query approximation, String field, String searchTerm, FuzzyQuery fuzzyQuery) {
         return new BinaryDvConfirmedAutomatonQuery(approximation, field, new FuzzyQueryAutomatonProvider(searchTerm, fuzzyQuery));
     }
 
@@ -363,7 +363,7 @@ abstract class BinaryDvConfirmedQuery extends Query {
         }
     }
 
-    private record FuzzyQueryAutomatonProvider(String searchTerm, EsFuzzyQuery fuzzyQuery) implements AutomatonProvider {
+    private record FuzzyQueryAutomatonProvider(String searchTerm, FuzzyQuery fuzzyQuery) implements AutomatonProvider {
         @Override
         public Automaton getAutomaton(String field) {
             return fuzzyQuery.getAutomata().automaton;

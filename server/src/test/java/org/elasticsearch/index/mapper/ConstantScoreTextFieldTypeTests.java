@@ -34,7 +34,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.TextFieldMapper.ConstantScoreTextFieldType;
-import org.elasticsearch.lucene.search.EsFuzzyQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -114,7 +113,7 @@ public class ConstantScoreTextFieldTypeTests extends FieldTypeTestCase {
     public void testFuzzyQuery() {
         MappedFieldType ft = createFieldType();
         assertEquals(
-            new ConstantScoreQuery(new EsFuzzyQuery(new Term("field", "foo"), 2, 1, 50, true)),
+            new ConstantScoreQuery(new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true)),
             ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
         );
 

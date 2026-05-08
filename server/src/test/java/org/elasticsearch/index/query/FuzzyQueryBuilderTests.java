@@ -18,22 +18,25 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.AttributeSource;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.lucene.search.CircuitBreakingEsFuzzyQuery;
-import org.elasticsearch.lucene.search.EsFuzzyQuery;
+import org.elasticsearch.lucene.search.FuzzyAutomatonRamEstimator;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.BitSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -81,9 +84,9 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
 
     @Override
     protected void doAssertLuceneQuery(FuzzyQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        assertThat(query, instanceOf(EsFuzzyQuery.class));
+        assertThat(query, instanceOf(FuzzyQuery.class));
 
-        EsFuzzyQuery fuzzyQuery = (EsFuzzyQuery) query;
+        FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
         String actualFieldName = fuzzyQuery.getTerm().field();
         assertThat(actualFieldName, equalTo(expectedFieldName));
@@ -116,8 +119,8 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         assertThat(parsedQuery, instanceOf(BoostQuery.class));
         BoostQuery boostQuery = (BoostQuery) parsedQuery;
         assertThat(boostQuery.getBoost(), equalTo(2.0f));
-        assertThat(boostQuery.getQuery(), instanceOf(EsFuzzyQuery.class));
-        EsFuzzyQuery fuzzyQuery = (EsFuzzyQuery) boostQuery.getQuery();
+        assertThat(boostQuery.getQuery(), instanceOf(FuzzyQuery.class));
+        FuzzyQuery fuzzyQuery = (FuzzyQuery) boostQuery.getQuery();
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term(TEXT_FIELD_NAME, "sh")));
         assertThat(fuzzyQuery.getMaxEdits(), equalTo(Fuzziness.AUTO.asDistance("sh")));
         assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
@@ -139,8 +142,8 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         assertThat(parsedQuery, instanceOf(BoostQuery.class));
         BoostQuery boostQuery = (BoostQuery) parsedQuery;
         assertThat(boostQuery.getBoost(), equalTo(2.0f));
-        assertThat(boostQuery.getQuery(), instanceOf(EsFuzzyQuery.class));
-        EsFuzzyQuery fuzzyQuery = (EsFuzzyQuery) boostQuery.getQuery();
+        assertThat(boostQuery.getQuery(), instanceOf(FuzzyQuery.class));
+        FuzzyQuery fuzzyQuery = (FuzzyQuery) boostQuery.getQuery();
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term(TEXT_FIELD_NAME, "sh")));
         assertThat(fuzzyQuery.getMaxEdits(), equalTo(1));
         assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
@@ -315,20 +318,43 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
 
     public void testToQueryWithTranspositions() throws Exception {
         Query query = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "text").toQuery(createSearchExecutionContext());
-        assertThat(query, instanceOf(EsFuzzyQuery.class));
-        assertEquals(EsFuzzyQuery.defaultTranspositions, ((EsFuzzyQuery) query).getTranspositions());
+        assertThat(query, instanceOf(FuzzyQuery.class));
+        assertEquals(FuzzyQuery.defaultTranspositions, ((FuzzyQuery) query).getTranspositions());
 
         query = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "text").transpositions(true).toQuery(createSearchExecutionContext());
-        assertThat(query, instanceOf(EsFuzzyQuery.class));
-        assertEquals(true, ((EsFuzzyQuery) query).getTranspositions());
+        assertThat(query, instanceOf(FuzzyQuery.class));
+        assertEquals(true, ((FuzzyQuery) query).getTranspositions());
 
         query = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "text").transpositions(false).toQuery(createSearchExecutionContext());
-        assertThat(query, instanceOf(EsFuzzyQuery.class));
-        assertEquals(false, ((EsFuzzyQuery) query).getTranspositions());
+        assertThat(query, instanceOf(FuzzyQuery.class));
+        assertEquals(false, ((FuzzyQuery) query).getTranspositions());
     }
 
     public void testFuzzyQueryCircuitBreakerAccounting() throws IOException {
-        assertCircuitBreakerAccountsForQuery(new FuzzyQueryBuilder(TEXT_FIELD_NAME, "text"));
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        try {
+            long before = cb.getUsed();
+            FuzzyQuery query = (FuzzyQuery) new FuzzyQueryBuilder(TEXT_FIELD_NAME, "text").toQuery(context);
+            long delta = cb.getUsed() - before;
+
+            String text = query.getTerm().text();
+            long expectedAutomata = FuzzyAutomatonRamEstimator.estimate(
+                text.codePointCount(0, text.length()),
+                text.getBytes(StandardCharsets.UTF_8).length,
+                distinctUtf8Bytes(text),
+                query.getMaxEdits(),
+                query.getPrefixLength()
+            );
+            assertEquals(
+                "circuit breaker delta should equal queryRamBytes + estimated automata bytes",
+                FuzzyQueries.queryRamBytes(query) + expectedAutomata,
+                delta
+            );
+        } finally {
+            context.releaseQueryConstructionMemory();
+            context.releaseRewriteMemory();
+        }
     }
 
     public void testFuzzyCircuitBreakerTripsWithLowLimit() {
@@ -339,43 +365,38 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         });
     }
 
-    public void testFuzzyCircuitBreakerTripsDuringRewrite() throws IOException {
+    public void testFuzzyCircuitBreakerTripsAtConstruction() throws IOException {
         CircuitBreaker cb = createCircuitBreakerService("2kb");
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
         try {
-            EsFuzzyQuery query = (EsFuzzyQuery) new FuzzyQueryBuilder(TEXT_FIELD_NAME, "value").toQuery(context);
-            assertThat("construction must succeed under the tight limit", query, instanceOf(CircuitBreakingEsFuzzyQuery.class));
-            try (Directory dir = new ByteBuffersDirectory()) {
-                try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new StandardAnalyzer()))) {
-                    Document doc = new Document();
-                    doc.add(new StringField(TEXT_FIELD_NAME, "value0", Field.Store.NO));
-                    w.addDocument(doc);
-                }
-                try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                    IndexSearcher searcher = new IndexSearcher(reader);
-                    expectThrows(org.elasticsearch.common.breaker.CircuitBreakingException.class, () -> searcher.rewrite(query));
-                }
-            }
+            expectThrows(CircuitBreakingException.class, () -> new FuzzyQueryBuilder(TEXT_FIELD_NAME, "value").toQuery(context));
         } finally {
             context.releaseQueryConstructionMemory();
             context.releaseRewriteMemory();
         }
     }
 
-    public void testRewriteMemoryPoolChargedAndReleased() throws IOException {
+    public void testRewriteMemoryPoolChargedUpfrontAndReleased() throws IOException {
         CircuitBreaker cb = createCircuitBreakerService();
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
 
         long cbBaseline = cb.getUsed();
         Query query = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "value").toQuery(context);
-        assertThat(query, instanceOf(EsFuzzyQuery.class));
+        assertThat(query, instanceOf(FuzzyQuery.class));
         long afterConstruction = cb.getUsed();
-        assertTrue("construction-time charge should be recorded", afterConstruction >= cbBaseline);
+        assertTrue("construction-time charge should be recorded", afterConstruction > cbBaseline);
 
-        context.releaseQueryConstructionMemory();
-        assertEquals("construction pool drains independently", 0L, context.getQueryConstructionMemoryUsed());
+        long rewriteCharged = context.getRewriteMemoryUsed();
+        assertTrue("rewrite pool must be charged upfront for the estimated automata cost", rewriteCharged > 0);
+        long constructionCharged = context.getQueryConstructionMemoryUsed();
+        assertTrue("construction pool must be charged for the query object's own ram bytes", constructionCharged > 0);
+        assertEquals(
+            "circuit breaker total must equal the sum of both pool charges",
+            rewriteCharged + constructionCharged,
+            cb.getUsed() - cbBaseline
+        );
 
-        long beforeRewrite = cb.getUsed();
+        // Rewrite at search time must not add any further charge against the rewrite pool.
         try (Directory dir = new ByteBuffersDirectory()) {
             try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new StandardAnalyzer()))) {
                 for (int i = 0; i < 8; i++) {
@@ -385,225 +406,111 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                 }
             }
             try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                searcher.rewrite(query);
+                new IndexSearcher(reader).rewrite(query);
             }
         }
-        long rewriteCharged = context.getRewriteMemoryUsed();
-        assertTrue("rewrite pool must be charged for built automata (got=" + rewriteCharged + ")", rewriteCharged > 0);
-        assertEquals("circuit breaker delta should equal the rewrite pool charge", rewriteCharged, cb.getUsed() - beforeRewrite);
+        assertEquals(
+            "rewrite must not cause additional charges against the rewrite pool — all charging is upfront",
+            rewriteCharged,
+            context.getRewriteMemoryUsed()
+        );
 
+        context.releaseQueryConstructionMemory();
+        assertEquals("construction pool drains independently", 0L, context.getQueryConstructionMemoryUsed());
         context.releaseRewriteMemory();
         assertEquals("rewrite pool must be drained on release", 0L, context.getRewriteMemoryUsed());
-        assertEquals("circuit breaker bookkeeping must be restored", beforeRewrite, cb.getUsed());
+        assertEquals("circuit breaker bookkeeping must be fully restored", cbBaseline, cb.getUsed());
     }
 
-    public void testRewriteMemoryChargeEqualsAutomataRamBytes() throws IOException {
+    public void testRewriteMemoryChargeEqualsEstimator() throws IOException {
         CircuitBreaker cb = createCircuitBreakerService();
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
-
-        EsFuzzyQuery query = (EsFuzzyQuery) new FuzzyQueryBuilder(TEXT_FIELD_NAME, "value").toQuery(context);
-        context.releaseQueryConstructionMemory();
-        long expected = query.computeAutomataRamBytes(new AttributeSource());
-        assertTrue("expected automaton bytes must be > 0 for maxEdits >= 1", expected > 0);
-
-        try (Directory dir = new ByteBuffersDirectory()) {
-            try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new StandardAnalyzer()))) {
-                Document doc = new Document();
-                doc.add(new StringField(TEXT_FIELD_NAME, "value0", Field.Store.NO));
-                w.addDocument(doc);
-            }
-            try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                new IndexSearcher(reader).rewrite(query);
-            }
-        }
-        assertEquals(
-            "rewrite pool charge must equal the automata RAM cost measured independently",
-            expected,
-            context.getRewriteMemoryUsed()
-        );
-        context.releaseRewriteMemory();
-    }
-
-    public void testRewriteMemoryPoolChargesOncePerRewriteAcrossSegments() throws IOException {
-        CircuitBreaker cb = createCircuitBreakerService();
-        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
-
-        EsFuzzyQuery query = (EsFuzzyQuery) new FuzzyQueryBuilder(TEXT_FIELD_NAME, "value").toQuery(context);
-        context.releaseQueryConstructionMemory();
-        long expected = query.computeAutomataRamBytes(new AttributeSource());
-
-        try (Directory dir = new ByteBuffersDirectory()) {
-            // Force several separate segments by committing between each document. The default
-            // top-terms rewrite reuses a single AttributeSource across all segments, so the lazy
-            // charge on CircuitBreakingEsFuzzyQuery must fire exactly once via identity dedup.
-            try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new StandardAnalyzer()))) {
-                for (int i = 0; i < 4; i++) {
-                    Document doc = new Document();
-                    doc.add(new StringField(TEXT_FIELD_NAME, "value" + i, Field.Store.NO));
-                    w.addDocument(doc);
-                    w.commit();
-                }
-            }
-            try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                assertTrue("test requires multiple segments", reader.leaves().size() > 1);
-                new IndexSearcher(reader).rewrite(query);
-            }
-        }
-        assertEquals(
-            "multi-segment top-terms rewrite must charge exactly once (dedup by AttributeSource identity)",
-            expected,
-            context.getRewriteMemoryUsed()
-        );
-        context.releaseRewriteMemory();
-    }
-
-    public void testUserSuppliedRewriteChargesLazilyNotUpfront() throws IOException {
-        CircuitBreaker cb = createCircuitBreakerService();
-        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
-
-        FuzzyQueryBuilder builder = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "value");
-        builder.rewrite("constant_score");
-        EsFuzzyQuery query = (EsFuzzyQuery) builder.toQuery(context);
-        context.releaseQueryConstructionMemory();
-
-        assertThat(
-            "breaker-active construction must return a CircuitBreakingEsFuzzyQuery regardless of user rewrite",
-            query,
-            instanceOf(CircuitBreakingEsFuzzyQuery.class)
-        );
-        assertEquals("no upfront automata charge; lazy hook fires during execution", 0L, context.getRewriteMemoryUsed());
-
-        long expected = query.computeAutomataRamBytes(new AttributeSource());
-        assertTrue("expected automaton bytes must be > 0", expected > 0);
-
-        try (Directory dir = new ByteBuffersDirectory()) {
-            try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new StandardAnalyzer()))) {
-                Document doc = new Document();
-                doc.add(new StringField(TEXT_FIELD_NAME, "value0", Field.Store.NO));
-                w.addDocument(doc);
-            }
-            try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                new IndexSearcher(reader).count(query);
-            }
-        }
-        assertTrue(
-            "lazy charge must land in the rewrite pool after execution (got=" + context.getRewriteMemoryUsed() + ")",
-            context.getRewriteMemoryUsed() >= expected
-        );
-
-        context.releaseRewriteMemory();
-        assertEquals("rewrite pool must drain on release", 0L, context.getRewriteMemoryUsed());
-    }
-
-    public void testNullRewriteReturnsCircuitBreakingEsFuzzyQuery() throws IOException {
-        CircuitBreaker cb = createCircuitBreakerService();
-        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
-
-        EsFuzzyQuery query = (EsFuzzyQuery) new FuzzyQueryBuilder(TEXT_FIELD_NAME, "value").toQuery(context);
-        assertThat(query, instanceOf(CircuitBreakingEsFuzzyQuery.class));
-        assertThat(query.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
-        context.releaseQueryConstructionMemory();
-        context.releaseRewriteMemory();
-    }
-
-    public void testFieldTypeFuzzyQueryReturnsCircuitBreakingEsFuzzyQueryWhenRewriteMethodIsNull() throws IOException {
-        CircuitBreaker cb = createCircuitBreakerService();
-        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
-
         try {
-            long cbBefore = cb.getUsed();
-            EsFuzzyQuery query = (EsFuzzyQuery) context.getFieldType(TEXT_FIELD_NAME)
-                .fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, context, (MultiTermQuery.RewriteMethod) null);
-
-            assertThat(
-                "null rewrite with an active circuit breaker must return a CircuitBreakingEsFuzzyQuery",
-                query,
-                instanceOf(CircuitBreakingEsFuzzyQuery.class)
+            FuzzyQuery query = (FuzzyQuery) new FuzzyQueryBuilder(TEXT_FIELD_NAME, "value").toQuery(context);
+            String text = query.getTerm().text();
+            long expected = FuzzyAutomatonRamEstimator.estimate(
+                text.codePointCount(0, text.length()),
+                text.getBytes(StandardCharsets.UTF_8).length,
+                distinctUtf8Bytes(text),
+                query.getMaxEdits(),
+                query.getPrefixLength()
             );
-            assertEquals(
-                "construction pool must be charged exactly the query's ramBytesUsed()",
-                query.ramBytesUsed(),
-                context.getQueryConstructionMemoryUsed()
-            );
-            assertEquals("rewrite pool must remain empty until Lucene rewrite fires the lazy hook", 0L, context.getRewriteMemoryUsed());
-            assertEquals("circuit breaker delta must equal the construction-pool charge", query.ramBytesUsed(), cb.getUsed() - cbBefore);
+            assertTrue("expected estimator bytes must be > 0 for maxEdits >= 1", expected > 0);
+            assertEquals("rewrite pool charge must equal the estimator output for this query", expected, context.getRewriteMemoryUsed());
         } finally {
             context.releaseQueryConstructionMemory();
             context.releaseRewriteMemory();
         }
     }
 
-    public void testConstantScoreRewriteChargesOncePerSegment() throws IOException {
+    public void testFieldTypeFuzzyQueryChargesBothPoolsUpfront() throws IOException {
         CircuitBreaker cb = createCircuitBreakerService();
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
-        try {
-            FuzzyQueryBuilder builder = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "value");
-            builder.rewrite("constant_score");
-            EsFuzzyQuery query = (EsFuzzyQuery) builder.toQuery(context);
-            context.releaseQueryConstructionMemory();
-            long perAttributeBytes = query.computeAutomataRamBytes(new AttributeSource());
-
-            int numSegments;
-            try (Directory dir = new ByteBuffersDirectory()) {
-                try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new StandardAnalyzer()))) {
-                    for (int i = 0; i < 4; i++) {
-                        Document doc = new Document();
-                        doc.add(new StringField(TEXT_FIELD_NAME, "value" + i, Field.Store.NO));
-                        w.addDocument(doc);
-                        w.commit();
-                    }
-                }
-                try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                    numSegments = reader.leaves().size();
-                    assertTrue("test requires multiple segments", numSegments > 1);
-                    // constant_score wraps in MultiTermQueryConstantScoreWrapper, which enumerates
-                    // terms at scoring time — not at rewrite(). Use count() to drive it.
-                    new IndexSearcher(reader).count(query);
-                }
-            }
-
-            long totalCharged = context.getRewriteMemoryUsed();
-            assertTrue(
-                "cumulative charge must be at least numSegments * perAttributeBytes (got=" + totalCharged + ")",
-                totalCharged >= (long) numSegments * perAttributeBytes
-            );
-            assertEquals("each segment must contribute exactly one full charge", (long) numSegments * perAttributeBytes, totalCharged);
-        } finally {
-            context.releaseQueryConstructionMemory();
-            context.releaseRewriteMemory();
-        }
-    }
-
-    public void testFieldTypeFuzzyQueryWithUserRewriteDefersAutomataCharge() throws IOException {
-        CircuitBreaker cb = createCircuitBreakerService();
-        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
-
         try {
             long cbBefore = cb.getUsed();
-            EsFuzzyQuery query = (EsFuzzyQuery) context.getFieldType(TEXT_FIELD_NAME)
-                .fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, context, MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE);
+            FuzzyQuery query = (FuzzyQuery) context.getFieldType(TEXT_FIELD_NAME)
+                .fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, context, null);
 
-            assertThat(query, instanceOf(CircuitBreakingEsFuzzyQuery.class));
-            assertSame(
-                "user-supplied rewrite must be preserved on the query",
-                MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE,
-                query.getRewriteMethod()
-            );
+            assertEquals(FuzzyQuery.class, query.getClass());
             assertEquals(
                 "construction pool must be charged exactly the query's ramBytesUsed()",
-                query.ramBytesUsed(),
+                FuzzyQueries.queryRamBytes(query),
                 context.getQueryConstructionMemoryUsed()
             );
-            assertEquals("rewrite pool must stay empty until the lazy hook fires", 0L, context.getRewriteMemoryUsed());
+            String text = query.getTerm().text();
+            long estimated = FuzzyAutomatonRamEstimator.estimate(
+                text.codePointCount(0, text.length()),
+                text.getBytes(StandardCharsets.UTF_8).length,
+                distinctUtf8Bytes(text),
+                query.getMaxEdits(),
+                query.getPrefixLength()
+            );
+            assertEquals("rewrite pool must be charged the estimator output upfront", estimated, context.getRewriteMemoryUsed());
             assertEquals(
-                "circuit breaker delta must equal only the construction-pool charge",
-                query.ramBytesUsed(),
+                "circuit breaker delta must equal the sum of both pool charges",
+                FuzzyQueries.queryRamBytes(query) + estimated,
                 cb.getUsed() - cbBefore
             );
         } finally {
             context.releaseQueryConstructionMemory();
             context.releaseRewriteMemory();
         }
+    }
+
+    public void testFieldTypeFuzzyQueryWithUserRewriteChargesUpfront() throws IOException {
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+
+        try {
+            long cbBefore = cb.getUsed();
+            FuzzyQuery query = (FuzzyQuery) context.getFieldType(TEXT_FIELD_NAME)
+                .fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, context, MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE);
+
+            assertEquals(FuzzyQuery.class, query.getClass());
+            assertSame(
+                "user-supplied rewrite must be preserved on the query",
+                MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE,
+                query.getRewriteMethod()
+            );
+            assertEquals(FuzzyQueries.queryRamBytes(query), context.getQueryConstructionMemoryUsed());
+            assertTrue("rewrite pool must be charged upfront regardless of user rewrite", context.getRewriteMemoryUsed() > 0);
+            assertEquals(
+                "circuit breaker delta must equal the sum of both pool charges",
+                FuzzyQueries.queryRamBytes(query) + context.getRewriteMemoryUsed(),
+                cb.getUsed() - cbBefore
+            );
+        } finally {
+            context.releaseQueryConstructionMemory();
+            context.releaseRewriteMemory();
+        }
+    }
+
+    /** Mirrors the alphabet hint used by {@code FuzzyQueries#estimateAutomataBytes} so the assertion is exact. */
+    private static int distinctUtf8Bytes(String text) {
+        BitSet seen = new BitSet(256);
+        for (byte b : text.getBytes(StandardCharsets.UTF_8)) {
+            seen.set(b & 0xff);
+        }
+        return seen.cardinality();
     }
 }

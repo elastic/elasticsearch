@@ -1,5 +1,5 @@
 dateRange
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 FROM decades
 | SORT decade;
 
@@ -20,7 +20,7 @@ date_range:date_range  | decade:integer | description:keyword
 ;
 
 dateRangeToString
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM decades
 | WHERE decade == 1900
@@ -32,7 +32,7 @@ date_range:date_range  | decade:integer | description:keyword | range:keyword
 ;
 
 dateRangeIdentityFieldType
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM decades
 | WHERE decade == 1900
@@ -44,7 +44,7 @@ date_range:date_range  | decade:integer | description:keyword | range:date_range
 ;
 
 dateRangeToStringFieldType
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM decades
 | WHERE decade == 1900
@@ -57,7 +57,7 @@ date_range:date_range  | decade:integer | description:keyword | range:keyword
 
 // Requires range_within (TO_DATE_RANGE(keyword) support).
 toDateRangeFromString
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 // tag::to_date_range-str[]
 ROW str = "2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z"
@@ -72,7 +72,7 @@ str:keyword                                          | range:date_range
 ;
 
 toDateRangeIdentity
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM decades
 | WHERE decade == 1900
@@ -85,7 +85,7 @@ date_range:date_range  | decade:integer | description:keyword | range:date_range
 
 // Requires range_within (TO_DATE_RANGE(keyword) support).
 toDateRangeFromShortFormat
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 ROW str = "2024-06-01..2024-06-30"
 | EVAL range = TO_DATE_RANGE(str)
@@ -97,7 +97,7 @@ str:keyword            | range:date_range
 
 // Requires range_within (TO_DATE_RANGE(keyword) support).
 toDateRangeWithEval
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 ROW start_date = "2023-01-01T00:00:00.000Z", end_date = "2024-01-01T00:00:00.000Z"
 | EVAL range_str = CONCAT(start_date, "..", end_date)
@@ -111,7 +111,7 @@ start_date:keyword              | end_date:keyword                | range:date_r
 
 // Requires range_within (TO_DATE_RANGE(keyword) support).
 toDateRangeSingleDay
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 ROW str = "2024-07-04T00:00:00.000Z..2024-07-05T00:00:00.000Z"
 | EVAL range = TO_DATE_RANGE(str)
@@ -121,12 +121,72 @@ str:keyword                                          | range:date_range
 2024-07-04T00:00:00.000Z..2024-07-05T00:00:00.000Z   | 2024-07-04T00:00:00.000Z..2024-07-05T00:00:00.000Z
 ;
 
+
+// TO_DATE_RANGE honors the query timezone via SET. Europe/Paris is UTC+1 in winter, so
+// "2021-01-01" parses to 2020-12-31T23:00:00Z in millis; RANGE_MIN/MAX return datetimes (always
+// serialised in UTC) and TO_STRING formats with the query timezone — both confirm end-to-end.
+toDateRangeRespectsQueryTimezone
+required_capability: date_range_field_type_v5
+required_capability: type_conversion_timezone_support
+SET time_zone="Europe/Paris"\;
+
+ROW src = "2021-01-01..2021-01-02"
+| EVAL r = TO_DATE_RANGE(src), min = RANGE_MIN(TO_DATE_RANGE(src)), max = RANGE_MAX(TO_DATE_RANGE(src)), formatted = TO_STRING(TO_DATE_RANGE(src))
+| KEEP src, min, max, formatted
+;
+
+src:keyword            | min:datetime              | max:datetime              | formatted:keyword
+2021-01-01..2021-01-02 | 2020-12-31T23:00:00.000Z  | 2021-01-01T23:00:00.000Z  | 2021-01-01T00:00:00.000+01:00..2021-01-02T00:00:00.000+01:00
+;
+
+
+toDateRangeMalformedInput
+required_capability: date_range_field_type_v5
+
+ROW s = "not-a-range"
+| EVAL r = TO_DATE_RANGE(s)
+;
+warning:Line 2:12: evaluation of [TO_DATE_RANGE(s)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:12: java.lang.IllegalArgumentException: expected date range in the form 'from..to', got [not-a-range]
+
+s:keyword   | r:date_range
+not-a-range | null
+;
+
+
+toDateRangeFromStringMultiValue
+required_capability: date_range_field_type_v5
+
+ROW s = ["2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z", "2022-01-01T00:00:00.000Z..2023-01-01T00:00:00.000Z"]
+| EVAL r = MV_SORT(TO_STRING(TO_DATE_RANGE(s)))
+;
+
+s:keyword                                                                                                | r:keyword
+[2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z, 2022-01-01T00:00:00.000Z..2023-01-01T00:00:00.000Z] | [2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z, 2022-01-01T00:00:00.000Z..2023-01-01T00:00:00.000Z]
+;
+
+
+toStringDateRangeMultiValue
+required_capability: date_range_field_type_v5
+
+FROM mv_decades
+| EVAL s = MV_SORT(TO_STRING(date_range))
+| KEEP decade, s
+| SORT decade
+;
+
+decade:integer | s:keyword
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
+1950           | [1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z, 1955-01-01T00:00:00.000Z..1965-01-01T00:00:00.000Z]
+2000           | [1995-01-01T00:00:00.000Z..2005-01-01T00:00:00.000Z, 2000-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z]
+;
+
 ###############################################
 # RANGE_WITHIN tests
 ###############################################
 
 rangeWithinWithEmployees
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 // tag::rangeWithin[]
 FROM employees
@@ -144,7 +204,7 @@ emp_no:integer | hire_date:date
 ;
 
 rangeWithinWithDateRangesTable
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1955-06-15"), date_range)
@@ -156,7 +216,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinAtBoundaryStart
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1950-01-01"), date_range)
@@ -168,7 +228,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinAtBoundaryEnd
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1959-12-31T23:59:59.999Z"), date_range)
@@ -180,7 +240,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinOutsideRange
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("2050-01-01"), date_range)
@@ -191,7 +251,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinWithEval
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM decades
 | EVAL test_date = TO_DATETIME("1965-07-20")
@@ -205,7 +265,7 @@ decade:integer | description:keyword | in_range:boolean
 ;
 
 rangeWithinMultipleMatches
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM employees
 | WHERE RANGE_WITHIN(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
@@ -217,7 +277,7 @@ count:long
 ;
 
 rangeWithinWithNull
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM employees
 | WHERE emp_no == 10040
@@ -230,7 +290,7 @@ emp_no:integer | birth_date:date | in_range:boolean
 ;
 
 rangeWithinWithStats
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM employees
 | EVAL in_1985 = RANGE_WITHIN(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
@@ -242,7 +302,7 @@ count_in_1985:long | total:long
 ;
 
 rangeWithinBeforeStart
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1899-12-31T23:59:59.999Z"), date_range)
@@ -253,7 +313,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinAfterEnd
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("2030-01-01T00:00:00.000Z"), date_range)
@@ -264,7 +324,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinWithLiteralRange
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 ROW date = TO_DATETIME("2024-06-15T12:00:00.000Z")
 | EVAL in_june = RANGE_WITHIN(date, TO_DATE_RANGE("2024-06-01..2024-07-01"))
@@ -279,7 +339,7 @@ date:date                     | in_june:boolean | in_july:boolean
 // RANGE_WITHIN with LOOKUP JOIN: date from lookup, date_range from FROM (existing indices only).
 // join_key=1 matches two rows in multi_column_joinable_lookup, so LOOKUP JOIN emits multi-value warnings.
 rangeWithinDateFromLookupRangeFromFrom
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 
@@ -304,7 +364,7 @@ date_range:date_range                              | decade:integer | descriptio
 ###############################################
 
 literalRangeWithinRange
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 ROW y2020 = TO_DATE_RANGE("2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z"),
     y2021 = TO_DATE_RANGE("2021-01-01T00:00:00.000Z..2022-01-01T00:00:00.000Z"),
@@ -329,7 +389,7 @@ false            | false            | true               | false              | 
 
 
 fieldRangeWithinRange
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM decades
 | EVAL c1900 = TO_DATE_RANGE("1900-01-01T00:00:00.000Z..2000-01-01T00:00:00.000Z"),
@@ -370,7 +430,7 @@ decade:integer | in1900s:bool | in2000s:bool | inThirty:bool | inFeb2000:bool | 
 
 // Multiple ranges in WHERE (OR) -- test disjunction
 rangeWithinMultipleRangesInWhere
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1955-06-15"), date_range) OR RANGE_WITHIN(TO_DATETIME("1975-06-15"), date_range)
@@ -385,7 +445,7 @@ decade:integer | description:keyword
 
 // Boundary: point at inclusive start of range
 rangeWithinBoundaryCondition
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1980-01-01"), date_range)
@@ -401,7 +461,7 @@ decade:integer | description:keyword
 ###############################################
 
 rangeMin
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 // tag::range_min[]
 FROM decades
@@ -418,7 +478,7 @@ date_range:date_range  | min_bound:date
 ;
 
 rangeMax
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 // tag::range_max[]
 FROM decades
@@ -435,7 +495,7 @@ date_range:date_range  | max_bound:date
 ;
 
 rangeMinMaxReparse
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM decades
 | WHERE decade == 1900 OR decade == 2000
@@ -453,7 +513,7 @@ date_range:date_range  | min_bound:date           | max_bound:date           | n
 
 // Multi-valued ranges. Single-value positions return the bound; multi-value positions warn and yield null.
 rangeMinMultiValueWarns
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM mv_decades
 | EVAL m = RANGE_MIN(date_range)
@@ -470,7 +530,7 @@ decade:integer | m:date
 ;
 
 rangeMaxMultiValueWarns
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM mv_decades
 | EVAL m = RANGE_MAX(date_range)
@@ -488,7 +548,7 @@ decade:integer | m:date
 
 // (date, date_range): the right-hand range is multi-valued, so positions 1950 and 2000 warn.
 rangeWithinPointMultiValueWarns
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM mv_decades
 | EVAL within = RANGE_WITHIN(TO_DATETIME("1955-01-01T00:00:00.000Z"), date_range)
@@ -506,7 +566,7 @@ decade:integer | within:boolean
 
 // (date_range, date_range): the left-hand range is multi-valued, so positions 1950 and 2000 warn.
 rangeWithinRangeMultiValueWarns
-required_capability: date_range_field_type_v4
+required_capability: date_range_field_type_v5
 
 FROM mv_decades
 | EVAL within = RANGE_WITHIN(date_range, TO_DATE_RANGE("1800-01-01T00:00:00.000Z..2100-01-01T00:00:00.000Z"))

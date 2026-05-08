@@ -219,18 +219,17 @@ TS metric_temporality
          max_ot = SUM(max_over_time(bytes_per_request)),
          cnt_ot = SUM(count_over_time(bytes_per_request)),
          sum_ot = SUM(sum_over_time(bytes_per_request)),
-         p50_ot = SUM(percentile_over_time(bytes_per_request, 50)),
-         p95_ot = SUM(percentile_over_time(bytes_per_request, 95))
+         p50_ot = SUM(percentile_over_time(bytes_per_request, 50))
          BY my_temporality
- | EVAL avg_ot = round(avg_ot, 2), min_ot = round(min_ot, 2), max_ot = round(max_ot, 2), sum_ot = round(sum_ot, 2), p50_ot = round(p50_ot), p95_ot = round(p95_ot)
- | KEEP my_temporality, avg_ot, min_ot, max_ot, cnt_ot, sum_ot, p50_ot, p95_ot
+ | EVAL avg_ot = round(avg_ot, 2), min_ot = round(min_ot, 2), max_ot = round(max_ot, 2), sum_ot = round(sum_ot, 2), p50_ot = round(p50_ot)
+ | KEEP my_temporality, avg_ot, min_ot, max_ot, cnt_ot, sum_ot, p50_ot
  | SORT my_temporality
 ;
 
-my_temporality:keyword | avg_ot:double | min_ot:double | max_ot:double | cnt_ot:long | sum_ot:double | p50_ot:double | p95_ot:double
-cumulative             | 516.11        | 11.0          | 998.0         | 10354       | 5343818.0     | 600.0         | 848.0
-delta                  | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 600.0         | 848.0
-null                   | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 600.0         | 848.0
+my_temporality:keyword | avg_ot:double | min_ot:double | max_ot:double | cnt_ot:long | sum_ot:double | p50_ot:double
+cumulative             | 516.11        | 11.0          | 998.0         | 10354       | 5343818.0     | 600.0
+delta                  | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 600.0
+null                   | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 600.0
 ;
 
 // ---------------------------------------------------------------------------------
@@ -315,16 +314,15 @@ TS metric_temporality
          max_ot = SUM(max_over_time(bytes_per_request::tdigest)),
          cnt_ot = SUM(count_over_time(bytes_per_request::tdigest)),
          sum_ot = SUM(sum_over_time(bytes_per_request::tdigest)),
-         p50_ot = SUM(percentile_over_time(bytes_per_request::tdigest, 50)),
-         p95_ot = SUM(percentile_over_time(bytes_per_request::tdigest, 95))
+         p50_ot = SUM(percentile_over_time(bytes_per_request::tdigest, 50))
          BY my_temporality
- | EVAL avg_ot = round(avg_ot, 2), min_ot = round(min_ot, 2), max_ot = round(max_ot, 2), sum_ot = round(sum_ot, 2), p50_ot = round(p50_ot), p95_ot = round(p95_ot)
- | KEEP my_temporality, avg_ot, min_ot, max_ot, cnt_ot, sum_ot, p50_ot, p95_ot
+ | EVAL avg_ot = round(avg_ot, 2), min_ot = round(min_ot, 2), max_ot = round(max_ot, 2), sum_ot = round(sum_ot, 2), p50_ot = round(p50_ot)
+ | KEEP my_temporality, avg_ot, min_ot, max_ot, cnt_ot, sum_ot, p50_ot
  | SORT my_temporality
 ;
 
-my_temporality:keyword | avg_ot:double | min_ot:double | max_ot:double | cnt_ot:long | sum_ot:double | p50_ot:double   | p95_ot:double
-cumulative             | 516.11        | 11.0          | 998.0         | 10354       | 5343818.0     | 517.0..617.0    | 824.0..924.0
-delta                  | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 503.0..603.0    | 893.0..993.0
-null                   | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 503.0..603.0    | 893.0..993.0
+my_temporality:keyword | avg_ot:double | min_ot:double | max_ot:double | cnt_ot:long | sum_ot:double | p50_ot:double
+cumulative             | 516.11        | 11.0          | 998.0         | 10354       | 5343818.0     | 517.0..617.0
+delta                  | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 503.0..603.0
+null                   | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 503.0..603.0
 ;

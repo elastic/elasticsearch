@@ -544,3 +544,9 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
   method: testSplitOnSize
   issue: https://github.com/elastic/elasticsearch/issues/148613
+- class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
+  method: testMonitorClusterHealth
+  issue: https://github.com/elastic/elasticsearch/issues/148615
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148619

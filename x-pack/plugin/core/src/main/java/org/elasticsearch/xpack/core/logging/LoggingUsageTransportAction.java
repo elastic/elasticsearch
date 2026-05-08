@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
@@ -31,6 +30,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class LoggingUsageTransportAction extends XPackUsageFeatureTransportAction {
+    // Accessible for testing
+    static final String[] LOG_LEVELS = { "trace", "debug", "info", "warn" };
+
     @Inject
     public LoggingUsageTransportAction(
         TransportService transportService,
@@ -48,7 +50,6 @@ public class LoggingUsageTransportAction extends XPackUsageFeatureTransportActio
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) throws Exception {
-        final boolean querylogEnabled = clusterService.getClusterSettings().get(QueryLogger.QUERY_LOGGER_ENABLED);
         var settings = clusterService.getClusterSettings();
         var usage = new LoggingFeatureSetUsage(getQueryLoggingConfig(settings), getEsqlLoggingConfig(settings));
         listener.onResponse(new XPackUsageFeatureResponse(usage));
@@ -62,9 +63,8 @@ public class LoggingUsageTransportAction extends XPackUsageFeatureTransportActio
 
     @SuppressWarnings("unchecked")
     private EsqlLoggingConfig getEsqlLoggingConfig(ClusterSettings clusterSettings) {
-        String[] logLevels = { "trace", "debug", "info", "warn" };
         Map<String, String> thresholds = new HashMap<>();
-        for (String logLevel : logLevels) {
+        for (String logLevel : LOG_LEVELS) {
             Setting<TimeValue> value = (Setting<TimeValue>) clusterSettings.get("esql.querylog.threshold." + logLevel);
             if (value != null && clusterSettings.get(value).nanos() >= 0) {
                 thresholds.put(logLevel, clusterSettings.get(value).getStringRep());

@@ -87,7 +87,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
         true,
         FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-        FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
+        true
     );
 
     private static UnsignedLongFieldMapper toType(FieldMapper in) {
@@ -96,7 +96,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
         private final Parameter<Boolean> indexed;
-        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.sorted(
+        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.of(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParameters()
         );
@@ -745,7 +745,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
     @Override
     protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue().isSingleValued();
+        return docValuesParameters.multiValue() == false;
     }
 
     @Override
@@ -820,9 +820,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             if (indexed && docValuesParameters.enabled()) {
                 context.doc()
                     .add(
-                        docValuesParameters.multiValue().isSingleValued()
-                            ? new SingleValuedLongField(fieldType().name(), numericValue)
-                            : new LongField(fieldType().name(), numericValue, Field.Store.NO)
+                        docValuesParameters.multiValue()
+                            ? new LongField(fieldType().name(), numericValue, Field.Store.NO)
+                            : new SingleValuedLongField(fieldType().name(), numericValue)
                     );
             } else if (docValuesParameters.enabled()) {
                 dvFactory.addNumericField(context.doc(), fieldType().name(), numericValue);

@@ -133,12 +133,26 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     }
 
     /**
+     * Converts a list of {@link String} to a list of {@link InferenceString} where all of the {@link InferenceString} are
+     * {@link DataType#TEXT}.
+     * <p>
+     * <b>
+     * This method should only be called in code paths that do not deal with multimodal inputs, i.e. code paths where all inputs are
+     * guaranteed to be raw text, since it assumes that the {@link DataType} for every string is {@link DataType#TEXT}.
+     *</b>
+     * @param strings the strings to convert to {@link InferenceString}
+     * @return a list of {@link InferenceString}
+     */
+    public static List<InferenceString> fromStringList(List<String> strings) {
+        return strings.stream().map(aString -> new InferenceString(DataType.TEXT, aString)).toList();
+    }
+
+    /**
      * Converts a list of {@link InferenceString} to a list of {@link String}.
      * <p>
      * <b>
      * This method should only be called in code paths that do not deal with multimodal inputs, i.e. code paths where all inputs are
-     * guaranteed to be raw text, since it discards the {@link DataType} associated with
-     * each input.
+     * guaranteed to be raw text, since it discards the {@link DataType} associated with each input.
      *</b>
      * @param inferenceStrings The list of {@link InferenceString} to convert to a list of {@link String}
      * @return a list of String inference inputs that do not contain any non-text inputs

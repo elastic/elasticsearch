@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
@@ -58,10 +58,10 @@ public final class TransformHealthChecker {
 
     public static TransformHealth checkUnassignedTransform(
         String transformId,
-        ClusterState clusterState,
+        ProjectMetadata project,
         @Nullable AuthorizationState authState
     ) {
-        final Assignment assignment = TransformNodes.getAssignment(transformId, clusterState);
+        final Assignment assignment = TransformNodes.getAssignment(transformId, project);
         final List<TransformHealthIssue> issues = new ArrayList<>(2);
         issues.add(IssueType.ASSIGNMENT_FAILED.newIssue(assignment.getExplanation(), 1, null));
         if (AuthorizationState.isNullOrGreen(authState) == false) {

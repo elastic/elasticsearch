@@ -125,7 +125,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
             });
             subscribableListener.addTimeout(timeout, threadPool, inferenceExecutor);
             subscribableListener.addListener(ActionListener.wrap(started -> {
-                inferenceStats.deploymentDuration().record(timer.elapsedMillis(), inferenceStats.serviceAndResponseAttributes(model, null));
+                inferenceStats.deploymentDuration().withModel(model).withSuccess().record(timer.elapsedMillis());
                 finalListener.onResponse(started);
             }, e -> {
                 if (e instanceof ElasticsearchTimeoutException) {
@@ -138,12 +138,10 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                             model.getInferenceEntityId()
                         )
                     );
-                    inferenceStats.deploymentDuration()
-                        .record(timer.elapsedMillis(), inferenceStats.serviceAndResponseAttributes(model, timeoutException));
+                    inferenceStats.deploymentDuration().withModel(model).withThrowable(timeoutException).record(timer.elapsedMillis());
                     finalListener.onFailure(timeoutException);
                 } else {
-                    inferenceStats.deploymentDuration()
-                        .record(timer.elapsedMillis(), inferenceStats.serviceAndResponseAttributes(model, unwrapCause(e)));
+                    inferenceStats.deploymentDuration().withModel(model).withThrowable(unwrapCause(e)).record(timer.elapsedMillis());
                     finalListener.onFailure(e);
                 }
             }));

@@ -200,10 +200,6 @@ $$$ignore-dynamic-beyond-limit$$$
 `index.mapping.array_objects.limit`
 :   The maximum cumulative number of JSON object elements that a single document can contain across all arrays. The count is taken over the whole document — every nested or sibling array combined — so chunking a payload across many arrays cannot bypass the limit. This setting safeguards against "poison documents" whose arrays contain an extremely large number of objects, which can cause excessive memory consumption during parsing and dynamic mapping materialization. Default is `20000`. The minimum allowed value is `1`; to effectively disable the limit, set it to `9223372036854775807` (`Long.MAX_VALUE`).
 
-    ::::{important}
-    Arrays handled by a field mapper that consumes the whole array itself — such as [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md), [`rank_vectors`](/reference/elasticsearch/mapping-reference/rank-vectors.md), [`completion`](/reference/elasticsearch/mapping-reference/search-as-you-type.md), and `counted_keyword` — do **not** count against this limit. Those field types have a fixed schema, do not trigger dynamic mapping per element, and have their own per-field bounds (vector dimensions, completion input length, etc.). When ingesting untrusted input, rely on the field-specific limits of those mappers in addition to this setting.
-    ::::
-
 `index.mapping.field_name_length.limit`
 :   Setting for the maximum length of a field name. This setting isn’t really something that addresses mappings explosion but might still be useful if you want to limit the field length. It usually shouldn’t be necessary to set this setting. The default is okay unless a user starts to add a huge number of fields with really long names. Default is `Long.MAX_VALUE` (no limit).
 

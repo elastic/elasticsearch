@@ -3480,7 +3480,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endArray();
         }));
     }
-    
+
     public void testArrayObjectsLimitCountsCopyToDestinations() throws Exception {
         int limit = 2;
         DocumentMapper mapper = createMapperService(

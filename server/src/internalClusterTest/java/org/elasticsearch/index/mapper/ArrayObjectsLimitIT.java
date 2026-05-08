@@ -26,10 +26,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- * Integration tests for {@link MapperService#INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING}, which caps the cumulative
- * number of object elements in arrays per parsed documemt.
- */
 public class ArrayObjectsLimitIT extends ESIntegTestCase {
 
     private static final String EXPECTED_ERROR_PREFIX = "The total number of objects across all arrays in the document"

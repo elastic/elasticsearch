@@ -1,9 +1,10 @@
 # OTel audit log delivery: POC writeup for ES-14356
 
-**Author:** Patrick Doyle
-**Status:** Draft for review
+This PoC validates the ES side of the OTel audit-log pipeline: an audit event emitted by `LoggingAuditTrail` reaches an in-process recording OTLP server through log4j and the OTel SDK, in a security-enabled multi-node test, with `project.id` attached and the SDK's `BatchLogRecordProcessor` keeping I/O off the calling thread. The real `otel-delivery-gateway`, MOTel, and destination project aren't exercised here; closing that gap is [§4.12](#sec-4-12). Around half of the cross-team requirements are satisfied or close to it; the meaningful gaps are mTLS to the gateway, a stdout fallback for exhausted retries, per-project filtering, dynamic configuration, and a few field-shape problems caused by the upstream `OpenTelemetryAppender`. Separately, `security_config_change` events bypass `withThreadContext` in the existing audit-emit code and so don't carry `project.id` today.
 
-The point of this writeup is twofold: (1) to record what's been validated by this PoC, and (2) to make the gaps between PoC scope and a production-ready feature explicit, so estimates of remaining work are grounded.
+I'm not expecting anyone to read this doc end-to-end;
+I've arranged it so you can skip to the parts you care about.
+[§2](#sec-2) lists each requirement with a one-line status pointing into [§3](#sec-3) (validated behavior) or [§4](#sec-4) (gaps). [§5](#sec-5) collects the open design tradeoffs that need a decision before further work. [§6](#sec-6) distills [§4](#sec-4) and [§5](#sec-5) into a punch list, split into decisions/discussions and implementation work. [Appendix A](#sec-appendix-a) records the alternatives the PoC considered and rejected; [Appendix B](#sec-appendix-b) captures incidental findings worth knowing for follow-up work.
 
 ## <a id="sec-1"></a>1. Goal
 

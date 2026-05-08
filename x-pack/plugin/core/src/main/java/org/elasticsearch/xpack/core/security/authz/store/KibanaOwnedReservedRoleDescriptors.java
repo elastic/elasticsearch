@@ -703,7 +703,20 @@ class KibanaOwnedReservedRoleDescriptors {
                     )
                     .build(),
                 // For connectors telemetry. Will be removed once we switched to connectors API
-                RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build(),
+                // Significant events. Kibana system user only manages the index plumbing
+                // (template, rollover, mappings, settings, data stream lifecycle); end-user
+                // credentials own reading and writing the documents.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".significant_events-*")
+                    .privileges(
+                        RolloverAction.NAME,
+                        TransportPutMappingAction.TYPE.name(),
+                        TransportAutoPutMappingAction.TYPE.name(),
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        "indices:admin/data_stream/lifecycle/put"
+                    )
+                    .build() },
             null,
             new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("kibana-*")),

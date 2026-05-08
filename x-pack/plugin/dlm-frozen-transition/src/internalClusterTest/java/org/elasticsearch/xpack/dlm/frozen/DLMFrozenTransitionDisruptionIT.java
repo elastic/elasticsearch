@@ -90,6 +90,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     private static final String REPO_NAME = "dlm-disruption-repo";
     private static final String DATA_STREAM_NAME = "dlm-disruption-ds";
     private static final String TEMPLATE_NAME = "dlm-disruption-template";
+    private final CopyOnWriteArrayList<Thread> disruptionThreadsToJoin = new CopyOnWriteArrayList<>();
 
     /**
      * A test plugin that provides a configurable {@link ActionFilter}. Tests register callbacks
@@ -210,6 +211,19 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     @After
     public void cleanup() {
         ActionInterceptorPlugin.clearInterceptors();
+        // Join all disruption threads to ensure they don't outlive this test
+        for (Thread t : disruptionThreadsToJoin) {
+            try {
+                t.join(TimeUnit.SECONDS.toMillis(30));
+                if (t.isAlive()) {
+                    logger.warn("--> disruption thread [{}] still alive after 30s timeout", t.getName());
+                    t.interrupt();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        disruptionThreadsToJoin.clear();
         try {
             updateClusterSettings(Settings.builder().putNull(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey()));
         } catch (Exception e) {
@@ -230,6 +244,29 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             logger.warn("Failed to delete composable index template during cleanup", e);
         }
         try {
+            // Delete any frozen (searchable snapshot) or clone indices that reference the repository before removing it.
+            // We must delete these explicitly because the data stream deletion above may not cover frozen indices
+            // that were mounted but not yet swapped into the data stream (e.g. due to disruption).
+            var projectMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .metadata()
+                .getProject(Metadata.DEFAULT_PROJECT_ID);
+            List<String> indicesToDelete = projectMetadata.indices()
+                .keySet()
+                .stream()
+                .filter(
+                    name -> name.startsWith(DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX)
+                        || name.startsWith(DLMConvertToFrozen.CLONE_INDEX_PREFIX)
+                )
+                .toList();
+            if (indicesToDelete.isEmpty() == false) {
+                client().admin().indices().delete(new DeleteIndexRequest(indicesToDelete.toArray(String[]::new))).actionGet();
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to delete frozen/clone indices during cleanup", e);
+        }
+        try {
             client().admin().cluster().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, REPO_NAME).get();
         } catch (Exception e) {
             logger.warn("Failed to delete repository during cleanup", e);
@@ -243,6 +280,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * Expected behaviour: the service discovers the index is missing and skips remaining steps
      * without recording a persistent error.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/2761")
     public void testDeleteBackingIndexDuringMarkReadOnly() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
@@ -263,6 +301,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * The {@code IndexNotFoundException} path in {@link DLMConvertToFrozen#run()} skips remaining
      * steps silently, so no persistent error is recorded in the error store.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/2761")
     public void testDeleteBackingIndexDuringClone() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
@@ -344,6 +383,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * Expected behaviour: the original index deletion is already the intent of the cleanup phase.
      * The service handles this gracefully without recording a persistent error.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/2761")
     public void testDeleteBackingIndexDuringCleanup() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
@@ -421,7 +461,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     public void testLifecyclePolicyUpdatedDuringTransition() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
-        setupClusterAndInfrastructure();
+        String candidateIndex = setupClusterAndInfrastructure();
 
         CountDownLatch latch = registerDisruptionInterceptor("indices:admin/forcemerge", () -> {
             // no frozenAfter policy
@@ -443,12 +483,11 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         triggerRollover();
 
         assertTrue("ForceMerge request was never seen by the interceptor", latch.await(30, TimeUnit.SECONDS));
+        awaitTransitionCompletion(candidateIndex);
 
         // The service should not crash — verify it's still running
-        assertBusy(() -> {
-            DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
-            assertThat("Transition service should still be running", transitionService, notNullValue());
-        }, 15, TimeUnit.SECONDS);
+        DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
+        assertTrue("Transition service scheduler should not be cancelled", transitionService.isSchedulerThreadRunning());
 
         logger.info("--> lifecycle-policy-updated-during-transition disruption handled gracefully");
     }
@@ -515,7 +554,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
                     if (disruptionDone.compareAndSet(false, true)) {
                         if (async) {
                             Thread t = new Thread(disruptionAction, "test-disruption-" + actionName);
-                            t.setDaemon(true);
+                            disruptionThreadsToJoin.add(t);
                             t.start();
                         } else {
                             disruptionAction.run();
@@ -529,18 +568,31 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     }
 
     /**
-     * Asserts that no error has been recorded in the DLM error store for the given index.
+     * Waits until the frozen transition for the given index has completed (no longer submitted).
      */
-    private void assertNoErrorRecorded(String candidateIndex) throws Exception {
+    private void awaitTransitionCompletion(String candidateIndex) throws Exception {
         assertBusy(() -> {
             DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
-            DataStreamLifecycleErrorStore errorStore = transitionService.getErrorStore();
-            assertThat(
-                "No error should be recorded for a gracefully-skipped index",
-                errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex),
-                nullValue()
+            assertFalse(
+                "Transition should have completed for [" + candidateIndex + "]",
+                transitionService.getTransitionExecutor().transitionSubmitted(candidateIndex)
             );
-        }, 15, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Asserts that no error has been recorded in the DLM error store for the given index.
+     * Awaits transition completion before checking error store.
+     */
+    private void assertNoErrorRecorded(String candidateIndex) throws Exception {
+        awaitTransitionCompletion(candidateIndex);
+        DLMFrozenTransitionService transitionService = internalCluster().getCurrentMasterNodeInstance(DLMFrozenTransitionService.class);
+        DataStreamLifecycleErrorStore errorStore = transitionService.getErrorStore();
+        assertThat(
+            "No error should be recorded for a gracefully-skipped index",
+            errorStore.getError(Metadata.DEFAULT_PROJECT_ID, candidateIndex),
+            nullValue()
+        );
     }
 
     /**

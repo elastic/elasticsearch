@@ -198,11 +198,9 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
      */
     private void assertRethrottledRps(final TaskId relocatedTaskId, final int expectedTotalRps) {
         if (numOfSlices == 1) {
-            final BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) clusterAdmin().prepareGetTask(relocatedTaskId)
-                .get()
-                .getTask()
-                .getTask()
-                .status();
+            final BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) clusterAdmin().prepareGetTask(
+                relocatedTaskId
+            ).get().getTask().getTask().status();
             assertThat("non-sliced task should have the new RPS", (double) status.getRequestsPerSecond(), closeTo(expectedTotalRps, 0.001));
         } else {
             final ListTasksResponse listResponse = clusterAdmin().prepareListTasks().setActions(ReindexAction.NAME).setDetailed(true).get();

@@ -206,12 +206,27 @@ public class BulkByPaginatedSearchTaskStatusTests extends AbstractXContentTestCa
     }
 
     public static void declareFields(ObjectParser<? extends BulkByPaginatedSearchTask.StatusBuilder, Void> parser) {
-        parser.declareInt(BulkByPaginatedSearchTask.StatusBuilder::setSliceId, new ParseField(BulkByPaginatedSearchTask.Status.SLICE_ID_FIELD));
+        parser.declareInt(
+            BulkByPaginatedSearchTask.StatusBuilder::setSliceId,
+            new ParseField(BulkByPaginatedSearchTask.Status.SLICE_ID_FIELD)
+        );
         parser.declareLong(BulkByPaginatedSearchTask.StatusBuilder::setTotal, new ParseField(BulkByPaginatedSearchTask.Status.TOTAL_FIELD));
-        parser.declareLong(BulkByPaginatedSearchTask.StatusBuilder::setUpdated, new ParseField(BulkByPaginatedSearchTask.Status.UPDATED_FIELD));
-        parser.declareLong(BulkByPaginatedSearchTask.StatusBuilder::setCreated, new ParseField(BulkByPaginatedSearchTask.Status.CREATED_FIELD));
-        parser.declareLong(BulkByPaginatedSearchTask.StatusBuilder::setDeleted, new ParseField(BulkByPaginatedSearchTask.Status.DELETED_FIELD));
-        parser.declareInt(BulkByPaginatedSearchTask.StatusBuilder::setBatches, new ParseField(BulkByPaginatedSearchTask.Status.BATCHES_FIELD));
+        parser.declareLong(
+            BulkByPaginatedSearchTask.StatusBuilder::setUpdated,
+            new ParseField(BulkByPaginatedSearchTask.Status.UPDATED_FIELD)
+        );
+        parser.declareLong(
+            BulkByPaginatedSearchTask.StatusBuilder::setCreated,
+            new ParseField(BulkByPaginatedSearchTask.Status.CREATED_FIELD)
+        );
+        parser.declareLong(
+            BulkByPaginatedSearchTask.StatusBuilder::setDeleted,
+            new ParseField(BulkByPaginatedSearchTask.Status.DELETED_FIELD)
+        );
+        parser.declareInt(
+            BulkByPaginatedSearchTask.StatusBuilder::setBatches,
+            new ParseField(BulkByPaginatedSearchTask.Status.BATCHES_FIELD)
+        );
         parser.declareLong(
             BulkByPaginatedSearchTask.StatusBuilder::setVersionConflicts,
             new ParseField(BulkByPaginatedSearchTask.Status.VERSION_CONFLICTS_FIELD)
@@ -222,12 +237,18 @@ public class BulkByPaginatedSearchTaskStatusTests extends AbstractXContentTestCa
             RETRIES_PARSER,
             new ParseField(BulkByPaginatedSearchTask.Status.RETRIES_FIELD)
         );
-        parser.declareLong(BulkByPaginatedSearchTask.StatusBuilder::setThrottled, new ParseField(BulkByPaginatedSearchTask.Status.THROTTLED_RAW_FIELD));
+        parser.declareLong(
+            BulkByPaginatedSearchTask.StatusBuilder::setThrottled,
+            new ParseField(BulkByPaginatedSearchTask.Status.THROTTLED_RAW_FIELD)
+        );
         parser.declareFloat(
             BulkByPaginatedSearchTask.StatusBuilder::setRequestsPerSecond,
             new ParseField(BulkByPaginatedSearchTask.Status.REQUESTS_PER_SEC_FIELD)
         );
-        parser.declareString(BulkByPaginatedSearchTask.StatusBuilder::setReasonCancelled, new ParseField(BulkByPaginatedSearchTask.Status.CANCELED_FIELD));
+        parser.declareString(
+            BulkByPaginatedSearchTask.StatusBuilder::setReasonCancelled,
+            new ParseField(BulkByPaginatedSearchTask.Status.CANCELED_FIELD)
+        );
         parser.declareLong(
             BulkByPaginatedSearchTask.StatusBuilder::setThrottledUntil,
             new ParseField(BulkByPaginatedSearchTask.Status.THROTTLED_UNTIL_RAW_FIELD)

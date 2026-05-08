@@ -75,7 +75,9 @@ public class LeaderBulkByScrollTaskStateTests extends ESTestCase {
         long noops = 0;
         long versionConflicts = 0;
         int batches = 0;
-        List<BulkByPaginatedSearchTask.StatusOrException> sliceStatuses = Arrays.asList(new BulkByPaginatedSearchTask.StatusOrException[slices]);
+        List<BulkByPaginatedSearchTask.StatusOrException> sliceStatuses = Arrays.asList(
+            new BulkByPaginatedSearchTask.StatusOrException[slices]
+        );
         BulkByPaginatedSearchTask.Status status = task.getStatus();
         assertEquals(total, status.getTotal());
         assertEquals(created, status.getCreated());

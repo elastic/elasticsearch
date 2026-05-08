@@ -90,7 +90,10 @@ public class BulkByPaginatedSearchTaskStatusWireSerializingTests extends Abstrac
             case 10 -> throttled = randomValueOtherThan(throttled, BulkByPaginatedSearchTaskStatusWireSerializingTests::randomTimeValue);
             case 11 -> requestsPerSecond = randomValueOtherThan(status.getRequestsPerSecond(), () -> abs(Randomness.get().nextFloat()));
             case 12 -> reasonCancelled = randomValueOtherThan(reasonCancelled, () -> randomBoolean() ? null : randomAlphaOfLength(10));
-            default -> throttledUntil = randomValueOtherThan(throttledUntil, BulkByPaginatedSearchTaskStatusWireSerializingTests::randomTimeValue);
+            default -> throttledUntil = randomValueOtherThan(
+                throttledUntil,
+                BulkByPaginatedSearchTaskStatusWireSerializingTests::randomTimeValue
+            );
         }
 
         return new BulkByPaginatedSearchTask.Status(
@@ -130,7 +133,9 @@ public class BulkByPaginatedSearchTaskStatusWireSerializingTests extends Abstrac
         return switch (between(0, 2)) {
             case 0 -> null;
             case 1 -> new BulkByPaginatedSearchTask.StatusOrException(new ElasticsearchException(randomAlphaOfLength(5)));
-            default -> new BulkByPaginatedSearchTask.StatusOrException(BulkByPaginatedSearchTaskStatusTests.randomWorkingStatus(between(0, 100)));
+            default -> new BulkByPaginatedSearchTask.StatusOrException(
+                BulkByPaginatedSearchTaskStatusTests.randomWorkingStatus(between(0, 100))
+            );
         };
     }
 
@@ -200,7 +205,10 @@ public class BulkByPaginatedSearchTaskStatusWireSerializingTests extends Abstrac
             return true;
         }
 
-        private static boolean statusOrExceptionEquals(BulkByPaginatedSearchTask.StatusOrException a, BulkByPaginatedSearchTask.StatusOrException b) {
+        private static boolean statusOrExceptionEquals(
+            BulkByPaginatedSearchTask.StatusOrException a,
+            BulkByPaginatedSearchTask.StatusOrException b
+        ) {
             if (a == b) return true;
             if (a == null || b == null) return false;
             if (a.getStatus() != null && b.getStatus() != null) return statusEquals(a.getStatus(), b.getStatus());

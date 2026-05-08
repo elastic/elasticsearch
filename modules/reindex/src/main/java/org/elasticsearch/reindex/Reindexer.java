@@ -56,8 +56,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -186,7 +186,12 @@ public class Reindexer {
         BulkByPaginatedSearchParallelizationHelper.initTaskState(task, request, client, initListener);
     }
 
-    public void execute(BulkByPaginatedSearchTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
+    public void execute(
+        BulkByPaginatedSearchTask task,
+        ReindexRequest request,
+        Client bulkClient,
+        ActionListener<BulkByScrollResponse> listener
+    ) {
         final ResumeInfo resumeInfo = request.getResumeInfo().orElse(null);
         if (resumeInfo != null && resumeInfo.sourceTaskResult() != null) {
             // source task result should be present for top-level tasks only (e.g. leader or non-sliced worker)

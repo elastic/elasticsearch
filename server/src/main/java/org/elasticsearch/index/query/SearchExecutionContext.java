@@ -115,6 +115,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private AutoPrefilteringScope autoPrefilteringScope;
     private QueryBuilder aliasFilter;
+    @Nullable
+    private String sliceRouting;
     private boolean rewriteToNamedQueries = false;
 
     private final Integer requestSize;
@@ -296,6 +298,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public QueryBuilder getAliasFilter() {
         return aliasFilter;
+    }
+
+    // Set slice routing, so it can be applied as a shard-level filter in search context.
+    public void setSliceRouting(@Nullable String sliceRouting) {
+        this.sliceRouting = sliceRouting;
+    }
+
+    @Nullable
+    public String getSliceRouting() {
+        return sliceRouting;
     }
 
     /**

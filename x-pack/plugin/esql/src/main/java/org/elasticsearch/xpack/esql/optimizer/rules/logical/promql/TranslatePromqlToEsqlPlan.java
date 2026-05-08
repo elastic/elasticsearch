@@ -661,7 +661,8 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             }
         }
 
-        return new TimeSeriesAggregate(source, plan, groupings, aggregates, null, command.timestamp(), command.isCollapsed());
+        // Collapsing to one multi-valued row per series is handled by TimeSeriesCollapse, not this flag.
+        return new TimeSeriesAggregate(source, plan, groupings, aggregates, null, command.timestamp(), false);
     }
 
     private static boolean hasTSGrouping(List<Attribute> groupings) {

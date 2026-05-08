@@ -20,14 +20,19 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.reindex.BulkByScrollSearchContextMetrics;
 import org.elasticsearch.reindex.BulkIndexByScrollResponseMatcher;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.reindex.ReindexSettings;
 import org.elasticsearch.reindex.Reindexer;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.rest.root.MainRestPlugin;
+import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 
 import java.net.InetSocketAddress;
 import java.util.Arrays;
@@ -36,6 +41,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.reindex.BulkByScrollSearchContextMetrics.ATTRIBUTE_NAME_SEARCH_SOURCE;
+import static org.elasticsearch.reindex.BulkByScrollSearchContextMetrics.ATTRIBUTE_NAME_TASK_KIND;
+import static org.elasticsearch.reindex.BulkByScrollSearchContextMetrics.ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL;
+import static org.elasticsearch.reindex.BulkByScrollSearchContextMetrics.SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER;
 import static org.elasticsearch.reindex.DeleteByQueryMetrics.DELETE_BY_QUERY_TIME_HISTOGRAM;
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE;
 import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE;
@@ -45,6 +54,7 @@ import static org.elasticsearch.reindex.ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_RE
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_COMPLETION_COUNTER;
 import static org.elasticsearch.reindex.ReindexMetrics.REINDEX_TIME_HISTOGRAM;
 import static org.elasticsearch.reindex.UpdateByQueryMetrics.UPDATE_BY_QUERY_TIME_HISTOGRAM;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,7 +65,12 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ReindexPluginMetricsIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, TestTelemetryPlugin.class, MainRestPlugin.class);
+        return Arrays.asList(
+            ReindexPlugin.class,
+            TestTelemetryPlugin.class,
+            MainRestPlugin.class,
+            SearchContextFailureInjectionPlugin.class
+        );
     }
 
     @Override
@@ -68,7 +83,27 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "*:*")
+            // Disables the thread pool’s cached wall‑clock (default ~200ms ticks) so ThreadPool#absoluteTimeInMillis
+            // (used as the clock for SearchContextKeepaliveDeadline) advances every call.
+            // This keeps short keep‑alive timing tests deterministic.
+            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0)
             .build();
+    }
+
+    @Override
+    @After
+    public void tearDown() throws Exception {
+        try {
+            assertAcked(
+                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                    .setPersistentSettings(Settings.builder().putNull(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey()).build())
+            );
+        } finally {
+            SearchContextFailureInjectionPlugin.CONFIG.set(null);
+            SearchContextFailureInjectionPlugin.PIT_SEARCH_COUNTER.set(0);
+            SearchContextFailureInjectionPlugin.SCROLL_SEARCH_COUNTER.set(0);
+            super.tearDown();
+        }
     }
 
     protected ReindexRequestBuilder reindex() {
@@ -558,6 +593,129 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
         });
     }
 
+    /**
+     * A missing PIT search context that fails after the keep-alive deadline must increment
+     * {@link BulkByScrollSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER} for local reindex.
+     * Uses {@link SearchContextFailureInjectionPlugin}: sets a short PIT keep-alive, sleeps on the second pit search,
+     * then fails with {@link SearchContextMissingException}.
+     */
+    public void testReindexEmitsSearchContextKeepaliveExpiredMetric() throws Exception {
+        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
+
+        final String dataNodeName = internalCluster().startNode();
+        TimeValue pitKeepAlive = TimeValue.timeValueMillis(200);
+        assertAcked(
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(
+                    Settings.builder().put(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey(), pitKeepAlive.getStringRep()).build()
+                )
+        );
+        indexRandom(
+            true,
+            prepareIndex("source").setId("1").setSource("n", 1),
+            prepareIndex("source").setId("2").setSource("n", 2),
+            prepareIndex("source").setId("3").setSource("n", 3)
+        );
+        assertHitCount(prepareSearch("source").setSize(0).setTrackTotalHits(true), 3L);
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        testTelemetryPlugin.resetMeter();
+
+        SearchContextFailureInjectionPlugin.PIT_SEARCH_COUNTER.set(0);
+        SearchContextFailureInjectionPlugin.SCROLL_SEARCH_COUNTER.set(0);
+        SearchContextFailureInjectionPlugin.CONFIG.set(
+            new SearchContextFailureInjectionPlugin.InjectionConfig(
+                TimeValue.timeValueMillis(pitKeepAlive.millis() + 100),
+                new SearchContextMissingException(new ShardSearchContextId("metrics_reindex", 1L))
+            )
+        );
+
+        ReindexRequestBuilder builder = reindex().source("source").destination("dest");
+        builder.source().setSize(1);
+        expectThrows(Exception.class, () -> builder.get());
+
+        assertSearchContextKeepaliveExpiredMetric(testTelemetryPlugin, BulkByScrollSearchContextMetrics.TaskKind.REINDEX);
+    }
+
+    /**
+     * A missing scroll search context after the scroll keep-alive deadline must increment
+     * {@link BulkByScrollSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER} for update-by-query.
+     */
+    public void testUpdateByQueryEmitsSearchContextKeepaliveExpiredMetric() throws Exception {
+        final String dataNodeName = internalCluster().startNode();
+        TimeValue scrollKeepAlive = TimeValue.timeValueMillis(200);
+        indexRandom(
+            true,
+            prepareIndex("test").setId("1").setSource("n", 1),
+            prepareIndex("test").setId("2").setSource("n", 2),
+            prepareIndex("test").setId("3").setSource("n", 3)
+        );
+        assertHitCount(prepareSearch("test").setSize(0).setTrackTotalHits(true), 3L);
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        testTelemetryPlugin.resetMeter();
+
+        SearchContextFailureInjectionPlugin.PIT_SEARCH_COUNTER.set(0);
+        SearchContextFailureInjectionPlugin.SCROLL_SEARCH_COUNTER.set(0);
+        SearchContextFailureInjectionPlugin.CONFIG.set(
+            new SearchContextFailureInjectionPlugin.InjectionConfig(
+                TimeValue.timeValueMillis(scrollKeepAlive.millis() + 100),
+                new SearchContextMissingException(new ShardSearchContextId("metrics_ubq", 1L))
+            )
+        );
+
+        UpdateByQueryRequestBuilder request = updateByQuery().source("test").refresh(true);
+        request.source().setScroll(scrollKeepAlive);
+        request.source().setSize(1);
+        expectThrows(Exception.class, request::get);
+
+        assertSearchContextKeepaliveExpiredMetric(testTelemetryPlugin, BulkByScrollSearchContextMetrics.TaskKind.UPDATE_BY_QUERY);
+    }
+
+    /**
+     * A missing scroll search context after the scroll keep-alive deadline must increment
+     * {@link BulkByScrollSearchContextMetrics#SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER} for delete-by-query.
+     */
+    public void testDeleteByQueryEmitsSearchContextKeepaliveExpiredMetric() throws Exception {
+        final String dataNodeName = internalCluster().startNode();
+        TimeValue scrollKeepAlive = TimeValue.timeValueMillis(200);
+        indexRandom(
+            true,
+            prepareIndex("test").setId("1").setSource("n", 1),
+            prepareIndex("test").setId("2").setSource("n", 2),
+            prepareIndex("test").setId("3").setSource("n", 3)
+        );
+        assertHitCount(prepareSearch("test").setSize(0).setTrackTotalHits(true), 3L);
+
+        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        testTelemetryPlugin.resetMeter();
+
+        SearchContextFailureInjectionPlugin.PIT_SEARCH_COUNTER.set(0);
+        SearchContextFailureInjectionPlugin.SCROLL_SEARCH_COUNTER.set(0);
+        SearchContextFailureInjectionPlugin.CONFIG.set(
+            new SearchContextFailureInjectionPlugin.InjectionConfig(
+                TimeValue.timeValueMillis(scrollKeepAlive.millis() + 100),
+                new SearchContextMissingException(new ShardSearchContextId("metrics_dbq", 1L))
+            )
+        );
+
+        DeleteByQueryRequestBuilder request = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true);
+        request.source().setScroll(scrollKeepAlive);
+        request.source().setSize(1);
+        expectThrows(Exception.class, request::get);
+
+        assertSearchContextKeepaliveExpiredMetric(testTelemetryPlugin, BulkByScrollSearchContextMetrics.TaskKind.DELETE_BY_QUERY);
+    }
+
     public void testDeleteByQueryMetrics() throws Exception {
         final String dataNodeName = internalCluster().startNode();
 
@@ -665,6 +823,24 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             testTelemetryPlugin.collect();
             List<Measurement> measurements = testTelemetryPlugin.getLongHistogramMeasurement(UPDATE_BY_QUERY_TIME_HISTOGRAM);
             assertThat(measurements.size(), equalTo(4));
+        });
+    }
+
+    private void assertSearchContextKeepaliveExpiredMetric(
+        TestTelemetryPlugin plugin,
+        BulkByScrollSearchContextMetrics.TaskKind expectedTaskKind
+    ) throws Exception {
+        assertBusy(() -> {
+            plugin.collect();
+            long total = plugin.getLongCounterMeasurement(SEARCH_CONTEXT_KEEPALIVE_EXPIRED_COUNTER)
+                .stream()
+                .filter(
+                    m -> expectedTaskKind.attributeValue().equals(m.attributes().get(ATTRIBUTE_NAME_TASK_KIND))
+                        && ATTRIBUTE_VALUE_SEARCH_SOURCE_LOCAL.equals(m.attributes().get(ATTRIBUTE_NAME_SEARCH_SOURCE))
+                )
+                .mapToLong(Measurement::getLong)
+                .sum();
+            assertThat(total, greaterThanOrEqualTo(1L));
         });
     }
 }

@@ -392,10 +392,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     /**
      * Predicate-byte ratio threshold above which two-phase I/O is disabled because the projection
      * columns are not large enough relative to predicate columns to justify the extra round trip.
-     * The single-phase late-mat path remains in effect in that case. A separate, lower threshold
-     * than {@code LATE_MATERIALIZATION_PREDICATE_RATIO_THRESHOLD} is intentional: late-mat already
-     * pays off at 50% predicate share, but two-phase amortizes a sequential dependency and only
-     * wins when the projection columns clearly dominate.
+     * The single-phase late-mat path remains in effect in that case — late-mat itself has no
+     * byte-ratio gate (it is enabled whenever the iterator has projection-only columns to defer
+     * decode for); only the more expensive two-phase prefetch is gated here. The threshold is
+     * deliberately conservative: two-phase amortizes a sequential predicate-then-projection
+     * dependency and only wins when the projection columns clearly dominate the byte footprint.
      */
     static final double TWO_PHASE_PREDICATE_BYTE_RATIO_THRESHOLD = 0.4;
 
@@ -1411,7 +1412,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                         blocks[col] = fullBlock;
                     }
                 } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
-                    blocks[col] = pageColumnReaders[col].readBatchFiltered(sourceRows, blockFactory, survivorPositions, emitCount);
+                    blocks[col] = pageColumnReaders[col].readBatchSparse(sourceRows, blockFactory, survivorPositions, emitCount);
                 } else {
                     // Read the full source-rows block and immediately filter to survivors.
                     // We hand fullBlock to filterBlock which closes it on success; on failure

@@ -920,7 +920,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                         null,
                         FieldCapabilitiesIndexResponseTests.randomFieldCaps(),
                         true,
-                        randomFrom(IndexMode.availableModes())
+                        randomFrom(IndexMode.values())
                     )
                 );
             }

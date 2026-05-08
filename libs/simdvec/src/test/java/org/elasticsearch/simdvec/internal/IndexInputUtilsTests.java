@@ -174,13 +174,9 @@ public class IndexInputUtilsTests extends ESTestCase {
                 assertThat(in, not(instanceOf(MemorySegmentAccessInput.class)));
                 assertThat(in, not(instanceOf(DirectAccessInput.class)));
                 long[] offsets = { 0, 64, 128, 192 };
-                boolean result = IndexInputUtils.withSliceAddresses(
-                    in,
-                    offsets,
-                    64,
-                    4,
-                    a -> { fail("action should not be called for plain IndexInput"); }
-                );
+                boolean result = IndexInputUtils.withSliceAddresses(in, offsets, 64, 4, new AddressesScratch()::get, a -> {
+                    fail("action should not be called for plain IndexInput");
+                });
                 assertFalse(result);
             }
         }
@@ -192,7 +188,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         for (int i = 0; i < count; i++) {
             offsets[i] = (long) i * sliceLen * 2;
         }
-        boolean result = IndexInputUtils.withSliceAddresses(in, offsets, sliceLen, count, a -> {
+        boolean result = IndexInputUtils.withSliceAddresses(in, offsets, sliceLen, count, new AddressesScratch()::get, a -> {
             for (int i = 0; i < count; i++) {
                 MemorySegment addr = a.getAtIndex(ValueLayout.ADDRESS, i);
                 assertTrue("address should be non-null", addr != MemorySegment.NULL);

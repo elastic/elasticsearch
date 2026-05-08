@@ -357,6 +357,125 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
     }
 
     /**
+     * Regression test for the trivially-passes shortcut leak: a query that mixes a
+     * Pushability.YES conjunct that does not translate to a Parquet FilterPredicate
+     * ({@code WildcardLike}) with a Pushability.RECHECK conjunct that does translate AND
+     * is satisfied by row-group statistics for every row ({@code status = 200}).
+     *
+     * <p>Without the {@code hasYesConjunctOutsideFilterPredicate} guard in
+     * {@link ParquetFormatReader}, the trivially-passes shortcut would skip late-mat for
+     * every row group (because the FilterPredicate translation only contains {@code status = 200}
+     * and stats prove it). With LIKE pushed as YES, {@code FilterExec} no longer re-applies
+     * the predicate downstream, so the unfiltered rows would leak to the user. The guard
+     * suppresses the shortcut whenever a YES conjunct is absent from the FilterPredicate,
+     * forcing late-mat to evaluate the LIKE itself.
+     *
+     * <p><b>DO NOT WEAKEN OR REMOVE THIS TEST.</b> The combination of (LIKE as YES, status as
+     * RECHECK, status stats-trivial across every row group) is the exact shape that produced
+     * silent wrong-results when the YES promotion of {@code WildcardLike} landed without an
+     * audit of the trivially-passes shortcut. Changes that "simplify" the shortcut, the
+     * helper {@link ParquetPushedExpressions#hasYesConjunctOutsideFilterPredicate}, or the
+     * guard call site in {@link ParquetFormatReader} MUST keep this test passing — the
+     * symptom is silent over-inclusion (returns {@code rows} instead of {@code rows / 2}).
+     * Companion planner-layer tests in {@code ParquetFilterPushdownSupportTests} and unit
+     * tests in {@code ParquetPushedExpressionsTests} must also stay green.
+     */
+    public void testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .required(INT64)
+            .named("status")
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("like_with_eq_test");
+
+        int rows = 200;
+        // Every row has status = 200 (so stats prove status == 200 for the whole file).
+        // Half the rows match LIKE "*google*"; the other half don't. Without the guard the
+        // optimized reader would return all rows; with the guard it returns only the matches.
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < rows; i++) {
+                String url = (i % 2 == 0) ? "https://www.google.com/search?q=" + i : "https://example.org/page?id=" + i;
+                groups.add(factory.newGroup().append("url", url).append("status", 200L).append("label", "label_padding_chunk_" + i));
+            }
+            return groups;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        ReferenceAttribute statusAttr = new ReferenceAttribute(Source.EMPTY, "status", DataType.LONG);
+        Expression like = new org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike(
+            Source.EMPTY,
+            urlAttr,
+            new org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern("*google*")
+        );
+        Expression statusEq = new Equals(Source.EMPTY, statusAttr, new Literal(Source.EMPTY, 200L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(like, statusEq));
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        StorageObject storageObject = createStorageObject(parquetData);
+        int total;
+        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
+            int count = 0;
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                count += page.getPositionCount();
+                page.releaseBlocks();
+            }
+            total = count;
+        }
+        assertThat("LIKE conjunct must be applied even when sibling conjunct is stats-trivial", total, equalTo(rows / 2));
+    }
+
+    /**
+     * Companion to {@link #testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak}: when every
+     * pushed conjunct does translate to a FilterPredicate, the trivially-passes shortcut should
+     * still fire (i.e. the guard must not be over-conservative). We can't observe shortcut firing
+     * directly here, but we can verify it produces the correct rows; combined with the existing
+     * {@code testPushedExpressionsTriviallyPassingFilterParity} this confirms the shortcut path
+     * stays exercised for all-translatable filters.
+     */
+    public void testPushedExpressionsAllTranslatableTriviallyPassesStillFires() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .named("status")
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("all_translatable_test");
+
+        int rows = 200;
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < rows; i++) {
+                groups.add(factory.newGroup().append("status", 200L).append("label", "row_" + i));
+            }
+            return groups;
+        });
+
+        ReferenceAttribute statusAttr = new ReferenceAttribute(Source.EMPTY, "status", DataType.LONG);
+        Expression statusEq = new Equals(Source.EMPTY, statusAttr, new Literal(Source.EMPTY, 200L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(statusEq));
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        StorageObject storageObject = createStorageObject(parquetData);
+        int total;
+        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
+            int count = 0;
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                count += page.getPositionCount();
+                page.releaseBlocks();
+            }
+            total = count;
+        }
+        assertThat("trivially-passing all-translatable filter must return every row", total, equalTo(rows));
+    }
+
+    /**
      * NOT(Eq) via PushedExpressions: verifies the RowRanges path returns all rows that
      * the baseline returns — i.e. NOT does not drop rows from mixed pages.
      */

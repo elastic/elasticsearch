@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -173,6 +174,87 @@ final class ParquetPushedExpressions {
         return combined;
     }
 
+    /**
+     * Returns {@code true} when at least one held conjunct is YES-eligible per
+     * {@link ParquetFilterPushdownSupport#isFullyEvaluable(Expression)} (so {@code FilterExec}
+     * has been dropped for it) AND its translation to a Parquet
+     * {@link FilterPredicate} for {@code schema} is {@code null} (so it is not represented in
+     * the {@link #toFilterPredicate} output).
+     *
+     * <p>Consumers of {@link #toFilterPredicate} that bypass {@link #evaluateFilter} on the basis
+     * of stats reasoning over the predicate (e.g. the trivially-passes shortcut in
+     * {@code OptimizedParquetColumnIterator}) MUST disable that shortcut when this method returns
+     * {@code true}: the YES conjunct is silently absent from the predicate they reasoned about
+     * and would otherwise leak rows it does not match. RECHECK conjuncts that fail to translate
+     * are excluded from this check on purpose — their downstream {@code FilterExec} still
+     * re-applies them, masking the shortcut's over-inclusion.
+     *
+     * <p>Today the only canConvert-but-not-translatable expression is {@link WildcardLike}
+     * (and {@code Not(WildcardLike)}), which is also the only YES-eligible non-comparator
+     * expression — so in practice this method returns {@code true} exactly when a {@code LIKE}
+     * conjunct is present alongside other translatable conjuncts.
+     *
+     * <p>YES is determined here by {@link ParquetFilterPushdownSupport#isFullyEvaluable(Expression)}
+     * rather than the full {@code canPush} check. The full check additionally probes
+     * {@code canCompileAllPatterns}; a pattern that fails that probe at plan time is downgraded
+     * to RECHECK and stays in {@code FilterExec}, so it would not be a YES conjunct at runtime.
+     * Using only {@code isFullyEvaluable} here is therefore conservative — it may flag an
+     * expression as YES that the planner already downgraded, suppressing the shortcut for that
+     * file. The wasted work is bounded: at most one extra {@code evaluateFilter} pass per
+     * trivially-passing row group, which is exactly the cost the shortcut was saving.
+     *
+     * <p><b>Do not weaken this method.</b> Returning {@code false} when it should return
+     * {@code true} causes silent wrong-results: rows that do not match a YES conjunct (today:
+     * a {@code LIKE} pattern) are emitted as if they did, because the trivially-passes shortcut
+     * routes them around the late-mat evaluator and there is no downstream {@code FilterExec}
+     * to catch the over-inclusion. The contract is exercised by
+     * {@code ParquetPushedExpressionsTests#testHasYesConjunctOutsideFilterPredicate*} and the
+     * integration regression test
+     * {@code OptimizedFilteredReaderTests#testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak}.
+     */
+    boolean hasYesConjunctOutsideFilterPredicate(MessageType schema) {
+        for (Expression expr : expressions) {
+            if (ParquetFilterPushdownSupport.isFullyEvaluable(expr) && translateExpression(expr, schema) == null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns {@code true} when {@code expr} translates to a Parquet {@link FilterPredicate}
+     * with no silent-drop branch — i.e. the resulting predicate has the same matching set as
+     * {@code expr} (modulo TVL on nulls, which apache-mr handles compatibly for the basic
+     * comparators below). Used by {@link #translateExpression}'s {@code Not} branch to
+     * refuse pushing a negation over an expression that would silently drop a sub-arm:
+     * negation flips a looser-than-truth predicate into a STRICTER-than-truth one, which
+     * leaks rows during stats-based pruning.
+     *
+     * <p>Today this whitelist mirrors the leaf cases handled directly in
+     * {@link #translateExpression} (no recursion into {@code And}/{@code Or}/{@code Not}).
+     * That keeps the rule simple and obviously correct; it can be relaxed later (e.g. allow
+     * {@code Not(And(translatable, translatable))}) once we have explicit test coverage for
+     * the additional shapes.
+     */
+    private static boolean isExactlyTranslatable(Expression expr) {
+        if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression && bc.right().foldable()) {
+            return true;
+        }
+        if (expr instanceof In in && in.value() instanceof NamedExpression) {
+            return true;
+        }
+        if (expr instanceof IsNull isNull && isNull.field() instanceof NamedExpression) {
+            return true;
+        }
+        if (expr instanceof IsNotNull isNotNull && isNotNull.field() instanceof NamedExpression) {
+            return true;
+        }
+        if (expr instanceof Range range && range.value() instanceof NamedExpression) {
+            return true;
+        }
+        return false;
+    }
+
     private FilterPredicate translateExpression(Expression expr, MessageType schema) {
         if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne && bc.right().foldable()) {
             String name = ne.name();
@@ -206,22 +288,21 @@ final class ParquetPushedExpressions {
             return translateRange(ne.name(), ne.dataType(), range, schema);
         }
         if (expr instanceof And and) {
-            boolean leftConvertible = ParquetFilterPushdownSupport.canConvert(and.left());
-            boolean rightConvertible = ParquetFilterPushdownSupport.canConvert(and.right());
-            if (leftConvertible && rightConvertible) {
-                FilterPredicate leftPred = translateExpression(and.left(), schema);
-                FilterPredicate rightPred = translateExpression(and.right(), schema);
-                if (leftPred != null && rightPred != null) {
-                    return FilterApi.and(leftPred, rightPred);
-                }
-                return leftPred != null ? leftPred : rightPred;
-            } else if (leftConvertible) {
-                return translateExpression(and.left(), schema);
-            } else {
-                return translateExpression(and.right(), schema);
+            // For AND, dropping an arm produces a LOOSER predicate (one that admits at least
+            // as many rows). That is safe for stats pruning, RowRanges, and the
+            // trivially-passes shortcut, all of which require a SUPERSET of the truth.
+            FilterPredicate leftPred = translateExpression(and.left(), schema);
+            FilterPredicate rightPred = translateExpression(and.right(), schema);
+            if (leftPred != null && rightPred != null) {
+                return FilterApi.and(leftPred, rightPred);
             }
+            return leftPred != null ? leftPred : rightPred;
         }
         if (expr instanceof Or or) {
+            // For OR, BOTH arms must translate or the predicate is unsafe. Dropping one OR
+            // arm yields a STRICTER predicate (the surviving arm alone), which would prune
+            // rows the original would have matched via the dropped arm. Return null so the
+            // shortcut/RowRanges path skips this expression entirely.
             FilterPredicate leftPred = translateExpression(or.left(), schema);
             FilterPredicate rightPred = translateExpression(or.right(), schema);
             if (leftPred != null && rightPred != null) {
@@ -230,6 +311,27 @@ final class ParquetPushedExpressions {
             return null;
         }
         if (expr instanceof Not not) {
+            // Negation flips the looser/stricter polarity of any silent drop in the inner
+            // expression: an inner AND that silently dropped an untranslatable arm produces a
+            // looser inner predicate; NOT of looser is STRICTER, which prunes rows the
+            // original would have matched (e.g. NOT(AND(LIKE, id<N)) becomes NOT(id<N), which
+            // wrongly drops rows where LIKE doesn't match and id<N). To stay safe we require
+            // the inner translation to be EXACT — i.e. it must contain no untranslatable
+            // sub-expression at all. Practically this means the inner must be a leaf
+            // comparator/range/equality that the translator handles directly. Anything more
+            // complex returns null so the predicate is not pushed, leaving the row to the
+            // late-mat evaluator (which evaluates the original ESQL expression, including
+            // the conjuncts under the inner AND, with TVL-correct semantics).
+            //
+            // DO NOT REMOVE the isExactlyTranslatable guard — without it, NOT over a
+            // silent-drop AND produces a stricter-than-truth predicate that silently loses
+            // rows during stats-based row-group / page pruning. There is no FilterExec safety
+            // net at the row-group/page level (FilterExec runs per-row on what survives).
+            // Regression tests live in {@code ParquetReaderFilterDifferentialTests} (see the
+            // randomized {@code NOT(AND(LIKE, ...))} cases that surfaced this bug).
+            if (isExactlyTranslatable(not.field()) == false) {
+                return null;
+            }
             FilterPredicate inner = translateExpression(not.field(), schema);
             return inner != null ? FilterApi.not(inner) : null;
         }
@@ -509,7 +611,7 @@ final class ParquetPushedExpressions {
     WordMask evaluateFilter(Map<String, Block> predicateBlocks, int rowCount, WordMask reusable) {
         reusable.setAll(rowCount);
         for (Expression expr : expressions) {
-            WordMask exprResult = evaluateExpression(expr, predicateBlocks, rowCount);
+            WordMask exprResult = evaluateExpression(expr, predicateBlocks, rowCount, reusable);
             if (exprResult != null) {
                 reusable.and(exprResult);
             }
@@ -521,7 +623,9 @@ final class ParquetPushedExpressions {
     }
 
     // Note: not static — uses the per-instance automaton cache in evaluateWildcardLike.
-    private WordMask evaluateExpression(Expression expr, Map<String, Block> blocks, int rowCount) {
+    // The intermediateMask is the cumulative AND of all previously evaluated conjuncts;
+    // expensive evaluators (LIKE, StartsWith) use it to skip already-eliminated rows.
+    private WordMask evaluateExpression(Expression expr, Map<String, Block> blocks, int rowCount, @Nullable WordMask intermediateMask) {
         if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne && bc.right().foldable()) {
             Block block = blocks.get(ne.name());
             if (block == null) {
@@ -576,8 +680,8 @@ final class ParquetPushedExpressions {
             return evaluateRange(range, block, rowCount);
         }
         if (expr instanceof And and) {
-            WordMask left = evaluateExpression(and.left(), blocks, rowCount);
-            WordMask right = evaluateExpression(and.right(), blocks, rowCount);
+            WordMask left = evaluateExpression(and.left(), blocks, rowCount, intermediateMask);
+            WordMask right = evaluateExpression(and.right(), blocks, rowCount, intermediateMask);
             if (left != null && right != null) {
                 left.and(right);
                 return left;
@@ -585,8 +689,8 @@ final class ParquetPushedExpressions {
             return left != null ? left : right;
         }
         if (expr instanceof Or or) {
-            WordMask left = evaluateExpression(or.left(), blocks, rowCount);
-            WordMask right = evaluateExpression(or.right(), blocks, rowCount);
+            WordMask left = evaluateExpression(or.left(), blocks, rowCount, intermediateMask);
+            WordMask right = evaluateExpression(or.right(), blocks, rowCount, intermediateMask);
             if (left != null && right != null) {
                 left.or(right);
                 return left;
@@ -612,9 +716,9 @@ final class ParquetPushedExpressions {
                 if (block == null) {
                     return null;
                 }
-                return evaluateNotWildcardLike(wl, block, rowCount);
+                return evaluateNotWildcardLike(wl, block, rowCount, intermediateMask);
             }
-            WordMask inner = evaluateExpression(not.field(), blocks, rowCount);
+            WordMask inner = evaluateExpression(not.field(), blocks, rowCount, intermediateMask);
             if (inner != null) {
                 inner.negate();
                 return inner;
@@ -626,14 +730,14 @@ final class ParquetPushedExpressions {
             if (block == null) {
                 return null;
             }
-            return evaluateStartsWith(sw, block, rowCount);
+            return evaluateStartsWith(sw, block, rowCount, intermediateMask);
         }
         if (expr instanceof WildcardLike wl && wl.field() instanceof NamedExpression ne) {
             Block block = blocks.get(ne.name());
             if (block == null) {
                 return null;
             }
-            return evaluateWildcardLike(wl, block, rowCount);
+            return evaluateWildcardLike(wl, block, rowCount, intermediateMask);
         }
         return null;
     }
@@ -876,7 +980,7 @@ final class ParquetPushedExpressions {
         return true;
     }
 
-    private static WordMask evaluateStartsWith(StartsWith sw, Block block, int rowCount) {
+    private static WordMask evaluateStartsWith(StartsWith sw, Block block, int rowCount, @Nullable WordMask intermediateMask) {
         Object prefixValue = literalValueOf(sw.prefix());
         if (prefixValue == null) {
             return null;
@@ -897,6 +1001,9 @@ final class ParquetPushedExpressions {
             mask.reset(rowCount);
             BytesRef scratch = new BytesRef();
             for (int i = 0; i < rowCount; i++) {
+                if (intermediateMask != null && intermediateMask.get(i) == false) {
+                    continue;
+                }
                 if (block.isNull(i) == false) {
                     BytesRef val = bb.getBytesRef(i, scratch);
                     if (val.length >= prefix.length && startsWith(val, prefix)) {
@@ -958,16 +1065,11 @@ final class ParquetPushedExpressions {
      * one of the two supported block types, so the block-type {@code null} sentinel is unreachable
      * on the YES path in practice.
      */
-    private WordMask evaluateWildcardLike(WildcardLike wl, Block block, int rowCount) {
+    private WordMask evaluateWildcardLike(WildcardLike wl, Block block, int rowCount, @Nullable WordMask intermediateMask) {
         CompiledWildcard compiled = automatonFor(wl);
         if (compiled.matcher == null) {
-            // Pattern was too complex to determinize. Late-mat can't filter; rely on FilterExec.
             return null;
         }
-        // Fast path: pattern accepts every input. Skip the per-row automaton run. matchesAll is
-        // computed at compile time against the case-aware automaton in automatonFor(), so it is
-        // consistent with wl.caseInsensitive(). Nulls are still excluded — SQL's NULL LIKE *
-        // evaluates to unknown, treated here as "no match" for parity with the scalar path.
         if (compiled.matchesAll) {
             return maskNonNullRows(block, rowCount);
         }
@@ -987,6 +1089,9 @@ final class ParquetPushedExpressions {
             mask.reset(rowCount);
             BytesRef scratch = new BytesRef();
             for (int i = 0; i < rowCount; i++) {
+                if (intermediateMask != null && intermediateMask.get(i) == false) {
+                    continue;
+                }
                 if (block.isNull(i) == false) {
                     BytesRef val = bb.getBytesRef(i, scratch);
                     if (runner.run(val.bytes, val.offset, val.length)) {
@@ -1026,8 +1131,8 @@ final class ParquetPushedExpressions {
      * far beyond {@code "*google*"}). If a future change broadens the YES-eligible set, this
      * contract must be revisited.
      */
-    private WordMask evaluateNotWildcardLike(WildcardLike wl, Block block, int rowCount) {
-        WordMask likeMask = evaluateWildcardLike(wl, block, rowCount);
+    private WordMask evaluateNotWildcardLike(WildcardLike wl, Block block, int rowCount, @Nullable WordMask intermediateMask) {
+        WordMask likeMask = evaluateWildcardLike(wl, block, rowCount, intermediateMask);
         if (likeMask == null) {
             return null;
         }

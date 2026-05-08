@@ -521,12 +521,3 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.SoftDeletesRetentionIT
   method: testRetentionLeasesIgnoredForSoftDeletesPolicy
   issue: https://github.com/elastic/elasticsearch/issues/148557
-- class: org.elasticsearch.index.reindex.ReindexPluginMetricsIT
-  method: testReindexEmitsSearchContextKeepaliveExpiredMetric
-  issue: https://github.com/elastic/elasticsearch/issues/148558
-- class: org.elasticsearch.index.reindex.ReindexPluginMetricsIT
-  method: testLocalReindexPitOpenFailureMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/148559
-- class: org.elasticsearch.index.reindex.ReindexPluginMetricsIT
-  method: testRemoteReindexVersionLookupFailureMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/148560

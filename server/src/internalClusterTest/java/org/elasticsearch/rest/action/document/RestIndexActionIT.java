@@ -204,6 +204,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         getRestClient().performRequest(new Request("POST", "/slice-query-filter-it/_refresh"));
 
         Request filterBySlice = new Request("GET", "/slice-query-filter-it/_search");
+        filterBySlice.addParameter(SliceIndexing.PARAM_NAME, SliceIndexing.SLICE_ALL);
         filterBySlice.setJsonEntity("""
             {
               "size": 0,
@@ -218,6 +219,7 @@ public class RestIndexActionIT extends ESIntegTestCase {
         assertThat(filterResponsePath.evaluate("hits.total.value"), equalTo(2));
 
         Request prefixBySlice = new Request("GET", "/slice-query-filter-it/_search");
+        prefixBySlice.addParameter(SliceIndexing.PARAM_NAME, SliceIndexing.SLICE_ALL);
         prefixBySlice.setJsonEntity("""
             {
               "size": 0,
@@ -315,6 +317,373 @@ public class RestIndexActionIT extends ESIntegTestCase {
         ResponseException termException = expectThrows(ResponseException.class, () -> getRestClient().performRequest(termBySlice));
         String termResponse = Streams.copyToString(new InputStreamReader(termException.getResponse().getEntity().getContent(), UTF_8));
         assertThat(termResponse, containsString("No field mapping can be found for the field with name [_slice]"));
+    }
+
+    public void testSearchUrlSliceRequiredWhenSliceEnabled() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request create = new Request("PUT", "/slice-search-url-required-it");
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true,
+                "number_of_shards": 1
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request indexDoc = new Request("POST", "/slice-search-url-required-it/_doc/1");
+        indexDoc.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        indexDoc.setJsonEntity("""
+            {
+              "field": "value"
+            }""");
+        getRestClient().performRequest(indexDoc);
+        getRestClient().performRequest(new Request("POST", "/slice-search-url-required-it/_refresh"));
+
+        Request searchMissingSlice = new Request("GET", "/slice-search-url-required-it/_search");
+        searchMissingSlice.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              }
+            }""");
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(searchMissingSlice));
+        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(response, containsString("[_slice] is required when [index.slice.enabled] is true"));
+    }
+
+    public void testSearchUrlRoutingRejectedWhenSliceEnabled() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request create = new Request("PUT", "/slice-search-url-routing-rejected-it");
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true,
+                "number_of_shards": 1
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request indexDoc = new Request("POST", "/slice-search-url-routing-rejected-it/_doc/1");
+        indexDoc.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        indexDoc.setJsonEntity("""
+            {
+              "field": "value"
+            }""");
+        getRestClient().performRequest(indexDoc);
+        getRestClient().performRequest(new Request("POST", "/slice-search-url-routing-rejected-it/_refresh"));
+
+        Request searchWithRouting = new Request("GET", "/slice-search-url-routing-rejected-it/_search");
+        searchWithRouting.addParameter("routing", "r1");
+        searchWithRouting.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              }
+            }""");
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(searchWithRouting));
+        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(response, containsString("[routing] is not allowed when [index.slice.enabled] is true"));
+        assertThat(response, containsString("use [_slice] instead"));
+    }
+
+    public void testSearchPitRejectedWhenSliceEnabled() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request create = new Request("PUT", "/slice-search-pit-rejected-it");
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true,
+                "number_of_shards": 1
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request indexDoc = new Request("POST", "/slice-search-pit-rejected-it/_doc/1");
+        indexDoc.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        indexDoc.setJsonEntity("""
+            {
+              "field": "value"
+            }""");
+        getRestClient().performRequest(indexDoc);
+        getRestClient().performRequest(new Request("POST", "/slice-search-pit-rejected-it/_refresh"));
+
+        Request openPit = new Request("POST", "/slice-search-pit-rejected-it/_pit");
+        openPit.addParameter("keep_alive", "1m");
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(openPit));
+        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(response, containsString("[_slice] is required when [index.slice.enabled] is true"));
+    }
+
+    public void testSearchUrlSliceRejectedWhenNoSliceEnabledIndices() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request create = new Request("PUT", "/slice-search-url-disabled-it");
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": false,
+                "number_of_shards": 1
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request indexDoc = new Request("POST", "/slice-search-url-disabled-it/_doc/1");
+        indexDoc.setJsonEntity("""
+            {
+              "field": "value"
+            }""");
+        getRestClient().performRequest(indexDoc);
+        getRestClient().performRequest(new Request("POST", "/slice-search-url-disabled-it/_refresh"));
+
+        Request searchWithSlice = new Request("GET", "/slice-search-url-disabled-it/_search");
+        searchWithSlice.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        searchWithSlice.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              }
+            }""");
+        ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(searchWithSlice));
+        String response = Streams.copyToString(new InputStreamReader(exception.getResponse().getEntity().getContent(), UTF_8));
+        assertThat(response, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+    }
+
+    public void testSearchUrlSliceAcceptedForMixedIndicesAndAppliesGlobalFilter() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request createEnabled = new Request("PUT", "/slice-search-url-mixed-enabled-it");
+        createEnabled.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true,
+                "number_of_shards": 1
+              }
+            }""");
+        getRestClient().performRequest(createEnabled);
+        Request createDisabled = new Request("PUT", "/slice-search-url-mixed-disabled-it");
+        createDisabled.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": false,
+                "number_of_shards": 1
+              }
+            }""");
+        getRestClient().performRequest(createDisabled);
+
+        Request indexS1 = new Request("POST", "/slice-search-url-mixed-enabled-it/_doc/1");
+        indexS1.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        indexS1.setJsonEntity("""
+            {
+              "field": "a"
+            }""");
+        getRestClient().performRequest(indexS1);
+        Request indexS2 = new Request("POST", "/slice-search-url-mixed-enabled-it/_doc/2");
+        indexS2.addParameter(SliceIndexing.PARAM_NAME, "s2");
+        indexS2.setJsonEntity("""
+            {
+              "field": "b"
+            }""");
+        getRestClient().performRequest(indexS2);
+
+        Request indexDisabled = new Request("POST", "/slice-search-url-mixed-disabled-it/_doc/3");
+        indexDisabled.setJsonEntity("""
+            {
+              "field": "c"
+            }""");
+        getRestClient().performRequest(indexDisabled);
+        getRestClient().performRequest(
+            new Request("POST", "/slice-search-url-mixed-enabled-it,slice-search-url-mixed-disabled-it/_refresh")
+        );
+
+        Request searchWithSlice = new Request("GET", "/slice-search-url-mixed-enabled-it,slice-search-url-mixed-disabled-it/_search");
+        searchWithSlice.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        searchWithSlice.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              }
+            }""");
+        Response response = getRestClient().performRequest(searchWithSlice);
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        assertThat(objectPath.evaluate("hits.total.value"), equalTo(1));
+        assertThat(objectPath.evaluate("hits.hits.0._routing"), equalTo("s1"));
+    }
+
+    public void testSearchUrlSliceFilterIsAdditiveToQueryFilter() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request create = new Request("PUT", "/slice-search-url-additive-filter-it");
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true,
+                "number_of_shards": 1
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request indexS1MatchingQuery = new Request("POST", "/slice-search-url-additive-filter-it/_doc/1");
+        indexS1MatchingQuery.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        indexS1MatchingQuery.setJsonEntity("""
+            {
+              "category": 1
+            }""");
+        getRestClient().performRequest(indexS1MatchingQuery);
+
+        Request indexS1NonMatchingQuery = new Request("POST", "/slice-search-url-additive-filter-it/_doc/2");
+        indexS1NonMatchingQuery.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        indexS1NonMatchingQuery.setJsonEntity("""
+            {
+              "category": 2
+            }""");
+        getRestClient().performRequest(indexS1NonMatchingQuery);
+
+        Request indexS2MatchingQuery = new Request("POST", "/slice-search-url-additive-filter-it/_doc/3");
+        indexS2MatchingQuery.addParameter(SliceIndexing.PARAM_NAME, "s2");
+        indexS2MatchingQuery.setJsonEntity("""
+            {
+              "category": 1
+            }""");
+        getRestClient().performRequest(indexS2MatchingQuery);
+        getRestClient().performRequest(new Request("POST", "/slice-search-url-additive-filter-it/_refresh"));
+
+        Request searchWithSliceAndQuery = new Request("GET", "/slice-search-url-additive-filter-it/_search");
+        searchWithSliceAndQuery.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        searchWithSliceAndQuery.setJsonEntity("""
+            {
+              "query": {
+                "term": {
+                  "category": 1
+                }
+              }
+            }""");
+        Response response = getRestClient().performRequest(searchWithSliceAndQuery);
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        assertThat(objectPath.evaluate("hits.total.value"), equalTo(1));
+        assertThat(objectPath.evaluate("hits.hits.0._id"), equalTo("1"));
+    }
+
+    public void testSearchUrlSliceSupportsMultipleValues() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request create = new Request("PUT", "/slice-search-url-multiple-values-it");
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true,
+                "number_of_shards": 1
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request indexS1 = new Request("POST", "/slice-search-url-multiple-values-it/_doc/1");
+        indexS1.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        indexS1.setJsonEntity("""
+            {
+              "field": "a",
+              "seq": 1
+            }""");
+        getRestClient().performRequest(indexS1);
+
+        Request indexS2 = new Request("POST", "/slice-search-url-multiple-values-it/_doc/2");
+        indexS2.addParameter(SliceIndexing.PARAM_NAME, "s2");
+        indexS2.setJsonEntity("""
+            {
+              "field": "b",
+              "seq": 2
+            }""");
+        getRestClient().performRequest(indexS2);
+
+        Request indexS3 = new Request("POST", "/slice-search-url-multiple-values-it/_doc/3");
+        indexS3.addParameter(SliceIndexing.PARAM_NAME, "s3");
+        indexS3.setJsonEntity("""
+            {
+              "field": "c",
+              "seq": 3
+            }""");
+        getRestClient().performRequest(indexS3);
+        getRestClient().performRequest(new Request("POST", "/slice-search-url-multiple-values-it/_refresh"));
+
+        Request searchWithMultipleSlices = new Request("GET", "/slice-search-url-multiple-values-it/_search");
+        searchWithMultipleSlices.addParameter(SliceIndexing.PARAM_NAME, "s1,s2");
+        searchWithMultipleSlices.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              },
+              "sort": [
+                {
+                  "seq": {
+                    "order": "asc"
+                  }
+                }
+              ]
+            }""");
+        Response response = getRestClient().performRequest(searchWithMultipleSlices);
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        assertThat(objectPath.evaluate("hits.total.value"), equalTo(2));
+        assertThat(objectPath.evaluate("hits.hits.0._id"), equalTo("1"));
+        assertThat(objectPath.evaluate("hits.hits.1._id"), equalTo("2"));
+    }
+
+    public void testSearchUrlSliceAllReturnsAllDocumentsAcrossSlices() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request create = new Request("PUT", "/slice-search-url-all-slices-it");
+        create.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true,
+                "number_of_shards": 1
+              }
+            }""");
+        getRestClient().performRequest(create);
+
+        Request indexS1 = new Request("POST", "/slice-search-url-all-slices-it/_doc/1");
+        indexS1.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        indexS1.setJsonEntity("""
+            {
+              "field": "a",
+              "seq": 1
+            }""");
+        getRestClient().performRequest(indexS1);
+
+        Request indexS2 = new Request("POST", "/slice-search-url-all-slices-it/_doc/2");
+        indexS2.addParameter(SliceIndexing.PARAM_NAME, "s2");
+        indexS2.setJsonEntity("""
+            {
+              "field": "b",
+              "seq": 2
+            }""");
+        getRestClient().performRequest(indexS2);
+
+        Request indexS3 = new Request("POST", "/slice-search-url-all-slices-it/_doc/3");
+        indexS3.addParameter(SliceIndexing.PARAM_NAME, "s3");
+        indexS3.setJsonEntity("""
+            {
+              "field": "c",
+              "seq": 3
+            }""");
+        getRestClient().performRequest(indexS3);
+        getRestClient().performRequest(new Request("POST", "/slice-search-url-all-slices-it/_refresh"));
+
+        Request searchAllSlices = new Request("GET", "/slice-search-url-all-slices-it/_search");
+        searchAllSlices.addParameter(SliceIndexing.PARAM_NAME, SliceIndexing.SLICE_ALL);
+        searchAllSlices.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              },
+              "sort": [
+                {
+                  "seq": {
+                    "order": "asc"
+                  }
+                }
+              ]
+            }""");
+        Response response = getRestClient().performRequest(searchAllSlices);
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        assertThat(objectPath.evaluate("hits.total.value"), equalTo(3));
+        assertThat(objectPath.evaluate("hits.hits.0._id"), equalTo("1"));
+        assertThat(objectPath.evaluate("hits.hits.1._id"), equalTo("2"));
+        assertThat(objectPath.evaluate("hits.hits.2._id"), equalTo("3"));
     }
 
     public void testSliceRequirementAndValidationForGetAndDelete() throws Exception {

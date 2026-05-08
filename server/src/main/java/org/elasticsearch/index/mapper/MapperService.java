@@ -213,6 +213,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
     private final Function<Query, BitSetProducer> bitSetProducer;
     private final MapperMetrics mapperMetrics;
+    private final BooleanSupplier idFieldDataEnabled;
 
     private volatile DocumentMapper mapper;
     private volatile long mappingVersion;
@@ -225,7 +226,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         SimilarityService similarityService,
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-        BooleanSupplier fieldDataEnabled,
+        BooleanSupplier idFieldDataEnabled,
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
         MapperMetrics mapperMetrics,
@@ -240,7 +241,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             similarityService,
             mapperRegistry,
             searchExecutionContextSupplier,
-            fieldDataEnabled,
+            idFieldDataEnabled,
             scriptCompiler,
             bitSetProducer,
             mapperMetrics,
@@ -258,7 +259,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         SimilarityService similarityService,
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-        BooleanSupplier fieldDataEnabled,
+        BooleanSupplier idFieldDataEnabled,
         ScriptCompiler scriptCompiler,
         Function<Query, BitSetProducer> bitSetProducer,
         MapperMetrics mapperMetrics,
@@ -281,7 +282,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             scriptCompiler,
             indexAnalyzers,
             indexSettings,
-            fieldDataEnabled,
             bitSetProducer,
             mapperRegistry.getVectorsFormatProviders(),
             mapperRegistry.getNamespaceValidator(),
@@ -300,6 +300,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.bitSetProducer = bitSetProducer;
         this.mapperMetrics = mapperMetrics;
         this.mapper = documentMapper;
+        this.idFieldDataEnabled = idFieldDataEnabled;
     }
 
     public boolean hasNested() {
@@ -312,6 +313,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public MappingParserContext parserContext() {
         return mappingParserContextSupplier.get();
+    }
+
+    /**
+     * @return a supplier that can be used to check whether loading field data from _id field's inverted index is allowed.
+     */
+    public BooleanSupplier getIdFieldDataEnabled() {
+        return idFieldDataEnabled;
     }
 
     /**
@@ -341,6 +349,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             MetadataFieldMapper.Builder routingBuilder = metadataBuilders.get(RoutingFieldMapper.NAME);
             if (routingBuilder instanceof RoutingFieldMapper.Builder builder) {
                 builder.required.setValue(true);
+                builder.docValues.setValue(true);
             }
         }
         return metadataBuilders;

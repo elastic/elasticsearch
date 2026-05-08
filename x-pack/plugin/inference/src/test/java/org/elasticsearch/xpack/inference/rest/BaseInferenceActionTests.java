@@ -249,7 +249,7 @@ public class BaseInferenceActionTests extends RestActionTestCase {
     }
 
     public void testResolveTimeoutForTaskType_NonNullTimeout_ReturnsTimeout() {
-        var timeout = randomTimeValue();
+        var timeout = randomTimeValue(1, 1000);
         for (TaskType taskType : TaskType.values()) {
             assertThat(resolveTimeoutForTaskType(taskType, timeout), is(timeout));
         }

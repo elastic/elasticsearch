@@ -63,18 +63,13 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             + "If you require sorting or aggregating on this field you should also include the id in the "
             + "body of your documents, and map this field as a keyword field that has [doc_values] enabled";
 
-    public static final ProvidedIdFieldMapper DOCUMENT_ID_NO_FIELD_DATA = new ProvidedIdFieldMapper(
-        () -> false,
-        IdFieldMapper.Mode.DEFAULT
-    );
-    public static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(() -> false, Mode.COLUMNAR);
+    public static final ProvidedIdFieldMapper DOCUMENT_ID = new ProvidedIdFieldMapper(IdFieldMapper.Mode.DEFAULT);
+    public static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(Mode.COLUMNAR);
 
     /**
      * Builder for {@link ProvidedIdFieldMapper} that supports the {@code mode} mapping parameter.
      */
     public static class Builder extends MetadataFieldMapper.Builder {
-
-        private final BooleanSupplier fieldDataEnabled;
 
         private final Parameter<IdFieldMapper.Mode> mode = new Parameter<>(
             "mode",
@@ -86,9 +81,8 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             v -> v.toString().toLowerCase(Locale.ROOT)
         ).setSerializerCheck((includeDefaults, isConfigured, value) -> isConfigured);
 
-        Builder(BooleanSupplier fieldDataEnabled) {
+        Builder() {
             super(NAME);
-            this.fieldDataEnabled = fieldDataEnabled;
         }
 
         @Override
@@ -108,7 +102,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                     return COLUMNAR_ID;
                 case DEFAULT:
                     // TODO: return constant:
-                    return new ProvidedIdFieldMapper(fieldDataEnabled, mode);
+                    return new ProvidedIdFieldMapper(mode);
                 default:
                     throw new IllegalArgumentException("Unsupported id field mode [" + mode + "]");
             }
@@ -122,11 +116,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     static final class IdFieldType extends AbstractIdFieldType {
 
-        private final BooleanSupplier fieldDataEnabled;
-
-        IdFieldType(BooleanSupplier fieldDataEnabled) {
-            this.fieldDataEnabled = fieldDataEnabled;
-        }
+        IdFieldType() {}
 
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
@@ -134,13 +124,19 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
+        public boolean isAggregatable(BooleanSupplier idFieldDataEnabled) {
+            return idFieldDataEnabled.getAsBoolean();
+        }
+
+        @Override
         public boolean isAggregatable() {
-            return fieldDataEnabled.getAsBoolean();
+            return false;
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            if (fieldDataEnabled.getAsBoolean() == false) {
+            final boolean idFieldDataEnabled = fieldDataContext.idFieldDataEnabled().getAsBoolean();
+            if (idFieldDataEnabled == false) {
                 throw new IllegalArgumentException(
                     "Fielddata access on the _id field is disallowed, "
                         + "you can re-enable it by updating the dynamic cluster setting: "
@@ -276,16 +272,14 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         };
     }
 
-    private final BooleanSupplier fieldDataEnabled;
     private final IdFieldMapper.Mode mode;
 
-    public ProvidedIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-        this(fieldDataEnabled, IdFieldMapper.Mode.DEFAULT);
+    public ProvidedIdFieldMapper() {
+        this(IdFieldMapper.Mode.DEFAULT);
     }
 
-    public ProvidedIdFieldMapper(BooleanSupplier fieldDataEnabled, IdFieldMapper.Mode mode) {
-        super(mode == Mode.COLUMNAR ? new ColumnarIdFieldType() : new IdFieldType(fieldDataEnabled));
-        this.fieldDataEnabled = fieldDataEnabled;
+    public ProvidedIdFieldMapper(IdFieldMapper.Mode mode) {
+        super(mode == Mode.COLUMNAR ? new ColumnarIdFieldType() : new IdFieldType());
         this.mode = mode;
     }
 
@@ -296,7 +290,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        Builder builder = new Builder(fieldDataEnabled);
+        Builder builder = new Builder();
         builder.init(this);
         return builder;
     }

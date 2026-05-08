@@ -39,9 +39,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = EmbeddingRequest.PARSER.apply(parser, null);
-            var expectedInputs = List.of(
-                new InferenceStringGroup(List.of(new InferenceString(DataType.TEXT, DataFormat.TEXT, "some text input")))
-            );
+            var expectedInputs = List.of(new InferenceStringGroup("some text input"));
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.SEARCH));
             assertThat(request.taskSettings(), anEmptyMap());
@@ -79,10 +77,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = EmbeddingRequest.PARSER.apply(parser, null);
-            var expectedInputs = List.of(
-                new InferenceStringGroup(List.of(new InferenceString(DataType.TEXT, DataFormat.TEXT, "first text input"))),
-                new InferenceStringGroup(List.of(new InferenceString(DataType.TEXT, DataFormat.TEXT, "second text input")))
-            );
+            var expectedInputs = List.of(new InferenceStringGroup("first text input"), new InferenceStringGroup("second text input"));
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.SEARCH));
             assertThat(request.taskSettings(), anEmptyMap());
@@ -107,7 +102,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             var expectedInputs = List.of(
                 new InferenceStringGroup(
                     List.of(
-                        new InferenceString(DataType.TEXT, DataFormat.TEXT, "some text input"),
+                        new InferenceString(DataType.TEXT, "some text input"),
                         new InferenceString(DataType.IMAGE, imageFormat, InferenceStringTests.TEST_DATA_URI)
                     )
                 )
@@ -142,10 +137,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             var expectedInputs = List.of(
                 new InferenceStringGroup(List.of(new InferenceString(DataType.IMAGE, imageFormat, InferenceStringTests.TEST_DATA_URI))),
                 new InferenceStringGroup(
-                    List.of(
-                        new InferenceString(DataType.TEXT, DataFormat.TEXT, "first text input"),
-                        new InferenceString(DataType.TEXT, DataFormat.TEXT, "second text input")
-                    )
+                    List.of(new InferenceString(DataType.TEXT, "first text input"), new InferenceString(DataType.TEXT, "second text input"))
                 ),
                 new InferenceStringGroup("third input")
             );
@@ -179,10 +171,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
                     List.of(new InferenceString(DataType.IMAGE, DataFormat.BASE64, InferenceStringTests.TEST_DATA_URI))
                 ),
                 new InferenceStringGroup(
-                    List.of(
-                        new InferenceString(DataType.TEXT, DataFormat.TEXT, "first text input"),
-                        new InferenceString(DataType.TEXT, DataFormat.TEXT, "second text input")
-                    )
+                    List.of(new InferenceString(DataType.TEXT, "first text input"), new InferenceString(DataType.TEXT, "second text input"))
                 )
             );
             assertThat(request.inputs(), is(expectedInputs));
@@ -199,9 +188,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = EmbeddingRequest.PARSER.apply(parser, null);
-            var expectedInputs = List.of(
-                new InferenceStringGroup(List.of(new InferenceString(DataType.TEXT, DataFormat.TEXT, "some text input")))
-            );
+            var expectedInputs = List.of(new InferenceStringGroup("some text input"));
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.UNSPECIFIED));
             assertThat(request.taskSettings(), anEmptyMap());
@@ -220,9 +207,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = EmbeddingRequest.PARSER.apply(parser, null);
-            var expectedInputs = List.of(
-                new InferenceStringGroup(List.of(new InferenceString(DataType.TEXT, DataFormat.TEXT, "some text input")))
-            );
+            var expectedInputs = List.of(new InferenceStringGroup("some text input"));
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.UNSPECIFIED));
             assertThat(request.taskSettings(), is(Map.of("field_one", "value_one", "field_two", 123)));
@@ -238,9 +223,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
             """;
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = EmbeddingRequest.PARSER.apply(parser, null);
-            var expectedInputs = List.of(
-                new InferenceStringGroup(List.of(new InferenceString(DataType.TEXT, DataFormat.TEXT, "some text input")))
-            );
+            var expectedInputs = List.of(new InferenceStringGroup("some text input"));
             assertThat(request.inputs(), is(expectedInputs));
             assertThat(request.inputType(), is(InputType.UNSPECIFIED));
             assertThat(request.taskSettings(), anEmptyMap());

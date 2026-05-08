@@ -495,7 +495,7 @@ public final class IndexModule {
         MapperRegistry mapperRegistry,
         IndicesFieldDataCache indicesFieldDataCache,
         NamedWriteableRegistry namedWriteableRegistry,
-        BooleanSupplier fieldDataEnabled,
+        BooleanSupplier idFieldDataEnabled,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers
@@ -553,7 +553,7 @@ public final class IndexModule {
                 searchOperationListeners,
                 indexOperationListeners,
                 namedWriteableRegistry,
-                fieldDataEnabled,
+                idFieldDataEnabled,
                 allowExpensiveQueries,
                 expressionResolver,
                 valuesSourceRegistry,

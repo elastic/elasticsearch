@@ -1485,8 +1485,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         shard,
                         searcherSupplier,
                         getDefaultKeepAliveInMillis(),
-                        null, // ReadOnlyEngine and the like that we are working with don't support resharding
-                        request.getSplitShardCountSummary()
+                        // We assume that resharding metadata is irrelevant in this context because:
+                        // 1. Resharding is currently a stateless-only feature (meaning tied to IndexEngine)
+                        // 2. Even if it was implemented in stateful, it makes little sense to perform
+                        // resharding on a shard using ReadOnlyEngine or FrozenEngine since the data is static.
+                        // We assume that before e.g. moving index to frozen tier the system will ensure that
+                        // all resharding operations are complete.
+                        null,
+                        SplitShardCountSummary.IRRELEVANT
                     );
                     logger.debug("Recreated reader context [{}]", readerContext.id());
                 } else {

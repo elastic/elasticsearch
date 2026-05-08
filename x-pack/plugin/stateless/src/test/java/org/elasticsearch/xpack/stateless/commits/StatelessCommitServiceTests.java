@@ -58,7 +58,6 @@ import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
@@ -850,7 +849,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    @TestIssueLogging(value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:TRACE", issueUrl = "#5520")
     public void testCommitsTrackingTakesIntoAccountSearchNodeUsage() throws Exception {
         Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
@@ -927,15 +925,16 @@ public class StatelessCommitServiceTests extends ESTestCase {
             assertThat(deletedCommits, empty());
 
             PrimaryTermAndGeneration mergePTG = new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration());
-            logger.info("Before response with merge commit use");
             fakeSearchNode.respondWithUsedCommitsToUploadNotify(mergePTG, mergePTG);
-            logger.info("After response with merge commit use");
 
             var expectedDeletedCommits = uploadedCommits.stream()
                 .filter(ptg -> mergePTG.equals(ptg) == false)
                 .map(p -> new StaleCompoundCommit(shardId, p, primaryTerm))
                 .collect(Collectors.toSet());
-            assertThat(deletedCommits, equalTo(expectedDeletedCommits));
+            // respondWithUsedCommitsToUploadNotify completes the uploaded-commit-notification listener synchronously, but the
+            // overall in-use-commits processing (and therefore the stale-commit deletions) can complete asynchronously. See
+            // StatelessCommitNotificationPublisher#sendNewUploadedCommitNotificationAndFetchInUseCommits.
+            assertBusy(() -> assertThat(deletedCommits, equalTo(expectedDeletedCommits)));
         }
     }
 
@@ -1016,7 +1015,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .map(commit -> staleCommit(shardId, commit))
                 .filter(commit -> commit.primaryTermAndGeneration().generation() != firstCommit.getGeneration())
                 .collect(Collectors.toSet());
-            assertThat(deletedCommits, equalTo(expectedDeletedCommits));
+            // respondWithUsedCommitsToUploadNotify completes the uploaded-commit-notification listener synchronously, but the
+            // overall in-use-commits processing (and therefore the stale-commit deletions) can complete asynchronously. See
+            // StatelessCommitNotificationPublisher#sendNewUploadedCommitNotificationAndFetchInUseCommits.
+            assertBusy(() -> assertThat(deletedCommits, equalTo(expectedDeletedCommits)));
         }
     }
 

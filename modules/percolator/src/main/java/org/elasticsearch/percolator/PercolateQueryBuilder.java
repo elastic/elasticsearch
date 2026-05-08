@@ -678,6 +678,7 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
                         source.getIndexSettings(),
                         source::lookup,
                         this::sourcePath,
+                        () -> false,
                         fielddataOperation
                     )
                 );

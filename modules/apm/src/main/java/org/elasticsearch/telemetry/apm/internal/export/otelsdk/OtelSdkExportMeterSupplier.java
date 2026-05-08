@@ -16,8 +16,11 @@ import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporterBuilder
 import io.opentelemetry.instrumentation.runtimetelemetry.RuntimeTelemetry;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
+import io.opentelemetry.sdk.metrics.Aggregation;
+import io.opentelemetry.sdk.metrics.InstrumentType;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.export.AggregationTemporalitySelector;
+import io.opentelemetry.sdk.metrics.export.DefaultAggregationSelector;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 import io.opentelemetry.sdk.resources.Resource;
 
@@ -101,12 +104,26 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             .setEndpoint(endpoint)
             .setMeterProvider(() -> healthExportMeterProvider)
             .setAggregationTemporalitySelector(AggregationTemporalitySelector.deltaPreferred())
+            .setDefaultAggregationSelector(
+                DefaultAggregationSelector.getDefault().with(InstrumentType.HISTOGRAM, histogramAggregation(settings))
+            )
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST);
         String authHeader = buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);
         }
         return builder.build();
+    }
+
+    /**
+     * Resolves the {@link Aggregation} applied to {@code HISTOGRAM} instruments based on
+     * {@link OtelSdkSettings#TELEMETRY_OTEL_METRICS_HISTOGRAM_AGGREGATION}.
+     */
+    static Aggregation histogramAggregation(Settings settings) {
+        return switch (OtelSdkSettings.TELEMETRY_OTEL_METRICS_HISTOGRAM_AGGREGATION.get(settings)) {
+            case EXPLICIT_BUCKET_HISTOGRAM -> Aggregation.explicitBucketHistogram();
+            case BASE2_EXPONENTIAL_BUCKET_HISTOGRAM -> Aggregation.base2ExponentialBucketHistogram();
+        };
     }
 
     /**

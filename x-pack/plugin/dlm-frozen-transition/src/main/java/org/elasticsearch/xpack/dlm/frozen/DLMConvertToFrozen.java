@@ -59,6 +59,7 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -87,6 +88,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.master.MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT;
@@ -98,10 +100,18 @@ import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapsho
  */
 public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
 
+    public static final String DLM_CREATED_SETTING_KEY = IndexMetadata.INDEX_SETTING_PREFIX + "dlm.frozen.created";
+    public static final Setting<Boolean> DLM_CREATED_SETTING = Setting.boolSetting(
+        DLM_CREATED_SETTING_KEY,
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.InternalIndex
+    );
+
     public static final String CLONE_INDEX_PREFIX = "dlm-clone-";
     static final String SNAPSHOT_NAME_PREFIX = "dlm-frozen-";
     static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
-    static final String DLM_MANAGED_METADATA_KEY = "dlm-managed";
+    static final String DLM_CREATED_METADATA_KEY = "dlm-created";
     private static final Logger logger = LogManager.getLogger(DLMConvertToFrozen.class);
     private static final TimeValue SNAPSHOT_TIMEOUT = TimeValue.timeValueHours(12);
 
@@ -109,7 +119,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     private final ProjectId projectId;
     private final Client client;
     private final ClusterService clusterService;
-    private final XPackLicenseState licenseState;
+    private final Supplier<XPackLicenseState> licenseStateSupplier;
     private final Clock clock;
 
     public DLMConvertToFrozen(
@@ -117,14 +127,14 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         ProjectId projectId,
         Client client,
         ClusterService clusterService,
-        XPackLicenseState licenseState,
+        Supplier<XPackLicenseState> licenseStateSupplier,
         Clock clock
     ) {
         this.indexName = indexName;
         this.projectId = projectId;
         this.client = client;
         this.clusterService = clusterService;
-        this.licenseState = licenseState;
+        this.licenseStateSupplier = licenseStateSupplier;
         this.clock = clock;
     }
 
@@ -133,7 +143,6 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      */
     @Override
     public void run() {
-        // Todo: WIP - steps will be implemented in follow-up PRs
         try {
             maybeMarkIndexReadOnly();
             String forceMergeIndex = maybeCloneIndex();
@@ -214,7 +223,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             );
         }
 
-        if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
+        if (SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseStateSupplier.get()) == false) {
             throw LicenseUtils.newComplianceException("searchable-snapshots");
         }
     }
@@ -250,6 +259,9 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             logger.debug("Index [{}] is already marked as read-only, skipping to clone step", indexName);
             return;
         }
+
+        waitForIndexYellowStatus(indexName);
+
         AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(
             INFINITE_MASTER_NODE_TIMEOUT
         );
@@ -281,6 +293,8 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         if (isCloneNeeded() == false) {
             return getIndexForForceMerge();
         }
+
+        waitForIndexYellowStatus(indexName);
 
         String cloneIndexName = getDLMCloneIndexName();
 
@@ -323,6 +337,8 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             logger.debug("Index [{}] has already been force merged by DLM, skipping force merge step", forceMergeIndex);
             return;
         }
+
+        waitForIndexYellowStatus(forceMergeIndex);
 
         ForceMergeRequest req = new ForceMergeRequest(forceMergeIndex);
         req.maxNumSegments(1);
@@ -428,7 +444,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             getRepositoryForFrozen(projectMetadata, indexName),
             snapshotName,
             forceMergeIndex,
-            Settings.EMPTY,
+            Settings.builder().put(DLM_CREATED_SETTING_KEY, true).build(),
             ignoredIndexSettings,
             true,
             MountSearchableSnapshotRequest.Storage.SHARED_CACHE
@@ -565,7 +581,10 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         );
         resizeReq.setTargetIndex(createReq);
         resizeReq.setTargetIndexSettings(
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).putNull(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS)
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .putNull(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS)
+                .put(DLM_CREATED_SETTING_KEY, true)
         );
         return resizeReq;
     }
@@ -616,6 +635,33 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             indexName
         );
         return indexName;
+    }
+
+    /**
+     * Waits up to 1 minute for the given index to reach yellow status (all primary shards allocated).
+     * Throws an {@link ElasticsearchException} if the timeout is breached.
+     */
+    private void waitForIndexYellowStatus(String index) {
+        TimeValue timeout = TimeValue.timeValueMinutes(1);
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(INFINITE_MASTER_NODE_TIMEOUT, index).waitForYellowStatus()
+            .timeout(timeout);
+        ClusterHealthResponse response;
+        try {
+            response = client.projectClient(projectId).admin().cluster().health(healthRequest).get();
+        } catch (Exception e) {
+            if (e instanceof InterruptedException || ExceptionsHelper.unwrapCause(e) instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new ElasticsearchException("DLM failed while waiting for index [{}] shards to be allocated", e, index);
+        }
+        if (response.isTimedOut()) {
+            throw new ElasticsearchException(
+                "DLM timed out after [{}]m waiting for index [{}] shards to be allocated",
+                timeout.getMinutes(),
+                index
+            );
+        }
+        logger.debug("DLM index [{}] has reached yellow status, proceeding", index);
     }
 
     /**
@@ -945,6 +991,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * Throws an exception if the snapshot fails to complete successfully for any reason.
      */
     void createSnapshot(String indexName, String repositoryName, String snapshotName) {
+        waitForIndexYellowStatus(indexName);
         CreateSnapshotRequest createRequest = buildCreateSnapshotRequest(repositoryName, indexName, snapshotName);
         try {
             var response = client.projectClient(projectId)
@@ -1028,7 +1075,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         request.indices(indexName);
         request.waitForCompletion(true);
         request.includeGlobalState(false);
-        request.userMetadata(Map.of(DLM_MANAGED_METADATA_KEY, true));
+        request.userMetadata(Map.of(DLM_CREATED_METADATA_KEY, true));
         return request;
     }
 

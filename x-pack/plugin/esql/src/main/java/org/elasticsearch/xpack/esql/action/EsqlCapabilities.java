@@ -261,6 +261,19 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_FIX_NULLIFY_FLATTENED_SUBFIELD,
 
         /**
+         * Fix for 500 return code when loading from {@code _source} (hence {@code KEYWORD}) and passing to a convert function that doesn't
+         * take {@code KEYWORD}s.
+         * See https://github.com/elastic/elasticsearch/issues/145998.
+         */
+        OPTIONAL_FIELDS_FIX_UNMAPPED_LOAD_CONVERT_FUNCTION,
+
+        /**
+         * Fix for LOOKUP JOIN and ENRICH failing when the match field has NULL type from unmapped field nullification.
+         * See https://github.com/elastic/elasticsearch/issues/141827
+         */
+        OPTIONAL_FIELDS_FIX_NULL_MATCH_FIELD_IN_JOIN_AND_ENRICH,
+
+        /**
          * Support for optional fields (might or might not be present in the mappings) using DEFAULT/NULLIFY/LOAD.
          * V2: Prevent pushing down filters and sorts to Lucene of potentially unmapped fields.
          * V3: Fix synthetic _source numeric load bug (#143916)
@@ -393,6 +406,11 @@ public class EsqlCapabilities {
          * is only supported by full integration tests. So this capability is used to disable some tests in CsvTests.
          */
         LOAD_FLATTENED_FIELD,
+
+        /**
+         * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.
+         */
+        FLATTENED_DATATYPE(Build.current().isSnapshot()),
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -1264,7 +1282,13 @@ public class EsqlCapabilities {
         /**
          * Fixed a bug where views are incorrectly de-duplicated.
          */
+
         VIEWS_DEDUPLICATION_BUGFIX,
+        /**
+         * Fixed false circular view reference errors when multiple sibling views are resolved together.
+         * See https://github.com/elastic/elasticsearch/issues/146208
+         */
+        VIEWS_FALSE_CIRCULAR_REFERENCE_FIX,
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1571,6 +1595,19 @@ public class EsqlCapabilities {
         DECAY_FUNCTION_PARAMETER_CONVERSION,
 
         /**
+         * Support DECAY with unsigned_long parameters for {@code DECAY}.
+         */
+        DECAY_FUNCTION_UNSIGNED_LONG,
+
+        /**
+         * Fix latitude/longitude ordering of the in geo-point {@code DECAY}.
+         * Previously the origin was serialized as "lon,lat" before being parsed by
+         * {@code GeoUtils.parseGeoPoint}, which expects "lat,lon", effectively swapping the
+         * origin's coordinates and producing incorrect distances whenever {@code lat != lon}.
+         */
+        DECAY_GEO_POINT_ORIGIN_LAT_LON_FIX,
+
+        /**
          * Support correct counting of skipped shards.
          */
         CORRECT_SKIPPED_SHARDS_COUNT,
@@ -1609,6 +1646,21 @@ public class EsqlCapabilities {
          * Support for tbucket function
          */
         TBUCKET,
+
+        /**
+         * Support for tstep function
+         */
+        TSTEP(Build.current().isSnapshot()),
+
+        /**
+         * Support for tstep explicit bounds variant: TSTEP(step, from, to)
+         */
+        TSTEP_EXPLICIT_BOUNDS(TSTEP.isEnabled()),
+
+        /**
+         * Support for tstep bucket count variant: TSTEP(count, from, to)
+         */
+        TSTEP_BUCKET_COUNT(TSTEP.isEnabled()),
 
         /**
          * Allow qualifiers in attribute names.
@@ -1767,9 +1819,13 @@ public class EsqlCapabilities {
         DOTS_IN_FUSE,
 
         /**
-         * Support for the DATE_RANGE field type.
+         * Support for the DATE_RANGE field type, RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX.
+         * V5: TO_DATE_RANGE(string) honors the query timezone (Configuration); malformed input now produces a
+         * warning + null (via the standard {@code warnExceptions} path) rather than an assertion error
+         * in production. RANGE_MIN/MAX/WITHIN evaluators are now generated and warn on multi-valued input
+         * instead of silently aggregating across values.
          */
-        DATE_RANGE_FIELD_TYPE(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V5(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -1954,6 +2010,16 @@ public class EsqlCapabilities {
         TIME_SERIES_WINDOW_SMALLER_THAN_BUCKET,
 
         /**
+         * TS window functions use backward window semantics only.
+         */
+        FIX_TIME_SERIES_WINDOW_BACKWARD(Build.current().isSnapshot()),
+
+        /**
+         * PromQL uses TSTEP instead of TBUCKET.
+         */
+        FIX_PROMQL_TIME_BUCKET(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
+
+        /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
          */
         LIKE_PARAMETER_SUPPORT,
@@ -1993,6 +2059,11 @@ public class EsqlCapabilities {
          * Support for PromQL time() function.
          */
         PROMQL_TIME,
+
+        /**
+         * Support for the {@code DATE_UNIT_COUNT} function.
+         */
+        ESQL_DATE_UNIT_COUNT_FN,
 
         /**
          * Support for deriving PromQL time buckets from [start, end, buckets] when [step] is omitted.
@@ -2307,6 +2378,28 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_IP_SUPPORT(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Support for the {@code header_row} (and the related {@code column_prefix}) CSV options
+         * on the {@code EXTERNAL} command, used to read headerless CSV files.
+         */
+        EXTERNAL_CSV_HEADER_ROW_OPTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
+         * Gated on the same flag as {@link #EXTERNAL_COMMAND}.
+         */
+        DATASET_IN_FROM_COMMAND(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.
+         * See <a href="https://github.com/elastic/elasticsearch/pull/145334">#145334</a>. Used to gate the affected
+         * {@code external-basic.csv-spec} tests so they are skipped on mixed clusters where a pre-change coordinator
+         * still maps string typed-schema/Parquet-String/ORC-String to {@code TEXT} - see
+         * <a href="https://github.com/elastic/elasticsearch/issues/145352">#145352</a> and
+         * <a href="https://github.com/elastic/elasticsearch/issues/145353">#145353</a>.
+         */
+        DATASOURCE_FILE_READERS_NO_TEXT_TYPE,
+
+        /**
          * https://github.com/elastic/elasticsearch/issues/142219
          */
         INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),
@@ -2411,6 +2504,11 @@ public class EsqlCapabilities {
         TOP_SNIPPETS_HIGHLIGHT,
 
         /**
+         * Support for the {@code order} option in {@code TOP_SNIPPETS}.
+         */
+        TOP_SNIPPETS_ORDER,
+
+        /**
          * Enables the feature LIMIT n BY expr1, expr2 for retaining at most n docs per group.
          * The feature will not work if we had SORT | LIMIT n BY
          */
@@ -2434,7 +2532,7 @@ public class EsqlCapabilities {
         /**
          * TSDB Temporality support which is guarded by a feature flag.
          */
-        TSDB_TEMPORALITY_SUPPORT_V1(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V5(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
 
         /**
          * Support the null column type for the CHANGE_POINT command
@@ -2446,6 +2544,11 @@ public class EsqlCapabilities {
          * MMR fixes for constant folding
          */
         MMR_FOLDABLE_QUERY_VECTOR_FIX,
+
+        /**
+         * Support the BY grouping clause in CHANGE_POINT to detect change points independently per group.
+         */
+        CHANGE_POINT_BY,
 
         FIX_DIV_ERROR_MESSAGE,
 
@@ -2524,7 +2627,7 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code EMBEDDING} function for generating dense vector embeddings using the {@code embedding} task type.
          */
-        EMBEDDING_FUNCTION(Build.current().isSnapshot()),
+        EMBEDDING_FUNCTION,
 
         /**
          * Fix for {@code STARTS_WITH} and {@code ENDS_WITH} Lucene pushdown on {@code _index}: use wildcard escaping instead of
@@ -2532,6 +2635,12 @@ public class EsqlCapabilities {
          * fields.
          */
         FIX_STARTS_WITH_ENDS_WITH_PUSHDOWN_ON_INDEX,
+
+        /**
+         * Allow evaluatable grouping functions (such as {@code BUCKET}) inside {@code LIMIT ... BY}.
+         * Stateful grouping functions (such as {@code CATEGORIZE}) remain restricted to {@code STATS}.
+         */
+        LIMIT_BY_ALLOW_EVALUATABLE_GROUPING_FUNCTIONS,
 
         /**
          * Fix for {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource} incorrectly
@@ -2557,12 +2666,51 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with INLINE STATS
          */
-        APPROXIMATION_INLINE_STATS(Build.current().isSnapshot()),
+        APPROXIMATION_INLINE_STATS_V2(Build.current().isSnapshot()),
 
         /**
          * Support for PromQL year() function.
          */
         PROMQL_YEAR,
+
+        /**
+         * Unknown PromQL functions now make the error message "Unknown PromQL function".
+         */
+        PROMQL_RESOLVE_UNKOWN,
+
+        /**
+         * Support for PromQL time extraction functions: month(), day_of_month(), day_of_week(), day_of_year(), hour(), minute().
+         */
+        PROMQL_TIME_FUNCTIONS,
+
+        /**
+         * Support for PromQL days_in_month() function.
+         */
+        PROMQL_DAYS_IN_MONTH,
+
+        /**
+         * Support for the {@code timeout} option in the {@code COMPLETION} and {@code RERANK} commands
+         * and the {@code TEXT_EMBEDDING} function.
+         */
+        INFERENCE_ACCEPT_TIMEOUT,
+
+        /**
+         * Fix for SET reporting wrong line/column number (-1:-1) in validation errors.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/145873">ES|QL: wrong line/column number #145873</a>
+         */
+        FIX_SET_WRONG_LINE_COLUMN,
+
+        /**
+         * Fix for {@code _index LIKE} not supporting the {@code ?} wildcard character.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/146364">ES|QL: _index LIKE with ? #146364</a>
+         */
+        FIX_INDEX_LIKE_QUESTION_MARK_WILDCARD,
+
+        /**
+         * Fix query approximation for queries with few source rows, that are expanded
+         * (e.g. by MV_EXPAND) into many rows reaching the STATS command.
+         */
+        APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
@@ -489,6 +491,20 @@ public class IndexRoutingTests extends ESTestCase {
         );
         Exception e = expectThrows(RoutingMissingException.class, () -> shardIdFromSimple(indexRouting, "id", null));
         assertThat(e.getMessage(), equalTo("routing is required for [test]/[id]"));
+    }
+
+    public void testRequiredRoutingUsesSliceMessageWhenSliceEnabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), true).build())
+                .numberOfShards(2)
+                .numberOfReplicas(1)
+                .putMapping("{\"_routing\":{\"required\": true}}")
+                .build()
+        );
+        Exception e = expectThrows(SliceMissingException.class, () -> shardIdFromSimple(indexRouting, "id", null));
+        assertThat(e.getMessage(), equalTo("_slice is required for [test]/[id]"));
     }
 
     /**

@@ -85,13 +85,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
     private Supplier<Map<String, Object>> keywordMapping(DataSourceRequest.LeafMappingParametersGenerator request) {
         return () -> {
-            var mapping = new HashMap<String, Object>();
-            mapping.put("store", ESTestCase.randomBoolean());
-            mapping.put("index", ESTestCase.randomBoolean());
-
-            if (ESTestCase.randomBoolean()) {
-                mapping.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, randomFrom("none", "arrays", "all"));
-            }
+            var mapping = commonMappingParameters();
 
             mapping.put("doc_values", extendedDocValuesParams());
 
@@ -323,13 +317,11 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             return ESTestCase.randomBoolean();
         }
 
-        return switch (ESTestCase.randomInt(5)) {
+        return switch (ESTestCase.randomInt(3)) {
             case 0 -> false;
             case 1 -> Map.of("cardinality", "low");
             case 2 -> Map.of("cardinality", "high");
             case 3 -> true;
-            case 4 -> Map.of("cardinality", "low", "multi_value", "arrays");
-            case 5 -> Map.of("cardinality", "high", "multi_value", "arrays");
             default -> throw new IllegalStateException();
         };
     }

@@ -6,18 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -34,8 +30,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.utils.BoundedParallelGather;
 
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -43,11 +42,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Resolver for external data sources (Iceberg tables, Parquet files, etc.).
@@ -105,15 +100,15 @@ public class ExternalSourceResolver {
 
     public void resolve(
         List<String> paths,
-        Map<String, Map<String, Expression>> pathParams,
+        Map<String, Map<String, Object>> pathConfigs,
         ActionListener<ExternalSourceResolution> listener
     ) {
-        resolve(paths, pathParams, null, listener);
+        resolve(paths, pathConfigs, null, listener);
     }
 
     public void resolve(
         List<String> paths,
-        Map<String, Map<String, Expression>> pathParams,
+        Map<String, Map<String, Object>> pathConfigs,
         @Nullable Map<String, List<PartitionFilterHintExtractor.PartitionFilterHint>> filterHints,
         ActionListener<ExternalSourceResolution> listener
     ) {
@@ -127,15 +122,14 @@ public class ExternalSourceResolver {
                 Map<String, ExternalSourceResolution.ResolvedSource> resolved = Maps.newHashMapWithExpectedSize(paths.size());
 
                 for (String path : paths) {
-                    Map<String, Expression> params = pathParams.get(path);
-                    Map<String, Object> config = paramsToConfigMap(params);
+                    Map<String, Object> config = pathConfigs.getOrDefault(path, Map.of());
                     List<PartitionFilterHintExtractor.PartitionFilterHint> hints = filterHints != null ? filterHints.get(path) : null;
                     boolean hivePartitioning = isHivePartitioningEnabled(config);
 
                     try {
                         ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config, hints, hivePartitioning);
                         resolved.put(path, resolvedSource);
-                        LOGGER.info("Successfully resolved external source: {}", path);
+                        LOGGER.debug("Successfully resolved external source: {}", path);
                     } catch (Exception e) {
                         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
                         String exceptionMessage = e.getMessage();
@@ -159,14 +153,12 @@ public class ExternalSourceResolver {
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         boolean hivePartitioning
     ) throws Exception {
-        LOGGER.info("Resolving external source: path=[{}]", path);
+        LOGGER.debug("Resolving external source: path=[{}]", path);
 
         if (GlobExpander.isMultiFile(path)) {
             return resolveMultiFileSource(path, config, hints, hivePartitioning);
         }
 
-        SourceMetadata metadata = resolveSingleSource(path, config);
-        ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata, config);
         /*
          * A concrete one-entry FileList is required so {@link org.elasticsearch.xpack.esql.datasources.FileSplitProvider}
          * can discover block-aligned splits for compressed files (e.g. .json.bz2). UNRESOLVED lists skip split discovery,
@@ -174,7 +166,34 @@ public class ExternalSourceResolver {
          */
         StoragePath storagePath = StoragePath.of(path);
         StorageProvider provider = resolveProvider(storagePath, config);
-        StorageObject object = provider.newObject(storagePath);
+
+        ExternalSourceMetadata extMetadata;
+        StorageObject object;
+        if (isCacheable(provider)) {
+            // Stat the file first (cheap HEAD/stat) to get mtime for the cache key.
+            // Null mtime (e.g. gRPC/Flight, GCS/Azure fixtures) falls back to EPOCH so the
+            // cache key is stable; providers that never report trustworthy mtime should
+            // eventually return supportsStableMetadata() == false to bypass caching entirely.
+            object = provider.newObject(storagePath);
+            Instant lastMod = object.lastModified();
+            long mtime = lastMod != null ? lastMod.toEpochMilli() : Instant.EPOCH.toEpochMilli();
+            String formatType = detectFormatType(storagePath);
+            SchemaCacheKey schemaKey = SchemaCacheKey.build(storagePath.toString(), mtime, formatType, config);
+            SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
+                SourceMetadata meta = resolveSingleSource(path, config);
+                Map<String, Object> enrichedMeta = meta.statistics()
+                    .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
+                    .orElse(meta.sourceMetadata());
+                return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config());
+            });
+            List<Attribute> schema = schemaEntry.toAttributes();
+            extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
+        } else {
+            SourceMetadata metadata = resolveSingleSource(path, config);
+            extMetadata = wrapAsExternalSourceMetadata(metadata, config);
+            object = provider.newObject(storagePath);
+        }
+
         FileList singletonList = GlobExpander.fileListOf(
             List.of(new StorageEntry(storagePath, object.length(), object.lastModified())),
             path
@@ -189,11 +208,11 @@ public class ExternalSourceResolver {
         boolean hivePartitioning
     ) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
+        StorageProvider provider = resolveProvider(storagePath, config);
 
         FormatReader.SchemaResolution schemaResolution = parseSchemaResolution(config);
 
         if (schemaResolution != FormatReader.SchemaResolution.FIRST_FILE_WINS) {
-            StorageProvider provider = resolveProvider(storagePath, config);
             int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
             int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
             FileList raw = path.indexOf(',') >= 0
@@ -205,20 +224,17 @@ public class ExternalSourceResolver {
             return resolveMultiFileWithReconciliation(raw, config, schemaResolution);
         }
 
-        boolean cacheable = cacheService != null
-            && cacheService.isEnabled()
-            && "http".equals(storagePath.scheme()) == false
-            && "https".equals(storagePath.scheme()) == false;
+        boolean cacheable = isCacheable(provider);
 
         FileList listing;
         if (cacheable) {
             ListingCacheKey listingKey = ListingCacheKey.build(storagePath.scheme(), storagePath.host(), storagePath.path(), config);
             listing = cacheService.getOrComputeListing(
                 listingKey,
-                k -> expandAndCompact(path, config, hints, hivePartitioning, storagePath)
+                k -> expandAndCompact(path, provider, hints, hivePartitioning, storagePath)
             );
         } else {
-            listing = expandAndCompact(path, config, hints, hivePartitioning, storagePath);
+            listing = expandAndCompact(path, provider, hints, hivePartitioning, storagePath);
         }
 
         if (listing.fileCount() == 0) {
@@ -241,13 +257,79 @@ public class ExternalSourceResolver {
             SchemaCacheKey schemaKey = SchemaCacheKey.build(anchorPath.toString(), anchorMtime, formatType, config);
             SchemaCacheEntry schemaEntry = cacheService.getOrComputeSchema(schemaKey, k -> {
                 SourceMetadata meta = resolveSingleSource(anchorPath.toString(), config);
-                return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), meta.sourceMetadata());
+                Map<String, Object> enrichedMeta = meta.statistics()
+                    .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
+                    .orElse(meta.sourceMetadata());
+                return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config());
             });
             List<Attribute> schema = schemaEntry.toAttributes();
             extMetadata = buildMetadataFromCache(schemaEntry, schema, config);
         } else {
             SourceMetadata metadata = resolveSingleSource(anchorPath.toString(), config);
             extMetadata = wrapAsExternalSourceMetadata(metadata, config);
+        }
+
+        extMetadata = enrichWithFileCount(extMetadata, listing.fileCount());
+        if (listing.fileCount() > 1) {
+            // For multi-file FIRST_FILE_WINS, read all files' metadata in parallel during Phase 1
+            // to aggregate statistics across all files. This allows aggregate pushdown
+            // (COUNT/MIN/MAX) to use accurate global stats and to skip Phase 2 (split discovery)
+            // entirely for those queries.
+            //
+            // Tradeoff: this performs N footer reads up-front for *every* multi-file resolve,
+            // including queries that don't use the stats (e.g. SELECT *). For those queries,
+            // Phase 2 still runs, so the per-file footer is read twice (once here, once during
+            // split discovery). The cost is generally acceptable because:
+            // - the cacheable path consults the schema cache, so repeat resolves are free;
+            // - the non-cacheable path reads footers in parallel up to MAX_PARALLEL_METADATA_READS;
+            // - the aggregated stats unlock skipping Phase 2 entirely for pushable aggregates
+            // (see ComputeService#canSkipSplitDiscovery), which dominates the savings.
+            // We don't gate this on the query (which isn't known here) — see issue #148086 for the
+            // design notes.
+            Map<String, Object> aggregatedStats = cacheable
+                ? readAndAggregateAllFileStatsWithCache(listing, config)
+                : readAndAggregateAllFileStats(listing, config);
+            if (aggregatedStats != null) {
+                // Replace anchor-only stats with globally-aggregated stats.
+                // Preserve all non-stats keys from the current extMetadata (e.g. file_count, config).
+                Map<String, Object> current = extMetadata.sourceMetadata();
+                Map<String, Object> merged = current != null ? new HashMap<>(current) : new HashMap<>();
+                merged.putAll(aggregatedStats);
+                // Do NOT add STATS_PARTIAL — stats are now complete across all files.
+                merged.remove(SourceStatisticsSerializer.STATS_PARTIAL);
+                final Map<String, Object> finalMerged = Map.copyOf(merged);
+                final ExternalSourceMetadata baseMetadata = extMetadata;
+                extMetadata = new ExternalSourceMetadata() {
+                    @Override
+                    public String location() {
+                        return baseMetadata.location();
+                    }
+
+                    @Override
+                    public List<Attribute> schema() {
+                        return baseMetadata.schema();
+                    }
+
+                    @Override
+                    public String sourceType() {
+                        return baseMetadata.sourceType();
+                    }
+
+                    @Override
+                    public Map<String, Object> sourceMetadata() {
+                        return finalMerged;
+                    }
+
+                    @Override
+                    public Map<String, Object> config() {
+                        return baseMetadata.config();
+                    }
+                };
+            } else {
+                // Could not aggregate stats (some files lacked statistics) — mark as partial
+                // so the optimizer does not rely on incomplete sourceMetadata stats.
+                extMetadata = markStatsAsPartial(extMetadata);
+            }
         }
 
         PartitionMetadata partitionMetadata = listing.partitionMetadata();
@@ -260,15 +342,23 @@ public class ExternalSourceResolver {
 
     private FileList expandAndCompact(
         String path,
-        Map<String, Object> config,
+        StorageProvider provider,
         @Nullable List<PartitionFilterHintExtractor.PartitionFilterHint> hints,
         boolean hivePartitioning,
         StoragePath storagePath
     ) throws Exception {
-        StorageProvider provider = resolveProvider(storagePath, config);
         int maxDiscoveredFiles = ExternalSourceSettings.MAX_DISCOVERED_FILES.get(settings);
         int maxGlobExpansion = ExternalSourceSettings.MAX_GLOB_EXPANSION.get(settings);
         return GlobExpander.expandAndCompact(path, provider, hints, hivePartitioning, storagePath, maxDiscoveredFiles, maxGlobExpansion);
+    }
+
+    /**
+     * Returns {@code true} when the schema cache can be consulted for the given provider.
+     * Providers that do not support stable metadata (e.g. HTTP) are excluded because
+     * mtime-based cache invalidation is not reliable for them.
+     */
+    private boolean isCacheable(StorageProvider provider) {
+        return cacheService != null && cacheService.isEnabled() && provider.supportsStableMetadata();
     }
 
     private StorageProvider resolveProvider(StoragePath storagePath, Map<String, Object> config) {
@@ -291,8 +381,21 @@ public class ExternalSourceResolver {
     private static ExternalSourceMetadata buildMetadataFromCache(
         SchemaCacheEntry entry,
         List<Attribute> schema,
-        Map<String, Object> config
+        Map<String, Object> queryConfig
     ) {
+        // Merge cached connector config (e.g. Flight endpoint/target) with query-level params.
+        // Query-level params take precedence, matching the merge in wrapAsExternalSourceMetadata.
+        Map<String, Object> cachedConnectorConfig = entry.connectorConfig();
+        Map<String, Object> mergedConfig;
+        if (cachedConnectorConfig != null && cachedConnectorConfig.isEmpty() == false) {
+            mergedConfig = new HashMap<>(cachedConnectorConfig);
+            if (queryConfig != null) {
+                mergedConfig.putAll(queryConfig);
+            }
+        } else {
+            mergedConfig = queryConfig != null ? queryConfig : Map.of();
+        }
+
         return new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -316,7 +419,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> config() {
-                return config != null ? config : Map.of();
+                return mergedConfig;
             }
         };
     }
@@ -342,7 +445,8 @@ public class ExternalSourceResolver {
 
         List<Attribute> unifiedSchema = result.unifiedSchema();
         SourceMetadata firstMeta = allMetadata.get(firstFile);
-        ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config);
+        Map<String, Object> aggregatedStats = aggregateFileStatistics(allMetadata.values());
+        ExternalSourceMetadata extMetadata = buildUnifiedMetadata(firstMeta, unifiedSchema, config, aggregatedStats);
 
         PartitionMetadata partitionMetadata = fileList.partitionMetadata();
         if (partitionMetadata != null && partitionMetadata.isEmpty() == false) {
@@ -355,74 +459,137 @@ public class ExternalSourceResolver {
 
     /**
      * Reads metadata from all files in parallel with bounded concurrency.
-     * Uses a semaphore to cap the number of concurrent metadata reads.
+     * Delegates to {@link BoundedParallelGather} which handles semaphore backpressure,
+     * fast-fail on error, and result ordering.
      */
     private Map<StoragePath, SourceMetadata> readAllFileMetadata(FileList fileList, Map<String, Object> config) throws Exception {
         int fileCount = fileList.fileCount();
-
-        if (fileCount == 1) {
-            StoragePath filePath = fileList.path(0);
-            SourceMetadata meta = resolveSingleSource(filePath.toString(), config);
-            return Map.of(filePath, meta);
-        }
-
-        Semaphore semaphore = new Semaphore(Math.min(fileCount, MAX_PARALLEL_METADATA_READS));
-        AtomicBoolean failed = new AtomicBoolean(false);
-
-        @SuppressWarnings("unchecked")
-        CompletableFuture<Map.Entry<StoragePath, SourceMetadata>>[] futures = new CompletableFuture[fileCount];
-
+        List<StoragePath> paths = new ArrayList<>(fileCount);
         for (int i = 0; i < fileCount; i++) {
-            StoragePath filePath = fileList.path(i);
-            futures[i] = CompletableFuture.supplyAsync(() -> {
-                if (failed.get()) {
-                    return null;
-                }
-                try {
-                    semaphore.acquire();
-                    try {
-                        SourceMetadata meta = resolveSingleSource(filePath.toString(), config);
-                        return Map.entry(filePath, meta);
-                    } finally {
-                        semaphore.release();
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException("Interrupted while reading metadata from [" + filePath + "]", e);
-                } catch (Exception e) {
-                    failed.set(true);
-                    throw new RuntimeException("Failed to read metadata from [" + filePath + "]: " + e.getMessage(), e);
-                }
-            }, executor);
+            paths.add(fileList.path(i));
         }
 
-        try {
-            CompletableFuture.allOf(futures).join();
-        } catch (CompletionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException rte) {
-                throw rte;
-            }
-            throw new RuntimeException("Failed to read file metadata in parallel", cause != null ? cause : e);
-        }
+        List<Map.Entry<StoragePath, SourceMetadata>> entries = BoundedParallelGather.gather(
+            paths,
+            filePath -> Map.entry(filePath, resolveSingleSource(filePath.toString(), config)),
+            MAX_PARALLEL_METADATA_READS,
+            executor
+        );
 
         Map<StoragePath, SourceMetadata> result = new LinkedHashMap<>();
-        for (CompletableFuture<Map.Entry<StoragePath, SourceMetadata>> future : futures) {
-            Map.Entry<StoragePath, SourceMetadata> entry = future.get();
-            if (entry != null) {
-                result.put(entry.getKey(), entry.getValue());
-            }
+        for (Map.Entry<StoragePath, SourceMetadata> entry : entries) {
+            result.put(entry.getKey(), entry.getValue());
         }
         return result;
+    }
+
+    /**
+     * Aggregates statistics from all files' metadata into a single merged flat stats map.
+     * For each file, embeds its per-file statistics into its flat sourceMetadata map,
+     * then merges all maps using {@link SourceStatisticsSerializer#mergeStatistics}.
+     * Returns {@code null} if any file lacks statistics (prevents incorrect partial results).
+     */
+    @Nullable
+    private static Map<String, Object> aggregateFileStatistics(Collection<SourceMetadata> allMetadata) {
+        List<Map<String, Object>> perFileFlatStats = new ArrayList<>(allMetadata.size());
+        for (SourceMetadata meta : allMetadata) {
+            if (meta.statistics().isEmpty()) {
+                // At least one file has no statistics — cannot produce accurate global stats.
+                return null;
+            }
+            Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), meta.statistics().get());
+            perFileFlatStats.add(flat);
+        }
+        return SourceStatisticsSerializer.mergeStatistics(perFileFlatStats);
+    }
+
+    /**
+     * Reads metadata from all files in {@code listing} in parallel (bounded concurrency)
+     * via {@link BoundedParallelGather}, then aggregates statistics across all files.
+     * Returns a merged flat stats map, or {@code null} if any file fails or lacks statistics.
+     * Errors reading individual files are logged at DEBUG and cause the method to return {@code null}
+     * (the caller will then mark stats as partial instead of using incomplete aggregations).
+     */
+    @Nullable
+    private Map<String, Object> readAndAggregateAllFileStats(FileList listing, Map<String, Object> config) {
+        int fileCount = listing.fileCount();
+        List<StoragePath> paths = new ArrayList<>(fileCount);
+        for (int i = 0; i < fileCount; i++) {
+            paths.add(listing.path(i));
+        }
+        List<SourceMetadata> allMeta;
+        try {
+            allMeta = BoundedParallelGather.gather(
+                paths,
+                filePath -> resolveSingleSource(filePath.toString(), config),
+                MAX_PARALLEL_METADATA_READS,
+                executor
+            );
+        } catch (Exception e) {
+            LOGGER.debug(() -> "Failed to read per-file stats in parallel, will use partial stats: " + e.getMessage());
+            return null;
+        }
+        return aggregateFileStatistics(allMeta);
+    }
+
+    /**
+     * Cache-aware variant of {@link #readAndAggregateAllFileStats}.
+     * Uses the schema cache (keyed by path + mtime) for each file so that repeated
+     * multi-file resolves do not re-read footers unnecessarily.
+     * Returns {@code null} if any file cannot be resolved or lacks statistics.
+     */
+    @Nullable
+    private Map<String, Object> readAndAggregateAllFileStatsWithCache(FileList listing, Map<String, Object> config) {
+        int fileCount = listing.fileCount();
+        List<Map<String, Object>> perFileStats = new ArrayList<>(fileCount);
+        for (int i = 0; i < fileCount; i++) {
+            StoragePath filePath = listing.path(i);
+            long mtime = listing.lastModifiedMillis(i);
+            String formatType = detectFormatType(filePath);
+            SchemaCacheKey schemaKey = SchemaCacheKey.build(filePath.toString(), mtime, formatType, config);
+            try {
+                SchemaCacheEntry entry = cacheService.getOrComputeSchema(schemaKey, k -> {
+                    SourceMetadata meta = resolveSingleSource(filePath.toString(), config);
+                    Map<String, Object> enrichedMeta = meta.statistics()
+                        .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
+                        .orElse(meta.sourceMetadata());
+                    return SchemaCacheEntry.from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config());
+                });
+                Map<String, Object> fileMeta = entry.safeMetadata();
+                if (fileMeta == null || fileMeta.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false) {
+                    // This file has no statistics — cannot produce accurate global stats.
+                    return null;
+                }
+                perFileStats.add(fileMeta);
+            } catch (Exception e) {
+                LOGGER.debug(() -> "Failed to get cached stats for [" + filePath + "], will use partial stats: " + e.getMessage());
+                return null;
+            }
+        }
+        return SourceStatisticsSerializer.mergeStatistics(perFileStats);
     }
 
     private ExternalSourceMetadata buildUnifiedMetadata(
         SourceMetadata referenceMeta,
         List<Attribute> unifiedSchema,
-        Map<String, Object> queryConfig
+        Map<String, Object> queryConfig,
+        @Nullable Map<String, Object> aggregatedStats
     ) {
         Map<String, Object> mergedConfig = mergeConfigs(referenceMeta.config(), queryConfig);
         List<Attribute> schema = List.copyOf(unifiedSchema);
+        Map<String, Object> enrichedSourceMetadata;
+        if (aggregatedStats != null) {
+            // Aggregated stats already contain all the _stats.* keys merged across all files.
+            // Start from the reference meta's base map and overlay the aggregated stats.
+            Map<String, Object> base = referenceMeta.sourceMetadata();
+            Map<String, Object> merged = base != null ? new HashMap<>(base) : new HashMap<>();
+            merged.putAll(aggregatedStats);
+            enrichedSourceMetadata = Map.copyOf(merged);
+        } else {
+            enrichedSourceMetadata = referenceMeta.statistics()
+                .map(stats -> SourceStatisticsSerializer.embedStatistics(referenceMeta.sourceMetadata(), stats))
+                .orElse(referenceMeta.sourceMetadata());
+        }
         return new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -441,7 +608,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> sourceMetadata() {
-                return referenceMeta.sourceMetadata();
+                return enrichedSourceMetadata;
             }
 
             @Override
@@ -537,6 +704,51 @@ public class ExternalSourceResolver {
         );
     }
 
+    /**
+     * Returns a wrapper that delegates everything to {@code metadata} except {@code sourceMetadata()},
+     * which is enriched with the given extra entries.
+     */
+    static ExternalSourceMetadata withExtraSourceMetadata(ExternalSourceMetadata metadata, Map<String, Object> extra) {
+        Map<String, Object> original = metadata.sourceMetadata();
+        Map<String, Object> enriched = original != null ? new HashMap<>(original) : new HashMap<>();
+        enriched.putAll(extra);
+        Map<String, Object> finalMetadata = Map.copyOf(enriched);
+        return new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return metadata.location();
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return metadata.schema();
+            }
+
+            @Override
+            public String sourceType() {
+                return metadata.sourceType();
+            }
+
+            @Override
+            public Map<String, Object> sourceMetadata() {
+                return finalMetadata;
+            }
+
+            @Override
+            public Map<String, Object> config() {
+                return metadata.config();
+            }
+        };
+    }
+
+    static ExternalSourceMetadata enrichWithFileCount(ExternalSourceMetadata metadata, int fileCount) {
+        return withExtraSourceMetadata(metadata, Map.of(SourceStatisticsSerializer.STATS_FILE_COUNT, (long) fileCount));
+    }
+
+    static ExternalSourceMetadata markStatsAsPartial(ExternalSourceMetadata metadata) {
+        return withExtraSourceMetadata(metadata, Map.of(SourceStatisticsSerializer.STATS_PARTIAL, Boolean.TRUE));
+    }
+
     static ExternalSourceMetadata enrichSchemaWithPartitionColumns(ExternalSourceMetadata metadata, PartitionMetadata partitionMetadata) {
         List<Attribute> originalSchema = metadata.schema();
         Map<String, DataType> partitionColumns = partitionMetadata.partitionColumns();
@@ -586,27 +798,6 @@ public class ExternalSourceResolver {
         };
     }
 
-    private Map<String, Object> paramsToConfigMap(@Nullable Map<String, Expression> params) {
-        if (params == null || params.isEmpty()) {
-            return Map.of();
-        }
-
-        Map<String, Object> config = Maps.newHashMapWithExpectedSize(params.size());
-        for (Map.Entry<String, Expression> entry : params.entrySet()) {
-            String key = entry.getKey();
-            Expression expr = entry.getValue();
-            if (expr instanceof Literal literal) {
-                Object value = literal.value();
-                if (value instanceof BytesRef bytesRef) {
-                    config.put(key, BytesRefs.toString(bytesRef));
-                } else if (value != null) {
-                    config.put(key, value.toString());
-                }
-            }
-        }
-        return config;
-    }
-
     /**
      * Validates that data source plugins export ReferenceAttribute only.
      * Called when receiving schema from any plugin (FormatReader, TableCatalog, Connector).
@@ -630,6 +821,10 @@ public class ExternalSourceResolver {
 
         if (metadata instanceof ExternalSourceMetadata extMetadata) {
             if (extMetadata.config() != null && extMetadata.config().isEmpty() == false) {
+                // Stats are embedded into sourceMetadata() below for the general path; for
+                // ExternalSourceMetadata instances that already carry config (e.g. Iceberg),
+                // their factory is responsible for populating sourceMetadata() — statistics()
+                // is typically empty so there is nothing extra to embed.
                 return extMetadata;
             }
         }
@@ -646,6 +841,10 @@ public class ExternalSourceResolver {
         } else {
             mergedConfig = queryConfig;
         }
+
+        Map<String, Object> enrichedSourceMetadata = metadata.statistics()
+            .map(stats -> SourceStatisticsSerializer.embedStatistics(metadata.sourceMetadata(), stats))
+            .orElse(metadata.sourceMetadata());
 
         return new ExternalSourceMetadata() {
             @Override
@@ -665,7 +864,7 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> sourceMetadata() {
-                return metadata.sourceMetadata();
+                return enrichedSourceMetadata;
             }
 
             @Override

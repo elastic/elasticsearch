@@ -178,11 +178,16 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     private final License.OperationMode operationMode;
 
+    private final IndexVersion testIndexVersion;
+
     private TestThreadPool threadPool;
 
     public SemanticTextFieldMapperTests(boolean useLegacyFormat, License.OperationMode operationMode) {
         this.useLegacyFormat = useLegacyFormat;
         this.operationMode = operationMode;
+        this.testIndexVersion = useLegacyFormat
+            ? SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(true)
+            : super.getVersion();
     }
 
     ModelRegistry globalModelRegistry;
@@ -229,6 +234,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             case BASIC -> VariableLicenseDiskBBQPlugin.BASIC;
             default -> throw new AssertionError("unknown operation mode: " + operationMode);
         });
+    }
+
+    @Override
+    protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
+        assumeFalse("invalid routing path error message is only checked for mappers created with the new format", useLegacyFormat);
+
+        return super.minimalIsInvalidRoutingPathErrorMessage(mapper);
     }
 
     private void registerDefaultEisEndpoint() {
@@ -289,16 +301,16 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected IndexVersion getVersion() {
-        if (useLegacyFormat) {
-            return SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(true);
-        }
-        return super.getVersion();
+        return testIndexVersion;
     }
 
     @Override
     protected Settings getIndexSettings() {
         if (useLegacyFormat) {
-            return SemanticInferenceMetadataFieldsMapperTests.randomIndexSettings(true);
+            return Settings.builder()
+                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), testIndexVersion)
+                .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), true)
+                .build();
         }
         return super.getIndexSettings();
     }
@@ -625,7 +637,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     public void testInvalidTaskTypes() {
         for (var taskType : TaskType.values()) {
-            if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.SPARSE_EMBEDDING) {
+            if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.SPARSE_EMBEDDING || taskType == TaskType.EMBEDDING) {
                 continue;
             }
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
@@ -633,13 +645,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     .field(INFERENCE_ID_FIELD, "test1")
                     .startObject("model_settings")
                     .field("task_type", taskType);
-                if (taskType == TaskType.EMBEDDING) {
-                    // These fields are required in order to create MinimalServiceSettings for the EMBEDDING task
-                    b.field("service", "myService").field("dimensions", 128).field("similarity", "cosine").field("element_type", "float");
-                }
                 b.endObject();
             }), useLegacyFormat));
-            assertThat(e.getMessage(), containsString("Wrong [task_type], expected text_embedding or sparse_embedding"));
+            assertThat(e.getMessage(), containsString("Wrong [task_type], expected text_embedding, embedding, or sparse_embedding"));
         }
     }
 
@@ -1274,7 +1282,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             );
 
             final ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
-            IndexVersion indexVersion = SparseVectorFieldMapperTests.getIndexOptionsCompatibleIndexVersion();
+            IndexVersion indexVersion = useLegacyFormat
+                ? IndexVersionUtils.randomVersionBetween(
+                    IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT,
+                    IndexVersionUtils.getPreviousVersion(IndexVersions.SEMANTIC_TEXT_LEGACY_FORMAT_FORBIDDEN)
+                )
+                : SparseVectorFieldMapperTests.getIndexOptionsCompatibleIndexVersion();
             final SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions(TaskType.SPARSE_EMBEDDING);
             String fieldName = "field";
 

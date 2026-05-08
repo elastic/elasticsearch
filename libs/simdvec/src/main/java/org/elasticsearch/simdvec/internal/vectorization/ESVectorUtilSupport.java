@@ -10,6 +10,11 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
+import org.elasticsearch.simdvec.MultiByteVectorsSource;
+import org.elasticsearch.simdvec.MultiFloatVectorsSource;
+
+import java.nio.ShortBuffer;
 
 public interface ESVectorUtilSupport {
 
@@ -17,6 +22,12 @@ public interface ESVectorUtilSupport {
      * The number of bits in bit-quantized query vectors
      */
     short B_QUERY = 4;
+
+    /** Converts bfloat16s to floats */
+    void bFloat16ToFloat(ShortBuffer bFloats, float[] floats);
+
+    /** Converts floats to bfloat16s */
+    void floatToBFloat16(float[] floats, ShortBuffer bFloats);
 
     /** Calculates the dot product of the given float arrays. */
     float dotProduct(float[] a, float[] b);
@@ -32,6 +43,12 @@ public interface ESVectorUtilSupport {
 
     /** Calculates the dot product of the given byte arrays. */
     float dotProduct(byte[] a, byte[] b);
+
+    float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch);
+
+    float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch);
+
+    float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch);
 
     /** Returns the sum of squared differences of the two vectors. */
     float squareDistance(byte[] a, byte[] b);
@@ -70,9 +87,19 @@ public interface ESVectorUtilSupport {
 
     int quantizeVectorWithIntervals(float[] vector, int[] quantize, float lowInterval, float upperInterval, byte bit);
 
-    void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances);
+    void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, int distancesOffset, float[] distances);
 
-    void squareDistanceBulk(float[] query, int queryOffset, int length, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances);
+    void squareDistanceBulk(
+        float[] query,
+        int queryOffset,
+        int length,
+        float[] v0,
+        float[] v1,
+        float[] v2,
+        float[] v3,
+        int distancesOffset,
+        float[] distances
+    );
 
     void soarDistanceBulk(
         float[] v1,
@@ -98,7 +125,11 @@ public interface ESVectorUtilSupport {
 
     boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength);
 
+    void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches);
+
     void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest);
+
+    void linearCombination(float scaleOther, float[] other, float[] dest);
 
     float logSumExpNQT(float[] vector);
 

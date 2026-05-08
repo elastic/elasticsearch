@@ -64,6 +64,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
 
+import static org.elasticsearch.action.ActionListener.respondAndRelease;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
@@ -233,6 +234,8 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(
                     wrap(
+                        // InboundHandler.doHandleResponse decRefs RefCounted transport responses after handleResponse; do not use
+                        // respondAndRelease here (would double-decRef).
                         r -> listener.onResponse(qualifyHits(r, clusterAlias)),
                         e -> listener.onFailure(qualifyException(e, remoteIndices, clusterAlias))
                     ),
@@ -274,12 +277,16 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 transportService.getRemoteClusterService().crossProjectEnabled(),
                 request.getResolvedIndexExpressions()
             );
-            planExecutor.eql(
-                cfg,
-                request.query(),
-                params,
-                wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), listener::onFailure)
-            );
+            planExecutor.eql(cfg, request.query(), params, wrap(r -> {
+                EqlSearchResponse response = createResponse(r, task.getExecutionId());
+                // Async: listener is wrapStoringListener → completion uses AsyncTaskManagementService.respondWithRelease (decRef after
+                // onResponse). Sync: release here so the response is not leaked after the REST/transport listener returns.
+                if (requestIsAsync(request)) {
+                    listener.onResponse(response);
+                } else {
+                    respondAndRelease(listener, response);
+                }
+            }, listener::onFailure));
         }
     }
 

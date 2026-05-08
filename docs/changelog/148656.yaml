@@ -1,0 +1,6 @@
+area: Reindex
+issues:
+ - 128618
+pr: 148656
+summary: Reserve REQUEST circuit breaker for reindex bulk batches
+type: bug

@@ -63,6 +63,29 @@ cost:double       | step:datetime
 56.3225           | 2024-05-10T00:00:00.000Z
 ;
 
+avg_over_time_of_double_no_grouping_promql_expanded
+required_capability: promql_command_v0
+
+PROMQL index=k8s step=1m start="2024-05-10T00:11:00.000Z" end="2024-05-10T00:14:00.000Z" cost=(round(sum(avg_over_time(network.cost[1m])), 0.0001))
+| SORT step;
+
+cost:double | step:datetime
+36.375      | 2024-05-10T00:11:00.000Z
+37.9375     | 2024-05-10T00:12:00.000Z
+39.5417     | 2024-05-10T00:13:00.000Z
+;
+
+avg_over_time_of_double_no_grouping_promql_collapsed
+required_capability: promql_command_v0
+required_capability: ts_collapse
+
+PROMQL index=k8s step=1m start="2024-05-10T00:11:00.000Z" end="2024-05-10T00:14:00.000Z" cost=(round(sum(avg_over_time(network.cost[1m])), 0.0001))
+| TS_COLLAPSE;
+
+cost:double                      | step:datetime
+[13.25, 36.375, 37.9375, 39.5417] | [2024-05-10T00:11:00.000Z, 2024-05-10T00:12:00.000Z, 2024-05-10T00:13:00.000Z, 2024-05-10T00:14:00.000Z]
+;
+
 avg_over_time_of_integer
 required_capability: ts_command_v0
 TS k8s 

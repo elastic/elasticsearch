@@ -74,6 +74,20 @@ is_present:double | step:datetime            | cluster:keyword
 1.0               | 2024-05-10T00:20:00.000Z | staging
 ;
 
+present_over_time_of_long_promql_collapsed
+required_capability: promql_command_v0
+required_capability: ts_collapse
+
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" is_present=(max by (cluster) (present_over_time(network.bytes_in[10m])))
+| TS_COLLAPSE
+| SORT cluster;
+
+is_present:double  | step:datetime                                                                                  | cluster:keyword
+[1.0, 1.0]         | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | prod
+[1.0, 1.0]         | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | qa
+[1.0, 1.0]         | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | staging
+;
+
 present_over_time_of_boolean
 required_capability: ts_command_v0
 TS k8s | STATS is_present = max(present_over_time(network.eth0.up)) BY cluster, time_bucket = tbucket(10minute) | SORT time_bucket, cluster | LIMIT 10;

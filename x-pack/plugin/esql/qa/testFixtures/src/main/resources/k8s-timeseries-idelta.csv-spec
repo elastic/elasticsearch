@@ -37,6 +37,30 @@ cost_change:double | step:datetime
 2.875              | 2024-05-10T00:00:00.000Z
 ;
 
+idelta_of_double_no_grouping_promql_expanded
+required_capability: promql_command_v0
+required_capability: promql_unmapped_fields_filter_nulls
+
+PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:00.000Z" cost_change=(sum(idelta(network.cost[1m])))
+| SORT step;
+
+cost_change:double | step:datetime
+4.375              | 2024-05-10T00:08:00.000Z
+18.625             | 2024-05-10T00:09:00.000Z
+;
+
+idelta_of_double_no_grouping_promql_collapsed
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: promql_unmapped_fields_filter_nulls
+
+PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:00.000Z" cost_change=(sum(idelta(network.cost[1m])))
+| TS_COLLAPSE;
+
+cost_change:double   | step:datetime
+[2.5, 0.5, 18.625]   | [2024-05-10T00:08:00.000Z, 2024-05-10T00:09:00.000Z, 2024-05-10T00:10:00.000Z]
+;
+
 idelta_of_integer
 required_capability: ts_command_v0
 TS k8s | STATS clients = avg(idelta(network.eth0.currently_connected_clients)) BY time_bucket = bucket(@timestamp,1minute) | SORT time_bucket | LIMIT 10;

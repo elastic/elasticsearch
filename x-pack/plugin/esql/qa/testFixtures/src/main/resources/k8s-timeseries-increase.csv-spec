@@ -86,6 +86,44 @@ increase_bytes_in:double | cluster:keyword | step:datetime
 1672.349062              | prod            | 2024-05-10T00:00:00.000Z
 ;
 
+increase_of_long_grouping_promql_expanded
+required_capability: promql_command_v0
+
+PROMQL index=k8s step=5m increase_bytes_in=(round(avg by (cluster) (increase(network.total_bytes_in[5m])), 1))
+| SORT cluster, step;
+
+increase_bytes_in:double | step:datetime            | cluster:keyword
+1672.0                   | 2024-05-10T00:00:00.000Z | prod
+1083.0                   | 2024-05-10T00:05:00.000Z | prod
+2261.0                   | 2024-05-10T00:10:00.000Z | prod
+3821.0                   | 2024-05-10T00:15:00.000Z | prod
+1558.0                   | 2024-05-10T00:20:00.000Z | prod
+1717.0                   | 2024-05-10T00:00:00.000Z | qa
+4130.0                   | 2024-05-10T00:05:00.000Z | qa
+2347.0                   | 2024-05-10T00:10:00.000Z | qa
+4628.0                   | 2024-05-10T00:15:00.000Z | qa
+987.0                    | 2024-05-10T00:20:00.000Z | qa
+1535.0                   | 2024-05-10T00:00:00.000Z | staging
+2151.0                   | 2024-05-10T00:05:00.000Z | staging
+2049.0                   | 2024-05-10T00:10:00.000Z | staging
+1806.0                   | 2024-05-10T00:15:00.000Z | staging
+789.0                    | 2024-05-10T00:20:00.000Z | staging
+;
+
+increase_of_long_grouping_promql_collapsed
+required_capability: promql_command_v0
+required_capability: ts_collapse
+
+PROMQL index=k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:00.000Z" increase_bytes_in=(round(avg by (cluster) (increase(network.total_bytes_in[2m])), 0.000001))
+| TS_COLLAPSE
+| SORT cluster;
+
+increase_bytes_in:double                            | step:datetime                                                                                                                                                       | cluster:keyword
+[1378.75, 510.875, 1948.5888889999999, 1277.25, 1179.75]                   | [2024-05-10T00:15:00.000Z, 2024-05-10T00:17:00.000Z, 2024-05-10T00:19:00.000Z, 2024-05-10T00:21:00.000Z, 2024-05-10T00:23:00.000Z] | prod
+[581.25, 1014.472222, 2373.2361109999997, 2088.333333, 470.16666699999996] | [2024-05-10T00:15:00.000Z, 2024-05-10T00:17:00.000Z, 2024-05-10T00:19:00.000Z, 2024-05-10T00:21:00.000Z, 2024-05-10T00:23:00.000Z] | qa
+[2019.375, 267.25, 1007.125, 811.086538, 190.75]                           | [2024-05-10T00:15:00.000Z, 2024-05-10T00:17:00.000Z, 2024-05-10T00:19:00.000Z, 2024-05-10T00:21:00.000Z, 2024-05-10T00:23:00.000Z] | staging
+;
+
 increase_of_double_no_grouping
 required_capability: increase
 required_capability: rate_with_interpolation

@@ -34,6 +34,35 @@ clients:double | step:datetime            | cluster:keyword
 672.0          | 2024-05-10T00:03:00.000Z | staging
 ;
 
+first_over_time_of_integer_promql_expanded
+required_capability: promql_command_v0
+
+PROMQL index=k8s step=1m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:04:00.000Z" clients=(avg by (cluster) (first_over_time(network.eth0.currently_connected_clients[1m])))
+| SORT cluster, step;
+
+clients:double | step:datetime            | cluster:keyword
+659.5          | 2024-05-10T00:02:00.000Z | prod
+742.0          | 2024-05-10T00:03:00.000Z | prod
+565.0          | 2024-05-10T00:02:00.000Z | qa
+407.5          | 2024-05-10T00:03:00.000Z | qa
+426.5          | 2024-05-10T00:02:00.000Z | staging
+672.0          | 2024-05-10T00:03:00.000Z | staging
+;
+
+first_over_time_of_integer_promql_collapsed
+required_capability: promql_command_v0
+required_capability: ts_collapse
+
+PROMQL index=k8s step=1m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:04:00.000Z" clients=(avg by (cluster) (first_over_time(network.eth0.currently_connected_clients[1m])))
+| TS_COLLAPSE
+| SORT cluster;
+
+clients:double        | step:datetime                                                                  | cluster:keyword
+[396.5, 659.5, 742.0] | [2024-05-10T00:02:00.000Z, 2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z] | prod
+[440.0, 565.0, 407.5] | [2024-05-10T00:02:00.000Z, 2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z] | qa
+[426.5, 672.0]        | [2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z]                           | staging
+;
+
 first_over_time_of_long
 required_capability: ts_command_v0
 TS k8s | STATS bytes = avg(first_over_time(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;

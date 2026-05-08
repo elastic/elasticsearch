@@ -103,6 +103,44 @@ rate_bytes_in:double | step:datetime            | cluster:keyword
 6.021526             | 2024-05-10T00:15:00.000Z | staging
 ;
 
+rate_of_long_grouping_promql_expanded
+required_capability: promql_command_v0
+
+PROMQL index=k8s step=5m rate_bytes_in=(round(avg by (cluster) (rate(network.total_bytes_in[5m])), 1))
+| SORT cluster, step;
+
+rate_bytes_in:double | step:datetime            | cluster:keyword
+6.0                  | 2024-05-10T00:00:00.000Z | prod
+4.0                  | 2024-05-10T00:05:00.000Z | prod
+8.0                  | 2024-05-10T00:10:00.000Z | prod
+13.0                 | 2024-05-10T00:15:00.000Z | prod
+26.0                 | 2024-05-10T00:20:00.000Z | prod
+6.0                  | 2024-05-10T00:00:00.000Z | qa
+14.0                 | 2024-05-10T00:05:00.000Z | qa
+8.0                  | 2024-05-10T00:10:00.000Z | qa
+15.0                 | 2024-05-10T00:15:00.000Z | qa
+8.0                  | 2024-05-10T00:20:00.000Z | qa
+5.0                  | 2024-05-10T00:00:00.000Z | staging
+7.0                  | 2024-05-10T00:05:00.000Z | staging
+7.0                  | 2024-05-10T00:10:00.000Z | staging
+6.0                  | 2024-05-10T00:15:00.000Z | staging
+3.0                  | 2024-05-10T00:20:00.000Z | staging
+;
+
+rate_of_long_grouping_promql_collapsed
+required_capability: promql_command_v0
+required_capability: ts_collapse
+
+PROMQL index=k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:00.000Z" rate_bytes_in=(round(avg by (cluster) (rate(network.total_bytes_in[2m])), 0.000001))
+| TS_COLLAPSE
+| SORT cluster;
+
+rate_bytes_in:double                        | step:datetime                                                                                                                                                       | cluster:keyword
+[11.489583, 4.257292, 16.238241, 10.643749999999999, 9.831249999999999] | [2024-05-10T00:15:00.000Z, 2024-05-10T00:17:00.000Z, 2024-05-10T00:19:00.000Z, 2024-05-10T00:21:00.000Z, 2024-05-10T00:23:00.000Z] | prod
+[4.84375, 8.453935, 19.776968, 17.402777999999998, 3.918056]            | [2024-05-10T00:15:00.000Z, 2024-05-10T00:17:00.000Z, 2024-05-10T00:19:00.000Z, 2024-05-10T00:21:00.000Z, 2024-05-10T00:23:00.000Z] | qa
+[16.828125, 2.227083, 8.392707999999999, 6.759054, 1.589583]            | [2024-05-10T00:15:00.000Z, 2024-05-10T00:17:00.000Z, 2024-05-10T00:19:00.000Z, 2024-05-10T00:21:00.000Z, 2024-05-10T00:23:00.000Z] | staging
+;
+
 rate_with_window
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation

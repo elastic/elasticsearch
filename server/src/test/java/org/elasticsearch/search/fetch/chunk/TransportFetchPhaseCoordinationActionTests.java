@@ -517,7 +517,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
     private FetchSearchResult createFetchSearchResult() {
         ShardSearchContextId contextId = new ShardSearchContextId("test", randomLong());
         FetchSearchResult result = new FetchSearchResult(contextId, new SearchShardTarget("node", TEST_SHARD_ID, null));
-        result.shardResult(SearchHits.unpooled(new SearchHit[0], null, Float.NaN), null);
+        result.shardResult(SearchHits.empty(null, Float.NaN), null);
         return result;
     }
 

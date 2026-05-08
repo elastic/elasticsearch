@@ -39,6 +39,11 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public int getPositionCount() {
         return vector.getPositionCount();
     }

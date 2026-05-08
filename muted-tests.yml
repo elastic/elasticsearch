@@ -288,9 +288,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.bucket.DateHistogramOffsetIT
   method: testSingleValueWithNegativeOffset
   issue: https://github.com/elastic/elasticsearch/issues/148589
-- class: org.elasticsearch.search.KnnSearchIT
-  method: testKnnSearchWithScroll
-  issue: https://github.com/elastic/elasticsearch/issues/148590
 
 # Examples:
 #

@@ -140,13 +140,9 @@ public class ApproximationSupportTests extends ESTestCase {
         FuseScoreEval.class,
         Lookup.class,
         MMR.class,
-        Subquery.class,
-        NamedSubquery.class,
 
         // Non-unary plans are not supported yet.
         // These require more complicated expression tree traversal.
-        UnionAll.class,
-        ViewUnionAll.class,
         ParameterizedQuery.class,
 
         // Timeseries indices are not supported yet.

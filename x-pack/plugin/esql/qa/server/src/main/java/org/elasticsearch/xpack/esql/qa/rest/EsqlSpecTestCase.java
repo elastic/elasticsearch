@@ -264,7 +264,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     // Only load views for tests in the "views" group (from views.csv-spec)
     protected boolean shouldLoadViews() {
-        return "views".equals(groupName);
+        return "views".equals(groupName) || "approximation".equals(groupName);
     }
 
     /**

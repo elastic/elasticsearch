@@ -1249,6 +1249,116 @@ null             | fork2         | 100..2000  | 700        | null               
 ;
 
 
+Subqueries before stats
+required_capability: approximation_v7
+required_capability: approximation_fork
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM (FROM many_numbers),
+     (FROM many_numbers)
+| STATS count=COUNT()
+;
+
+documents_found: 35000..45000
+
+count:long     | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
+400000..600000 | [400000..600000,400000..600000]                | {any}
+;
+
+
+Subqueries with stats
+required_capability: approximation_v7
+required_capability: approximation_fork
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM (FROM many_numbers | STATS value = COUNT()),
+     (FROM many_numbers | STATS value = SUM(sv))
+| SORT value
+;
+
+documents_found: 8000..12000
+
+value:long          | _approximation_confidence_interval(value):long | _approximation_certified(value):boolean
+245350              | [245350,245350]                                | {any}
+90000000..140000000 | [90000000..140000000,90000000..140000000]      | {any}
+;
+
+
+Named subqueries before stats
+required_capability: approximation_v7
+required_capability: approximation_fork
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM country_addresses, country_airports
+| SORT country, count
+;
+
+documents_found: 800..1000
+
+count:long | country:keyword | _approximation_confidence_interval(count):long | _approximation_certified(count):boolean
+13         | Argentina       | [13, 13]                                       | true
+17         | Australia       | [17, 17]                                       | true
+31         | Brazil          | [31, 31]                                       | true
+37         | Canada          | [37, 37]                                       | true
+41         | China           | [41, 41]                                       | true
+12         | France          | [12, 12]                                       | true
+11         | Germany         | [11, 11]                                       | true
+50         | India           | [50, 50]                                       | true
+12         | Indonesia       | [12, 12]                                       | true
+11         | Italy           | [11, 11]                                       | true
+1          | Japan           | [1, 1]                                         | true
+45         | Mexico          | [45, 45]                                       | true
+1          | Netherlands     | [1, 1]                                         | true
+11         | Nigeria         | [11, 11]                                       | true
+26         | Russia          | [26, 26]                                       | true
+17         | United Kingdom  | [17, 17]                                       | true
+1          | United States   | [1, 1]                                         | true
+129        | United States   | [129, 129]                                     | true
+;
+
+
+Named subqueries inside subqueries before stats
+required_capability: approximation_v7
+required_capability: approximation_fork
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM (FROM country_addresses | RENAME address_count = count),
+     (FROM country_airports  | RENAME airport_count = count)
+| SORT country, address_count, airport_count
+;
+
+documents_found: 800..1000
+
+address_count:long | country:keyword | airport_count:long | _approximation_confidence_interval(address_count):long | _approximation_certified(address_count):boolean | _approximation_confidence_interval(airport_count):long | _approximation_certified(airport_count):boolean
+null               | Argentina       | 13                 | null                                                   | null                                            | [13, 13]                                               | true
+null               | Australia       | 17                 | null                                                   | null                                            | [17, 17]                                               | true
+null               | Brazil          | 31                 | null                                                   | null                                            | [31, 31]                                               | true
+null               | Canada          | 37                 | null                                                   | null                                            | [37, 37]                                               | true
+null               | China           | 41                 | null                                                   | null                                            | [41, 41]                                               | true
+null               | France          | 12                 | null                                                   | null                                            | [12, 12]                                               | true
+null               | Germany         | 11                 | null                                                   | null                                            | [11, 11]                                               | true
+null               | India           | 50                 | null                                                   | null                                            | [50, 50]                                               | true
+null               | Indonesia       | 12                 | null                                                   | null                                            | [12, 12]                                               | true
+null               | Italy           | 11                 | null                                                   | null                                            | [11, 11]                                               | true
+1                  | Japan           | null               | [1, 1]                                                 | true                                            | null                                                   | null
+null               | Mexico          | 45                 | null                                                   | null                                            | [45, 45]                                               | true
+1                  | Netherlands     | null               | [1, 1]                                                 | true                                            | null                                                   | null
+null               | Nigeria         | 11                 | null                                                   | null                                            | [11, 11]                                               | true
+null               | Russia          | 26                 | null                                                   | null                                            | [26, 26]                                               | true
+null               | United Kingdom  | 17                 | null                                                   | null                                            | [17, 17]                                               | true
+1                  | United States   | null               | [1, 1]                                                 | true                                            | null                                                   | null
+null               | United States   | 129                | null                                                   | null                                            | [129, 129]                                             | true
+;
+
+
 Warn on no stats
 required_capability: approximation_v7
 request_stored: skip

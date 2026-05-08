@@ -140,6 +140,7 @@ setup:
               number_of_shards: 2
               number_of_replicas: 0
           mappings:
+            subobjects: false
             properties:
               "@timestamp":
                 type: date
@@ -215,6 +216,7 @@ setup:
                 mode: columnar_logsdb
                 number_of_replicas: 0
             mappings:
+              subobjects: false
               properties:
                 "@timestamp":
                   type: date
@@ -246,7 +248,6 @@ setup:
           query:
             match_all: {}
           sort: "@timestamp"
-          fields: [ "host.name" ]
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._source.agent_id: "agent-1" }

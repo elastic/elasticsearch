@@ -196,6 +196,7 @@ public final class DocumentParser {
                     context.indexSettings(),
                     lookup,
                     context.mappingLookup()::sourcePaths,
+                    () -> false,
                     fto
                 )
             ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),

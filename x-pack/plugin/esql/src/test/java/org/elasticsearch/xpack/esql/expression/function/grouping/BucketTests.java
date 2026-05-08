@@ -168,7 +168,7 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         );
         dateAndNanosSpanCase(
             suppliers,
-            "with day duration",
+            "with multi-day duration",
             "1970-01-01T00:00:00.00Z",
             DataType.TIME_DURATION,
             Duration.ofDays(3L),

@@ -378,6 +378,30 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testBucketDayPeriodVs24HourDurationProduceSameMetadata() {
+        // `1 day` parses as Period.ofDays(1) (calendar DAY_OF_MONTH path); `24 hours` parses as Duration.ofHours(24)
+        // (TimeIntervalRounding 86400000ms). The two go through different Rounding subtypes but must surface the
+        // same metadata so users see consistent (interval, unit) regardless of which literal form they wrote.
+        client().prepareIndex("dates")
+            .setSource("date", "1985-07-09T00:00:00.000Z")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        Map<String, Object> expected = Map.of("bucket", Map.of("interval", 1L, "unit", "day"));
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM dates
+            | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 day)
+            """))) {
+            assertThat(findColumn(response, "bucket").meta(), equalTo(expected));
+        }
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM dates
+            | STATS c=COUNT(*) BY bucket=BUCKET(date, 24 hours)
+            """))) {
+            assertThat(findColumn(response, "bucket").meta(), equalTo(expected));
+        }
+    }
+
     public void testBucketWithZeroSpan() {
         // BUCKET(field, 0, 0, 0) is accepted by the analyzer but fails at evaluation (NaN/divide-by-zero).
         // Such impossible bucket definitions must not surface any metadata.

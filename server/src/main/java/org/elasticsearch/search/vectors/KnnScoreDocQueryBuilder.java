@@ -153,7 +153,7 @@ public class KnnScoreDocQueryBuilder extends LeafQueryBuilder<KnnScoreDocQueryBu
         if (fieldName != null) {
             MappedFieldType fieldType = context.getFieldType(fieldName);
             if (fieldType instanceof DenseVectorFieldType vectorFieldType && vectorFieldType.getIndexOptions() != null) {
-                context.recordVectorIndexType(vectorFieldType.getIndexOptions().getType().getName());
+                context.recordVectorIndexType(vectorFieldType.getIndexOptions().getType());
             }
         }
         return new KnnScoreDocQuery(scoreDocs, context.getIndexReader());

@@ -33,10 +33,12 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorIndexType;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.query.VectorIndexTypeTelemetry;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -92,7 +94,7 @@ public class QueryRewriteContext {
     private Long timeRangeFilterFromMillis;
     private boolean trackTimeRangeFilterFrom = true;
     private final boolean allowPartialSearchResults;
-    private final Set<String> vectorIndexTypes = new HashSet<>();
+    private VectorIndexTypeTelemetry vectorIndexType = VectorIndexTypeTelemetry.NONE;
     private boolean semanticFieldQueried = false;
 
     public QueryRewriteContext(
@@ -719,20 +721,23 @@ public class QueryRewriteContext {
     }
 
     /**
-     * Records the dense_vector index type (e.g. {@code "int8_hnsw"}, {@code "bbq_hnsw"}, {@code "flat"})
-     * used by a KNN query during shard-level query construction. For telemetry purposes.
+     * Records the dense_vector {@link VectorIndexType} (e.g. {@code INT8_HNSW}, {@code BBQ_HNSW},
+     * {@code FLAT}) used by a KNN query during shard-level query construction. The value is
+     * incrementally folded into a single {@link VectorIndexTypeTelemetry} bucket; multiple distinct
+     * buckets on the same shard collapse to {@link VectorIndexTypeTelemetry#MIXED}.
      */
-    public void recordVectorIndexType(String vectorIndexType) {
+    public void recordVectorIndexType(VectorIndexType vectorIndexType) {
         if (vectorIndexType != null) {
-            vectorIndexTypes.add(vectorIndexType);
+            this.vectorIndexType = this.vectorIndexType.merge(VectorIndexTypeTelemetry.of(vectorIndexType));
         }
     }
 
     /**
-     * Returns the set of dense_vector index types recorded via {@link #recordVectorIndexType(String)}.
+     * Returns the bucket recorded via {@link #recordVectorIndexType(VectorIndexType)}, or
+     * {@link VectorIndexTypeTelemetry#NONE} if no KNN query ran on this shard.
      */
-    public Set<String> getVectorIndexTypes() {
-        return vectorIndexTypes;
+    public VectorIndexTypeTelemetry getVectorIndexType() {
+        return vectorIndexType;
     }
 
     /**

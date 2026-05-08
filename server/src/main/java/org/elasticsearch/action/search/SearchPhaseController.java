@@ -45,6 +45,7 @@ import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.VectorIndexTypeTelemetry;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.sort.ShardDocSortField;
@@ -433,7 +434,7 @@ public final class SearchPhaseController {
         int from = 0;
         int size = 0;
         Long timeRangeFilterFromMillis = null;
-        String vectorIndexType = null;
+        VectorIndexTypeTelemetry vectorIndexType = VectorIndexTypeTelemetry.NONE;
         boolean semanticFieldQueried = false;
         DocValueFormat[] sortValueFormats = null;
         for (QuerySearchResult result : nonNullResults) {
@@ -454,13 +455,7 @@ public final class SearchPhaseController {
                 }
             }
 
-            if (result.getVectorIndexType() != null) {
-                if (vectorIndexType == null) {
-                    vectorIndexType = result.getVectorIndexType();
-                } else if (vectorIndexType.equals(result.getVectorIndexType()) == false) {
-                    vectorIndexType = "mixed";
-                }
-            }
+            vectorIndexType = vectorIndexType.merge(result.getVectorIndexType());
 
             if (result.isSemanticFieldQueried()) {
                 semanticFieldQueried = true;
@@ -522,7 +517,7 @@ public final class SearchPhaseController {
             from,
             false,
             timeRangeFilterFromMillis,
-            vectorIndexType,
+            vectorIndexType.label(),
             semanticFieldQueried,
             topHitsToRelease
         );

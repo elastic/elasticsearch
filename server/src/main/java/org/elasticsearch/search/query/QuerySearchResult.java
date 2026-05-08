@@ -48,8 +48,22 @@ import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 public final class QuerySearchResult extends SearchPhaseResult {
     private static final TransportVersion TIMESTAMP_RANGE_TELEMETRY = TransportVersion.fromName("timestamp_range_telemetry");
     private static final TransportVersion BATCHED_QUERY_PHASE_VERSION = TransportVersion.fromName("batched_query_phase_version");
-    private static final TransportVersion VECTOR_INDEX_TYPE_TELEMETRY = TransportVersion.fromName("vector_index_type_telemetry");
-    private static final TransportVersion SEMANTIC_QUERY_TELEMETRY = TransportVersion.fromName("semantic_query_telemetry");
+    /**
+     * Packed telemetry byte added to the query phase result. Layout (low bits first):
+     * <ul>
+     *   <li>bit 0: {@code semantic_field_queried} flag</li>
+     *   <li>bits 1-4: {@link VectorIndexTypeTelemetry} ordinal (4 bits = 16 values; only ordinals
+     *   defined on that enum are valid)</li>
+     *   <li>bits 5-7: reserved (write zero, ignore on read)</li>
+     * </ul>
+     * Replaces the prior {@code vector_index_type_telemetry} optional-string and {@code semantic_query_telemetry}
+     * boolean fields, which were never released.
+     */
+    private static final TransportVersion QUERY_TELEMETRY_BYTE = TransportVersion.fromName("query_telemetry_byte");
+
+    private static final int SEMANTIC_FIELD_QUERIED_BIT = 1;
+    private static final int VECTOR_INDEX_TYPE_SHIFT = 1;
+    private static final int VECTOR_INDEX_TYPE_MASK = 0b1111 << VECTOR_INDEX_TYPE_SHIFT;
 
     private int from;
     private int size;
@@ -87,8 +101,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     @Nullable
     private Long timeRangeFilterFromMillis;
 
-    @Nullable
-    private String vectorIndexType;
+    private VectorIndexTypeTelemetry vectorIndexType = VectorIndexTypeTelemetry.NONE;
 
     private boolean semanticFieldQueried;
 
@@ -481,11 +494,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
             if (in.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
                 timeRangeFilterFromMillis = in.readOptionalLong();
             }
-            if (in.getTransportVersion().supports(VECTOR_INDEX_TYPE_TELEMETRY)) {
-                vectorIndexType = in.readOptionalString();
-            }
-            if (in.getTransportVersion().supports(SEMANTIC_QUERY_TELEMETRY)) {
-                semanticFieldQueried = in.readBoolean();
+            if (in.getTransportVersion().supports(QUERY_TELEMETRY_BYTE)) {
+                byte telemetry = in.readByte();
+                semanticFieldQueried = (telemetry & SEMANTIC_FIELD_QUERIED_BIT) != 0;
+                vectorIndexType = VectorIndexTypeTelemetry.fromOrdinal((telemetry & VECTOR_INDEX_TYPE_MASK) >>> VECTOR_INDEX_TYPE_SHIFT);
             }
             success = true;
         } finally {
@@ -555,11 +567,15 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (out.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
             out.writeOptionalLong(timeRangeFilterFromMillis);
         }
-        if (out.getTransportVersion().supports(VECTOR_INDEX_TYPE_TELEMETRY)) {
-            out.writeOptionalString(vectorIndexType);
-        }
-        if (out.getTransportVersion().supports(SEMANTIC_QUERY_TELEMETRY)) {
-            out.writeBoolean(semanticFieldQueried);
+        if (out.getTransportVersion().supports(QUERY_TELEMETRY_BYTE)) {
+            int ordinal = vectorIndexType.ordinal();
+            assert (ordinal & ~0b1111) == 0
+                : "VectorIndexTypeTelemetry ordinal " + ordinal + " for " + vectorIndexType + " overflows the 4-bit field";
+            byte telemetry = (byte) (ordinal << VECTOR_INDEX_TYPE_SHIFT);
+            if (semanticFieldQueried) {
+                telemetry |= SEMANTIC_FIELD_QUERIED_BIT;
+            }
+            out.writeByte(telemetry);
         }
     }
 
@@ -659,15 +675,15 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     /**
-     * The dense_vector index type (e.g. {@code "int8_hnsw"}, {@code "bbq_disk"}, {@code "flat"})
-     * used by KNN queries on this shard, or {@code "mixed"} when more than one type was used.
-     * {@code null} when no KNN query ran on this shard. Used for telemetry only.
+     * The bucketed dense_vector index type used by KNN queries on this shard, or
+     * {@link VectorIndexTypeTelemetry#NONE} when no KNN query ran on this shard. Used for
+     * telemetry only.
      */
-    public String getVectorIndexType() {
+    public VectorIndexTypeTelemetry getVectorIndexType() {
         return vectorIndexType;
     }
 
-    public void setVectorIndexType(String vectorIndexType) {
+    public void setVectorIndexType(VectorIndexTypeTelemetry vectorIndexType) {
         this.vectorIndexType = vectorIndexType;
     }
 

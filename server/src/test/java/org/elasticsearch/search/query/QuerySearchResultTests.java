@@ -149,6 +149,47 @@ public class QuerySearchResultTests extends ESTestCase {
         }
     }
 
+    /**
+     * Round-trips every {@code (VectorIndexTypeTelemetry, semanticFieldQueried)} combination through the
+     * wire format to confirm the packed telemetry byte encodes and decodes correctly. Also implicitly
+     * exercises the assertion in {@code writeToNoId} that the vector ordinal fits in 4 bits.
+     */
+    public void testTelemetryByteRoundTrip() throws Exception {
+        for (VectorIndexTypeTelemetry vectorIndexType : VectorIndexTypeTelemetry.values()) {
+            for (boolean semanticFieldQueried : new boolean[] { false, true }) {
+                QuerySearchResult original = createTestInstance();
+                try {
+                    original.setVectorIndexType(vectorIndexType);
+                    original.setSemanticFieldQueried(semanticFieldQueried);
+                    QuerySearchResult deserialized = copyWriteable(
+                        original,
+                        namedWriteableRegistry,
+                        QuerySearchResult::new,
+                        TransportVersion.current()
+                    );
+                    try {
+                        assertSame(
+                            "vectorIndexType did not round-trip for " + vectorIndexType + "/" + semanticFieldQueried,
+                            vectorIndexType,
+                            deserialized.getVectorIndexType()
+                        );
+                        assertEquals(
+                            "semanticFieldQueried did not round-trip for " + vectorIndexType + "/" + semanticFieldQueried,
+                            semanticFieldQueried,
+                            deserialized.isSemanticFieldQueried()
+                        );
+                    } finally {
+                        releaseCompletionSuggestOptionHits(deserialized);
+                        deserialized.decRef();
+                    }
+                } finally {
+                    releaseCompletionSuggestOptionHits(original);
+                    original.decRef();
+                }
+            }
+        }
+    }
+
     public void testNullResponse() throws Exception {
         QuerySearchResult querySearchResult = QuerySearchResult.nullInstance();
         QuerySearchResult deserialized = copyWriteable(

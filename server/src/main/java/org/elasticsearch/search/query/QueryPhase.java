@@ -46,7 +46,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
@@ -145,7 +144,7 @@ public class QueryPhase {
         addCollectorsAndSearch(
             searchContext,
             searchContext.getSearchExecutionContext().getTimeRangeFilterFromMillis(),
-            searchContext.getSearchExecutionContext().getVectorIndexTypes(),
+            searchContext.getSearchExecutionContext().getVectorIndexType(),
             searchContext.getSearchExecutionContext().isSemanticFieldQueried()
         );
 
@@ -161,7 +160,7 @@ public class QueryPhase {
      * wire everything (mapperService, etc.)
      */
     static void addCollectorsAndSearch(SearchContext searchContext, Long timeRangeFilterFromMillis) {
-        addCollectorsAndSearch(searchContext, timeRangeFilterFromMillis, Set.of(), false);
+        addCollectorsAndSearch(searchContext, timeRangeFilterFromMillis, VectorIndexTypeTelemetry.NONE, false);
     }
 
     /**
@@ -171,15 +170,15 @@ public class QueryPhase {
     static void addCollectorsAndSearch(
         SearchContext searchContext,
         Long timeRangeFilterFromMillis,
-        Set<String> vectorIndexTypes,
+        VectorIndexTypeTelemetry vectorIndexType,
         boolean semanticFieldQueried
     ) throws QueryPhaseExecutionException {
         final ContextIndexSearcher searcher = searchContext.searcher();
         final IndexReader reader = searcher.getIndexReader();
         QuerySearchResult queryResult = searchContext.queryResult();
         queryResult.setTimeRangeFilterFromMillis(timeRangeFilterFromMillis);
-        if (vectorIndexTypes.isEmpty() == false) {
-            queryResult.setVectorIndexType(vectorIndexTypes.size() == 1 ? vectorIndexTypes.iterator().next() : "mixed");
+        if (vectorIndexType != VectorIndexTypeTelemetry.NONE) {
+            queryResult.setVectorIndexType(vectorIndexType);
         }
         if (semanticFieldQueried) {
             queryResult.setSemanticFieldQueried(true);

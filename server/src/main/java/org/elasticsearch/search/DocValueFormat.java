@@ -798,5 +798,4 @@ public interface DocValueFormat extends NamedWriteable {
             }
         }
     };
-
 }

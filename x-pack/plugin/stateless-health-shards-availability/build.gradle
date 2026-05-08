@@ -2,26 +2,17 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.stateless'
 
 esplugin {
     name = 'stateless-health-shards-availability'
     description = 'Overrides Shards Availability indicator with stateless-specific version'
     classname = 'org.elasticsearch.xpack.stateless.health.StatelessShardsHealthPlugin'
-    deploymentTarget = "STATELESS_ONLY"
-}
-
-configurations {
-    all {
-        resolutionStrategy {
-            preferProjectModules()
-        }
-    }
 }
 
 dependencies {
     compileOnly project(':server')
     testImplementation project(':test:framework')
-
     internalClusterTestImplementation testArtifact(project(':x-pack:plugin:stateless'))
     internalClusterTestImplementation testArtifact(project(':x-pack:plugin:stateless'), 'internalClusterTest')
 }

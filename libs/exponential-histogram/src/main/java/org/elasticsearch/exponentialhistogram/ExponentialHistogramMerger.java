@@ -197,6 +197,9 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
      * @param toAdd the histogram to merge
      */
     public void add(ExponentialHistogram toAdd) {
+        if (toAdd.isEmpty()) {
+            return;
+        }
         ExponentialHistogram a = result == null ? ExponentialHistogram.empty() : result;
         ExponentialHistogram b = toAdd;
 
@@ -326,9 +329,12 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
      * This method is intended to compute the delta between two cumulative histograms from the same time series,
      * where {@code a} is a later snapshot and {@code b} is an earlier snapshot.
      * In cumulative histograms, bucket counts only increase over time, which means that subtracting {@code b}
-     * from {@code a} will never result in negative bucket counts.
+     * from {@code a} should never result in negative bucket counts. Note that this algorithm still is capable
+     * of dealing with cases where the histograms seem to be cumulative ({@code a.count() >= b.count()}), but actually are not.
+     * In this case the negative buckets will be clamped to a count of {@code 0} and the remaining populate buckets will
+     * have their count scaled down to compensate for this.
      * <p>
-     * The algorithm provides the following guarantees:
+     * The algorithm provides the following guarantees if the histograms are actually cumulative:
      * Given two exponential histograms {@code b} and {@code c}.
      * The histogram {@code a} is the result of merging the histograms {@code b} and {@code c}.
      * Then {@code a - b} will yield the histogram {@code c}, with the limitation that
@@ -337,83 +343,90 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
      *     <li>{@code a - b} might have a greater zero threshold than {@code c} (but not greater than the zero threshold of {@code a})</li>
      *     <li>{@code a - b} might not preserve the exact minimum / maximum of {@code c}, but will provide an estimate in that case</li>
      * </ul>
+     * <p>
+     * If the histograms are not cumulative, the following guarantees are provided instead:
+     * <ul>
+     *     <li>{@code result.valueCount()} will be exactly {@code a.valueCount() - b.valueCount()}</li>
+     *     <li>{@code result.sum()} will be exactly {@code a.sum() - b.count()}</li>
+     *     <li>{@code result.min()} and {@code result.max()} will be sane values (e.g. not outside the min/max values of the inputs)</li>
+     *     <li>Each bucket in the result will correspond to input buckets where the
+     *         count for {@code a} was greater than the count of {@code b}</li>
+     * </ul>
      *
      * @param a the base histogram to subtract from
      * @param b the histogram to be subtracted
+     *
+     * @return true if the histograms were actually cumulative and the result is the exact difference, false
+     * if the histograms were not cumulative and the result only provides the weaker guarantees explained above
      */
-    public void setToDifference(ExponentialHistogram a, ExponentialHistogram b) {
+    public boolean setToDifference(ExponentialHistogram a, ExponentialHistogram b) {
         if (result != null) {
             factory.releaseBuffer(result);
             result = null;
         }
+        if (b.isEmpty()) {
+            // fast path, subtracting an empty histogram does nothing.
+            this.add(a);
+            return true;
+        }
+
         long bValueCount = b.valueCount();
         long aValueCount = a.valueCount();
         if (aValueCount == bValueCount) {
-            // fast path, subtracting histograms with equal count will yield an empty histogram
-            // We just assume here that the input is actually subtractable, e.g. we don't verify that all buckets are equal too
-            return;
-        }
-        if (bValueCount == 0) {
-            // fast path, subtracting an empty histogram does nothing.
-            // This check is placed before the scale check because the ExponentialHistogram.empty() singleton
-            // uses the maximum scale, so we never want to fail when subtracting an empty histogram.
-            this.add(a);
-            return;
+            // fast path, we assume that the histograms are equal and that therefore the difference is zero (the empty histogram)
+            // We use the other aggregates to verify that the histograms are actually equal (and therefore cumulative)
+            // Note that there might be a tiny chance of a false positive here: The histograms might have equal aggregates
+            // but different distribution of the counts across the buckets.
+            // This is super unlikely in practice and the false positive also shouldn't matter
+            return a.sum() == b.sum() && a.min() == b.min() && a.max() == b.max();
         }
         if (aValueCount < bValueCount) {
             throw new IllegalArgumentException(
                 "Cannot subtract histograms (a-b), where a.count < b.count: " + aValueCount + " < " + bValueCount
             );
         }
+        boolean isTrulyCumulative = true;
         if (a.scale() > b.scale()) {
-            throw new IllegalArgumentException(
-                "Cannot subtract histograms (a-b), where a.scale > b.scale: " + a.scale() + " > " + b.scale()
-            );
+            // cumulative histograms can only decrease their scale
+            isTrulyCumulative = false;
         }
         if (a.min() > b.min()) {
-            throw new IllegalArgumentException("Cannot subtract histograms (a-b), where a.min > b.min: " + a.min() + " > " + b.min());
+            // the min of cumulative histogram can only decrease
+            isTrulyCumulative = false;
         }
         if (a.max() < b.max()) {
-            throw new IllegalArgumentException("Cannot subtract histograms (a-b), where a.max < b.max: " + a.max() + " < " + b.max());
+            // the max of cumulative histogram can only decrease
+            isTrulyCumulative = false;
         }
         if (a.zeroBucket().compareZeroThreshold(b.zeroBucket()) < 0) {
-            throw new IllegalArgumentException(
-                "Cannot subtract histograms (a-b), where a.zeroThreshold < b.zeroThreshold: "
-                    + a.zeroBucket().zeroThreshold()
-                    + " < "
-                    + b.zeroBucket().zeroThreshold()
-            );
+            // the zero threshold of a cumulative histogram can only increase
+            isTrulyCumulative = false;
         }
 
         CopyableBucketIterator negBucketsB = b.negativeBuckets().iterator();
         CopyableBucketIterator posBucketsB = b.positiveBuckets().iterator();
 
         // adjust the zeroThreshold of B to match A, collapsing overlapping buckets into the zero bucket
+        // For the lenient case where the histograms are not actually cumulative this means we might end up
+        // decreasing the result zero threshold accidentally, but that doesn't affect the results too much
         ZeroBucket updatedZeroBucketB = a.zeroBucket()
             .withCount(b.zeroBucket().count())
             .collapseOverlappingBucketsForAll(negBucketsB, posBucketsB);
 
         // now we can subtract the zero buckets
-        assert updatedZeroBucketB.compareZeroThreshold(a.zeroBucket()) == 0
-            : "After collapsing overlapping buckets, the zero threshold of B should match that of A";
-        if (a.zeroBucket().count() < updatedZeroBucketB.count()) {
-            throw new IllegalArgumentException(
-                "Cannot subtract histograms (a-b), where a.zeroCount < b.zeroCount after adjusting to the same zeroThreshold: "
-                    + a.zeroBucket().count()
-                    + " < "
-                    + updatedZeroBucketB.count()
-            );
+        if (updatedZeroBucketB.compareZeroThreshold(a.zeroBucket()) != 0) {
+            isTrulyCumulative = false;
+            // After collapsing overlapping buckets, the zero threshold of B should match that of A if they are cumulative
         }
 
-        ZeroBucket subtractedZeroBucket = a.zeroBucket().withCount(a.zeroBucket().count() - updatedZeroBucketB.count());
+        long newZeroCount = Math.max(0, a.zeroBucket().count() - updatedZeroBucketB.count());
+        ZeroBucket subtractedZeroBucket = a.zeroBucket().withCount(newZeroCount);
 
         LongBinaryOperator bucketDifferenceOperator = (aCount, bCount) -> {
-            if (aCount < bCount) {
-                throw new IllegalArgumentException(
-                    "Cannot subtract histograms (a-b), where A has a smaller count for the same bucket than B: " + aCount + " < " + bCount
-                );
-            }
-            return aCount - bCount;
+            // Normally for cumulative histograms the bucket count can only increase, so we will never be negative when subtracting
+            // However, as we are lenient here we need to handle this case, which we do by clamping negative buckets to 0
+            // Later, we will scale all bucket counts uniformly so that we end up with (a.count() - b.count()) total count
+            return Math.max(0L, aCount - bCount);
         };
 
         FixedCapacityExponentialHistogram buffer = factory.acquireBuffer();
@@ -423,12 +436,19 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
                 a.positiveBuckets().iterator(),
                 negBucketsB,
                 posBucketsB,
-                a.scale(),
+                Math.min(a.scale(), b.scale()),
                 bucketDifferenceOperator,
                 buffer
             );
-
             buffer.setZeroBucket(subtractedZeroBucket);
+
+            // we might have clamped negative buckets away, so we need to scale down the remaining buckets to compensate for that
+            long desiredTargetCount = aValueCount - bValueCount;
+            if (desiredTargetCount != buffer.valueCount()) {
+                isTrulyCumulative = false;
+                buffer.scaleBucketCountsTo(desiredTargetCount);
+            }
+
             buffer.setSum(a.sum() - b.sum());
 
             if (a.min() < b.min()) {
@@ -436,7 +456,6 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
                 // That implies that this is also the smallest value of the difference
                 buffer.setMin(a.min());
             } else {
-                assert a.min() == b.min();
                 // In this case we don't know the exact minimum anymore, we have to estimate it
                 OptionalDouble estimatedMin = ExponentialHistogramUtils.estimateMin(
                     buffer.zeroBucket(),
@@ -452,7 +471,6 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             if (a.max() > b.max()) {
                 buffer.setMax(a.max());
             } else {
-                assert a.max() == b.max();
                 OptionalDouble estimatedMax = ExponentialHistogramUtils.estimateMax(
                     buffer.zeroBucket(),
                     buffer.negativeBuckets(),
@@ -468,6 +486,7 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         } finally {
             factory.releaseBuffer(buffer);
         }
+        return isTrulyCumulative;
     }
 
 }

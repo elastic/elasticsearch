@@ -6,14 +6,27 @@
  */
 package org.elasticsearch.xpack.esql.core.tree;
 
+import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Renders the properties of a {@link Node} as a string.
  */
 class NodePropertiesToString {
+
+    private static final Pattern APPROXIMATION_BUCKET_COLUMN_NAME_PATTERN = Pattern.compile(
+        Pattern.quote(
+            Attribute.SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR + ApproximationPlan.BUCKET_NAME_PART + Attribute.SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR
+        ) + "(\\d+)"
+    );
+
     private final Node.NodeStringFormat format;
     private final Node<?> node;
     private final boolean skipIfChild;
@@ -88,6 +101,20 @@ class NodePropertiesToString {
         }
         boolean firstElement = true;
         for (Object element : iterable) {
+            if (format == Node.NodeStringFormat.LIMITED) {
+                // In the LIMITED format, for query approximation plans (see: {@link ApproximationPlan})
+                // only render the first and last buckets of bucketed values (separated by an ellipsis).
+                Integer bucketId = getQueryApproximationBucketId(element);
+                int lastBucketId = ApproximationPlan.BUCKET_COUNT * ApproximationPlan.TRIAL_COUNT - 1;
+                if (bucketId != null && bucketId > 0 && bucketId < lastBucketId) {
+                    if (bucketId == 1) {
+                        if (appendString(", ...") == false) {
+                            return false;
+                        }
+                    }
+                    continue;
+                }
+            }
             if (firstElement == false) {
                 if (appendString(", ") == false) {
                     return false;
@@ -99,6 +126,19 @@ class NodePropertiesToString {
             firstElement = false;
         }
         return appendString("]");
+    }
+
+    /**
+     * Returns the query approximation bucket ID (see: {@link ApproximationPlan}) if this property
+     * is containing only a single bucket. Returns null if no or multiple buckets.
+     */
+    private Integer getQueryApproximationBucketId(Object prop) {
+        Matcher matcher = APPROXIMATION_BUCKET_COLUMN_NAME_PATTERN.matcher(propertyToString(prop));
+        Set<Integer> bucketIds = new HashSet<>();
+        while (matcher.find()) {
+            bucketIds.add(Integer.parseInt(matcher.group(1)));
+        }
+        return bucketIds.size() == 1 ? bucketIds.iterator().next() : null;
     }
 
     private String propertyToString(Object obj) {

@@ -139,13 +139,6 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     // TODO make configurable via lookback_delta parameter and (cluster?) setting
     public static final Duration DEFAULT_LOOKBACK = Duration.ofMinutes(5);
 
-    /**
-     * Always {@code false}: collapsing is controlled through {@link org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse},
-     * not via {@link TimeSeriesAggregate}{@code #collapsed}.
-     * The flag is a leftover and will be removed from {@link TimeSeriesAggregate}.
-     */
-    private static final boolean TIME_SERIES_AGGREGATE_COLLAPSED = false;
-
     public TranslatePromqlToEsqlPlan() {
         super(OptimizerRules.TransformDirection.UP);
     }
@@ -249,7 +242,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     /**
      * Recursively translates a PromQL plan node into an ESQL plan node.
      */
-    private TranslationResult translateNode(LogicalPlan node, LogicalPlan currentPlan, TranslationContext ctx) {
+    private static TranslationResult translateNode(LogicalPlan node, LogicalPlan currentPlan, TranslationContext ctx) {
         return switch (node) {
             case AcrossSeriesAggregate agg -> translateAcrossSeriesAggregate(agg, currentPlan, ctx);
             case ScalarConversionFunction scalar -> translateScalarConversion(scalar, currentPlan, ctx);
@@ -322,9 +315,13 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      *
      * <p>Only {@code AcrossSeriesAggregate} creates plan-level aggregation nodes.
      * {@code WithinSeriesAggregate} and other {@code PromqlFunctionCall} nodes are
-     * lowered to expressions and folded into the aggregate.
+     * translated to expressions and folded into the aggregate.
      */
-    private TranslationResult translateAcrossSeriesAggregate(AcrossSeriesAggregate agg, LogicalPlan currentPlan, TranslationContext ctx) {
+    private static TranslationResult translateAcrossSeriesAggregate(
+        AcrossSeriesAggregate agg,
+        LogicalPlan currentPlan,
+        TranslationContext ctx
+    ) {
         LabelSetSpec importAggregateLabels = switch (agg.grouping()) {
             case BY -> LabelSetSpec.of(agg.groupings(), ctx.labelSetSpec.excluded());
             case WITHOUT -> LabelSetSpec.without(ctx.labelSetSpec, agg.groupings());
@@ -357,7 +354,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     }
 
     /** scalar() collapse to one value per step. */
-    private TranslationResult translateScalarConversion(
+    private static TranslationResult translateScalarConversion(
         ScalarConversionFunction scalarFunc,
         LogicalPlan currentPlan,
         TranslationContext ctx
@@ -401,7 +398,11 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     /**
      * Translates a generic PromQL function call (ceil, abs, floor, etc.).
      */
-    private TranslationResult translateFunctionCall(PromqlFunctionCall functionCall, LogicalPlan currentPlan, TranslationContext ctx) {
+    private static TranslationResult translateFunctionCall(
+        PromqlFunctionCall functionCall,
+        LogicalPlan currentPlan,
+        TranslationContext ctx
+    ) {
         TranslationResult childResult = translateNode(functionCall.child(), currentPlan, ctx);
 
         Expression window = AggregateFunction.NO_WINDOW;
@@ -449,7 +450,11 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      * Translates a scalar function (time(), etc.).
      * These produce expressions without modifying the plan.
      */
-    private TranslationResult translateScalarFunction(ScalarFunction scalarFunction, LogicalPlan currentPlan, TranslationContext ctx) {
+    private static TranslationResult translateScalarFunction(
+        ScalarFunction scalarFunction,
+        LogicalPlan currentPlan,
+        TranslationContext ctx
+    ) {
         PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
             ctx.promqlCommand().timestamp(),
             null,
@@ -471,7 +476,11 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      * Translates a binary operator (+, -, *, /, comparisons).
      * If either side contains aggregation, adds Eval on top to compute the binary operation.
      */
-    private TranslationResult translateBinaryOperator(VectorBinaryOperator binaryOp, LogicalPlan currentPlan, TranslationContext ctx) {
+    private static TranslationResult translateBinaryOperator(
+        VectorBinaryOperator binaryOp,
+        LogicalPlan currentPlan,
+        TranslationContext ctx
+    ) {
         TranslationResult leftResult = translateNode(binaryOp.left(), currentPlan, ctx);
         Expression leftExpr = new ToDouble(leftResult.expression().source(), leftResult.expression());
 
@@ -576,7 +585,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      * Translates a selector (instant, range, or literal).
      * Adds label filter conditions to the context.
      */
-    private TranslationResult translateSelector(Selector selector, LogicalPlan currentPlan, TranslationContext ctx) {
+    private static TranslationResult translateSelector(Selector selector, LogicalPlan currentPlan, TranslationContext ctx) {
         Expression matcherCondition = translateLabelMatchers(selector.source(), selector.labels(), selector.labelMatchers());
         Expression expr;
         if (selector instanceof LiteralSelector literalSelector) {
@@ -668,7 +677,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             }
         }
 
-        return new TimeSeriesAggregate(source, plan, groupings, aggregates, null, command.timestamp(), TIME_SERIES_AGGREGATE_COLLAPSED);
+        return new TimeSeriesAggregate(source, plan, groupings, aggregates, null, command.timestamp());
     }
 
     private static boolean hasTSGrouping(List<Attribute> groupings) {
@@ -839,7 +848,11 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     }
 
     /** Comparison filter (e.g., metric > x) */
-    private LogicalPlan addComparisonFilter(LogicalPlan plan, VectorBinaryComparison binaryComparison, LogicalOptimizerContext context) {
+    private static LogicalPlan addComparisonFilter(
+        LogicalPlan plan,
+        VectorBinaryComparison binaryComparison,
+        LogicalOptimizerContext context
+    ) {
         Attribute left = plan.output().getFirst().toAttribute();
         ToDouble right = new ToDouble(binaryComparison.right().source(), ((LiteralSelector) binaryComparison.right()).literal());
         Function condition = binaryComparison.op().asFunction().create(binaryComparison.source(), left, right, context.configuration());
@@ -860,6 +873,9 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     private static Alias createStepBucketAlias(PromqlCommand promqlCommand, Configuration configuration) {
         Expression timeBucketSize = promqlCommand.resolveTimeBucketSize();
         if (promqlCommand.hasTimeRange()) {
+            // TStep emits a fixed-ms UTC grid anchored at start (see TStep.surrogate / toEvaluator forcing UTC).
+            // This is load-bearing: TimeSeriesCollapseOperator requires (timestamp - start) % step == 0, which a
+            // session-timezone-aware Bucket would violate on DST transition days (23h/25h "days" in UTC ms).
             TStep tstep = new TStep(
                 timeBucketSize.source(),
                 timeBucketSize,

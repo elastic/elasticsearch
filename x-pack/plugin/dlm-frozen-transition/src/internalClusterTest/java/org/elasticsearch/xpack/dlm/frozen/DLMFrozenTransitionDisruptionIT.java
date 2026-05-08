@@ -216,10 +216,8 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
             logger.warn("Failed to clear default repository setting during cleanup", e);
         }
         try {
-            client().execute(
-                DeleteDataStreamAction.INSTANCE,
-                new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME)
-            ).actionGet();
+            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME))
+                .actionGet();
         } catch (Exception e) {
             logger.warn("Failed to delete data stream during cleanup", e);
         }
@@ -357,7 +355,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         assertNoErrorRecorded(candidateIndex);
         logger.info("--> delete-during-cleanup disruption handled gracefully");
     }
-    
+
     /**
      * After the mount phase succeeds but before the data stream modify/swap completes,
      * deletes the newly mounted frozen index. The swap then references a non-existent index.

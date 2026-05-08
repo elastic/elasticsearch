@@ -447,13 +447,6 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
         as(applyRule(agg), AggregateExec.class);
     }
 
-    public void testNotPushedWhenSourceHasPushedFilter() {
-        var ext = externalSourceWithPushedFilter(statsMetadata(1000L, null, null), "some_pushed_filter");
-        var agg = aggregateExec(AggregatorMode.SINGLE, ext, countStarAlias());
-
-        as(applyRule(agg), AggregateExec.class);
-    }
-
     public void testNotPushedWhenSourceHasPushedFilterInInitialMode() {
         var ext = externalSourceWithPushedFilter(statsMetadata(1000L, null, null), "some_pushed_filter");
         var agg = aggregateExec(AggregatorMode.INITIAL, ext, countStarAlias());

@@ -199,14 +199,13 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .sliceQueue(context.sliceQueue())
                 .errorPolicy(errorPolicy)
                 .parsingParallelism(context.parsingParallelism())
+                .parallelism(context.parallelism())
                 .pushedExpressions(pushedExpressions)
                 .pushdownSupport(pushdownSupport)
                 .onClose(onClose)
                 .build();
         };
     }
-
-    static final String CONFIG_FORMAT = "format";
 
     /** Delegates to {@link ErrorPolicy#fromConfig(Map, ErrorPolicy)} with the format's default
      *  policy as the fallback. Kept here so existing call sites and tests do not have to change. */
@@ -215,15 +214,6 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     private FormatReader resolveFormatReader(String objectName, Map<String, Object> config) {
-        if (config != null) {
-            Object formatOverride = config.get(CONFIG_FORMAT);
-            if (formatOverride != null) {
-                String formatName = formatOverride.toString();
-                if (formatName.isEmpty() == false) {
-                    return formatRegistry.byName(formatName);
-                }
-            }
-        }
-        return formatRegistry.byExtension(objectName);
+        return FormatNameResolver.resolveReader(config, objectName, formatRegistry);
     }
 }

@@ -889,7 +889,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private static final Pattern OPTIMIZED_INCORRECTLY_LIMITBY_PATTERN = Pattern.compile(
-        ".*Plan \\[LimitBy\\[.*optimized incorrectly due to missing references.*",
+        ".*Plan \\[(?:LimitBy|TopNBy)\\[.*optimized incorrectly due to missing references.*",
         Pattern.DOTALL
     );
 
@@ -897,6 +897,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     /**
      * See https://github.com/elastic/elasticsearch/issues/148513
+     * <p>
+     * The same root cause manifests as either {@code LimitBy[...]} (no upstream SORT) or {@code TopNBy[...]}
+     * (when an upstream SORT gets combined with the LIMIT BY into a TopNBy).
      */
     static boolean isLimitByMvExpandBug(String errorMessage, String query) {
         if (errorMessage == null || query == null) {

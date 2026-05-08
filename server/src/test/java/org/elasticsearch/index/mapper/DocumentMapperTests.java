@@ -84,7 +84,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             IndexVersion.current(),
             MapperMetrics.NOOP,
             "myIndex",
-            randomFrom(IndexMode.availableModes())
+            randomFrom(IndexMode.values())
         );
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());

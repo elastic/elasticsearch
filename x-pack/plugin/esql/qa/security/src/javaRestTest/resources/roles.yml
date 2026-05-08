@@ -108,6 +108,48 @@ fls_user:
       field_security:
         grant: [ value ]
 
+# Reads all mapped fields from doc values on index-partial-mapping, but field-level security disables
+# access to stored _source. Used (alone) to verify that unmapped_fields="load" cannot leak _source
+# values when the user is denied _source.
+fls_partial_no_source:
+  cluster: []
+  indices:
+    - names: [ 'index-partial-mapping' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ '_source' ]
+
+# Plain read access to index-full-mapping. Combined with fls_partial_no_source on the same user
+# (fls_per_index_access_user) to verify that FLS rules apply per-index in multi-index queries.
+read_full_mapping:
+  cluster: []
+  indices:
+    - names: [ 'index-full-mapping' ]
+      privileges: [ 'read' ]
+
+# Like fls_partial_no_source but additionally denies the mapped `value` field. Used to verify that with
+# both _source disabled and a mapped field denied, unmapped_fields="load" returns null for every column.
+fls_no_source_no_value_user:
+  cluster: []
+  indices:
+    - names: [ 'index-partial-mapping' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ '_source', 'value' ]
+
+# Has access to _source but denies a mapped field (`value`) and an unmapped field (`org`). Used to verify
+# that unmapped_fields="load" does not bypass FLS field exclusions even when _source is otherwise loadable.
+fls_deny_value_org_user:
+  cluster: []
+  indices:
+    - names: [ 'index-partial-mapping' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ '*' ]
+        except: [ 'value', 'org' ]
+
 fls_user2:
   cluster: []
   indices:

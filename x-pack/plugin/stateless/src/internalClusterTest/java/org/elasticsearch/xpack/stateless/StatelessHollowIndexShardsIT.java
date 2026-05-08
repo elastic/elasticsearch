@@ -69,6 +69,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.shard.IndexShard;
@@ -131,7 +132,9 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -170,7 +173,9 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -755,6 +760,211 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         assertHitCount(client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true), clusterInfo.numDocs + moreDocs);
         // We expect more blob accesses that just the shards, since unhollowing prewarms/reads referenced blobs as well
         assertThat(bccAccesses.get(), greaterThan(clusterInfo.numberOfShards));
+    }
+
+    public void testCloseAndReopenHollowIndex() throws Exception {
+        final var clusterInfo = startNodesAndHollowShards(randomIntBetween(1, 5));
+
+        // Close the index
+        assertAcked(indicesAdmin().prepareClose(clusterInfo.indexName));
+        ensureGreen();
+
+        final Index index = resolveIndex(clusterInfo.indexName);
+        for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            indexShard.withEngine(e -> {
+                assertThat(e, instanceOf(NoOpEngine.class));
+                return null;
+            });
+        }
+
+        // Open the index
+        assertAcked(indicesAdmin().prepareOpen(clusterInfo.indexName));
+        ensureGreen();
+
+        for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            indexShard.withEngine(e -> {
+                assertThat(e, instanceOf(HollowIndexEngine.class));
+                return null;
+            });
+        }
+
+        // Ensure we read the same number of docs
+        startSearchNode();
+        setReplicaCount(1, clusterInfo.indexName);
+        ensureGreen(clusterInfo.indexName);
+        assertHitCount(client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true), clusterInfo.numDocs);
+
+        // Ensure we can continue indexing
+        final int moreDocs = randomIntBetween(clusterInfo.numDocs * 2, clusterInfo.numDocs * 4);
+        indexDocsAndRefresh(clusterInfo.indexName, moreDocs);
+        assertHitCount(client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true), clusterInfo.numDocs + moreDocs);
+    }
+
+    public void testCloseWhileShardsAreHollowed() throws Exception {
+        startMasterOnlyNode();
+        final var indexNodeSettings = Settings.builder()
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .build();
+        final var indexNodeA = startIndexNode(indexNodeSettings);
+        final var indexNodeB = startIndexNode(indexNodeSettings);
+
+        final var indexName = randomIdentifier();
+        final var numberOfShards = randomIntBetween(1, 5);
+        createIndex(indexName, indexSettings(numberOfShards, 0).put("index.routing.allocation.exclude._name", indexNodeB).build());
+        ensureGreen(indexName);
+        final var numDocs = randomIntBetween(32, 64);
+        indexDocsAndRefresh(indexName, numDocs);
+
+        final var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        final Index index = resolveIndex(indexName);
+        assertBusy(() -> {
+            for (int i = 0; i < numberOfShards; i++) {
+                var indexShard = findIndexShard(index, i);
+                assertTrue(hollowShardsServiceA.isHollowableIndexShard(indexShard));
+            }
+        });
+
+        // Close will race with relocation that hollows shards
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        assertAcked(indicesAdmin().prepareClose(indexName));
+        ensureGreen();
+
+        for (int i = 0; i < numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            indexShard.withEngine(e -> {
+                assertThat(e, instanceOf(NoOpEngine.class));
+                return null;
+            });
+        }
+
+        // Open the index
+        assertAcked(indicesAdmin().prepareOpen(indexName));
+        ensureGreen(indexName);
+
+        for (int i = 0; i < numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            indexShard.withEngine(e -> {
+                // Some shards might already be hollowed
+                assertThat(e, either(instanceOf(IndexEngine.class)).or(instanceOf(HollowIndexEngine.class)));
+                return null;
+            });
+        }
+
+        // Ensure we read the same number of docs
+        startSearchNode();
+        setReplicaCount(1, indexName);
+        ensureGreen(indexName);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), numDocs);
+
+        // Ensure we can continue indexing
+        final int moreDocs = randomIntBetween(numDocs * 2, numDocs * 4);
+        indexDocsAndRefresh(indexName, moreDocs);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), numDocs + moreDocs);
+    }
+
+    public void testCloseWhileShardsAreUnhollowed() throws Exception {
+        final var clusterInfo = startNodesAndHollowShards(randomIntBetween(1, 5));
+
+        final int writers = randomIntBetween(1, 5);
+        final ExecutorService ingestPool = Executors.newFixedThreadPool(writers);
+        final AtomicBoolean stopIngest = new AtomicBoolean(false);
+        final List<Throwable> unexpected = new CopyOnWriteArrayList<>();
+        final CountDownLatch writersReady = new CountDownLatch(writers);
+        final CountDownLatch writersStart = new CountDownLatch(1);
+        final var moreDocs = new AtomicLong(0);
+        try {
+            for (int i = 0; i < writers; i++) {
+                int finalI = i;
+                ingestPool.submit(() -> {
+                    try {
+                        writersReady.countDown();
+                        safeAwait(writersStart);
+                        while (stopIngest.get() == false) {
+                            final int newDocs = randomIntBetween(1, clusterInfo.numberOfShards * 10);
+
+                            var bulkRequest = client().prepareBulk();
+                            for (int j = 0; j < newDocs; j++) {
+                                bulkRequest.add(
+                                    new IndexRequest(clusterInfo.indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25))
+                                );
+                            }
+                            var bulkFuture = bulkRequest.execute();
+
+                            final var bulkResponse = bulkFuture.actionGet();
+                            for (int j = 0; j < bulkResponse.getItems().length; j++) {
+                                BulkItemResponse response = bulkResponse.getItems()[j];
+                                if (response.isFailed()) {
+                                    boolean containsClose = response.getFailureMessage().contains("close")
+                                        || ExceptionsHelper.unwrapCause(response.getFailure().getCause()).getMessage().contains("close");
+                                    if (containsClose == false) {
+                                        logger.error(
+                                            "unexpected non-close failure from writer [" + finalI + "]: " + response.getFailureMessage(),
+                                            response.getFailure().getCause()
+                                        );
+                                    }
+                                    assertTrue(response.getFailureMessage() + " does not relate to a closed index", containsClose);
+                                } else {
+                                    moreDocs.incrementAndGet();
+                                }
+                            }
+                        }
+                    } catch (Throwable e) {
+                        logger.error("unexpected throwable from writer [" + finalI + "]", e);
+                        unexpected.add(e);
+                    }
+                });
+            }
+            safeAwait(writersReady);
+            writersStart.countDown();
+            assertAcked(indicesAdmin().prepareClose(clusterInfo.indexName));
+        } finally {
+            stopIngest.set(true);
+            ingestPool.shutdown();
+            assertTrue(ingestPool.awaitTermination(2, TimeUnit.MINUTES));
+            assertThat(unexpected, empty());
+        }
+
+        final Index index = resolveIndex(clusterInfo.indexName);
+        for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            indexShard.withEngine(e -> {
+                assertThat(e, instanceOf(NoOpEngine.class));
+                return null;
+            });
+        }
+
+        // Open the index
+        assertAcked(indicesAdmin().prepareOpen(clusterInfo.indexName));
+        ensureGreen();
+
+        for (int i = 0; i < clusterInfo.numberOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            indexShard.withEngine(e -> {
+                // Some shards might not have been unhollowed yet
+                assertThat(e, either(instanceOf(IndexEngine.class)).or(instanceOf(HollowIndexEngine.class)));
+                return null;
+            });
+        }
+
+        // Ensure we read the same number of docs
+        startSearchNode();
+        setReplicaCount(1, clusterInfo.indexName);
+        ensureGreen(clusterInfo.indexName);
+        assertHitCount(
+            client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true),
+            clusterInfo.numDocs + moreDocs.get()
+        );
+
+        // Ensure we can continue indexing
+        final int evenMoreDocs = randomIntBetween(clusterInfo.numDocs * 2, clusterInfo.numDocs * 4);
+        indexDocsAndRefresh(clusterInfo.indexName, evenMoreDocs);
+        assertHitCount(
+            client().prepareSearch(clusterInfo.indexName).setSize(0).setTrackTotalHits(true),
+            clusterInfo.numDocs + moreDocs.get() + evenMoreDocs
+        );
     }
 
     public void testSnapshotHollowShardsAndRestore() throws Exception {

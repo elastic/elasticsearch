@@ -18,7 +18,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -62,7 +61,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
         var validationException = new ValidationException();
 
         var uri = extractOptionalUri(map, URL, validationException);
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, CohereService.NAME, context);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
         var modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var apiVersion = apiVersionFromMap(map, context, validationException);
         if (apiVersion == CohereServiceSettings.CohereApiVersion.V2 && modelId == null) {
@@ -142,7 +141,6 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            CohereService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

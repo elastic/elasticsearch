@@ -822,7 +822,7 @@ public class EsqlCapabilities {
         /**
          * Expose resolved bucket interval in {@code _meta} on {@code BUCKET} grouping columns.
          */
-        COLUMN_METADATA_BUCKET,
+        COLUMN_METADATA_BUCKET(Build.current().isSnapshot()),
 
         /**
          * Allow mixed numeric types in coalesce

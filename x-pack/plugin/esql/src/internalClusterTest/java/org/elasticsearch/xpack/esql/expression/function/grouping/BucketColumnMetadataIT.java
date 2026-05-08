@@ -15,9 +15,11 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
@@ -29,6 +31,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
+
+    @Before
+    public void requireBucketMetadataCapability() {
+        // The bucket metadata feature is snapshot-only until finalized; non-snapshot builds skip these tests.
+        assumeTrue("requires column_metadata_bucket capability", EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET.isEnabled());
+    }
 
     public void testBucketColumnMetadata() {
         client().prepareIndex("dates")

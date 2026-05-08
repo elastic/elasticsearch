@@ -36,6 +36,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('security'))))
+  internalClusterTestImplementation project(xpackModule('secure-settings'))
 }
 
 esplugin.bundleSpec.into("spi") {

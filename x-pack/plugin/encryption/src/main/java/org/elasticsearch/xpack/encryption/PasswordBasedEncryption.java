@@ -1,0 +1,101 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.encryption;
+
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+
+import java.security.GeneralSecurityException;
+import java.security.SecureRandom;
+import java.util.Arrays;
+
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
+
+/**
+ * Password-based wrap/unwrap of the 32-byte project encryption key (PEK).
+ *
+ * <p>The key-encryption-key (KEK) is derived from the password via PBKDF2-HMAC-SHA256 with a per-PEK random 16-byte salt.
+ * The AES-256-GCM cipher operation is delegated to {@link AesGcm}.
+ *
+ * <p>The wrapped PEK is returned as an {@link EncryptedData} where:
+ * <ul>
+ *   <li>{@link EncryptedData#keyId()} carries the {@code passwordId} (the secure-setting suffix)
+ *   <li>{@link EncryptedData#payload()} is {@code [salt(16) | AesGcm.encrypt output]}
+ * </ul>
+ *
+ * <p>PBKDF2 stretching is applied universally since stateful clusters allow operators to set the keystore value directly.
+ */
+final class PasswordBasedEncryption {
+    static final int PBKDF2_ITERATIONS = 210_000;
+    static final int SALT_LENGTH_BYTES = 16;
+    static final int KEK_LENGTH_BITS = 256;
+    /** Plaintext length of a project encryption key (AES-256 → 32 bytes). Part of the {@link #wrap}/{@link #unwrap} contract. */
+    static final int PEK_LENGTH_BYTES = 32;
+
+    private static final String PBKDF2_ALGORITHM = "PBKDF2WithHmacSHA256";
+
+    private PasswordBasedEncryption() {}
+
+    /**
+     * Wraps the given 32-byte plaintext PEK under a fresh key derived from the password. The returned {@link EncryptedData} carries the
+     * salt prefix followed by the {@link AesGcm#encrypt} output so {@link #unwrap} can recover the original PEK given the same password.
+     */
+    static EncryptedData wrap(byte[] plaintextPek, String passwordId, char[] password) {
+        byte[] salt = new byte[SALT_LENGTH_BYTES];
+        new SecureRandom().nextBytes(salt);
+
+        SecretKey kek = deriveKek(password, salt);
+        byte[] inner = AesGcm.encrypt(kek, plaintextPek);
+
+        byte[] payload = new byte[SALT_LENGTH_BYTES + inner.length];
+        System.arraycopy(salt, 0, payload, 0, SALT_LENGTH_BYTES);
+        System.arraycopy(inner, 0, payload, SALT_LENGTH_BYTES, inner.length);
+        return new EncryptedData(passwordId, payload);
+    }
+
+    /**
+     * Unwraps a previously wrapped PEK using the same password the wrap was performed under. Throws if the password is wrong or the
+     * ciphertext is corrupted (AES-GCM authentication failure).
+     */
+    static byte[] unwrap(EncryptedData wrapped, char[] password) {
+        byte[] payload = wrapped.payload();
+        if (payload.length < SALT_LENGTH_BYTES + AesGcm.OVERHEAD_BYTES) {
+            throw new IllegalArgumentException("wrapped payload is too short");
+        }
+        byte[] salt = Arrays.copyOfRange(payload, 0, SALT_LENGTH_BYTES);
+        SecretKey kek = deriveKek(password, salt);
+        try {
+            return AesGcm.decrypt(kek, payload, SALT_LENGTH_BYTES, payload.length - SALT_LENGTH_BYTES);
+        } catch (ElasticsearchException e) {
+            // Re-throw with a domain-specific message so callers can distinguish wrap/unwrap failures
+            // from generic decryption errors.
+            throw new ElasticsearchException("PEK unwrap failed", e);
+        }
+    }
+
+    private static SecretKey deriveKek(char[] password, byte[] salt) {
+        try {
+            SecretKeyFactory factory = SecretKeyFactory.getInstance(PBKDF2_ALGORITHM);
+            PBEKeySpec spec = new PBEKeySpec(password, salt, PBKDF2_ITERATIONS, KEK_LENGTH_BITS);
+            try {
+                byte[] kekBytes = factory.generateSecret(spec).getEncoded();
+                try {
+                    return new SecretKeySpec(kekBytes, "AES");
+                } finally {
+                    Arrays.fill(kekBytes, (byte) 0);
+                }
+            } finally {
+                spec.clearPassword();
+            }
+        } catch (GeneralSecurityException e) {
+            throw new ElasticsearchException("Wrapping key derivation failed", e);
+        }
+    }
+}

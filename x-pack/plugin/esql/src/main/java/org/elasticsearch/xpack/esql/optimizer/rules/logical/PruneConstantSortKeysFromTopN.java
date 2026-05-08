@@ -88,7 +88,7 @@ public final class PruneConstantSortKeysFromTopN extends ParameterizedRule<Logic
             return key.foldable() == false && isMissingField(key) == false;
         }).toList();
         if (nonConstant.isEmpty()) {
-            return new Limit(topN.source(), topN.limit(), topN.child());
+            return new Limit(topN.source(), topN.limit(), topN.child(), false, topN.local());
         }
         if (nonConstant.size() < topN.order().size()) {
             return new TopN(topN.source(), topN.child(), nonConstant, topN.limit(), topN.local());

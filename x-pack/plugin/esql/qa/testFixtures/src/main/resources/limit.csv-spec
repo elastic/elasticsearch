@@ -1276,3 +1276,17 @@ emp_no:integer
 10002
 10003
 ;
+
+pruneConstantCaseExpressionSortKeyFromTopN
+FROM employees
+| EVAL x = CASE(true, 5, emp_no)
+| SORT x, emp_no ASC
+| LIMIT 3
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+10002
+10003
+;

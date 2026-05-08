@@ -41,6 +41,18 @@ public class PruneConstantSortKeysFromTopNGoldenTests extends UnmappedGoldenTest
             """, STAGES, EsqlTestUtils.TEST_SEARCH_STATS);
     }
 
+    public void testSortKeyFoldedToNullByArithmetic() {
+        // emp_no + null folds to null via null-propagation in arithmetic (any value + null = null).
+        // This folding happens in expression simplification before our rule runs, so by the time
+        // PruneConstantSortKeysFromTopN sees the plan, the sort key is already Literal(null) — directly
+        // foldable without needing alias resolution.
+        runGoldenTest("""
+            FROM employees
+            | SORT emp_no + null, emp_no
+            | LIMIT 20
+            """, STAGES, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
     public void testUnmappedSortKeyNullifiedAndPruned() {
         // With unmapped_fields="nullify", does_not_exist has MissingEsField type (established at analysis time
         // via field-caps, meaning the field is absent from every shard). PruneConstantSortKeysFromTopN detects

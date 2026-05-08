@@ -15,7 +15,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
 import org.elasticsearch.index.reindex.AbstractBulkIndexByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.reindex.AbstractAsyncBulkByScrollAction.RequestWrapper;
+import org.elasticsearch.reindex.AbstractAsyncBulkByPaginatedSearchAction.RequestWrapper;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateByQueryScript;
@@ -33,7 +33,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
+public abstract class AbstractAsyncBulkByPaginatedSearchActionScriptTestCase<
     Request extends AbstractBulkIndexByPaginatedSearchRequest<Request>,
     Response extends BulkByScrollResponse> extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
 
@@ -72,8 +72,8 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
                 }
             }
         );
-        AbstractAsyncBulkByScrollAction<Request, ?> action = action(scriptService, request().setScript(mockScript("")));
-        RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
+        AbstractAsyncBulkByPaginatedSearchAction<Request, ?> action = action(scriptService, request().setScript(mockScript("")));
+        RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;
     }
 
@@ -109,5 +109,5 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
         assertThat(e.getMessage(), equalTo("[op] must be one of delete, index, noop, not [unknown]"));
     }
 
-    protected abstract AbstractAsyncBulkByScrollAction<Request, ?> action(ScriptService scriptService, Request request);
+    protected abstract AbstractAsyncBulkByPaginatedSearchAction<Request, ?> action(ScriptService scriptService, Request request);
 }

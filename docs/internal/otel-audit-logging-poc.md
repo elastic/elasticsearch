@@ -21,7 +21,7 @@ References for the requirements below:
 - **Gateway TDD**: *Shipping Logs to Elastic Cloud customers (TDD)*. [Google Doc](https://docs.google.com/document/d/12IZxcX5uoFWvIhfff1I3DwRVMt8ab6tNkaIKs-Fx8Y8/edit). Frames the cross-team architecture from emitting service to MOTel.
 - **ES-14356**: parent epic for the ES-side delivery work. [Jira](https://elasticco.atlassian.net/browse/ES-14356).
 - **ES-13255**: broader "ES logs over OTel". [Jira](https://elasticco.atlassian.net/browse/ES-13255). Tracks any non-audit ES log streams; out of scope here.
-- **elasticsearch-team#2170**: Tim Vernum's brain-dump on audit-in-serverless work areas. [GitHub](https://github.com/elastic/elasticsearch-team/issues/2170).
+- **elasticsearch-team#2170**: tracking issue for audit-in-serverless work; the issue body itself is a one-line pointer to the `#log-delivery-project-team` Slack channel where the work is being discussed. [GitHub](https://github.com/elastic/elasticsearch-team/issues/2170).
 
 Each requirement below has a status of *Satisfied*, *Partially satisfied*, or *Gap*. The status line points to §3 evidence or §4 gap analysis.
 
@@ -47,11 +47,11 @@ Sources: Gateway TDD §"Standardized Audit Log schema" + §"How services emit"; 
 
 ### 2.3 R3: Enrich audit events with `project.id`
 
-*Partially satisfied (§3.3); CPS routing direction is an open gap (§4.3).*
+*Partially satisfied (§3.3). Two open gaps: `security_config_change` events bypass the chokepoint (§4.3); CPS routing direction is unconfirmed (§4.4).*
 
-Audit events must carry `project.id` so the gateway can route per-project. The PoC plumbs the field through a single chokepoint: `LoggingAuditTrail.LogEntryBuilder.withThreadContext()`. Every public audit-emit method calls this, so the mechanism is uniform across audit event types (§3.3 lists them). End-to-end OTLP delivery has been verified for one event type only.
+Audit events must carry `project.id` so the gateway can route per-project. The PoC plumbs the field through `LoggingAuditTrail.LogEntryBuilder.withThreadContext()`. The 12 public audit-emit methods all reach this chokepoint; however, `accessGranted` also emits a parallel `security_config_change` log entry through a private builder factory that bypasses `withThreadContext()`, so events of `event.type=security_config_change` (put_user, put_role, change_password, create_api_key, etc.) do not carry `project.id`. End-to-end OTLP delivery has been verified for one event type only.
 
-Cross-Project Search introduces a design question: when a query fans out from project A to project B within a cluster, audit events on project B's side carry project B's ID, not project A's. Whether this matches the gateway's routing intent has not been confirmed; see §4.3. (Cluster-internal traffic, by contrast, is explicitly out of scope per §2.14.)
+Cross-Project Search introduces a design question: when a query fans out from project A to project B within a cluster, audit events on project B's side carry project B's ID, not project A's. Whether this matches the gateway's routing intent has not been confirmed; see §4.4. (Cluster-internal traffic, by contrast, is explicitly out of scope per §2.14.)
 
 Sources: Audit TDD §"Requirement 7"; Gateway TDD §"Standardized Audit Log schema" / Appendix 5.
 
@@ -73,9 +73,11 @@ Sources: Gateway TDD §"How services emit (audit) log records": *"Must emit logs
 
 ### 2.6 R6: Strip cluster identity fields on serverless
 
-*Gap (§4).*
+*Gap (§4.6); the existing per-field `emit_*` settings make this small.*
 
-On serverless, audit records must not carry `cluster.name`, `cluster.uuid`, `node.name`, or `node.id`. These expose platform internals customers shouldn't see. The Audit TDD §"Requirement 2" frames this as a `log4j2.serverless.properties` change (remove the four `%map{...}` PatternLayout entries from the file appender). On the OTel path, however, those fields aren't *only* in the PatternLayout: `LoggingAuditTrail.commonFields` (lines 2052–2096) puts them into the `StringMapMessage` itself, and with `setCaptureMapMessageAttributes(true)` on the OpenTelemetryAppender every OTel record carries them too. So R6 is a real ES-side gap on the OTel path, not just a serverless-config task.
+On serverless, audit records must not carry `cluster.name`, `cluster.uuid`, `node.name`, or `node.id`. These expose platform internals customers shouldn't see. The Audit TDD §"Requirement 2" frames this as a `log4j2.serverless.properties` change (remove the four `%map{...}` PatternLayout entries from the file appender). That alone doesn't cover the OTel path: the fields aren't only in the PatternLayout, they're also in the audit `StringMapMessage` itself (populated by `LoggingAuditTrail.EntryCommonFields`), and with `setCaptureMapMessageAttributes(true)` on the `OpenTelemetryAppender` every OTel record picks them up too.
+
+Fortunately, `LoggingAuditTrail` already gates each of these fields on a per-field `Property.Dynamic` setting: `xpack.security.audit.logfile.emit_node_name` (default `false`), `emit_node_id` (default `true`), `emit_cluster_name` (default `false`), `emit_cluster_uuid` (default `true`). Setting the two true-by-default ones to `false` on serverless suppresses the fields at the `StringMapMessage` source, so both the file appender and the OTel appender see them stripped. See §4.6.
 
 Source: Audit TDD §"Requirement 2".
 
@@ -93,7 +95,7 @@ Source: Gateway TDD §"Unavailability issues mitigation" point 1: *"In case of c
 
 In a multi-project setup, ES must drop audit records for projects whose customers haven't opted into audit logging, *before* the records reach the gateway, so that disabled projects don't pay the network hop.
 
-**Placement** (must be ES-side; downstream components can't filter per project today): in the [#hosted-otel-collector thread of 2026-04-29](https://elastic.slack.com/archives/C076MUD9BK8/p1777470066015769), Vignesh Shanmugam wrote *"the processing/redact bits should live as part of the SDK layer inside ES for now till we have support for managed processing layer"*; Julien Lind concurred filtering is not MOTel's responsibility; Andrew Wilkins flagged the `otel-delivery-gateway` as the eventual external home for transformations. As of today, neither MOTel nor the gateway filters per project.
+**Placement** (must be ES-side; downstream components can't filter per project today): in the [#log-delivery-project-team thread of 2026-04-29](https://elastic.slack.com/archives/C09PANY7FFS/p1777474914646739), Ankit Sethi wrote *"a lot of this can/should happen within the security plugin itself"*; Valentin Crettaz concurred *"MOTel is too far away down the delivery pipeline to do this, the filtering needs to happen at the source (i.e. by ES/Serverless itself)"*; Julio Camarero wrote *"since these logs are sent over HTTP, we can save a lot of resources if only logs which should be routed are sent, therefore, I fully agree with the approach of filtering happening at elasticsearch."* In a parallel [#hosted-otel-collector thread the same day](https://elastic.slack.com/archives/C076MUD9BK8/p1777471821757409), Vignesh Shanmugam wrote *"the processing/redact bits should live as part of the SDK layer inside ES for now till we have support for managed processing layer"*, and Andrew Wilkins later noted *"otel-delivery-gateway is the thing that would be transforming logs before they hit MOTel"* (i.e. the eventual external home for transformations is the gateway, not MOTel). As of today, neither MOTel nor the gateway filters per project.
 
 **Durable reason** (ES-side even if downstream filtering eventually becomes possible): cost. Emitting OTLP for N projects only to drop most of it downstream still pays the ES → gateway network hop. Even a future gateway-side filter wouldn't satisfy this; the cost is incurred before the filter sees the record.
 
@@ -125,9 +127,9 @@ Source: Gateway TDD §"Reliability & throughput" + §"Unavailability issues miti
 
 *Gap (§4).*
 
-Toggling audit logging must take effect without a restart, both at cluster level and per project (R8). The PoC reads `telemetry.otel.logs.enabled` once in `OtelSdkExportLogsSupplier.install()` (line 69) at startup, so toggling it requires a restart today.
+Toggling audit logging must take effect without a restart, both at cluster level and per project (R8). The PoC reads `telemetry.otel.logs.enabled` once in `OtelSdkExportLogsSupplier.install()` at startup, so toggling it requires a restart today.
 
-For the cluster-level case, Audit TDD §"Requirement 1" calls for *"... enable or disable audit logging with a simple setting on the Cloud console without any downtime (cluster restart)"*; this is in flight under [PR 147333](https://github.com/elastic/elasticsearch/pull/147333) for `xpack.security.audit.enabled`. That setting governs the audit logger, not the OTel-logs path; we still need our own dynamic listener for `telemetry.otel.logs.enabled` and for R8's per-project state.
+For the cluster-level case, Audit TDD §"Requirement 1" calls for *"... enable or disable audit logging with a simple setting on the Cloud console without any downtime (cluster restart)"*; this is in flight under [PR 147333](https://github.com/elastic/elasticsearch/pull/147333) for `xpack.security.audit.enabled`. That setting governs the audit logger, not the OTel-logs path; we still need our own dynamic listener for `telemetry.otel.logs.enabled` and for R8's per-project state. (The R6 `emit_*` settings, by contrast, are already `Property.Dynamic`; toggling them on serverless requires no extra work.)
 
 ### 2.13 R13: Retry-policy and buffer-size targets
 
@@ -193,24 +195,25 @@ This is a property we *inherit* from the OTel SDK, not one we engineered into ES
 
 **Mechanism:**
 
-- `LoggingAuditTrail.PROJECT_ID_FIELD_NAME` constant at `x-pack/plugin/security/src/main/java/org/elasticsearch/xpack/security/audit/logfile/LoggingAuditTrail.java:214`.
-- `LogEntryBuilder.withThreadContext(...)` at line 1662 calls `setThreadContextField(threadContext, Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, PROJECT_ID_FIELD_NAME);`. This reads the project header from `ThreadContext` and adds it to the audit `StringMapMessage` if non-null.
-- Audit JSON pattern updated in `x-pack/plugin/core/src/main/config/log4j2.properties:47` so the field appears in the file appender too.
-- Every public audit-emit method on `LoggingAuditTrail` ends in `.withThreadContext(...)`: `authenticationSuccess`, `authenticationFailed`, `accessGranted`, `accessDenied`, `anonymousAccessDenied`, `tamperedRequest`, `runAsGranted`, `runAsDenied`, `connectionGranted`, `connectionDenied`, `coordinatingActionResponse`, `explicitIndexAccessEvent`. So the mechanism applies uniformly across audit event types; adding the field at this single chokepoint covers the full surface.
+- `LoggingAuditTrail.PROJECT_ID_FIELD_NAME` introduced as the audit field name.
+- `LogEntryBuilder.withThreadContext(...)` reads `Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER` from `ThreadContext` and writes `PROJECT_ID_FIELD_NAME` on the audit `StringMapMessage` if non-null.
+- Audit JSON pattern in `x-pack/plugin/core/src/main/config/log4j2.properties` updated so the field appears in the file appender too.
+- Eleven of the twelve public audit-emit methods on `LoggingAuditTrail` call `.withThreadContext(...)` at build time: `authenticationSuccess`, `authenticationFailed`, `accessGranted`, `accessDenied`, `anonymousAccessDenied`, `tamperedRequest`, `runAsGranted`, `runAsDenied`, `connectionGranted`, `connectionDenied`, `explicitIndexAccessEvent`. (`coordinatingActionResponse` is currently a no-op.)
+- **Gap:** `accessGranted`, when the action falls in `SECURITY_CHANGE_ACTIONS`, also emits a parallel `security_config_change` log entry through `securityChangeLogEntryBuilder(...)`, a private builder factory that never calls `withThreadContext`. So `event.type=security_config_change` events do not carry `project.id`. See §4.3.
 
 **Where the header gets populated:**
 
 - Customer REST traffic on serverless: the ingress layer sets `X-Elastic-Project-Id` on the incoming HTTP request; ES copies it into `ThreadContext` before auth runs.
-- Within-cluster transport fan-out: `ThreadContext` propagates the header via `HEADERS_TO_COPY` (`ThreadContext.java:328–337`).
-- Persistent tasks: `PersistentTasksNodeService.java:201` puts the header for project-scoped tasks.
+- Within-cluster transport fan-out: `ThreadContext` propagates the header via `HEADERS_TO_COPY` (handled in `ThreadContext.getRequestHeadersToCopy(...)`).
+- Persistent tasks: `PersistentTasksNodeService.startTask(...)` puts the header for project-scoped tasks.
 - Cluster-internal traffic (system users, internal cluster operations) is out of scope per §2.14 (Audit TDD Reqs 3, 4; elasticsearch-team#2170).
 
 **Tests:**
 
-- `LoggingAuditTrailTests` covers the mechanism at lines 363 and 3333–3334 (sets the header on `ThreadContext`, asserts the event carries `project.id`). The full class (35 tests) passed against this change at last run.
-- `OtelAuditLogsIT.testAuditEventArrivesAsOtlpLogRecord` exercises end-to-end OTLP delivery for one event type: `authentication_success` from `/_security/_authenticate`. Other event types and transport-fan-out cases are not exercised by tests; the structural argument (single chokepoint reached by all audit-emit methods) is the basis for the broader claim.
+- `LoggingAuditTrailTests` covers the mechanism: a setUp helper randomly sets the project header on `ThreadContext`, and a `projectId(...)` assertion helper checks the field on each audit event. The non-security-change tests invoke that helper; the `testSecurityConfigChangeEventFormatting*` tests do *not*, consistent with the gap above. The full class (35 tests) passed against this change at last run.
+- `OtelAuditLogsIT.testAuditEventArrivesAsOtlpLogRecord` exercises end-to-end OTLP delivery for one event type: `authentication_success` from `/_security/_authenticate`. Other event types and transport-fan-out cases are not exercised by tests.
 
-**Open question on CPS routing direction**: see §4.3.
+**Open question on CPS routing direction**: see §4.4.
 
 ### 3.4 Semconv field names arrive on the wire: *partially satisfies R2*
 
@@ -221,9 +224,9 @@ This is a property we *inherit* from the OTel SDK, not one we engineered into ES
 ### 3.5 Other tests (no regressions)
 
 - `:modules:apm:thirdPartyAudit` runs clean: no jar-hell or banned-API regression from the new `opentelemetry-sdk-logs` and `opentelemetry-log4j-appender-2.17` dependencies. (See Appendix A.3 for the jar-hell episode that drove the module placement.)
-- **OTLP/HTTP-protobuf wire encoding** is what the PoC actually uses, matching the planned production target. Exporter: `OtlpHttpLogRecordExporter.builder().setEndpoint(endpoint)` (`OtelSdkExportLogsSupplier.java:77`); the default encoding for that class is protobuf, not JSON. Confirmed on the receiving side by `OtlpLogsParser.parse(...)` (`OtlpLogsParser.java:35–36`) which deserializes via `ExportLogsServiceRequest.parseFrom(InputStream)` (protobuf).
+- **OTLP/HTTP-protobuf wire encoding** is what the PoC actually uses, matching the planned production target. Exporter: `OtlpHttpLogRecordExporter.builder().setEndpoint(endpoint)` in `OtelSdkExportLogsSupplier`; the default encoding for that class is protobuf, not JSON. Confirmed on the receiving side by `OtlpLogsParser.parse(...)` which deserializes via `ExportLogsServiceRequest.parseFrom(InputStream)` (protobuf).
 - `OtelSdkExportLogsSupplierTests` 7/7 passing; covers install/uninstall lifecycle of the supplier (idempotent install, detach on close, behavior when audit logger config is absent).
-- ES boots cleanly under `./gradlew run` with audit and OTel logs enabled. The supplier emits `OTel SDK logs export installed; endpoint=...` (`OtelSdkExportLogsSupplier.java:117`), and the node reaches `started`.
+- ES boots cleanly under `./gradlew run` with audit and OTel logs enabled. The supplier emits `OTel SDK logs export installed; endpoint=...`, and the node reaches `started`.
 - `manage_threads` entitlement registered in `modules/apm/src/main/plugin-metadata/entitlement-policy.yaml` for `io.opentelemetry.sdk.logs`. Without this, `BatchLogRecordProcessor`'s worker thread fails to start with `NotEntitledException`. (See Appendix B.)
 
 ## 4. What's not implemented (gap analysis)
@@ -238,46 +241,66 @@ The upstream `OpenTelemetryAppender` library prepends `log4j.map_message.` to ev
 
 The gateway TDD asks emitting services to use OTel semconv where it exists, ECS where it doesn't, custom names as last resort. About half the ES audit fields have clean semconv answers: `event.action`, `user.name`, `http.request.method`, timestamp. The rest are genuinely ambiguous: the `origin.address` REST/transport split, the `apikey.*` namespace, the `indices` array, `request.body`, and the nested `security_config_change` blobs. §5.2 has the per-field table.
 
-### 4.3 R3 (CPS): `project.id` direction for Cross-Project Search
+### 4.3 R3 (chokepoint): `security_config_change` events bypass `withThreadContext`
 
-When a CPS query in project A reaches into project B, audit events on project B's side carry project B's `project.id`, not project A's. The mechanism is `AbstractProjectResolver.executeOnProject(...)` (`AbstractProjectResolver.java:70`) for the same-cluster case, and header strip-and-reset at the cluster boundary (`ThreadContext.java:333–335`) for the cross-cluster case.
+`accessGranted` emits two log entries when its action falls in `SECURITY_CHANGE_ACTIONS` (put_user, put_role, change_password, create_api_key, delete_role, …): the regular `access_granted` event (which calls `.withThreadContext(threadContext)` at build time, so it carries `project.id`), and a separate `security_config_change` event built via the private `securityChangeLogEntryBuilder(...)` factory, which does *not* call `withThreadContext`. As a result, every `security_config_change` audit event leaves the JVM without a `project.id` attribute.
+
+The test suite is consistent with this: `LoggingAuditTrailTests` invokes its `projectId(threadContext, checkedFields)` assertion helper from the non-security-change tests (`testAccessGranted`, `testAuthenticationFailed`, etc.) but not from any `testSecurityConfigChangeEventFormatting*` test.
+
+We should do the following to make this robust:
+
+1. **Open a bug ticket** for the missing `withThreadContext` call on the `security_config_change` path. Treating it as a bug (not a design choice) clarifies the intent: every audit event should carry the four thread-context-derived fields (`x_forwarded_for`, `opaque_id`, `trace.id`, `project.id`), and this path drops all four. The fix itself is small (add the call inside `securityChangeLogEntryBuilder(...)` or before each `.build()` on that chain), and `LoggingAuditTrailTests` should grow assertions on the security-change paths; and
+2. **Make `withThreadContext` implicit in `build()`.** Once proposal 1 lands, every emit path is calling `withThreadContext` anyway. Folding it into the builder turns a convention into an invariant: future contributors who add new emit paths get the four fields automatically, and the doc's chokepoint claim becomes structural rather than empirical.
+
+(Most of the work here is alignment, not code: agreeing that the missing call on the `security_config_change` path is a bug rather than expected behavior, and that the structural change is the right way to prevent the gap from recurring.)
+
+Cross-Project Search has a separate R3 question (§4.4).
+
+### 4.4 R3 (CPS): `project.id` direction for Cross-Project Search
+
+When a CPS query in project A reaches into project B, audit events on project B's side carry project B's `project.id`, not project A's. The mechanism is `AbstractProjectResolver.executeOnProject(...)` for the same-cluster case, and header strip-and-reset at the cluster boundary (`ThreadContext.getRequestHeadersToCopy(...)` removes `X_ELASTIC_PROJECT_ID_HTTP_HEADER` for `REMOTE_CLUSTER`) for the cross-cluster case.
+
+Empirically, the Audit TDD's "Audit Logging x CPS: Current State" section reports that a single ESQL CPS query against `*:my-index` produced 5 audit events in a Serverless QA test: 2 from the local (project A) cluster and 3 from the remote (project B) cluster, all sharing the same `request.id`, with varying `origin.type` values (`rest`, `local_node`, `transport`). So this isn't a one-event-per-query question; it's a fan-out where each side's events would carry its own `project.id` under today's mechanism.
 
 That matches the gateway's intent if each event should be delivered to the project that *owns the data touched*; it doesn't if events should follow the *originator*. A design call with the gateway team is needed. Implementation is mechanical once decided: leave as-is, or capture an `originating_project.id` separately. For the cross-cluster case, propagate it explicitly, since `X_ELASTIC_PROJECT_ID_HTTP_HEADER` is intentionally stripped at the boundary.
 
-### 4.4 R4: mTLS to the gateway
+### 4.5 R4: mTLS to the gateway
 
 The PoC uses HTTP without TLS. In production, the client certificate is distributed by Control-Plane (Vault → cert-manager → secret mount). We can reuse the existing pattern of `SSLService` + `PemKeyConfig` + `SSLConfigurationReloader` (used today by the monitoring HTTP exporter and Watcher's HTTP client). One open question is whether `OtlpHttpLogRecordExporterBuilder` in our OTel-Java version exposes client TLS config directly, or whether we have to wrap the underlying HTTP client.
 
-### 4.5 R6: Strip cluster/node fields on serverless
+### 4.6 R6: Strip cluster/node fields on serverless
 
-`LoggingAuditTrail.commonFields` (lines 2052–2096) puts `cluster.name`, `cluster.uuid`, `node.name`, and `node.id` into the audit `StringMapMessage`. With `setCaptureMapMessageAttributes(true)` on the OpenTelemetryAppender, every OTel record carries them. Two implementation options:
+`LoggingAuditTrail.EntryCommonFields` populates `cluster.name`, `cluster.uuid`, `node.name`, and `node.id` into the audit `StringMapMessage`, but only when the corresponding `EMIT_*` setting is `true`. The defaults are `node.id=true`, `cluster.uuid=true`, `node.name=false`, `cluster.name=false`. With `setCaptureMapMessageAttributes(true)` on the `OpenTelemetryAppender`, whatever ends up in the `StringMapMessage` flows out via OTel.
 
-- (a) Branch in `LoggingAuditTrail` to skip the `commonFields.put(...)` calls for these fields when running serverless. Localizes the change to the audit code; affects all consumers of `commonFields` consistently (file appender included).
-- (b) Apply an attribute filter that drops these keys, implemented either as a custom `LogRecordProcessor` or as part of the §5.1 custom appender. Localizes the change to the OTel module; the file appender continues to see the full set on hosted/self-hosted.
+Three implementation options:
 
-Option (a) seems less surprising. Developers seeing the fields added might be mystified as to why they don't appear in the log events if we filter them out as in (b).
+- (a) Set the existing per-field `xpack.security.audit.logfile.emit_*` settings to `false` on serverless (the two relevant defaults are `emit_node_id=true` and `emit_cluster_uuid=true`). The settings already gate the `commonFields` puts at the source; this suppresses the fields for both the file appender and the OTel appender. They're already `Property.Dynamic`, so there's no restart concern.
+- (b) Branch in `LoggingAuditTrail` to skip the `commonFields.put(...)` calls for these fields when running serverless. More invasive than (a), but localizes the policy to ES code rather than serverless config.
+- (c) Apply an attribute filter that drops these keys on the OTel emit path, implemented either as a custom `LogRecordProcessor` or as part of the §5.1 custom appender. The file appender continues to see the full set on hosted/self-hosted.
 
-### 4.6 R7: Stdout fallback on exhausted retries
+Option (a) is the lightest. The existing settings exist precisely for this purpose, and the serverless config can already override them.
 
-Today the `BatchLogRecordProcessor` drops on queue overflow with no fallback. Production needs to catch exporter failure after retries, write the record to stdout in a recognizable format, and ensure the internal observability pipeline collects it. This is one half of the at-least-once story (R11); the other half is the platform-side "replay" service (Gateway TDD §"Unavailability mitigation" point 3), which is outside ES.
+### 4.7 R7: Stdout fallback on exhausted retries
 
-### 4.7 R8: Per-project ID filter
+Today the `BatchLogRecordProcessor` drops on queue overflow with no fallback. Production needs to catch exporter failure after retries, write the record to stdout in a recognizable format, and ensure the internal observability pipeline collects it. This is one half of the at-least-once story (R11); the other half is the platform-side "replay" service (Gateway TDD §"Unavailability issues mitigation" point 3), which is outside ES.
 
-The PoC has no per-project gating; the only per-project field on the record today is `project.id` itself (R3). Production needs (a) an appender-path filter that drops events whose `project.id` is not in the enabled set, and (b) a config source for the enabled set. The latter likely comes from Control-Plane via the existing project-state propagation mechanism. This is coupled to R12: the filter has to react to project-state changes without a restart.
+### 4.8 R8: Per-project ID filter
 
-### 4.8 R12: Configuration without cluster restart
+The PoC has no per-project gating; the only per-project field on the record today is `project.id` itself (R3). Production needs (a) an appender-path filter that drops events whose `project.id` is not in the enabled set, and (b) a config source for the enabled set. Per the Gateway TDD §"Conditionally enabling per-tenant log delivery in ECP services / applications", the mechanism is per-project file-based settings rendered by the `elasticsearch-controller`, which ES then reads. This is coupled to R12: the filter has to react to those settings changing without a restart.
 
-The PoC reads `telemetry.otel.logs.enabled` once in `OtelSdkExportLogsSupplier.install()` (line 69) at startup; toggling it requires a restart. R8's per-project state would have the same problem if implemented today. Production needs a settings/state listener that re-installs or reconfigures the appender path on change. Cluster-level dynamic on/off for `xpack.security.audit.enabled` is being addressed separately by Audit TDD Req 1 / [PR 147333](https://github.com/elastic/elasticsearch/pull/147333), but that's a different setting and doesn't cover the OTel-logs path.
+### 4.9 R12: Configuration without cluster restart
 
-### 4.9 R13: Tuned retry policy and buffer size
+The PoC reads `telemetry.otel.logs.enabled` once in `OtelSdkExportLogsSupplier.install()` at startup; toggling it requires a restart. R8's per-project state would have the same problem if implemented today. Production needs a settings/state listener that re-installs or reconfigures the appender path on change. Cluster-level dynamic on/off for `xpack.security.audit.enabled` is being addressed separately by Audit TDD Req 1 / [PR 147333](https://github.com/elastic/elasticsearch/pull/147333), but that's a different setting and doesn't cover the OTel-logs path.
+
+### 4.10 R13: Tuned retry policy and buffer size
 
 Default `BatchLogRecordProcessor` settings are in place. Explicit "retry up to 2 minutes / buffer 30–50 MB" targets aren't configured. Configuring them is cheap once the right knobs are picked.
 
-### 4.10 `request.body` PII story
+### 4.11 `request.body` PII story
 
 The choice between default-off, redaction, and sampling needs security review before this field can leave the cluster. Tracked here rather than under R2 because the decision is about *whether* to ship the field at all, not how to map it.
 
-### 4.11 Integration test against the real gateway
+### 4.12 Integration test against the real gateway
 
 The PoC's IT uses an in-process recording server, and that test still serves its purpose: it pins down the ES-side behavior without a cross-component dependency. What's missing is an additional IT that runs against the real `otel-delivery-gateway` component, to validate the contract between ES and the gateway end-to-end.
 
@@ -323,7 +346,12 @@ This is worth deciding before the audit-log path grows further.
 
 ### 5.4 `LoggingAuditTrail` constructor signature for `project.id`
 
-The PoC reads `X-Elastic-Project-Id` from `ThreadContext` directly inside `withThreadContext()`, which works because the header is always populated by the time audit events fire. A more orthodox approach injects `ProjectResolver` into the `LoggingAuditTrail` constructor; `ProjectResolver` is the canonical accessor and handles edge cases (cross-cluster, internal actions with no project) more gracefully. Not urgent; the header path is correct for the common case.
+The PoC reads `X-Elastic-Project-Id` from `ThreadContext` directly inside `withThreadContext()`, which works because the header is always populated by the time audit events fire. Two alternatives are worth weighing:
+
+- Inject `ProjectResolver` into the `LoggingAuditTrail` constructor. `ProjectResolver` is the canonical accessor and handles edge cases (cross-cluster, internal actions with no project) more gracefully.
+- Use the `CustomAuditLoggingMetadataProvider` extension point proposed in Audit TDD Req 7. That keeps the OSS `LoggingAuditTrail` unchanged and lets the Serverless module inject `project.id` (and any future per-deployment metadata) via the existing extension pattern, similar to how `CustomAuthenticator` is used by UIAM. Worth coordinating with the audit TDD owner.
+
+Not urgent; the header path is correct for the common case.
 
 ## 6. Next steps
 
@@ -331,26 +359,27 @@ Concrete items pulled from §4 and §5, split by what kind of action each needs.
 
 ### 6.1 Decisions and discussions
 
-1. **Attribute-key shape (§5.1).** Pick one of: custom log4j appender, `v3_preview` wrapper, refactor to `AutoConfiguredOpenTelemetrySdk`, or `LogRecordProcessor` post-hoc rename. Gates 6.2.7 and 6.2.8.
+1. **Attribute-key shape (§5.1).** Pick one of: custom log4j appender, `v3_preview` wrapper, refactor to `AutoConfiguredOpenTelemetrySdk`, or `LogRecordProcessor` post-hoc rename. Gates 6.2.8 and 6.2.9.
 2. **Per-field semconv/ECS/custom mapping (§5.2).** Resolve the "Hard" rows: `apikey.*` namespace, `indices` array, `security_config_change` nested blobs (flatten vs opaque-JSON-string).
-3. **CPS routing direction (§4.3).** Design call with the gateway team: when a CPS query in project A reaches project B, should the audit event be delivered to A (originator) or B (data-owner)?
-4. **R6 strip-fields placement (§4.5).** Branch in `LoggingAuditTrail.commonFields` vs attribute filter on the OTel emit path. Doc leans toward the former.
+3. **CPS routing direction (§4.4).** Design call with the gateway team: when a CPS query in project A reaches project B, should the audit event be delivered to A (originator) or B (data-owner)?
+4. **R6 strip-fields placement (§4.6).** Use the existing `xpack.security.audit.logfile.emit_*` settings on serverless vs branch in `LoggingAuditTrail.EntryCommonFields` vs attribute filter on the OTel emit path. Doc leans toward the existing-settings option.
 5. **Where the SDK setup lives (§5.3).** Keep in `modules/apm/` or carve out a new `modules/customer-telemetry/`. Worth deciding before more audit-log code accumulates here.
-6. **`request.body` PII story (§4.10).** Default-off vs redaction vs sampling. Needs security review before the field can leave the cluster.
+6. **`request.body` PII story (§4.11).** Default-off vs redaction vs sampling. Needs security review before the field can leave the cluster.
 7. **gRPC vs HTTP (§2.5).** Confirm with the gateway team that OTLP/HTTP-protobuf is acceptable; the gateway TDD parenthetically says gRPC.
-8. **`LoggingAuditTrail` constructor (§5.4).** Inject `ProjectResolver` vs keep the direct `ThreadContext` read. Not urgent.
+8. **`LoggingAuditTrail` constructor (§5.4).** Inject `ProjectResolver` vs use the Audit TDD's `CustomAuditLoggingMetadataProvider` extension point vs keep the direct `ThreadContext` read. Not urgent.
 
 ### 6.2 Implementation work
 
-1. **R4 mTLS to the gateway (§4.4).** Reuse `SSLService` + `PemKeyConfig` + `SSLConfigurationReloader`. Open sub-question: does our OTel-Java version's `OtlpHttpLogRecordExporterBuilder` expose client TLS directly, or do we wrap the underlying HTTP client?
-2. **R6 strip cluster/node fields on serverless (§4.5).** Implementation follows 6.1.4.
-3. **R7 stdout fallback on exhausted retries (§4.6).** Catch exporter failure, write the record to stdout in a recognizable format. Half of the at-least-once story (R11).
-4. **R8 per-project filter (§4.7).** Appender-path filter plus a config source for the enabled set (likely Control-Plane via project-state propagation). Coupled to 6.2.5.
-5. **R12 dynamic config without restart (§4.8).** Settings/state listener that re-installs or reconfigures the appender path on change. Covers `telemetry.otel.logs.enabled` and the per-project state from 6.2.4.
-6. **R13 retry/buffer tuning (§4.9).** Configure `BatchLogRecordProcessor` once the targets land (~2 min retry, ~30–50 MB buffer).
-7. **Bare semconv keys on the wire (§4.1).** Implementation follows 6.1.1.
-8. **Per-field translation (§4.2).** Implementation follows 6.1.1 and 6.1.2.
-9. **Integration test against the real gateway (§4.11).** Add an IT that runs against the real `otel-delivery-gateway` component, alongside (not replacing) the existing in-process recording-server IT.
+1. **R3 chokepoint gap for `security_config_change` (§4.3).** File a bug ticket for the missing `withThreadContext` on this path; once fixed, fold the `withThreadContext` call into `LogEntryBuilder.build()` so the chokepoint becomes structural. Most of the cost is alignment (agreement that the missing call is a bug, and that the structural change is desirable); the code changes themselves are small.
+2. **R4 mTLS to the gateway (§4.5).** Reuse `SSLService` + `PemKeyConfig` + `SSLConfigurationReloader`. Open sub-question: does our OTel-Java version's `OtlpHttpLogRecordExporterBuilder` expose client TLS directly, or do we wrap the underlying HTTP client?
+3. **R6 strip cluster/node fields on serverless (§4.6).** Implementation follows 6.1.4. If option (a) is chosen, this is a serverless-config change with no ES code change.
+4. **R7 stdout fallback on exhausted retries (§4.7).** Catch exporter failure, write the record to stdout in a recognizable format. Half of the at-least-once story (R11).
+5. **R8 per-project filter (§4.8).** Appender-path filter plus a config source for the enabled set, fed by per-project file-based settings rendered by the `elasticsearch-controller`. Coupled to 6.2.6.
+6. **R12 dynamic config without restart (§4.9).** Settings/state listener that re-installs or reconfigures the appender path on change. Covers `telemetry.otel.logs.enabled` and the per-project state from 6.2.5.
+7. **R13 retry/buffer tuning (§4.10).** Configure `BatchLogRecordProcessor` once the targets land (~2 min retry, ~30–50 MB buffer).
+8. **Bare semconv keys on the wire (§4.1).** Implementation follows 6.1.1.
+9. **Per-field translation (§4.2).** Implementation follows 6.1.1 and 6.1.2.
+10. **Integration test against the real gateway (§4.12).** Add an IT that runs against the real `otel-delivery-gateway` component, alongside (not replacing) the existing in-process recording-server IT.
 
 ## Appendix A: Options considered and rejected
 
@@ -358,7 +387,7 @@ Paths the PoC explored before evidence pushed us elsewhere.
 
 ### A.1 Architecture B: write to file, sidecar tails it
 
-Keep the existing rolling-file audit appender, deploy a sidecar OTel collector with a `filelog` receiver to tail the file and forward via OTLP. It is operationally appealing because it survives ES-process death; the launcher can drain remaining file content like a heap dump. Discussed with Ryan Ernst, who agreed this is the safer strategy in principle.
+Keep the existing rolling-file audit appender, deploy a sidecar OTel collector with a `filelog` receiver to tail the file and forward via OTLP. It is operationally appealing because it survives ES-process death; the launcher can drain remaining file content like a heap dump, which is arguably the safer-by-default behavior for an audit pipeline.
 
 We rejected this approach because the team that owns the gateway has scoped their pipeline assuming OTLP ingress from the application (see Gateway TDD §"OTel log delivery pipeline on ECP"). Architecture A is what the Jira description and the gateway TDD assume. If the gateway team changes their mind, B becomes attractive again, but that's a cross-team conversation.
 

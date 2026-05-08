@@ -378,6 +378,89 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testBucketWithNullFieldLiteralHasNoMetadata() {
+        // A null literal in the field position: after constant folding the alias' child is no longer a Bucket,
+        // so no metadata is attached to the column.
+        try (var response = run(syncEsqlQueryRequest("""
+            ROW d=null::DATETIME
+            | STATS c=COUNT(*) BY bucket=BUCKET(d, 1 month)
+            """))) {
+            assertThat(findColumn(response, "bucket").meta(), nullValue());
+        }
+    }
+
+    public void testBucketWithNullSpanLiteralHasNoMetadata() {
+        // A null literal in the span position folds the BUCKET expression away; the alias' child is no longer
+        // a Bucket so no metadata is attached. Using FROM (not ROW) so the field stays a real Attribute.
+        client().prepareIndex("dates")
+            .setSource("date", "1985-07-09T00:00:00.000Z")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM dates
+            | STATS c=COUNT(*) BY bucket=BUCKET(date, null)
+            """))) {
+            assertThat(findColumn(response, "bucket").meta(), nullValue());
+        }
+    }
+
+    public void testBucketLongFormWithNullFieldLiteralHasNoMetadata() {
+        // Null literal in the field position of the four-arg form folds BUCKET away; no metadata.
+        try (var response = run(syncEsqlQueryRequest("""
+            ROW d=null::DATETIME
+            | STATS c=COUNT(*) BY bucket=BUCKET(d, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            """))) {
+            assertThat(findColumn(response, "bucket").meta(), nullValue());
+        }
+    }
+
+    public void testBucketLongFormWithNullBucketsCountHasNoMetadata() {
+        // Null literal in the buckets-count position folds BUCKET away; no metadata. Using FROM so the field
+        // stays a real Attribute (ROW would let constant folding remove the whole pipeline).
+        client().prepareIndex("dates")
+            .setSource("date", "1985-07-09T00:00:00.000Z")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM dates
+            | STATS c=COUNT(*) BY bucket=BUCKET(date, null, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            """))) {
+            assertThat(findColumn(response, "bucket").meta(), nullValue());
+        }
+    }
+
+    public void testBucketLongFormWithNullFromHasNoMetadata() {
+        // Null literal in the "from" position folds BUCKET away; no metadata.
+        client().prepareIndex("dates")
+            .setSource("date", "1985-07-09T00:00:00.000Z")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM dates
+            | STATS c=COUNT(*) BY bucket=BUCKET(date, 20, null, "1986-01-01T00:00:00Z")
+            """))) {
+            assertThat(findColumn(response, "bucket").meta(), nullValue());
+        }
+    }
+
+    public void testBucketLongFormWithNullToHasNoMetadata() {
+        // Null literal in the "to" position folds BUCKET away; no metadata.
+        client().prepareIndex("dates")
+            .setSource("date", "1985-07-09T00:00:00.000Z")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        try (var response = run(syncEsqlQueryRequest("""
+            FROM dates
+            | STATS c=COUNT(*) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", null)
+            """))) {
+            assertThat(findColumn(response, "bucket").meta(), nullValue());
+        }
+    }
+
     public void testBucketWrappedInArithmeticHasNoMetadata() {
         client().prepareIndex("dates")
             .setSource("date", "1985-07-09T00:00:00.000Z")

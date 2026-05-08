@@ -550,7 +550,7 @@ changelogs:
     type: enhancement
     issues: []
   - pr: 140555
-    summary: "ES|QL [TEXT_EMBEDDING function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-text_embedding) is GA"
+    summary: "ES|QL [TEXT_EMBEDDING function](/reference/query-languages/esql/functions-operators/dense-vector-functions/text_embedding.md) is GA"
     area: ES|QL
     type: enhancement
     issues: []
@@ -655,11 +655,10 @@ changelogs:
 
         The syntax is illustrated in the following example:
 
-        [source,yaml]
-        ----
+        ```yaml
         PROMQL index=k8s-downsampled start="2026-02-17T08:00:00Z" end="2026-02-17T09:00:00Z" step=30m avg_bytes=(avg(rate(network.total_bytes_in[30m])))
         | SORT avg_bytes DESC, step;
-        ----
+        ```
       pr: 140808
   - pr: 140838
     summary: Add `LongLongSwissHash` - specialization for grouping by two long fields
@@ -919,22 +918,20 @@ changelogs:
 
         For example, list metrics sorted by name:
 
-        [source,esql]
-        ----
+        ```esql
         TS my_data_stream
         | METRICS_INFO
         | SORT metric_name
-        ----
+        ```
 
         Or filter to counters only:
 
-        [source,esql]
-        ----
+        ```esql
         TS my_data_stream
         | METRICS_INFO
         | WHERE metric_type == "counter"
         | SORT metric_name
-        ----
+        ```
       pr: 141667
   - pr: 141708
     summary: Add cancellation support to `IndicesRequestCache`
@@ -1313,12 +1310,11 @@ changelogs:
 
         For example:
 
-        [source,esql]
-        ----
+        ```esql
         TS my_data_stream
         | TS_INFO
         | SORT metric_name, dimensions
-        ----
+        ```
       pr: 142721
   - pr: 142732
     summary: Ref-counting `SearchHits` from `InternalTopHits` to `SearchResponse`
@@ -1607,11 +1603,11 @@ changelogs:
       notable: true
       title: Downsampling preserves the resets of counters when the `aggregate` sampling method is used.
       body: |-
-        Until {es} `9.3`, both downsampling methods (`aggregate` and `last_value`) used to store only the last value of a counter
+        Until Elasticsearch `9.3`, both downsampling methods (`aggregate` and `last_value`) used to store only the last value of a counter
         in the downsampled document. This works great for the `last_value` method where we optimise for storage efficiency, but
         it is not ideal for the `aggregate` method where we optimise for accuracy.
 
-        In {es} `9.4`, we change the way the (default) `aggregate` sampling method is working. We store the first encountered
+        In Elasticsearch `9.4`, we change the way the (default) `aggregate` sampling method is working. We store the first encountered
         value for a counter in the downsampled document and then we add auxiliary documents when we detect counter resets.
         This enables the rate calculation to take the counter resets into account and produce more accurate results. This change
         is backwards compatible.
@@ -1736,10 +1732,9 @@ changelogs:
       body: |-
         Time series aggregations in ES|QL are enhanced to support windows smaller than the time bucket.
 
-        [source,yaml]
-        ----
+        ```yaml
         TS metrics | STATS AVG(RATE(requests, 5m)) BY TBUCKET(10m), host
-        ----
+        ```
 
         Previously, only window values that were equal or exact multiples of the time bucket were supported.
       pr: 143661
@@ -1786,10 +1781,9 @@ changelogs:
       body: |-
         Time series aggregations in ES|QL are enhanced to support windows that are not an exact multiple of the time bucket.
 
-        [source,yaml]
-        ----
+        ```yaml
         TS metrics | STATS AVG(RATE(requests, 15m)) BY TBUCKET(10m), host
-        ----
+        ```
 
         Previously, only window values that were exact multiples of the time bucket were supported.
       pr: 143704
@@ -2539,8 +2533,8 @@ changelogs:
   - pr: 145400
     summary: |2-
 
-      In earlier versions of {es} the downsampling API was force merging the downsampled index. In {es} `9.3.0` and later we moved this behaviour from the downsampling API to the ILM downsampling action and we enabled by default. This allowed users to disabled it if they wished.
-      Seeing that the force merge is not inherently needed by the downsampling operation, in {es} `9.4.0`, we choose to disable it by default. This change only affects the downsampling ILM actions; other actions that force merge an index by default, such as the searchable snapshot action, will remain unchanged.
+      In earlier versions of Elasticsearch the downsampling API was force merging the downsampled index. In Elasticsearch `9.3.0` and later we moved this behaviour from the downsampling API to the ILM downsampling action and we enabled by default. This allowed users to disabled it if they wished.
+      Seeing that the force merge is not inherently needed by the downsampling operation, in Elasticsearch `9.4.0`, we choose to disable it by default. This change only affects the downsampling ILM actions; other actions that force merge an index by default, such as the searchable snapshot action, will remain unchanged.
       If a user was relying on this behaviour they will need to update their ILM policy, either by adding a force merge action in the same or a subsequent phase of the policy or by setting the `force_merge_index` parameter of the downsample action to `true`.
     area: ILM
     type: breaking
@@ -2681,17 +2675,19 @@ changelogs:
         operations such as `max`, `min`, `sum`, `avg`, and `count` will be supported natively by the respective sub-fields.
 
         For example, the following query is now supported where `network.eth0.tx` is a an `aggregate_metric_double`:
-        [source]
-        ----
-          FROM k8s-downsampled
-          | STATS max = max(network.eth0.tx), std_dev = STD_DEV(network.eth0.tx) by pod
-          | sort pod
+        ```esql
+        FROM k8s-downsampled
+        | STATS max = max(network.eth0.tx), std_dev = STD_DEV(network.eth0.tx) by pod
+        | sort pod
+        ```
+        Response:
 
-          max:double | std_dev:double | pod:keyword
-          1060.0     | 275.6970067    | one
-          824.0      | 184.1213952    | three
-          1419.0     | 356.9865993    | two
-        ----
+        ```
+        max:double | std_dev:double | pod:keyword
+        1060.0     | 275.6970067    | one
+        824.0      | 184.1213952    | three
+        1419.0     | 356.9865993    | two
+        ```
   - pr: 145743
     summary: Fix nullify under join and enrich
     area: ES|QL

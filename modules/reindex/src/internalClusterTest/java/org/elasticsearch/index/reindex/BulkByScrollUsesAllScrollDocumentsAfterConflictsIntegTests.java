@@ -243,7 +243,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
 
             if (scriptEnabled) {
                 final Script script = new Script(ScriptType.INLINE, SCRIPT_LANG, NOOP_GENERATOR, Collections.emptyMap());
-                ((AbstractBulkIndexByScrollRequestBuilder) requestBuilder).script(script);
+                ((AbstractBulkIndexByPaginatedSearchRequestBuilder) requestBuilder).script(script);
             }
 
             final SearchRequestBuilder source = requestBuilder.source();

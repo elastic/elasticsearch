@@ -108,6 +108,17 @@ public abstract class IndexRouting {
     public abstract int indexShard(IndexRequest indexRequest);
 
     /**
+     * Returns a {@link RoutingExtractor} for this routing strategy if it can compute the shard id
+     * from data accumulated during a single source parse pass (e.g. via
+     * {@link org.elasticsearch.eirf.EirfEncoder}); returns {@code null} for strategies that route
+     * solely on the document id and explicit routing field, in which case callers should use
+     * {@link #indexShard(IndexRequest)} directly.
+     */
+    public RoutingExtractor newRoutingExtractor() {
+        return null;
+    }
+
+    /**
      * Called when indexing a document must be rerouted from the source shard to the target
      * during resharding. Should be similar to {@link #indexShard(IndexRequest)} while avoiding
      * the initial expense of having to calculate the routing parameters.
@@ -377,6 +388,15 @@ public abstract class IndexRouting {
         private final boolean addIdWithRoutingHash;
         private int hash = Integer.MAX_VALUE;
 
+        /**
+         * Records the routing hash that {@link #postProcess(IndexRequest)} will later read. Used by
+         * subclasses that compute the hash through means other than {@link #hashSource} — e.g. via
+         * a {@link RoutingExtractor} fed during EIRF encoding.
+         */
+        final void setRecordedHash(int h) {
+            this.hash = h;
+        }
+
         ExtractFromSource(IndexMetadata metadata, List<String> includePaths) {
             super(metadata);
             if (metadata.isRoutingPartitionedIndex()) {
@@ -540,6 +560,23 @@ public abstract class IndexRouting {
                 );
             }
 
+            @Override
+            public RoutingExtractor newRoutingExtractor() {
+                return new RoutingPathExtractor(this);
+            }
+
+            /**
+             * Computes the shard id from a {@link RoutingHashBuilder} populated during EIRF encoding,
+             * applying the same post-processing as {@link #indexShard(IndexRequest)} (records the
+             * hash so {@link #postProcess(IndexRequest)} can later embed it in the auto-generated id
+             * for LogsDB, and reroutes if the destination shard is a not-yet-handed-off split target).
+             */
+            int shardIdForRoutingHash(RoutingHashBuilder builder) {
+                int h = builder.buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
+                setRecordedHash(h);
+                return rerouteWritesIfResharding(hashToShardId(h));
+            }
+
             public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
                 return hashRoutingFields(sourceType, source).createId(suffix, IndexRouting.ExtractFromSource::defaultOnEmpty);
             }
@@ -578,6 +615,9 @@ public abstract class IndexRouting {
          */
         public static class ForIndexDimensions extends ExtractFromSource {
 
+            private final Predicate<String> isDimensionField;
+            private final IndexVersion creationVersionForTsid;
+
             ForIndexDimensions(IndexMetadata metadata) {
                 super(metadata, metadata.getTimeSeriesDimensions());
                 assert metadata.getIndexMode() == IndexMode.TIME_SERIES : "Index mode must be time_series for ForIndexDimensions routing";
@@ -586,6 +626,8 @@ public abstract class IndexRouting {
                         + IndexVersions.TSID_CREATED_DURING_ROUTING
                         + " for ForIndexDimensions routing but was "
                         + metadata.getCreationVersion();
+                this.isDimensionField = Regex.simpleMatcher(metadata.getTimeSeriesDimensions().toArray(String[]::new));
+                this.creationVersionForTsid = metadata.getCreationVersion();
             }
 
             @Override
@@ -596,6 +638,32 @@ public abstract class IndexRouting {
                     indexRequest.tsid(tsid);
                 }
                 return hash(tsid);
+            }
+
+            @Override
+            public RoutingExtractor newRoutingExtractor() {
+                return new DimensionsExtractor(this);
+            }
+
+            /**
+             * Computes the shard id from a {@link TsidBuilder} populated during EIRF encoding,
+             * matching the post-processing of {@link #hashSource(IndexRequest)}: builds the tsid,
+             * stashes it on the request so the data node can reuse it instead of rebuilding (see
+             * {@link #extractDimensionsWhileMapping()}), records the routing hash for
+             * {@link #postProcess(IndexRequest)}, and reroutes if the destination shard is a
+             * not-yet-handed-off split target.
+             */
+            int shardIdForExtractedTsid(TsidBuilder tsidBuilder, IndexRequest indexRequest) {
+                BytesRef tsid = tsidBuilder.buildTsid(creationVersionForTsid);
+                indexRequest.tsid(tsid);
+                int h = hash(tsid);
+                setRecordedHash(h);
+                return rerouteWritesIfResharding(hashToShardId(h));
+            }
+
+            /** Used by {@link DimensionsExtractor} to evaluate the dimension-path predicate once per leaf column. */
+            boolean matchesField(String fieldName) {
+                return isDimensionField.test(fieldName);
             }
 
             @Override

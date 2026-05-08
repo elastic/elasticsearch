@@ -80,7 +80,8 @@ public class StatelessReshardSliceIT extends AbstractStatelessPluginIntegTestCas
             }
             final var search = prepareSearch().setSize(10000).setTrackTotalHits(true);
             if (usePit) {
-                search.setPointInTime(new PointInTimeBuilder(pointInTimeId).setKeepAlive(SAFE_AWAIT_TIMEOUT)).addSort(SortBuilders.fieldSort("_doc"));
+                search.setPointInTime(new PointInTimeBuilder(pointInTimeId).setKeepAlive(SAFE_AWAIT_TIMEOUT))
+                    .addSort(SortBuilders.fieldSort("_doc"));
             } else {
                 search.setIndices(indexName).setScroll(SAFE_AWAIT_TIMEOUT);
             }
@@ -115,7 +116,9 @@ public class StatelessReshardSliceIT extends AbstractStatelessPluginIntegTestCas
         final int numSlices = numShards;
         final String indexName = randomIndexName();
 
-        final Settings searchSettings = Settings.builder().put(SCROLL_SLICE_SHARD_OPTIMIZATION_ENABLED.getKey(), shardOptimizationEnabled).build();
+        final Settings searchSettings = Settings.builder()
+            .put(SCROLL_SLICE_SHARD_OPTIMIZATION_ENABLED.getKey(), shardOptimizationEnabled)
+            .build();
         startMasterAndIndexNode();
         startSearchNode(searchSettings);
         ensureStableCluster(2);

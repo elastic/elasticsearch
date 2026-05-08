@@ -25,7 +25,6 @@ import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFact
 import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 import org.apache.logging.log4j.core.config.builder.impl.DefaultConfigurationBuilder;
 import org.apache.logging.log4j.core.config.composite.CompositeConfiguration;
-import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationBuilder;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationFactory;
@@ -151,13 +150,6 @@ public class LogConfigurator {
     }
 
     /**
-     * Load logging plugins so we can have {@code node_name} in the pattern.
-     */
-    public static void loadLog4jPlugins() {
-        PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
-    }
-
-    /**
      * Sets the cluster name. This is called before logging is configured.
      */
     public static void setClusterName(String clusterName) {
@@ -200,8 +192,6 @@ public class LogConfigurator {
         Objects.requireNonNull(settings);
         Objects.requireNonNull(configsPath);
         Objects.requireNonNull(logsPath);
-
-        loadLog4jPlugins();
 
         setLogConfigurationSystemProperty(logsPath, settings);
         // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context

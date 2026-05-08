@@ -513,7 +513,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
                 final double computed = computeIfMissing.getAsDouble();
                 final double cached = nodeMaxShardWriteLoadProportion.get(nodeId);
                 assert cached == computed
-                    : "We cached a different value that we calculated, this shouldn't happen. cached != computed: "
+                    : "We cached a different value than we calculated, this shouldn't happen. cached != computed: "
                         + cached
                         + " != "
                         + computed;

@@ -56,9 +56,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
-import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -1861,7 +1859,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     private void createAndPopulateIndex(String indexName, Settings additionalSettings) throws IOException {
-        var mapping = PutMappingRequest.simpleMapping("data",
+        var mapping = PutMappingRequest.simpleMapping(
+            "data",
             "type=long",
             "data_d",
             "type=double",
@@ -1874,7 +1873,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             "color",
             "type=keyword",
             "tag",
-            "type=keyword");
+            "type=keyword"
+        );
         if (ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled() && randomBoolean()) {
             String mappingAsSting = Strings.toString(mapping);
             var parsedMapping = XContentHelper.convertToMap(JsonXContent.jsonXContent, mappingAsSting, true);

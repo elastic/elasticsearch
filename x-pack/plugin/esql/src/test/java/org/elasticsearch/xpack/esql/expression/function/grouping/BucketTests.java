@@ -117,6 +117,16 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
             Period.ofMonths(6),
             "[MONTHS_OF_YEAR in Z][fixed to midnight]"
         );
+        // ESQL parses `N quarters` as Period.ofMonths(N * 3); for N > 1 the multiplier ends up on MONTHS_OF_YEAR.
+        // 1972-01-01 is a 9-month boundary from year 1 CE (the reference point used by roundIntervalMonthOfYear).
+        dateAndNanosSpanCase(
+            suppliers,
+            "with multi-quarter period",
+            "1972-01-01T00:00:00.00Z",
+            DataType.DATE_PERIOD,
+            Period.ofMonths(9),
+            "[MONTHS_OF_YEAR in Z][fixed to midnight]"
+        );
         dateAndNanosSpanCase(
             suppliers,
             "with year period",

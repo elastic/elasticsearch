@@ -28,6 +28,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class EvalOperatorTests extends OperatorTestCase {
     @Override
@@ -113,6 +114,22 @@ public class EvalOperatorTests extends OperatorTestCase {
             LongBlock lb = page.getBlock(resultChannel);
             IntStream.range(0, lb.getPositionCount()).forEach(pos -> assertEquals(expectedValue, lb.getLong(pos)));
         }
+    }
+
+    /**
+     * {@link EvalOperator#toString()} is read by the {@link Driver} on every status update. Verify
+     * that the same {@code String} instance is returned across calls so the evaluator-tree
+     * description is computed at most once per operator.
+     */
+    public void testToStringIsCached() {
+        DriverContext ctx = driverContext();
+        try (EvalOperator op = new EvalOperator(ctx, new Addition(ctx, 4, 9))) {
+            String first = op.toString();
+            String second = op.toString();
+            assertThat(first, equalTo("EvalOperator[evaluator=Addition[lhs=4, rhs=9]]"));
+            assertThat(second, sameInstance(first));
+        }
+        assertThat(ctx.breaker().getUsed(), equalTo(0L));
     }
 
     public void testReadFromBlock() {

@@ -211,6 +211,7 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAg
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.DOWN;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumnsTests.assertCommonIncompatibleDataTypesEsRelation;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -4402,13 +4403,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | stats count(salary + 1), max(salary   +  23) by languages   + 1, emp_no %  3
             """);
 
-        // SimplifyAggregateOverArithmetic may insert Project + Eval above the Limit
-        // for MAX(salary + 23) → MAX(salary) + 23 correction. Verify output names
-        // at the top of the plan regardless of the intermediate structure.
-        assertThat(
-            Expressions.names(plan.output()),
-            contains("count(salary + 1)", "max(salary   +  23)", "languages   + 1", "emp_no %  3")
-        );
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.output()), contains("count(salary + 1)", "max(salary   +  23)", "languages   + 1", "emp_no %  3"));
     }
 
     /**
@@ -11234,13 +11231,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPromqlWithoutExplicitIndex() {
-        var testAnalyzer = EsqlTestUtils.analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex(DEFAULT_PROMQL_INDEX_PATTERN, "k8s-mappings.json", IndexMode.TIME_SERIES);
         var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("PROMQL step=5m avg(rate(network.total_bytes_in[5m]))"));
         assertNotNull(plan);
     }
 
     public void testPromqlWithoutExplicitIndexAndGrouping() {
-        var testAnalyzer = EsqlTestUtils.analyzer().addIndex("*", "k8s-mappings.json", IndexMode.TIME_SERIES);
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex(DEFAULT_PROMQL_INDEX_PATTERN, "k8s-mappings.json", IndexMode.TIME_SERIES);
         var plan = logicalOptimizerWithLatestVersion.optimize(
             testAnalyzer.query("PROMQL step=5m avg(rate(network.total_bytes_in[5m])) by (cluster)")
         );

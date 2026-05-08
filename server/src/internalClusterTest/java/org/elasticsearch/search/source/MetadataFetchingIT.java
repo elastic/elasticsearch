@@ -10,7 +10,10 @@ package org.elasticsearch.search.source;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -96,6 +99,10 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             assertThat(response.getHits().getAt(0).getId(), nullValue());
             assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
         });
+        assertResponse(prepareSearch("test").addFetchField("_routing"), response -> {
+            assertThat(response.getHits().getAt(0).field("_routing"), notNullValue());
+            assertEquals("toto", response.getHits().getAt(0).field("_routing").getValue());
+        });
 
         GetResponse getResponse = client().prepareGet("test", "1").setRouting("toto").get();
         assertTrue(getResponse.isExists());
@@ -180,6 +187,25 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             assertEquals(1, response.getHits().getHits().length);
             assertEquals("1", response.getHits().getAt(0).getId());
             assertEquals("1", response.getHits().getAt(0).field("_id").getValue());
+        });
+    }
+
+    public void testFetchSliceField() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.slice.enabled", true)));
+        ensureGreen();
+
+        var indexRequest = new IndexRequest("test").id("1").routing("s1").setRoutingFromSlice(true).source("field", "value");
+        client().index(indexRequest).actionGet();
+        refresh();
+
+        assertResponse(prepareSearch("test").addFetchField("_slice"), response -> {
+            assertEquals(1, response.getHits().getHits().length);
+            assertThat(response.getHits().getAt(0).field("_slice"), notNullValue());
+            assertEquals("s1", response.getHits().getAt(0).field("_slice").getValue());
+            assertThat(response.getHits().getAt(0).getDocumentFields().get("_slice"), notNullValue());
+            assertThat(response.getHits().getAt(0).getMetadataFields().get("_slice"), nullValue());
         });
     }
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -18,9 +17,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -803,16 +800,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
 
-        Map<String, Map<String, Expression>> pathParams = new HashMap<>();
+        Map<String, Map<String, Object>> pathConfigs = new HashMap<>();
         if (config.isEmpty() == false) {
-            Map<String, Expression> exprParams = new HashMap<>();
-            for (Map.Entry<String, Object> e : config.entrySet()) {
-                exprParams.put(e.getKey(), new Literal(Source.EMPTY, new BytesRef(e.getValue().toString()), DataType.KEYWORD));
-            }
-            pathParams.put(globPattern, exprParams);
+            pathConfigs.put(globPattern, new HashMap<>(config));
         }
 
-        resolver.resolve(List.of(globPattern), pathParams, future);
+        resolver.resolve(List.of(globPattern), pathConfigs, future);
         return future.actionGet();
     }
 

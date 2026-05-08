@@ -33,6 +33,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
@@ -159,8 +160,8 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     public CohereEmbeddingsServiceSettings(StreamInput in) throws IOException {
         if (in.getTransportVersion().supports(ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR) == false) {
             // Old format: full CohereServiceSettings wire layout
-            // uri (discarded), similarity, dimensions, maxInputTokens, modelId, rateLimitSettings, [apiVersion]
-            in.readOptionalString(); // uri — discarded
+            // uri, similarity, dimensions, maxInputTokens, modelId, rateLimitSettings, [apiVersion]
+            var uri = createOptionalUri(in.readOptionalString());
             this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
             this.dimensions = in.readOptionalVInt();
             this.maxInputTokens = in.readOptionalVInt();
@@ -169,7 +170,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
             var apiVersion = in.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)
                 ? in.readEnum(CohereCommonServiceSettings.CohereApiVersion.class)
                 : CohereCommonServiceSettings.CohereApiVersion.V1;
-            this.commonSettings = new CohereCommonServiceSettings(modelId, rateLimitSettings, apiVersion);
+            this.commonSettings = new CohereCommonServiceSettings(uri, modelId, rateLimitSettings, apiVersion);
         } else {
             this.commonSettings = new CohereCommonServiceSettings(in);
             this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
@@ -283,7 +284,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR) == false) {
             // Old CohereServiceSettings wire format
-            out.writeOptionalString(null); // uri
+            out.writeOptionalString(commonSettings.uri() != null ? commonSettings.uri().toString() : null);
             out.writeOptionalEnum(similarity);
             out.writeOptionalVInt(dimensions);
             out.writeOptionalVInt(maxInputTokens);

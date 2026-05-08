@@ -21,9 +21,11 @@ import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObjec
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
 import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR;
 
@@ -53,14 +55,14 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
 
     public CohereRerankServiceSettings(StreamInput in) throws IOException {
         if (in.getTransportVersion().supports(ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR) == false) {
-            // Old format: uri (discarded), modelId, rateLimitSettings, [apiVersion]
-            in.readOptionalString(); // uri — discarded
+            // Old format: uri, modelId, rateLimitSettings, [apiVersion]
+            var uri = createOptionalUri(in.readOptionalString());
             var modelId = in.readOptionalString();
             var rateLimitSettings = new RateLimitSettings(in);
             var apiVersion = in.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)
                 ? in.readEnum(CohereCommonServiceSettings.CohereApiVersion.class)
                 : CohereCommonServiceSettings.CohereApiVersion.V1;
-            this.commonSettings = new CohereCommonServiceSettings(modelId, rateLimitSettings, apiVersion);
+            this.commonSettings = new CohereCommonServiceSettings(uri, modelId, rateLimitSettings, apiVersion);
         } else {
             this.commonSettings = new CohereCommonServiceSettings(in);
         }
@@ -94,6 +96,11 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
     }
 
     @Override
+    public URI uri() {
+        return commonSettings.uri();
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
@@ -120,7 +127,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().supports(ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR) == false) {
-            out.writeOptionalString(null); // uri
+            out.writeOptionalString(commonSettings.uri() != null ? commonSettings.uri().toString() : null);
             out.writeOptionalString(commonSettings.modelId());
             commonSettings.rateLimitSettings().writeTo(out);
             if (out.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {

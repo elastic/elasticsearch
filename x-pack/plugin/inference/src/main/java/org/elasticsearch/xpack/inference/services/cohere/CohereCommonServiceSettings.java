@@ -27,12 +27,16 @@ import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObjec
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 
 /**
  * Common service settings shared across all Cohere inference tasks.
@@ -81,6 +85,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject
     public static CohereCommonServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
 
+        var uri = extractOptionalUri(map, URL, validationException);
         var modelId = extractModelId(map, validationException, context);
         var apiVersion = apiVersionFromMap(map, context, validationException);
         if (apiVersion == CohereApiVersion.V2 && modelId == null) {
@@ -90,7 +95,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject
 
         validationException.throwIfValidationErrorsExist();
 
-        return new CohereCommonServiceSettings(modelId, rateLimitSettings, apiVersion);
+        return new CohereCommonServiceSettings(uri, modelId, rateLimitSettings, apiVersion);
     }
 
     /**
@@ -140,6 +145,8 @@ public class CohereCommonServiceSettings extends FilteredXContentObject
         return extractedModelId != null ? extractedModelId : extractedOldModelId;
     }
 
+    @Nullable
+    private final URI uri;
     private final String modelId;
     private final RateLimitSettings rateLimitSettings;
     private final CohereApiVersion apiVersion;
@@ -149,6 +156,16 @@ public class CohereCommonServiceSettings extends FilteredXContentObject
         @Nullable RateLimitSettings rateLimitSettings,
         CohereApiVersion apiVersion
     ) {
+        this(null, modelId, rateLimitSettings, apiVersion);
+    }
+
+    public CohereCommonServiceSettings(
+        @Nullable URI uri,
+        @Nullable String modelId,
+        @Nullable RateLimitSettings rateLimitSettings,
+        CohereApiVersion apiVersion
+    ) {
+        this.uri = uri;
         this.modelId = modelId;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
         this.apiVersion = apiVersion;
@@ -159,6 +176,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject
      * backward-compat deserialization of old formats is handled by each task-specific class).
      */
     public CohereCommonServiceSettings(StreamInput in) throws IOException {
+        this.uri = createOptionalUri(in.readOptionalString());
         this.modelId = in.readOptionalString();
         this.rateLimitSettings = new RateLimitSettings(in);
         this.apiVersion = in.readEnum(CohereApiVersion.class);
@@ -174,6 +192,11 @@ public class CohereCommonServiceSettings extends FilteredXContentObject
         return apiVersion;
     }
 
+    @Override
+    public URI uri() {
+        return uri;
+    }
+
     public String modelId() {
         return modelId;
     }
@@ -185,7 +208,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject
             validationException,
             ConfigurationParseContext.REQUEST
         );
-        return new CohereCommonServiceSettings(this.modelId, extractedRateLimitSettings, this.apiVersion);
+        return new CohereCommonServiceSettings(this.uri, this.modelId, extractedRateLimitSettings, this.apiVersion);
     }
 
     @Override
@@ -198,6 +221,9 @@ public class CohereCommonServiceSettings extends FilteredXContentObject
 
     public XContentBuilder toXContentFragment(XContentBuilder builder, ToXContent.Params params) throws IOException {
         toXContentFragmentOfExposedFields(builder, params);
+        if (uri != null) {
+            builder.field(URL, uri.toString());
+        }
         return builder.field(API_VERSION, apiVersion);
     }
 
@@ -211,6 +237,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject
     }
 
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(uri != null ? uri.toString() : null);
         out.writeOptionalString(modelId);
         rateLimitSettings.writeTo(out);
         out.writeEnum(apiVersion);
@@ -226,13 +253,14 @@ public class CohereCommonServiceSettings extends FilteredXContentObject
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         CohereCommonServiceSettings that = (CohereCommonServiceSettings) o;
-        return Objects.equals(modelId, that.modelId)
+        return Objects.equals(uri, that.uri)
+            && Objects.equals(modelId, that.modelId)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings)
             && apiVersion == that.apiVersion;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, rateLimitSettings, apiVersion);
+        return Objects.hash(uri, modelId, rateLimitSettings, apiVersion);
     }
 }

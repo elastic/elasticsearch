@@ -101,7 +101,6 @@ import org.apache.lucene.analysis.tr.ApostropheFilter;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -147,14 +146,12 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     private final SetOnce<ScriptService> scriptServiceHolder = new SetOnce<>();
     private final SetOnce<SynonymsManagementAPIService> synonymsManagementServiceHolder = new SetOnce<>();
     private final SetOnce<CircuitBreakerService> circuitBreakerServiceHolder = new SetOnce<>();
-    private final SetOnce<ClusterService> clusterServiceHolder = new SetOnce<>();
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
         this.scriptServiceHolder.set(services.scriptService());
         this.synonymsManagementServiceHolder.set(new SynonymsManagementAPIService(services.client(), services.clusterService()));
         this.circuitBreakerServiceHolder.set(services.indicesService().getCircuitBreakerService());
-        this.clusterServiceHolder.set(services.clusterService());
         return Collections.emptyList();
     }
 
@@ -331,8 +328,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                     n,
                     s,
                     synonymsManagementServiceHolder.get(),
-                    circuitBreakerServiceHolder.get().getBreaker(CircuitBreaker.FIELDDATA),
-                    clusterServiceHolder.get()
+                    circuitBreakerServiceHolder.get().getBreaker(CircuitBreaker.FIELDDATA)
                 )
             )
         );
@@ -345,8 +341,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                     n,
                     s,
                     synonymsManagementServiceHolder.get(),
-                    circuitBreakerServiceHolder.get().getBreaker(CircuitBreaker.FIELDDATA),
-                    clusterServiceHolder.get()
+                    circuitBreakerServiceHolder.get().getBreaker(CircuitBreaker.FIELDDATA)
                 )
             )
         );

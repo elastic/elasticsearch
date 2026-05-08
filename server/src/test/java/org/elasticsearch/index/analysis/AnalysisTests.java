@@ -34,6 +34,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -182,9 +183,9 @@ public class AnalysisTests extends ESTestCase {
             ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
             listener.onResponse(new PagedResult<>(2, rules));
             return null;
-        }).when(service).getSynonymSetRules(eq(List.of("set-a", "set-b")), eq(false), any());
+        }).when(service).getSynonymSetRules(eq(Set.of("set-a", "set-b")), eq(false), any());
 
-        Reader reader = Analysis.getReaderFromIndex(List.of("set-a", "set-b"), service, false);
+        Reader reader = Analysis.getReaderFromIndex(Set.of("set-a", "set-b"), service, false);
         String content;
         try (BufferedReader br = new BufferedReader(reader)) {
             StringBuilder sb = new StringBuilder();
@@ -208,9 +209,9 @@ public class AnalysisTests extends ESTestCase {
             ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
             listener.onResponse(new PagedResult<>(1, rulesA));
             return null;
-        }).when(service).getSynonymSetRules(eq(List.of("set-a", "set-missing")), eq(true), any());
+        }).when(service).getSynonymSetRules(eq(Set.of("set-a", "set-missing")), eq(true), any());
 
-        try (BufferedReader br = new BufferedReader(Analysis.getReaderFromIndex(List.of("set-a", "set-missing"), service, true))) {
+        try (BufferedReader br = new BufferedReader(Analysis.getReaderFromIndex(Set.of("set-a", "set-missing"), service, true))) {
             StringBuilder sb = new StringBuilder();
             String line;
             while ((line = br.readLine()) != null) {
@@ -229,9 +230,9 @@ public class AnalysisTests extends ESTestCase {
             ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
             listener.onFailure(cause);
             return null;
-        }).when(service).getSynonymSetRules(eq(List.of("set-a", "set-missing")), eq(false), any());
+        }).when(service).getSynonymSetRules(eq(Set.of("set-a", "set-missing")), eq(false), any());
 
-        Exception e = expectThrows(Exception.class, () -> Analysis.getReaderFromIndex(List.of("set-a", "set-missing"), service, false));
+        Exception e = expectThrows(Exception.class, () -> Analysis.getReaderFromIndex(Set.of("set-a", "set-missing"), service, false));
         assertThat(e.getMessage(), containsString("set-missing"));
     }
 
@@ -244,10 +245,10 @@ public class AnalysisTests extends ESTestCase {
             ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
             listener.onFailure(cause);
             return null;
-        }).when(service).getSynonymSetRules(eq(List.of("set-a")), eq(true), any());
+        }).when(service).getSynonymSetRules(eq(Set.of("set-a")), eq(true), any());
 
         // Must not throw — transient errors with ignoreMissing=true return an empty reader
-        Reader reader = Analysis.getReaderFromIndex(List.of("set-a"), service, true);
+        Reader reader = Analysis.getReaderFromIndex(Set.of("set-a"), service, true);
         try (BufferedReader br = new BufferedReader(reader)) {
             assertNull("reader should be empty when ignoreMissing=true and loading fails", br.readLine());
         }
@@ -262,9 +263,9 @@ public class AnalysisTests extends ESTestCase {
             ActionListener<PagedResult<SynonymRule>> listener = invocation.getArgument(2);
             listener.onFailure(cause);
             return null;
-        }).when(service).getSynonymSetRules(eq(List.of("set-a")), eq(false), any());
+        }).when(service).getSynonymSetRules(eq(Set.of("set-a")), eq(false), any());
 
-        Exception e = expectThrows(RuntimeException.class, () -> Analysis.getReaderFromIndex(List.of("set-a"), service, false));
+        Exception e = expectThrows(RuntimeException.class, () -> Analysis.getReaderFromIndex(Set.of("set-a"), service, false));
         assertSame(cause, e);
     }
 

@@ -13,7 +13,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -37,10 +36,9 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         String name,
         Settings settings,
         SynonymsManagementAPIService synonymsManagementAPIService,
-        CircuitBreaker circuitBreaker,
-        ClusterService clusterService
+        CircuitBreaker circuitBreaker
     ) {
-        super(indexSettings, env, name, settings, synonymsManagementAPIService, circuitBreaker, clusterService);
+        super(indexSettings, env, name, settings, synonymsManagementAPIService, circuitBreaker);
     }
 
     @Override

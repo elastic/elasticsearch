@@ -15,14 +15,10 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -33,7 +29,6 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,8 +53,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SynonymsAnalysisTests extends ESTestCase {
     private IndexAnalyzers indexAnalyzers;
@@ -581,63 +574,6 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
             assertEquals(factory, "Token filter [" + factory + "] cannot be used to parse synonyms", e.getMessage());
         }
-    }
-
-    public void testMultipleSynonymSetsOnOldTransportVersion() throws IOException {
-        // Create a plugin where the cluster's min transport version is before the multiple synonym sets feature
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterState oldClusterState = mock(ClusterState.class);
-        when(oldClusterState.getMinTransportVersion()).thenReturn(
-            TransportVersionUtils.randomVersionNotSupporting(SynonymTokenFilterFactory.MULTIPLE_SYNONYM_SETS_PER_FILTER_TV)
-        );
-        ClusterService oldClusterService = mock(ClusterService.class);
-        when(oldClusterService.getClusterSettings()).thenReturn(clusterSettings);
-        when(oldClusterService.state()).thenReturn(oldClusterState);
-        CommonAnalysisPlugin oldPlugin = new TestCommonAnalysisPluginBuilder(threadPool).clusterService(oldClusterService).build();
-
-        Settings.Builder baseSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put("path.home", createTempDir().toString())
-            .put("index.analysis.filter.my_synonyms.type", "synonym_graph")
-            .put("index.analysis.filter.my_synonyms.updateable", "true")
-            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
-            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "my_synonyms");
-
-        // single set is always allowed
-        Settings singleSetSettings = Settings.builder()
-            .put(baseSettings.build())
-            .put("index.analysis.filter.my_synonyms.synonyms_set", "set-a")
-            .build();
-        IndexSettings singleSetIdxSettings = IndexSettingsModule.newIndexSettings("index", singleSetSettings);
-        indexAnalyzers = createTestAnalysis(singleSetIdxSettings, singleSetSettings, oldPlugin).indexAnalyzers;
-        assertNotNull(indexAnalyzers.get("my_analyzer"));
-
-        // multiple sets: index creation succeeds on old cluster (transport version check is deferred to RELOAD_ANALYZERS)
-        Settings multiSetSettings = Settings.builder()
-            .put(baseSettings.build())
-            .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a", "set-b")
-            .build();
-        IndexSettings multiSetIdxSettings = IndexSettingsModule.newIndexSettings("index", multiSetSettings);
-        var multiSetAnalysis = createTestAnalysis(multiSetIdxSettings, multiSetSettings, oldPlugin);
-        assertNotNull(multiSetAnalysis.indexAnalyzers.get("my_analyzer"));
-
-        // but RELOAD_ANALYZERS is rejected — that's where the transport version check fires
-        TokenFilterFactory factory = multiSetAnalysis.tokenFilter.get("my_synonyms");
-        TokenizerFactory standardTokenizer = multiSetAnalysis.tokenizer.get("standard");
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> factory.getChainAwareTokenFilterFactory(
-                IndexCreationContext.RELOAD_ANALYZERS,
-                standardTokenizer,
-                List.of(),
-                List.of(),
-                ignored -> null
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("Multiple synonym sets in [synonyms_set] are not supported until all nodes in the cluster have been upgraded")
-        );
     }
 
     public void testDuplicateSynonymSetsLogWarning() throws IOException {

@@ -364,7 +364,7 @@ public class Analysis {
     }
 
     public static Reader getReaderFromIndex(
-        List<String> synonymsSets,
+        Set<String> synonymsSets,
         SynonymsManagementAPIService synonymsManagementAPIService,
         boolean ignoreMissing
     ) {
@@ -380,7 +380,7 @@ public class Analysis {
             }
             boolean notFound = e instanceof ResourceNotFoundException;
             String message = Strings.format(
-                "Synonyms sets %s %s. Synonyms will not be applied to search results on indices that use this synonym set",
+                "Synonyms sets %s %s. Synonyms will not be applied to search results on indices that use these synonym sets",
                 synonymsSets,
                 notFound ? "not found" : "could not be loaded"
             );

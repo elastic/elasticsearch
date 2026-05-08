@@ -396,9 +396,15 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return indexMode != null && IndexMode.fromString(indexMode) == IndexMode.TIME_SERIES;
     }
 
+    @SuppressWarnings("unchecked")
     private static XContentBuilder updateMappingToUseColumnarId(String mapping) {
         Map<String, Object> parsedMapping = XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true);
-        parsedMapping.put("_id", Map.of("mode", "columnar"));
+        if (parsedMapping.containsKey("_doc")) {
+            parsedMapping = (Map<String, Object>) parsedMapping.get("_doc");
+        }
+        if (parsedMapping.containsKey("_id") == false) {
+            parsedMapping.put("_id", Map.of("mode", "columnar"));
+        }
         try {
             return JsonXContent.contentBuilder().map(parsedMapping);
         } catch (IOException e) {

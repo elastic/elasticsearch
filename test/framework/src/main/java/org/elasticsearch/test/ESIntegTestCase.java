@@ -153,6 +153,7 @@ import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
@@ -878,6 +879,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (numNodes > 0) {
             internalCluster().ensureAtLeastNumDataNodes(numNodes);
             getExcludeSettings(numNodes, builder);
+        }
+        if (ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled()) {
+
         }
         return indicesAdmin().prepareCreate(index).setSettings(builder.build());
     }

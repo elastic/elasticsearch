@@ -249,7 +249,7 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
     private List<Long> calculateDateBuckets(Rounding.Prepared dateBucketRounding, long minDate, long maxDate) {
         List<Long> dateBuckets = new ArrayList<>();
         long currentDateBucket = dateBucketRounding.round(minDate);
-        while (currentDateBucket <= maxDate) {
+        while (currentDateBucket < maxDate) {
             dateBuckets.add(currentDateBucket);
             currentDateBucket = dateBucketRounding.nextRoundingValue(currentDateBucket);
         }

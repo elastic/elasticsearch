@@ -25,8 +25,9 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Holds resume state information for a {@link BulkByPaginatedSearchTask} task to be resumed from a previous run. It may contain a WorkerResumeInfo
- * which keeps the state for a single worker task, or a map of SliceResumeInfo which keeps the state for each slice of a leader task.
+ * Holds resume state information for a {@link BulkByPaginatedSearchTask} task to be resumed from a previous run.
+ * It may contain a WorkerResumeInfo which keeps the state for a single worker task, or a map of SliceResumeInfo which keeps
+ * the state for each slice of a leader task.
  * It also has information about the original task that was relocated, so the user-facing taskID and start time are preserved in listings.
  * But the RelocationOrigin isn't accurate for sliced tasks, they have themselves as the origin, but for listing the leader is correct.
  * SourceTaskResult contains the result of the source task, and it is passed through relocation. The destination task persists this result

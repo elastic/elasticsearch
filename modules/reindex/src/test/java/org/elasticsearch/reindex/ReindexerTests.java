@@ -55,8 +55,8 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -571,7 +571,22 @@ public class ReindexerTests extends ESTestCase {
             final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
                 randomAlphaOfLength(10),
                 System.currentTimeMillis(),
-                new BulkByPaginatedSearchTask.Status(i, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), randomFloat(), null, timeValueMillis(0)),
+                new BulkByPaginatedSearchTask.Status(
+                    i,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    timeValueMillis(0),
+                    randomFloat(),
+                    null,
+                    timeValueMillis(0)
+                ),
                 null
             );
             slices.put(i, new ResumeInfo.SliceStatus(i, workerResumeInfo, null));

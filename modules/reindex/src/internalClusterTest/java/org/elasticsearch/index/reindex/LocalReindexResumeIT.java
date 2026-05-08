@@ -236,7 +236,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 long firstBatchDocs = searchResponse.getHits().getHits().length;
                 assertTrue(firstBatchDocs <= batchSize);
                 sliceFirstBatchDocs.put(sliceId, firstBatchDocs);
-                BulkByPaginatedSearchTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
+                BulkByPaginatedSearchTask.Status sliceStats = randomStats(
+                    sliceId,
+                    searchResponse.getHits().getTotalHits().value(),
+                    perSliceRPS
+                );
                 sliceStatus.put(sliceId, new SliceStatus(sliceId, new ScrollWorkerResumeInfo(scrollId, startTime, sliceStats, null), null));
             } finally {
                 searchResponse.decRef();
@@ -314,7 +318,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 } else {
                     searchAfterValues = new Object[0];
                 }
-                BulkByPaginatedSearchTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
+                BulkByPaginatedSearchTask.Status sliceStats = randomStats(
+                    sliceId,
+                    searchResponse.getHits().getTotalHits().value(),
+                    perSliceRPS
+                );
                 sliceStatus.put(
                     sliceId,
                     new SliceStatus(sliceId, new PitWorkerResumeInfo(pitId, searchAfterValues, startTime, sliceStats, null), null)
@@ -400,7 +408,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 long firstBatchDocs = searchResponse.getHits().getHits().length;
                 assertTrue(firstBatchDocs <= batchSize);
                 sliceFirstBatchDocs.put(sliceId, firstBatchDocs);
-                BulkByPaginatedSearchTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
+                BulkByPaginatedSearchTask.Status sliceStats = randomStats(
+                    sliceId,
+                    searchResponse.getHits().getTotalHits().value(),
+                    perSliceRPS
+                );
                 sliceStatus.put(sliceId, new SliceStatus(sliceId, new ScrollWorkerResumeInfo(scrollId, startTime, sliceStats, null), null));
             } finally {
                 searchResponse.decRef();
@@ -493,7 +505,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 } else {
                     searchAfterValues = new Object[0];
                 }
-                BulkByPaginatedSearchTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
+                BulkByPaginatedSearchTask.Status sliceStats = randomStats(
+                    sliceId,
+                    searchResponse.getHits().getTotalHits().value(),
+                    perSliceRPS
+                );
                 sliceStatus.put(
                     sliceId,
                     new SliceStatus(sliceId, new PitWorkerResumeInfo(pitId, searchAfterValues, startTime, sliceStats, null), null)
@@ -567,7 +583,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 long firstBatchDocs = searchResponse.getHits().getHits().length;
                 assertTrue(firstBatchDocs <= batchSize);
                 sliceFirstBatchDocs.put(sliceId, firstBatchDocs);
-                BulkByPaginatedSearchTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
+                BulkByPaginatedSearchTask.Status sliceStats = randomStats(
+                    sliceId,
+                    searchResponse.getHits().getTotalHits().value(),
+                    perSliceRPS
+                );
                 sliceStatus.put(sliceId, new SliceStatus(sliceId, new ScrollWorkerResumeInfo(scrollId, startTime, sliceStats, null), null));
             } finally {
                 searchResponse.decRef();
@@ -655,7 +675,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 } else {
                     searchAfterValues = new Object[0];
                 }
-                BulkByPaginatedSearchTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
+                BulkByPaginatedSearchTask.Status sliceStats = randomStats(
+                    sliceId,
+                    searchResponse.getHits().getTotalHits().value(),
+                    perSliceRPS
+                );
                 sliceStatus.put(
                     sliceId,
                     new SliceStatus(sliceId, new PitWorkerResumeInfo(pitId, searchAfterValues, startTime, sliceStats, null), null)

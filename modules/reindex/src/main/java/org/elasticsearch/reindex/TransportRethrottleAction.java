@@ -39,7 +39,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 
-public class TransportRethrottleAction extends TransportTasksAction<BulkByPaginatedSearchTask, RethrottleRequest, ListTasksResponse, TaskInfo> {
+public class TransportRethrottleAction extends TransportTasksAction<
+    BulkByPaginatedSearchTask,
+    RethrottleRequest,
+    ListTasksResponse,
+    TaskInfo> {
     private final Client client;
     private final Client tasksClient;
 

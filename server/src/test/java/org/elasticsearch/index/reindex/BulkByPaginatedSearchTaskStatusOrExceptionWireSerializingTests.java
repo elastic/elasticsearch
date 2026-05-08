@@ -34,7 +34,8 @@ public class BulkByPaginatedSearchTaskStatusOrExceptionWireSerializingTests exte
 
     @Override
     protected StatusOrExceptionWrapper createTestInstance() {
-        BulkByPaginatedSearchTask.StatusOrException statusOrException = BulkByPaginatedSearchTaskStatusOrExceptionTests.createTestInstanceWithExceptions();
+        BulkByPaginatedSearchTask.StatusOrException statusOrException = BulkByPaginatedSearchTaskStatusOrExceptionTests
+            .createTestInstanceWithExceptions();
         return new StatusOrExceptionWrapper(statusOrException);
     }
 
@@ -50,7 +51,9 @@ public class BulkByPaginatedSearchTaskStatusOrExceptionWireSerializingTests exte
                     )
                 );
             } else {
-                return new StatusOrExceptionWrapper(new BulkByPaginatedSearchTask.StatusOrException(BulkByPaginatedSearchTaskStatusTests.randomStatus()));
+                return new StatusOrExceptionWrapper(
+                    new BulkByPaginatedSearchTask.StatusOrException(BulkByPaginatedSearchTaskStatusTests.randomStatus())
+                );
             }
         } else {
             if (statusOrException.getException() != null) {
@@ -119,7 +122,10 @@ public class BulkByPaginatedSearchTaskStatusOrExceptionWireSerializingTests exte
             if (first == second) return true;
             if (first == null || second == null) return false;
             if (first.getStatus() != null && second.getStatus() != null) {
-                return BulkByPaginatedSearchTaskStatusWireSerializingTests.StatusWrapper.statusEquals(first.getStatus(), second.getStatus());
+                return BulkByPaginatedSearchTaskStatusWireSerializingTests.StatusWrapper.statusEquals(
+                    first.getStatus(),
+                    second.getStatus()
+                );
             }
             if (first.getException() != null && second.getException() != null) {
                 return Objects.equals(first.getException().getMessage(), second.getException().getMessage());

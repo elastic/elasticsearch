@@ -59,7 +59,16 @@ public class BulkByPaginatedSearchTaskTests extends ESTestCase {
         ResumeInfo.RelocationOrigin origin = isRelocated
             ? new ResumeInfo.RelocationOrigin(new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()), randomNonNegativeLong())
             : null;
-        return new BulkByPaginatedSearchTask(taskId, type, action, description, parentTaskId, headers, eligibleForRelocationOnShutdown, origin);
+        return new BulkByPaginatedSearchTask(
+            taskId,
+            type,
+            action,
+            description,
+            parentTaskId,
+            headers,
+            eligibleForRelocationOnShutdown,
+            origin
+        );
     }
 
     public void testStatusHatesNegatives() {
@@ -241,7 +250,11 @@ public class BulkByPaginatedSearchTaskTests extends ESTestCase {
             mergedThrottledUntil = timeValueNanos(min(mergedThrottledUntil.nanos(), throttledUntil.nanos()));
         }
         String reasonCancelled = randomBoolean() ? randomAlphaOfLength(10) : null;
-        BulkByPaginatedSearchTask.Status merged = new BulkByPaginatedSearchTask.Status(Arrays.asList(statuses), reasonCancelled, mergedRequestsPerSecond);
+        BulkByPaginatedSearchTask.Status merged = new BulkByPaginatedSearchTask.Status(
+            Arrays.asList(statuses),
+            reasonCancelled,
+            mergedRequestsPerSecond
+        );
         assertEquals(mergedTotal, merged.getTotal());
         assertEquals(mergedUpdated, merged.getUpdated());
         assertEquals(mergedCreated, merged.getCreated());

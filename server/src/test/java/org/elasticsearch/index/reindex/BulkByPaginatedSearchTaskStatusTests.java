@@ -206,12 +206,27 @@ public class BulkByPaginatedSearchTaskStatusTests extends AbstractXContentTestCa
     }
 
     public static void declareFields(ObjectParser<? extends BulkByPaginatedSearchTask.StatusBuilder, Void> parser) {
-        parser.declareInt(BulkByPaginatedSearchTask.StatusBuilder::setSliceId, new ParseField(BulkByPaginatedSearchTask.Status.SLICE_ID_FIELD));
+        parser.declareInt(
+            BulkByPaginatedSearchTask.StatusBuilder::setSliceId,
+            new ParseField(BulkByPaginatedSearchTask.Status.SLICE_ID_FIELD)
+        );
         parser.declareLong(BulkByPaginatedSearchTask.StatusBuilder::setTotal, new ParseField(BulkByPaginatedSearchTask.Status.TOTAL_FIELD));
-        parser.declareLong(BulkByPaginatedSearchTask.StatusBuilder::setUpdated, new ParseField(BulkByPaginatedSearchTask.Status.UPDATED_FIELD));
-        parser.declareLong(BulkByPaginatedSearchTask.StatusBuilder::setCreated, new ParseField(BulkByPaginatedSearchTask.Status.CREATED_FIELD));
-        parser.declareLong(BulkByPaginatedSearchTask.StatusBuilder::setDeleted, new ParseField(BulkByPaginatedSearchTask.Status.DELETED_FIELD));
-        parser.declareInt(BulkByPaginatedSearchTask.StatusBuilder::setBatches, new ParseField(BulkByPaginatedSearchTask.Status.BATCHES_FIELD));
+        parser.declareLong(
+            BulkByPaginatedSearchTask.StatusBuilder::setUpdated,
+            new ParseField(BulkByPaginatedSearchTask.Status.UPDATED_FIELD)
+        );
+        parser.declareLong(
+            BulkByPaginatedSearchTask.StatusBuilder::setCreated,
+            new ParseField(BulkByPaginatedSearchTask.Status.CREATED_FIELD)
+        );
+        parser.declareLong(
+            BulkByPaginatedSearchTask.StatusBuilder::setDeleted,
+            new ParseField(BulkByPaginatedSearchTask.Status.DELETED_FIELD)
+        );
+        parser.declareInt(
+            BulkByPaginatedSearchTask.StatusBuilder::setBatches,
+            new ParseField(BulkByPaginatedSearchTask.Status.BATCHES_FIELD)
+        );
         parser.declareLong(
             BulkByPaginatedSearchTask.StatusBuilder::setVersionConflicts,
             new ParseField(BulkByPaginatedSearchTask.Status.VERSION_CONFLICTS_FIELD)
@@ -222,12 +237,18 @@ public class BulkByPaginatedSearchTaskStatusTests extends AbstractXContentTestCa
             RETRIES_PARSER,
             new ParseField(BulkByPaginatedSearchTask.Status.RETRIES_FIELD)
         );
-        parser.declareLong(BulkByPaginatedSearchTask.StatusBuilder::setThrottled, new ParseField(BulkByPaginatedSearchTask.Status.THROTTLED_RAW_FIELD));
+        parser.declareLong(
+            BulkByPaginatedSearchTask.StatusBuilder::setThrottled,
+            new ParseField(BulkByPaginatedSearchTask.Status.THROTTLED_RAW_FIELD)
+        );
         parser.declareFloat(
             BulkByPaginatedSearchTask.StatusBuilder::setRequestsPerSecond,
             new ParseField(BulkByPaginatedSearchTask.Status.REQUESTS_PER_SEC_FIELD)
         );
-        parser.declareString(BulkByPaginatedSearchTask.StatusBuilder::setReasonCancelled, new ParseField(BulkByPaginatedSearchTask.Status.CANCELED_FIELD));
+        parser.declareString(
+            BulkByPaginatedSearchTask.StatusBuilder::setReasonCancelled,
+            new ParseField(BulkByPaginatedSearchTask.Status.CANCELED_FIELD)
+        );
         parser.declareLong(
             BulkByPaginatedSearchTask.StatusBuilder::setThrottledUntil,
             new ParseField(BulkByPaginatedSearchTask.Status.THROTTLED_UNTIL_RAW_FIELD)
@@ -284,8 +305,8 @@ public class BulkByPaginatedSearchTaskStatusTests extends AbstractXContentTestCa
     /**
      * Since {@link BulkByPaginatedSearchTask.StatusOrException} can contain either an {@link Exception} or a {@link Status} we need to peek
      * at a field first before deciding what needs to be parsed since the same object could contains either.
-     * The {@link BulkByPaginatedSearchTask.StatusOrException#EXPECTED_EXCEPTION_FIELDS} contains the fields that are expected when the serialised
-     * object was an instance of exception and the {@link Status#FIELDS_SET} is the set of fields expected when the
+     * The {@link BulkByPaginatedSearchTask.StatusOrException#EXPECTED_EXCEPTION_FIELDS} contains the fields that are expected when the
+     * serialised object was an instance of exception and the {@link Status#FIELDS_SET} is the set of fields expected when the
      * serialized object was an instance of Status.
      */
     public static BulkByPaginatedSearchTask.StatusOrException parseStatusOrException(XContentParser parser) throws IOException {

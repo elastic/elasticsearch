@@ -176,7 +176,7 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         };
     }
 
-    private static class CapturingFormatReader implements FormatReader, NoConfigFormatReader {
+    private static class CapturingFormatReader implements NoConfigFormatReader {
 
         boolean metadataCalled;
         boolean readCalled;

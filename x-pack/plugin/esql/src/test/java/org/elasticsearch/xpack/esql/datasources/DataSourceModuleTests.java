@@ -130,7 +130,7 @@ public class DataSourceModuleTests extends ESTestCase {
     /**
      * Mock CSV format reader for testing.
      */
-    private static class MockCsvFormatReader implements FormatReader, NoConfigFormatReader {
+    private static class MockCsvFormatReader implements NoConfigFormatReader {
 
         private final String format;
         private final List<String> extensions;
@@ -167,7 +167,7 @@ public class DataSourceModuleTests extends ESTestCase {
     /**
      * Mock TSV format reader for testing.
      */
-    private static class MockTsvFormatReader implements FormatReader, NoConfigFormatReader {
+    private static class MockTsvFormatReader implements NoConfigFormatReader {
 
         @Override
         public SourceMetadata metadata(StorageObject object) {

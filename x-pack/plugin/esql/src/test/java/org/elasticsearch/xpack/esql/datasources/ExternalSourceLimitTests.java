@@ -220,7 +220,7 @@ public class ExternalSourceLimitTests extends ESTestCase {
         return pages;
     }
 
-    private static class RowGeneratingFormatReader implements FormatReader, NoConfigFormatReader {
+    private static class RowGeneratingFormatReader implements NoConfigFormatReader {
 
         private final AtomicInteger filesRead;
         private final int rowsPerFile;

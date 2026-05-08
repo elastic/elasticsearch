@@ -351,7 +351,7 @@ public class ExternalSourceOperatorFactoryTests extends ESTestCase {
         return new Page(block);
     }
 
-    private static class SplitCapturingFormatReader implements FormatReader, NoConfigFormatReader {
+    private static class SplitCapturingFormatReader implements NoConfigFormatReader {
 
         private final List<StorageObject> capturedObjects;
         private final List<Boolean> capturedSkipFirstLine;

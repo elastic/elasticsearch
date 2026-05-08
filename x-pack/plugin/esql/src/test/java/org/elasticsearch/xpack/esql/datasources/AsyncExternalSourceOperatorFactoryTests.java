@@ -2519,7 +2519,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * that increments {@code closeCalls} on {@link CloseableIterator#close()}, so the test can
      * assert that every opened iterator is closed exactly once.
      */
-    private static class TrackingReader implements FormatReader, NoConfigFormatReader {
+    private static class TrackingReader implements NoConfigFormatReader {
 
         private final AtomicInteger readCount;
         private final AtomicInteger closeCount;
@@ -2600,7 +2600,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         return new Page(block);
     }
 
-    private static class PageCountingFormatReader implements FormatReader, NoConfigFormatReader {
+    private static class PageCountingFormatReader implements NoConfigFormatReader {
 
         private final AtomicInteger readCount;
 
@@ -2653,7 +2653,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class FailOnSecondFileFormatReader implements FormatReader, NoConfigFormatReader {
+    private static class FailOnSecondFileFormatReader implements NoConfigFormatReader {
 
         private final AtomicInteger callCount = new AtomicInteger(0);
 
@@ -2781,7 +2781,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     /**
      * Test sync format reader that returns empty pages.
      */
-    private static class TestSyncFormatReader implements FormatReader, NoConfigFormatReader {
+    private static class TestSyncFormatReader implements NoConfigFormatReader {
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
@@ -2816,7 +2816,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Format reader that captures the StorageObject and skipFirstLine flag passed to readSplit.
      * Used to verify that RangeStorageObject wrapping and skipFirstLine logic are correct.
      */
-    private static class SplitCapturingFormatReader implements FormatReader, NoConfigFormatReader {
+    private static class SplitCapturingFormatReader implements NoConfigFormatReader {
 
         private final List<StorageObject> capturedObjects;
         private final List<Boolean> capturedSkipFirstLine;
@@ -3055,7 +3055,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     /**
      * Format reader that always throws on read, for testing error handling.
      */
-    private static class AlwaysFailFormatReader implements FormatReader, NoConfigFormatReader {
+    private static class AlwaysFailFormatReader implements NoConfigFormatReader {
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
@@ -3084,7 +3084,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     /**
      * Format reader that returns multiple pages per read, for testing backpressure.
      */
-    private static class MultiPageFormatReader implements FormatReader, NoConfigFormatReader {
+    private static class MultiPageFormatReader implements NoConfigFormatReader {
 
         private final AtomicInteger readCount;
         private final int pagesPerRead;
@@ -3145,7 +3145,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Format reader that succeeds for the first N reads (returning multiple pages each),
      * then throws an IOException on the (N+1)th read. Used to test error-path cleanup.
      */
-    private static class FailAfterNReadsFormatReader implements FormatReader, NoConfigFormatReader {
+    private static class FailAfterNReadsFormatReader implements NoConfigFormatReader {
 
         private final AtomicInteger readCount;
         private final int failAfter;
@@ -3202,7 +3202,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class TestAsyncFormatReader implements FormatReader, NoConfigFormatReader {
+    private static class TestAsyncFormatReader implements NoConfigFormatReader {
 
         @Override
         public SourceMetadata metadata(StorageObject object) {

@@ -994,7 +994,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     // ===== Stub implementations =====
 
-    private static class StubFormatReader implements FormatReader, NoConfigFormatReader {
+    private static class StubFormatReader implements NoConfigFormatReader {
 
         private final Map<String, List<Attribute>> schemasByPath;
 
@@ -1060,7 +1060,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * A StubFormatReader that also returns per-file row counts as statistics.
      * Used to test the aggregated stats path in multi-file resolution.
      */
-    private static class StubFormatReaderWithStats implements FormatReader, NoConfigFormatReader {
+    private static class StubFormatReaderWithStats implements NoConfigFormatReader {
 
         private final Map<String, List<Attribute>> schemasByPath;
         private final Map<String, Long> rowCountsByPath;

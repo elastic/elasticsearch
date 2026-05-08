@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -319,7 +318,7 @@ public class ExternalSourceParallelismTests extends ESTestCase {
         );
     }
 
-    private static class TrackingFormatReader implements FormatReader, NoConfigFormatReader {
+    private static class TrackingFormatReader implements NoConfigFormatReader {
 
         private final AtomicInteger readCount;
         private final Set<String> filesRead;

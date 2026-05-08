@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
@@ -324,7 +323,7 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class StubFormatReader implements FormatReader, NoConfigFormatReader {
+    private static class StubFormatReader implements NoConfigFormatReader {
 
         private final String name;
         private final List<String> extensions;

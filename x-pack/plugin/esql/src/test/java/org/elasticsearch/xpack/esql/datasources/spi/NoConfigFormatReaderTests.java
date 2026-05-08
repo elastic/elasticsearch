@@ -13,9 +13,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.sameInstance;
@@ -72,7 +74,7 @@ public class NoConfigFormatReaderTests extends ESTestCase {
 
                 @Override
                 public Page next() {
-                    throw new java.util.NoSuchElementException();
+                    throw new NoSuchElementException();
                 }
 
                 @Override
@@ -101,7 +103,7 @@ public class NoConfigFormatReaderTests extends ESTestCase {
 
     private static class SegmentableStub implements SegmentableFormatReader, NoConfigFormatReader {
         @Override
-        public long findNextRecordBoundary(java.io.InputStream stream) {
+        public long findNextRecordBoundary(InputStream stream) {
             return -1;
         }
 
@@ -120,7 +122,7 @@ public class NoConfigFormatReaderTests extends ESTestCase {
 
                 @Override
                 public Page next() {
-                    throw new java.util.NoSuchElementException();
+                    throw new NoSuchElementException();
                 }
 
                 @Override

@@ -502,7 +502,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                     return;
                 }
                 BytesRef encoded = dvs.docValues().binaryValue();
-                builder.appendBytesRef(new BytesRef(Uid.decodeId(encoded.bytes, encoded.offset, encoded.length)));
+                builder.appendBytesRef(new BytesRef(Uid.decodeId(encoded)));
             }
 
             @Override

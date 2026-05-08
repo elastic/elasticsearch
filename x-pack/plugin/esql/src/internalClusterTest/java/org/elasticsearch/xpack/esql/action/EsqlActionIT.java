@@ -12,6 +12,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -27,11 +28,13 @@ import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
@@ -42,6 +45,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -52,7 +56,9 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -118,7 +124,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     long epoch = System.currentTimeMillis();
 
     @Before
-    public void setupIndex() {
+    public void setupIndex() throws IOException {
         createAndPopulateIndex("test");
     }
 
@@ -1350,7 +1356,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
      * The {@link LuceneTopNSourceOperator#getOutput()} is handling this exception by
      * ignoring it (which is the right thing to do) and sort of cleaning up and moving to the next docs collection.
      */
-    public void testTopNPushedToLuceneOnSortedIndex() {
+    public void testTopNPushedToLuceneOnSortedIndex() throws IOException {
         var sortOrder = randomFrom("asc", "desc");
         createAndPopulateIndex(
             "sorted_test_index",
@@ -1850,32 +1856,37 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private void createAndPopulateIndex(String indexName) {
+    private void createAndPopulateIndex(String indexName) throws IOException {
         createAndPopulateIndex(indexName, Settings.EMPTY);
     }
 
-    private void createAndPopulateIndex(String indexName, Settings additionalSettings) {
+    private void createAndPopulateIndex(String indexName, Settings additionalSettings) throws IOException {
+        var mapping = PutMappingRequest.simpleMapping("data",
+            "type=long",
+            "data_d",
+            "type=double",
+            "count",
+            "type=long",
+            "count_d",
+            "type=double",
+            "time",
+            "type=long",
+            "color",
+            "type=keyword",
+            "tag",
+            "type=keyword");
+        if (ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled() && randomBoolean()) {
+            String mappingAsSting = Strings.toString(mapping);
+            var parsedMapping = XContentHelper.convertToMap(JsonXContent.jsonXContent, mappingAsSting, true);
+            parsedMapping.put("_id", Map.of("mode", "columnar"));
+            mapping = JsonXContent.contentBuilder().map(parsedMapping);
+        }
         assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(Settings.builder().put(additionalSettings).put("index.number_of_shards", ESTestCase.randomIntBetween(1, 5)))
-                .setMapping(
-                    "data",
-                    "type=long",
-                    "data_d",
-                    "type=double",
-                    "count",
-                    "type=long",
-                    "count_d",
-                    "type=double",
-                    "time",
-                    "type=long",
-                    "color",
-                    "type=keyword",
-                    "tag",
-                    "type=keyword"
-                )
+                .setMapping(mapping)
         );
         long timestamp = epoch;
         for (int i = 0; i < 10; i++) {

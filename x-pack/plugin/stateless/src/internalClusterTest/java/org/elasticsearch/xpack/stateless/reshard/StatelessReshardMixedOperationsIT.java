@@ -447,7 +447,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                             .setRouting(document.routing())
                             .execute()
                             .actionGet();
-                        // Shard may be unavailable during disruption
+                        // It is possible that corresponding write operation actually failed so this is expected
                         if (response.isExists()) {
                             assertEquals(document.fieldValue(), response.getSourceAsMap().get("field"));
                         }

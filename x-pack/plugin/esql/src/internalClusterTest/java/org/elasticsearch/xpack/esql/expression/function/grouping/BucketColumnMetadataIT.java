@@ -393,10 +393,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testBucketWrappedInRoundHasNoMetadata() {
-        client().prepareIndex("test")
-            .setSource("value", 150)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        client().prepareIndex("test").setSource("value", 150).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM test
@@ -407,10 +404,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testBucketInsideAggregateHasNoMetadata() {
-        client().prepareIndex("test")
-            .setSource("value", 150)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        client().prepareIndex("test").setSource("value", 150).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM test
@@ -422,10 +416,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testBucketColumnCastHasNoMetadata() {
-        client().prepareIndex("test")
-            .setSource("value", 150)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        client().prepareIndex("test").setSource("value", 150).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM test
@@ -452,10 +443,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testBucketWithFoldableBucketsArg() {
-        client().prepareIndex("test")
-            .setSource("value", 150)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        client().prepareIndex("test").setSource("value", 150).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         try (var response = run(syncEsqlQueryRequest("""
             FROM test

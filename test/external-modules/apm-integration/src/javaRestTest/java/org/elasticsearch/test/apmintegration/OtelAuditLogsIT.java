@@ -50,6 +50,14 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.audit.enabled", "true")
         .setting("xpack.security.audit.logfile.events.include", "[ \"_all\" ]")
+        // Match the serverless posture: cluster/node identity fields are platform internals and
+        // must not appear on records that ship out via OTLP. Production sets these in
+        // distribution/archives/src/serverless-default-settings.yml; here we set them on the
+        // test cluster so the assertion below covers the same mechanism.
+        .setting("xpack.security.audit.logfile.emit_node_name", "false")
+        .setting("xpack.security.audit.logfile.emit_node_id", "false")
+        .setting("xpack.security.audit.logfile.emit_cluster_name", "false")
+        .setting("xpack.security.audit.logfile.emit_cluster_uuid", "false")
         .setting("telemetry.otel.logs.enabled", "true")
         .setting("telemetry.otel.logs.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/logs")
         .user(API_USER, "api-password", "superuser", false)
@@ -108,5 +116,12 @@ public class OtelAuditLogsIT extends AbstractTelemetryIT {
         // docs/internal/otel-audit-logging-poc.md for the implementation options.
         assertNotNull("audit log should carry event.action", log.attributes().get("log4j.map_message.event.action"));
         assertNotNull("audit log should carry event.type", log.attributes().get("log4j.map_message.event.type"));
+        // R6: cluster and node identity fields must not be present on records that ship via OTLP.
+        // The four EMIT_*_SETTING gates are off (see cluster setup above), which suppresses the
+        // fields at the StringMapMessage source so the OpenTelemetryAppender doesn't capture them.
+        assertNull("cluster.name must not be on OTel records", log.attributes().get("log4j.map_message.cluster.name"));
+        assertNull("cluster.uuid must not be on OTel records", log.attributes().get("log4j.map_message.cluster.uuid"));
+        assertNull("node.name must not be on OTel records", log.attributes().get("log4j.map_message.node.name"));
+        assertNull("node.id must not be on OTel records", log.attributes().get("log4j.map_message.node.id"));
     }
 }

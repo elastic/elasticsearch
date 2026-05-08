@@ -25,7 +25,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Holds resume state information for a {@link BulkByScrollTask} task to be resumed from a previous run. It may contain a WorkerResumeInfo
+ * Holds resume state information for a {@link BulkByPaginatedSearchTask} task to be resumed from a previous run. It may contain a WorkerResumeInfo
  * which keeps the state for a single worker task, or a map of SliceResumeInfo which keeps the state for each slice of a leader task.
  * It also has information about the original task that was relocated, so the user-facing taskID and start time are preserved in listings.
  * But the RelocationOrigin isn't accurate for sliced tasks, they have themselves as the origin, but for listing the leader is correct.
@@ -111,7 +111,7 @@ public record ResumeInfo(
     public interface WorkerResumeInfo extends NamedWriteable {
         long startTimeEpochMillis();
 
-        BulkByScrollTask.Status status();
+        BulkByPaginatedSearchTask.Status status();
     }
 
     /**
@@ -120,7 +120,7 @@ public record ResumeInfo(
     public record ScrollWorkerResumeInfo(
         String scrollId,
         long startTimeEpochMillis,
-        BulkByScrollTask.Status status,
+        BulkByPaginatedSearchTask.Status status,
         @Nullable Version remoteVersion
     ) implements WorkerResumeInfo {
 
@@ -132,7 +132,7 @@ public record ResumeInfo(
         }
 
         public ScrollWorkerResumeInfo(StreamInput in) throws IOException {
-            this(in.readString(), in.readLong(), new BulkByScrollTask.Status(in), in.readOptional(Version::readVersion));
+            this(in.readString(), in.readLong(), new BulkByPaginatedSearchTask.Status(in), in.readOptional(Version::readVersion));
         }
 
         @Override
@@ -157,7 +157,7 @@ public record ResumeInfo(
         BytesReference pitId,
         Object[] searchAfterValues,
         long startTimeEpochMillis,
-        BulkByScrollTask.Status status,
+        BulkByPaginatedSearchTask.Status status,
         @Nullable Version remoteVersion
     ) implements WorkerResumeInfo {
         public static final String NAME = "PitWorkerResumeInfo";
@@ -173,7 +173,7 @@ public record ResumeInfo(
                 in.readBytesReference(),
                 in.readArray(StreamInput::readGenericValue, Object[]::new),
                 in.readLong(),
-                new BulkByScrollTask.Status(in),
+                new BulkByPaginatedSearchTask.Status(in),
                 in.readOptional(Version::readVersion)
             );
         }

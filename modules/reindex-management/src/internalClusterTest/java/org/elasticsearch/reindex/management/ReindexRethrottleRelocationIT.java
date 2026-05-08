@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
@@ -198,7 +198,7 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
      */
     private void assertRethrottledRps(final TaskId relocatedTaskId, final int expectedTotalRps) {
         if (numOfSlices == 1) {
-            final BulkByScrollTask.Status status = (BulkByScrollTask.Status) clusterAdmin().prepareGetTask(relocatedTaskId)
+            final BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) clusterAdmin().prepareGetTask(relocatedTaskId)
                 .get()
                 .getTask()
                 .getTask()
@@ -214,7 +214,7 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
             assertThat("all slices should be registered", group.childTasks().size(), equalTo(numOfSlices));
             final float expectedPerSlice = (float) expectedTotalRps / numOfSlices;
             for (TaskGroup child : group.childTasks()) {
-                final BulkByScrollTask.Status sliceStatus = (BulkByScrollTask.Status) child.task().status();
+                final BulkByPaginatedSearchTask.Status sliceStatus = (BulkByPaginatedSearchTask.Status) child.task().status();
                 assertThat(
                     "slice " + sliceStatus + " should have the rethrottled RPS",
                     (double) sliceStatus.getRequestsPerSecond(),

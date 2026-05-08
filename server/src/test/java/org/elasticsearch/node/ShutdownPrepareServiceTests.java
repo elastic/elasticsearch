@@ -9,7 +9,7 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.is;
 public class ShutdownPrepareServiceTests extends ESTestCase {
 
     public void testMaybeRequestRelocationForBulkByScroll_nonRelocatableLeader() {
-        BulkByScrollTask task = new BulkByScrollTask(
+        BulkByPaginatedSearchTask task = new BulkByPaginatedSearchTask(
             randomTaskId(),
             "transport",
             "test:action/name",
@@ -38,7 +38,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
     }
 
     public void testMaybeRequestRelocationForBulkByScroll_relocatableLeader() {
-        BulkByScrollTask task = new BulkByScrollTask(
+        BulkByPaginatedSearchTask task = new BulkByPaginatedSearchTask(
             randomTaskId(),
             "transport",
             "test:action/name",
@@ -54,7 +54,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
     }
 
     public void testMaybeRequestRelocationForBulkByScroll_nonRelocatableWorker() {
-        BulkByScrollTask task = new BulkByScrollTask(
+        BulkByPaginatedSearchTask task = new BulkByPaginatedSearchTask(
             randomTaskId(),
             "transport",
             "test:action/name",
@@ -70,7 +70,7 @@ public class ShutdownPrepareServiceTests extends ESTestCase {
     }
 
     public void testMaybeRequestRelocationForBulkByScroll_relocatableWorker() {
-        BulkByScrollTask task = new BulkByScrollTask(
+        BulkByPaginatedSearchTask task = new BulkByPaginatedSearchTask(
             randomTaskId(),
             "transport",
             "test:action/name",

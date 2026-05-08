@@ -349,9 +349,9 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         return id;
     }
 
-    final static class ColumnarIdField extends Field {
+    static final class ColumnarIdField extends Field {
 
-        public static final FieldType TYPE = new FieldType();
+        static final FieldType TYPE = new FieldType();
 
         static {
             TYPE.setOmitNorms(true);
@@ -363,7 +363,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
         private BytesRef binaryValue;
 
-        public ColumnarIdField(String name, BytesRef value) {
+        ColumnarIdField(String name, BytesRef value) {
             super(name, value, TYPE);
             binaryValue = value;
         }

@@ -155,7 +155,6 @@ public class EsqlDataTypeConverter {
         Map.entry(BOOLEAN, ToBoolean::new),
         Map.entry(CARTESIAN_POINT, ToCartesianPoint::new),
         Map.entry(CARTESIAN_SHAPE, ToCartesianShape::new),
-        Map.entry(DATE_RANGE, ToDateRange::new),
         // ToDegrees, typeless
         Map.entry(DENSE_VECTOR, ToDenseVector::new),
         Map.entry(DOUBLE, ToDouble::new),
@@ -188,6 +187,7 @@ public class EsqlDataTypeConverter {
         TriFunction<Source, Expression, Configuration, AbstractConvertFunction>> TYPE_AND_CONFIG_TO_CONVERTER_FUNCTION = Map.ofEntries(
             Map.entry(DATETIME, ToDatetime::new),
             Map.entry(DATE_NANOS, ToDateNanos::new),
+            Map.entry(DATE_RANGE, ToDateRange::new),
             Map.entry(KEYWORD, ToString::new)
         );
 
@@ -701,13 +701,19 @@ public class EsqlDataTypeConverter {
     }
 
     public static LongRangeBlockBuilder.LongRange parseDateRange(String s, ZoneId zoneId) {
-        var ss = s.split("\\.\\.");
-        assert ss.length == 2 : "can't parse range: " + s;
-        var formatter = DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId);
+        return parseDateRange(s, DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId));
+    }
+
+    public static LongRangeBlockBuilder.LongRange parseDateRange(String s, DateFormatter formatter) {
+        // limit -1 so trailing empty strings are preserved, otherwise "..2024-01-01" splits to length 1.
+        var ss = s.split("\\.\\.", -1);
+        if (ss.length != 2) {
+            throw new IllegalArgumentException("expected date range in the form 'from..to', got [" + s + "]");
+        }
         long from = dateTimeToLong(ss[0], formatter);
         long to = dateTimeToLong(ss[1], formatter);
         if (from >= to) {
-            throw new IllegalArgumentException("date range 'from' [" + ss[0] + "] must be less than or equal to 'to' [" + ss[1] + "]");
+            throw new IllegalArgumentException("date range 'from' [" + ss[0] + "] must be less than 'to' [" + ss[1] + "]");
         }
         return new LongRangeBlockBuilder.LongRange(from, to);
     }

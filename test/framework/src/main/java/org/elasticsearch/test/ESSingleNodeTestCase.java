@@ -147,7 +147,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         if (NODE == null) {
             startNode(seed);
         }
-        useColumnarId = true;//ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled() && randomBoolean();
+        useColumnarId = true;// ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled() && randomBoolean();
     }
 
     @Override

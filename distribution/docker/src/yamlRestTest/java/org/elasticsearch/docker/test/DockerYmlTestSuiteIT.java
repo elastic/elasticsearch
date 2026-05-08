@@ -9,6 +9,7 @@
 package org.elasticsearch.docker.test;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Request;
@@ -16,22 +17,30 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+@ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    private static final String USER = "x_pack_rest_user";
-    private static final String PASS = "x-pack-test-password";
+    // Defer to DockerElasticsearchCluster so credentials are defined once and propagated
+    // into the container's user provisioning script via env vars.
+    private static final String USER = DockerElasticsearchCluster.USER;
+    private static final String PASS = DockerElasticsearchCluster.PASS;
+
+    @ClassRule
+    public static final DockerElasticsearchCluster cluster = new DockerElasticsearchCluster();
 
     public DockerYmlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -44,41 +53,12 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @Override
     protected String getTestRestCluster() {
-        String distribution = getDistribution();
-        return new StringBuilder().append("localhost:")
-            .append(getProperty("test.fixtures.elasticsearch-" + distribution + "-1.tcp.9200"))
-            .append(",")
-            .append("localhost:")
-            .append(getProperty("test.fixtures.elasticsearch-" + distribution + "-2.tcp.9200"))
-            .toString();
+        return cluster.getHttpAddresses();
     }
 
     @Override
     protected boolean randomizeContentType() {
         return false;
-    }
-
-    private String getDistribution() {
-        String distribution = System.getProperty("tests.distribution", "default");
-        if (distribution.equals("oss") == false && distribution.equals("default") == false) {
-            throw new IllegalArgumentException("supported values for tests.distribution are oss or default but it was " + distribution);
-        }
-        return distribution;
-    }
-
-    private boolean isOss() {
-        return getDistribution().equals("oss");
-    }
-
-    private String getProperty(String key) {
-        String value = System.getProperty(key);
-        if (value == null) {
-            throw new IllegalStateException(
-                "Could not find system properties from test.fixtures. "
-                    + "This test expects to run with the elasticsearch.test.fixtures Gradle plugin"
-            );
-        }
-        return value;
     }
 
     @Before
@@ -112,9 +92,6 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        if (isOss()) {
-            return super.restClientSettings();
-        }
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
@@ -124,9 +101,6 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @Override
     protected String getProtocol() {
-        if (isOss()) {
-            return "http";
-        }
         return "https";
     }
 }

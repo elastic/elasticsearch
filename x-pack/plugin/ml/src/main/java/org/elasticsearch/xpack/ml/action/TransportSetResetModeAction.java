@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.SetResetModeAction;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 
+import java.util.function.Consumer;
+
 public class TransportSetResetModeAction extends AbstractTransportSetResetModeAction {
 
     @Inject
@@ -26,14 +28,15 @@ public class TransportSetResetModeAction extends AbstractTransportSetResetModeAc
         TransportService transportService,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
-        super(SetResetModeAction.NAME, transportService, threadPool, clusterService, actionFilters);
+        super(SetResetModeAction.NAME, transportService, threadPool, clusterService, actionFilters, projectResolver);
     }
 
     @Override
-    protected boolean isResetMode(ClusterState clusterState) {
-        return MlMetadata.getMlMetadata(clusterState).isResetMode();
+    protected boolean isResetMode(ProjectMetadata project) {
+        return MlMetadata.getMlMetadata(project).isResetMode();
     }
 
     @Override
@@ -42,16 +45,12 @@ public class TransportSetResetModeAction extends AbstractTransportSetResetModeAc
     }
 
     @Override
-    protected ClusterState setState(ClusterState oldState, SetResetModeActionRequest request) {
-        final ProjectMetadata project = oldState.metadata().getDefaultProject();
-        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(project);
+    protected Consumer<ProjectMetadata.Builder> createProjectUpdate(ProjectMetadata project, SetResetModeActionRequest request) {
         if (request.shouldDeleteMetadata()) {
             assert request.isEnabled() == false; // SetResetModeActionRequest should have enforced this
-            projectBuilder.removeCustom(MlMetadata.TYPE).removeCustom(ModelAliasMetadata.NAME);
-        } else {
-            MlMetadata.Builder builder = MlMetadata.Builder.from(project.custom(MlMetadata.TYPE)).isResetMode(request.isEnabled());
-            projectBuilder.putCustom(MlMetadata.TYPE, builder.build());
+            return b -> b.removeCustom(MlMetadata.TYPE).removeCustom(ModelAliasMetadata.NAME);
         }
-        return ClusterState.builder(oldState).putProjectMetadata(projectBuilder.build()).build();
+        MlMetadata updatedMetadata = MlMetadata.Builder.from(project.custom(MlMetadata.TYPE)).isResetMode(request.isEnabled()).build();
+        return b -> b.putCustom(MlMetadata.TYPE, updatedMetadata);
     }
 }

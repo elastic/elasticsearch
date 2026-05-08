@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -32,12 +34,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 public abstract class AbstractTransportSetUpgradeModeAction extends AcknowledgedTransportMasterNodeAction<SetUpgradeModeActionRequest> {
 
     private static final Logger logger = LogManager.getLogger(AbstractTransportSetUpgradeModeAction.class);
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
     private final MasterServiceTaskQueue<UpdateModeStateListener> taskQueue;
+    private final ProjectResolver projectResolver;
 
     public AbstractTransportSetUpgradeModeAction(
         String actionName,
@@ -45,7 +49,8 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             actionName,
@@ -58,6 +63,7 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
         );
 
         this.taskQueue = clusterService.createTaskQueue(taskQueuePrefix + " upgrade mode", Priority.NORMAL, new UpdateModeExecutor());
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -67,13 +73,15 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
+        var project = projectResolver.getProjectMetadata(state);
+
         // Don't want folks spamming this endpoint while it is in progress, only allow one request to be handled at a time
         if (isRunning.compareAndSet(false, true) == false) {
             String msg = Strings.format(
                 "Attempted to set [upgrade_mode] for feature name [%s] to [%s] from [%s] while previous request was processing.",
                 featureName(),
                 request.enabled(),
-                upgradeMode(state)
+                upgradeMode(project)
             );
             logger.info(msg);
             Exception detail = new IllegalStateException(msg);
@@ -89,7 +97,7 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
         }
 
         // Noop, nothing for us to do, simply return fast to the caller
-        var upgradeMode = upgradeMode(state);
+        var upgradeMode = upgradeMode(project);
         if (request.enabled() == upgradeMode) {
             logger.info("Upgrade mode noop");
             isRunning.set(false);
@@ -116,7 +124,7 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
 
         ActionListener<AcknowledgedResponse> setUpgradeModeListener = wrappedListener.delegateFailure((delegate, ack) -> {
             if (ack.isAcknowledged()) {
-                upgradeModeSuccessfullyChanged(task, request, state, delegate);
+                upgradeModeSuccessfullyChanged(task, request, project, delegate);
             } else {
                 logger.info("Cluster state update is NOT acknowledged");
                 wrappedListener.onFailure(new ElasticsearchTimeoutException("Unknown error occurred while updating cluster state"));
@@ -132,26 +140,25 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
     protected abstract String featureName();
 
     /**
-     * Parse the ClusterState for the implementation's {@link org.elasticsearch.cluster.metadata.Metadata.ProjectCustom}
-     * and find the upgradeMode boolean stored there.
-     * We will compare this boolean with the request's desired state to determine if we should change the metadata.
+     * Read the upgradeMode boolean from the project's custom metadata.
      */
-    protected abstract boolean upgradeMode(ClusterState state);
+    protected abstract boolean upgradeMode(ProjectMetadata project);
 
     /**
      * This is called from the ClusterState updater and is expected to return quickly.
+     * Returns a project-scoped mutation that the parent applies to the ClusterState.
      */
-    protected abstract ClusterState createUpdatedState(SetUpgradeModeActionRequest request, ClusterState state);
+    protected abstract Consumer<ProjectMetadata.Builder> createProjectUpdate(SetUpgradeModeActionRequest request, ProjectMetadata project);
 
     /**
      * This method is only called when the cluster state was successfully changed.
      * If we failed to update for any reason, this will not be called.
-     * The ClusterState param is the previous ClusterState before we called update.
+     * The project param is from the previous ClusterState before we called update.
      */
     protected abstract void upgradeModeSuccessfullyChanged(
         Task task,
         SetUpgradeModeActionRequest request,
-        ClusterState state,
+        ProjectMetadata project,
         ActionListener<AcknowledgedResponse> listener
     );
 
@@ -173,7 +180,11 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
     private class UpdateModeExecutor extends SimpleBatchedExecutor<UpdateModeStateListener, Void> {
         @Override
         public Tuple<ClusterState, Void> executeTask(UpdateModeStateListener clusterStateListener, ClusterState clusterState) {
-            return Tuple.tuple(createUpdatedState(clusterStateListener.request(), clusterState), null);
+            var project = projectResolver.getProjectMetadata(clusterState);
+            return Tuple.tuple(
+                clusterState.copyAndUpdateProject(project.id(), createProjectUpdate(clusterStateListener.request(), project)),
+                null
+            );
         }
 
         @Override

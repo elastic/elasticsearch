@@ -13,6 +13,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.core.Tuple;
@@ -156,20 +158,17 @@ public class AbstractTransportSetUpgradeModeActionTests extends ESTestCase {
 
     private static class TestTransportSetUpgradeModeAction extends AbstractTransportSetUpgradeModeAction {
         private final boolean upgradeMode;
-        private final ClusterState updatedClusterState;
         private final Consumer<ActionListener<AcknowledgedResponse>> successFunc;
 
         TestTransportSetUpgradeModeAction(boolean upgradeMode, Consumer<ActionListener<AcknowledgedResponse>> successFunc) {
-            super("actionName", "taskQueuePrefix", mock(), clusterService(), mock(), mock());
+            super("actionName", "taskQueuePrefix", mock(), clusterService(), mock(), mock(), TestProjectResolvers.DEFAULT_PROJECT_ONLY);
             this.upgradeMode = upgradeMode;
-            this.updatedClusterState = ClusterState.EMPTY_STATE;
             this.successFunc = successFunc;
         }
 
         TestTransportSetUpgradeModeAction(ClusterService clusterService, boolean upgradeMode) {
-            super("actionName", "taskQueuePrefix", mock(), clusterService, mock(), mock());
+            super("actionName", "taskQueuePrefix", mock(), clusterService, mock(), mock(), TestProjectResolvers.DEFAULT_PROJECT_ONLY);
             this.upgradeMode = upgradeMode;
-            this.updatedClusterState = ClusterState.EMPTY_STATE;
             this.successFunc = listener -> {};
         }
 
@@ -207,20 +206,20 @@ public class AbstractTransportSetUpgradeModeActionTests extends ESTestCase {
         }
 
         @Override
-        protected boolean upgradeMode(ClusterState state) {
+        protected boolean upgradeMode(ProjectMetadata project) {
             return upgradeMode;
         }
 
         @Override
-        protected ClusterState createUpdatedState(SetUpgradeModeActionRequest request, ClusterState state) {
-            return updatedClusterState;
+        protected Consumer<ProjectMetadata.Builder> createProjectUpdate(SetUpgradeModeActionRequest request, ProjectMetadata project) {
+            return b -> {};
         }
 
         @Override
         protected void upgradeModeSuccessfullyChanged(
             Task task,
             SetUpgradeModeActionRequest request,
-            ClusterState state,
+            ProjectMetadata project,
             ActionListener<AcknowledgedResponse> listener
         ) {
             successFunc.accept(listener);

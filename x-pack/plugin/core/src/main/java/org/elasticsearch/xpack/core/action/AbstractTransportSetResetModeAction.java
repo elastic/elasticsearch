@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
@@ -27,11 +29,14 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.function.Consumer;
+
 import static org.elasticsearch.core.Strings.format;
 
 public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTransportMasterNodeAction<SetResetModeActionRequest> {
 
     private static final Logger logger = LogManager.getLogger(AbstractTransportSetResetModeAction.class);
+    private final ProjectResolver projectResolver;
 
     @Inject
     public AbstractTransportSetResetModeAction(
@@ -39,7 +44,8 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
         TransportService transportService,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             actionName,
@@ -50,13 +56,17 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
             SetResetModeActionRequest::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.projectResolver = projectResolver;
     }
 
-    protected abstract boolean isResetMode(ClusterState clusterState);
+    protected abstract boolean isResetMode(ProjectMetadata project);
 
     protected abstract String featureName();
 
-    protected abstract ClusterState setState(ClusterState oldState, SetResetModeActionRequest request);
+    /**
+     * Returns a project-scoped mutation that the parent applies to the ClusterState.
+     */
+    protected abstract Consumer<ProjectMetadata.Builder> createProjectUpdate(ProjectMetadata project, SetResetModeActionRequest request);
 
     @Override
     protected void masterOperation(
@@ -66,7 +76,7 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
 
-        final boolean isResetModeEnabled = isResetMode(state);
+        final boolean isResetModeEnabled = isResetMode(projectResolver.getProjectMetadata(state));
         // Noop, nothing for us to do, simply return fast to the caller
         if (request.isEnabled() == isResetModeEnabled) {
             logger.debug(() -> "Reset mode noop for [" + featureName() + "]");
@@ -107,7 +117,8 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
             @Override
             public ClusterState execute(ClusterState currentState) {
                 logger.trace(() -> "Executing cluster state update for [" + featureName() + "]");
-                return setState(currentState, request);
+                var project = projectResolver.getProjectMetadata(currentState);
+                return currentState.copyAndUpdateProject(project.id(), createProjectUpdate(project, request));
             }
         });
     }

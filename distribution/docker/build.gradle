@@ -14,8 +14,7 @@ import org.elasticsearch.gradle.Architecture
 import java.nio.file.Path
 import java.time.temporal.ChronoUnit
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-distribution-download'
 apply plugin: 'elasticsearch.dra-artifacts'
 apply plugin: 'elasticsearch.jdk-download'
@@ -142,6 +141,8 @@ dependencies {
   fips_140_3 "org.bouncycastle:bc-fips:2.0.1"
   fips_140_3 "org.bouncycastle:bctls-fips:2.0.22"
   fips_140_3 "org.bouncycastle:bcutil-fips:2.0.5"
+
+  yamlRestTestImplementation project(':test:fixtures:testcontainer-utils')
 }
 
 ext.expansions = { Architecture architecture, DockerBase base, String publicationContext = '' ->
@@ -226,23 +227,6 @@ ext.dockerBuildContext = { Architecture architecture, DockerBase base, String pu
   }
 }
 
-tasks.register("copyNodeKeyMaterial", Sync) {
-  def certsDir = file("build/certs")
-  def pemFile = file("build/certs/testnode.pem")
-  def crtFile = file("build/certs/testnode.crt")
-  from project(':x-pack:plugin:core')
-    .files(
-      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
-      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
-    )
-  into "build/certs"
-  doLast {
-    certsDir.setReadable(true, false)
-    pemFile.setReadable(true, false)
-    crtFile.setReadable(true, false)
-  }
-}
-
 elasticsearch_distributions {
   Architecture.values().each { eachArchitecture ->
     "docker_${eachArchitecture == Architecture.AARCH64 ? '_aarch64' : ''}" {
@@ -250,31 +234,6 @@ elasticsearch_distributions {
       type = InternalElasticsearchDistributionTypes.DOCKER
       version = VersionProperties.getElasticsearch()
       failIfUnavailable = false // This ensures we don't attempt to build images if docker is unavailable
-    }
-  }
-}
-
-interface Injected {
-  @Inject
-  FileSystemOperations getFs()
-}
-
-tasks.named("preProcessFixture").configure {
-  dependsOn elasticsearch_distributions.matching { it.architecture == Architecture.current() }
-  dependsOn "copyNodeKeyMaterial"
-  def injected = project.objects.newInstance(Injected)
-  def testFixturesFolder = project.testFixturesDir.absoluteFile
-  doLast {
-    // tests expect to have an empty repo
-    injected.fs.delete {
-      it.delete("${testFixturesFolder}/repo")
-    }
-    ["${testFixturesFolder}/repo",
-     "${testFixturesFolder}/logs/default-1",
-     "${testFixturesFolder}/logs/default-2"].each { location ->
-      File file = new File(location)
-      file.mkdirs()
-      file.setWritable(true, false)
     }
   }
 }
@@ -289,23 +248,14 @@ tasks.named("processYamlRestTestResources").configure {
 
 tasks.named("yamlRestTest").configure {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
-  maxParallelForks = '1'
+  maxParallelForks = 1
   include '**/*IT.class'
+  // Boot the JUnit-driven Testcontainers fixture against the locally tagged elasticsearch:test image
+  dependsOn elasticsearch_distributions.matching { it.architecture == Architecture.current() }
 }
 
 tasks.named("check").configure {
   dependsOn "yamlRestTest"
-}
-
-// We build the images used in compose locally, but the pull command insists on using a repository
-// thus we must disable it to prevent it from doing so.
-// Everything will still be pulled since we will build the local images on a pull
-tasks.named("composePull").configure {
-  enabled = false
-}
-
-tasks.named("composeUp").configure {
-  dependsOn tasks.named("preProcessFixture")
 }
 
 

@@ -26,40 +26,52 @@ public class PitReaderContextTests extends ESTestCase {
         var threadPool = new TestThreadPool("test") {
             @Override
             public long relativeTimeInMillis() {
+                // This allows to have predictable time that is useful for tests below.
+                // Time will tick every time PitReaderContext#nowInMillis() is called,
+                // meaning in constructor, during isExpired() and when releasing
+                // a releasable obtained from markAsUsed.
                 return time.getAndUpdate(t -> t + 1000);
             }
         };
         when(shard.getThreadPool()).thenReturn(threadPool);
 
         try (threadPool) {
+            // lastAccessTime here is 0 with our time setup above.
             var context = new PitReaderContext(new ShardSearchContextId("session", 0), null, shard, null, 100);
 
-            // No outstanding users and timer tick is larger than keep alive
-            // (1000 millis has passed) so it's expired.
+            // Calling isExpired() ticks a timer and time is now 1000
+            // which is larger than keepAlive so the context is expired.
             assertTrue(context.isExpired());
 
             var releasable = context.markAsUsed(1100);
-            // One outstanding user.
+            // One outstanding user, keepAlive doesn't matter.
             assertFalse(context.isExpired());
 
+            // Current time is 2000 and lastAccessTime is set to 2000.
             releasable.close();
-            // No outstanding users but the keepalive is now larger than the tick and so it is not expired due to last access time
-            // (1000 millis passed but keep alive is 1100);
+            // Calling isExpired() ticks a timer and time is now 3000.
+            // There is no outstanding users but since keepAlive was set to 1100 above, we are within the keepAlive
+            // (3000 - 2000 = 1000) so the context is not expired.
             assertFalse(context.isExpired());
 
             var releasable2 = context.markAsUsed(100_000);
-            // Is use again;
+            // In use again;
             assertFalse(context.isExpired());
 
+            // Current time is 4000 and relocatedTimestampMs is set to 4000.
             context.relocate();
-            // We relocated, but we are within the relocation grace period (it's exactly 1000 ms so one tick is covered by it).
+            // Calling isExpired() ticks a timer and time is now 5000.
+            // The context is relocating, but we are within the relocation grace period (it's exactly 1000 ms so one tick is covered by it).
             assertFalse(context.isExpired());
-            // But even after the grace period there is one outstanding user so we can't expire.
+            // Calling isExpired() ticks a timer and time is now 6000.
+            // Relocation grace period has elapsed ((6000 - 4000 = 2000) > 1000)
+            // but there is one outstanding user so we can't expire.
             assertFalse(context.isExpired());
 
+            // Current time is 7000 and lastAccessTime is set to 7000.
             releasable2.close();
             // Once there is no users and after the grace period (it elapsed during last check)
-            // we are expired even though we didn't reach keepalive.
+            // we are expired even though we didn't reach the very large keepAlive we've set.
             assertTrue(context.isExpired());
         }
     }

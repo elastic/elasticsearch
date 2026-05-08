@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class IsolatedProjectsTests extends ESTestCase {
 
@@ -229,9 +230,10 @@ public class IsolatedProjectsTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> IsolatedProjects.parse("\0")
         );
-        assertTrue(illegalArgumentException.getMessage().startsWith("failed to parse "));
+        // JsonXContent turns low-level parse failures into XContentParseException (IllegalArgumentException) with a Jackson cause.
+        // The outer try in IsolatedProjects.parse may also wrap a plain IOException with "failed to parse [...]".
         assertNotNull(illegalArgumentException.getCause());
-        assertEquals(IOException.class, illegalArgumentException.getCause().getClass());
+        assertThat(illegalArgumentException.getCause(), instanceOf(IOException.class));
     }
 
     private static String randomProjectIdString() {

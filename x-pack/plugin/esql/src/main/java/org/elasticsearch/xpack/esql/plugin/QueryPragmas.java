@@ -131,6 +131,11 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Boolean> FORCE_DOC_SEQUENCE = Setting.boolSetting("force_doc_sequence", false);
 
+    /**
+     *  When {@code true}, allows full-text functions to be used with expressions that are not indexed fields.
+     */
+    public static final Setting<Boolean> RUNTIME_LEXICAL_SEARCH = Setting.boolSetting("runtime_lexical_search", false);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     private final Settings settings;
@@ -306,6 +311,10 @@ public final class QueryPragmas implements Writeable {
             return PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.get(settings);
         }
         return defaultThreshold;
+    }
+
+    public boolean runtimeLexicalSearch() {
+        return RUNTIME_LEXICAL_SEARCH.get(settings);
     }
 
     public boolean isEmpty() {

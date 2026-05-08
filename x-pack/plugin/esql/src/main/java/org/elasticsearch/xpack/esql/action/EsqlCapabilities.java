@@ -2705,6 +2705,11 @@ public class EsqlCapabilities {
          */
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
+        /**
+         * Match function and match operator support for runtime expressions, not just ES mapped fields.
+         */
+        MATCH_SUPPORT_NON_ES_FIELDS(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

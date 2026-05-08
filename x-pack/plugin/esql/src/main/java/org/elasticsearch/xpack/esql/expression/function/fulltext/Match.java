@@ -7,11 +7,22 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -20,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -33,11 +45,13 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Map.entry;
@@ -71,10 +85,10 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
 /**
  * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchQuery} .
  */
-public class Match extends SingleFieldFullTextFunction implements OptionalArgument {
+public class Match extends SingleFieldFullTextFunction implements OptionalArgument, ConfigurationFunction {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Match.class).ternary(Match::new).name("match");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Match.class).ternaryConfig(Match::new).name("match");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         NULL,
         KEYWORD,
@@ -116,6 +130,9 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         entry(PREFIX_LENGTH_FIELD.getPreferredName(), INTEGER),
         entry(ZERO_TERMS_QUERY_FIELD.getPreferredName(), KEYWORD)
     );
+    private final static String CONTENT_FIELD = "content_field";
+
+    private final Configuration configuration;
 
     @FunctionInfo(
         returnType = "boolean",
@@ -242,12 +259,20 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
                         + "when using a stop filter. Defaults to none."
                 ) },
             optional = true
-        ) Expression options
+        ) Expression options,
+        Configuration configuration
     ) {
-        this(source, field, matchQuery, options, null);
+        this(source, field, matchQuery, options, null, configuration);
     }
 
-    public Match(Source source, Expression field, Expression matchQuery, Expression options, QueryBuilder queryBuilder) {
+    public Match(
+        Source source,
+        Expression field,
+        Expression matchQuery,
+        Expression options,
+        QueryBuilder queryBuilder,
+        Configuration configuration
+    ) {
         super(
             source,
             field,
@@ -256,6 +281,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             options == null ? List.of(field, matchQuery) : List.of(field, matchQuery, options),
             queryBuilder
         );
+        this.configuration = configuration;
     }
 
     @Override
@@ -268,7 +294,8 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        return new Match(source, field, query, null, queryBuilder);
+        Configuration configuration = ((PlanStreamInput) in).configuration();
+        return new Match(source, field, query, null, queryBuilder, configuration);
     }
 
     // This is not meant to be overriden by MatchOperator - MatchOperator should be serialized to Match
@@ -320,6 +347,10 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         return ALLOWED_OPTIONS;
     }
 
+    protected Configuration configuration() {
+        return configuration;
+    }
+
     private Map<String, Object> matchQueryOptions() throws InvalidArgumentException {
         if (options() == null) {
             return Map.of(LENIENT_FIELD.getPreferredName(), true);
@@ -335,7 +366,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Match::new, field(), query(), options(), queryBuilder());
+        return NodeInfo.create(this, Match::new, field(), query(), options(), queryBuilder(), configuration);
     }
 
     @Override
@@ -345,13 +376,14 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             newChildren.get(0),
             newChildren.get(1),
             newChildren.size() > 2 ? newChildren.get(2) : null,
-            queryBuilder()
+            queryBuilder(),
+            configuration
         );
     }
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new Match(source(), field, query(), options(), queryBuilder);
+        return new Match(source(), field, query(), options(), queryBuilder, configuration);
     }
 
     @Override
@@ -361,5 +393,58 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         String fieldName = getNameFromFieldAttribute(fieldAttribute);
         // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
         return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
+    }
+
+    @Override
+    protected boolean isRuntimeSearch() {
+        return EsqlCapabilities.Cap.MATCH_SUPPORT_NON_ES_FIELDS.isEnabled()
+            && configuration.pragmas().runtimeLexicalSearch()
+            && fieldAsFieldAttribute() == null
+            && field.dataType() == TEXT;
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        if (fieldAsFieldAttribute() == null) {
+            return Translatable.NO;
+        }
+        return super.translatable(pushdownPredicates);
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (isRuntimeSearch()) {
+            return new MatchTextEvaluator.Factory(source(), toEvaluator.apply(field()), queryAsObject().toString(), new StandardAnalyzer());
+        }
+
+        return super.toEvaluator(toEvaluator);
+    }
+
+    @Evaluator(extraName = "Text", warnExceptions = { IOException.class })
+    static boolean processTextKeyword(BytesRef value, @Fixed String queryString, @Fixed Analyzer analyzer) throws IOException {
+        MemoryIndex index = new MemoryIndex();
+        index.addField(CONTENT_FIELD, value.utf8ToString(), new StandardAnalyzer());
+        IndexSearcher searcher = index.createSearcher();
+
+        org.apache.lucene.util.QueryBuilder queryBuilder = new org.apache.lucene.util.QueryBuilder(analyzer);
+        org.apache.lucene.search.Query query = queryBuilder.createBooleanQuery(CONTENT_FIELD, queryString, BooleanClause.Occur.SHOULD);
+
+        TopDocs topDocs = searcher.search(query, 1);
+        return topDocs.scoreDocs.length > 0;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (super.equals(o) == false) {
+            return false;
+        }
+
+        Match other = (Match) o;
+        return this.configuration == other.configuration;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), configuration);
     }
 }

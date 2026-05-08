@@ -201,6 +201,10 @@ public abstract class FullTextFunction extends Function
         return FullTextFunction::checkFullTextQueryFunctions;
     }
 
+    protected boolean isRuntimeSearch() {
+        return false;
+    }
+
     /**
      * Checks full text query functions for invalid usage.
      *
@@ -341,6 +345,10 @@ public abstract class FullTextFunction extends Function
         Failures failures
     ) {
         condition.forEachDown(typeToken, exp -> {
+            if (exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) {
+                return;
+            }
+
             plan.forEachDown(LogicalPlan.class, lp -> {
                 if (commandCheck.test(lp) == false) {
                     String sourceText = lp.sourceText();
@@ -413,6 +421,10 @@ public abstract class FullTextFunction extends Function
         }
         var fieldAttribute = resolveToFieldAttribute(plan, field);
         if (fieldAttribute == null) {
+            if (function.isRuntimeSearch()) {
+                return;
+            }
+
             plan.forEachExpression(function.getClass(), m -> {
                 if (function.children().contains(field) && hasSubqueryInChildrenPlans(plan) == false) {
                     failures.add(

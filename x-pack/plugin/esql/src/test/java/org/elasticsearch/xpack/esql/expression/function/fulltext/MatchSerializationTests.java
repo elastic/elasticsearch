@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
@@ -19,7 +20,7 @@ public class MatchSerializationTests extends AbstractExpressionSerializationTest
         Source source = randomSource();
         Expression field = randomChild();
         Expression query = randomChild();
-        return new Match(source, field, query, null);
+        return new Match(source, field, query, null, EsqlTestUtils.TEST_CFG);
     }
 
     @Override
@@ -32,6 +33,6 @@ public class MatchSerializationTests extends AbstractExpressionSerializationTest
         } else {
             query = randomValueOtherThan(query, AbstractExpressionSerializationTests::randomChild);
         }
-        return new Match(source, field, query, null);
+        return new Match(source, field, query, null, EsqlTestUtils.TEST_CFG);
     }
 }

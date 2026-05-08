@@ -319,8 +319,13 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                     : "shard [" + pair + "] can remain on node [" + nodeId + "], but that node is shutting down";
                 return pair.v2().getMoveDecision().cannotRemain();
             })
-            // These shards will move as soon as possible
-            .filter(pair -> pair.v2().getMoveDecision().getAllocationDecision().equals(AllocationDecision.YES) == false)
+            // These shards will move as soon as possible. A NOT_PREFERRED move decision still
+            // means the shard can migrate (see MoveDecision#cannotRemainAndCanMove), so we must
+            // not treat it as unmovable when the shard cannot remain on the shutting down node.
+            .filter(pair -> {
+                AllocationDecision moveDecision = pair.v2().getMoveDecision().getAllocationDecision();
+                return moveDecision != AllocationDecision.YES && moveDecision != AllocationDecision.NOT_PREFERRED;
+            })
             .toList();
 
         // If there's no relocating shards and shards still on this node, we need to figure out why

@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 148260
+summary: "Painless: honor search timeout in score scripts"
+type: enhancement

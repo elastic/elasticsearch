@@ -31,7 +31,6 @@ import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.Function;
 
 class ES93GenericFlatVectorsReader extends FlatVectorsReader {
 
@@ -41,10 +40,9 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
     ES93GenericFlatVectorsReader(
         GenericFormatMetaInformation metaInfo,
         SegmentReadState state,
-        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader,
-        Function<KnnVectorValues, FlatVectorsScorer> scorerSupplier
+        GenericFlatVectorReaders.LoadFlatVectorsReader loadReader
     ) throws IOException {
-        super(new GenericScorer(scorerSupplier));
+        super(null);    // this is not actually used by anything
 
         this.fieldInfos = state.fieldInfos;
         this.genericReaders = new GenericFlatVectorReaders();
@@ -76,51 +74,10 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
         }
     }
 
-    private ES93GenericFlatVectorsReader(FieldInfos fieldInfos, GenericFlatVectorReaders genericReaders, FlatVectorsScorer scorer) {
-        super(scorer);
+    private ES93GenericFlatVectorsReader(FieldInfos fieldInfos, GenericFlatVectorReaders genericReaders) {
+        super(null);
         this.fieldInfos = fieldInfos;
         this.genericReaders = genericReaders;
-    }
-
-    /**
-     * Scorer that infers the implementation from the vector values that are specified.
-     * <p>
-     * This is a bit hacky - This only works as long as the implementation can be uniquely identified
-     * from the {@code KnnVectorValues} alone.
-     */
-    private static class GenericScorer implements FlatVectorsScorer {
-
-        private final Function<KnnVectorValues, FlatVectorsScorer> scorerSupplier;
-
-        private GenericScorer(Function<KnnVectorValues, FlatVectorsScorer> scorerSupplier) {
-            this.scorerSupplier = scorerSupplier;
-        }
-
-        @Override
-        public RandomVectorScorerSupplier getRandomVectorScorerSupplier(
-            VectorSimilarityFunction similarityFunction,
-            KnnVectorValues vectorValues
-        ) throws IOException {
-            return scorerSupplier.apply(vectorValues).getRandomVectorScorerSupplier(similarityFunction, vectorValues);
-        }
-
-        @Override
-        public RandomVectorScorer getRandomVectorScorer(
-            VectorSimilarityFunction similarityFunction,
-            KnnVectorValues vectorValues,
-            float[] target
-        ) throws IOException {
-            return scorerSupplier.apply(vectorValues).getRandomVectorScorer(similarityFunction, vectorValues, target);
-        }
-
-        @Override
-        public RandomVectorScorer getRandomVectorScorer(
-            VectorSimilarityFunction similarityFunction,
-            KnnVectorValues vectorValues,
-            byte[] target
-        ) throws IOException {
-            return scorerSupplier.apply(vectorValues).getRandomVectorScorer(similarityFunction, vectorValues, target);
-        }
     }
 
     private static void readFields(
@@ -143,8 +100,40 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
     }
 
     @Override
+    public FlatVectorsScorer getFlatVectorScorer() {
+        // this should not actually be used at all
+        return new FlatVectorsScorer() {
+            @Override
+            public RandomVectorScorerSupplier getRandomVectorScorerSupplier(
+                VectorSimilarityFunction similarityFunction,
+                KnnVectorValues vectorValues
+            ) throws IOException {
+                throw new UnsupportedOperationException("Scorer should not be used");
+            }
+
+            @Override
+            public RandomVectorScorer getRandomVectorScorer(
+                VectorSimilarityFunction similarityFunction,
+                KnnVectorValues vectorValues,
+                float[] target
+            ) throws IOException {
+                throw new UnsupportedOperationException("Scorer should not be used");
+            }
+
+            @Override
+            public RandomVectorScorer getRandomVectorScorer(
+                VectorSimilarityFunction similarityFunction,
+                KnnVectorValues vectorValues,
+                byte[] target
+            ) throws IOException {
+                throw new UnsupportedOperationException("Scorer should not be used");
+            }
+        };
+    }
+
+    @Override
     public FlatVectorsReader getMergeInstance() throws IOException {
-        return new ES93GenericFlatVectorsReader(fieldInfos, genericReaders.getMergeInstance(), getFlatVectorScorer());
+        return new ES93GenericFlatVectorsReader(fieldInfos, genericReaders.getMergeInstance());
     }
 
     @Override

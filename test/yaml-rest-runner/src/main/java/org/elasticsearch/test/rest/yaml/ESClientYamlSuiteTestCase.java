@@ -24,6 +24,7 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -367,8 +368,12 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         tests.sort(Comparator.comparing(o -> ((ClientYamlTestCandidate) o[0]).getTestPath()));
         // Use a Random seeded directly from the tests.seed system property: this method runs
         // during parameter collection, before any RandomizedRunner per-test context is set up,
-        // so RandomizedTest.getRandom() throws here.
-        Collections.shuffle(tests, parameterFactoryRandom());
+        // so RandomizedTest.getRandom() throws here. If tests.seed is unset (unusual outside
+        // of an ad-hoc run) we skip the shuffle and keep the sorted suite-grouped order.
+        java.util.Random seededRandom = parameterFactoryRandom();
+        if (seededRandom != null) {
+            Collections.shuffle(tests, seededRandom);
+        }
         if (RandomizedTest.systemPropertyAsBoolean(REST_TESTS_SUITE_GROUPING, true)) {
             Map<String, List<Object[]>> byFile = new LinkedHashMap<>();
             for (Object[] test : tests) {
@@ -394,7 +399,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private static java.util.Random parameterFactoryRandom() {
         String seedProp = System.getProperty("tests.seed");
         if (seedProp == null || seedProp.isEmpty()) {
-            return new java.util.Random();
+            return null;
         }
         // tests.seed can be "<master>" or "<master>:<method>"; the first part is the suite seed.
         String masterPart = seedProp.split(":", 2)[0];
@@ -699,7 +704,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * out from a prior branch, which won't carry any {@link #CLEAN_SETUP_FEATURE} markers we
      * add going forward.
      */
-    private static final boolean REST_COMPAT_MODE = Boolean.parseBoolean(System.getProperty("tests.restCompat", "false"));
+    private static final boolean REST_COMPAT_MODE = Booleans.parseBoolean(System.getProperty("tests.restCompat", "false"));
 
     /**
      * Whether the current test (or its setup section) requires a clean cluster setup. Tests

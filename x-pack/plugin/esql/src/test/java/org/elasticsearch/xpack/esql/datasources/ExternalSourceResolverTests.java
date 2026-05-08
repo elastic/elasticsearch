@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -993,12 +994,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     // ===== Stub implementations =====
 
-    private static class StubFormatReader implements FormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class StubFormatReader implements FormatReader, NoConfigFormatReader {
 
         private final Map<String, List<Attribute>> schemasByPath;
 
@@ -1064,12 +1060,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * A StubFormatReader that also returns per-file row counts as statistics.
      * Used to test the aggregated stats path in multi-file resolution.
      */
-    private static class StubFormatReaderWithStats implements FormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class StubFormatReaderWithStats implements FormatReader, NoConfigFormatReader {
 
         private final Map<String, List<Attribute>> schemasByPath;
         private final Map<String, Long> rowCountsByPath;

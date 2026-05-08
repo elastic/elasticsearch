@@ -26,12 +26,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
@@ -2519,12 +2519,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * that increments {@code closeCalls} on {@link CloseableIterator#close()}, so the test can
      * assert that every opened iterator is closed exactly once.
      */
-    private static class TrackingReader implements FormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class TrackingReader implements FormatReader, NoConfigFormatReader {
 
         private final AtomicInteger readCount;
         private final AtomicInteger closeCount;
@@ -2605,12 +2600,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         return new Page(block);
     }
 
-    private static class PageCountingFormatReader implements FormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class PageCountingFormatReader implements FormatReader, NoConfigFormatReader {
 
         private final AtomicInteger readCount;
 
@@ -2663,12 +2653,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class FailOnSecondFileFormatReader implements FormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class FailOnSecondFileFormatReader implements FormatReader, NoConfigFormatReader {
 
         private final AtomicInteger callCount = new AtomicInteger(0);
 
@@ -2796,12 +2781,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     /**
      * Test sync format reader that returns empty pages.
      */
-    private static class TestSyncFormatReader implements FormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class TestSyncFormatReader implements FormatReader, NoConfigFormatReader {
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
@@ -2836,12 +2816,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Format reader that captures the StorageObject and skipFirstLine flag passed to readSplit.
      * Used to verify that RangeStorageObject wrapping and skipFirstLine logic are correct.
      */
-    private static class SplitCapturingFormatReader implements FormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class SplitCapturingFormatReader implements FormatReader, NoConfigFormatReader {
 
         private final List<StorageObject> capturedObjects;
         private final List<Boolean> capturedSkipFirstLine;
@@ -2902,14 +2877,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
-     * Format reader that implements SegmentableFormatReader and tracks which methods are called.
+     * Format reader that implements SegmentableFormatReader, NoConfigFormatReader and tracks which methods are called.
      */
-    private static class TrackingSegmentableFormatReader implements SegmentableFormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class TrackingSegmentableFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
 
         final AtomicInteger readCount = new AtomicInteger(0);
         final AtomicInteger readWithFirstSplitFalseCount = new AtomicInteger(0);
@@ -3085,12 +3055,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     /**
      * Format reader that always throws on read, for testing error handling.
      */
-    private static class AlwaysFailFormatReader implements FormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class AlwaysFailFormatReader implements FormatReader, NoConfigFormatReader {
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
@@ -3119,12 +3084,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     /**
      * Format reader that returns multiple pages per read, for testing backpressure.
      */
-    private static class MultiPageFormatReader implements FormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class MultiPageFormatReader implements FormatReader, NoConfigFormatReader {
 
         private final AtomicInteger readCount;
         private final int pagesPerRead;
@@ -3185,12 +3145,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Format reader that succeeds for the first N reads (returning multiple pages each),
      * then throws an IOException on the (N+1)th read. Used to test error-path cleanup.
      */
-    private static class FailAfterNReadsFormatReader implements FormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class FailAfterNReadsFormatReader implements FormatReader, NoConfigFormatReader {
 
         private final AtomicInteger readCount;
         private final int failAfter;
@@ -3247,12 +3202,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class TestAsyncFormatReader implements FormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class TestAsyncFormatReader implements FormatReader, NoConfigFormatReader {
 
         @Override
         public SourceMetadata metadata(StorageObject object) {

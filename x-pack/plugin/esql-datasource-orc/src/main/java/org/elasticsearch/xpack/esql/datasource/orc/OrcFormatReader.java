@@ -44,10 +44,10 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
@@ -87,7 +87,7 @@ import java.util.OptionalLong;
  *   <li>Stripe-level split parallelism for multi-stripe files</li>
  * </ul>
  */
-public class OrcFormatReader implements RangeAwareFormatReader {
+public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatReader {
 
     private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
 
@@ -114,14 +114,6 @@ public class OrcFormatReader implements RangeAwareFormatReader {
             return new OrcFormatReader(this.blockFactory, null, exprs);
         }
         return this;
-    }
-
-    @Override
-    public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-        // ORC has no per-query keys today; the empty consumed-keys set lets the coordinator-side
-        // validator reject anything the user passes that isn't claimed elsewhere. A future
-        // contributor adding ORC-specific options must update this method.
-        return Configured.empty(this);
     }
 
     @Override

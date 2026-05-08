@@ -23,9 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -134,12 +133,7 @@ public class ParallelParsingBenchmark {
         }
     }
 
-    private static class BenchLineReader implements SegmentableFormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class BenchLineReader implements SegmentableFormatReader, NoConfigFormatReader {
 
         @Override
         public long findNextRecordBoundary(InputStream stream) throws IOException {

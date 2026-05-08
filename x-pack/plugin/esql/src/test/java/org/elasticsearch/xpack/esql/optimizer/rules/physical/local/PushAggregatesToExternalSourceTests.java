@@ -26,9 +26,9 @@ import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -581,12 +581,7 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
     /**
      * Minimal FormatReader stub that only provides aggregate pushdown support.
      */
-    private static class StubFormatReader implements FormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class StubFormatReader implements FormatReader, NoConfigFormatReader {
 
         private final AggregatePushdownSupport support;
 

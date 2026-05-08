@@ -14,10 +14,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -67,12 +67,7 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
     }
 
     public void testFormatNameAndExtensionsDelegated() {
-        FormatReader innerReader = new FormatReader() {
-
-            @Override
-            public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-                return Configured.empty(this);
-            }
+        FormatReader innerReader = new NoConfigFormatReader() {
 
             @Override
             public SourceMetadata metadata(StorageObject object) {
@@ -181,12 +176,7 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         };
     }
 
-    private static class CapturingFormatReader implements FormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class CapturingFormatReader implements FormatReader, NoConfigFormatReader {
 
         boolean metadataCalled;
         boolean readCalled;

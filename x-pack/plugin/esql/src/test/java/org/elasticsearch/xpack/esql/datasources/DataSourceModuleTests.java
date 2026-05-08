@@ -18,7 +18,6 @@ import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -26,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
@@ -130,12 +130,7 @@ public class DataSourceModuleTests extends ESTestCase {
     /**
      * Mock CSV format reader for testing.
      */
-    private static class MockCsvFormatReader implements FormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class MockCsvFormatReader implements FormatReader, NoConfigFormatReader {
 
         private final String format;
         private final List<String> extensions;
@@ -172,12 +167,7 @@ public class DataSourceModuleTests extends ESTestCase {
     /**
      * Mock TSV format reader for testing.
      */
-    private static class MockTsvFormatReader implements FormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class MockTsvFormatReader implements FormatReader, NoConfigFormatReader {
 
         @Override
         public SourceMetadata metadata(StorageObject object) {
@@ -317,12 +307,7 @@ public class DataSourceModuleTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class SegmentableTestNdjsonReader implements SegmentableFormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class SegmentableTestNdjsonReader implements SegmentableFormatReader, NoConfigFormatReader {
 
         @Override
         public SourceMetadata metadata(StorageObject object) {

@@ -873,13 +873,13 @@ public class FileSplitProviderTests extends ESTestCase {
 
         RangeAwareFormatReader mockReader = new RangeAwareFormatReader() {
 
+            private int callCount = 0;
+            private final List<List<SplitRange>> perFileRanges = List.of(List.of(range1), List.of(range2), List.of(range3));
+
             @Override
             public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
                 return Configured.empty(this);
             }
-
-            private int callCount = 0;
-            private final List<List<SplitRange>> perFileRanges = List.of(List.of(range1), List.of(range2), List.of(range3));
 
             @Override
             public List<SplitRange> discoverSplitRanges(StorageObject object) {

@@ -22,9 +22,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -677,12 +676,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * Minimal SegmentableFormatReader that scans for newlines.
      */
-    private static class NewlineSegmentableReader implements SegmentableFormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class NewlineSegmentableReader implements SegmentableFormatReader, NoConfigFormatReader {
 
         private final long minSegmentSize;
 
@@ -747,12 +741,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * A line-oriented format reader that reads newline-delimited text and produces
      * single-column pages with keyword blocks. Used for testing parallel parsing.
      */
-    private static class LineFormatReader implements SegmentableFormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class LineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
 
         private final BlockFactory blockFactory;
 
@@ -880,12 +869,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * {@link #read} call. Lets tests assert per-segment flag wiring without re-implementing line
      * parsing.
      */
-    private static class ContextRecordingFormatReader implements SegmentableFormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class ContextRecordingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
 
         private final BlockFactory blockFactory;
         private final long minSegmentSize;
@@ -968,12 +952,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * A line-oriented reader that throws after producing a configurable number of lines.
      */
-    private static class FailingFormatReader implements SegmentableFormatReader {
-
-        @Override
-        public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
-            return Configured.empty(this);
-        }
+    private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
 
         private final BlockFactory blockFactory;
         private final int failAfterLines;

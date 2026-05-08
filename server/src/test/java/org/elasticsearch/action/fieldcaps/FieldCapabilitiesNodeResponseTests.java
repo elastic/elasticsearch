@@ -44,13 +44,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         int numResponse = randomIntBetween(0, 10);
         for (int i = 0; i < numResponse; i++) {
             responses.add(
-                new FieldCapabilitiesIndexResponse(
-                    "index_" + i,
-                    null,
-                    randomFieldCaps(),
-                    randomBoolean(),
-                    randomFrom(IndexMode.availableModes())
-                )
+                new FieldCapabilitiesIndexResponse("index_" + i, null, randomFieldCaps(), randomBoolean(), randomFrom(IndexMode.values()))
             );
         }
         int numUnmatched = randomIntBetween(0, 3);
@@ -72,13 +66,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         int mutation = response.getIndexResponses().isEmpty() ? 0 : randomIntBetween(0, 3);
         switch (mutation) {
             case 0 -> newResponses.add(
-                new FieldCapabilitiesIndexResponse(
-                    "extra_index",
-                    null,
-                    randomFieldCaps(),
-                    randomBoolean(),
-                    randomFrom(IndexMode.availableModes())
-                )
+                new FieldCapabilitiesIndexResponse("extra_index", null, randomFieldCaps(), randomBoolean(), randomFrom(IndexMode.values()))
             );
             case 1 -> {
                 int toRemove = randomInt(newResponses.size() - 1);
@@ -93,7 +81,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         null,
                         randomFieldCaps(),
                         randomBoolean(),
-                        randomFrom(IndexMode.availableModes())
+                        randomFrom(IndexMode.values())
                     )
                 );
             }
@@ -107,7 +95,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
                         UUIDs.randomBase64UUID(),
                         resp.get(),
                         true,
-                        randomFrom(IndexMode.availableModes())
+                        randomFrom(IndexMode.values())
                     )
                 );
             }

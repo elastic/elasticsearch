@@ -62,7 +62,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
         final List<FieldCapabilitiesIndexResponse> responses = new ArrayList<>();
         for (Map.Entry<String, List<String>> e : mappingHashToIndices.entrySet()) {
             Map<String, IndexFieldCapabilities> fieldCaps = randomFieldCaps();
-            var indexMode = randomFrom(IndexMode.availableModes());
+            var indexMode = randomFrom(IndexMode.values());
             String mappingHash = e.getKey();
             for (String index : e.getValue()) {
                 responses.add(new FieldCapabilitiesIndexResponse(index, mappingHash, fieldCaps, true, indexMode));
@@ -76,7 +76,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
         int numIndices = between(0, 10);
         for (int i = 0; i < numIndices; i++) {
             String index = "index_without_mapping_hash_" + i;
-            var indexMode = randomFrom(IndexMode.availableModes());
+            var indexMode = randomFrom(IndexMode.values());
             responses.add(new FieldCapabilitiesIndexResponse(index, null, randomFieldCaps(), randomBoolean(), indexMode));
         }
         return responses;

@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
@@ -39,21 +37,11 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
-        StorageProviderFactory gcsFactory = new StorageProviderFactory() {
-            @Override
-            public StorageProvider create(Settings settings) {
-                return new GcsStorageProvider((GcsConfiguration) null);
-            }
-
-            @Override
-            public Configured<StorageProvider> createTrackingConsumedKeys(Settings settings, Map<String, Object> config) {
-                if (config == null || config.isEmpty()) {
-                    return Configured.empty(create(settings));
-                }
-                Configured<GcsConfiguration> gcsConfig = GcsConfiguration.fromQueryConfig(config);
-                return new Configured<>(new GcsStorageProvider(gcsConfig.value()), gcsConfig.consumedKeys());
-            }
-        };
+        StorageProviderFactory gcsFactory = StorageProviderFactory.of(
+            () -> new GcsStorageProvider((GcsConfiguration) null),
+            GcsConfiguration::fromQueryConfig,
+            GcsStorageProvider::new
+        );
         return Map.of("gs", gcsFactory);
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -71,6 +72,7 @@ public class ParquetFormatReaderRecognizedKeysTests extends ESTestCase {
      * to register' and 'added a string to {@code RECOGNIZED_KEYS} with no backing constant
      * (likely dead)'.
      */
+    @SuppressForbidden(reason = "test-only reflection over CONFIG_* constants to pin set/constant symmetry")
     public void testRecognizedKeysMatchConfigConstants() {
         Set<String> fromConstants = new TreeSet<>();
         for (Field f : ParquetFormatReader.class.getDeclaredFields()) {

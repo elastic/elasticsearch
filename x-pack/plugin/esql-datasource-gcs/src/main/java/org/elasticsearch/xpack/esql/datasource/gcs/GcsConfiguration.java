@@ -54,9 +54,7 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
      * before construction; cross-field validation (auth/credential conflicts) still runs.
      */
     public static Configured<GcsConfiguration> fromQueryConfig(Map<String, Object> raw) {
-        Configured<Map<String, Object>> filtered = filterKnown(raw, FIELDS);
-        GcsConfiguration config = filtered.value() == null || filtered.value().isEmpty() ? null : new GcsConfiguration(filtered.value());
-        return new Configured<>(config, filtered.consumedKeys());
+        return filterAndConstruct(raw, FIELDS, GcsConfiguration::new);
     }
 
     public static GcsConfiguration fromFields(String serviceAccountCredentials, String projectId, String endpoint) {

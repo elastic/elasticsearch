@@ -59,11 +59,7 @@ public class AzureConfiguration extends FileDataSourceConfiguration {
      * before construction; cross-field validation (auth/credential conflicts) still runs.
      */
     public static Configured<AzureConfiguration> fromQueryConfig(Map<String, Object> raw) {
-        Configured<Map<String, Object>> filtered = filterKnown(raw, FIELDS);
-        AzureConfiguration config = filtered.value() == null || filtered.value().isEmpty()
-            ? null
-            : new AzureConfiguration(filtered.value());
-        return new Configured<>(config, filtered.consumedKeys());
+        return filterAndConstruct(raw, FIELDS, AzureConfiguration::new);
     }
 
     public static AzureConfiguration fromFields(String connectionString, String account, String key, String sasToken, String endpoint) {

@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -96,6 +99,35 @@ public class CsvFormatReaderRecognizedKeysTests extends ESTestCase {
         } catch (RuntimeException e) {
             // Random values may trigger parser validation; the contract is only checked on success.
         }
+    }
+
+    /**
+     * Bidirectional symmetry: every {@code static final String CONFIG_*} constant on
+     * {@link CsvFormatReader} appears in {@link CsvFormatReader#RECOGNIZED_KEYS}, and every entry
+     * in {@code RECOGNIZED_KEYS} is backed by a matching constant.
+     */
+    @SuppressForbidden(reason = "test-only reflection over CONFIG_* constants to pin set/constant symmetry")
+    public void testRecognizedKeysMatchConfigConstants() {
+        Set<String> fromConstants = new TreeSet<>();
+        for (Field f : CsvFormatReader.class.getDeclaredFields()) {
+            int mods = f.getModifiers();
+            if (Modifier.isStatic(mods) == false || Modifier.isFinal(mods) == false) continue;
+            if (f.getType() != String.class) continue;
+            if (f.getName().startsWith("CONFIG_") == false) continue;
+            f.setAccessible(true);
+            try {
+                String value = (String) f.get(null);
+                if (value != null) fromConstants.add(value);
+            } catch (IllegalAccessException e) {
+                throw new AssertionError("cannot read constant " + f.getName(), e);
+            }
+        }
+        Set<String> missingFromKeys = new TreeSet<>(fromConstants);
+        missingFromKeys.removeAll(CsvFormatReader.RECOGNIZED_KEYS);
+        Set<String> extraInKeys = new TreeSet<>(CsvFormatReader.RECOGNIZED_KEYS);
+        extraInKeys.removeAll(fromConstants);
+        assertTrue("CsvFormatReader CONFIG_* constants missing from RECOGNIZED_KEYS: " + missingFromKeys, missingFromKeys.isEmpty());
+        assertTrue("CsvFormatReader RECOGNIZED_KEYS entries with no backing CONFIG_* constant: " + extraInKeys, extraInKeys.isEmpty());
     }
 
     private static Object sampleValueFor(String key) {

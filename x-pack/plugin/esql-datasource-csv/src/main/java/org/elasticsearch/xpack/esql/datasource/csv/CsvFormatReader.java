@@ -233,20 +233,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * is overridden.
      */
     private static CsvFormatOptions parseOptionsFromConfig(Map<String, Object> config, CsvFormatOptions baseline) {
-        char delimiter = parseChar(config.get("delimiter"), baseline.delimiter());
-        char quoteChar = parseChar(config.get("quote"), baseline.quoteChar());
-        char escapeChar = parseChar(config.get("escape"), baseline.escapeChar());
-        String commentPrefix = parseString(config.get("comment"), baseline.commentPrefix());
-        String nullValue = parseString(config.get("null_value"), baseline.nullValue());
-        Charset encoding = parseEncoding(config.get("encoding"), baseline.encoding());
-        DateTimeFormatter datetimeFormatter = parseDatetimeFormat(config.get("datetime_format"), baseline.datetimeFormatter());
-        int maxFieldSize = parseInt(config.get("max_field_size"), baseline.maxFieldSize());
+        char delimiter = parseChar(config.get(CONFIG_DELIMITER), baseline.delimiter());
+        char quoteChar = parseChar(config.get(CONFIG_QUOTE), baseline.quoteChar());
+        char escapeChar = parseChar(config.get(CONFIG_ESCAPE), baseline.escapeChar());
+        String commentPrefix = parseString(config.get(CONFIG_COMMENT), baseline.commentPrefix());
+        String nullValue = parseString(config.get(CONFIG_NULL_VALUE), baseline.nullValue());
+        Charset encoding = parseEncoding(config.get(CONFIG_ENCODING), baseline.encoding());
+        DateTimeFormatter datetimeFormatter = parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), baseline.datetimeFormatter());
+        int maxFieldSize = parseInt(config.get(CONFIG_MAX_FIELD_SIZE), baseline.maxFieldSize());
         CsvFormatOptions.MultiValueSyntax multiValueSyntax = parseMultiValueSyntax(
-            config.get("multi_value_syntax"),
+            config.get(CONFIG_MULTI_VALUE_SYNTAX),
             baseline.multiValueSyntax()
         );
-        boolean headerRow = parseBooleanOption("header_row", config.get("header_row"), baseline.headerRow());
-        String columnPrefix = parseString(config.get("column_prefix"), baseline.columnPrefix());
+        boolean headerRow = parseBooleanOption(CONFIG_HEADER_ROW, config.get(CONFIG_HEADER_ROW), baseline.headerRow());
+        String columnPrefix = parseString(config.get(CONFIG_COLUMN_PREFIX), baseline.columnPrefix());
 
         CsvFormatOptions merged = new CsvFormatOptions(
             delimiter,
@@ -385,20 +385,33 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return new CsvFormatReader(blockFactory, options, format, extensions, schema, schemaSampleSize, effectivePolicy);
     }
 
+    static final String CONFIG_DELIMITER = "delimiter";
+    static final String CONFIG_QUOTE = "quote";
+    static final String CONFIG_ESCAPE = "escape";
+    static final String CONFIG_COMMENT = "comment";
+    static final String CONFIG_NULL_VALUE = "null_value";
+    static final String CONFIG_ENCODING = "encoding";
+    static final String CONFIG_DATETIME_FORMAT = "datetime_format";
+    static final String CONFIG_MAX_FIELD_SIZE = "max_field_size";
+    static final String CONFIG_MULTI_VALUE_SYNTAX = "multi_value_syntax";
+    static final String CONFIG_HEADER_ROW = "header_row";
+    static final String CONFIG_COLUMN_PREFIX = "column_prefix";
+    static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
+
     /** Keys recognised by {@link #withConfig(Map)}. */
     static final Set<String> RECOGNIZED_KEYS = Set.of(
-        "delimiter",
-        "quote",
-        "escape",
-        "comment",
-        "null_value",
-        "encoding",
-        "datetime_format",
-        "max_field_size",
-        "multi_value_syntax",
-        "header_row",
-        "column_prefix",
-        "schema_sample_size"
+        CONFIG_DELIMITER,
+        CONFIG_QUOTE,
+        CONFIG_ESCAPE,
+        CONFIG_COMMENT,
+        CONFIG_NULL_VALUE,
+        CONFIG_ENCODING,
+        CONFIG_DATETIME_FORMAT,
+        CONFIG_MAX_FIELD_SIZE,
+        CONFIG_MULTI_VALUE_SYNTAX,
+        CONFIG_HEADER_ROW,
+        CONFIG_COLUMN_PREFIX,
+        CONFIG_SCHEMA_SAMPLE_SIZE
     );
 
     @Override
@@ -408,8 +421,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         Set<String> consumed = consumedKeys(config, RECOGNIZED_KEYS);
         CsvFormatOptions parsed = parseOptionsFromConfig(config, options);
-        int newSampleSize = parseInt(config.get("schema_sample_size"), schemaSampleSize);
-        Check.isTrue(newSampleSize > 0, "schema_sample_size must be positive, got: {}", newSampleSize);
+        int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
+        Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);
         CsvFormatReader result = parsed != null ? withOptions(parsed) : this;
         if (newSampleSize != result.schemaSampleSize || resolvedPolicy != result.effectivePolicy) {

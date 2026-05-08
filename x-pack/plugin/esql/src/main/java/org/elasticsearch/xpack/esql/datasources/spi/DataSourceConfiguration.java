@@ -126,6 +126,22 @@ public abstract class DataSourceConfiguration {
     }
 
     /**
+     * Filters {@code raw} to keys in {@code fieldDefs} via {@link #filterKnown}, then constructs
+     * a configuration from the kept entries (or {@code null} if none kept). Pairs the result with
+     * the consumed-keys set. Use from each subclass's {@code fromQueryConfig} to eliminate the
+     * filter-construct-pair pipeline boilerplate.
+     */
+    protected static <T> Configured<T> filterAndConstruct(
+        Map<String, Object> raw,
+        Map<String, DataSourceConfigDefinition> fieldDefs,
+        java.util.function.Function<Map<String, Object>, T> constructor
+    ) {
+        Configured<Map<String, Object>> filtered = filterKnown(raw, fieldDefs);
+        T value = (filtered.value() == null || filtered.value().isEmpty()) ? null : constructor.apply(filtered.value());
+        return new Configured<>(value, filtered.consumedKeys());
+    }
+
+    /**
      * Builds a raw settings map from alternating field/value pairs, skipping nulls.
      * Returns null if all values are null. Used by {@code fromFields()} factory methods.
      */

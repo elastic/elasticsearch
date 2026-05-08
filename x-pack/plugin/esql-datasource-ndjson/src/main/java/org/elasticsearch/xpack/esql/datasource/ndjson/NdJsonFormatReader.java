@@ -99,8 +99,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return new NdJsonFormatReader(settings, blockFactory, schema, schemaSampleSize, segmentSizeBytes);
     }
 
+    static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
+    static final String CONFIG_SEGMENT_SIZE = "segment_size";
+
     /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
-    static final Set<String> RECOGNIZED_KEYS = Set.of("schema_sample_size", "segment_size");
+    static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_SCHEMA_SAMPLE_SIZE, CONFIG_SEGMENT_SIZE);
 
     @Override
     public Configured<FormatReader> withConfigTrackingConsumedKeys(Map<String, Object> config) {
@@ -113,9 +116,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 consumed.add(key);
             }
         }
-        int newSampleSize = parseInt(config.get("schema_sample_size"), schemaSampleSize);
-        Check.isTrue(newSampleSize > 0, "schema_sample_size must be positive, got: {}", newSampleSize);
-        long newSegmentSize = parseSegmentSize(config.get("segment_size"), segmentSizeBytes);
+        int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
+        Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
+        long newSegmentSize = parseSegmentSize(config.get(CONFIG_SEGMENT_SIZE), segmentSizeBytes);
         FormatReader result = (newSampleSize == schemaSampleSize && newSegmentSize == segmentSizeBytes)
             ? this
             : new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize, newSegmentSize);
@@ -246,9 +249,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         if (value == null) {
             return defaultValueBytes;
         }
-        ByteSizeValue parsed = ByteSizeValue.parseBytesSizeValue(value.toString(), "segment_size");
+        ByteSizeValue parsed = ByteSizeValue.parseBytesSizeValue(value.toString(), CONFIG_SEGMENT_SIZE);
         long bytes = parsed.getBytes();
-        Check.isTrue(bytes >= MIN_SEGMENT_SIZE.getBytes(), "segment_size must be >= {}, got: {}", MIN_SEGMENT_SIZE, parsed);
+        Check.isTrue(bytes >= MIN_SEGMENT_SIZE.getBytes(), CONFIG_SEGMENT_SIZE + " must be >= {}, got: {}", MIN_SEGMENT_SIZE, parsed);
         return bytes;
     }
 

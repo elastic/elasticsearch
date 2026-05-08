@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Factory for creating {@link StorageProvider} instances.
@@ -38,5 +40,34 @@ public interface StorageProviderFactory {
      */
     default Configured<StorageProvider> createTrackingConsumedKeys(Settings settings, Map<String, Object> config) {
         return Configured.empty(create(settings));
+    }
+
+    /**
+     * Builds a {@link StorageProviderFactory} for the common pattern: the no-config path constructs a
+     * provider from a supplier (e.g. {@code () -> new S3StorageProvider(null)}); the per-query path
+     * resolves a configuration via {@code configFactory}, threads its consumed-keys set through, and
+     * constructs a provider from the resolved configuration via {@code providerCtor}. Replaces the
+     * anonymous-class boilerplate that otherwise repeats per scheme.
+     */
+    static <C, P extends StorageProvider> StorageProviderFactory of(
+        Supplier<P> defaultProvider,
+        Function<Map<String, Object>, Configured<C>> configFactory,
+        Function<C, P> providerCtor
+    ) {
+        return new StorageProviderFactory() {
+            @Override
+            public StorageProvider create(Settings settings) {
+                return defaultProvider.get();
+            }
+
+            @Override
+            public Configured<StorageProvider> createTrackingConsumedKeys(Settings settings, Map<String, Object> config) {
+                if (config == null || config.isEmpty()) {
+                    return Configured.empty(defaultProvider.get());
+                }
+                Configured<C> resolved = configFactory.apply(config);
+                return new Configured<>(providerCtor.apply(resolved.value()), resolved.consumedKeys());
+            }
+        };
     }
 }

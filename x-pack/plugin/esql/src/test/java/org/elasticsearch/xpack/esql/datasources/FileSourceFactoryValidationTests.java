@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 
@@ -23,9 +24,10 @@ import java.util.TreeSet;
  * <p>Two layers of safety:
  * <ul>
  *   <li>Per-component {@code CONFIG_KEYS} sets must each appear in the union (this class).
- *   <li>Each component's own {@code static final String CONFIG_*} string constants must each
- *       appear in the component's own {@code CONFIG_KEYS} set (the reflection check below).
- *       This catches the "added a new {@code config.get("X")} read but forgot to register" mistake.
+ *   <li>Each component's own {@code static final String CONFIG_*} string constants must match
+ *       its {@code CONFIG_KEYS} set bidirectionally (reflection check below).
+ *       Catches both 'added a new {@code CONFIG_X} constant but forgot to register' and
+ *       'added an entry to {@code CONFIG_KEYS} that no constant declares (dead entry)'.
  * </ul>
  *
  * <p>The generic validator contract lives in {@code ConfigKeyValidatorTests}.
@@ -48,30 +50,22 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
         }
     }
 
-    /**
-     * Walks {@link ErrorPolicy} for {@code static final String CONFIG_*} constants whose value is
-     * a single literal key, and asserts every one is in {@link ErrorPolicy#CONFIG_KEYS}. Catches
-     * the "added a new {@code CONFIG_X} constant + a {@code config.get(CONFIG_X)} read but forgot
-     * to register the key" mistake.
-     */
-    public void testErrorPolicyConfigConstantsRegistered() {
-        Set<String> missing = unregisteredConstants(ErrorPolicy.class, ErrorPolicy.CONFIG_KEYS);
-        assertTrue("ErrorPolicy CONFIG_* constants missing from CONFIG_KEYS: " + missing, missing.isEmpty());
+    public void testErrorPolicyConfigKeysMatchConstants() {
+        assertConfigKeysMatchConstants(ErrorPolicy.class, ErrorPolicy.CONFIG_KEYS);
     }
 
-    /** Same idea, for {@link FileSplitProvider}. */
-    public void testFileSplitProviderConfigConstantsRegistered() {
-        Set<String> missing = unregisteredConstants(FileSplitProvider.class, FileSplitProvider.CONFIG_KEYS);
-        assertTrue("FileSplitProvider CONFIG_* constants missing from CONFIG_KEYS: " + missing, missing.isEmpty());
+    public void testFileSplitProviderConfigKeysMatchConstants() {
+        assertConfigKeysMatchConstants(FileSplitProvider.class, FileSplitProvider.CONFIG_KEYS);
     }
 
     /**
-     * Returns the set of {@code static final String CONFIG_*} constants on {@code clazz} that are
-     * NOT in {@code declared}. Skips {@code CONFIG_KEYS} itself (it's a Set, not a String). Reads
-     * via reflection so future-added constants are picked up without further test changes.
+     * Asserts {@code declared} equals the set of values of every {@code static final String CONFIG_*}
+     * constant declared on {@code clazz}. Reflection-based so new constants are picked up without
+     * further test changes.
      */
-    private static Set<String> unregisteredConstants(Class<?> clazz, Set<String> declared) {
-        Set<String> missing = new TreeSet<>();
+    @SuppressForbidden(reason = "test-only reflection over CONFIG_* constants to pin set/constant symmetry")
+    private static void assertConfigKeysMatchConstants(Class<?> clazz, Set<String> declared) {
+        Set<String> fromConstants = new TreeSet<>();
         for (Field f : clazz.getDeclaredFields()) {
             int mods = f.getModifiers();
             if (Modifier.isStatic(mods) == false || Modifier.isFinal(mods) == false) {
@@ -80,20 +74,24 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
             if (f.getType() != String.class) {
                 continue;
             }
-            String fname = f.getName();
-            if (fname.startsWith("CONFIG_") == false) {
+            if (f.getName().startsWith("CONFIG_") == false) {
                 continue;
             }
             f.setAccessible(true);
             try {
                 String value = (String) f.get(null);
-                if (value != null && declared.contains(value) == false) {
-                    missing.add(fname + "=\"" + value + "\"");
+                if (value != null) {
+                    fromConstants.add(value);
                 }
             } catch (IllegalAccessException e) {
-                throw new AssertionError("cannot read constant " + fname, e);
+                throw new AssertionError("cannot read constant " + f.getName(), e);
             }
         }
-        return missing;
+        Set<String> missingFromKeys = new TreeSet<>(fromConstants);
+        missingFromKeys.removeAll(declared);
+        Set<String> extraInKeys = new TreeSet<>(declared);
+        extraInKeys.removeAll(fromConstants);
+        assertTrue(clazz.getSimpleName() + " CONFIG_* constants missing from CONFIG_KEYS: " + missingFromKeys, missingFromKeys.isEmpty());
+        assertTrue(clazz.getSimpleName() + " CONFIG_KEYS entries with no backing CONFIG_* constant: " + extraInKeys, extraInKeys.isEmpty());
     }
 }

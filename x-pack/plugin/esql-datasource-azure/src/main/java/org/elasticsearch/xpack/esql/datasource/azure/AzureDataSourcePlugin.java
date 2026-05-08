@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.esql.datasource.azure;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
@@ -39,21 +37,11 @@ public class AzureDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-        StorageProviderFactory azureFactory = new StorageProviderFactory() {
-            @Override
-            public StorageProvider create(Settings settings) {
-                return new AzureStorageProvider((AzureConfiguration) null);
-            }
-
-            @Override
-            public Configured<StorageProvider> createTrackingConsumedKeys(Settings settings, Map<String, Object> config) {
-                if (config == null || config.isEmpty()) {
-                    return Configured.empty(create(settings));
-                }
-                Configured<AzureConfiguration> azureConfig = AzureConfiguration.fromQueryConfig(config);
-                return new Configured<>(new AzureStorageProvider(azureConfig.value()), azureConfig.consumedKeys());
-            }
-        };
+        StorageProviderFactory azureFactory = StorageProviderFactory.of(
+            () -> new AzureStorageProvider((AzureConfiguration) null),
+            AzureConfiguration::fromQueryConfig,
+            AzureStorageProvider::new
+        );
         return Map.of("wasbs", azureFactory, "wasb", azureFactory);
     }
 

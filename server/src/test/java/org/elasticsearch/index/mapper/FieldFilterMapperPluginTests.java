@@ -46,6 +46,11 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         return Arrays.asList(FieldFilterPlugin.class);
     }
 
+    @Override
+    protected boolean randomlyUseColumnarId() {
+        return false;
+    }
+
     @Before
     public void putMappings() {
         assertAcked(indicesAdmin().prepareCreate("index1"));

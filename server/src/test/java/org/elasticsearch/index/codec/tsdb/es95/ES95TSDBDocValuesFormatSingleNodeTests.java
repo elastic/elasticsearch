@@ -32,6 +32,11 @@ public class ES95TSDBDocValuesFormatSingleNodeTests extends AbstractTSDBDocValue
     }
 
     @Override
+    protected boolean randomlyUseColumnarId() {
+        return false;
+    }
+
+    @Override
     protected void assertTSDBDocValuesFormat(final DocValuesFormat format, final String field) {
         assertThat("field [" + field + "] should use ES95 TSDB doc values format", format, instanceOf(ES95TSDBDocValuesFormat.class));
     }

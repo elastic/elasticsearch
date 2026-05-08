@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -110,6 +112,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForExistingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -1390,6 +1395,90 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
                 .stream()
                 .anyMatch(att -> (att instanceof FieldAttribute fieldAttr) && fieldAttr.field() instanceof FunctionEsField)
         );
+    }
+
+    /**
+     * Multi-index partial-presence: FROM a, b where `value` exists in `a` and is missing from `b`.
+     * Globally, `value` has a real keyword type (it's mapped in `a`), so PruneConstantSortKeysFromTopN
+     * does NOT fire on the coordinator and the TopN keeps both sort keys.
+     * Locally on a shard from `b`, ReplaceFieldWithConstantOrNull replaces `value` with null and
+     * PruneConstantSortKeysFromTopN then strips the now-null sort key, leaving only `id`.
+     */
+    public void testTopNSortKeyOnPartiallyMappedFieldPrunedLocally() {
+        var optimizer = EsqlTestUtils.optimizer().addIndex(buildPartiallyMappedIndex().get());
+        var plan = optimizer.coordinatorPlan("""
+              FROM a, b
+            | KEEP id, value
+            | SORT value, id
+            | LIMIT 20
+            """);
+
+        // Coordinator-side TopN keeps both sort keys (partial-presence is not pruned globally).
+        var coordinatorTopN = findFirstTopN(plan);
+        assertThat(coordinatorTopN.order(), hasSize(2));
+
+        // Simulate a shard from `b` where `value` is missing.
+        var localPlan = localPlan(plan, statsForMissingField("value"));
+
+        // Local-side TopN keeps only `id`; `value` was nullified and pruned.
+        var topN = findFirstTopN(localPlan);
+        assertThat(topN.order(), hasSize(1));
+        var fa = as(topN.order().getFirst().child(), FieldAttribute.class);
+        assertThat(fa.name(), equalTo("id"));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(20));
+    }
+
+    /**
+     * Same multi-index setup as {@link #testTopNSortKeyOnPartiallyMappedFieldPrunedLocally()},
+     * but `value` is the only sort key. Locally, after pruning the only (now-null) sort key,
+     * TopN collapses to a bare Limit.
+     */
+    public void testTopNAllSortKeysOnPartiallyMappedFieldsCollapseToLimitLocally() {
+        var optimizer = EsqlTestUtils.optimizer().addIndex(buildPartiallyMappedIndex().get());
+        var plan = optimizer.coordinatorPlan("""
+              FROM a, b
+            | KEEP id, value
+            | SORT value
+            | LIMIT 20
+            """);
+
+        // Coordinator-side: TopN[value] is preserved.
+        assertThat(findFirstTopN(plan).order(), hasSize(1));
+
+        // Simulate a shard from `b` where `value` is missing.
+        var localPlan = localPlan(plan, statsForMissingField("value"));
+
+        // No TopN should remain — all sort keys were pruned and TopN became a Limit.
+        assertThat(localPlan.collect(p -> p instanceof TopN), hasSize(0));
+        var limit = findFirstLimit(localPlan);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(20));
+    }
+
+    /**
+     * Builds an EsIndex for {@code FROM a, b} where {@code value} is keyword in {@code a} and absent from {@code b};
+     * {@code id} is a long present in both indices.
+     */
+    private static IndexResolution buildPartiallyMappedIndex() {
+        var caps = new FieldCapabilitiesResponse(
+            List.of(
+                fieldCapabilitiesIndexResponse("a", fieldResponseMap(Map.of("value", "keyword", "id", "long"))),
+                fieldCapabilitiesIndexResponse("b", fieldResponseMap("id", "long"))
+            ),
+            List.of()
+        );
+        return mergedResolution("a,b", caps, true);
+    }
+
+    private static TopN findFirstTopN(LogicalPlan plan) {
+        var found = plan.collectFirstChildren(p -> p instanceof TopN);
+        assertThat("expected at least one TopN in plan", found, hasSize(1));
+        return (TopN) found.getFirst();
+    }
+
+    private static Limit findFirstLimit(LogicalPlan plan) {
+        var found = plan.collectFirstChildren(p -> p instanceof Limit);
+        assertThat("expected at least one Limit in plan", found, hasSize(1));
+        return (Limit) found.getFirst();
     }
 
     private record SimilarityFunctionTestCase(String esqlFunction, String fieldName, float[] vector, String functionName) {

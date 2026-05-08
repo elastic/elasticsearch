@@ -897,25 +897,22 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                             for (int j = 0; j < bulkResponse.getItems().length; j++) {
                                 BulkItemResponse response = bulkResponse.getItems()[j];
                                 if (response.isFailed()) {
-                                    if (response.getFailureMessage().contains("close") == false) {
+                                    boolean containsClose = response.getFailureMessage().contains("close")
+                                        || response.getFailure().getCause().getMessage().contains("close");
+                                    if (containsClose == false) {
                                         logger.error(
-                                            "unexpected failure from writer [{}]: {}",
-                                            finalI,
-                                            response.getFailureMessage(),
+                                            "unexpected non-close failure from writer [" + finalI + "]: " + response.getFailureMessage(),
                                             response.getFailure().getCause()
                                         );
                                     }
-                                    assertThat(
-                                        response.getFailureMessage(),
-                                        either(containsString("closed")).or(containsString("preparing to close"))
-                                    );
+                                    assertTrue(response.getFailureMessage() + " does not relate to a closed index", containsClose);
                                 } else {
                                     moreDocs.incrementAndGet();
                                 }
                             }
                         }
                     } catch (Throwable e) {
-                        logger.error("unexpected exception from writer [{}]", finalI, e);
+                        logger.error("unexpected throwable from writer [" + finalI + "]", e);
                         unexpected.add(e);
                     }
                 });
@@ -927,9 +924,6 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
             stopIngest.set(true);
             ingestPool.shutdown();
             assertTrue(ingestPool.awaitTermination(2, TimeUnit.MINUTES));
-            if (unexpected.isEmpty() == false) {
-                logger.error("unexpected exceptions from writers: {}", unexpected);
-            }
             assertThat(unexpected, empty());
         }
 

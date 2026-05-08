@@ -631,6 +631,33 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     private Boolean cachedPreserve = null;
 
     /**
+     * Yaml runner feature name a test (or its setup section) can declare to opt out of the
+     * lazy-cleanup optimization. Tests that assert on cumulative cluster state — request cache
+     * hit/miss counters, search/indexing stats, anything else that is incremented by reads and
+     * not reset by {@code _cache/clear} — should declare this so the framework runs setup and
+     * teardown around them and wipes any deferred state from earlier tests in the same file.
+     *
+     * <p>Usage in YAML:</p>
+     * <pre>
+     * "Some test that asserts on cache stats":
+     *   - requires:
+     *       test_runner_features: ["clean_setup"]
+     *   - do: ...
+     * </pre>
+     */
+    public static final String CLEAN_SETUP_FEATURE = "clean_setup";
+
+    /**
+     * Whether the current test (or its setup section) requires a clean cluster setup. Tests
+     * marked with the {@link #CLEAN_SETUP_FEATURE} yaml runner feature opt out of the
+     * lazy-cleanup optimization for the current invocation.
+     */
+    private boolean requiresCleanSetup() {
+        return testCandidate.getTestSection().getPrerequisiteSection().hasYamlRunnerFeature(CLEAN_SETUP_FEATURE)
+            || testCandidate.getSetupSection().getPrerequisiteSection().hasYamlRunnerFeature(CLEAN_SETUP_FEATURE);
+    }
+
+    /**
      * Default lazy-cleanup behavior: skip the YAML setup section when the previous test
      * deferred cleanup AND it was from the same yaml file (so the current test's setup
      * state is already in the cluster). When the previous test deferred cleanup but the
@@ -640,6 +667,19 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     protected boolean skipSetupSections() {
         String currentFile = testCandidate.getSuitePath();
+        // Tests marked clean_setup must always run their setup against a wiped cluster, even
+        // if the previous same-file test deferred cleanup.
+        if (requiresCleanSetup()) {
+            if (deferredCleanupForFile != null) {
+                try {
+                    wipeCluster();
+                } catch (Exception e) {
+                    throw new AssertionError("failed to wipe stale cluster state for clean_setup test", e);
+                }
+                deferredCleanupForFile = null;
+            }
+            return false;
+        }
         if (deferredCleanupForFile == null) {
             return false;
         }
@@ -665,6 +705,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * may override.
      */
     protected boolean skipTeardownSections() {
+        if (requiresCleanSetup()) {
+            return false;
+        }
         return org.elasticsearch.client.LazyRefreshRestClient.writeOccurred() == false
             && org.elasticsearch.client.LazyRefreshRestClient.persistentResourceCreated() == false;
     }
@@ -680,6 +723,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     protected boolean preserveClusterUponCompletion() {
         if (cachedPreserve != null) {
             return cachedPreserve;
+        }
+        if (requiresCleanSetup()) {
+            cachedPreserve = false;
+            deferredCleanupForFile = null;
+            return false;
         }
         boolean writeHappened = org.elasticsearch.client.LazyRefreshRestClient.writeOccurred();
         boolean persistentResourceCreated = org.elasticsearch.client.LazyRefreshRestClient.persistentResourceCreated();

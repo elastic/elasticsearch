@@ -118,7 +118,6 @@ public class FuzzyAutomatonRamEstimatorBenchmark {
     private long precomputedMeasured;
     private double precomputedRatio;
 
-
     @AuxCounters(AuxCounters.Type.EVENTS)
     @State(Scope.Thread)
     public static class Metrics {

@@ -12,6 +12,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
 import org.elasticsearch.xpack.esql.generator.RandomMappingGenerator;
 import org.elasticsearch.xpack.esql.generator.RandomMappingGenerator.GeneratedIndex;
@@ -39,6 +40,10 @@ import java.util.regex.Pattern;
  * {@code @AfterClass wipeTestData()} which deletes all indices.
  */
 public abstract class GenerativeRandomMappingRestTest extends GenerativeRestTest {
+
+    protected GenerativeRandomMappingRestTest(GenerativeFeature feature) {
+        super(feature);
+    }
 
     static final String INDEX_PREFIX = "gen_rm_";
     static final int RM_ITERATIONS = 50;

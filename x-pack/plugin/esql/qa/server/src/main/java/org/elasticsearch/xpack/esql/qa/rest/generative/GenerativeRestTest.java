@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -16,6 +18,7 @@ import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
+import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
 import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
@@ -72,6 +75,44 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     public static final int ITERATIONS = 100;
     public static final int MAX_DEPTH = 20;
+
+    /**
+     * One parameter case per opt-in {@link GenerativeFeature}, plus a {@code null} baseline with no feature.
+     * Each case can be muted independently in CI via test names like {@code test \{feature:SUBQUERIES\}}, so
+     * a feature still under stabilization doesn't block the rest of the suite.
+     */
+    @ParametersFactory(argumentFormatting = "feature:%1$s")
+    public static List<Object[]> parameters() {
+        List<Object[]> args = new ArrayList<>();
+        args.add(new Object[] { null });
+        for (GenerativeFeature feature : GenerativeFeature.values()) {
+            args.add(new Object[] { feature });
+        }
+        return args;
+    }
+
+    /**
+     * Allowed error patterns that are tolerated only when the corresponding {@link GenerativeFeature} is the
+     * active one for a parameter run. Layered onto the global {@link #ALLOWED_ERRORS} via {@link #getAllowedErrors()}
+     * so muting a feature-specific failure doesn't widen the surface for the baseline run.
+     */
+    private static final Map<GenerativeFeature, Set<String>> FEATURE_ALLOWED_ERRORS = Map.of(
+        GenerativeFeature.SUBQUERIES,
+        Set.of(
+            // Mixing a subquery with plain index patterns in a multi-source FROM can surface fields whose types
+            // differ across branches. Plain FROM a, b would resolve these via union types, but the subquery-aware
+            // resolution (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION) rejects
+            // them outright. The generator has no cheap way to predict these cross-branch collisions.
+            "has conflicting data types in subqueries"
+        )
+    );
+
+    private final GenerativeFeature feature;
+
+    @SuppressWarnings("this-escape")
+    protected GenerativeRestTest(GenerativeFeature feature) {
+        this.feature = feature;
+    }
 
     public static final Set<String> ALLOWED_ERRORS = Set.of(
         "Reference \\[.*\\] is ambiguous",
@@ -202,6 +243,18 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         }
     }
 
+    /**
+     * Disable {@link org.elasticsearch.test.rest.ESRestTestCase#cleanUpCluster()} between test methods so the
+     * indices loaded by {@link #setup()} survive across {@link com.carrotsearch.randomizedtesting.annotations.ParametersFactory
+     * @ParametersFactory} cases. Otherwise the framework wipes indices (but not enrich policies) after every test,
+     * and the next case's {@link #setup()} hits {@code resource_already_exists_exception} when re-PUTing policies.
+     * Final cleanup happens in {@link #wipeTestData()}.
+     */
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        return true;
+    }
+
     protected abstract boolean supportsSourceFieldMapping();
 
     protected boolean requiresTimeSeries() {
@@ -216,6 +269,17 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // 404 here just means we had no indexes
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {
                 throw e;
+            }
+        }
+        // Enrich policies aren't covered by DELETE /*, and Clusters.testCluster() uses .shared(true), so the
+        // next class on this cluster would re-PUT them and hit resource_already_exists_exception.
+        for (var policy : ENRICH_POLICIES.values()) {
+            try {
+                adminClient().performRequest(new Request("DELETE", "/_enrich/policy/" + policy.policyName()));
+            } catch (ResponseException e) {
+                if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                    throw e;
+                }
             }
         }
     }
@@ -335,11 +399,11 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     /**
-     * Returns the root {@link GenerationContext} for a single iteration of the test loop.
-     * Subclasses can override to opt into features, by adding new fields there and checking them in the generators.
+     * Returns the root {@link GenerationContext} for a single iteration of the test loop, populated with the
+     * {@link GenerativeFeature feature} for the current parameter run (or none if {@code feature} is {@code null}).
      */
     protected GenerationContext rootGenerationContext() {
-        return GenerationContext.root();
+        return GenerationContext.root(feature == null ? Set.of() : Set.of(feature));
     }
 
     protected CommandGenerator.ValidationResult checkPipelineResults(
@@ -395,12 +459,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query), };
 
     /**
-     * Hook for subclasses that opt into a {@link org.elasticsearch.xpack.esql.generator.GenerativeFeature feature}
-     * to contribute extra error-message patterns that the feature is allowed to surface.
-     * Returned strings are wrapped to {@code .*<pattern>.*} and OR-ed with the base {@link #ALLOWED_ERRORS}.
+     * Returns extra error-message patterns the active {@link GenerativeFeature feature} is allowed to surface.
+     * Looked up in {@link #FEATURE_ALLOWED_ERRORS}; subclasses may override to add more (e.g. tests with a
+     * different source command). Returned strings are wrapped to {@code .*<pattern>.*} and OR-ed with the base
+     * {@link #ALLOWED_ERRORS}.
      */
     protected Set<String> getAllowedErrors() {
-        return Set.of();
+        if (feature == null) {
+            return Set.of();
+        }
+        return FEATURE_ALLOWED_ERRORS.getOrDefault(feature, Set.of());
     }
 
     private boolean isAllowedFailure(FailureContext ctx) {

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.GenerativeFeature;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromLoadGenerator;
@@ -26,6 +27,10 @@ import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.
  * of these tests does not affect the main generative test suite.
  */
 public abstract class GenerativeUnmappedLoadRestTest extends GenerativeRestTest {
+
+    protected GenerativeUnmappedLoadRestTest(GenerativeFeature feature) {
+        super(feature);
+    }
 
     private static final Set<String> UNMAPPED_NAMES = Set.of(UNMAPPED_FIELD_NAMES);
 

@@ -55,6 +55,7 @@ import org.elasticsearch.indices.recovery.StatelessUnpromotableRelocationAction;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.internal.PitReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -365,17 +366,17 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
     }
 
     private void getOpenPITContextInfos(ShardId shardId, ActionListener<PITHandoffResponse> listener) {
-        List<ReaderContext> activeContexts = searchService.getActivePITContexts(shardId);
+        List<PitReaderContext> activeContexts = searchService.getActivePITContexts(shardId);
         List<OpenPITContextInfo> pitContextInfos = Collections.synchronizedList(new ArrayList<>(activeContexts.size()));
 
         try (var listeners = new RefCountingListener(listener.map(r -> new PITHandoffResponse(pitContextInfos)))) {
-            for (ReaderContext context : activeContexts) {
+            for (PitReaderContext context : activeContexts) {
                 fetchOpenPitContextInfo(shardId, context, listeners.acquire(r -> r.ifPresent(pitContextInfos::add)));
             }
         }
     }
 
-    private void fetchOpenPitContextInfo(ShardId shardId, ReaderContext context, ActionListener<Optional<OpenPITContextInfo>> listener) {
+    private void fetchOpenPitContextInfo(ShardId shardId, PitReaderContext context, ActionListener<Optional<OpenPITContextInfo>> listener) {
         // In case of a failure we want just to ignore this PIT and continue with the relocation process
         listener = listener.delegateResponse((l, e) -> {
             logger.debug("Unexpected exception while fetching Open PIT context info for shard " + shardId + " " + context, e);
@@ -415,10 +416,7 @@ public class TransportStatelessUnpromotableRelocationAction extends TransportAct
                                     context.keepAlive(),
                                     new SearchContextIdForNode(null, clusterService.localNode().getId(), context.id()),
                                     statelessCompoundCommit.commitFiles(),
-                                    new OpenPITReshardingState(
-                                        context.getFromContext(ReaderContext.RELOCATION_RESHARDING_METADATA_KEY),
-                                        context.getFromContext(ReaderContext.RELOCATION_SHARD_COUNT_SUMMARY_KEY)
-                                    )
+                                    new OpenPITReshardingState(context.reshardingMetadata(), context.shardCountSummary())
                                 )
                             )
                         );

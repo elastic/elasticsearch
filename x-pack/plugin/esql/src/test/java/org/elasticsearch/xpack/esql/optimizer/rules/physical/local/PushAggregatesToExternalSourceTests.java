@@ -196,6 +196,26 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
 
     // --- Not-pushed cases ---
 
+    public void testNotPushedWhenSourceHasPushedFilter() {
+        var ext = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            defaultAttrs(),
+            Map.of(),
+            statsMetadata(1000L, null, null),
+            new Object(),
+            List.of(greaterThanOf(AGE, new Literal(Source.EMPTY, 0, DataType.INTEGER))),
+            FormatReader.NO_LIMIT,
+            null,
+            null,
+            List.of()
+        );
+        var agg = aggregateExec(AggregatorMode.SINGLE, ext, countStarAlias());
+        AggregateExec unchanged = as(applyRule(agg), AggregateExec.class);
+        assertSame(agg, unchanged);
+    }
+
     public void testNotPushedWithGroupings() {
         ExternalSourceExec ext = externalSource(statsMetadata(1000L, null, null));
         ReferenceAttribute groupField = referenceAttribute("dept", DataType.KEYWORD);
@@ -422,13 +442,6 @@ public class PushAggregatesToExternalSourceTests extends ESTestCase {
 
     public void testNotPushedWithMultipleSplitsWithoutStats() {
         ExternalSourceExec ext = externalSourceWithSplits(statsMetadata(1000L, null, null), (Map<String, Object>[]) null);
-        var agg = aggregateExec(AggregatorMode.SINGLE, ext, countStarAlias());
-
-        as(applyRule(agg), AggregateExec.class);
-    }
-
-    public void testNotPushedWhenSourceHasPushedFilter() {
-        var ext = externalSourceWithPushedFilter(statsMetadata(1000L, null, null), "some_pushed_filter");
         var agg = aggregateExec(AggregatorMode.SINGLE, ext, countStarAlias());
 
         as(applyRule(agg), AggregateExec.class);

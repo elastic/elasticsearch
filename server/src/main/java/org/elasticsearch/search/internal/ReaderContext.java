@@ -17,7 +17,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -37,11 +36,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * can be guarded by a reference count and fail if it's been closed by an external event.
  */
 public class ReaderContext implements Releasable {
-    public static String RELOCATION_RESHARDING_METADATA_KEY = "relocation_resharding_metadata";
-    public static String RELOCATION_SHARD_COUNT_SUMMARY_KEY = "relocation_shard_count_summary";
-
-    private static final long CONTEXT_RELOCATION_GRACE_TIME = 1000;
-
     private final ShardSearchContextId id;
     private final IndexService indexService;
     private final IndexShard indexShard;
@@ -59,7 +53,6 @@ public class ReaderContext implements Releasable {
     private final long startTimeInNano = System.nanoTime();
 
     private Map<String, Object> context;
-    private boolean isRelocating = false;
 
     @SuppressWarnings("this-escape")
     public ReaderContext(
@@ -84,7 +77,7 @@ public class ReaderContext implements Releasable {
         indexShard.getSearchOperationListener().validateReaderContext(this, request);
     }
 
-    private long nowInMillis() {
+    protected final long nowInMillis() {
         return indexShard.getThreadPool().relativeTimeInMillis();
     }
 
@@ -142,34 +135,20 @@ public class ReaderContext implements Releasable {
     }
 
     public boolean isExpired() {
-        if (refCounted.refCount() > 1) {
+        if (hasOutstandingRefs()) {
             return false; // being used by markAsUsed
         }
-        if (isRelocating()) {
-            // Only for PIT contexts that are relocating away. We don't want to close immediately to
-            // prevent running searches from failing. Refcounting via #markAsUsed protects against this
-            // while search phases are running but also need to protect against closing too soon during
-            // phase transitions. The grace period is long enough to allow for search phase transitions
-            // of running searches before they complete.
-            return nowInMillis() - lastAccessTime.get() > CONTEXT_RELOCATION_GRACE_TIME;
-        }
+
         final long elapsed = nowInMillis() - lastAccessTime.get();
         return elapsed > keepAlive.get();
     }
 
-    public boolean isRelocating() {
-        return isRelocating;
+    protected final boolean hasOutstandingRefs() {
+        return refCounted.refCount() > 1;
     }
 
-    /**
-     * Indicate that this context is in the process of relocating.
-     * We check this to prevent new search requests from using this context,
-     * while running searches can still use it. Also this marks the context for cleanup
-     * in one of the next {@link  SearchService} Reaper runs.
-     */
-    public void relocate() {
-        this.lastAccessTime.accumulateAndGet(nowInMillis(), Math::max);
-        isRelocating = true;
+    public boolean isRelocating() {
+        return false;
     }
 
     // BWC

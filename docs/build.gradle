@@ -42,6 +42,7 @@ tasks.named("yamlRestTest") {
       "reference/esql/processing-commands/lookup/esql-lookup-example"
     ].join(',')
   }
+  usesDefaultDistribution()
 }
 
 /* List of files that have snippets that will not work until platinum tests can occur ... */
@@ -2062,7 +2063,7 @@ buildRestTests.teardowns['failure-store-recipes-2-td'] = '''
   }
 
   /* Load the actual events only if we're going to use them. */
-  File atomicRedRegsvr32File = new File("$projectDir/src/yamlRestTest/resources/normalized-T1117-AtomicRed-regsvr32.json")
+  File atomicRedRegsvr32File = new File("$projectDir/src/Test/resources/normalized-T1117-AtomicRed-regsvr32.json")
   inputs.file(atomicRedRegsvr32File).withPathSensitivity(PathSensitivity.RELATIVE)
 
   doFirst {

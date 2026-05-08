@@ -51,14 +51,16 @@ final class FileSourceFactory implements ExternalSourceFactory {
      * Aggregated set of keys the coordinator-side path claims from a per-query configuration map.
      * Built from each component's own {@code CONFIG_KEYS} set so adding a new coordinator-level
      * configuration consumer requires updating only the consumer's own constant — the union here
-     * picks it up automatically. Components contributing today: {@link ErrorPolicy} and
-     * {@link FileSplitProvider}, plus the {@link #CONFIG_FORMAT} override read by this class.
+     * picks it up automatically. Components contributing today: {@link ErrorPolicy},
+     * {@link FileSplitProvider}, the {@link #CONFIG_FORMAT} override read by this class, and the
+     * {@link FormatNameResolver#CONFIG_READER} override read by the format-name resolver.
      */
     static final Set<String> COORDINATOR_KEYS;
 
     static {
         Set<String> keys = new HashSet<>();
         keys.add(CONFIG_FORMAT);
+        keys.add(FormatNameResolver.CONFIG_READER);
         keys.addAll(ErrorPolicy.CONFIG_KEYS);
         keys.addAll(FileSplitProvider.CONFIG_KEYS);
         COORDINATOR_KEYS = Set.copyOf(keys);

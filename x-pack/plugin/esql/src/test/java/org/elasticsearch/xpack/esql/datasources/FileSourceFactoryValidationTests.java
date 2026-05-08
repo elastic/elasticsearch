@@ -44,6 +44,13 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
         assertTrue(FileSourceFactory.COORDINATOR_KEYS.contains(FileSourceFactory.CONFIG_FORMAT));
     }
 
+    public void testCoordinatorKeysIncludesReaderOverride() {
+        assertTrue(
+            "FormatNameResolver.CONFIG_READER must be a coordinator key (the format-name resolver reads it)",
+            FileSourceFactory.COORDINATOR_KEYS.contains(FormatNameResolver.CONFIG_READER)
+        );
+    }
+
     public void testCoordinatorKeysIncludesAllErrorPolicyKeys() {
         for (String key : ErrorPolicy.CONFIG_KEYS) {
             assertTrue("ErrorPolicy key " + key + " must be a coordinator key", FileSourceFactory.COORDINATOR_KEYS.contains(key));

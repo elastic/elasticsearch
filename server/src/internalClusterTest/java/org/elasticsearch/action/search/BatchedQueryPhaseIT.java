@@ -36,10 +36,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class BatchedQueryPhaseIT extends ESIntegTestCase {
 
     public void testNumReducePhases() {
-        assumeTrue(
-            "test skipped because batched query execution disabled by feature flag",
-            SearchService.BATCHED_QUERY_PHASE_FEATURE_FLAG.isEnabled()
-        );
         String indexName = "test-idx";
         assertAcked(
             prepareCreate(indexName).setMapping("title", "type=keyword")
@@ -78,10 +74,6 @@ public class BatchedQueryPhaseIT extends ESIntegTestCase {
     }
 
     public void testAdaptiveReplicaSelectionStatsWithBatchedQueryPhase() {
-        assumeTrue(
-            "test skipped because batched query execution disabled by feature flag",
-            SearchService.BATCHED_QUERY_PHASE_FEATURE_FLAG.isEnabled()
-        );
         assertAdaptiveReplicaSelectionStats(QUERY_THEN_FETCH);
     }
 

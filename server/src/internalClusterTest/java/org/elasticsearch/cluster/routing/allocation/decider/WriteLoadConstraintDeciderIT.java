@@ -526,19 +526,19 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         final NodeUsageStatsForThreadPools firstNodeAboveUtilizationThresholdNodeStats = createNodeUsageStatsForThreadPools(
             harness.firstDiscoveryNode,
             harness.randomNumberOfWritePoolThreads,
-            randomIntBetween(harness.randomUtilizationThresholdPercent + 1, 100) / 100f,
+            randomIntBetween(harness.randomUtilizationThresholdPercent, 100) / 100f,
             0
         );
         final NodeUsageStatsForThreadPools secondNodeAboveUtilizationThresholdNodeStats = createNodeUsageStatsForThreadPools(
             harness.secondDiscoveryNode,
             harness.randomNumberOfWritePoolThreads,
-            randomIntBetween(harness.randomUtilizationThresholdPercent + 1, 100) / 100f,
+            randomIntBetween(harness.randomUtilizationThresholdPercent, 100) / 100f,
             0
         );
         final NodeUsageStatsForThreadPools thirdNodeAboveUtilizationThresholdNodeStats = createNodeUsageStatsForThreadPools(
             harness.thirdDiscoveryNode,
             harness.randomNumberOfWritePoolThreads,
-            randomIntBetween(harness.randomUtilizationThresholdPercent + 1, 100) / 100f,
+            randomIntBetween(harness.randomUtilizationThresholdPercent, 100) / 100f,
             0
         );
         setUpMockTransportNodeUsageStatsResponse(harness.firstDiscoveryNode, firstNodeAboveUtilizationThresholdNodeStats);

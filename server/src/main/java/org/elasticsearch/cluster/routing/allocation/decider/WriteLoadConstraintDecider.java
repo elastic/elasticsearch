@@ -113,7 +113,8 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         assert nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().isEmpty() == false;
         assert nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE) != null;
         var nodeWriteThreadPoolStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
-        var nodeWriteThreadPoolLoadAllocationThreshold = writeLoadConstraintSettings.getAllocationUtilizationThreshold();
+        // we cast double -> float here because the ((float) x) >= ((double) x) comparison is not true for any value of x
+        float nodeWriteThreadPoolLoadAllocationThreshold = (float) writeLoadConstraintSettings.getAllocationUtilizationThreshold();
         if (nodeWriteThreadPoolStats.averageThreadPoolUtilization() >= nodeWriteThreadPoolLoadAllocationThreshold) {
             // The node's write thread pool usage stats already show high utilization above the threshold for accepting new shards.
             if (logger.isDebugEnabled() || allocation.debugDecision()) {

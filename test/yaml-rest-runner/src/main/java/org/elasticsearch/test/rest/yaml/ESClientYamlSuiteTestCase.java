@@ -47,6 +47,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -354,16 +355,50 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 tests.add(new Object[] { new ClientYamlTestCandidate(yamlTestSuite, testSection) });
             }
         }
-        // Sort by test path first for a deterministic baseline (suites grouped, sections in
-        // file order). Then either keep that order (default, -Dtests.rest.suite.grouping=true)
-        // or shuffle internally when grouping is disabled. Test classes that opt into this
-        // internal ordering must declare @ParametersFactory(shuffle = false), so that the
-        // runner does not re-shuffle and undo the grouping/seeded shuffle.
+        // Sort by test path first for a deterministic baseline, then shuffle with the
+        // runner's seeded random. When suite-grouping is enabled (the default), re-cluster
+        // shuffled tests by their yaml file: each file's tests run consecutively, and the
+        // position of each file's cluster in the final order is determined by where the
+        // first test from that file lands in the shuffle. This preserves the seeded
+        // randomization across files while keeping each file's tests together so the
+        // lazy-cleanup framework can reuse setup state within a file. Test classes opt
+        // into this ordering by declaring @ParametersFactory(shuffle = false), so the
+        // runner does not re-shuffle and undo what we set up here.
         tests.sort(Comparator.comparing(o -> ((ClientYamlTestCandidate) o[0]).getTestPath()));
-        if (RandomizedTest.systemPropertyAsBoolean(REST_TESTS_SUITE_GROUPING, true) == false) {
-            Collections.shuffle(tests, RandomizedTest.getRandom());
+        // Use a Random seeded directly from the tests.seed system property: this method runs
+        // during parameter collection, before any RandomizedRunner per-test context is set up,
+        // so RandomizedTest.getRandom() throws here.
+        Collections.shuffle(tests, parameterFactoryRandom());
+        if (RandomizedTest.systemPropertyAsBoolean(REST_TESTS_SUITE_GROUPING, true)) {
+            Map<String, List<Object[]>> byFile = new LinkedHashMap<>();
+            for (Object[] test : tests) {
+                String suitePath = ((ClientYamlTestCandidate) test[0]).getSuitePath();
+                byFile.computeIfAbsent(suitePath, k -> new ArrayList<>()).add(test);
+            }
+            tests = new ArrayList<>(tests.size());
+            for (List<Object[]> group : byFile.values()) {
+                tests.addAll(group);
+            }
         }
         return tests;
+    }
+
+    /**
+     * Returns a {@link java.util.Random} seeded from the {@code tests.seed} system property
+     * for use when collecting test parameters. {@link RandomizedTest#getRandom()} requires
+     * an active per-test {@code RandomizedContext}, which is not set up while the runner
+     * is invoking {@code @ParametersFactory} methods, so we re-derive a Random from the
+     * raw seed here. Falls back to a fresh non-deterministic {@code Random} if the property
+     * is unset (e.g. running ad hoc without a configured seed).
+     */
+    private static java.util.Random parameterFactoryRandom() {
+        String seedProp = System.getProperty("tests.seed");
+        if (seedProp == null || seedProp.isEmpty()) {
+            return new java.util.Random();
+        }
+        // tests.seed can be "<master>" or "<master>:<method>"; the first part is the suite seed.
+        String masterPart = seedProp.split(":", 2)[0];
+        return new java.util.Random(Long.parseUnsignedLong(masterPart, 16));
     }
 
     /** Find all yaml suites that match the given list of paths from the root test path. */

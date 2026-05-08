@@ -109,7 +109,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     private static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
         false,
         FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-        FieldMapper.DocValuesParameter.Values.MultiValue.ARRAYS
+        true
     );
 
     public static class Defaults {
@@ -130,7 +130,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
     public static class Builder extends TextFamilyBuilder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.arraysWithCardinality(
+        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.ofWithCardinality(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters
         );
@@ -933,7 +933,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue().isSingleValued();
+        return docValuesParameters.multiValue() == false;
     }
 
     @Override

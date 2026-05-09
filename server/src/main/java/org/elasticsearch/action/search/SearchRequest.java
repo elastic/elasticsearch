@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -85,6 +86,9 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
 
     @Nullable
     private String routing;
+    @Nullable
+    private String searchSlice;
+    private boolean routingFromSlice;
     @Nullable
     private String preference;
 
@@ -262,6 +266,8 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
         this.forceSyntheticSource = searchRequest.forceSyntheticSource;
         this.projectRouting = searchRequest.projectRouting;
+        this.searchSlice = searchRequest.searchSlice;
+        this.routingFromSlice = searchRequest.routingFromSlice;
         this.resolvedIndexExpressions = searchRequest.resolvedIndexExpressions;
         this.resolvedTargetProjects = searchRequest.resolvedTargetProjects;
     }
@@ -306,6 +312,13 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         } else {
             this.projectRouting = null;
         }
+        if (in.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
+            this.routingFromSlice = in.readBoolean();
+            this.searchSlice = in.readOptionalString();
+        } else {
+            this.routingFromSlice = false;
+            this.searchSlice = null;
+        }
     }
 
     @Override
@@ -345,6 +358,10 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         if (out.getTransportVersion().supports(SEARCH_PROJECT_ROUTING)) {
             out.writeOptionalString(this.projectRouting);
         }
+        if (out.getTransportVersion().supports(SliceIndexing.SEARCH_SLICE_ROUTING_STATE_VERSION)) {
+            out.writeBoolean(this.routingFromSlice);
+            out.writeOptionalString(this.searchSlice);
+        }
     }
 
     @Override
@@ -383,6 +400,12 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             }
             if (routing() != null) {
                 validationException = addValidationError("[routing] cannot be used with point in time", validationException);
+            }
+            if (isRoutingFromSlice()) {
+                validationException = addValidationError(
+                    "[" + SliceIndexing.PARAM_NAME + "] cannot be used with point in time",
+                    validationException
+                );
             }
             if (preference() != null) {
                 validationException = addValidationError("[preference] cannot be used with point in time", validationException);
@@ -519,6 +542,31 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
      */
     public SearchRequest routing(String... routings) {
         this.routing = Strings.arrayToCommaDelimitedString(routings);
+        return this;
+    }
+
+    /**
+     * Returns {@code true} when routing was provided through the {@code _slice} REST parameter.
+     */
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
+    }
+
+    /**
+     * Returns the requested {@code _slice} value when routing comes from {@code _slice}.
+     */
+    @Nullable
+    public String searchSlice() {
+        return searchSlice;
+    }
+
+    /**
+     * Sets slice-routing provenance and the user-provided {@code _slice} value.
+     * Passing {@code null} clears slice-routing provenance.
+     */
+    public SearchRequest searchSlice(@Nullable String searchSlice) {
+        this.searchSlice = searchSlice;
+        this.routingFromSlice = searchSlice != null;
         return this;
     }
 
@@ -823,6 +871,9 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         if (routing != null) {
             sb.append(", routing[").append(routing).append("]");
         }
+        if (routingFromSlice) {
+            sb.append(", _slice[").append(searchSlice).append("]");
+        }
         if (preference != null) {
             sb.append(", preference[").append(preference).append("]");
         }
@@ -841,6 +892,8 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         return searchType == that.searchType
             && Arrays.equals(indices, that.indices)
             && Objects.equals(routing, that.routing)
+            && Objects.equals(searchSlice, that.searchSlice)
+            && routingFromSlice == that.routingFromSlice
             && Objects.equals(preference, that.preference)
             && Objects.equals(source, that.source)
             && Objects.equals(requestCache, that.requestCache)
@@ -862,6 +915,8 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             searchType,
             Arrays.hashCode(indices),
             routing,
+            searchSlice,
+            routingFromSlice,
             preference,
             source,
             requestCache,
@@ -890,6 +945,11 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             + ", routing='"
             + routing
             + '\''
+            + ", searchSlice='"
+            + searchSlice
+            + '\''
+            + ", routingFromSlice="
+            + routingFromSlice
             + ", preference='"
             + preference
             + '\''

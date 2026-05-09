@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -197,6 +198,26 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
         var agg = aggregateExec(externalSource(Map.of()), countStarAlias());
 
         as(applyRule(agg), AggregateExec.class);
+    }
+
+    public void testNotPushedWhenSourceHasScanPredicates() {
+        ExternalSourceExec ext = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            defaultAttrs(),
+            Map.of(),
+            statsMetadata(1000L, null, null, null),
+            new Object(),
+            List.of(greaterThanOf(AGE, new Literal(Source.EMPTY, 0, DataType.INTEGER))),
+            FormatReader.NO_LIMIT,
+            null,
+            null,
+            List.of()
+        );
+        var agg = aggregateExec(ext, countStarAlias());
+        AggregateExec unchanged = as(applyRule(agg), AggregateExec.class);
+        assertSame(agg, unchanged);
     }
 
     public void testNotPushedWithMultipleSplitsWithoutStats() {

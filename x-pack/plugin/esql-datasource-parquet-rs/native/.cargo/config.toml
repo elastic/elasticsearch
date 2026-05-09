@@ -1,0 +1,17 @@
+# Local development (any platform): use native CPU features.
+# Applies when building without --target (or with --target matching the host).
+[build]
+rustflags = ["-C", "target-cpu=native"]
+
+# Cross-compilation targets: override [build] when --target is used.
+# x86-64-v3 = AVX2 baseline (Haswell+, all modern cloud x86 instances)
+# skylake_avx512 = AVX512 baseline
+# See rustc --target x86_64-unknown-linux-gnu --print target-cpus
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "target-cpu=skylake_avx512"]
+
+# neoverse-n1 = AWS Graviton2/3 baseline (most aarch64 cloud instances)
+# neoverse-n2 = AWS Graviton4/5
+# See rustc --target aarch64-unknown-linux-gnu --print target-cpus
+[target.aarch64-unknown-linux-gnu]
+rustflags = ["-C", "target-cpu=neoverse-n1"]

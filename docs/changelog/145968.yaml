@@ -1,6 +1,5 @@
 area: ES|QL
-issues:
-  - 134706
+issues: []
 pr: 145968
 summary: Fixes wrong warning in expressions with unrolled multivalues
 type: bug

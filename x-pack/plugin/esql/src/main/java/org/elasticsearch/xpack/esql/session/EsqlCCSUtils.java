@@ -321,14 +321,6 @@ public class EsqlCCSUtils {
         }
     }
 
-    // Filter-less version, mainly for testing where we don't need filter support
-    static void updateExecutionInfoWithClustersWithNoMatchingIndices(
-        EsqlExecutionInfo executionInfo,
-        Set<IndexResolution> indexResolutions
-    ) {
-        updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolutions, false);
-    }
-
     // visible for testing
     static boolean concreteIndexRequested(String indexExpression) {
         if (Strings.isNullOrBlank(indexExpression)) {

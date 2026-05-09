@@ -123,6 +123,31 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             containsString("Unknown index [no-such-data-stream::data]"),
             () -> run(syncEsqlQueryRequest("FROM no-such-data-stream::data"))
         );
+
+        assertAcked(
+            client().execute(
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request("data-stream-2-template").indexTemplate(
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("data-stream-2*"))
+                        .template(
+                            Template.builder()
+                                .dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(false, null)))
+                        )
+                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                        .build()
+                )
+            )
+        );
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "data-stream-2")
+            )
+        );
+        try (var response = run(syncEsqlQueryRequest("FROM data-stream-2::failures"))) {
+            assertOk(response);
+        }
     }
 
     public void testResolvesDateMath() {

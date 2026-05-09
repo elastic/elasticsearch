@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 144872
+summary: Fix querying ds::failure when failure store is not initialized
+type: bug

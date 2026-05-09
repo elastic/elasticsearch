@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.apache.http.HttpStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
@@ -123,5 +125,59 @@ public class HttpStorageObjectTests extends ESTestCase {
 
         StoragePath path = StoragePath.of("https://example.com/missing.parquet");
         return new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+    }
+
+    /**
+     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters and records
+     * the bytes read from the response.
+     */
+    public void testRangeNewStreamIncrementsMetrics() throws Exception {
+        long rangeBytes = 1024L;
+        HttpResponse<java.io.InputStream> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(HttpStatus.SC_PARTIAL_CONTENT);
+        when(mockResponse.headers()).thenReturn(
+            HttpHeaders.of(java.util.Map.of("Content-Length", java.util.List.of(Long.toString(rangeBytes))), (a, b) -> true)
+        );
+        when(mockResponse.body()).thenReturn(new ByteArrayInputStream(new byte[(int) rangeBytes]));
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(mockResponse).when(mockClient).send(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        assertEquals(0L, obj.metrics().requestCount());
+        obj.newStream(0, rangeBytes).close();
+
+        StorageObjectMetrics metrics = obj.metrics();
+        assertEquals(1L, metrics.requestCount());
+        assertEquals(rangeBytes, metrics.bytesRead());
+        assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
+        assertEquals(0L, metrics.retryCount());
+    }
+
+    /**
+     * Metadata-probe paths (length(), exists(), lastModified()) are intentionally NOT counted in
+     * metrics() — they're not data reads.
+     */
+    public void testMetadataProbesDoNotCountAsRequests() throws Exception {
+        long fileSize = 100_000L;
+        HttpResponse<Void> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(HttpStatus.SC_OK);
+        when(mockResponse.headers()).thenReturn(
+            HttpHeaders.of(java.util.Map.of("Content-Length", java.util.List.of(Long.toString(fileSize))), (a, b) -> true)
+        );
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(mockResponse).when(mockClient).send(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        obj.length();
+        obj.exists();
+
+        assertEquals(0L, obj.metrics().requestCount());
+        assertEquals(0L, obj.metrics().bytesRead());
     }
 }

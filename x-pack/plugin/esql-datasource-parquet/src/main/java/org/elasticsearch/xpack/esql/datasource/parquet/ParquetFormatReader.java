@@ -106,6 +106,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     // Shared across all iterators created by this reader: holds lazy decompressor instances and
     // pays the per-codec init cost once. The factory is stateless across files/row groups.
     private final PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
+    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()}
+    // and folded into AsyncExternalSourceOperator.Status.formatReader by the carrier. Per-reader
+    // (one ParquetFormatReader instance owns one counter struct), incremented by each read /
+    // readRange invocation that flows through this reader.
+    private final ParquetReaderCounters counters = new ParquetReaderCounters();
 
     static final long DEFAULT_ROW_GROUP_MACRO_SPLIT_TARGET_BYTES = 32L * 1024 * 1024;
 
@@ -193,6 +198,46 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
     @Override
     public FilterPushdownSupport filterPushdownSupport() {
         return new ParquetFilterPushdownSupport();
+    }
+
+    /**
+     * Returns an immutable snapshot of this reader's instrumentation counters. The carrier
+     * ({@code AsyncExternalSourceOperator.Status}) folds this map into the {@code formatReader}
+     * sub-object on the operator profile.
+     */
+    @Override
+    public Map<String, Object> statusSnapshot() {
+        return counters.snapshot();
+    }
+
+    /** Returns {@link StorageObject#length()} when callable, otherwise 0 (length is best-effort). */
+    private static long sizeOrZero(StorageObject object) {
+        try {
+            return Math.max(0L, object.length());
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
+
+    /**
+     * Records per-column materialization mode (eager/late) for each projected, non-NULL column.
+     * Per-page byte and time accounting is not wired here; see {@link ParquetReaderCounters} field
+     * docs and the TODO in {@link #read(StorageObject, FormatReadContext)} for scope.
+     */
+    private void recordPerColumnMaterialization(List<Attribute> projectedAttributes, boolean useOptimized) {
+        Set<String> predicateNames = pushedExpressions != null ? pushedExpressions.predicateColumnNames() : Set.of();
+        boolean lateActive = useOptimized && lateMaterializationEnabled && pushedExpressions != null;
+        for (Attribute attr : projectedAttributes) {
+            if (attr.dataType() == DataType.NULL || attr.dataType() == DataType.UNSUPPORTED) {
+                continue;
+            }
+            // A column is late-materialized when the late-mat path is active and the column is NOT
+            // a predicate column (predicate columns are read eagerly to drive row narrowing first).
+            String mode = lateActive && predicateNames.contains(attr.name()) == false
+                ? PerColumnStatus.MATERIALIZATION_LATE
+                : PerColumnStatus.MATERIALIZATION_EAGER;
+            counters.perColumn(attr.name()).setMaterialization(mode);
+        }
     }
 
     /**
@@ -436,15 +481,19 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+        long startNanos = System.nanoTime();
+        counters.setLateMaterializationEnabled(lateMaterializationEnabled);
         List<String> projectedColumns = context.projectedColumns();
         int batchSize = context.batchSize();
         int rowLimit = context.rowLimit();
 
         InputFile parquetInputFile = new ParquetStorageObjectAdapter(object);
+        long footerStartNanos = System.nanoTime();
         ParquetFileReader reader = openParquetFile(object, parquetInputFile, readOptionsBuilder().build());
         try {
             FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
+            counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), reader.getRowGroups().size());
 
             boolean useOptimized = optimizedReader && forceBaselinePath == false;
             FilterPredicate filterPredicate = resolveFilterPredicate(object, parquetSchema);
@@ -465,6 +514,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
             String createdBy = fileMetaData.getCreatedBy();
             boolean hasRecordFilter = forceBaselinePath || FilterCompat.isFilteringRequired(recordFilter);
+            recordPerColumnMaterialization(projectedAttributes, useOptimized);
             if (useOptimized) {
                 return createOptimizedIterator(
                     reader,
@@ -493,6 +543,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         } catch (Throwable t) {
             reader.close();
             throw t;
+        } finally {
+            // total_read_nanos covers the synchronous setup phase of read() / readRange(): footer
+            // open, row-group filter, page-index narrowing, late-mat decision, iterator construction.
+            // Per-page wall time during iterator drain is not folded in here — page-level decode/
+            // decompress timing is captured in per-column counters, but the iterator's overall
+            // active time would require wrapping the returned CloseableIterator (follow-up: per-page wall time).
+            counters.addTotalReadNanos(System.nanoTime() - startNanos);
         }
     }
 
@@ -643,6 +700,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
      */
     @Override
     public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException {
+        long startNanos = System.nanoTime();
+        counters.setLateMaterializationEnabled(lateMaterializationEnabled);
         long rangeStart = context.rangeStart();
         long rangeEnd = context.rangeEnd();
         List<String> projectedColumns = context.projectedColumns();
@@ -661,11 +720,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             // in the range, making getFooter() unusable for other splits. readFooter with
             // options that have no range returns the complete metadata. The underlying
             // FooterByteCache ensures the footer bytes are fetched from storage only once.
+            long footerStartNanos = System.nanoTime();
             ParquetMetadata fullFooter = ParquetFileReader.readFooter(
                 parquetInputFile,
                 readOptionsBuilder().build(),
                 parquetInputFile.newStream()
             );
+            counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), fullFooter.getBlocks().size());
             context.setFileContext(fullFooter);
             ParquetMetadata rangeMetadata = filterBlocksByRange(fullFooter, rangeStart, rangeEnd);
             reader = openParquetFile(object, parquetInputFile, rangeOptions, rangeMetadata);
@@ -705,6 +766,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             MessageType projectedSchema = buildProjectedSchema(parquetSchema, projectedAttributes);
             String createdBy = fileMetaData.getCreatedBy();
             boolean hasRecordFilter = forceBaselinePath || FilterCompat.isFilteringRequired(recordFilter);
+            recordPerColumnMaterialization(projectedAttributes, useOptimized);
             if (useOptimized) {
                 return createOptimizedIterator(
                     reader,
@@ -733,6 +795,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         } catch (Throwable t) {
             reader.close();
             throw t;
+        } finally {
+            // See read() for total_read_nanos scope semantics.
+            counters.addTotalReadNanos(System.nanoTime() - startNanos);
         }
     }
 
@@ -768,6 +833,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         Set<String> predicateColumnPaths = recordFilter != null && pushedExpressions != null
             ? pushedExpressions.predicateColumnNames()
             : null;
+        if (predicateColumnPaths != null) {
+            counters.addPredicateColumns(predicateColumnPaths);
+        }
         PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(reader, storageObject, predicateColumnPaths);
         adapter.installPreWarmedChunks(preloadedMetadata.preWarmedChunks());
 
@@ -775,7 +843,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         boolean[] survivingRowGroups;
         try {
             blocks = reader.getRowGroups();
-            survivingRowGroups = computeSurvivingRowGroups(reader, blocks, recordFilter, projectedSchema);
+            survivingRowGroups = computeSurvivingRowGroups(reader, blocks, recordFilter, projectedSchema, counters);
         } finally {
             // Detach the pre-warmed chunks from the adapter so subsequent reads on any
             // WindowedSeekableInputStream skip the cache lookup. The ByteBuffers themselves remain
@@ -787,15 +855,22 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
         RowRanges[] allRowRanges = null;
         if (filterPredicate != null) {
+            counters.markPageIndexUsed();
             allRowRanges = new RowRanges[blocks.size()];
+            long rowsInKept = 0;
+            long rowsAfter = 0;
             for (int i = 0; i < blocks.size(); i++) {
                 // Row groups dropped by stats/dictionary/bloom filters will never be opened by
                 // the iterator, so there is no need to compute their column-index row ranges.
-                if (survivingRowGroups[i] == false) {
+                if (survivingRowGroups != null && survivingRowGroups[i] == false) {
                     continue;
                 }
-                allRowRanges[i] = ColumnIndexRowRangesComputer.compute(filterPredicate, preloadedMetadata, i, blocks.get(i).getRowCount());
+                long rgRows = blocks.get(i).getRowCount();
+                rowsInKept += rgRows;
+                allRowRanges[i] = ColumnIndexRowRangesComputer.compute(filterPredicate, preloadedMetadata, i, rgRows);
+                rowsAfter += allRowRanges[i] != null ? allRowRanges[i].selectedRowCount() : rgRows;
             }
+            counters.addPageIndexRows(rowsInKept, rowsAfter);
         }
 
         // The iterator owns the late-mat decision: it gates on the structural prerequisite
@@ -808,6 +883,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         // With WildcardLike now pushed as Pushability.YES, FilterExec is dropped for that conjunct,
         // so suppressing late-mat at the file level would leak unfiltered rows past the source.
         ParquetPushedExpressions effectivePushed = lateMaterializationEnabled ? pushedExpressions : null;
+        if (effectivePushed != null) {
+            counters.markLateMaterializationUsed();
+        }
 
         // Reuse the FilterPredicate already resolved at the file level so the trivially-passes
         // guard sees the same predicate that drove row-group pruning and column-index RowRanges.
@@ -864,7 +942,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         ParquetFileReader reader,
         List<BlockMetaData> blocks,
         FilterCompat.Filter recordFilter,
-        MessageType schema
+        MessageType schema,
+        ParquetReaderCounters counters
     ) {
         if (FilterCompat.isFilteringRequired(recordFilter) == false) {
             return null;
@@ -887,6 +966,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 flags[i] = true;
                 keptIdx++;
             }
+        }
+        // Follow-up: per-level (stats/dictionary/bloom) counts require running the three filter
+        // levels separately, which doubles I/O on dictionary/bloom passes. For now we only emit
+        // total and kept; per-level passed_* fields remain at zero. Surface them via
+        // single-pass instrumentation hooks inside parquet-mr or a custom replacement filter.
+        for (int i = 0; i < blocks.size(); i++) {
+            counters.addRowGroupFiltered(false, false, false, flags[i]);
         }
         return flags;
     }

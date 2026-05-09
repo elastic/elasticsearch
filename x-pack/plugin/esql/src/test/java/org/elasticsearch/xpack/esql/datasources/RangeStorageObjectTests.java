@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
@@ -249,6 +250,18 @@ public class RangeStorageObjectTests extends ESTestCase {
         byte[] bytes = new byte[target.remaining()];
         target.get(bytes);
         assertEquals("World!", new String(bytes, StandardCharsets.UTF_8));
+    }
+
+    public void testMetricsDelegatesToWrapped() {
+        StorageObjectMetrics snapshot = new StorageObjectMetrics(7, 1234, 4096, 2);
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES) {
+            @Override
+            public StorageObjectMetrics metrics() {
+                return snapshot;
+            }
+        };
+        RangeStorageObject range = new RangeStorageObject(delegate, 0, FILE_BYTES.length);
+        assertSame(snapshot, range.metrics());
     }
 
     public void testReadBytesAsyncPastRangeReturnsMinusOne() throws Exception {

@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -215,5 +216,55 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
             assertEquals(0, buffer.size());
             assertEquals(0, buffer.bytesInBuffer());
         }
+    }
+
+    public void testFormatReaderStatusGetterMatchesLastRecorded() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        assertEquals(Map.of(), buffer.formatReaderStatus());
+
+        buffer.recordFormatReaderStatus(Map.of("row_groups_read", 3L));
+        assertEquals(Map.of("row_groups_read", 3L), buffer.formatReaderStatus());
+
+        // Latest snapshot replaces (does not merge) the prior one.
+        buffer.recordFormatReaderStatus(Map.of("row_groups_read", 5L, "rows_filtered", 17L));
+        assertEquals(Map.of("row_groups_read", 5L, "rows_filtered", 17L), buffer.formatReaderStatus());
+
+        // Null is normalized to an empty map.
+        buffer.recordFormatReaderStatus(null);
+        assertEquals(Map.of(), buffer.formatReaderStatus());
+    }
+
+    public void testBytesReadAccumulatesPositiveDeltas() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        assertEquals(0L, buffer.bytesRead());
+
+        buffer.addBytesRead(100);
+        buffer.addBytesRead(250);
+        assertEquals(350L, buffer.bytesRead());
+
+        // Non-positive deltas are ignored.
+        buffer.addBytesRead(0);
+        buffer.addBytesRead(-50);
+        assertEquals(350L, buffer.bytesRead());
+    }
+
+    public void testSplitTrackingTriplet() {
+        AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
+        assertEquals(0, buffer.splitsTotal());
+        assertEquals(0, buffer.splitsProcessed());
+        assertEquals(0, buffer.currentSplit());
+
+        buffer.setSplitsTotal(4);
+        assertEquals(4, buffer.splitsTotal());
+
+        buffer.setCurrentSplit(1);
+        buffer.incSplitsProcessed();
+        assertEquals(1, buffer.currentSplit());
+        assertEquals(1, buffer.splitsProcessed());
+
+        buffer.setCurrentSplit(2);
+        buffer.incSplitsProcessed();
+        assertEquals(2, buffer.currentSplit());
+        assertEquals(2, buffer.splitsProcessed());
     }
 }

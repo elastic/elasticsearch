@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
@@ -117,6 +118,19 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         assertEquals(now, decompressing.lastModified());
         assertTrue(decompressing.exists());
         assertEquals(path, decompressing.path());
+    }
+
+    public void testMetricsDelegatesToWrapped() {
+        StorageObjectMetrics snapshot = new StorageObjectMetrics(3, 555, 1024, 0);
+        StorageObject rawObject = new BytesStorageObject(new byte[0], StoragePath.of("file:///x.gz")) {
+            @Override
+            public StorageObjectMetrics metrics() {
+                return snapshot;
+            }
+        };
+        DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
+        DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
+        assertSame(snapshot, decompressing.metrics());
     }
 
     public void testNullDelegateThrows() {

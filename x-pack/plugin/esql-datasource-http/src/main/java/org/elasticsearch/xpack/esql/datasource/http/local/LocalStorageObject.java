@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.datasource.http.local;
 
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -39,6 +41,8 @@ public final class LocalStorageObject implements StorageObject {
     private Instant cachedLastModified;
     private Boolean cachedExists;
 
+    private final StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+
     public LocalStorageObject(Path filePath) {
         if (filePath == null) {
             throw new IllegalArgumentException("filePath cannot be null");
@@ -63,7 +67,18 @@ public final class LocalStorageObject implements StorageObject {
         if (Files.isRegularFile(filePath) == false) {
             throw new IOException("Path is not a regular file: " + filePath);
         }
-        return Files.newInputStream(filePath);
+        long startNanos = System.nanoTime();
+        long bytes = 0L;
+        try {
+            InputStream stream = Files.newInputStream(filePath);
+            if (cachedLength == null) {
+                cachedLength = Files.size(filePath);
+            }
+            bytes = cachedLength;
+            return stream;
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, bytes);
+        }
     }
 
     @Override
@@ -78,7 +93,12 @@ public final class LocalStorageObject implements StorageObject {
         if (Files.isRegularFile(filePath) == false) {
             throw new IOException("Path is not a regular file: " + filePath);
         }
-        return new RangeInputStream(filePath, position, length);
+        long startNanos = System.nanoTime();
+        try {
+            return new RangeInputStream(filePath, position, length);
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, length);
+        }
     }
 
     /**
@@ -92,11 +112,16 @@ public final class LocalStorageObject implements StorageObject {
             return 0;
         }
         checkFileExists();
+        long startNanos = System.nanoTime();
+        long bytes = 0L;
         try (FileChannel ch = FileChannel.open(filePath, StandardOpenOption.READ)) {
             int startPos = target.position();
             org.elasticsearch.common.io.Channels.readFromFileChannel(ch, position, target);
             int bytesRead = target.position() - startPos;
+            bytes = bytesRead;
             return bytesRead == 0 ? -1 : bytesRead;
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, bytes);
         }
     }
 
@@ -133,6 +158,11 @@ public final class LocalStorageObject implements StorageObject {
     @Override
     public StoragePath path() {
         return storagePath;
+    }
+
+    @Override
+    public StorageObjectMetrics metrics() {
+        return counters.snapshot();
     }
 
     private void checkFileExists() throws NoSuchFileException {

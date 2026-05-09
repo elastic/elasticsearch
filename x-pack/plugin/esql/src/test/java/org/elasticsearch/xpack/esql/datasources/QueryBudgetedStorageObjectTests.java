@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
@@ -119,6 +120,16 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertEquals(0, budget.inFlight());
+    }
+
+    public void testMetricsDelegatesToWrapped() {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
+        StorageObjectMetrics snapshot = new StorageObjectMetrics(5, 999, 2048, 1);
+        StorageObject delegate = mock(StorageObject.class);
+        when(delegate.metrics()).thenReturn(snapshot);
+
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
+        assertSame(snapshot, obj.metrics());
     }
 
     public void testNewStreamReleasesOnDelegateException() throws Exception {

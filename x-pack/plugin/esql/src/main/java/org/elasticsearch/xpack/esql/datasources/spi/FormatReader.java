@@ -206,4 +206,11 @@ public interface FormatReader extends Closeable {
         return false;
     }
 
+    /**
+     * Returns a snapshot of format-reader I/O counters; empty by default.
+     */
+    default Map<String, Object> statusSnapshot() {
+        return Map.of();
+    }
+
 }

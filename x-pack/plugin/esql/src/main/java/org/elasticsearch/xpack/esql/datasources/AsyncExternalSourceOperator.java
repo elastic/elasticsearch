@@ -19,6 +19,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -36,6 +37,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     private IsBlockedResult isBlocked = NOT_BLOCKED;
     private int pagesEmitted;
     private long rowsEmitted;
+    private long processNanos;
 
     public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer) {
         this.buffer = buffer;
@@ -43,16 +45,21 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public Page getOutput() {
-        final var page = buffer.pollPage();
-        if (page != null) {
-            pagesEmitted++;
-            rowsEmitted += page.getPositionCount();
-            return page;
+        long startNanos = System.nanoTime();
+        try {
+            final var page = buffer.pollPage();
+            if (page != null) {
+                pagesEmitted++;
+                rowsEmitted += page.getPositionCount();
+                return page;
+            }
+            if (buffer.failure() != null) {
+                throw propagateFailure(buffer.failure());
+            }
+            return null;
+        } finally {
+            processNanos += System.nanoTime() - startNanos;
         }
-        if (buffer.failure() != null) {
-            throw propagateFailure(buffer.failure());
-        }
-        return null;
     }
 
     private static RuntimeException propagateFailure(Throwable t) {
@@ -100,7 +107,19 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public Status status() {
-        return new Status(buffer.size(), pagesEmitted, rowsEmitted, buffer.bytesInBuffer(), buffer.failure());
+        return new Status(
+            buffer.size(),
+            pagesEmitted,
+            rowsEmitted,
+            buffer.bytesInBuffer(),
+            buffer.failure(),
+            processNanos,
+            buffer.splitsProcessed(),
+            buffer.splitsTotal(),
+            buffer.currentSplit(),
+            buffer.bytesRead(),
+            buffer.formatReaderStatus()
+        );
     }
 
     public static class Status implements Operator.Status {
@@ -114,18 +133,44 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             "esql_async_source_bytes_buffered"
         );
 
+        private static final TransportVersion ESQL_EXTERNAL_SOURCE_TELEMETRY = TransportVersion.fromName("esql_external_source_telemetry");
+
         private final int pagesWaiting;
         private final int pagesEmitted;
         private final long rowsEmitted;
         private final long bytesBuffered;
         private final Throwable failure;
+        private final long processNanos;
+        private final int splitsProcessed;
+        private final int splitsTotal;
+        private final int currentSplit;
+        private final long bytesRead;
+        private final Map<String, Object> formatReader;
 
-        Status(int pagesWaiting, int pagesEmitted, long rowsEmitted, long bytesBuffered, Throwable failure) {
+        Status(
+            int pagesWaiting,
+            int pagesEmitted,
+            long rowsEmitted,
+            long bytesBuffered,
+            Throwable failure,
+            long processNanos,
+            int splitsProcessed,
+            int splitsTotal,
+            int currentSplit,
+            long bytesRead,
+            Map<String, Object> formatReader
+        ) {
             this.pagesWaiting = pagesWaiting;
             this.pagesEmitted = pagesEmitted;
             this.rowsEmitted = rowsEmitted;
             this.bytesBuffered = bytesBuffered;
             this.failure = failure;
+            this.processNanos = processNanos;
+            this.splitsProcessed = splitsProcessed;
+            this.splitsTotal = splitsTotal;
+            this.currentSplit = currentSplit;
+            this.bytesRead = bytesRead;
+            this.formatReader = formatReader == null ? Map.of() : formatReader;
         }
 
         Status(StreamInput in) throws IOException {
@@ -134,6 +179,22 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             rowsEmitted = in.readVLong();
             bytesBuffered = in.getTransportVersion().supports(ESQL_ASYNC_SOURCE_BYTES_BUFFERED) ? in.readVLong() : 0;
             failure = in.readException();
+            if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_TELEMETRY)) {
+                processNanos = in.readVLong();
+                splitsProcessed = in.readVInt();
+                splitsTotal = in.readVInt();
+                currentSplit = in.readVInt();
+                bytesRead = in.readVLong();
+                Map<String, Object> read = in.readGenericMap();
+                formatReader = read == null ? Map.of() : read;
+            } else {
+                processNanos = 0L;
+                splitsProcessed = 0;
+                splitsTotal = 0;
+                currentSplit = 0;
+                bytesRead = 0L;
+                formatReader = Map.of();
+            }
         }
 
         @Override
@@ -145,6 +206,14 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 out.writeVLong(bytesBuffered);
             }
             out.writeException(failure);
+            if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_TELEMETRY)) {
+                out.writeVLong(processNanos);
+                out.writeVInt(splitsProcessed);
+                out.writeVInt(splitsTotal);
+                out.writeVInt(currentSplit);
+                out.writeVLong(bytesRead);
+                out.writeGenericMap(formatReader);
+            }
         }
 
         @Override
@@ -172,6 +241,35 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             return failure;
         }
 
+        /**
+         * Wall time spent inside {@link AsyncExternalSourceOperator#getOutput()}'s read loop.
+         * Producer-thread time (format-reader open, decode, decompression) lives in
+         * {@code format_reader.total_read_nanos} on this same Status, not in this counter.
+         */
+        public long processNanos() {
+            return processNanos;
+        }
+
+        public int splitsProcessed() {
+            return splitsProcessed;
+        }
+
+        public int splitsTotal() {
+            return splitsTotal;
+        }
+
+        public int currentSplit() {
+            return currentSplit;
+        }
+
+        public long bytesRead() {
+            return bytesRead;
+        }
+
+        public Map<String, Object> formatReader() {
+            return formatReader;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -179,6 +277,12 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             builder.field("pages_emitted", pagesEmitted);
             builder.field("rows_emitted", rowsEmitted);
             builder.field("bytes_buffered", bytesBuffered);
+            builder.field("process_nanos", processNanos);
+            builder.field("splits_processed", splitsProcessed);
+            builder.field("splits_total", splitsTotal);
+            builder.field("current_split", currentSplit);
+            builder.field("bytes_read", bytesRead);
+            builder.field("format_reader", formatReader);
             if (failure != null) {
                 builder.field("failure", failure.getMessage());
             }
@@ -200,12 +304,30 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 && pagesEmitted == status.pagesEmitted
                 && rowsEmitted == status.rowsEmitted
                 && bytesBuffered == status.bytesBuffered
+                && processNanos == status.processNanos
+                && splitsProcessed == status.splitsProcessed
+                && splitsTotal == status.splitsTotal
+                && currentSplit == status.currentSplit
+                && bytesRead == status.bytesRead
+                && formatReader.equals(status.formatReader)
                 && Objects.equals(thisFailureMsg, otherFailureMsg);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pagesWaiting, pagesEmitted, rowsEmitted, bytesBuffered, failure != null ? failure.getMessage() : null);
+            return Objects.hash(
+                pagesWaiting,
+                pagesEmitted,
+                rowsEmitted,
+                bytesBuffered,
+                failure != null ? failure.getMessage() : null,
+                processNanos,
+                splitsProcessed,
+                splitsTotal,
+                currentSplit,
+                bytesRead,
+                formatReader
+            );
         }
 
         @Override

@@ -15,6 +15,8 @@ import com.azure.storage.blob.models.BlobStorageException;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
@@ -39,6 +41,8 @@ public final class AzureStorageObject implements StorageObject {
     private volatile Long cachedLength;
     private volatile Instant cachedLastModified;
     private volatile Boolean cachedExists;
+
+    private final StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
 
     public AzureStorageObject(BlobClient blobClient, String container, String blobName, StoragePath path) {
         this(blobClient, null, container, blobName, path);
@@ -106,10 +110,18 @@ public final class AzureStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream() throws IOException {
+        long startNanos = System.nanoTime();
+        long bytes = 0L;
         try {
-            return blobClient.openInputStream();
+            InputStream stream = blobClient.openInputStream();
+            if (cachedLength != null) {
+                bytes = cachedLength;
+            }
+            return stream;
         } catch (Exception e) {
             throw new IOException("Failed to read object from " + path, e);
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, bytes);
         }
     }
 
@@ -122,11 +134,14 @@ public final class AzureStorageObject implements StorageObject {
             throw new IllegalArgumentException("length must be positive, got: " + length);
         }
 
+        long startNanos = System.nanoTime();
         try {
             BlobRange range = new BlobRange(position, length);
             return blobClient.openInputStream(range, new BlobRequestConditions());
         } catch (Exception e) {
             throw new IOException("Range request failed for " + path, e);
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, length);
         }
     }
 
@@ -227,6 +242,7 @@ public final class AzureStorageObject implements StorageObject {
         }
 
         BlobRange range = new BlobRange(position, length);
+        long startNanos = System.nanoTime();
         blobAsyncClient.downloadWithResponse(range, null, null, false)
             .flatMapMany(response -> response.getValue())
             .reduce(ByteBuffer.allocate(Math.toIntExact(length)), (acc, buf) -> {
@@ -243,9 +259,11 @@ public final class AzureStorageObject implements StorageObject {
             .toFuture()
             .whenComplete((buffer, error) -> {
                 if (error != null) {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
                     Throwable cause = error.getCause() != null ? error.getCause() : error;
                     listener.onFailure(cause instanceof Exception e ? e : new RuntimeException(cause));
                 } else {
+                    counters.addRequest(System.nanoTime() - startNanos, buffer.remaining());
                     listener.onResponse(buffer);
                 }
             });
@@ -254,6 +272,13 @@ public final class AzureStorageObject implements StorageObject {
     @Override
     public boolean supportsNativeAsync() {
         return blobAsyncClient != null;
+    }
+
+    // TODO: wire retry counts via an Azure SDK HttpPipelinePolicy interceptor;
+    // retries managed inside the SDK are not yet visible to counters.addRetry().
+    @Override
+    public StorageObjectMetrics metrics() {
+        return counters.snapshot();
     }
 
     @Override

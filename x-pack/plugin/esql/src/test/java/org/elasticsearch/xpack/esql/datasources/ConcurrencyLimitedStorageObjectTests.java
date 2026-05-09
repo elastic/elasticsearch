@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
@@ -123,6 +124,16 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertEquals(3, limiter.availablePermits());
+    }
+
+    public void testMetricsDelegatesToWrapped() {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
+        StorageObjectMetrics snapshot = new StorageObjectMetrics(11, 2222, 8192, 3);
+        StorageObject delegate = mock(StorageObject.class);
+        when(delegate.metrics()).thenReturn(snapshot);
+
+        ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
+        assertSame(snapshot, obj.metrics());
     }
 
     public void testNewStreamReleasesPermitOnDelegateException() throws Exception {

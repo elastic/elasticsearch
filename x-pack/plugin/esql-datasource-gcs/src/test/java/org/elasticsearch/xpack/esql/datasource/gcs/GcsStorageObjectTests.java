@@ -15,6 +15,7 @@ import com.google.cloud.storage.StorageException;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -440,5 +441,51 @@ public class GcsStorageObjectTests extends ESTestCase {
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
         assertTrue(obj.supportsNativeAsync());
+    }
+
+    /**
+     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters and records
+     * the requested byte count. GCS ReadChannel does not expose content length on open, so the
+     * implementation records the requested range length as bytesRead.
+     */
+    public void testRangeNewStreamIncrementsMetrics() throws IOException {
+        long rangeBytes = 1024L;
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path, 100_000L);
+
+        assertEquals(0L, obj.metrics().requestCount());
+        obj.newStream(0, rangeBytes).close();
+
+        StorageObjectMetrics metrics = obj.metrics();
+        assertEquals(1L, metrics.requestCount());
+        assertTrue("bytesRead should be >= 0", metrics.bytesRead() >= 0);
+        assertEquals(rangeBytes, metrics.bytesRead());
+        assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
+        assertEquals(0L, metrics.retryCount());
+    }
+
+    /**
+     * Metadata-probe paths (length(), exists(), lastModified()) are intentionally NOT counted
+     * in metrics() — they're not data reads.
+     */
+    public void testMetadataProbesDoNotCountAsRequests() throws IOException {
+        Blob mockBlob = mock(Blob.class);
+        when(mockBlob.getSize()).thenReturn(100L);
+        OffsetDateTime odt = OffsetDateTime.of(2025, 6, 15, 10, 30, 0, 0, ZoneOffset.UTC);
+        when(mockBlob.getUpdateTimeOffsetDateTime()).thenReturn(odt);
+        when(mockStorage.get(any(BlobId.class))).thenReturn(mockBlob);
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        obj.length();
+        obj.exists();
+        obj.lastModified();
+
+        assertEquals(0L, obj.metrics().requestCount());
+        assertEquals(0L, obj.metrics().bytesRead());
     }
 }

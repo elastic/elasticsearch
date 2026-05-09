@@ -21,6 +21,8 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
@@ -44,6 +46,8 @@ public final class S3StorageObject implements StorageObject {
     private volatile Long cachedLength;
     private volatile Instant cachedLastModified;
     private volatile Boolean cachedExists;
+
+    private final StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
 
     public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
         this(s3Client, null, bucket, key, path);
@@ -99,6 +103,8 @@ public final class S3StorageObject implements StorageObject {
 
     @Override
     public InputStream newStream() throws IOException {
+        long startNanos = System.nanoTime();
+        long bytes = 0L;
         try {
             GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).build();
             ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
@@ -110,12 +116,14 @@ public final class S3StorageObject implements StorageObject {
             if (cachedLastModified == null) {
                 cachedLastModified = metadata.lastModified();
             }
-
+            bytes = metadata.contentLength() != null ? metadata.contentLength() : 0L;
             return response;
         } catch (NoSuchKeyException e) {
             throw new IOException("Object not found: " + path, e);
         } catch (Exception e) {
             throw new IOException("Failed to read object from " + path, e);
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, bytes);
         }
     }
 
@@ -131,6 +139,7 @@ public final class S3StorageObject implements StorageObject {
         long endPosition = position + length - 1;
         String rangeHeader = Strings.format("bytes=%d-%d", position, endPosition);
 
+        long startNanos = System.nanoTime();
         try {
             GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
             ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
@@ -151,6 +160,8 @@ public final class S3StorageObject implements StorageObject {
             throw new IOException("Object not found: " + path, e);
         } catch (Exception e) {
             throw new IOException("Range request failed for " + path, e);
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, length);
         }
     }
 
@@ -304,8 +315,10 @@ public final class S3StorageObject implements StorageObject {
 
         GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
 
+        long startNanos = System.nanoTime();
         s3AsyncClient.getObject(request, AsyncResponseTransformer.toBytes()).whenComplete((responseBytes, throwable) -> {
             if (throwable != null) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
                 Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
                 if (cause instanceof NoSuchKeyException) {
                     listener.onFailure(new IOException("Object not found: " + path, cause));
@@ -325,14 +338,20 @@ public final class S3StorageObject implements StorageObject {
                     cachedLength = total;
                 }
             }
-
-            listener.onResponse(ByteBuffer.wrap(responseBytes.asByteArray()));
+            byte[] payload = responseBytes.asByteArray();
+            counters.addRequest(System.nanoTime() - startNanos, payload.length);
+            listener.onResponse(ByteBuffer.wrap(payload));
         });
     }
 
     @Override
     public boolean supportsNativeAsync() {
         return s3AsyncClient != null;
+    }
+
+    @Override
+    public StorageObjectMetrics metrics() {
+        return counters.snapshot();
     }
 
     @Override

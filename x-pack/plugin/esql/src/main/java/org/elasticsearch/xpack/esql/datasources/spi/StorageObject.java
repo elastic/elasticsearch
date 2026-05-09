@@ -204,4 +204,17 @@ public interface StorageObject {
     default boolean supportsNativeAsync() {
         return false;
     }
+
+    // === METRICS API (optional - default returns empty) ===
+
+    /**
+     * Returns cumulative I/O counters for reads against this object.
+     * <p>
+     * Implementations that don't track I/O return {@link StorageObjectMetrics#EMPTY}.
+     * Decorator wrappers must delegate to the wrapped object so counters are
+     * attributed to the underlying store, not the wrapper layer.
+     */
+    default StorageObjectMetrics metrics() {
+        return StorageObjectMetrics.ZERO;
+    }
 }

@@ -170,8 +170,9 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             this.splitsTotal = splitsTotal;
             this.currentSplit = currentSplit;
             this.bytesRead = bytesRead;
-            // Null-default lives at AsyncExternalSourceBuffer (field initialiser + setter normalisation);
-            // the StreamInput ctor below also defends the wire path independently.
+            // Null-default lives at AsyncExternalSourceBuffer (field initialiser +
+            // recordFormatReaderStatus(null) → Map.of()); the StreamInput ctor below also defends
+            // the wire path independently.
             this.formatReader = formatReader;
         }
 

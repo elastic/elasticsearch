@@ -129,8 +129,7 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
     public void testMetricsDelegatesToWrapped() {
         ConcurrencyLimiter limiter = new ConcurrencyLimiter(3);
         StorageObjectMetrics snapshot = new StorageObjectMetrics(11, 2222, 8192, 3);
-        StorageObject delegate = mock(StorageObject.class);
-        when(delegate.metrics()).thenReturn(snapshot);
+        StorageObject delegate = new MetricsOnlyStorageObject(snapshot);
 
         ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
         assertSame(snapshot, obj.metrics());
@@ -144,5 +143,53 @@ public class ConcurrencyLimitedStorageObjectTests extends ESTestCase {
         ConcurrencyLimitedStorageObject obj = new ConcurrencyLimitedStorageObject(delegate, limiter);
         expectThrows(IOException.class, obj::newStream);
         assertEquals(3, limiter.availablePermits());
+    }
+
+    /**
+     * Real-class delegate fixture for the metrics-delegation test, per AGENTS.md "real classes
+     * over mocks". Returns the configured snapshot from {@link #metrics()}; every other SPI
+     * method throws so an unexpected call surfaces loudly.
+     */
+    private static final class MetricsOnlyStorageObject implements StorageObject {
+        private final StorageObjectMetrics snapshot;
+
+        MetricsOnlyStorageObject(StorageObjectMetrics snapshot) {
+            this.snapshot = snapshot;
+        }
+
+        @Override
+        public StorageObjectMetrics metrics() {
+            return snapshot;
+        }
+
+        @Override
+        public InputStream newStream() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long length() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public java.time.Instant lastModified() {
+            return null;
+        }
+
+        @Override
+        public boolean exists() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("s3://test/key");
+        }
     }
 }

@@ -71,7 +71,7 @@ public record StorageObjectMetrics(long requestCount, long requestNanos, long by
      * Returns the element-wise sum of this and {@code other}. Overflow wraps silently — these
      * are metrics counters, not invariants; a wrapped value is preferable to throwing through
      * the producer's {@code metrics()} call chain. Reaching {@code Long.MAX_VALUE} on any field
-     * (≈9.2×10¹⁸) is implausible in practice (each counter would need a corresponding number
+     * (~9.2 * 10^18) is implausible in practice (each counter would need a corresponding number
      * of requests / nanoseconds / bytes / retries on a single object).
      */
     public StorageObjectMetrics add(StorageObjectMetrics other) {

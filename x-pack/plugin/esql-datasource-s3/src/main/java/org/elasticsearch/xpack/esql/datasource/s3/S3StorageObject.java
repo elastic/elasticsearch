@@ -47,6 +47,8 @@ public final class S3StorageObject implements StorageObject {
     private volatile Instant cachedLastModified;
     private volatile Boolean cachedExists;
 
+    // TODO: AWS retries are managed via the SDK's ExecutionInterceptor / RetryStrategy at the
+    // S3Client layer; intercepting them here would require wrapping the client. Not counted in this PR.
     private final StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
 
     public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {

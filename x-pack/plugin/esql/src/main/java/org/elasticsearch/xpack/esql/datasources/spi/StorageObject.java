@@ -205,12 +205,12 @@ public interface StorageObject {
         return false;
     }
 
-    // === METRICS API (optional - default returns empty) ===
+    // === METRICS API (optional - default returns the zero-valued snapshot) ===
 
     /**
      * Returns cumulative I/O counters for reads against this object.
      * <p>
-     * Implementations that don't track I/O return {@link StorageObjectMetrics#EMPTY}.
+     * Implementations that don't track I/O return {@link StorageObjectMetrics#ZERO}.
      * Decorator wrappers must delegate to the wrapped object so counters are
      * attributed to the underlying store, not the wrapper layer.
      */

@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 
 public class StorageObjectMetricsTests extends ESTestCase {
 
-    public void testEmptyIsZero() {
+    public void testZero() {
         StorageObjectMetrics m = StorageObjectMetrics.ZERO;
         assertEquals(0L, m.requestCount());
         assertEquals(0L, m.requestNanos());
@@ -94,7 +94,7 @@ public class StorageObjectMetricsTests extends ESTestCase {
         assertEquals(expectedRetries, snap.retryCount());
     }
 
-    public void testStorageObjectDefaultsToEmpty() {
+    public void testStorageObjectDefaultsToZero() {
         StorageObject obj = new MinimalStorageObject();
         assertSame(StorageObjectMetrics.ZERO, obj.metrics());
     }

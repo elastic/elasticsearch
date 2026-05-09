@@ -389,7 +389,7 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(rendered.trim(), equalTo(expected.trim()));
     }
 
-    public void testRenderingTypeTableAppliesToIncludesServerless() throws Exception {
+    public void testRenderingTypeTableAppliesToAnnotations() throws Exception {
         FunctionInfo info = functionInfo(TestPreviewClass.class);
         assert info != null;
         FunctionDefinition definition = FunctionDefinition.def(TestPreviewClass.class).unary(TestPreviewClass::new).name("preview_func");
@@ -404,10 +404,23 @@ public class DocsV3SupportTests extends ESTestCase {
         docs.renderDocs();
         String rendered = callbacks.rendered.get("types/preview_func.md");
         assertNotNull("types table should be rendered", rendered);
-        // TestPreviewClass has preview=true, so type rows with applies_to should include serverless: preview
-        assertThat(rendered, containsString("keyword {applies_to}`stack: preview 9.3.0` {applies_to}`serverless: preview`"));
-        // Type rows without applies_to should not have any {applies_to} annotation
-        assertThat(rendered, containsString("| keyword | long |"));
+        // Four signatures cover the rendering cases:
+        //   - keyword: no appliesTo, no preview              -> plain row
+        //   - integer: appliesTo, preview=false              -> stack annotation only
+        //   - double:  appliesTo, preview=true               -> stack annotation + serverless: preview
+        //   - boolean: multiple appliesTo (preview->GA)      -> combined stack annotation, no serverless
+        String expected = """
+            ## Supported types
+
+            | str | result |
+            | --- | --- |
+            | boolean {applies_to}`stack: preview 9.3.0, ga 9.4.0` | long |
+            | double {applies_to}`stack: preview 9.3.0` {applies_to}`serverless: preview` | long |
+            | integer {applies_to}`stack: preview 9.3.0` | long |
+            | keyword | long |
+            """;
+        String table = rendered.substring(rendered.indexOf("## Supported types"));
+        assertThat(table.trim(), equalTo(expected.trim()));
     }
 
     private TestCallbacks renderTestClassDocs() throws Exception {
@@ -661,21 +674,32 @@ public class DocsV3SupportTests extends ESTestCase {
             appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") },
             preview = true
         )
-        public TestPreviewClass(Source source, @Param(name = "str", type = { "keyword" }, description = "A field.") Expression field) {
+        public TestPreviewClass(
+            Source source,
+            @Param(name = "str", type = { "keyword", "integer", "double", "boolean" }, description = "A field.") Expression field
+        ) {
             super(source, List.of(field));
         }
 
         public static Set<DocsV3Support.TypeSignature> signatures() {
+            FunctionAppliesTo previewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+            FunctionAppliesTo gaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
             return Set.of(
+                // No appliesTo, no preview: plain row
                 new DocsV3Support.TypeSignature(List.of(new DocsV3Support.Param(DataType.KEYWORD, List.of())), DataType.LONG),
+                // appliesTo present but preview=false: stack annotation only
                 new DocsV3Support.TypeSignature(
-                    List.of(
-                        new DocsV3Support.Param(
-                            DataType.KEYWORD,
-                            List.of(appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true)),
-                            true
-                        )
-                    ),
+                    List.of(new DocsV3Support.Param(DataType.INTEGER, List.of(previewAppliesTo), false)),
+                    DataType.LONG
+                ),
+                // appliesTo present and preview=true: stack annotation + serverless: preview
+                new DocsV3Support.TypeSignature(
+                    List.of(new DocsV3Support.Param(DataType.DOUBLE, List.of(previewAppliesTo), true)),
+                    DataType.LONG
+                ),
+                // Multiple appliesTo entries (preview promoted to GA), preview=false: combined stack annotation only
+                new DocsV3Support.TypeSignature(
+                    List.of(new DocsV3Support.Param(DataType.BOOLEAN, List.of(previewAppliesTo, gaAppliesTo), false)),
                     DataType.LONG
                 )
             );

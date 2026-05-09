@@ -717,6 +717,21 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     /**
+     * Release the action's full breaker reservation, if any. Idempotent: safe to call multiple times. Used
+     * from {@link #finishHim(Exception, List, List, boolean)} and from the relocation path in
+     * {@link #notifyDone(long, ScrollConsumableHitsResponse, int)} — the latter skips {@code finishHim}
+     * intentionally (to preserve pagination state for the relocated task) but the breaker reservation is
+     * per-node memory accounting that must be released here regardless, since the relocated task on the
+     * destination node will make its own reservation when its {@link #start()} runs.
+     */
+    private void releaseAllReservedBytes() {
+        if (currentReservationBytes > 0) {
+            releaseBatchAllocation(currentReservationBytes);
+            currentReservationBytes = 0L;
+        }
+    }
+
+    /**
      * Send a bulk request, handling retries. Releases {@code releaseBatchHits} on cancellation, terminal finish, and before the bulk
      * listener completes (success or failure) so hits are never leaked.
      */
@@ -879,6 +894,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
                     );
                     // Don't call finishHim — it clears the pagination which the relocated task needs.
                     // Do close local resources (e.g. the remote REST client) that won't be reused.
+                    // Release the breaker reservation held on this (source) node — the relocated task on the
+                    // destination node will make its own reservation when its start() runs. Without this the
+                    // reservation leaks and the source node's REQUEST breaker stays elevated until JVM exit.
+                    releaseAllReservedBytes();
                     paginatedHitSource.cleanupWithoutClosingPagination(
                         threadPool.getThreadContext().preserveContext(() -> listener.onResponse(response))
                     );
@@ -1020,10 +1039,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         // Release the breaker reservation held continuously by this action since {@link #start()} (or zero if
         // the upfront reserve in start() was the call that tripped). Done unconditionally on every termination
         // path — success, indexing failures, search failures, cancellation, breaker trip.
-        if (currentReservationBytes > 0) {
-            releaseBatchAllocation(currentReservationBytes);
-            currentReservationBytes = 0L;
-        }
+        releaseAllReservedBytes();
         // Atomically claim the current response. If prepareBulkRequest already claimed it (null), this is a no-op.
         // If we win the CAS, we release any hits that were not yet consumed (i.e. from consumedOffset to end).
         // This covers: prepareBulkRequest hasn't run yet (consumedOffset == 0) and the maxDocs partial-batch case.

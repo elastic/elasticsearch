@@ -405,10 +405,10 @@ public class DocsV3SupportTests extends ESTestCase {
         String rendered = callbacks.rendered.get("types/preview_func.md");
         assertNotNull("types table should be rendered", rendered);
         // Four signatures cover the rendering cases:
-        //   - keyword: no appliesTo, no preview              -> plain row
-        //   - integer: appliesTo, preview=false              -> stack annotation only
-        //   - double:  appliesTo, preview=true               -> stack annotation + serverless: preview
-        //   - boolean: multiple appliesTo (preview->GA)      -> combined stack annotation, no serverless
+        // - keyword: no appliesTo, no preview -> plain row
+        // - integer: appliesTo, preview=false -> stack annotation only
+        // - double: appliesTo, preview=true -> stack annotation + serverless: preview
+        // - boolean: multiple appliesTo (preview->GA) -> combined stack annotation, no serverless
         String expected = """
             ## Supported types
 

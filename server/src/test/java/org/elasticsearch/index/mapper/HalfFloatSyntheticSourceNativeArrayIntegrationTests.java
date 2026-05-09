@@ -35,12 +35,7 @@ public class HalfFloatSyntheticSourceNativeArrayIntegrationTests extends NativeA
             .endObject()
             .endObject()
             .endObject();
-
-        if (useColumnarId) {
-            verifySyntheticArray(inputArrayValues, expectedArrayValues, mapping);
-        } else {
-            verifySyntheticArray(inputArrayValues, expectedArrayValues, mapping, "_id");
-        }
+        verifySyntheticArray(inputArrayValues, expectedArrayValues, mapping);
     }
 
     @Override

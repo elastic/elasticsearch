@@ -96,7 +96,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node NODE = null;
 
-    protected boolean useColumnarId;
+    protected static boolean useColumnarId;
 
     protected void startNode(long seed) throws Exception {
         assert NODE == null;

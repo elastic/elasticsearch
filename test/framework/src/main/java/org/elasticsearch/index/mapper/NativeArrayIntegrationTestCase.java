@@ -268,17 +268,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         var mapping = jsonBuilder().startObject().startObject("properties").startObject("field");
         minimalMapping(mapping);
         mapping.endObject().endObject().endObject();
-        String[] expectedStoredFields;
-        if (useColumnarId) {
-            expectedStoredFields = new String[0];
-        } else {
-            expectedStoredFields = new String[] { "_id" };
-        }
-        verifySyntheticArray(arrays, mapping, expectedStoredFields);
+        verifySyntheticArray(arrays, mapping);
     }
 
-    protected void verifySyntheticArray(Object[][] arrays, XContentBuilder mapping, String... expectedStoredFields) throws IOException {
-        verifySyntheticArray(arrays, arrays, mapping, expectedStoredFields);
+    protected void verifySyntheticArray(Object[][] arrays, XContentBuilder mapping) throws IOException {
+        verifySyntheticArray(arrays, arrays, mapping);
     }
 
     private XContentBuilder arrayToSource(Object obj) throws IOException {
@@ -294,8 +288,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
     protected void verifySyntheticArray(
         Object[][] inputArrays,
         Object[] expectedArrays,
-        XContentBuilder mapping,
-        String... expectedStoredFields
+        XContentBuilder mapping
     ) throws IOException {
         assertThat(inputArrays.length, equalTo(expectedArrays.length));
 
@@ -336,10 +329,10 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 var document = reader.storedFields().document(i);
                 // Verify that there is no ignored source:
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
-                if (expectedStoredFields.length == 0) {
+                if (useColumnarId) {
                     assertThat(storedFieldNames, empty());
                 } else {
-                    assertThat(storedFieldNames, contains(expectedStoredFields));
+                    assertThat(storedFieldNames, contains("_id"));
                 }
             }
             var fieldInfos = getFieldInfos(reader);
@@ -402,7 +395,11 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             for (int i = 0; i < documents.size(); i++) {
                 var document = reader.storedFields().document(i);
                 List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
-                assertThat(storedFieldNames, hasItem("_id"));
+                if (useColumnarId) {
+                    assertThat(storedFieldNames, empty());
+                } else {
+                    assertThat(storedFieldNames, hasItem("_id"));
+                }
 
                 // Verify that there is no offset field:
                 LeafReader leafReader = reader.leaves().get(0).reader();

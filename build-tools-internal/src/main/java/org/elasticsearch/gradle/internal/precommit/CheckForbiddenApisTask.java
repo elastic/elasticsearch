@@ -16,10 +16,10 @@ import de.thetaphi.forbiddenapis.Logger;
 import de.thetaphi.forbiddenapis.ParseException;
 import groovy.lang.Closure;
 
+import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
-import org.gradle.api.Transformer;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
@@ -57,7 +57,6 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.annotation.RetentionPolicy;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -70,6 +69,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import javax.inject.Inject;
 
@@ -81,7 +82,8 @@ import static de.thetaphi.forbiddenapis.Checker.Option.FAIL_ON_VIOLATION;
 @CacheableTask
 public abstract class CheckForbiddenApisTask extends DefaultTask implements PatternFilterable, VerificationTask, Constants {
 
-    public static final Set<String> BUNDLED_SIGNATURE_DEFAULTS = Set.of("jdk-unsafe", "jdk-non-portable", "jdk-system-out");
+    /** Default bundled JDK signature ids applied by {@link ForbiddenApisPrecommitPlugin}. */
+    public static final List<String> BUNDLED_SIGNATURE_DEFAULTS = List.of("jdk-unsafe", "jdk-non-portable", "jdk-system-out");
 
     private static final String NL = System.getProperty("line.separator", "\n");
     private final PatternSet patternSet = new PatternSet().include("**/*.class");
@@ -101,29 +103,109 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     private boolean ignoreFailures = false;
     private boolean ignoreMissingClasses = false;
 
-    @Input
-    @Optional
-    abstract SetProperty<String> getBundledSignatures();
+    /**
+     * Gradle cannot decorate {@link CheckForbiddenApisTask} with abstract {@link SetProperty} accessors (see task creation);
+     * these are created via {@link ObjectFactory} instead.
+     */
+    private final SetProperty<String> bundledSignatures;
+    private final SetProperty<String> suppressAnnotations;
 
     /**
-     * List of a custom Java annotations (full class names) that are used in the checked
-     * code to suppress errors. Those annotations must have at least
-     * {@link RetentionPolicy#CLASS}. They can be applied to classes, their methods,
-     * or fields. By default, {@code @de.thetaphi.forbiddenapis.SuppressForbidden}
-     * can always be used, but needs the {@code forbidden-apis.jar} file in classpath
-     * of compiled project, which may not be wanted.
-     * Instead of a full class name, a glob pattern may be used (e.g.,
-     * {@code **.SuppressForbidden}).
+     * Applies edits to bundled JDK signatures before they are stored in deterministic sorted order for caching.
      */
-    @Input
-    @Optional
-    abstract SetProperty<String> getSuppressAnnotations();
+    public interface BundledSignaturesSpec {
+        /** Adds a forbidden-apis bundled signatures resource id (e.g. {@code jdk-internal}). */
+        void add(String bundledSignature);
+
+        /** Removes a bundled signatures resource id (e.g. {@code jdk-non-portable}). */
+        void remove(String bundledSignature);
+    }
 
     @Inject
     public CheckForbiddenApisTask(ObjectFactory factory, ProjectLayout projectLayout) {
         signaturesFiles = factory.fileCollection();
         this.objectFactory = factory;
         this.projectLayout = projectLayout;
+        this.bundledSignatures = factory.setProperty(String.class);
+        this.suppressAnnotations = factory.setProperty(String.class);
+        getBundledSignatures().convention(new TreeSet<>());
+        getSuppressAnnotations().convention(new TreeSet<>());
+    }
+
+    /**
+     * Replaces bundled JDK signatures; values are deduplicated and stored in stable sorted order (implementation uses a {@link TreeSet}).
+     */
+    public void setBundledSignatures(Iterable<String> bundledSignatures) {
+        getBundledSignatures().set(copySortedStrings(bundledSignatures));
+    }
+
+    /** Mutates the current bundled signatures, then commits them in sorted order. */
+    public void configureBundledSignatures(Action<? super BundledSignaturesSpec> action) {
+        configureBundledSignaturesFromSeed(getBundledSignatures().get(), action);
+    }
+
+    /**
+     * Starts from {@link #BUNDLED_SIGNATURE_DEFAULTS}, applies edits, then commits bundled signatures in sorted order.
+     */
+    public void configureBundledSignaturesFromDefaults(Action<? super BundledSignaturesSpec> action) {
+        configureBundledSignaturesFromSeed(BUNDLED_SIGNATURE_DEFAULTS, action);
+    }
+
+    private void configureBundledSignaturesFromSeed(Iterable<String> seed, Action<? super BundledSignaturesSpec> action) {
+        LinkedHashSet<String> working = new LinkedHashSet<>();
+        for (String s : seed) {
+            working.add(Objects.requireNonNull(s, "bundledSignature"));
+        }
+        BundledSignaturesSpec spec = new BundledSignaturesSpec() {
+            @Override
+            public void add(String bundledSignature) {
+                working.add(Objects.requireNonNull(bundledSignature, "bundledSignature"));
+            }
+
+            @Override
+            public void remove(String bundledSignature) {
+                working.remove(Objects.requireNonNull(bundledSignature, "bundledSignature"));
+            }
+        };
+        action.execute(spec);
+        getBundledSignatures().set(copySortedStrings(working));
+    }
+
+    /**
+     * Replaces suppression annotations; values are deduplicated and stored in stable sorted order.
+     */
+    public void setSuppressAnnotations(Iterable<String> suppressAnnotations) {
+        getSuppressAnnotations().set(copySortedStrings(suppressAnnotations));
+    }
+
+    private static SortedSet<String> copySortedStrings(Iterable<String> values) {
+        TreeSet<String> sorted = new TreeSet<>();
+        for (String v : values) {
+            sorted.add(Objects.requireNonNull(v, "value"));
+        }
+        return sorted;
+    }
+
+    /**
+     * Forbidden-apis bundled JDK signature ids tracked as a task input.
+     * Values are normally assigned via {@link #setBundledSignatures} or {@link #configureBundledSignaturesFromDefaults}
+     * so they are stored in sorted order for stable fingerprints; assigning directly via {@link SetProperty#set}
+     * with an unordered collection may produce unstable cache keys.
+     */
+    @Input
+    @Optional
+    public SetProperty<String> getBundledSignatures() {
+        return bundledSignatures;
+    }
+
+    /**
+     * Suppression annotations tracked as a task input.
+     * Prefer {@link #setSuppressAnnotations} so values are stored in sorted order for stable fingerprints.
+     */
+    @Input
+    @Optional
+    public SetProperty<String> getSuppressAnnotations() {
+        return suppressAnnotations;
     }
 
     @OutputFile
@@ -196,10 +278,6 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
     /** @see #getSignaturesFiles */
     public void setSignaturesFiles(FileCollection signaturesFiles) {
         this.signaturesFiles = signaturesFiles;
-    }
-
-    public void modifyBundledSignatures(Transformer<Set<String>, Set<String>> transformer) {
-        getBundledSignatures().set(transformer.transform(getBundledSignatures().get()));
     }
 
     public void replaceSignatureFiles(String... signatureFiles) {

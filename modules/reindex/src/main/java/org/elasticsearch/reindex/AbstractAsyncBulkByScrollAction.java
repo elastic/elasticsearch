@@ -124,12 +124,22 @@ public abstract class AbstractAsyncBulkByScrollAction<
     private final BiFunction<RequestWrapper<?>, PaginatedHitSource.Hit, RequestWrapper<?>> scriptApplier;
     private int lastBatchSize;
     /**
-     * Conservative per-document byte estimate used to seed the breaker reservation at reindex start, before any
-     * batch has been observed. Multiplied by the configured search batch size and by an overhead factor of 2.
-     * The intent is to reject heavily-sliced reindexes when the node is already under heap pressure rather than
-     * letting the first slices proceed without any reservation. See Szymon Bialkowski's design doc.
+     * Per-document byte estimate used to seed the breaker reservation at reindex start, before any batch has
+     * been observed. Multiplied by the configured search batch size and by an overhead factor of 2, then
+     * capped at {@link #UPFRONT_RESERVATION_CAP_BYTES}.
+     *
+     * <p>1 KiB is intentionally well below the 200 KiB documents in the original OOM issue; the upfront seed
+     * is only a smoke-alarm for AUTO_SLICES floods on already-loaded nodes, and the per-batch ratchet picks up
+     * the real size on the first scroll response. A larger seed (e.g. the 10 KiB Szymon's doc proposed) caused
+     * false-positive trips for workloads that legitimately set a large {@code scroll_size} for small documents
+     * (e.g. enrich, default {@code fetch_size = 10_000} on docs that are usually under a kilobyte).
      */
-    private static final long UPFRONT_BYTES_PER_DOC_GUESS = 10_000L;
+    private static final long UPFRONT_BYTES_PER_DOC_GUESS = 1_000L;
+    /**
+     * Absolute cap on the upfront reservation so a pathological {@code scroll_size} can't itself trip the
+     * breaker. The per-batch ratchet handles the real measurement once the first batch lands.
+     */
+    private static final long UPFRONT_RESERVATION_CAP_BYTES = 32L * 1024L * 1024L;
     /**
      * Conservative multiplier applied to the underlying batch byte estimate before reserving against the breaker.
      * Accounts for: hits living in memory alongside the bulk request copy; JVM object overhead beyond raw source
@@ -483,11 +493,16 @@ public abstract class AbstractAsyncBulkByScrollAction<
             // breaker before we issue the first scroll/PIT search. Without this, the first slices of an
             // AUTO_SLICES or heavily-sliced reindex would proceed without any reservation against the breaker
             // — pulling hits into memory before we ever consult it. The seed is intentionally a guess; once we
-            // have a real batch we ratchet up to the observed peak via {@link #ratchetReservation(long)}.
+            // have a real batch we ratchet up to the observed peak via {@link #ratchetReservation(long)}. The
+            // upfront is capped at {@link #UPFRONT_RESERVATION_CAP_BYTES} so a pathologically large scroll_size
+            // doesn't itself trip the breaker.
             final int requestedBatchSize = mainRequest.getSearchRequest().source().size();
             if (requestedBatchSize > 0) {
-                peakBatchEstimateBytes = (long) requestedBatchSize * UPFRONT_BYTES_PER_DOC_GUESS;
-                final long upfront = peakBatchEstimateBytes * RESERVATION_OVERHEAD_MULTIPLIER;
+                final long uncapped = (long) requestedBatchSize * UPFRONT_BYTES_PER_DOC_GUESS * RESERVATION_OVERHEAD_MULTIPLIER;
+                final long upfront = Math.min(uncapped, UPFRONT_RESERVATION_CAP_BYTES);
+                // Seed peak from the (post-cap) reservation so the first ratchet doesn't spuriously re-reserve
+                // budget that was capped away — the ratchet takes over from the first real batch onward.
+                peakBatchEstimateBytes = upfront / RESERVATION_OVERHEAD_MULTIPLIER;
                 reserveBatchAllocation(upfront);
                 currentReservationBytes = upfront;
             }

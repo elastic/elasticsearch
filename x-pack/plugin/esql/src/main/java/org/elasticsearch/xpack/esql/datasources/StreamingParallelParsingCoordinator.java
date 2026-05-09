@@ -420,9 +420,11 @@ public final class StreamingParallelParsingCoordinator {
                             chunk.length
                         );
 
-                        // Both record-boundary flags are true for every chunk:
-                        // - firstSplit: the segmentator slices on \n carry-over, so each chunk
-                        // starts on a complete record; no leading partial line to skip.
+                        // - firstSplit: only the very first chunk carries the file's leading bytes
+                        // (which for header-bearing formats like CSV include the header row).
+                        // Subsequent chunks start on data records and must not be treated as the
+                        // first split; otherwise CSV-style readers re-run header inference on data
+                        // rows. NDJSON does not have a header, so the readers ignore firstSplit.
                         // - lastSplit: the segmentator only dispatches a chunk after locating its
                         // trailing \n via findLastNewline (or grows the buffer until one is found),
                         // so the chunk's final byte is always a record terminator. The original
@@ -430,12 +432,16 @@ public final class StreamingParallelParsingCoordinator {
                         // chunk wrapped in TrimLastPartialLineInputStream's per-byte tail scan —
                         // pure overhead on already-aligned data. Setting lastSplit=true everywhere
                         // lets line-oriented readers (NDJSON) skip that scan.
+                        // - recordAligned: the segmentator slices on \n carry-over so each chunk
+                        // starts exactly on a record boundary; readers can skip the "drop leading
+                        // partial line" workaround used for byte-range macro-splits.
                         FormatReadContext ctx = FormatReadContext.builder()
                             .projectedColumns(projectedColumns)
                             .batchSize(batchSize)
                             .errorPolicy(errorPolicy)
-                            .firstSplit(true)
+                            .firstSplit(chunk.index == 0)
                             .lastSplit(true)
+                            .recordAligned(true)
                             .build();
 
                         try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {

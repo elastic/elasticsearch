@@ -609,6 +609,23 @@ tasks.named('stringTemplates').configure {
   generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-2State.java.st"))
   generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-All2State.java.st"), true, true, "All")
 
+  File legacyIrateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-LegacyIrateAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = legacyIrateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LegacyIrateIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = legacyIrateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LegacyIrateLongAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = legacyIrateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/LegacyIrateDoubleAggregator.java"
+  }
+
   File irateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-IrateAggregator.java.st")
   template {
     it.properties = intProperties

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -203,11 +204,20 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 seen = new ArrayList<>(reader.seenContexts);
             }
             assertTrue("Expected at least 2 chunks, recorded " + seen.size(), seen.size() >= 2);
+            // Contexts may not arrive in chunk-index order across parser threads. Count rather
+            // than positional-assert: exactly one chunk owns the file's leading bytes (firstSplit),
+            // every chunk is record-aligned, and every chunk is marked lastSplit so line-oriented
+            // readers can skip the trailing-partial-line scan.
+            int firstSplitCount = 0;
             for (int i = 0; i < seen.size(); i++) {
                 FormatReadContext ctx = seen.get(i);
-                assertTrue("chunk[" + i + "] must have firstSplit=true", ctx.firstSplit());
+                if (ctx.firstSplit()) {
+                    firstSplitCount++;
+                }
                 assertTrue("chunk[" + i + "] must have lastSplit=true (record-boundary aligned)", ctx.lastSplit());
+                assertTrue("chunk[" + i + "] must have recordAligned=true (sliced on \\n)", ctx.recordAligned());
             }
+            assertEquals("exactly one chunk must own the file's leading bytes", 1, firstSplitCount);
         } finally {
             executor.shutdownNow();
         }
@@ -353,7 +363,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * variant). Tests use these counters to assert that the coordinator infers schema once and
      * dispatches every parser-thread read to the schema-bound variant.
      */
-    private static class LineFormatReader implements SegmentableFormatReader {
+    private static class LineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+
         private final long minSegment;
         private final List<Attribute> resolvedSchema;
         final AtomicInteger metadataCalls;
@@ -428,7 +439,11 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             List<String> lines = new ArrayList<>();
             StringBuilder current = new StringBuilder();
 
-            boolean skipFirst = context.firstSplit() == false;
+            // Mirror the production behavior: skip a leading partial record only when the caller
+            // has not guaranteed record-alignment (e.g. byte-range macro-splits). Streaming chunks
+            // and segment-aligned splits set recordAligned=true, in which case the leading bytes
+            // are a complete record.
+            boolean skipFirst = context.firstSplit() == false && context.recordAligned() == false;
 
             int b;
             while ((b = stream.read()) != -1) {
@@ -498,7 +513,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * A format reader that fails after reading a configured number of lines.
      */
-    private static class FailingFormatReader implements SegmentableFormatReader {
+    private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+
         private final int failAfterLines;
         private final long minSegment;
 

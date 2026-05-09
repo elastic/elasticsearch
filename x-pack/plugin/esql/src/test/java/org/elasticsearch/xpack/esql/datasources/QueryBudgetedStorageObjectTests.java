@@ -125,7 +125,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
     public void testMetricsDelegatesToWrapped() {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
         StorageObjectMetrics snapshot = new StorageObjectMetrics(5, 999, 2048, 1);
-        StorageObject delegate = new MetricsOnlyStorageObject(snapshot);
+        StorageObject delegate = TestStorageObjects.metricsOnly(snapshot);
 
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         assertSame(snapshot, obj.metrics());
@@ -139,53 +139,5 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         expectThrows(IOException.class, obj::newStream);
         assertEquals(0, budget.inFlight());
-    }
-
-    /**
-     * Real-class delegate fixture for the metrics-delegation test, per AGENTS.md "real classes
-     * over mocks". Returns the configured snapshot from {@link #metrics()}; every other SPI
-     * method throws so an unexpected call surfaces loudly.
-     */
-    private static final class MetricsOnlyStorageObject implements StorageObject {
-        private final StorageObjectMetrics snapshot;
-
-        MetricsOnlyStorageObject(StorageObjectMetrics snapshot) {
-            this.snapshot = snapshot;
-        }
-
-        @Override
-        public StorageObjectMetrics metrics() {
-            return snapshot;
-        }
-
-        @Override
-        public InputStream newStream() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public InputStream newStream(long position, long length) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long length() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public java.time.Instant lastModified() {
-            return null;
-        }
-
-        @Override
-        public boolean exists() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public StoragePath path() {
-            return StoragePath.of("s3://test/key");
-        }
     }
 }

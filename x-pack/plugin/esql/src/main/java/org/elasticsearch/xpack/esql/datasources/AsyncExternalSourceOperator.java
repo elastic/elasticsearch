@@ -170,10 +170,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             this.splitsTotal = splitsTotal;
             this.currentSplit = currentSplit;
             this.bytesRead = bytesRead;
-            // Source of truth for null-defaulting is AsyncExternalSourceBuffer (field initializer +
-            // recordFormatReaderStatus(null) normalisation). Callers here are either the buffer chain
-            // (always non-null) or tests (always pass a real Map). The StreamInput ctor below still
-            // defends against null on the wire for pre-telemetry round-trips.
+            // Null-default lives at AsyncExternalSourceBuffer (field initialiser + setter normalisation);
+            // the StreamInput ctor below also defends the wire path independently.
             this.formatReader = formatReader;
         }
 

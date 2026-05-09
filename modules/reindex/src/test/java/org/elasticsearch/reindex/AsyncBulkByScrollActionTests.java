@@ -703,14 +703,15 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     /**
-     * Verifies that when {@link AbstractAsyncBulkByScrollAction#reserveBatchAllocation(long)} succeeds, the
-     * matching {@link AbstractAsyncBulkByScrollAction#releaseBatchAllocation(long)} is called with the same
-     * byte estimate after the bulk listener completes (covering both success and failure paths).
+     * Verifies the new reservation lifecycle: the per-batch ratchet calls {@code reserveBatchAllocation} with
+     * {@code peak * 2} where peak is the running max of observed batch byte estimates, and the matching
+     * {@code releaseBatchAllocation} fires from {@link AbstractAsyncBulkByScrollAction#finishHim} with the
+     * same total. Reservation lifecycle ownership lives with the action, not with the per-batch bulk listener.
      */
-    public void testCircuitBreakerReservationIsReleasedAfterBulkCompletes() throws Exception {
+    public void testCircuitBreakerReservationIsHeldAcrossBatchesAndReleasedInFinishHim() throws Exception {
         boolean usePit = configurePitOrScroll();
-        AtomicLong reservedBytes = new AtomicLong(-1);
-        AtomicLong releasedBytes = new AtomicLong(-1);
+        AtomicLong totalReserved = new AtomicLong();
+        AtomicLong totalReleased = new AtomicLong();
 
         DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
             @Override
@@ -720,24 +721,25 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
             @Override
             protected void reserveBatchAllocation(long bytes) {
-                reservedBytes.set(bytes);
+                // Hooks are called with positive deltas only — sum to track the cumulative reservation.
+                totalReserved.addAndGet(bytes);
             }
 
             @Override
             protected void releaseBatchAllocation(long bytes) {
-                releasedBytes.set(bytes);
+                totalReleased.addAndGet(bytes);
             }
         };
 
-        // Two docs of 100 bytes each + 50 overhead per doc = 300-byte estimate.
+        // Two docs × 100 bytes of source + 50 per-doc overhead = 300-byte raw estimate. With the
+        // RESERVATION_OVERHEAD_MULTIPLIER (×2), the action should reserve 600 bytes.
         List<PaginatedHitSource.BasicHit> hits = List.of(
             new PaginatedHitSource.BasicHit("idx", "1", -1).setSource(new BytesArray(new byte[100]), XContentType.JSON),
             new PaginatedHitSource.BasicHit("idx", "2", -1).setSource(new BytesArray(new byte[100]), XContentType.JSON)
         );
         PaginatedHitSource.Response response = createPaginatedResponse(usePit, false, emptyList(), hits.size(), hits, null, null);
-        // We inline the scroll response (instead of using simulatePaginatedResponse) so that done() is a no-op
-        // rather than calling fail() — the action will call done() once the bulk succeeds and the listener
-        // routes back to fetch the next batch.
+        // Inline the scroll response so done() is a no-op (rather than calling fail()) — the bulk completes
+        // but we don't want the action to try to fetch the next batch in this test.
         if (usePit) {
             action.setSearchAfterValues(new Object[] { "search_after_value" });
         } else {
@@ -754,15 +756,97 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
                 @Override
                 public void done(TimeValue extraKeepAlive) {
-                    // no-op: the bulk has completed; we don't care about the next-batch fetch in this test.
+                    // no-op: bulk has completed; we don't care about next-batch fetch in this test.
                 }
             })
         );
 
-        // Wait for reservation to land, the bulk request to be received by the mock client, and the release to fire.
-        assertBusy(() -> assertEquals(300L, reservedBytes.get()));
+        // After ratchet: 300-byte raw estimate × 2 = 600-byte reservation.
+        assertBusy(() -> assertEquals(600L, totalReserved.get()));
         assertBusy(() -> assertEquals(1, client.bulksAttempts.get()));
-        assertBusy(() -> assertEquals(reservedBytes.get(), releasedBytes.get()));
+        // Reservation is still held — release happens in finishHim, not after the bulk completes.
+        assertEquals(0L, totalReleased.get());
+
+        // Drive finishHim (e.g. via cancellation) and assert the full reservation is released.
+        action.finishHim(null);
+        assertBusy(() -> assertEquals(totalReserved.get(), totalReleased.get()));
+    }
+
+    /**
+     * Verifies the ratchet ratchets upward: a subsequent batch with a larger estimate increases the reservation
+     * via a positive delta against the breaker; a subsequent batch with a smaller estimate is a no-op (the
+     * reservation never shrinks mid-operation, so a concurrent reindex can't steal our budget).
+     */
+    public void testCircuitBreakerReservationOnlyRatchetsUpward() throws Exception {
+        boolean usePit = configurePitOrScroll();
+        AtomicLong totalReserved = new AtomicLong();
+
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
+            @Override
+            protected RequestWrapper<?> buildRequest(Hit doc) {
+                return wrap(new IndexRequest("test").id(doc.getId()).source(doc.getSource(), doc.getXContentType()));
+            }
+
+            @Override
+            protected void reserveBatchAllocation(long bytes) {
+                totalReserved.addAndGet(bytes);
+            }
+        };
+
+        // Batch 1: 1 doc × 100 bytes + 50 overhead = 150-byte estimate ⇒ reservation 300.
+        sendBatchAndAwaitBulk(action, usePit, 1, 100);
+        assertEquals(300L, totalReserved.get());
+
+        // Batch 2: 1 doc × 50 bytes + 50 overhead = 100-byte estimate. peak stays at 150 ⇒ reservation stays 300, no delta.
+        sendBatchAndAwaitBulk(action, usePit, 1, 50);
+        assertEquals(300L, totalReserved.get());
+
+        // Batch 3: 2 docs × 200 bytes + 100 overhead = 500-byte estimate. peak rises to 500 ⇒ reservation 1000, delta +700.
+        sendBatchAndAwaitBulk(action, usePit, 2, 200);
+        assertEquals(1000L, totalReserved.get());
+
+        action.finishHim(null);
+    }
+
+    /**
+     * Helper: deliver one no-op-{@code done()} scroll response containing {@code docCount} hits each holding a
+     * source of {@code sourceBytes} bytes, and wait for the bulk listener to receive it. The action is required
+     * to complete the bulk request so the next call to this helper observes a fully drained scroll state.
+     */
+    private void sendBatchAndAwaitBulk(DummyAsyncBulkByScrollAction action, boolean usePit, int docCount, int sourceBytes)
+        throws Exception {
+        int initialBulks = client.bulksAttempts.get();
+        List<PaginatedHitSource.BasicHit> hits = new ArrayList<>(docCount);
+        for (int i = 0; i < docCount; i++) {
+            hits.add(
+                new PaginatedHitSource.BasicHit("idx", Integer.toString(initialBulks * 1000 + i), -1).setSource(
+                    new BytesArray(new byte[sourceBytes]),
+                    XContentType.JSON
+                )
+            );
+        }
+        PaginatedHitSource.Response response = createPaginatedResponse(usePit, false, emptyList(), hits.size(), hits, null, null);
+        if (usePit) {
+            action.setSearchAfterValues(new Object[] { "search_after_value_" + initialBulks });
+        } else {
+            action.setScroll(scrollId());
+        }
+        action.onScrollResponse(
+            System.nanoTime(),
+            0,
+            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new PaginatedHitSource.AsyncResponse() {
+                @Override
+                public PaginatedHitSource.Response response() {
+                    return response;
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {
+                    // no-op
+                }
+            })
+        );
+        assertBusy(() -> assertEquals(initialBulks + 1, client.bulksAttempts.get()));
     }
 
     /**

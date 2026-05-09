@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.reindex.PaginatedHitSource.Hit;
@@ -55,7 +56,8 @@ public class UpdateByQueryVersionTests extends AbstractAsyncBulkByScrollActionMe
                 request(),
                 listener(),
                 randomPositiveTimeValue(),
-                null
+                null,
+                new NoopCircuitBreaker("test")
             );
         }
 

@@ -124,6 +124,32 @@ public abstract class AbstractAsyncBulkByScrollAction<
     private final BiFunction<RequestWrapper<?>, PaginatedHitSource.Hit, RequestWrapper<?>> scriptApplier;
     private int lastBatchSize;
     /**
+     * Conservative per-document byte estimate used to seed the breaker reservation at reindex start, before any
+     * batch has been observed. Multiplied by the configured search batch size and by an overhead factor of 2.
+     * The intent is to reject heavily-sliced reindexes when the node is already under heap pressure rather than
+     * letting the first slices proceed without any reservation. See Szymon Bialkowski's design doc.
+     */
+    private static final long UPFRONT_BYTES_PER_DOC_GUESS = 10_000L;
+    /**
+     * Conservative multiplier applied to the underlying batch byte estimate before reserving against the breaker.
+     * Accounts for: hits living in memory alongside the bulk request copy; JVM object overhead beyond raw source
+     * bytes; and headroom for batches whose document size grows over the course of the operation.
+     */
+    private static final long RESERVATION_OVERHEAD_MULTIPLIER = 2L;
+    /**
+     * Largest batch byte estimate observed so far (or the upfront-guess seed before any batch has run). The
+     * breaker reservation is always {@code peakBatchEstimateBytes * RESERVATION_OVERHEAD_MULTIPLIER}; the value
+     * only ratchets upward, so once we have established a reservation level for this reindex we never give the
+     * budget back mid-operation and risk a concurrent reindex stealing it.
+     */
+    private long peakBatchEstimateBytes = 0L;
+    /**
+     * Bytes currently held against the breaker. Updated after every successful ratchet; released in full from
+     * {@link #finishHim(Exception, List, List, boolean)} so the action holds a reservation continuously between
+     * batches rather than briefly dropping to zero between bulk completion and the next scroll response.
+     */
+    private long currentReservationBytes = 0L;
+    /**
      * The current scroll response being processed. Set atomically so that either {@link #prepareBulkRequest} or
      * {@link #finishHim(Exception, List, List, boolean)} can claim exclusive ownership of the remaining hits and release them exactly once.
      */
@@ -453,6 +479,18 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
         try {
+            // Reserve heap upfront based on the configured batch size, so a heavily-overloaded node trips the
+            // breaker before we issue the first scroll/PIT search. Without this, the first slices of an
+            // AUTO_SLICES or heavily-sliced reindex would proceed without any reservation against the breaker
+            // — pulling hits into memory before we ever consult it. The seed is intentionally a guess; once we
+            // have a real batch we ratchet up to the observed peak via {@link #ratchetReservation(long)}.
+            final int requestedBatchSize = mainRequest.getSearchRequest().source().size();
+            if (requestedBatchSize > 0) {
+                peakBatchEstimateBytes = (long) requestedBatchSize * UPFRONT_BYTES_PER_DOC_GUESS;
+                final long upfront = peakBatchEstimateBytes * RESERVATION_OVERHEAD_MULTIPLIER;
+                reserveBatchAllocation(upfront);
+                currentReservationBytes = upfront;
+            }
             if (mainRequest.getResumeInfo().isPresent()) {
                 var resumeInfo = mainRequest.getResumeInfo().get();
                 // At this point only worker task can be started, leader task would have split slices into worker tasks
@@ -580,13 +618,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
 
-        // Estimate how much heap the bulk request we're about to build will consume and reserve it
-        // against the action's circuit breaker (if any). If the breaker trips we fail the operation
-        // before allocating the bulk request, returning the CircuitBreakingException to the client
-        // rather than letting the allocation push the node into OOM.
-        final long estimatedBulkRequestBytes = estimateBulkRequestBytes(hits);
+        // Ratchet the breaker reservation up to {@code peak * 2} where peak is the running max of
+        // observed batch byte estimates. The reservation is held across batches and released in
+        // {@link #finishHim(Exception, List, List, boolean)} so concurrent reindexes can't sneak in
+        // and steal our budget between batches. A {@link CircuitBreakingException} here propagates
+        // to the client as HTTP 429 rather than letting the allocation push the node into OOM.
         try {
-            reserveBatchAllocation(estimatedBulkRequestBytes);
+            ratchetReservation(estimateBulkRequestBytes(hits));
         } catch (CircuitBreakingException e) {
             releaseHits(hits);
             asyncResponse.releaseRemainingHits();
@@ -594,10 +632,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
 
-        final Releasable releaseBatchHits = Releasables.releaseOnce(() -> {
-            releaseHits(hits);
-            releaseBatchAllocation(estimatedBulkRequestBytes);
-        });
+        // {@code releaseBatchHits} only releases the per-batch hit references — the breaker reservation
+        // is owned by the action lifecycle (set in {@link #start()}, ratcheted here, released in
+        // {@link #finishHim(Exception, List, List, boolean)}).
+        final Releasable releaseBatchHits = Releasables.releaseOnce(() -> releaseHits(hits));
         boolean releaseBatchHitsHandedOff = false;
         try {
             final BulkRequest request = buildBulk(hits);
@@ -641,17 +679,42 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     /**
-     * Reserve heap budget for the bulk request that is about to be built. The default is a no-op; subclasses can
-     * override to consult a {@link org.elasticsearch.common.breaker.CircuitBreaker} and throw
-     * {@link CircuitBreakingException} when the reservation would push the node past its limit.
+     * Reserve heap budget against the action's circuit breaker. The default is a no-op; subclasses override
+     * this to call {@link org.elasticsearch.common.breaker.CircuitBreaker#addEstimateBytesAndMaybeBreak} so
+     * the reservation can trip and throw {@link CircuitBreakingException}.
+     *
+     * <p>Called from {@link #start()} for the upfront-guess reservation, and from
+     * {@link #ratchetReservation(long)} for subsequent grow-only updates. Always called with a positive
+     * delta — never to release.
      */
     protected void reserveBatchAllocation(long bytes) throws CircuitBreakingException {}
 
     /**
-     * Release heap budget previously reserved via {@link #reserveBatchAllocation(long)}. Always called once per
-     * successful reservation, regardless of whether the bulk request succeeded, failed, or was rejected.
+     * Release heap budget previously reserved via {@link #reserveBatchAllocation(long)}. Always called from
+     * {@link #finishHim(Exception, List, List, boolean)} with the full {@link #currentReservationBytes}
+     * total (which may be zero if reservation never landed because of a cancellation or upfront-trip).
      */
     protected void releaseBatchAllocation(long bytes) {}
+
+    /**
+     * Ratchet the breaker reservation upward to {@code Math.max(peak, currentBatchEstimate) *
+     * RESERVATION_OVERHEAD_MULTIPLIER}, calling {@link #reserveBatchAllocation(long)} only with the positive
+     * delta. The peak only grows over the lifetime of the action, so this never releases — that's
+     * {@link #finishHim(Exception, List, List, boolean)}'s job.
+     *
+     * @throws CircuitBreakingException if the breaker rejects the additional reservation; on throw,
+     *         {@link #currentReservationBytes} is left at its pre-ratchet value so the eventual release in
+     *         {@code finishHim} returns the correct amount.
+     */
+    private void ratchetReservation(long currentBatchEstimate) throws CircuitBreakingException {
+        peakBatchEstimateBytes = Math.max(peakBatchEstimateBytes, currentBatchEstimate);
+        final long target = peakBatchEstimateBytes * RESERVATION_OVERHEAD_MULTIPLIER;
+        final long delta = target - currentReservationBytes;
+        if (delta > 0) {
+            reserveBatchAllocation(delta);
+            currentReservationBytes = target;
+        }
+    }
 
     /**
      * Send a bulk request, handling retries. Releases {@code releaseBatchHits} on cancellation, terminal finish, and before the bulk
@@ -954,6 +1017,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
         );
         final Exception resolvedFailure = maybeWrapCatastrophicFailure(pitPagination, pastKeepaliveDeadline, failure);
         requestFinishing.set(true);
+        // Release the breaker reservation held continuously by this action since {@link #start()} (or zero if
+        // the upfront reserve in start() was the call that tripped). Done unconditionally on every termination
+        // path — success, indexing failures, search failures, cancellation, breaker trip.
+        if (currentReservationBytes > 0) {
+            releaseBatchAllocation(currentReservationBytes);
+            currentReservationBytes = 0L;
+        }
         // Atomically claim the current response. If prepareBulkRequest already claimed it (null), this is a no-op.
         // If we win the CAS, we release any hits that were not yet consumed (i.e. from consumedOffset to end).
         // This covers: prepareBulkRequest hasn't run yet (consumedOffset == 0) and the maxDocs partial-batch case.

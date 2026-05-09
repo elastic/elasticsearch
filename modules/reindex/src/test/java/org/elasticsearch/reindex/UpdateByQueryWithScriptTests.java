@@ -11,9 +11,11 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.transport.TransportService;
 
@@ -58,6 +60,10 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
+        CircuitBreakerService circuitBreakerService = mock(CircuitBreakerService.class);
+        when(circuitBreakerService.getBreaker(org.elasticsearch.common.breaker.CircuitBreaker.REQUEST)).thenReturn(
+            new NoopCircuitBreaker("test")
+        );
         TransportUpdateByQueryAction transportAction = new TransportUpdateByQueryAction(
             threadPool,
             new ActionFilters(Collections.emptySet()),
@@ -66,7 +72,8 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             scriptService,
             clusterService,
             null,
-            null
+            null,
+            circuitBreakerService
         );
         return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(
             task,
@@ -77,7 +84,8 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             request,
             listener(),
             randomPositiveTimeValue(),
-            null
+            null,
+            new NoopCircuitBreaker("test")
         );
     }
 }

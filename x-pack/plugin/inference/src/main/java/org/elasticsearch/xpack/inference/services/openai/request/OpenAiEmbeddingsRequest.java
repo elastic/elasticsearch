@@ -56,18 +56,19 @@ public class OpenAiEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
         );
         httpPost.setEntity(byteEntity);
 
+        if (model.getTaskSettings().headers() != null) {
+            for (var header : model.getTaskSettings().headers().entrySet()) {
+                httpPost.setHeader(header.getKey(), header.getValue());
+            }
+        }
+
+        // Set the required headers after the custom headers to ensure they are not overridden
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
 
         var org = model.rateLimitServiceSettings().organizationId();
         if (org != null) {
             httpPost.setHeader(createOrgHeader(org));
-        }
-
-        if (model.getTaskSettings().headers() != null) {
-            for (var header : model.getTaskSettings().headers().entrySet()) {
-                httpPost.setHeader(header.getKey(), header.getValue());
-            }
         }
 
         listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));

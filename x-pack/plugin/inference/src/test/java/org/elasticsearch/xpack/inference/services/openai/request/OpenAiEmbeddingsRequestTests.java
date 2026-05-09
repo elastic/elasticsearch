@@ -76,6 +76,35 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(requestMap.get("user"), is("user"));
     }
 
+    public void testCreateRequest_RequiredHeadersAreNotOverriddenByCustomHeaders() throws IOException {
+        var model = new OpenAiEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            new OpenAiEmbeddingsServiceSettings("model", URI.create("www.elastic.co"), "org", null, null, null, false, null),
+            new OpenAiEmbeddingsTaskSettings(
+                "user",
+                Map.of(HttpHeaders.CONTENT_TYPE, "text/plain", HttpHeaders.AUTHORIZATION, "Bearer should-be-overridden")
+            ),
+            null,
+            new DefaultSecretSettings(new SecureString("secret".toCharArray()))
+        );
+
+        var request = new OpenAiEmbeddingsRequest(
+            TruncatorTests.createTruncator(),
+            new Truncator.TruncationResult(List.of("abc"), new boolean[] { false }),
+            model
+        );
+
+        var httpRequest = RequestTests.getHttpRequestSync(request);
+
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+    }
+
     public void testCreateRequest_WithDefaultUrl() throws URISyntaxException, IOException {
         var request = createRequest(null, "org", "secret", "abc", "model", "user");
         var httpRequest = RequestTests.getHttpRequestSync(request);

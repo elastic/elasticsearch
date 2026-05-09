@@ -9,12 +9,18 @@ package org.elasticsearch.xpack.inference.services.openai.request;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -129,6 +135,26 @@ public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
     public void testTruncationInfo_ReturnsNull() {
         var request = createRequest(null, null, "secret", "abcd", "model", null, true);
         assertNull(request.getTruncationInfo());
+    }
+
+    public void testCreateRequest_RequiredHeadersAreNotOverriddenByCustomHeaders() throws IOException {
+        var model = new OpenAiChatCompletionModel(
+            "id",
+            TaskType.CHAT_COMPLETION,
+            "service",
+            new OpenAiChatCompletionServiceSettings("model", "www.google.com", "org", null, null),
+            new OpenAiChatCompletionTaskSettings("user", Map.of(HttpHeaders.CONTENT_TYPE, "text/plain", HttpHeaders.AUTHORIZATION, "Bearer should-be-overridden")),
+            new DefaultSecretSettings(new SecureString("secret".toCharArray()))
+        );
+
+        var request = new OpenAiUnifiedChatCompletionRequest(new UnifiedChatInput(List.of("abc"), "user", false), model);
+        var httpRequest = RequestTests.getHttpRequestSync(request);
+
+        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
+        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+
+        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+        assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
     }
 
     public static OpenAiUnifiedChatCompletionRequest createRequest(

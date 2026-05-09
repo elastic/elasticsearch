@@ -285,11 +285,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         return source.endObject();
     }
 
-    protected void verifySyntheticArray(
-        Object[][] inputArrays,
-        Object[] expectedArrays,
-        XContentBuilder mapping
-    ) throws IOException {
+    protected void verifySyntheticArray(Object[][] inputArrays, Object[] expectedArrays, XContentBuilder mapping) throws IOException {
         assertThat(inputArrays.length, equalTo(expectedArrays.length));
 
         var indexService = createIndex(

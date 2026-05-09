@@ -60,11 +60,11 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     public BulkShardRequest(
         ShardId shardId,
-        SplitShardCountSummary reshardSplitShardCountSummary,
+        SplitShardCountSummary splitShardCountSummary,
         RefreshPolicy refreshPolicy,
         BulkItemRequest[] items
     ) {
-        this(shardId, reshardSplitShardCountSummary, refreshPolicy, items, false);
+        this(shardId, splitShardCountSummary, refreshPolicy, items, false);
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
@@ -77,12 +77,12 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     public BulkShardRequest(
         ShardId shardId,
-        SplitShardCountSummary reshardSplitShardCountSummary,
+        SplitShardCountSummary splitShardCountSummary,
         RefreshPolicy refreshPolicy,
         BulkItemRequest[] items,
         boolean isSimulated
     ) {
-        super(shardId, reshardSplitShardCountSummary);
+        super(shardId, splitShardCountSummary);
         this.items = items;
         setRefreshPolicy(refreshPolicy);
         this.isSimulated = isSimulated;

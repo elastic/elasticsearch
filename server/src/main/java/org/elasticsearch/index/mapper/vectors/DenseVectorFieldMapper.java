@@ -3205,27 +3205,28 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
+                float overSampleFactor = rescore ? oversample : 1.0f;
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),
                         queryVector,
                         adjustedK,
-                        k,
                         numCands,
                         filter,
                         parentFilter,
                         visitRatio,
-                        bbqIndexOptions.doPrecondition()
+                        bbqIndexOptions.doPrecondition(),
+                        overSampleFactor
                     )
                     : new IVFKnnFloatVectorQuery(
                         name(),
                         queryVector,
                         adjustedK,
-                        k,
                         numCands,
                         filter,
                         visitRatio,
-                        bbqIndexOptions.doPrecondition()
+                        bbqIndexOptions.doPrecondition(),
+                        overSampleFactor
                     );
             } else {
                 knnQuery = parentFilter != null

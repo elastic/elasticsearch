@@ -767,18 +767,19 @@ public class KnnSearcher {
                     visitRatio,
                     doPrecondition,
                     PARTITION_ID_FIELD,
-                    partition
+                    partition,
+                    searchParameters.overSamplingFactor()
                 );
             } else {
                 knnQuery = new IVFKnnFloatVectorQuery(
                     VECTOR_FIELD,
                     vector,
                     overSampledTopK,
-                    searchParameters.topK(),
                     efSearch,
                     filterQuery,
                     visitRatio,
-                    doPrecondition
+                    doPrecondition,
+                    searchParameters.overSamplingFactor()
                 );
             }
         } else {

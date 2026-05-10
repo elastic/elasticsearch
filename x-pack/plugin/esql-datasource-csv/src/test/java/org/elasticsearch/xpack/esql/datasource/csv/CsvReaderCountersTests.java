@@ -20,37 +20,37 @@ public class CsvReaderCountersTests extends ESTestCase {
     public void testEmptySnapshotIsZeroes() {
         CsvReaderCounters counters = new CsvReaderCounters();
         Map<String, Object> snap = counters.snapshot();
-        assertEquals(0L, snap.get("lines_read"));
+        assertEquals(0L, snap.get("rows_emitted"));
         assertEquals(0L, snap.get("parse_errors"));
         assertEquals(false, snap.get("header_detected"));
-        assertEquals(0L, snap.get("total_read_nanos"));
+        assertEquals(0L, snap.get("read_nanos"));
     }
 
     public void testSnapshotReflectsIncrements() {
         CsvReaderCounters counters = new CsvReaderCounters();
-        counters.addLinesRead(10);
+        counters.addRowsEmitted(10);
         counters.addParseErrors(3);
         counters.markHeaderDetected();
         counters.addReadNanos(987654);
         Map<String, Object> snap = counters.snapshot();
-        assertEquals(10L, snap.get("lines_read"));
+        assertEquals(10L, snap.get("rows_emitted"));
         assertEquals(3L, snap.get("parse_errors"));
         assertEquals(true, snap.get("header_detected"));
-        assertEquals(987654L, snap.get("total_read_nanos"));
+        assertEquals(987654L, snap.get("read_nanos"));
     }
 
     public void testNonPositiveDeltasIgnored() {
         CsvReaderCounters counters = new CsvReaderCounters();
-        counters.addLinesRead(0);
-        counters.addLinesRead(-5);
+        counters.addRowsEmitted(0);
+        counters.addRowsEmitted(-5);
         counters.addParseErrors(0);
         counters.addParseErrors(-1);
         counters.addReadNanos(0);
         counters.addReadNanos(-1);
         Map<String, Object> snap = counters.snapshot();
-        assertEquals(0L, snap.get("lines_read"));
+        assertEquals(0L, snap.get("rows_emitted"));
         assertEquals(0L, snap.get("parse_errors"));
-        assertEquals(0L, snap.get("total_read_nanos"));
+        assertEquals(0L, snap.get("read_nanos"));
     }
 
     public void testMarkHeaderDetectedIsMonotonic() {
@@ -75,7 +75,7 @@ public class CsvReaderCountersTests extends ESTestCase {
                 try {
                     start.await();
                     for (int i = 0; i < iterationsPerThread; i++) {
-                        counters.addLinesRead(3);
+                        counters.addRowsEmitted(3);
                         counters.addParseErrors(1);
                         counters.addReadNanos(40);
                         if (tid == 0 && i == 0) {
@@ -98,18 +98,18 @@ public class CsvReaderCountersTests extends ESTestCase {
         long expectedErrors = (long) threads * iterationsPerThread;
         long expectedNanos = (long) threads * iterationsPerThread * 40;
         Map<String, Object> snap = counters.snapshot();
-        assertEquals(expectedLines, snap.get("lines_read"));
+        assertEquals(expectedLines, snap.get("rows_emitted"));
         assertEquals(expectedErrors, snap.get("parse_errors"));
-        assertEquals(expectedNanos, snap.get("total_read_nanos"));
+        assertEquals(expectedNanos, snap.get("read_nanos"));
         assertEquals(true, snap.get("header_detected"));
     }
 
     public void testSnapshotIsImmutable() {
         CsvReaderCounters counters = new CsvReaderCounters();
-        counters.addLinesRead(5);
+        counters.addRowsEmitted(5);
         Map<String, Object> snap = counters.snapshot();
-        counters.addLinesRead(10);
-        assertEquals(5L, snap.get("lines_read"));
-        expectThrows(UnsupportedOperationException.class, () -> snap.put("lines_read", 0L));
+        counters.addRowsEmitted(10);
+        assertEquals(5L, snap.get("rows_emitted"));
+        expectThrows(UnsupportedOperationException.class, () -> snap.put("rows_emitted", 0L));
     }
 }

@@ -248,6 +248,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
 
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
+        long footerStartNanos = System.nanoTime();
         Reader reader = OrcFile.createReader(path, orcReaderOptions(fs));
         TypeDescription schema = reader.getSchema();
         List<Attribute> attributes = convertOrcSchemaToAttributes(schema);
@@ -256,13 +257,13 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         boolean[] include = buildIncludeMask(schema, projectedColumns);
 
         Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
-        // For a full-file read, every stripe is considered; the SearchArgument (if any) may further
-        // skip stripes inside ORC, but that internal rejection is not observable via the public
-        // Reader API — see OrcReaderCounters javadoc. So stripes_kept == stripes_total here.
+        // For a full-file read, every stripe is considered. Apache ORC may further skip stripes
+        // internally (stats / dictionary / bloom rejection) but the public Reader API doesn't
+        // expose that, so we only report the considered count.
         long stripeCount = reader.getStripes().size();
         int totalColumns = schema.getFieldNames().size();
+        counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), stripeCount);
         counters.addStripesTotal(stripeCount);
-        counters.addStripesKept(stripeCount);
         counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
         RecordReader rows = reader.rows(readOptions);
 
@@ -367,6 +368,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         }
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
+        long footerStartNanos = System.nanoTime();
         Reader reader = OrcFile.createReader(path, orcReaderOptions(fs));
         TypeDescription schema = reader.getSchema();
 
@@ -379,16 +381,29 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
 
         Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
         readOptions.range(rangeStart, rangeEnd - rangeStart);
-        // Stripes intersecting the range are the considered set; stripes_kept tracks the same value
-        // (ORC's internal stripe-stat rejection is not observable via the public API).
+        // Stripes intersecting the range are the considered set. Apache ORC may further reject
+        // some of those internally (stats / dictionary / bloom) but the public Reader API doesn't
+        // expose which — see OrcReaderCounters javadoc.
         long stripesInRange = countStripesInRange(reader, rangeStart, rangeEnd);
+        long stripesInFile = reader.getStripes().size();
         int totalColumns = schema.getFieldNames().size();
+        counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), stripesInFile);
         counters.addStripesTotal(stripesInRange);
-        counters.addStripesKept(stripesInRange);
         counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
         RecordReader rows = reader.rows(readOptions);
 
         return new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory, counters);
+    }
+
+    /** Returns {@code object.length()} if known, or 0 when unavailable. Best-effort sizing for
+     *  the {@code footer_size_bytes} counter; never throws. */
+    private static long sizeOrZero(StorageObject object) {
+        try {
+            long len = object.length();
+            return len >= 0 ? len : 0;
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     /** Counts stripes whose offset falls in {@code [rangeStart, rangeEnd)} — matches ORC's

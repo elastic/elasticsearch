@@ -107,6 +107,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public Status status() {
+        Map<String, Object> formatReaderStatus = buffer.formatReaderStatus();
+        long readNanos = readNanosFromFormatReaderStatus(formatReaderStatus);
         return new Status(
             buffer.size(),
             pagesEmitted,
@@ -118,8 +120,23 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             buffer.splitsTotal(),
             buffer.currentSplit(),
             buffer.bytesRead(),
-            buffer.formatReaderStatus()
+            readNanos,
+            formatReaderStatus
         );
+    }
+
+    /**
+     * Extracts the producer-thread read time from the format-reader's status snapshot. Surfaced
+     * at the operator top level so the value can roll up to driver and response-root via the
+     * {@link Operator.Status#readNanos()} accessor. Same number also remains visible inside the
+     * {@code format_reader} sub-map for per-format detail.
+     */
+    private static long readNanosFromFormatReaderStatus(Map<String, Object> snapshot) {
+        if (snapshot == null) {
+            return 0L;
+        }
+        Object value = snapshot.get("read_nanos");
+        return value instanceof Number number ? number.longValue() : 0L;
     }
 
     public static class Status implements Operator.Status {
@@ -145,6 +162,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         private final int splitsTotal;
         private final int currentSplit;
         private final long bytesRead;
+        private final long readNanos;
         private final Map<String, Object> formatReader;
 
         Status(
@@ -158,6 +176,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             int splitsTotal,
             int currentSplit,
             long bytesRead,
+            long readNanos,
             Map<String, Object> formatReader
         ) {
             this.pagesWaiting = pagesWaiting;
@@ -170,6 +189,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             this.splitsTotal = splitsTotal;
             this.currentSplit = currentSplit;
             this.bytesRead = bytesRead;
+            this.readNanos = readNanos;
             // Null-default lives at AsyncExternalSourceBuffer (field initialiser +
             // recordFormatReaderStatus(null) → Map.of()); the StreamInput ctor below also defends
             // the wire path independently.
@@ -188,6 +208,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 splitsTotal = in.readVInt();
                 currentSplit = in.readVInt();
                 bytesRead = in.readVLong();
+                readNanos = in.readVLong();
                 Map<String, Object> read = in.readGenericMap();
                 formatReader = read == null ? Map.of() : read;
             } else {
@@ -196,6 +217,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 splitsTotal = 0;
                 currentSplit = 0;
                 bytesRead = 0L;
+                readNanos = 0L;
                 formatReader = Map.of();
             }
         }
@@ -215,6 +237,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 out.writeVInt(splitsTotal);
                 out.writeVInt(currentSplit);
                 out.writeVLong(bytesRead);
+                out.writeVLong(readNanos);
                 out.writeGenericMap(formatReader);
             }
         }
@@ -232,6 +255,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             return pagesEmitted;
         }
 
+        @Override
         public long rowsEmitted() {
             return rowsEmitted;
         }
@@ -265,8 +289,14 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             return currentSplit;
         }
 
+        @Override
         public long bytesRead() {
             return bytesRead;
+        }
+
+        @Override
+        public long readNanos() {
+            return readNanos;
         }
 
         public Map<String, Object> formatReader() {
@@ -285,6 +315,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             builder.field("splits_total", splitsTotal);
             builder.field("current_split", currentSplit);
             builder.field("bytes_read", bytesRead);
+            builder.field("read_nanos", readNanos);
             builder.field("format_reader", formatReader);
             if (failure != null) {
                 builder.field("failure", failure.getMessage());
@@ -312,6 +343,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 && splitsTotal == status.splitsTotal
                 && currentSplit == status.currentSplit
                 && bytesRead == status.bytesRead
+                && readNanos == status.readNanos
                 && formatReader.equals(status.formatReader)
                 && Objects.equals(thisFailureMsg, otherFailureMsg);
         }
@@ -329,6 +361,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 splitsTotal,
                 currentSplit,
                 bytesRead,
+                readNanos,
                 formatReader
             );
         }

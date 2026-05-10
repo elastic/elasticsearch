@@ -22,14 +22,14 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public final class CsvReaderCounters {
 
-    private final LongAdder linesRead = new LongAdder();
+    private final LongAdder rowsEmitted = new LongAdder();
     private final LongAdder parseErrors = new LongAdder();
     private volatile boolean headerDetected = false;
     private final LongAdder totalReadNanos = new LongAdder();
 
-    public void addLinesRead(long delta) {
+    public void addRowsEmitted(long delta) {
         if (delta > 0) {
-            linesRead.add(delta);
+            rowsEmitted.add(delta);
         }
     }
 
@@ -52,15 +52,19 @@ public final class CsvReaderCounters {
 
     /**
      * Returns an immutable snapshot of the current counter values, suitable for
-     * {@code AsyncExternalSourceOperator.Status.format_reader}. Keys mirror the design doc:
-     * {@code lines_read}, {@code parse_errors}, {@code header_detected}, {@code total_read_nanos}.
+     * {@code AsyncExternalSourceOperator.Status.format_reader}. Keys: {@code format} (discriminator),
+     * {@code rows_read} (rows the iterator produced — same key name across all four format readers
+     * for cross-format consumer aggregation), {@code parse_errors} (CSV-specific count of malformed
+     * rows skipped under lenient policies), {@code header_detected} (CSV-specific setup flag),
+     * {@code total_read_nanos}.
      */
     public Map<String, Object> snapshot() {
         Map<String, Object> snap = new LinkedHashMap<>();
-        snap.put("lines_read", linesRead.sum());
+        snap.put("format", "csv");
+        snap.put("rows_emitted", rowsEmitted.sum());
         snap.put("parse_errors", parseErrors.sum());
         snap.put("header_detected", headerDetected);
-        snap.put("total_read_nanos", totalReadNanos.sum());
+        snap.put("read_nanos", totalReadNanos.sum());
         return Map.copyOf(snap);
     }
 }

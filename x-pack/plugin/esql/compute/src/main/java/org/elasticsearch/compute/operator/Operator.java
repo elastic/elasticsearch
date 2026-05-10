@@ -137,5 +137,36 @@ public interface Operator extends Releasable {
         default long valuesLoaded() {
             return 0;
         }
+
+        /**
+         * Rows this operator emitted to its downstream consumer. Source operators
+         * (e.g. Lucene source, external-source) populate; pass-through operators
+         * return {@code 0}. Used as an aggregation source for the per-driver and
+         * response-root {@code rows_emitted} totals.
+         */
+        default long rowsEmitted() {
+            return 0;
+        }
+
+        /**
+         * Pre-decompression bytes pulled from the storage layer for this operator.
+         * Populated by external-source operators (S3 / GCS / Azure / HTTP / local);
+         * Lucene operators currently return {@code 0}. Aggregation source for the
+         * per-driver and response-root {@code bytes_read} totals.
+         */
+        default long bytesRead() {
+            return 0;
+        }
+
+        /**
+         * Wall time the format reader spent inside its read loop on the producer
+         * thread, in nanoseconds. Populated by external-source operators; Lucene
+         * folds reading into its operator-level {@code process_nanos} and returns
+         * {@code 0} here. Aggregation source for the per-driver and response-root
+         * {@code read_nanos} totals.
+         */
+        default long readNanos() {
+            return 0;
+        }
     }
 }

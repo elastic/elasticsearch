@@ -1370,7 +1370,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             } finally {
                 long deltaTotal = totalRowCount - startTotal;
                 long deltaErrors = errorCount - startError;
-                counters.addLinesRead(deltaTotal - deltaErrors);
+                counters.addRowsEmitted(deltaTotal - deltaErrors);
                 counters.addParseErrors(deltaErrors);
                 counters.addReadNanos(System.nanoTime() - startNanos);
             }

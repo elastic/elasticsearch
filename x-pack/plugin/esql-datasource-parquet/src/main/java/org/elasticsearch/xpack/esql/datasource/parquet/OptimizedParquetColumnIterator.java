@@ -193,6 +193,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
     /** Diagnostic counter: number of row groups skipped entirely because no row survived the filter. */
     private long twoPhaseRowGroupsAllFiltered;
 
+    /** Reader-level counters shared with the owning {@link ParquetFormatReader}. */
+    private final ParquetReaderCounters counters;
+
     OptimizedParquetColumnIterator(
         ParquetFileReader reader,
         MessageType projectedSchema,
@@ -209,7 +212,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         boolean[] survivingRowGroups,
         CompressionCodecFactory codecFactory,
         ParquetPushedExpressions pushedExpressions,
-        FilterPredicate triviallyPassesPredicate
+        FilterPredicate triviallyPassesPredicate,
+        ParquetReaderCounters counters
     ) {
         this.reader = reader;
         this.projectedSchema = projectedSchema;
@@ -227,6 +231,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         this.survivingRowGroups = survivingRowGroups;
         this.nextSurvivor = buildNextSurvivorLookup(survivingRowGroups);
         this.codecFactory = codecFactory;
+        this.counters = counters;
         this.pushedExpressions = pushedExpressions;
         this.isPredicateColumn = classifyPredicateColumns(attributes, columnInfos, pushedExpressions);
         this.lateMaterialization = pushedExpressions != null;
@@ -1464,6 +1469,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
             // or close().
             rowsRemainingInGroup = 0;
         }
+        counters.addRowsEmitted(emitCount);
         return new Page(blocks);
     }
 
@@ -1576,6 +1582,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                 e
             );
         }
+        counters.addRowsEmitted(rowsToRead);
         return new Page(blocks);
     }
 
@@ -1648,6 +1655,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
                 }
             }
 
+            counters.addRowsEmitted(survivorCount);
             return new Page(blocks);
         } catch (ElasticsearchException e) {
             Releasables.closeExpectNoException(blocks);

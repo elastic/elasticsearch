@@ -497,6 +497,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
             boolean useOptimized = optimizedReader && forceBaselinePath == false;
             FilterPredicate filterPredicate = resolveFilterPredicate(object, parquetSchema);
+            if (filterPredicate != null) {
+                counters.markPredicatePushdownUsed();
+            }
             FilterCompat.Filter recordFilter = filterPredicate != null ? FilterCompat.get(filterPredicate) : resolveRecordFilter();
 
             // The optimized path drives row-group selection and page-level filtering itself
@@ -538,7 +541,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 rowLimit,
                 createdBy,
                 object.path().toString(),
-                hasRecordFilter
+                hasRecordFilter,
+                counters
             );
         } catch (Throwable t) {
             reader.close();
@@ -737,6 +741,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
             boolean useOptimized = optimizedReader && forceBaselinePath == false;
             FilterPredicate filterPredicate = resolveFilterPredicate(object, parquetSchema);
+            if (filterPredicate != null) {
+                counters.markPredicatePushdownUsed();
+            }
             FilterCompat.Filter recordFilter = filterPredicate != null ? FilterCompat.get(filterPredicate) : resolveRecordFilter();
 
             // The optimized path drives row-group selection and page-level filtering itself
@@ -790,7 +797,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 NO_LIMIT,
                 createdBy,
                 object.path().toString(),
-                hasRecordFilter
+                hasRecordFilter,
+                counters
             );
         } catch (Throwable t) {
             reader.close();
@@ -928,7 +936,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             survivingRowGroups,
             codecFactory,
             effectivePushed,
-            triviallyPassesPredicate
+            triviallyPassesPredicate,
+            counters
         );
     }
 
@@ -1205,6 +1214,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
         private final String createdBy;
         private final String fileLocation;
         private final boolean hasRecordFilter;
+        private final ParquetReaderCounters counters;
         private int rowBudget;
 
         /** Per-attribute column metadata; null for attributes not present in the file. */
@@ -1230,7 +1240,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             int rowLimit,
             String createdBy,
             String fileLocation,
-            boolean hasRecordFilter
+            boolean hasRecordFilter,
+            ParquetReaderCounters counters
         ) {
             this.reader = reader;
             this.projectedSchema = projectedSchema;
@@ -1241,6 +1252,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             this.createdBy = createdBy != null ? createdBy : "";
             this.fileLocation = fileLocation;
             this.hasRecordFilter = hasRecordFilter;
+            this.counters = counters;
 
             reader.setRequestedSchema(projectedSchema);
 
@@ -1435,6 +1447,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             if (rowBudget != FormatReader.NO_LIMIT) {
                 rowBudget -= rowsToRead;
             }
+            counters.addRowsEmitted(rowsToRead);
             return new Page(blocks);
         }
 

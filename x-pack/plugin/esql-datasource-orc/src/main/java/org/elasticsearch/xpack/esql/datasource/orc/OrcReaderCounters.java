@@ -20,19 +20,21 @@ import java.util.concurrent.atomic.LongAdder;
  * shared across the parallel {@code OrcPageIterator} segments. Iterators bump these counters;
  * {@link #snapshot()} produces the immutable {@link Map} folded into the operator-status envelope.
  * <p>
- * What's observable: stripe accounting (in-file count, range-bounded count, processed count),
- * SearchArgument pushdown flags, column projection counts, total rows / read nanos. What's NOT
- * observable: stats-based stripe rejection inside the ORC library (no API exposes it), bloom
- * filter outcomes, or the 10K-row-group sub-stripe filter. Those internal optimisations are
- * deliberately not counted — see {@code .kb/planning/profile-only-design.md} Part 2b.
+ * What's observable: stripe count we asked the reader to consider, SearchArgument pushdown flags,
+ * column projection counts, total rows yielded, total read nanos. What's NOT observable: which
+ * stripes the ORC library accepted vs. rejected via stats / dictionary / bloom filter — the public
+ * Reader API doesn't surface that, so we don't either. Selectivity has to be inferred from
+ * {@code rows_emitted} vs the row count implied by {@code stripes_total}.
  * <p>
  * {@link LongAdder} keeps concurrent updates from segment threads non-blocking. {@code volatile}
  * scalars handle "set-once" style fields like the projection counts and the pushdown flag.
  */
 public final class OrcReaderCounters {
 
+    private final LongAdder footerReadNanos = new LongAdder();
+    private final LongAdder footerSizeBytes = new LongAdder();
+    private final LongAdder stripesInFile = new LongAdder();
     private final LongAdder stripesTotal = new LongAdder();
-    private final LongAdder stripesKept = new LongAdder();
 
     private volatile boolean predicatePushdownUsed = false;
     private final Set<String> predicateColumns = ConcurrentHashMap.newKeySet();
@@ -43,15 +45,21 @@ public final class OrcReaderCounters {
     private final LongAdder rowsEmitted = new LongAdder();
     private final LongAdder totalReadNanos = new LongAdder();
 
-    public void addStripesTotal(long delta) {
-        if (delta > 0) {
-            stripesTotal.add(delta);
+    public void addFooterRead(long nanos, long sizeBytes, long stripeCount) {
+        if (nanos > 0) {
+            footerReadNanos.add(nanos);
+        }
+        if (sizeBytes > 0) {
+            footerSizeBytes.add(sizeBytes);
+        }
+        if (stripeCount > 0) {
+            stripesInFile.add(stripeCount);
         }
     }
 
-    public void addStripesKept(long delta) {
+    public void addStripesTotal(long delta) {
         if (delta > 0) {
-            stripesKept.add(delta);
+            stripesTotal.add(delta);
         }
     }
 
@@ -92,15 +100,21 @@ public final class OrcReaderCounters {
     }
 
     /**
-     * Returns an immutable snapshot of the current counter values. Keys mirror the design doc:
-     * {@code stripes_total}, {@code stripes_kept}, {@code predicate_pushdown_used},
+     * Returns an immutable snapshot of the current counter values. Keys: {@code format} (discriminator),
+     * {@code rows_emitted} (rows the iterator yielded — same key name across all four format readers
+     * for cross-format consumer aggregation), {@code footer_read_nanos}, {@code footer_size_bytes},
+     * {@code stripes_in_file}, {@code stripes_total}, {@code predicate_pushdown_used},
      * {@code predicate_columns} (sorted), {@code columns_projected}, {@code columns_total},
-     * {@code rows_emitted}, {@code total_read_nanos}.
+     * {@code read_nanos}.
      */
     public Map<String, Object> snapshot() {
         Map<String, Object> snap = new LinkedHashMap<>();
+        snap.put("format", "orc");
+        snap.put("rows_emitted", rowsEmitted.sum());
+        snap.put("footer_read_nanos", footerReadNanos.sum());
+        snap.put("footer_size_bytes", footerSizeBytes.sum());
+        snap.put("stripes_in_file", stripesInFile.sum());
         snap.put("stripes_total", stripesTotal.sum());
-        snap.put("stripes_kept", stripesKept.sum());
         snap.put("predicate_pushdown_used", predicatePushdownUsed);
         // Sorted, deduplicated, immutable for stable output across snapshots.
         Set<String> sortedPredicates = new LinkedHashSet<>();
@@ -108,8 +122,7 @@ public final class OrcReaderCounters {
         snap.put("predicate_columns", Collections.unmodifiableSet(sortedPredicates));
         snap.put("columns_projected", (long) columnsProjected);
         snap.put("columns_total", (long) columnsTotal);
-        snap.put("rows_emitted", rowsEmitted.sum());
-        snap.put("total_read_nanos", totalReadNanos.sum());
+        snap.put("read_nanos", totalReadNanos.sum());
         return Map.copyOf(snap);
     }
 }

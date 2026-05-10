@@ -77,11 +77,11 @@ public record PerColumnStatus(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("bytes_compressed_read", bytesCompressedRead);
-        builder.field("bytes_decompressed", bytesDecompressed);
+        builder.field("compressed_bytes", bytesCompressedRead);
+        builder.field("decompressed_bytes", bytesDecompressed);
         builder.field("decompression_nanos", decompressionNanos);
         builder.field("decode_nanos", decodeNanos);
-        builder.field("pages_read", pagesRead);
+        builder.field("data_pages_read", pagesRead);
         if (materialization != null) {
             builder.field("materialization", materialization);
         }
@@ -98,11 +98,11 @@ public record PerColumnStatus(
      */
     public Map<String, Object> toMap() {
         Map<String, Object> m = new LinkedHashMap<>(6);
-        m.put("bytes_compressed_read", bytesCompressedRead);
-        m.put("bytes_decompressed", bytesDecompressed);
+        m.put("compressed_bytes", bytesCompressedRead);
+        m.put("decompressed_bytes", bytesDecompressed);
         m.put("decompression_nanos", decompressionNanos);
         m.put("decode_nanos", decodeNanos);
-        m.put("pages_read", pagesRead);
+        m.put("data_pages_read", pagesRead);
         if (materialization != null) {
             m.put("materialization", materialization);
         }

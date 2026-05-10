@@ -50,6 +50,10 @@ public final class ParquetReaderCounters {
     private final LongAdder rowGroupsPassedBloom = new LongAdder();
     private final LongAdder rowGroupsKept = new LongAdder();
 
+    // Predicate pushdown (set when a non-null filter predicate was passed into the read path —
+    // mirror of OrcReaderCounters.predicatePushdownUsed for cross-format consistency).
+    private volatile boolean predicatePushdownUsed = false;
+
     // Page index
     private volatile boolean pageIndexUsed = false;
     private final LongAdder rowsInKeptRowGroups = new LongAdder();
@@ -61,6 +65,7 @@ public final class ParquetReaderCounters {
     private final Set<String> predicateColumns = ConcurrentHashMap.newKeySet();
 
     // Aggregate
+    private final LongAdder rowsEmitted = new LongAdder();
     private final LongAdder totalReadNanos = new LongAdder();
 
     // Per-column. Concurrent for thread-safe lazy creation; values are mutated via PerColumnCounters
@@ -100,6 +105,10 @@ public final class ParquetReaderCounters {
         }
     }
 
+    public void markPredicatePushdownUsed() {
+        predicatePushdownUsed = true;
+    }
+
     public void markPageIndexUsed() {
         pageIndexUsed = true;
     }
@@ -128,6 +137,12 @@ public final class ParquetReaderCounters {
         predicateColumns.addAll(names);
     }
 
+    public void addRowsEmitted(long delta) {
+        if (delta > 0) {
+            rowsEmitted.add(delta);
+        }
+    }
+
     public void addTotalReadNanos(long nanos) {
         if (nanos > 0) {
             totalReadNanos.add(nanos);
@@ -149,6 +164,9 @@ public final class ParquetReaderCounters {
      */
     public Map<String, Object> snapshot() {
         Map<String, Object> snap = new LinkedHashMap<>();
+        snap.put("format", "parquet");
+        snap.put("rows_emitted", rowsEmitted.sum());
+        snap.put("predicate_pushdown_used", predicatePushdownUsed);
         snap.put("footer_read_nanos", footerReadNanos.sum());
         snap.put("footer_size_bytes", footerSizeBytes.sum());
         snap.put("row_groups_in_file", rowGroupsInFile.sum());
@@ -171,7 +189,7 @@ public final class ParquetReaderCounters {
         predicateColumns.stream().sorted().forEach(sortedPredicates::add);
         snap.put("predicate_columns", sortedPredicates);
 
-        snap.put("total_read_nanos", totalReadNanos.sum());
+        snap.put("read_nanos", totalReadNanos.sum());
 
         if (perColumn.isEmpty() == false) {
             Map<String, Map<String, Object>> columnsSnap = new LinkedHashMap<>();

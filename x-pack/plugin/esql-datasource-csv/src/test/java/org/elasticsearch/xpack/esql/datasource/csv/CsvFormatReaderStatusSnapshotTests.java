@@ -52,10 +52,10 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
 
         // Snapshot before drain: counters should be at zero, header_detected false.
         Map<String, Object> before = reader.statusSnapshot();
-        assertEquals(0L, before.get("lines_read"));
+        assertEquals(0L, before.get("rows_emitted"));
         assertEquals(0L, before.get("parse_errors"));
         assertEquals(false, before.get("header_detected"));
-        assertEquals(0L, before.get("total_read_nanos"));
+        assertEquals(0L, before.get("read_nanos"));
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "name"), 10)) {
             while (iterator.hasNext()) {
@@ -65,10 +65,10 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
         }
 
         Map<String, Object> after = reader.statusSnapshot();
-        assertEquals("3 data rows parsed (header excluded)", 3L, after.get("lines_read"));
+        assertEquals("3 data rows parsed (header excluded)", 3L, after.get("rows_emitted"));
         assertEquals("no malformed rows in this fixture", 0L, after.get("parse_errors"));
         assertEquals("header row detected", true, after.get("header_detected"));
-        assertTrue("total_read_nanos should be > 0 after at least one batch", ((Long) after.get("total_read_nanos")) > 0);
+        assertTrue("total_read_nanos should be > 0 after at least one batch", ((Long) after.get("read_nanos")) > 0);
     }
 
     private static StorageObject inMemoryCsv(String content) {

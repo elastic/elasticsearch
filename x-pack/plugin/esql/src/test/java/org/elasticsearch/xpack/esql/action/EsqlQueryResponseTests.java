@@ -772,6 +772,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 {
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -801,6 +805,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     {
                       "documents_found" : 3,
                       "values_loaded" : 100,
+                      "rows_emitted" : 0,
+                      "bytes_read" : 0,
+                      "read_nanos" : 0,
+                      "cpu_nanos" : 0,
                       "all_columns" : [
                         {
                           "name" : "foo",
@@ -831,6 +839,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "is_running" : false,
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -876,6 +888,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 {
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -906,6 +922,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 {
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -931,6 +951,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "is_running" : false,
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -978,6 +1002,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 {
                   "documents_found" : 3,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1026,6 +1054,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "is_running" : true,
                   "documents_found" : 10,
                   "values_loaded" : 99,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1066,6 +1098,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 {
                   "documents_found" : 1,
                   "values_loaded" : 1,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1117,6 +1153,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     {
                       "documents_found" : 1,
                       "values_loaded" : 3,
+                      "rows_emitted" : 0,
+                      "bytes_read" : 0,
+                      "read_nanos" : 0,
+                      "cpu_nanos" : 0,
                       "all_columns" : [
                         {
                           "name" : "foo",
@@ -1182,6 +1222,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         {
                           "documents_found" : 1,
                           "values_loaded" : 3,
+                          "rows_emitted" : 0,
+                          "bytes_read" : 0,
+                          "read_nanos" : 0,
+                          "cpu_nanos" : 0,
                           "all_columns" : [
                             {
                               "name" : "foo",
@@ -1271,6 +1315,10 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 {
                   "documents_found" : 10,
                   "values_loaded" : 100,
+                  "rows_emitted" : 0,
+                  "bytes_read" : 0,
+                  "read_nanos" : 0,
+                  "cpu_nanos" : 0,
                   "columns" : [
                     {
                       "name" : "foo",
@@ -1297,6 +1345,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "cpu_nanos" : 20000,
                         "documents_found" : 0,
                         "values_loaded" : 0,
+                        "rows_emitted" : 222,
+                        "bytes_read" : 0,
+                        "read_nanos" : 0,
                         "iterations" : 12,
                         "operators" : [
                           {

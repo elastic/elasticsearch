@@ -20,34 +20,30 @@ public class NdJsonReaderCountersTests extends ESTestCase {
     public void testEmptySnapshotIsZeroes() {
         NdJsonReaderCounters counters = new NdJsonReaderCounters();
         Map<String, Object> snap = counters.snapshot();
-        assertEquals(0L, snap.get("documents_parsed"));
+        assertEquals("ndjson", snap.get("format"));
         assertEquals(0L, snap.get("parse_errors"));
-        assertEquals(0L, snap.get("total_read_nanos"));
+        assertEquals(0L, snap.get("read_nanos"));
     }
 
     public void testSnapshotReflectsIncrements() {
         NdJsonReaderCounters counters = new NdJsonReaderCounters();
-        counters.addDocumentsParsed(7);
         counters.addParseErrors(2);
         counters.addReadNanos(123456);
         Map<String, Object> snap = counters.snapshot();
-        assertEquals(7L, snap.get("documents_parsed"));
+        assertEquals("ndjson", snap.get("format"));
         assertEquals(2L, snap.get("parse_errors"));
-        assertEquals(123456L, snap.get("total_read_nanos"));
+        assertEquals(123456L, snap.get("read_nanos"));
     }
 
     public void testNonPositiveDeltasIgnored() {
         NdJsonReaderCounters counters = new NdJsonReaderCounters();
-        counters.addDocumentsParsed(0);
-        counters.addDocumentsParsed(-3);
         counters.addParseErrors(0);
         counters.addParseErrors(-1);
         counters.addReadNanos(0);
         counters.addReadNanos(-1);
         Map<String, Object> snap = counters.snapshot();
-        assertEquals(0L, snap.get("documents_parsed"));
         assertEquals(0L, snap.get("parse_errors"));
-        assertEquals(0L, snap.get("total_read_nanos"));
+        assertEquals(0L, snap.get("read_nanos"));
     }
 
     public void testConcurrentIncrementsAccumulateWithoutLoss() throws Exception {
@@ -62,7 +58,6 @@ public class NdJsonReaderCountersTests extends ESTestCase {
                 try {
                     start.await();
                     for (int i = 0; i < iterationsPerThread; i++) {
-                        counters.addDocumentsParsed(2);
                         counters.addParseErrors(1);
                         counters.addReadNanos(50);
                     }
@@ -78,23 +73,21 @@ public class NdJsonReaderCountersTests extends ESTestCase {
         pool.shutdownNow();
         assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS));
 
-        long expectedDocs = (long) threads * iterationsPerThread * 2;
         long expectedErrors = (long) threads * iterationsPerThread;
         long expectedNanos = (long) threads * iterationsPerThread * 50;
         Map<String, Object> snap = counters.snapshot();
-        assertEquals(expectedDocs, snap.get("documents_parsed"));
         assertEquals(expectedErrors, snap.get("parse_errors"));
-        assertEquals(expectedNanos, snap.get("total_read_nanos"));
+        assertEquals(expectedNanos, snap.get("read_nanos"));
     }
 
     public void testSnapshotIsImmutableCopy() {
         NdJsonReaderCounters counters = new NdJsonReaderCounters();
-        counters.addDocumentsParsed(5);
+        counters.addParseErrors(5);
         Map<String, Object> snap = counters.snapshot();
         // Mutating the underlying counters does not retroactively mutate a previously taken snapshot.
-        counters.addDocumentsParsed(10);
-        assertEquals(5L, snap.get("documents_parsed"));
+        counters.addParseErrors(10);
+        assertEquals(5L, snap.get("parse_errors"));
         // The map itself rejects mutation.
-        expectThrows(UnsupportedOperationException.class, () -> snap.put("documents_parsed", 0L));
+        expectThrows(UnsupportedOperationException.class, () -> snap.put("parse_errors", 0L));
     }
 }

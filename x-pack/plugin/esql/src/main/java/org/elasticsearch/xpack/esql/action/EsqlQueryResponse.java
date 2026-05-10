@@ -54,6 +54,12 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
     private static final TransportVersion ESQL_TIMESTAMPS_INFO = TransportVersion.fromName("esql_timestamps_info");
     private static final TransportVersion ESQL_RESPONSE_TIMEZONE_FORMAT = TransportVersion.fromName("esql_response_timezone_format");
+    /**
+     * TV gating the query-wide rollup metrics at the response root: {@code rows_emitted},
+     * {@code bytes_read}, {@code read_nanos}, {@code cpu_nanos}. Older nodes don't carry these
+     * on the wire and read 0.
+     */
+    private static final TransportVersion ESQL_QUERY_ROLLUP_METRICS = TransportVersion.fromName("esql_query_rollup_metrics");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
@@ -61,6 +67,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private final List<Page> pages;
     private final long documentsFound;
     private final long valuesLoaded;
+    private final long rowsEmitted;
+    private final long bytesRead;
+    private final long readNanos;
+    private final long cpuNanos;
     private final Profile profile;
     private final boolean columnar;
     private final String asyncExecutionId;
@@ -74,6 +84,51 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     private final ZoneId zoneId;
 
+    /**
+     * Primary constructor. The 13-argument overload below delegates here with zeros for the
+     * new rollup metrics, preserving compatibility with existing callers that don't yet supply
+     * the rollup data.
+     */
+    public EsqlQueryResponse(
+        List<ColumnInfoImpl> columns,
+        List<Page> pages,
+        long documentsFound,
+        long valuesLoaded,
+        long rowsEmitted,
+        long bytesRead,
+        long readNanos,
+        long cpuNanos,
+        @Nullable Profile profile,
+        boolean columnar,
+        @Nullable String asyncExecutionId,
+        boolean isRunning,
+        boolean isAsync,
+        ZoneId zoneId,
+        long startTimeMillis,
+        long expirationTimeMillis,
+        EsqlExecutionInfo executionInfo
+    ) {
+        this.columns = columns;
+        this.pages = pages;
+        this.valuesLoaded = valuesLoaded;
+        this.documentsFound = documentsFound;
+        this.rowsEmitted = rowsEmitted;
+        this.bytesRead = bytesRead;
+        this.readNanos = readNanos;
+        this.cpuNanos = cpuNanos;
+        this.profile = profile;
+        this.columnar = columnar;
+        this.asyncExecutionId = asyncExecutionId;
+        this.isRunning = isRunning;
+        this.isAsync = isAsync;
+        this.zoneId = zoneId;
+        this.startTimeMillis = startTimeMillis;
+        this.expirationTimeMillis = expirationTimeMillis;
+        this.executionInfo = executionInfo;
+    }
+
+    /** Convenience overload that supplies zero for the new rollup metrics (used by callers that
+     *  don't yet have a {@code DriverCompletionInfo} on hand — chiefly tests and pre-rollup paths). */
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
         List<Page> pages,
@@ -89,19 +144,25 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         long expirationTimeMillis,
         EsqlExecutionInfo executionInfo
     ) {
-        this.columns = columns;
-        this.pages = pages;
-        this.valuesLoaded = valuesLoaded;
-        this.documentsFound = documentsFound;
-        this.profile = profile;
-        this.columnar = columnar;
-        this.asyncExecutionId = asyncExecutionId;
-        this.isRunning = isRunning;
-        this.isAsync = isAsync;
-        this.zoneId = zoneId;
-        this.startTimeMillis = startTimeMillis;
-        this.expirationTimeMillis = expirationTimeMillis;
-        this.executionInfo = executionInfo;
+        this(
+            columns,
+            pages,
+            documentsFound,
+            valuesLoaded,
+            0L,
+            0L,
+            0L,
+            0L,
+            profile,
+            columnar,
+            asyncExecutionId,
+            isRunning,
+            isAsync,
+            zoneId,
+            startTimeMillis,
+            expirationTimeMillis,
+            executionInfo
+        );
     }
 
     public EsqlQueryResponse(
@@ -155,6 +216,16 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         try {
             long documentsFound = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
             long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
+            long rowsEmitted = 0;
+            long bytesRead = 0;
+            long readNanos = 0;
+            long cpuNanos = 0;
+            if (in.getTransportVersion().supports(ESQL_QUERY_ROLLUP_METRICS)) {
+                rowsEmitted = in.readVLong();
+                bytesRead = in.readVLong();
+                readNanos = in.readVLong();
+                cpuNanos = in.readVLong();
+            }
             Profile profile = in.readOptionalWriteable(Profile::readFrom);
             boolean columnar = in.readBoolean();
 
@@ -176,6 +247,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 pages,
                 documentsFound,
                 valuesLoaded,
+                rowsEmitted,
+                bytesRead,
+                readNanos,
+                cpuNanos,
                 profile,
                 columnar,
                 asyncExecutionId,
@@ -205,6 +280,12 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         if (supportsValuesLoaded(out.getTransportVersion())) {
             out.writeVLong(documentsFound);
             out.writeVLong(valuesLoaded);
+        }
+        if (out.getTransportVersion().supports(ESQL_QUERY_ROLLUP_METRICS)) {
+            out.writeVLong(rowsEmitted);
+            out.writeVLong(bytesRead);
+            out.writeVLong(readNanos);
+            out.writeVLong(cpuNanos);
         }
         out.writeOptionalWriteable(profile);
         out.writeBoolean(columnar);
@@ -252,6 +333,22 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
      * @return the number of "documents" we got back from lucene, as input into the compute engine. Note that in this context, we think
      * of things like the result of LuceneMaxOperator as single documents.
      */
+    public long rowsEmitted() {
+        return rowsEmitted;
+    }
+
+    public long bytesRead() {
+        return bytesRead;
+    }
+
+    public long readNanos() {
+        return readNanos;
+    }
+
+    public long cpuNanos() {
+        return cpuNanos;
+    }
+
     public long documentsFound() {
         return documentsFound;
     }
@@ -329,7 +426,11 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         content.add(ChunkedToXContentHelper.chunk((builder, p) -> {
             builder //
                 .field("documents_found", documentsFound)
-                .field("values_loaded", valuesLoaded);
+                .field("values_loaded", valuesLoaded)
+                .field("rows_emitted", rowsEmitted)
+                .field("bytes_read", bytesRead)
+                .field("read_nanos", readNanos)
+                .field("cpu_nanos", cpuNanos);
 
             if (startTimeMillis != 0L) {
                 builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
@@ -406,6 +507,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             && Iterators.equals(values(), that.values(), (row1, row2) -> Iterators.equals(row1, row2, Objects::equals))
             && documentsFound == that.documentsFound
             && valuesLoaded == that.valuesLoaded
+            && rowsEmitted == that.rowsEmitted
+            && bytesRead == that.bytesRead
+            && readNanos == that.readNanos
+            && cpuNanos == that.cpuNanos
             && Objects.equals(profile, that.profile)
             && Objects.equals(executionInfo, that.executionInfo);
     }
@@ -420,6 +525,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             Iterators.hashCode(values(), row -> Iterators.hashCode(row, Objects::hashCode)),
             documentsFound,
             valuesLoaded,
+            rowsEmitted,
+            bytesRead,
+            readNanos,
+            cpuNanos,
             profile,
             executionInfo
         );

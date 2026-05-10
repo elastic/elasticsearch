@@ -39,6 +39,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomFormatReader()
         );
     }
@@ -112,17 +113,20 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             splitsTotal,
             currentSplit,
             bytesRead,
+            0L,
             formatReader
         );
     }
 
     public void testToXContent() {
         assertThat(
-            Strings.toString(new AsyncExternalSourceOperator.Status(5, 10, 111, 2048, null, 1_000_000L, 2, 4, 3, 8192L, Map.of("k", 7L))),
+            Strings.toString(
+                new AsyncExternalSourceOperator.Status(5, 10, 111, 2048, null, 1_000_000L, 2, 4, 3, 8192L, 0L, Map.of("k", 7L))
+            ),
             equalTo(
                 "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
                     + "\"process_nanos\":1000000,\"splits_processed\":2,\"splits_total\":4,\"current_split\":3,"
-                    + "\"bytes_read\":8192,\"format_reader\":{\"k\":7}}"
+                    + "\"bytes_read\":8192,\"read_nanos\":0,\"format_reader\":{\"k\":7}}"
             )
         );
     }
@@ -130,12 +134,12 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
     public void testToXContentWithFailure() {
         assertThat(
             Strings.toString(
-                new AsyncExternalSourceOperator.Status(5, 10, 111, 2048, new RuntimeException("boom"), 0L, 0, 0, 0, 0L, Map.of())
+                new AsyncExternalSourceOperator.Status(5, 10, 111, 2048, new RuntimeException("boom"), 0L, 0, 0, 0, 0L, 0L, Map.of())
             ),
             equalTo(
                 "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
                     + "\"process_nanos\":0,\"splits_processed\":0,\"splits_total\":0,\"current_split\":0,"
-                    + "\"bytes_read\":0,\"format_reader\":{},\"failure\":\"boom\"}"
+                    + "\"bytes_read\":0,\"read_nanos\":0,\"format_reader\":{},\"failure\":\"boom\"}"
             )
         );
     }
@@ -152,6 +156,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             4,
             3,
             8192L,
+            0L,
             Map.of("row_groups_read", 7L)
         );
         TransportVersion preTelemetry = TransportVersionUtils.getPreviousVersion(
@@ -207,6 +212,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             7,
             8,
             9L,
+            10L,
             formatReader
         );
         AsyncExternalSourceOperator.Status copy = copyInstance(original);

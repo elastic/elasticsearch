@@ -333,7 +333,7 @@ public class NdJsonPageDecoder implements Closeable {
             Releasables.close(blockBuilders);
             long deltaTotal = totalRowCount - startTotalRowCount;
             long deltaErrors = errorCount - startErrorCount;
-            counters.addDocumentsParsed(deltaTotal - deltaErrors);
+            counters.addRowsEmitted(deltaTotal - deltaErrors);
             counters.addParseErrors(deltaErrors);
             counters.addReadNanos(System.nanoTime() - startNanos);
         }

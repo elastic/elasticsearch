@@ -47,11 +47,11 @@ public class PerColumnStatusTests extends ESTestCase {
         s.toXContent(builder, ToXContent.EMPTY_PARAMS);
         String json = BytesReference.bytes(builder).utf8ToString();
 
-        assertThat(json, containsString("\"bytes_compressed_read\":11"));
-        assertThat(json, containsString("\"bytes_decompressed\":22"));
+        assertThat(json, containsString("\"compressed_bytes\":11"));
+        assertThat(json, containsString("\"decompressed_bytes\":22"));
         assertThat(json, containsString("\"decompression_nanos\":33"));
         assertThat(json, containsString("\"decode_nanos\":44"));
-        assertThat(json, containsString("\"pages_read\":5"));
+        assertThat(json, containsString("\"data_pages_read\":5"));
         assertThat(json, containsString("\"materialization\":\"late\""));
     }
 

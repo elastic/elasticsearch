@@ -42,7 +42,7 @@ public class ParquetReaderCountersTests extends ESTestCase {
         assertEquals(false, snap.get("late_materialization_used"));
         assertEquals(Set.of(), snap.get("predicate_columns"));
         // Aggregate
-        assertEquals(0L, snap.get("total_read_nanos"));
+        assertEquals(0L, snap.get("read_nanos"));
         // Empty per-column map: omitted from snapshot
         assertFalse(snap.containsKey("columns"));
     }
@@ -108,7 +108,7 @@ public class ParquetReaderCountersTests extends ESTestCase {
         c.addTotalReadNanos(-5L);
 
         Map<String, Object> snap = c.snapshot();
-        assertEquals(150L, snap.get("total_read_nanos"));
+        assertEquals(150L, snap.get("read_nanos"));
     }
 
     public void testPerColumnSnapshotShape() {
@@ -132,11 +132,11 @@ public class ParquetReaderCountersTests extends ESTestCase {
 
         Map<String, Object> hostSnap = columns.get("host");
         assertNotNull(hostSnap);
-        assertEquals(1024L, hostSnap.get("bytes_compressed_read"));
-        assertEquals(4096L, hostSnap.get("bytes_decompressed"));
+        assertEquals(1024L, hostSnap.get("compressed_bytes"));
+        assertEquals(4096L, hostSnap.get("decompressed_bytes"));
         assertEquals(1000L, hostSnap.get("decompression_nanos"));
         assertEquals(500L, hostSnap.get("decode_nanos"));
-        assertEquals(3L, hostSnap.get("pages_read"));
+        assertEquals(3L, hostSnap.get("data_pages_read"));
         assertEquals(PerColumnStatus.MATERIALIZATION_LATE, hostSnap.get("materialization"));
 
         Map<String, Object> statusSnap = columns.get("status_code");
@@ -190,10 +190,10 @@ public class ParquetReaderCountersTests extends ESTestCase {
         assertEquals(expectedIters, snap.get("footer_size_bytes"));
         assertEquals(expectedIters, snap.get("row_groups_total"));
         assertEquals(expectedIters, snap.get("row_groups_kept"));
-        assertEquals(expectedIters * 7L, snap.get("total_read_nanos"));
+        assertEquals(expectedIters * 7L, snap.get("read_nanos"));
         @SuppressWarnings("unchecked")
         Map<String, Map<String, Object>> columns = (Map<String, Map<String, Object>>) snap.get("columns");
-        assertEquals(expectedIters, columns.get("host").get("pages_read"));
+        assertEquals(expectedIters, columns.get("host").get("data_pages_read"));
         @SuppressWarnings("unchecked")
         Set<String> predicates = (Set<String>) snap.get("predicate_columns");
         assertEquals(Set.of("host"), predicates);

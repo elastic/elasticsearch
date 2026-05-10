@@ -23,19 +23,17 @@ public class OrcReaderCountersTests extends ESTestCase {
         OrcReaderCounters counters = new OrcReaderCounters();
         Map<String, Object> snap = counters.snapshot();
         assertEquals(0L, snap.get("stripes_total"));
-        assertEquals(0L, snap.get("stripes_kept"));
         assertEquals(false, snap.get("predicate_pushdown_used"));
         assertEquals(Set.of(), snap.get("predicate_columns"));
         assertEquals(0L, snap.get("columns_projected"));
         assertEquals(0L, snap.get("columns_total"));
         assertEquals(0L, snap.get("rows_emitted"));
-        assertEquals(0L, snap.get("total_read_nanos"));
+        assertEquals(0L, snap.get("read_nanos"));
     }
 
     public void testSnapshotReflectsAllIncrements() {
         OrcReaderCounters counters = new OrcReaderCounters();
         counters.addStripesTotal(8);
-        counters.addStripesKept(8);
         counters.markPredicatePushdownUsed();
         counters.addPredicateColumns(List.of("level", "host"));
         counters.setColumnCounts(3, 12);
@@ -44,12 +42,11 @@ public class OrcReaderCountersTests extends ESTestCase {
 
         Map<String, Object> snap = counters.snapshot();
         assertEquals(8L, snap.get("stripes_total"));
-        assertEquals(8L, snap.get("stripes_kept"));
         assertEquals(true, snap.get("predicate_pushdown_used"));
         assertEquals(3L, snap.get("columns_projected"));
         assertEquals(12L, snap.get("columns_total"));
         assertEquals(2_500L, snap.get("rows_emitted"));
-        assertEquals(987_654_321L, snap.get("total_read_nanos"));
+        assertEquals(987_654_321L, snap.get("read_nanos"));
         // predicate_columns is sorted — alphabetical order regardless of insertion order.
         @SuppressWarnings("unchecked")
         Set<String> predicates = (Set<String>) snap.get("predicate_columns");
@@ -60,14 +57,12 @@ public class OrcReaderCountersTests extends ESTestCase {
         OrcReaderCounters counters = new OrcReaderCounters();
         counters.addStripesTotal(0);
         counters.addStripesTotal(-3);
-        counters.addStripesKept(-1);
         counters.addRowsEmitted(0);
         counters.addReadNanos(-5);
         Map<String, Object> snap = counters.snapshot();
         assertEquals(0L, snap.get("stripes_total"));
-        assertEquals(0L, snap.get("stripes_kept"));
         assertEquals(0L, snap.get("rows_emitted"));
-        assertEquals(0L, snap.get("total_read_nanos"));
+        assertEquals(0L, snap.get("read_nanos"));
     }
 
     public void testNullAndEmptyPredicateColumnsTolerated() {
@@ -102,7 +97,6 @@ public class OrcReaderCountersTests extends ESTestCase {
                     start.await();
                     for (int i = 0; i < iterationsPerThread; i++) {
                         counters.addStripesTotal(2);
-                        counters.addStripesKept(2);
                         counters.addRowsEmitted(100);
                         counters.addReadNanos(75);
                     }
@@ -123,9 +117,8 @@ public class OrcReaderCountersTests extends ESTestCase {
         long expectedNanos = (long) threads * iterationsPerThread * 75;
         Map<String, Object> snap = counters.snapshot();
         assertEquals(expectedStripes, snap.get("stripes_total"));
-        assertEquals(expectedStripes, snap.get("stripes_kept"));
         assertEquals(expectedRows, snap.get("rows_emitted"));
-        assertEquals(expectedNanos, snap.get("total_read_nanos"));
+        assertEquals(expectedNanos, snap.get("read_nanos"));
     }
 
     public void testSnapshotIsImmutable() {

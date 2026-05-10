@@ -21,13 +21,13 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public final class NdJsonReaderCounters {
 
-    private final LongAdder documentsParsed = new LongAdder();
+    private final LongAdder rowsEmitted = new LongAdder();
     private final LongAdder parseErrors = new LongAdder();
     private final LongAdder totalReadNanos = new LongAdder();
 
-    public void addDocumentsParsed(long delta) {
+    public void addRowsEmitted(long delta) {
         if (delta > 0) {
-            documentsParsed.add(delta);
+            rowsEmitted.add(delta);
         }
     }
 
@@ -45,14 +45,17 @@ public final class NdJsonReaderCounters {
 
     /**
      * Returns an immutable snapshot of the current counter values, suitable for
-     * {@code AsyncExternalSourceOperator.Status.format_reader}. Keys mirror the design doc:
-     * {@code documents_parsed}, {@code parse_errors}, {@code total_read_nanos}.
+     * {@code AsyncExternalSourceOperator.Status.format_reader}. Keys: {@code format} (discriminator),
+     * {@code rows_read} (rows the format reader produced — same key name across all four format
+     * readers for cross-format consumer aggregation), {@code parse_errors} (NDJSON-specific count
+     * of malformed lines skipped under lenient policies), {@code total_read_nanos}.
      */
     public Map<String, Object> snapshot() {
         Map<String, Object> snap = new LinkedHashMap<>();
-        snap.put("documents_parsed", documentsParsed.sum());
+        snap.put("format", "ndjson");
+        snap.put("rows_emitted", rowsEmitted.sum());
         snap.put("parse_errors", parseErrors.sum());
-        snap.put("total_read_nanos", totalReadNanos.sum());
+        snap.put("read_nanos", totalReadNanos.sum());
         return Map.copyOf(snap);
     }
 }

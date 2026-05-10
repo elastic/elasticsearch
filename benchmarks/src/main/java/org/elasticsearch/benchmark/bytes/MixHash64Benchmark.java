@@ -33,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 public class MixHash64Benchmark {
 
-    @Param({"4", "5", "6", "7", "8", "9", "12", "13", "16", "17", "31", "32", "33", "64", "128" })
+    @Param({ "4", "5", "6", "7", "8", "9", "12", "13", "16", "17", "31", "32", "33", "64", "128" })
     int length;
 
     private byte[] bytes;

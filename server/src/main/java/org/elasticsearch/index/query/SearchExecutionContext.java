@@ -115,6 +115,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private AutoPrefilteringScope autoPrefilteringScope;
     private QueryBuilder aliasFilter;
+    @Nullable
+    private String sliceRouting;
     private boolean rewriteToNamedQueries = false;
 
     private final Integer requestSize;
@@ -298,6 +300,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return aliasFilter;
     }
 
+    // Set slice routing, so it can be applied as a shard-level filter in search context.
+    public void setSliceRouting(@Nullable String sliceRouting) {
+        this.sliceRouting = sliceRouting;
+    }
+
+    @Nullable
+    public String getSliceRouting() {
+        return sliceRouting;
+    }
+
     /**
      * The similarity to use in searches, which takes into account per-field configuration.
      */
@@ -341,6 +353,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 getIndexSettings(),
                 () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()),
                 this::sourcePath,
+                mapperService.getIdFieldDataEnabled(),
                 fielddataOperation
             )
         );
@@ -529,6 +542,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                     getIndexSettings(),
                     searchLookup,
                     this::sourcePath,
+                    () -> false,
                     fielddataOperation
                 )
             ),

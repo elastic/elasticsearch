@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 145971
+summary: "[otel-data] Change `exception.message` to `match_only_text`"
+type: bug

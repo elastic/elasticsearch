@@ -58,9 +58,6 @@ public class UpdateByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
         }
         indicesAdmin().prepareRefresh("source").get();
 
-        final long sourceCountBefore = client().prepareSearch("source").setSize(0).get().getHits().getTotalHits().value();
-        assertEquals(docCount, sourceCountBefore);
-
         UpdateByQueryRequest request = new UpdateByQueryRequest("source");
 
         ExecutionException thrown = expectThrows(
@@ -73,6 +70,8 @@ public class UpdateByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
         assertThat(circuitBreakingCause.getMessage(), containsString("update_by_query_bulk_batch"));
 
         // Source documents should remain unchanged — no bulk request was issued.
+        // assertHitCount handles SearchResponse refcount release; calling .get() and dropping the response
+        // would leak it and trip the test framework's LeakTracker on the next GC.
         assertHitCount(client().prepareSearch("source").setSize(0), docCount);
     }
 }

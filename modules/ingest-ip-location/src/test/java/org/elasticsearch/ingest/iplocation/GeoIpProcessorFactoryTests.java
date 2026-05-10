@@ -24,8 +24,11 @@ import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,7 +37,9 @@ import java.util.Objects;
 import java.util.SequencedMap;
 import java.util.Set;
 
-import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.createTestDatabaseNodeService;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.createTestDatabaseNodeServiceFromExistingDir;
 import static org.elasticsearch.ingest.iplocation.GeoIpProcessor.GEOIP_TYPE;
 import static org.elasticsearch.ingest.iplocation.GeoIpProcessor.IP_LOCATION_TYPE;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -50,8 +55,34 @@ import static org.mockito.Mockito.when;
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class GeoIpProcessorFactoryTests extends ESTestCase {
 
+    /**
+     * The set of databases registered on the shared config dir; mirrors the on-disk basenames so
+     * {@link #loadDatabaseReaders()} can register them without re-copying.
+     */
+    private static final String[] REGISTERED_DATABASES = {
+        "GeoLite2-ASN.mmdb",
+        "GeoLite2-City.mmdb",
+        "GeoLite2-Country.mmdb",
+        "ip_geolocation_standard_sample.mmdb" };
+
+    /**
+     * A class-scoped read-only directory holding every mmdb this suite consumes.
+     * Tests in this class never mutate the on-disk databases, so a single shared directory is safe.
+     */
+    private static Path sharedGeoIpConfigDir;
+
     private DatabaseNodeService databaseNodeService;
     private ProjectId projectId;
+
+    @BeforeClass
+    public static void setupSharedGeoIpConfigDir() throws IOException {
+        sharedGeoIpConfigDir = createTempDir().resolve("ingest-geoip");
+        Files.createDirectories(sharedGeoIpConfigDir);
+        copyDefaultDatabases(sharedGeoIpConfigDir);
+        // copyDatabase treats a directory destination as `<dir>/<resourceName>`, which would create
+        // an `ipinfo/...` subpath that doesn't exist; pass the explicit basename target instead.
+        copyDatabase("ipinfo/ip_geolocation_standard_sample.mmdb", sharedGeoIpConfigDir.resolve("ip_geolocation_standard_sample.mmdb"));
+    }
 
     @Before
     public void loadDatabaseReaders() throws IOException {
@@ -62,12 +93,12 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             ? TestProjectResolvers.singleProject(projectId)
             : TestProjectResolvers.DEFAULT_PROJECT_ONLY;
 
-        databaseNodeService = createTestDatabaseNodeService(
-            createTempDir().resolve("ingest-geoip"),
+        databaseNodeService = createTestDatabaseNodeServiceFromExistingDir(
+            sharedGeoIpConfigDir,
             createTempDir(),
             projectId,
             projectResolver,
-            "ipinfo/ip_geolocation_standard_sample.mmdb"
+            REGISTERED_DATABASES
         );
     }
 

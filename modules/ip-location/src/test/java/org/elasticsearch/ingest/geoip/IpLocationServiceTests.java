@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -55,6 +56,16 @@ import static org.mockito.Mockito.when;
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class IpLocationServiceTests extends ESTestCase {
 
+    /**
+     * A class-scoped, read-only directory pre-populated once with the default GeoLite2 mmdbs. The
+     * majority of tests in this suite never mutate {@code geoIpConfigDir}; they reuse this single
+     * shared directory to avoid re-copying the same databases into a fresh per-test temp dir on every
+     * {@code @Before} (and every {@code -Dtests.iters=N} rerun). Tests that need to add files to the
+     * config dir or rename files in place opt in to a private mutable copy via
+     * {@link #switchToMutableConfigDir()}.
+     */
+    private static Path sharedReadOnlyConfigDir;
+
     private Path geoipTmpDir;
     private Path geoIpConfigDir;
     private ConfigDatabases configDatabases;
@@ -63,11 +74,51 @@ public class IpLocationServiceTests extends ESTestCase {
     private ProjectId projectId;
     private ProjectResolver projectResolver;
 
+    @BeforeClass
+    public static void setupSharedReadOnlyConfigDir() throws IOException {
+        sharedReadOnlyConfigDir = createTempDir().resolve("ingest-geoip");
+        Files.createDirectories(sharedReadOnlyConfigDir);
+        copyDefaultDatabases(sharedReadOnlyConfigDir);
+    }
+
     @Before
     public void setup() throws IOException {
         boolean multiProject = randomBoolean();
         projectId = multiProject ? randomProjectIdOrDefault() : ProjectId.DEFAULT;
         projectResolver = multiProject ? TestProjectResolvers.singleProject(projectId) : TestProjectResolvers.DEFAULT_PROJECT_ONLY;
+
+        geoIpConfigDir = sharedReadOnlyConfigDir;
+        geoipTmpDir = createTempDir();
+        clusterService = mock(ClusterService.class);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        when(clusterService.state()).thenReturn(state);
+
+        GeoIpCache cache = new GeoIpCache(1000);
+        configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
+        for (String name : DEFAULT_DATABASES) {
+            configDatabases.updateDatabase(geoIpConfigDir.resolve(name), true);
+        }
+
+        databaseNodeService = buildDatabaseNodeService(cache, configDatabases);
+    }
+
+    @After
+    public void cleanup() throws IOException {
+        databaseNodeService.shutdown();
+        databaseNodeService = null;
+    }
+
+    /**
+     * Swaps the shared read-only config dir for a fresh per-test mutable copy and rebuilds the
+     * downstream {@link ConfigDatabases} / {@link DatabaseNodeService} stack against it. Use this at
+     * the start of any test that mutates {@code geoIpConfigDir} (e.g. via {@code copyDatabase} into
+     * the dir, or {@code Files.move}). Keeps test mutations isolated while still letting the bulk of
+     * the suite reuse the shared dir from {@link #setupSharedReadOnlyConfigDir()}.
+     */
+    private void switchToMutableConfigDir() throws IOException {
+        databaseNodeService.shutdown();
 
         geoIpConfigDir = createTempDir().resolve("ingest-geoip");
         Files.createDirectories(geoIpConfigDir);
@@ -75,13 +126,12 @@ public class IpLocationServiceTests extends ESTestCase {
         GeoIpCache cache = new GeoIpCache(1000);
         configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
         copyDefaultDatabases(geoIpConfigDir, configDatabases);
-        geoipTmpDir = createTempDir();
-        clusterService = mock(ClusterService.class);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
-            .build();
-        when(clusterService.state()).thenReturn(state);
-        databaseNodeService = new DatabaseNodeService(
+
+        databaseNodeService = buildDatabaseNodeService(cache, configDatabases);
+    }
+
+    private DatabaseNodeService buildDatabaseNodeService(GeoIpCache cache, ConfigDatabases configDatabases) throws IOException {
+        DatabaseNodeService service = new DatabaseNodeService(
             geoipTmpDir,
             mock(Client.class),
             cache,
@@ -90,13 +140,8 @@ public class IpLocationServiceTests extends ESTestCase {
             clusterService,
             projectResolver
         );
-        databaseNodeService.initialize("nodeId", mock(ResourceWatcherService.class));
-    }
-
-    @After
-    public void cleanup() throws IOException {
-        databaseNodeService.shutdown();
-        databaseNodeService = null;
+        service.initialize("nodeId", mock(ResourceWatcherService.class));
+        return service;
     }
 
     public void testCityDefaults() {
@@ -207,6 +252,10 @@ public class IpLocationServiceTests extends ESTestCase {
     }
 
     public void testCustomDatabase() throws IOException {
+        // mutates the on-disk config dir (Files.move below); switch to a private copy first so other
+        // tests that share the read-only dir aren't affected.
+        switchToMutableConfigDir();
+
         // fake the GeoIP2-City database
         copyDatabase("GeoLite2-City.mmdb", geoIpConfigDir);
         Files.move(geoIpConfigDir.resolve("GeoLite2-City.mmdb"), geoIpConfigDir.resolve("GeoIP2-City.mmdb"));
@@ -314,7 +363,10 @@ public class IpLocationServiceTests extends ESTestCase {
         }
     }
 
-    public void testGetIpDataLookupInfoConsistentWithCreateIpDataLookup() {
+    public void testGetIpDataLookupInfoConsistentWithCreateIpDataLookup() throws IOException {
+        // adds an extra mmdb to the on-disk config dir; switch to a private copy first.
+        switchToMutableConfigDir();
+
         copyDatabase("ipinfo/ip_geolocation_standard_sample.mmdb", geoIpConfigDir.resolve("ip_geolocation_standard_sample.mmdb"));
         configDatabases.updateDatabase(geoIpConfigDir.resolve("ip_geolocation_standard_sample.mmdb"), true);
 

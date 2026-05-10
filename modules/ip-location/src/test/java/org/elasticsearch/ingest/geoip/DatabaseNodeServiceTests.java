@@ -101,6 +101,7 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor.getTaskId;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.DEFAULT_DATABASES;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.TYPE;
@@ -149,9 +150,24 @@ public class DatabaseNodeServiceTests extends ESTestCase {
      */
     private static ThreadPool threadPool;
 
+    /**
+     * Class-scoped read-only directory pre-populated once with the default GeoLite2 mmdbs. None of the
+     * tests in this suite mutate this directory: {@code geoIpConfigDir} is a strictly local variable
+     * inside {@link #setup()} consumed only by {@link ConfigDatabases}, and per-test mutations target
+     * {@link #geoIpTmpDir} (the {@link DatabaseNodeService} working dir) instead.
+     */
+    private static Path sharedGeoIpConfigDir;
+
     @BeforeClass
     public static void setupThreadPool() {
         threadPool = new TestThreadPool(DatabaseNodeServiceTests.class.getSimpleName());
+    }
+
+    @BeforeClass
+    public static void setupSharedGeoIpConfigDir() throws IOException {
+        sharedGeoIpConfigDir = createTempDir().resolve("ingest-geoip");
+        Files.createDirectories(sharedGeoIpConfigDir);
+        copyDefaultDatabases(sharedGeoIpConfigDir);
     }
 
     @AfterClass
@@ -181,10 +197,11 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     public void setup() throws IOException {
         projectId = multiProject ? randomProjectIdOrDefault() : ProjectId.DEFAULT;
         projectResolver = multiProject ? TestProjectResolvers.singleProject(projectId) : TestProjectResolvers.DEFAULT_PROJECT_ONLY;
-        final Path geoIpConfigDir = createTempDir();
         GeoIpCache cache = new GeoIpCache(1000);
-        ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
-        copyDefaultDatabases(geoIpConfigDir, configDatabases);
+        ConfigDatabases configDatabases = new ConfigDatabases(sharedGeoIpConfigDir, cache);
+        for (String name : DEFAULT_DATABASES) {
+            configDatabases.updateDatabase(sharedGeoIpConfigDir.resolve(name), true);
+        }
 
         resourceWatcherService = new ResourceWatcherService(WATCHER_SETTINGS, threadPool);
 

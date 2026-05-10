@@ -165,30 +165,12 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
 
         // time series index mode
-        // by default, time_series uses the ES 8.12 postings format
+        // by default, logsdb uses the ES 8.12 postings format
         perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.TIME_SERIES, METRIC_MAPPING);
         assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(ES812PostingsFormat.class));
 
         perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.TIME_SERIES, METRIC_MAPPING);
         assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(ES812PostingsFormat.class));
-
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            // Columnar index mode
-            // by default, columnar uses the ES 8.12 postings format
-            perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.COLUMNAR, LOGS_MAPPING);
-            assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
-
-            perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.COLUMNAR, LOGS_MAPPING);
-            assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
-
-            // Columnar LogsDB index mode
-            // by default, columnar_logsdb uses the ES 8.12 postings format
-            perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.COLUMNAR_LOGSDB, LOGS_MAPPING);
-            assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
-
-            perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.COLUMNAR_LOGSDB, LOGS_MAPPING);
-            assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
-        }
     }
 
     public void testUseEs812PostingsFormatForIdField() throws IOException {
@@ -306,22 +288,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
 
     public void testLogsIndexMode() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.LOGSDB, LOGS_MAPPING);
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("hostname")), is(true));
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("response_size")), is(true));
-    }
-
-    public void testColumnarIndexMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.COLUMNAR, LOGS_MAPPING);
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("hostname")), is(true));
-        assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("response_size")), is(true));
-    }
-
-    public void testColumnarLogsdbIndexMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(IndexMode.COLUMNAR_LOGSDB, LOGS_MAPPING);
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("@timestamp")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("hostname")), is(true));
         assertThat((perFieldMapperCodec.useTSDBDocValuesFormat("response_size")), is(true));

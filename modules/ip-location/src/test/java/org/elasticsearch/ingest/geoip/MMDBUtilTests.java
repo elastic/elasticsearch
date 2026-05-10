@@ -9,10 +9,8 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -20,45 +18,39 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.zip.GZIPOutputStream;
 
-import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.resolveSharedDatabase;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasLength;
 import static org.hamcrest.Matchers.is;
 
 public class MMDBUtilTests extends ESTestCase {
 
-    // a temporary directory that mmdb files can be copied to and read from
-    private Path tmpDir;
+    /**
+     * Class-scoped read-only directory backing every {@code .mmdb} this suite reads. Hoisted out of
+     * {@code @Before} so the same database is not re-copied from the test classpath on every test method
+     * (and every {@code -Dtests.iters=N} rerun).
+     */
+    private static Path sharedDbDir;
 
-    @Before
-    public void setup() {
-        tmpDir = createTempDir();
-    }
-
-    @After
-    public void cleanup() throws IOException {
-        IOUtils.rm(tmpDir);
+    @BeforeClass
+    public static void setupSharedDbDir() {
+        sharedDbDir = createTempDir();
     }
 
     public void testGetDatabaseTypeGeoIP2City() throws IOException {
-        Path database = tmpDir.resolve("GeoIP2-City.mmdb");
-        copyDatabase("GeoIP2-City-Test.mmdb", database);
-
+        Path database = resolveSharedDatabase(sharedDbDir, "GeoIP2-City-Test.mmdb");
         String type = MMDBUtil.getDatabaseType(database);
         assertThat(type, is("GeoIP2-City"));
     }
 
     public void testGetDatabaseTypeGeoLite2City() throws IOException {
-        Path database = tmpDir.resolve("GeoLite2-City.mmdb");
-        copyDatabase("GeoLite2-City-Test.mmdb", database);
-
+        Path database = resolveSharedDatabase(sharedDbDir, "GeoLite2-City-Test.mmdb");
         String type = MMDBUtil.getDatabaseType(database);
         assertThat(type, is("GeoLite2-City"));
     }
 
     public void testSmallFileWithALongDescription() throws IOException {
-        Path database = tmpDir.resolve("test-description.mmdb");
-        copyDatabase("test-description.mmdb", database);
+        Path database = resolveSharedDatabase(sharedDbDir, "test-description.mmdb");
 
         // it was once the case that we couldn't read a database_type that was 29 characters or longer
         String type = MMDBUtil.getDatabaseType(database);
@@ -70,12 +62,10 @@ public class MMDBUtilTests extends ESTestCase {
     }
 
     public void testIsGzip() throws IOException {
-        Path database = tmpDir.resolve("GeoLite2-City.mmdb");
-        copyDatabase("GeoLite2-City-Test.mmdb", database);
+        Path database = resolveSharedDatabase(sharedDbDir, "GeoLite2-City-Test.mmdb");
 
-        Path gzipDatabase = tmpDir.resolve("GeoLite2-City.mmdb.gz");
-
-        // gzip the test mmdb
+        // gzip output is a per-test artifact, so write into a fresh per-method dir
+        Path gzipDatabase = createTempDir().resolve("GeoLite2-City.mmdb.gz");
         try (OutputStream out = new GZIPOutputStream(Files.newOutputStream(gzipDatabase))) {
             Files.copy(database, out);
         }

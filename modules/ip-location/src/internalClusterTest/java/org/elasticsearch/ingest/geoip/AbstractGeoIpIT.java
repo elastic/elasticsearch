@@ -17,6 +17,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.nio.file.Path;
@@ -31,6 +32,21 @@ public abstract class AbstractGeoIpIT extends ESIntegTestCase {
     @ClassRule
     public static final GeoIpHttpFixture fixture = new GeoIpHttpFixture(useFixture);
 
+    /**
+     * Shared across every node and every test method in a single IT class. Populated once in
+     * {@link #setupSharedDatabasePath()} so {@code nodeSettings(...)} doesn't allocate a fresh temp dir
+     * and re-copy every default mmdb for each node × method × {@code -Dtests.iters=N} combination.
+     * No IT in this hierarchy mutates this directory; the {@code ingest.geoip.database_path} contract
+     * already permits multiple nodes to share one dir on a single host.
+     */
+    private static Path sharedDatabasePath;
+
+    @BeforeClass
+    public static void setupSharedDatabasePath() {
+        sharedDatabasePath = createTempDir();
+        copyDefaultDatabases(sharedDatabasePath);
+    }
+
     protected String getEndpoint() {
         return useFixture ? fixture.getAddress() : null;
     }
@@ -42,10 +58,8 @@ public abstract class AbstractGeoIpIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(final int nodeOrdinal, final Settings otherSettings) {
-        final Path databasePath = createTempDir();
-        copyDefaultDatabases(databasePath);
         return Settings.builder()
-            .put("ingest.geoip.database_path", databasePath)
+            .put("ingest.geoip.database_path", sharedDatabasePath)
             .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false)
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .build();

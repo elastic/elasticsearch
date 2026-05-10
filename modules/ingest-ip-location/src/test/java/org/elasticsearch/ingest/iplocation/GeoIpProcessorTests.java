@@ -21,8 +21,11 @@ import org.elasticsearch.iplocation.api.IpDataLookupInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,7 +38,9 @@ import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocumen
 import static org.elasticsearch.ingest.IngestPipelineFieldAccessPattern.CLASSIC;
 import static org.elasticsearch.ingest.IngestPipelineFieldAccessPattern.FLEXIBLE;
 import static org.elasticsearch.ingest.IngestPipelineTestUtils.runWithAccessPattern;
-import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.createTestDatabaseNodeService;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.createTestDatabaseNodeServiceFromExistingDir;
 import static org.elasticsearch.ingest.iplocation.GeoIpProcessor.GEOIP_TYPE;
 import static org.elasticsearch.ingest.iplocation.GeoIpProcessor.IP_LOCATION_TYPE;
 import static org.hamcrest.Matchers.containsString;
@@ -52,8 +57,32 @@ import static org.mockito.Mockito.when;
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class GeoIpProcessorTests extends ESTestCase {
 
+    /**
+     * The set of databases registered on the shared config dir; mirrors the on-disk basenames so
+     * {@link GeoIpProcessorTests#setup()} can register them without re-copying.
+     */
+    private static final String[] REGISTERED_DATABASES = {
+        "GeoLite2-ASN.mmdb",
+        "GeoLite2-City.mmdb",
+        "GeoLite2-Country.mmdb",
+        "ip_geolocation_standard_sample.mmdb" };
+
+    /**
+     * A class-scoped read-only directory holding every mmdb this suite consumes.
+     * Tests in this class never mutate the on-disk databases, so a single shared directory is safe.
+     */
+    private static Path sharedGeoIpConfigDir;
+
     private DatabaseNodeService databaseNodeService;
     private ProjectId projectId;
+
+    @BeforeClass
+    public static void setupSharedGeoIpConfigDir() throws IOException {
+        sharedGeoIpConfigDir = createTempDir().resolve("ingest-geoip");
+        Files.createDirectories(sharedGeoIpConfigDir);
+        copyDefaultDatabases(sharedGeoIpConfigDir);
+        copyDatabase("ipinfo/ip_geolocation_standard_sample.mmdb", sharedGeoIpConfigDir.resolve("ip_geolocation_standard_sample.mmdb"));
+    }
 
     @Before
     public void setup() throws IOException {
@@ -63,12 +92,12 @@ public class GeoIpProcessorTests extends ESTestCase {
             ? TestProjectResolvers.singleProject(projectId)
             : TestProjectResolvers.DEFAULT_PROJECT_ONLY;
 
-        databaseNodeService = createTestDatabaseNodeService(
-            createTempDir().resolve("ingest-geoip"),
+        databaseNodeService = createTestDatabaseNodeServiceFromExistingDir(
+            sharedGeoIpConfigDir,
             createTempDir(),
             projectId,
             projectResolver,
-            "ipinfo/ip_geolocation_standard_sample.mmdb"
+            REGISTERED_DATABASES
         );
     }
 

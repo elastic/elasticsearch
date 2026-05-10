@@ -18,13 +18,11 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.FixForMultiProject;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.iplocation.api.IpLocationInfoMapCollector;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,7 +33,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.resolveSharedDatabase;
 import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.ipinfoTypeCleanup;
 import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.parseAsn;
 import static org.elasticsearch.ingest.geoip.IpinfoIpDataLookups.parseBoolean;
@@ -50,17 +48,19 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class IpinfoIpDataLookupsTests extends ESTestCase {
 
-    // a temporary directory that mmdb files can be copied to and read from
-    private Path tmpDir;
+    /**
+     * A class-scoped read-only directory holding the {@code ipinfo/*} mmdbs this suite reads. Hoisted out of
+     * {@code @Before} so the same database is not re-copied from the test classpath on every test method
+     * (and every {@code -Dtests.iters=N} rerun). Lookups go through
+     * {@link GeoIpTestUtils#resolveSharedDatabase} which lazy-populates on first miss; tests never mutate
+     * the on-disk files. The on-disk file name is the basename of the resource (the {@code "ipinfo/"}
+     * prefix on the classpath is stripped), matching the original per-test layout.
+     */
+    private static Path sharedDbDir;
 
-    @Before
-    public void setup() {
-        tmpDir = createTempDir();
-    }
-
-    @After
-    public void cleanup() throws IOException {
-        IOUtils.rm(tmpDir);
+    @BeforeClass
+    public static void setupSharedDbDir() {
+        sharedDbDir = createTempDir();
     }
 
     public void testParseAsn() {
@@ -157,14 +157,11 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
 
     public void testAsnInvariants() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
-        Path configDir = tmpDir;
-        copyDatabase("ipinfo/ip_asn_sample.mmdb", configDir.resolve("ip_asn_sample.mmdb"));
-        copyDatabase("ipinfo/asn_sample.mmdb", configDir.resolve("asn_sample.mmdb"));
 
         {
             final Set<String> expectedColumns = Set.of("network", "asn", "name", "domain");
 
-            Path databasePath = configDir.resolve("ip_asn_sample.mmdb");
+            Path databasePath = resolveSharedDatabase(sharedDbDir, "ipinfo/ip_asn_sample.mmdb");
             assertDatabaseInvariants(databasePath, (ip, row) -> {
                 assertThat(row.keySet(), equalTo(expectedColumns));
                 String asn = (String) row.get("asn");
@@ -179,7 +176,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         {
             final Set<String> expectedColumns = Set.of("network", "asn", "name", "domain", "country", "type");
 
-            Path databasePath = configDir.resolve("asn_sample.mmdb");
+            Path databasePath = resolveSharedDatabase(sharedDbDir, "ipinfo/asn_sample.mmdb");
             assertDatabaseInvariants(databasePath, (ip, row) -> {
                 assertThat(row.keySet(), equalTo(expectedColumns));
                 String asn = (String) row.get("asn");
@@ -252,8 +249,6 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
 
     public void testGeolocationInvariants() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
-        Path configDir = tmpDir;
-        copyDatabase("ipinfo/ip_geolocation_standard_sample.mmdb", configDir.resolve("ip_geolocation_standard_sample.mmdb"));
 
         {
             final Set<String> expectedColumns = Set.of(
@@ -268,7 +263,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
                 "lng"
             );
 
-            Path databasePath = configDir.resolve("ip_geolocation_standard_sample.mmdb");
+            Path databasePath = resolveSharedDatabase(sharedDbDir, "ipinfo/ip_geolocation_standard_sample.mmdb");
             assertDatabaseInvariants(databasePath, (ip, row) -> {
                 assertThat(row.keySet(), equalTo(expectedColumns));
                 {
@@ -349,13 +344,11 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
 
     public void testPrivacyDetectionInvariants() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
-        Path configDir = tmpDir;
-        copyDatabase("ipinfo/privacy_detection_sample.mmdb", configDir.resolve("privacy_detection_sample.mmdb"));
 
         {
             final Set<String> expectedColumns = Set.of("network", "service", "hosting", "proxy", "relay", "tor", "vpn");
 
-            Path databasePath = configDir.resolve("privacy_detection_sample.mmdb");
+            Path databasePath = resolveSharedDatabase(sharedDbDir, "ipinfo/privacy_detection_sample.mmdb");
             assertDatabaseInvariants(databasePath, (ip, row) -> {
                 assertThat(row.keySet(), equalTo(expectedColumns));
 
@@ -447,12 +440,8 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         // down the road it would probably make sense to split these out and find a better home for some of the
         // logic, but for now it's probably more valuable to have the test *somewhere* than to get especially
         // pedantic about where precisely it should be.
-
-        copyDatabase("ipinfo/ip_asn_sample.mmdb", tmpDir.resolve("ip_asn_sample.mmdb"));
-        copyDatabase("ipinfo/ip_geolocation_standard_sample.mmdb", tmpDir.resolve("ip_geolocation_standard_sample.mmdb"));
-        copyDatabase("ipinfo/asn_sample.mmdb", tmpDir.resolve("asn_sample.mmdb"));
-        copyDatabase("ipinfo/ip_country_sample.mmdb", tmpDir.resolve("ip_country_sample.mmdb"));
-        copyDatabase("ipinfo/privacy_detection_sample.mmdb", tmpDir.resolve("privacy_detection_sample.mmdb"));
+        // {@link #parseDatabaseFromType} routes through {@link GeoIpTestUtils#resolveSharedDatabase}, which
+        // lazy-populates the shared dir on first miss, so no per-test copies are needed up front.
 
         assertThat(parseDatabaseFromType("ip_asn_sample.mmdb"), is(Database.AsnV2));
         assertThat(parseDatabaseFromType("ip_geolocation_standard_sample.mmdb"), is(Database.CityV2));
@@ -466,7 +455,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
     }
 
     private Database parseDatabaseFromType(String databaseFile) throws IOException {
-        return IpDataLookupFactories.getDatabase(MMDBUtil.getDatabaseType(tmpDir.resolve(databaseFile)));
+        return IpDataLookupFactories.getDatabase(MMDBUtil.getDatabaseType(resolveSharedDatabase(sharedDbDir, "ipinfo/" + databaseFile)));
     }
 
     private static void assertDatabaseInvariants(final Path databasePath, final BiConsumer<InetAddress, Map<String, Object>> rowConsumer) {
@@ -531,7 +520,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         Set<String> knownAdditionalKeys,
         Set<String> knownMissingKeys
     ) throws IOException {
-        Path databasePath = tmpDir.resolve(databaseName);
+        Path databasePath = resolveSharedDatabase(sharedDbDir, "ipinfo/" + databaseName);
         try (Reader reader = new Reader(pathToFile(databasePath))) {
             @SuppressWarnings("unchecked")
             Map<String, Object> data = reader.get(InetAddresses.forString(ip), Map.class);
@@ -561,8 +550,8 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
 
     @FixForMultiProject(description = "Replace DEFAULT project")
     private DatabaseReaderLazyLoader loader(final String databaseName) {
-        Path path = tmpDir.resolve(databaseName);
-        copyDatabase("ipinfo/" + databaseName, path); // the ipinfo databases are prefixed on the test classpath
+        // the ipinfo databases are prefixed on the test classpath; the on-disk file lives under its basename
+        Path path = resolveSharedDatabase(sharedDbDir, "ipinfo/" + databaseName);
         final GeoIpCache cache = new GeoIpCache(1000);
         return new DatabaseReaderLazyLoader(ProjectId.DEFAULT, cache, path, null);
     }

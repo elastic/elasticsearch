@@ -12,18 +12,16 @@ package org.elasticsearch.ingest.geoip;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.FixForMultiProject;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.iplocation.api.IpLocationInfoMapCollector;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.resolveSharedDatabase;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,17 +29,18 @@ import static org.hamcrest.Matchers.is;
 
 public class MaxmindIpDataLookupsTests extends ESTestCase {
 
-    // a temporary directory that mmdb files can be copied to and read from
-    private Path tmpDir;
+    /**
+     * A class-scoped read-only directory that backs every {@code .mmdb} this suite reads. Hoisted out of
+     * {@code @Before} so neither {@link #loader(String)} nor {@link #parseDatabaseFromType(String)} re-copies
+     * the same database from the test classpath on every test method (and every {@code -Dtests.iters=N}
+     * rerun). Lookups go through {@link GeoIpTestUtils#resolveSharedDatabase} which lazy-populates on first
+     * miss; tests never mutate the on-disk files.
+     */
+    private static Path sharedDbDir;
 
-    @Before
-    public void setup() {
-        tmpDir = createTempDir();
-    }
-
-    @After
-    public void cleanup() throws IOException {
-        IOUtils.rm(tmpDir);
+    @BeforeClass
+    public static void setupSharedDbDir() {
+        sharedDbDir = createTempDir();
     }
 
     public void testCity() {
@@ -290,17 +289,8 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         // down the road it would probably make sense to split these out and find a better home for some of the
         // logic, but for now it's probably more valuable to have the test *somewhere* than to get especially
         // pedantic about where precisely it should be.
-
-        copyDatabase("GeoLite2-City-Test.mmdb", tmpDir);
-        copyDatabase("GeoLite2-Country-Test.mmdb", tmpDir);
-        copyDatabase("GeoLite2-ASN-Test.mmdb", tmpDir);
-        copyDatabase("GeoIP2-Anonymous-IP-Test.mmdb", tmpDir);
-        copyDatabase("GeoIP2-City-Test.mmdb", tmpDir);
-        copyDatabase("GeoIP2-Country-Test.mmdb", tmpDir);
-        copyDatabase("GeoIP2-Connection-Type-Test.mmdb", tmpDir);
-        copyDatabase("GeoIP2-Domain-Test.mmdb", tmpDir);
-        copyDatabase("GeoIP2-Enterprise-Test.mmdb", tmpDir);
-        copyDatabase("GeoIP2-ISP-Test.mmdb", tmpDir);
+        // {@link #parseDatabaseFromType} routes through {@link GeoIpTestUtils#resolveSharedDatabase}, which
+        // lazy-populates the shared dir on first miss, so no per-test copies are needed up front.
 
         assertThat(parseDatabaseFromType("GeoLite2-City-Test.mmdb"), is(Database.City));
         assertThat(parseDatabaseFromType("GeoLite2-Country-Test.mmdb"), is(Database.Country));
@@ -315,7 +305,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
     }
 
     private Database parseDatabaseFromType(String databaseFile) throws IOException {
-        return IpDataLookupFactories.getDatabase(MMDBUtil.getDatabaseType(tmpDir.resolve(databaseFile)));
+        return IpDataLookupFactories.getDatabase(MMDBUtil.getDatabaseType(resolveSharedDatabase(sharedDbDir, databaseFile)));
     }
 
     private void assertExpectedLookupResults(String databaseName, String ip, InternalIpDataLookup lookup, Map<String, Object> expected) {
@@ -339,8 +329,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
 
     @FixForMultiProject(description = "Replace DEFAULT project")
     private DatabaseReaderLazyLoader loader(final String databaseName) {
-        Path path = tmpDir.resolve(databaseName);
-        copyDatabase(databaseName, path);
+        Path path = resolveSharedDatabase(sharedDbDir, databaseName);
         final GeoIpCache cache = new GeoIpCache(1000);
         return new DatabaseReaderLazyLoader(ProjectId.DEFAULT, cache, path, null);
     }

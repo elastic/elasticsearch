@@ -79,6 +79,24 @@ public final class GeoIpTestUtils {
     }
 
     /**
+     * Returns the path to {@code resource} within {@code sharedDir}, copying it from the test classpath on first
+     * access and reusing the same on-disk copy on subsequent calls. The file name on disk is the basename of
+     * {@code resource} (any directory prefix such as {@code "ipinfo/"} is stripped).
+     *
+     * <p>Intended for tests that share a class-scoped read-only mmdb directory across many test methods (and
+     * across {@code -Dtests.iters=N} reruns) to avoid re-copying the same database into a fresh per-test
+     * temp dir on every invocation. Callers must not mutate the returned file. Synchronized so the helper is
+     * also safe to call from tests that exercise concurrency.
+     */
+    public static synchronized Path resolveSharedDatabase(Path sharedDir, String resource) {
+        Path target = sharedDir.resolve(PathUtils.get(resource).getFileName().toString());
+        if (Files.notExists(target)) {
+            copyDatabase(resource, target);
+        }
+        return target;
+    }
+
+    /**
      * Creates a {@link DatabaseNodeService} configured with default GeoLite2 databases and any additional databases.
      * This factory handles package-private classes ({@link GeoIpCache}, {@link ConfigDatabases}) so that tests in
      * other packages can obtain a fully functional service instance.
@@ -110,6 +128,45 @@ public final class GeoIpTestUtils {
             configDatabases.updateDatabase(target, true);
         }
 
+        return assembleDatabaseNodeService(tmpDir, projectId, projectResolver, cache, configDatabases);
+    }
+
+    /**
+     * Like {@link #createTestDatabaseNodeService} but assumes {@code geoIpConfigDir} is already populated with
+     * every database to register. The directory is treated as read-only; the service still gets its own
+     * per-test {@code tmpDir} for any writable state. Use this together with a class-scoped {@code @BeforeClass}
+     * that populates {@code geoIpConfigDir} once, so that {@code -Dtests.iters=N} reruns and many test methods
+     * within one class do not each copy the same default mmdbs into a fresh temp dir.
+     *
+     * @param geoIpConfigDir directory already containing every mmdb to register; must not be mutated by tests
+     * @param tmpDir per-test mutable temporary directory for the service
+     * @param projectId project to register in the cluster state
+     * @param projectResolver project resolver for the service
+     * @param databasesToRegister basenames of files within {@code geoIpConfigDir} to register with
+     *                            {@link ConfigDatabases}
+     */
+    public static DatabaseNodeService createTestDatabaseNodeServiceFromExistingDir(
+        Path geoIpConfigDir,
+        Path tmpDir,
+        ProjectId projectId,
+        ProjectResolver projectResolver,
+        String... databasesToRegister
+    ) throws IOException {
+        GeoIpCache cache = new GeoIpCache(1000);
+        ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
+        for (String name : databasesToRegister) {
+            configDatabases.updateDatabase(geoIpConfigDir.resolve(name), true);
+        }
+        return assembleDatabaseNodeService(tmpDir, projectId, projectResolver, cache, configDatabases);
+    }
+
+    private static DatabaseNodeService assembleDatabaseNodeService(
+        Path tmpDir,
+        ProjectId projectId,
+        ProjectResolver projectResolver,
+        GeoIpCache cache,
+        ConfigDatabases configDatabases
+    ) throws IOException {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())

@@ -61,9 +61,11 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         boolean skipFirstLine,
         boolean trimLastPartialLine,
         List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
+        ErrorPolicy errorPolicy,
+        NdJsonReaderCounters counters
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
+        Check.isTrue(counters != null, "counters must not be null");
         String sourceLocation = object.path().toString();
         InputStream inputStream = object.newStream();
         if (skipFirstLine) {
@@ -87,7 +89,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                 batchSize,
                 blockFactory,
                 errorPolicy,
-                sourceLocation
+                sourceLocation,
+                counters
             );
         } else {
             this.pageDecoder = new NdJsonPageDecoder(
@@ -97,7 +100,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                 batchSize,
                 blockFactory,
                 errorPolicy,
-                sourceLocation
+                sourceLocation,
+                counters
             );
         }
     }

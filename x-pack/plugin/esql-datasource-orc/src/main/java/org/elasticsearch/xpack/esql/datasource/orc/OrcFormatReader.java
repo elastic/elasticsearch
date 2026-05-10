@@ -94,6 +94,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     private final BlockFactory blockFactory;
     private final SearchArgument pushedFilter;
     private final OrcPushedExpressions pushedExpressions;
+    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
+    // shared across the OrcPageIterator instances spawned by {@link #read} and {@link #readRange}.
+    private final OrcReaderCounters counters = new OrcReaderCounters();
 
     public OrcFormatReader(BlockFactory blockFactory) {
         this(blockFactory, null, null);
@@ -253,10 +256,34 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         boolean[] include = buildIncludeMask(schema, projectedColumns);
 
         Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
+        // For a full-file read, every stripe is considered; the SearchArgument (if any) may further
+        // skip stripes inside ORC, but that internal rejection is not observable via the public
+        // Reader API — see OrcReaderCounters javadoc. So stripes_kept == stripes_total here.
+        long stripeCount = reader.getStripes().size();
+        int totalColumns = schema.getFieldNames().size();
+        counters.addStripesTotal(stripeCount);
+        counters.addStripesKept(stripeCount);
+        counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
         RecordReader rows = reader.rows(readOptions);
 
-        CloseableIterator<Page> iter = new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory);
+        CloseableIterator<Page> iter = new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory, counters);
         return rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
+    }
+
+    /** Returns the count of {@code true} entries in the ORC include mask, or {@code totalColumns}
+     *  when the mask is null (no projection — every column kept). Index 0 is the struct root and
+     *  is always set, so it's skipped from the count. */
+    private static int countProjected(boolean[] include, int totalColumns) {
+        if (include == null) {
+            return totalColumns;
+        }
+        int n = 0;
+        for (int i = 1; i < include.length; i++) {
+            if (include[i]) {
+                n++;
+            }
+        }
+        return n;
     }
 
     @Override
@@ -352,9 +379,29 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
 
         Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
         readOptions.range(rangeStart, rangeEnd - rangeStart);
+        // Stripes intersecting the range are the considered set; stripes_kept tracks the same value
+        // (ORC's internal stripe-stat rejection is not observable via the public API).
+        long stripesInRange = countStripesInRange(reader, rangeStart, rangeEnd);
+        int totalColumns = schema.getFieldNames().size();
+        counters.addStripesTotal(stripesInRange);
+        counters.addStripesKept(stripesInRange);
+        counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
         RecordReader rows = reader.rows(readOptions);
 
-        return new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory);
+        return new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory, counters);
+    }
+
+    /** Counts stripes whose offset falls in {@code [rangeStart, rangeEnd)} — matches ORC's
+     *  range-based read selection. */
+    private static long countStripesInRange(Reader reader, long rangeStart, long rangeEnd) {
+        long n = 0;
+        for (StripeInformation stripe : reader.getStripes()) {
+            long off = stripe.getOffset();
+            if (off >= rangeStart && off < rangeEnd) {
+                n++;
+            }
+        }
+        return n;
     }
 
     private static List<Attribute> resolveProjection(List<Attribute> attributes, List<String> projectedColumns) {
@@ -407,6 +454,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 nameSet.add(leaf.getColumnName());
             }
             readOptions.searchArgument(resolvedFilter, nameSet.toArray(new String[0]));
+            counters.markPredicatePushdownUsed();
+            counters.addPredicateColumns(nameSet);
         }
         return readOptions;
     }
@@ -453,6 +502,16 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     @Override
     public String formatName() {
         return "orc";
+    }
+
+    /**
+     * Returns an immutable snapshot of the ORC reader's counters for the operator-status envelope.
+     * Empty-ish (zero counters, false flag, empty predicate columns) before any read() / readRange()
+     * has run.
+     */
+    @Override
+    public Map<String, Object> statusSnapshot() {
+        return counters.snapshot();
     }
 
     @Override
@@ -502,19 +561,24 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         private boolean batchReady = false;
         private final Map<String, Integer> fieldNameToIndex;
 
+        // Reader-level counters shared with the owning OrcFormatReader and any sibling iterators.
+        private final OrcReaderCounters counters;
+
         OrcPageIterator(
             Reader reader,
             RecordReader rows,
             TypeDescription schema,
             List<Attribute> attributes,
             int batchSize,
-            BlockFactory blockFactory
+            BlockFactory blockFactory,
+            OrcReaderCounters counters
         ) {
             this.reader = reader;
             this.rows = rows;
             this.attributes = attributes;
             this.blockFactory = blockFactory;
             this.batch = schema.createRowBatch(batchSize);
+            this.counters = counters;
 
             fieldNameToIndex = new HashMap<>(schema.getFieldNames().size());
             int i = 0;
@@ -531,6 +595,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             if (batchReady) {
                 return true;
             }
+            long startNanos = System.nanoTime();
             try {
                 if (rows.nextBatch(batch)) {
                     batchReady = true;
@@ -541,6 +606,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 }
             } catch (IOException e) {
                 throw new RuntimeException("Failed to read ORC batch", e);
+            } finally {
+                counters.addReadNanos(System.nanoTime() - startNanos);
             }
         }
 
@@ -550,6 +617,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 throw new NoSuchElementException();
             }
             batchReady = false;
+            counters.addRowsEmitted(batch.size);
             return convertToPage();
         }
 

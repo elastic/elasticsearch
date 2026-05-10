@@ -76,6 +76,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
     private final long segmentSizeBytes;
+    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
+    // shared across the parallel {@link NdJsonPageDecoder} segments spawned by {@link #read}.
+    private final NdJsonReaderCounters counters = new NdJsonReaderCounters();
 
     public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
         this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings));
@@ -284,8 +287,18 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             skipFirstLine,
             trimLastPartialLine,
             inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine),
-            errorPolicy
+            errorPolicy,
+            counters
         );
+    }
+
+    /**
+     * Returns an immutable snapshot of the NDJSON reader's counters for the operator-status
+     * envelope. Empty map when no decoders have run.
+     */
+    @Override
+    public Map<String, Object> statusSnapshot() {
+        return counters.snapshot();
     }
 
     @Override

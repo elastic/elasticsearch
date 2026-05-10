@@ -46,7 +46,7 @@ public final class NdJsonReaderCounters {
     /**
      * Returns an immutable snapshot of the current counter values, suitable for
      * {@code AsyncExternalSourceOperator.Status.format_reader}. Keys: {@code format} (discriminator),
-     * {@code rows_read} (rows the format reader produced — same key name across all four format
+     * {@code rows_emitted} (rows the format reader produced — same key name across all four format
      * readers for cross-format consumer aggregation), {@code parse_errors} (NDJSON-specific count
      * of malformed lines skipped under lenient policies), {@code read_nanos}.
      */

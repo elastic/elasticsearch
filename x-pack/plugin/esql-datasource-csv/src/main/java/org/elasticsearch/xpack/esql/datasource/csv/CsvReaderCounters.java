@@ -53,7 +53,7 @@ public final class CsvReaderCounters {
     /**
      * Returns an immutable snapshot of the current counter values, suitable for
      * {@code AsyncExternalSourceOperator.Status.format_reader}. Keys: {@code format} (discriminator),
-     * {@code rows_read} (rows the iterator produced — same key name across all four format readers
+     * {@code rows_emitted} (rows the iterator produced — same key name across all four format readers
      * for cross-format consumer aggregation), {@code parse_errors} (CSV-specific count of malformed
      * rows skipped under lenient policies), {@code header_detected} (CSV-specific setup flag),
      * {@code read_nanos}.

@@ -139,6 +139,8 @@ final class BytesRefBlockHash extends BlockHash {
             }
             for (int i = 0; i < PREFETCH_BATCH; i++) {
                 batchKeys[i].bytes = BytesRef.EMPTY_BYTES;
+                batchKeys[i].offset = 0;
+                batchKeys[i].length = 0;
             }
             prefetchBarrier.consume(dummy);
             return builder.build();

@@ -1248,7 +1248,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("operators", instanceOf(List.class))
             .entry("sleeps", matchesMap().extraOk())
             .entry("documents_found", greaterThanOrEqualTo(0))
-            .entry("values_loaded", greaterThanOrEqualTo(0));
+            .entry("values_loaded", greaterThanOrEqualTo(0))
+            .entry("rows_emitted", greaterThanOrEqualTo(0))
+            .entry("bytes_read", greaterThanOrEqualTo(0))
+            .entry("read_nanos", greaterThanOrEqualTo(0));
     }
 
     public void testProfileConditionalBlockLoader() throws IOException {

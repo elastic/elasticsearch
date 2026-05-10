@@ -2913,12 +2913,25 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("minimumTransportVersion", instanceOf(Integer.class));
     }
 
-    protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound, boolean includeTimestamps) {
+    protected static MapMatcher getResultMatcher(
+        boolean includePartial,
+        boolean includeDocumentsFound,
+        boolean includeTimestamps,
+        boolean includeRollupMetrics
+    ) {
         MapMatcher mapMatcher = matchesMap();
         if (includeDocumentsFound) {
             // Older versions may not return documents_found and values_loaded.
             mapMatcher = mapMatcher.entry("documents_found", greaterThanOrEqualTo(0));
             mapMatcher = mapMatcher.entry("values_loaded", greaterThanOrEqualTo(0));
+        }
+        if (includeRollupMetrics) {
+            // Query-wide rollup metrics added with esql_external_source_telemetry TV. Older nodes
+            // don't emit these, so the flag mirrors the includeDocumentsFound treatment above.
+            mapMatcher = mapMatcher.entry("rows_emitted", greaterThanOrEqualTo(0));
+            mapMatcher = mapMatcher.entry("bytes_read", greaterThanOrEqualTo(0));
+            mapMatcher = mapMatcher.entry("read_nanos", greaterThanOrEqualTo(0));
+            mapMatcher = mapMatcher.entry("cpu_nanos", greaterThanOrEqualTo(0));
         }
         if (includeTimestamps) {
             // Older versions may not return start_time_in_millis, completion_time_in_millis and expiration_time_in_millis
@@ -2935,6 +2948,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         return mapMatcher;
     }
 
+    /** Deprecated three-arg form kept for callers that haven't been updated for the rollup metrics. */
+    protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound, boolean includeTimestamps) {
+        return getResultMatcher(includePartial, includeDocumentsFound, includeTimestamps, false);
+    }
+
     /**
      * Create empty result matcher from result, taking into account all metadata items.
      */
@@ -2942,7 +2960,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         return getResultMatcher(
             result.containsKey("is_partial"),
             result.containsKey("documents_found"),
-            result.containsKey("start_time_in_millis")
+            result.containsKey("start_time_in_millis"),
+            result.containsKey("rows_emitted")
         );
     }
 

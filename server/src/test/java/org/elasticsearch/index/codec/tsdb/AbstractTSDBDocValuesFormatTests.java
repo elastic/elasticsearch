@@ -105,7 +105,6 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
     protected static final int BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT = 1024;
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 

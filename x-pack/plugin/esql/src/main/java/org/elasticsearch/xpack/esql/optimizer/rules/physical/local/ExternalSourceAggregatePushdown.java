@@ -65,12 +65,21 @@ public final class ExternalSourceAggregatePushdown {
      */
     static ExternalSourceInfo extractExternalSource(PhysicalPlan child) {
         if (child instanceof ExternalSourceExec ext) {
+            if (ext.pushedFilter() != null) {
+                return null;
+            }
             return new ExternalSourceInfo(ext, AttributeMap.emptyAttributeMap(), null);
         }
         if (child instanceof EvalExec evalExec && evalExec.child() instanceof ExternalSourceExec ext) {
+            if (ext.pushedFilter() != null) {
+                return null;
+            }
             return new ExternalSourceInfo(ext, PushFiltersToSource.getAliasReplacedBy(evalExec), null);
         }
         if (child instanceof ProjectExec projectExec && projectExec.child() instanceof ExternalSourceExec ext) {
+            if (ext.pushedFilter() != null) {
+                return null;
+            }
             return new ExternalSourceInfo(ext, PushFiltersToSource.getAliasReplacedBy(projectExec), null);
         }
         if (child instanceof FilterExec filterExec) {

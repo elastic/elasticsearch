@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.iplocation;
 
+import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -62,8 +63,14 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Internal cluster tests for ingest pipeline behavior with geoip processors.
+ *
+ * <p>Uses the default {@link ESIntegTestCase.Scope#SUITE} cluster scope so that all methods share a single test
+ * cluster. The {@link #cleanUp()} hook is responsible for restoring the cluster to a pristine state between
+ * methods: it nullifies the cluster settings touched by tests, deletes any ingest pipelines they created, and
+ * waits for the geoip downloader persistent task to be removed. Indices are wiped automatically by
+ * {@code TestCluster#wipe()}.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, maxNumDataNodes = 1)
+@ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @Override
@@ -90,12 +97,23 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
     public void cleanUp() throws Exception {
         IpLocationTestHelper.deleteDatabasesInConfigDirectory(internalCluster());
 
+        // Nullify every cluster setting touched by tests; SUITE-scoped tests assert no persistent/transient state leaks.
         updateClusterSettings(
             Settings.builder()
                 .putNull(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey())
                 .putNull(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getKey())
                 .putNull("ingest.geoip.database_validity")
         );
+
+        // Tests create ingest pipelines that are not wiped by the framework's TestCluster#wipe().
+        GetPipelineResponse pipelines = getPipelines("*");
+        for (var pipeline : pipelines.pipelines()) {
+            deletePipeline(pipeline.getId());
+        }
+
+        // Wait for the geoip downloader persistent task to be removed by its onRemove hook so the next test
+        // starts without an in-flight task referencing the just-wiped .geoip_databases index.
+        assertBusy(() -> assertNull(getTask()));
     }
 
     public void testGeoIpDatabasesDownloadNoGeoipProcessors() throws Exception {

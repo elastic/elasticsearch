@@ -16,11 +16,13 @@ import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 
 import java.util.Collection;
 import java.util.List;
 
+@ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class GeoIpDownloaderTaskIT extends AbstractGeoIpIT {
 
     @Override

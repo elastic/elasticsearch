@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
  * The service-level availability of enterprise databases is tested in
  * {@code modules/ip-location EnterpriseGeoIpDownloaderIT}; this test adds end-to-end ingest verification.
  */
+@ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class IngestEnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
 
     private static final String MAXMIND_DATABASE_TYPE = "GeoIP2-City";

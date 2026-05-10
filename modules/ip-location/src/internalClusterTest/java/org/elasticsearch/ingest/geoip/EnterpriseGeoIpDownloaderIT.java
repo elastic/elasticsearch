@@ -47,6 +47,7 @@ import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecut
 import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecutor.MAXMIND_LICENSE_KEY_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
+@ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class EnterpriseGeoIpDownloaderIT extends ESIntegTestCase {
 
     private static final String MAXMIND_DATABASE_TYPE = "GeoIP2-City";

@@ -18,6 +18,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.BufferedInputStream;
@@ -41,6 +42,7 @@ import java.util.zip.GZIPOutputStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class DatabaseNodeServiceIT extends AbstractGeoIpIT {
 
     @FixForMultiProject(description = "Use random project ID after ESIntegTestCase is MP enabled")

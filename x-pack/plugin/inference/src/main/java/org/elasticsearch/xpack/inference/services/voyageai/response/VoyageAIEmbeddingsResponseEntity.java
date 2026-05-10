@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
@@ -112,8 +113,8 @@ public class VoyageAIEmbeddingsResponseEntity {
             PARSER.declareFloatArray(constructorArg(), new ParseField("embedding"));
         }
 
-        public DenseEmbeddingFloatResults.Embedding toInferenceFloatEmbedding() {
-            return DenseEmbeddingFloatResults.Embedding.of(embedding);
+        public EmbeddingFloatResults.Embedding toInferenceFloatEmbedding() {
+            return EmbeddingFloatResults.Embedding.of(embedding);
         }
     }
 
@@ -169,10 +170,10 @@ public class VoyageAIEmbeddingsResponseEntity {
         TaskType taskType = embeddingsRequest.getTaskType();
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
-            if (embeddingType == null || embeddingType == VoyageAIEmbeddingType.FLOAT) {
+            if (embeddingType == VoyageAIEmbeddingType.FLOAT) {
                 var embeddingResult = EmbeddingFloatResult.PARSER.apply(jsonParser, null);
 
-                List<DenseEmbeddingFloatResults.Embedding> embeddingList = embeddingResult.entries.stream()
+                List<EmbeddingFloatResults.Embedding> embeddingList = embeddingResult.entries.stream()
                     .map(EmbeddingFloatResultEntry::toInferenceFloatEmbedding)
                     .toList();
 

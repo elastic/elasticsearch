@@ -151,7 +151,7 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
         };
     }
 
-    private static URI buildUriFromSettings(ServiceSettings serviceSettings) {
+    static URI buildUriFromSettings(ServiceSettings serviceSettings) {
         if (serviceSettings.isMultimodal()) {
             return buildUri(VoyageAIService.NAME, VoyageAIEmbeddingsModel::buildMultimodalRequestUri);
         }

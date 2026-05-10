@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -244,6 +243,42 @@ public class VoyageAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSe
         );
     }
 
+    public void testFromMap_InvalidEmbeddingType_ThrowsError() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> VoyageAITextEmbeddingServiceSettings.fromMap(
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model", ServiceFields.EMBEDDING_TYPE, "invalid_type")),
+                ConfigurationParseContext.PERSISTENT
+            )
+        );
+
+        MatcherAssert.assertThat(thrownException.getMessage(), org.hamcrest.Matchers.containsString("[embedding_type]"));
+    }
+
+    public void testFromMap_NegativeDimensions_ThrowsError() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> VoyageAITextEmbeddingServiceSettings.fromMap(
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model", ServiceFields.DIMENSIONS, -1)),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+
+        MatcherAssert.assertThat(thrownException.getMessage(), org.hamcrest.Matchers.containsString("[dimensions]"));
+    }
+
+    public void testFromMap_NegativeMaxInputTokens_ThrowsError() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> VoyageAITextEmbeddingServiceSettings.fromMap(
+                new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model", ServiceFields.MAX_INPUT_TOKENS, -100)),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+
+        MatcherAssert.assertThat(thrownException.getMessage(), org.hamcrest.Matchers.containsString("[max_input_tokens]"));
+    }
+
     @SuppressWarnings("checkstyle:LineLength")
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new VoyageAITextEmbeddingServiceSettings(
@@ -344,35 +379,8 @@ public class VoyageAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSe
         return new NamedWriteableRegistry(entries);
     }
 
-    public static VoyageAITextEmbeddingServiceSettings createRandomWithNoNullValues() {
-        SimilarityMeasure similarityMeasure = randomSimilarityMeasure();
-        Integer dimensions = randomIntBetween(32, 256);
-        Integer maxInputTokens = randomIntBetween(128, 256);
-
-        var commonSettings = VoyageAIServiceSettingsTests.createRandom();
-        var embeddingType = randomFrom(VoyageAIEmbeddingType.values());
-        var dimensionsSetByUser = randomBoolean();
-
-        return new VoyageAITextEmbeddingServiceSettings(
-            commonSettings,
-            embeddingType,
-            similarityMeasure,
-            dimensions,
-            maxInputTokens,
-            dimensionsSetByUser
-        );
-    }
-
-    @Override
-    protected VoyageAITextEmbeddingServiceSettings mutateInstanceForVersion(
-        VoyageAITextEmbeddingServiceSettings instance,
-        TransportVersion version
-    ) {
-        return instance;
-    }
-
     public void testUpdateEmbeddingDetails() {
-        var settings = createRandomWithNoNullValues();
+        var settings = createRandom();
         var similarity = randomSimilarityMeasure();
         var dimensions = randomIntBetween(32, 256);
 

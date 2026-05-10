@@ -33,6 +33,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
@@ -67,8 +68,13 @@ public abstract class BaseVoyageAIEmbeddingsServiceSettings extends FilteredXCon
 
         VoyageAIEmbeddingType embeddingType = parseEmbeddingType(map, validationException);
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dimensions = removeAsType(map, DIMENSIONS, Integer.class);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+        Integer dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        Integer maxInputTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
 
         Boolean dimensionsSetByUser;
         if (context == ConfigurationParseContext.PERSISTENT) {

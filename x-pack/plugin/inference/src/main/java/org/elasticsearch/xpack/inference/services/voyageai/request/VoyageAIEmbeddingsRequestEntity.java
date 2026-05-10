@@ -72,9 +72,7 @@ public record VoyageAIEmbeddingsRequestEntity(
             builder.field(OUTPUT_DIMENSION, serviceSettings.dimensions());
         }
 
-        if (serviceSettings.getEmbeddingType() != null) {
-            builder.field(OUTPUT_DTYPE_FIELD, serviceSettings.getEmbeddingType().toRequestString());
-        }
+        builder.field(OUTPUT_DTYPE_FIELD, serviceSettings.getEmbeddingType().toRequestString());
 
         builder.endObject();
         return builder;

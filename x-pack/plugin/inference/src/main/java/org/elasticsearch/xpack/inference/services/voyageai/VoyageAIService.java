@@ -55,7 +55,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEntry;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
@@ -87,26 +86,27 @@ public class VoyageAIService extends SenderService<VoyageAIModel> implements Rer
         TaskType.RERANK,
         new VoyageAIRerankModelCreator()
     );
-    // Batch sizes are tuned to stay within the VoyageAI per-model token limits per request.
+    // Batch sizes based on VoyageAI per-model token limits per request.
     // See https://docs.voyageai.com/docs/embeddings for model-specific token limits.
-    private static final Integer DEFAULT_BATCH_SIZE = 7;
+    // These values assume typical document sizes rather than worst-case (max tokens per doc).
+    private static final Integer DEFAULT_BATCH_SIZE = 32;
     private static final Map<String, Integer> MODEL_BATCH_SIZES = Map.ofEntries(
-        Map.entry("voyage-multimodal-3", 7),
-        Map.entry("voyage-multimodal-3.5", 7),
-        Map.entry("voyage-3-large", 7),
-        Map.entry("voyage-code-3", 7),
-        Map.entry("voyage-3", 10),
-        Map.entry("voyage-3.5", 10),
-        Map.entry("voyage-3-lite", 30),
-        Map.entry("voyage-3.5-lite", 30),
-        Map.entry("voyage-finance-2", 7),
-        Map.entry("voyage-law-2", 7),
-        Map.entry("voyage-code-2", 7),
-        Map.entry("voyage-2", 72),
-        Map.entry("voyage-02", 72),
-        Map.entry("voyage-4-large", 7),
-        Map.entry("voyage-4", 10),
-        Map.entry("voyage-4-lite", 30)
+        Map.entry("voyage-multimodal-3", 20),
+        Map.entry("voyage-multimodal-3.5", 20),
+        Map.entry("voyage-3-large", 20),
+        Map.entry("voyage-code-3", 20),
+        Map.entry("voyage-3", 32),
+        Map.entry("voyage-3.5", 32),
+        Map.entry("voyage-3-lite", 64),
+        Map.entry("voyage-3.5-lite", 64),
+        Map.entry("voyage-finance-2", 20),
+        Map.entry("voyage-law-2", 20),
+        Map.entry("voyage-code-2", 20),
+        Map.entry("voyage-2", 128),
+        Map.entry("voyage-02", 128),
+        Map.entry("voyage-4-large", 20),
+        Map.entry("voyage-4", 32),
+        Map.entry("voyage-4-lite", 64)
     );
 
     private static final Map<String, Integer> RERANKERS_INPUT_SIZE = Map.of(

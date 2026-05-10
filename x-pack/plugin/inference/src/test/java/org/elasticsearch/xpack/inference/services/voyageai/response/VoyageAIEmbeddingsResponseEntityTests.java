@@ -12,7 +12,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -474,6 +473,9 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         assertThat(parsedResults, instanceOf(DenseEmbeddingByteResults.class));
+        var byteResults = (DenseEmbeddingByteResults) parsedResults;
+        assertThat(byteResults.embeddings().size(), is(1));
+        assertThat(byteResults.embeddings().get(0).values(), is(List.of((byte) 1, (byte) -2, (byte) 3)));
     }
 
     public void testFromResponse_CreatesResultsForBitEmbeddings() throws IOException {
@@ -498,6 +500,9 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         assertThat(parsedResults, instanceOf(DenseEmbeddingBitResults.class));
+        var bitResults = (DenseEmbeddingBitResults) parsedResults;
+        assertThat(bitResults.embeddings().size(), is(1));
+        assertThat(bitResults.embeddings().get(0).values(), is(List.of((byte) 1, (byte) -2, (byte) 3)));
     }
 
     public void testFromResponse_ReturnsGenericResults_ForEmbeddingTaskType() throws IOException {
@@ -513,7 +518,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of(new InferenceStringGroup("abc")),
             InputTypeTests.randomSearchAndIngestWithNull(),
-            createMultimodalModel()
+            createMultimodalModelWithEmbeddings()
         );
 
         InferenceServiceResults parsedResults = VoyageAIEmbeddingsResponseEntity.fromResponse(
@@ -522,6 +527,9 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         assertThat(parsedResults, instanceOf(GenericDenseEmbeddingFloatResults.class));
+        var floatResults = (GenericDenseEmbeddingFloatResults) parsedResults;
+        assertThat(floatResults.embeddings().size(), is(1));
+        assertThat(floatResults.embeddings().get(0).values(), is(List.of(0.1F, -0.2F, 0.3F)));
     }
 
     public void testFromResponse_ReturnsGenericByteResults_ForInt8EmbeddingTaskType() throws IOException {
@@ -537,7 +545,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of(new InferenceStringGroup("abc")),
             InputTypeTests.randomSearchAndIngestWithNull(),
-            createModelWithEmbeddingTypeAndTaskType(VoyageAIEmbeddingType.INT8, TaskType.EMBEDDING)
+            createMultimodalModelWithEmbeddingType(VoyageAIEmbeddingType.INT8)
         );
 
         InferenceServiceResults parsedResults = VoyageAIEmbeddingsResponseEntity.fromResponse(
@@ -561,7 +569,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of(new InferenceStringGroup("abc")),
             InputTypeTests.randomSearchAndIngestWithNull(),
-            createModelWithEmbeddingTypeAndTaskType(VoyageAIEmbeddingType.BIT, TaskType.EMBEDDING)
+            createMultimodalModelWithEmbeddingType(VoyageAIEmbeddingType.BIT)
         );
 
         InferenceServiceResults parsedResults = VoyageAIEmbeddingsResponseEntity.fromResponse(
@@ -584,14 +592,11 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
     }
 
-    private static VoyageAIEmbeddingsModel createMultimodalModel() {
+    private static VoyageAIEmbeddingsModel createMultimodalModelWithEmbeddings() {
         return VoyageAIEmbeddingsModelTests.createMultimodalModel("url", "api_key", null, null, "voyage-multimodal-3.5");
     }
 
-    private static VoyageAIEmbeddingsModel createModelWithEmbeddingTypeAndTaskType(
-        VoyageAIEmbeddingType embeddingType,
-        TaskType taskType
-    ) {
+    private static VoyageAIEmbeddingsModel createMultimodalModelWithEmbeddingType(VoyageAIEmbeddingType embeddingType) {
         return VoyageAIEmbeddingsModelTests.createMultimodalModel("url", "api_key", null, null, "voyage-multimodal-3.5", embeddingType);
     }
 }

@@ -70,26 +70,6 @@ public class VoyageAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerial
         );
     }
 
-    public static VoyageAIEmbeddingServiceSettings createRandomWithNoNullValues() {
-        SimilarityMeasure similarityMeasure = randomSimilarityMeasure();
-        Integer dimensions = randomIntBetween(32, 256);
-        Integer maxInputTokens = randomIntBetween(128, 256);
-
-        var commonSettings = VoyageAIServiceSettingsTests.createRandom();
-        var embeddingType = randomFrom(VoyageAIEmbeddingType.values());
-        var dimensionsSetByUser = randomBoolean();
-        var multimodalModel = randomBoolean();
-
-        return new VoyageAIEmbeddingServiceSettings(
-            commonSettings,
-            embeddingType,
-            similarityMeasure,
-            dimensions,
-            maxInputTokens,
-            dimensionsSetByUser,
-            multimodalModel
-        );
-    }
 
     @Override
     protected Writeable.Reader<VoyageAIEmbeddingServiceSettings> instanceReader() {
@@ -277,7 +257,7 @@ public class VoyageAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerial
     }
 
     public void testUpdateEmbeddingDetails() {
-        var settings = createRandomWithNoNullValues();
+        var settings = createRandom();
         var similarity = randomSimilarityMeasure();
         var dimensions = randomIntBetween(32, 256);
 

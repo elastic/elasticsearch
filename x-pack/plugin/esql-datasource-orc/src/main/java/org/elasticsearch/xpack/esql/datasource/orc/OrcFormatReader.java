@@ -401,7 +401,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         try {
             long len = object.length();
             return len >= 0 ? len : 0;
-        } catch (Exception e) {
+        } catch (IOException e) {
             return 0;
         }
     }

@@ -150,6 +150,14 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             "esql_async_source_bytes_buffered"
         );
 
+        /**
+         * Shared gate across two semantically separate feature sets that land in the same PR:
+         * (1) operator-level fields on this {@code Status} ({@code process_nanos}, splits triplet,
+         * {@code bytes_read}, {@code read_nanos}, {@code format_reader}); (2) query-wide rollups on
+         * {@link org.elasticsearch.compute.operator.DriverCompletionInfo} ({@code rows_emitted},
+         * {@code bytes_read}, {@code read_nanos}, {@code cpu_nanos}). One TV suffices because both
+         * surface together — older nodes read zeros / empty maps in both places.
+         */
         private static final TransportVersion ESQL_EXTERNAL_SOURCE_TELEMETRY = TransportVersion.fromName("esql_external_source_telemetry");
 
         private final int pagesWaiting;

@@ -50,27 +50,21 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             case 1 -> Map.of("row_groups_read", randomNonNegativeLong());
             case 2 -> Map.of("row_groups_read", randomNonNegativeLong(), "rows_filtered", randomNonNegativeLong());
             // Case 3 exercises the producer-realistic shape: a "columns" key carrying nested
-            // Map<String, Map<String, Object>> per-column entries — the same shape ParquetReaderCounters
-            // emits today. Without this case, the wire round-trip in AbstractWireSerializingTestCase
-            // never sees the nested map and a PerColumnStatus regression would not be caught here.
+            // Map<String, Map<String, Object>>. Without this case, the wire round-trip in
+            // AbstractWireSerializingTestCase never sees the nested map and a PerColumnStatus-style
+            // regression would not be caught here. String keys are intentionally neutral — this is
+            // wire-format coverage, not production semantics.
             case 3 -> Map.of(
-                "row_groups_kept",
+                "scalar_a",
                 randomNonNegativeLong(),
-                "total_read_nanos",
+                "scalar_b",
                 randomNonNegativeLong(),
                 "columns",
                 Map.of(
                     "host",
-                    Map.of(
-                        "bytes_compressed_read",
-                        randomNonNegativeLong(),
-                        "decode_nanos",
-                        randomNonNegativeLong(),
-                        "materialization",
-                        randomFrom("eager", "late")
-                    ),
+                    Map.of("leaf_a", randomNonNegativeLong(), "leaf_b", randomNonNegativeLong(), "leaf_c", randomFrom("eager", "late")),
                     "status_code",
-                    Map.of("pages_read", randomNonNegativeLong(), "materialization", "eager")
+                    Map.of("leaf_a", randomNonNegativeLong(), "leaf_c", "eager")
                 )
             );
             default -> throw new UnsupportedOperationException();
@@ -186,19 +180,21 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
      * nested-Map payload in the random-instance space catches that regression in the round-trip.
      */
     public void testFormatReaderRoundTripWithNestedColumnsMap() throws IOException {
+        // String keys here are arbitrary — the test exercises wire-format round-trip of nested
+        // Map<String, Object>, not production semantics. Using neutral names avoids false-grep hits.
         Map<String, Object> formatReader = Map.of(
-            "row_groups_in_file",
+            "scalar_a",
             42L,
-            "row_groups_kept",
+            "scalar_b",
             7L,
-            "total_read_nanos",
+            "scalar_c",
             123_456L,
             "columns",
             Map.of(
                 "host",
-                Map.of("bytes_compressed_read", 1024L, "decode_nanos", 500L, "materialization", "late"),
+                Map.of("leaf_a", 1024L, "leaf_b", 500L, "leaf_c", "late"),
                 "status_code",
-                Map.of("pages_read", 9L, "materialization", "eager")
+                Map.of("leaf_a", 9L, "leaf_c", "eager")
             )
         );
         AsyncExternalSourceOperator.Status original = new AsyncExternalSourceOperator.Status(

@@ -199,6 +199,13 @@ public class SearchCommitPrefetcher {
         var prefetchedBytes = new AtomicLong(0);
         final var currentMaxPrefetchedOffset = maxPrefetchedOffset.get();
         var prefetchingStarted = threadPool.relativeTimeInMillis();
+        logger.info(
+            "---> prefetcher-enter: shard={} commit={} maxPrefetched(snapshot)={} thread={}",
+            shardId,
+            notification.compoundCommit().primaryTermAndGeneration(),
+            currentMaxPrefetchedOffset,
+            Thread.currentThread().getName()
+        );
 
         ActionListener<Void> prefetchListener = ActionListener.runBefore(listener, () -> {
             // TODO: add APM metrics?
@@ -238,7 +245,14 @@ public class SearchCommitPrefetcher {
                 compoundCommit.commitFiles().values()
             );
 
-            logger.debug("[{}] Missing ranges [{}] for new commit [{}]", shardId, bccRangesToPrefetch, notification);
+            logger.info(
+                "[REPRO] prefetcher-computed-ranges: shard={} commit={} maxPrefetched(snapshot)={} maxBCCGenToPrefetch={} ranges={}",
+                shardId,
+                compoundCommit.primaryTermAndGeneration(),
+                currentMaxPrefetchedOffset,
+                maxBCCGenerationToPrefetch,
+                bccRangesToPrefetch
+            );
 
             for (Map.Entry<BlobFile, ByteRange> bccRangeToPrefetch : bccRangesToPrefetch.entrySet()) {
                 var blobFile = bccRangeToPrefetch.getKey();
@@ -279,6 +293,7 @@ public class SearchCommitPrefetcher {
                 var startRegion = cacheService.getRegion(rangeToPrefetch.start());
                 var endRegion = cacheService.getEndingRegion(rangeToPrefetch.end());
                 for (int region = startRegion; region <= endRegion; region++) {
+                    final int regionForLog = region;
                     long regionRangeStart = Math.max(cacheService.getRegionStart(region), rangeToPrefetch.start());
                     long regionRangeEnd = Math.min(cacheService.getRegionEnd(region), rangeToPrefetch.end());
                     assert regionRangeEnd > regionRangeStart;
@@ -324,9 +339,21 @@ public class SearchCommitPrefetcher {
                         forcePrefetch,
                         refCountingListener.acquire().map(populated -> {
                             if (populated) {
+                                var before = maxPrefetchedOffset.get();
                                 var offsetAfterPopulation = maxPrefetchedOffset.accumulateAndGet(
                                     new BCCPreFetchedOffset(blobFile.termAndGeneration(), maxPrefetchedOffsetInRegion),
                                     (original, candidate) -> original.compareTo(candidate) < 0 ? candidate : original
+                                );
+                                logger.info(
+                                    "[REPRO] maxPrefetched-update: shard={} blobFile={} region={} adjustedRange=[{}-{}] before={} candidate={} after={}",
+                                    shardId,
+                                    blobFile.blobName(),
+                                    regionForLog,
+                                    adjustedRangeToPrefetch.start(),
+                                    adjustedRangeToPrefetch.end(),
+                                    before,
+                                    new BCCPreFetchedOffset(blobFile.termAndGeneration(), maxPrefetchedOffsetInRegion),
+                                    offsetAfterPopulation
                                 );
                                 assert assertMaxPrefetchedOffsetMovesForward(currentMaxPrefetchedOffset, offsetAfterPopulation)
                                     : "maxPrefetchedOffset should move forward after a successful prefetching but it didn't: "

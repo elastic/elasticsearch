@@ -58,6 +58,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -336,7 +337,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
     }
 
     public void testCommitPrefetching() throws Exception {
-        var prefetchNonUploadedCommits = randomBoolean();
+        var prefetchNonUploadedCommits = true; // REPRO: force the failing case observed on CI
         var nodeSettings = Settings.builder()
             .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), prefetchNonUploadedCommits)
             // TODO fix this test to work with this randomized
@@ -357,34 +358,116 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         var shardId = new ShardId(resolveIndex(indexName), 0);
         var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(vBCCGen);
 
+        logger.info(
+            "---> test-start: shardId={} vBCCGen={} bccBlobName={} prefetchNonUploadedCommits={}",
+            shardId,
+            vBCCGen,
+            bccBlobName,
+            prefetchNonUploadedCommits
+        );
+
         var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
         var bytesReadFromIndexingNode = meterIndexingNodeReadsForBCC(indexNode, shardId, vBCCGen);
 
         var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
+        logger.info(
+            "---> before-loop: idx={} blob={} totalPrefetchedBytes={}",
+            bytesReadFromIndexingNode.get(),
+            bytesReadFromBlobStore.get(),
+            searchEngine.getTotalPrefetchedBytes()
+        );
 
         var numberOfCommits = randomIntBetween(5, 8);
         for (int j = 0; j < numberOfCommits; j++) {
+            logger.info("--> commit-{} pre-index: idx={} blob={}", j, bytesReadFromIndexingNode.get(), bytesReadFromBlobStore.get());
             // Index enough documents so the initial read happening during refresh doesn't include the complete Lucene files
             indexDocs(indexName, 10_000);
             refresh(indexName);
         }
 
+        var indicesSegments = client().admin().indices().prepareSegments(indexName).get();
+        indicesSegments.getIndices()
+            .get(indexName)
+            .getShards()
+            .forEach(
+                (sid, shardSegments) -> Arrays.stream(shardSegments.shards())
+                    .forEach(
+                        s -> logger.info(
+                            "--> [{}][{}] {} has {} segments before flush: numberOfCommits={}",
+                            indexName,
+                            sid,
+                            s.getShardRouting(),
+                            s.getSegments().size(),
+                            numberOfCommits
+                        )
+                    )
+            );
+
         var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
+        var bccTotalPaddingInBytes = currentVirtualBcc.getTotalPaddingInBytes();
+        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
+        logger.info(
+            "---> snapshot-pre-flush: bccTotalSize={} padding={} pendingCommits={} idx={} blob={} prefetched={}",
+            bccTotalSizeInBytes,
+            bccTotalPaddingInBytes,
+            currentVirtualBcc.getPendingCompoundCommits().size(),
+            bytesReadFromIndexingNode.get(),
+            bytesReadFromBlobStore.get(),
+            searchEngine.getTotalPrefetchedBytes()
+        );
 
         flush(indexName);
 
-        var bccTotalPaddingInBytes = currentVirtualBcc.getTotalPaddingInBytes();
-        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
-        assertBusy(
-            () -> assertThat(
-                bccTotalSizeInBytes,
-                // A BCC can contain multiple Lucene commits, for performance reasons, the latest file on each commit is padded
-                // to be page aligned. The get VBCC chunk request doesn't account for that since the padding is done by the cache
-                // at population time and the blob is padded later on.
-                is(equalTo(bytesReadFromBlobStore.get() + bytesReadFromIndexingNode.get() + bccTotalPaddingInBytes))
-            )
+        logger.info(
+            "---> post-flush: bccTotalSize={} padding={} pendingCommits={} frozen={} idx={} blob={} prefetched={}",
+            currentVirtualBcc.getTotalSizeInBytes(),
+            currentVirtualBcc.getTotalPaddingInBytes(),
+            currentVirtualBcc.getPendingCompoundCommits().size(),
+            currentVirtualBcc.isFrozen(),
+            bytesReadFromIndexingNode.get(),
+            bytesReadFromBlobStore.get(),
+            searchEngine.getTotalPrefetchedBytes()
         );
+
+        try {
+            assertBusy(() -> {
+                long lhs = bccTotalSizeInBytes;
+                long blobBytes = bytesReadFromBlobStore.get();
+                long idxBytes = bytesReadFromIndexingNode.get();
+                long rhs = blobBytes + idxBytes + bccTotalPaddingInBytes;
+                logger.info(
+                    "---> poll: bccTotalSize={} rhs={} (blob={} idx={} padding={}) diff(rhs-lhs)={} prefetched={}",
+                    lhs,
+                    rhs,
+                    blobBytes,
+                    idxBytes,
+                    bccTotalPaddingInBytes,
+                    rhs - lhs,
+                    searchEngine.getTotalPrefetchedBytes()
+                );
+                assertThat(
+                    lhs,
+                    // A BCC can contain multiple Lucene commits, for performance reasons, the latest file on each commit is padded
+                    // to be page aligned. The get VBCC chunk request doesn't account for that since the padding is done by the cache
+                    // at population time and the blob is padded later on.
+                    is(equalTo(rhs))
+                );
+            });
+        } catch (AssertionError e) {
+            logger.error(
+                "---> assertion failed : bccTotalSize={} padding={} idx={} blob={} prefetched={} vbccFinalSize={} vbccFinalPadding={} pendingCommits={}",
+                bccTotalSizeInBytes,
+                bccTotalPaddingInBytes,
+                bytesReadFromIndexingNode.get(),
+                bytesReadFromBlobStore.get(),
+                searchEngine.getTotalPrefetchedBytes(),
+                currentVirtualBcc.getTotalSizeInBytes(),
+                currentVirtualBcc.getTotalPaddingInBytes(),
+                currentVirtualBcc.getPendingCompoundCommits().size()
+            );
+            throw e;
+        }
 
         if (prefetchNonUploadedCommits) {
             // If we prefetch all the commits through the indexing node, the cache would align writes
@@ -733,7 +816,17 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                             var getVBCCChunkResponse = (GetVirtualBatchedCompoundCommitChunkResponse) response;
                             if (getVBCCChunkRequest.getShardId().equals(shardId)
                                 && getVBCCChunkRequest.getVirtualBatchedCompoundCommitGeneration() == vBCCGenToMeter) {
-                                bytesReadFromIndexingNode.addAndGet(getVBCCChunkResponse.getData().length());
+                                int respLen = getVBCCChunkResponse.getData().length();
+                                long running = bytesReadFromIndexingNode.addAndGet(respLen);
+                                logger.info(
+                                    "---> idx-fetch req=[off={}, len={}] resp.len={} running={} thread={} (vbccGen={})",
+                                    getVBCCChunkRequest.getOffset(),
+                                    getVBCCChunkRequest.getLength(),
+                                    respLen,
+                                    running,
+                                    Thread.currentThread().getName(),
+                                    vBCCGenToMeter
+                                );
                             }
                             channel.sendResponse(response);
                         }

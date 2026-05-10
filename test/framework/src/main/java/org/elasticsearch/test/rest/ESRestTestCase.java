@@ -2949,6 +2949,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /** Deprecated three-arg form kept for callers that haven't been updated for the rollup metrics. */
+    @Deprecated
     protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound, boolean includeTimestamps) {
         return getResultMatcher(includePartial, includeDocumentsFound, includeTimestamps, false);
     }

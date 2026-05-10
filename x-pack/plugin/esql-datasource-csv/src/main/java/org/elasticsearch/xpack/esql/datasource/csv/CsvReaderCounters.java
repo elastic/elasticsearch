@@ -56,7 +56,7 @@ public final class CsvReaderCounters {
      * {@code rows_read} (rows the iterator produced — same key name across all four format readers
      * for cross-format consumer aggregation), {@code parse_errors} (CSV-specific count of malformed
      * rows skipped under lenient policies), {@code header_detected} (CSV-specific setup flag),
-     * {@code total_read_nanos}.
+     * {@code read_nanos}.
      */
     public Map<String, Object> snapshot() {
         Map<String, Object> snap = new LinkedHashMap<>();

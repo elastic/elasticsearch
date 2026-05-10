@@ -48,7 +48,7 @@ public final class NdJsonReaderCounters {
      * {@code AsyncExternalSourceOperator.Status.format_reader}. Keys: {@code format} (discriminator),
      * {@code rows_read} (rows the format reader produced — same key name across all four format
      * readers for cross-format consumer aggregation), {@code parse_errors} (NDJSON-specific count
-     * of malformed lines skipped under lenient policies), {@code total_read_nanos}.
+     * of malformed lines skipped under lenient policies), {@code read_nanos}.
      */
     public Map<String, Object> snapshot() {
         Map<String, Object> snap = new LinkedHashMap<>();

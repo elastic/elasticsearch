@@ -548,7 +548,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             reader.close();
             throw t;
         } finally {
-            // total_read_nanos covers the synchronous setup phase of read() / readRange(): footer
+            // read_nanos covers the synchronous setup phase of read() / readRange(): footer
             // open, row-group filter, page-index narrowing, late-mat decision, iterator construction.
             // Per-page wall time during iterator drain is not folded in here — page-level decode/
             // decompress timing is captured in per-column counters, but the iterator's overall
@@ -804,7 +804,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             reader.close();
             throw t;
         } finally {
-            // See read() for total_read_nanos scope semantics.
+            // See read() for read_nanos scope semantics.
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
         }
     }

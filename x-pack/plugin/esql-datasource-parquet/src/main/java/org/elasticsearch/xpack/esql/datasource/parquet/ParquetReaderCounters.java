@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.LongAdder;
  * ({@code page_index_used}, {@code rows_in_kept_row_groups}, {@code rows_after_page_index}),
  * late materialization ({@code late_materialization_enabled},
  * {@code late_materialization_used}, {@code predicate_columns}),
- * aggregate ({@code total_read_nanos}), and a typed per-column map under {@code columns}.
+ * aggregate ({@code read_nanos}), and a typed per-column map under {@code columns}.
  * <p>
  * The mutable / immutable split mirrors the {@link org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters}
  * pattern. {@link LongAdder} is preferred over {@code AtomicLong} because async read-path

@@ -271,7 +271,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         /**
          * Wall time spent inside {@link AsyncExternalSourceOperator#getOutput()}'s read loop.
          * Producer-thread time (format-reader open, decode, decompression) lives in
-         * {@code format_reader.total_read_nanos} on this same Status, not in this counter.
+         * {@code format_reader.read_nanos} on this same Status, not in this counter.
          */
         public long processNanos() {
             return processNanos;

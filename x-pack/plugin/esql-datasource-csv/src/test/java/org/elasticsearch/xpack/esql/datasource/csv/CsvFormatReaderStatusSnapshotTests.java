@@ -68,7 +68,7 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
         assertEquals("3 data rows parsed (header excluded)", 3L, after.get("rows_emitted"));
         assertEquals("no malformed rows in this fixture", 0L, after.get("parse_errors"));
         assertEquals("header row detected", true, after.get("header_detected"));
-        assertTrue("total_read_nanos should be > 0 after at least one batch", ((Long) after.get("read_nanos")) > 0);
+        assertTrue("read_nanos should be > 0 after at least one batch", ((Long) after.get("read_nanos")) > 0);
     }
 
     private static StorageObject inMemoryCsv(String content) {

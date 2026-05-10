@@ -260,14 +260,14 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
                     equalTo(false)
                 );
                 assertThat(formatReader, hasKey("row_groups_in_file"));
-                assertThat(formatReader, hasKey("total_read_nanos"));
+                assertThat(formatReader, hasKey("read_nanos"));
                 long rowGroupsInFile = ((Number) formatReader.get("row_groups_in_file")).longValue();
                 assertThat("multi-row-group fixture should report at least one row group", rowGroupsInFile, greaterThanOrEqualTo(1L));
-                // total_read_nanos is wall-time and can read as zero on fast / containerized CI runners
+                // read_nanos is wall-time and can read as zero on fast / containerized CI runners
                 // (sub-microsecond synchronous reads + low-resolution clocks). Assert presence + non-negative
                 // rather than a strict positive — the deterministic shape signal lives in row_groups_in_file.
-                long totalReadNanos = ((Number) formatReader.get("total_read_nanos")).longValue();
-                assertThat("total_read_nanos must be present and non-negative", totalReadNanos, greaterThanOrEqualTo(0L));
+                long totalReadNanos = ((Number) formatReader.get("read_nanos")).longValue();
+                assertThat("read_nanos must be present and non-negative", totalReadNanos, greaterThanOrEqualTo(0L));
             }
         } finally {
             Files.deleteIfExists(parquetFile);

@@ -128,11 +128,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
      * been observed. Multiplied by the configured search batch size and by an overhead factor of 2, then
      * capped at {@link #UPFRONT_RESERVATION_CAP_BYTES}.
      *
-     * <p>1 KiB is intentionally well below the 200 KiB documents in the original OOM issue; the upfront seed
-     * is only a smoke-alarm for AUTO_SLICES floods on already-loaded nodes, and the per-batch ratchet picks up
-     * the real size on the first scroll response. A larger seed (e.g. the 10 KiB Szymon's doc proposed) caused
-     * false-positive trips for workloads that legitimately set a large {@code scroll_size} for small documents
-     * (e.g. enrich, default {@code fetch_size = 10_000} on docs that are usually under a kilobyte).
+     * <p>1 000 bytes is intentionally well below the 200 kB documents in the original OOM issue; the upfront
+     * seed is only a smoke-alarm for AUTO_SLICES floods on already-loaded nodes, and the per-batch ratchet
+     * picks up the real size on the first scroll response. A larger seed (e.g. the 10 kB earlier drafts
+     * proposed) caused false-positive trips for workloads that legitimately set a large {@code scroll_size}
+     * for small documents (e.g. enrich, default {@code fetch_size = 10_000} on docs that are usually under a
+     * kilobyte).
      */
     private static final long UPFRONT_BYTES_PER_DOC_GUESS = 1_000L;
     /**
@@ -1058,10 +1059,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
         );
         final Exception resolvedFailure = maybeWrapCatastrophicFailure(pitPagination, pastKeepaliveDeadline, failure);
         requestFinishing.set(true);
-        // Release the breaker reservation held continuously by this action since {@link #start()} (or zero if
-        // the upfront reserve in start() was the call that tripped). Done unconditionally on every termination
-        // path — success, indexing failures, search failures, cancellation, breaker trip.
-        releaseAllReservedBytes();
+        // Release unconsumed hits BEFORE releasing the breaker reservation. The reservation is sized to
+        // cover hit memory plus bulk-request construction overhead; if we released the breaker first, the
+        // small window between "breaker reports headroom" and "hit refs are actually decremented" could let
+        // a concurrent request observe budget that isn't physically free yet.
         // Atomically claim the current response. If prepareBulkRequest already claimed it (null), this is a no-op.
         // If we win the CAS, we release any hits that were not yet consumed (i.e. from consumedOffset to end).
         // This covers: prepareBulkRequest hasn't run yet (consumedOffset == 0) and the maxDocs partial-batch case.
@@ -1069,6 +1070,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
         if (toRelease != null) {
             toRelease.releaseRemainingHits();
         }
+        // Release the breaker reservation held continuously by this action since {@link #start()} (or zero if
+        // the upfront reserve in start() was the call that tripped). Done unconditionally on every termination
+        // path — success, indexing failures, search failures, cancellation, breaker trip.
+        releaseAllReservedBytes();
         paginatedHitSource.close(threadPool.getThreadContext().preserveContext(() -> {
             if (resolvedFailure == null) {
                 BulkByScrollResponse response = buildResponse(

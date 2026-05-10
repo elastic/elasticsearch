@@ -28,11 +28,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * End-to-end check that delete-by-query reserves heap budget against the REQUEST circuit breaker before
- * each batch's bulk request is built, and surfaces a {@link CircuitBreakingException} to the client when the
- * breaker trips. The reservation is sized off hit source bytes (the search returns full hits even though DBQ
- * only emits {@code DeleteRequest}s in the bulk), so a query that would match large documents trips the
- * breaker the same as reindex/UBQ would.
+ * End-to-end check that delete-by-query reserves heap budget against the REQUEST circuit breaker and surfaces
+ * a {@link CircuitBreakingException} to the client when the breaker trips. Unlike reindex and update-by-query,
+ * DBQ deliberately disables {@code _source} fetching (see {@link DeleteByQueryRequest}) and emits
+ * {@code DeleteRequest}s (no body) in the bulk, so the per-batch ratchet's byte estimate is small enough that
+ * realistically-sized batches cannot trip the breaker on the ratchet path. This test instead verifies the
+ * upfront-reservation path in {@code start()} — the only path that meaningfully trips for DBQ — by setting
+ * the breaker limit below the upfront seed.
  *
  * <p>This is the DBQ companion to {@link ReindexCircuitBreakerTests} and {@link UpdateByQueryCircuitBreakerTests};
  * each concrete action has its own breaker wiring with a distinct label so each needs its own end-to-end
@@ -49,12 +51,15 @@ public class DeleteByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         return Settings.builder()
             .put(super.nodeSettings())
-            // Starve the REQUEST breaker so the per-batch reservation delete-by-query makes will trip it.
+            // Sized to trip on the upfront seed at start() rather than the per-batch ratchet, since DBQ's
+            // ratchet estimate is dominated by 50-byte-per-doc REQUEST_OVERHEAD and never reaches a
+            // realistic breaker limit. Default scroll_size = 1000 × 1000 × 2 = 2 MiB upfront ⇒ trips the
+            // 1 KiB limit.
             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1kb")
             .build();
     }
 
-    public void testDeleteByQueryFailsWithCircuitBreakingExceptionWhenBatchExceedsRequestBreakerLimit() {
+    public void testDeleteByQueryFailsWhenUpfrontReservationExceedsRequestBreakerLimit() {
         final int docCount = 5;
         for (int i = 0; i < docCount; i++) {
             prepareIndex("source").setId(Integer.toString(i)).setSource("data", "x".repeat(500)).get();

@@ -57,9 +57,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     /**
      * TV gating the query-wide rollup metrics at the response root: {@code rows_emitted},
      * {@code bytes_read}, {@code read_nanos}, {@code cpu_nanos}. Older nodes don't carry these
-     * on the wire and read 0.
+     * on the wire and read 0. Shares the gate with the operator-level telemetry fields — both
+     * land in the same PR so a single TV suffices.
      */
-    private static final TransportVersion ESQL_QUERY_ROLLUP_METRICS = TransportVersion.fromName("esql_query_rollup_metrics");
+    private static final TransportVersion ESQL_EXTERNAL_SOURCE_TELEMETRY = TransportVersion.fromName("esql_external_source_telemetry");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
@@ -220,7 +221,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             long bytesRead = 0;
             long readNanos = 0;
             long cpuNanos = 0;
-            if (in.getTransportVersion().supports(ESQL_QUERY_ROLLUP_METRICS)) {
+            if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_TELEMETRY)) {
                 rowsEmitted = in.readVLong();
                 bytesRead = in.readVLong();
                 readNanos = in.readVLong();
@@ -281,7 +282,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             out.writeVLong(documentsFound);
             out.writeVLong(valuesLoaded);
         }
-        if (out.getTransportVersion().supports(ESQL_QUERY_ROLLUP_METRICS)) {
+        if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_TELEMETRY)) {
             out.writeVLong(rowsEmitted);
             out.writeVLong(bytesRead);
             out.writeVLong(readNanos);

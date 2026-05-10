@@ -274,7 +274,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(9, answer.size());
+        assertEquals(13, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
@@ -284,6 +284,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .entry("is_partial", any(Boolean.class))
                 .entry("documents_found", 0)
                 .entry("values_loaded", 0)
+                .entry("rows_emitted", greaterThanOrEqualTo(0))
+                .entry("bytes_read", greaterThanOrEqualTo(0))
+                .entry("read_nanos", greaterThanOrEqualTo(0))
+                .entry("cpu_nanos", greaterThanOrEqualTo(0))
                 .entry("columns", List.of(colA, colB))
                 .entry("values", List.of(List.of(1, 2)))
                 .entry("completion_time_in_millis", greaterThan(0L))

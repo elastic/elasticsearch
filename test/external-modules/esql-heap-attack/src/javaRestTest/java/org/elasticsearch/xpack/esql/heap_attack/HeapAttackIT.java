@@ -48,6 +48,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.matchesRegex;
@@ -177,6 +178,10 @@ public class HeapAttackIT extends HeapAttackTestCase {
                 .entry("values", List.of(List.of(9)))
                 .entry("documents_found", greaterThan(0))
                 .entry("values_loaded", greaterThan(0))
+                .entry("rows_emitted", greaterThanOrEqualTo(0))
+                .entry("bytes_read", greaterThanOrEqualTo(0))
+                .entry("read_nanos", greaterThanOrEqualTo(0))
+                .entry("cpu_nanos", greaterThanOrEqualTo(0))
                 .entry("completion_time_in_millis", greaterThan(0L))
                 .entry("expiration_time_in_millis", greaterThan(0L))
                 .entry("start_time_in_millis", greaterThan(0L))

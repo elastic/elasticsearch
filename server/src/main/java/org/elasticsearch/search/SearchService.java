@@ -111,6 +111,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.LegacyReaderContext;
+import org.elasticsearch.search.internal.PitReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -307,11 +308,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
-    public static final FeatureFlag BATCHED_QUERY_PHASE_FEATURE_FLAG = new FeatureFlag("batched_query_phase");
-
     public static final Setting<Boolean> BATCHED_QUERY_PHASE = Setting.boolSetting(
         "search.batched_query_phase",
-        BATCHED_QUERY_PHASE_FEATURE_FLAG.isEnabled(),
+        true,
         Property.OperatorDynamic,
         Property.NodeScope
     );
@@ -1550,13 +1549,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Engine.SearcherSupplier reader,
         long keepAliveInMillis
     ) {
-        ReaderContext readerContext = null;
+        PitReaderContext readerContext = null;
         try {
             long newKey = idGenerator.incrementAndGet();
             // Check that we don't already have a relocation mapping for this context id
             final Long previous = activeReaders.generateRelocationMapping(contextId, newKey);
             if (previous == null) {
-                readerContext = new ReaderContext(contextId, indexService, shard, reader, keepAliveInMillis, false);
+                readerContext = new PitReaderContext(contextId, indexService, shard, reader, keepAliveInMillis);
                 reader = null;
                 final ReaderContext finalReaderContext = readerContext;
                 final SearchOperationListener searchOperationListener = shard.getSearchOperationListener();
@@ -1574,7 +1573,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    protected void putRelocatedReaderContext(Long mappingKey, ReaderContext context) {
+    protected void putRelocatedReaderContext(Long mappingKey, PitReaderContext context) {
         activeReaders.putRelocatedReader(mappingKey, context);
         final Index index = context.indexShard().shardId().getIndex();
         if (indicesService.hasIndex(index) == false) {
@@ -1607,7 +1606,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     idGenerator.incrementAndGet(),
                     searcherSupplier.getSearcherId()
                 );
-                readerContext = new ReaderContext(id, indexService, shard, searcherSupplier, keepAlive.millis(), false);
+                readerContext = new PitReaderContext(id, indexService, shard, searcherSupplier, keepAlive.millis());
                 final ReaderContext finalReaderContext = readerContext;
                 searcherSupplier = null; // transfer ownership to reader context
                 searchOperationListener.onNewReaderContext(readerContext);
@@ -2171,15 +2170,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public long getActivePITContexts() {
-        return this.activeReaders.values().stream().filter(c -> c.singleSession() == false).filter(c -> c.scrollContext() == null).count();
+        return this.activeReaders.values().stream().filter(c -> c instanceof PitReaderContext).count();
     }
 
-    public List<ReaderContext> getActivePITContexts(ShardId shardId) {
+    public List<PitReaderContext> getActivePITContexts(ShardId shardId) {
         return this.activeReaders.values()
             .stream()
-            .filter(c -> c.singleSession() == false)
-            .filter(c -> c.scrollContext() == null)
+            .filter(c -> c instanceof PitReaderContext)
             .filter(c -> c.indexShard().shardId().equals(shardId))
+            .map(c -> (PitReaderContext) c)
             .collect(Collectors.toList());
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -145,6 +148,29 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     @Override
     protected WildcardLike replaceChild(Expression newLeft) {
         return new WildcardLike(source(), newLeft, pattern(), caseInsensitive());
+    }
+
+    /**
+     * Fast path for prefix and suffix wildcard shapes (e.g. {@code LIKE "foo*"}
+     * and {@code LIKE "*foo"}): dispatch to the byte-comparison evaluators
+     * used by {@code STARTS_WITH}/{@code ENDS_WITH} instead of building an
+     * {@link org.apache.lucene.util.automaton.Automaton} and running
+     * {@code RunAutomaton.step} per row. The general path (other patterns,
+     * case-insensitive matching) still goes through {@code AutomataMatch}.
+     */
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (caseInsensitive() == false) {
+            String prefix = pattern().matchesPrefix();
+            if (prefix != null) {
+                return new StartsWith(source(), field(), Literal.keyword(source(), prefix)).toEvaluator(toEvaluator);
+            }
+            String suffix = pattern().matchesSuffix();
+            if (suffix != null) {
+                return new EndsWith(source(), field(), Literal.keyword(source(), suffix)).toEvaluator(toEvaluator);
+            }
+        }
+        return super.toEvaluator(toEvaluator);
     }
 
     @Override

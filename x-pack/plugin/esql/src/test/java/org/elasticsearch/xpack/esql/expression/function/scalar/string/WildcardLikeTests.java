@@ -71,6 +71,38 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(str, type, "str"),
                         new TestCaseSupplier.TypedData(pattern, DataType.KEYWORD, "pattern").forceLiteral()
                     ),
+                    startsWith("StartsWithEvaluator[str=Attribute[channel=0], prefix="),
+                    DataType.BOOLEAN,
+                    equalTo(match)
+                );
+            }));
+            // Suffix-only pattern (*literal) — verifies dispatch to EndsWith.
+            suppliers.add(new TestCaseSupplier("suffix with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
+                String suffixString = randomAlphaOfLength(2);
+                BytesRef str = new BytesRef(randomAlphaOfLength(3) + suffixString);
+                BytesRef pattern = new BytesRef("*" + suffixString);
+                Boolean match = str.utf8ToString().endsWith(suffixString);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(str, type, "str"),
+                        new TestCaseSupplier.TypedData(pattern, DataType.KEYWORD, "pattern").forceLiteral()
+                    ),
+                    startsWith("EndsWithEvaluator[str=Attribute[channel=0], suffix="),
+                    DataType.BOOLEAN,
+                    equalTo(match)
+                );
+            }));
+            // Contains-only pattern (*literal*) — should still route through AutomataMatch.
+            suppliers.add(new TestCaseSupplier("contains with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
+                String middle = randomAlphaOfLength(2);
+                BytesRef str = new BytesRef(randomAlphaOfLength(2) + middle + randomAlphaOfLength(2));
+                BytesRef pattern = new BytesRef("*" + middle + "*");
+                Boolean match = str.utf8ToString().contains(middle);
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(str, type, "str"),
+                        new TestCaseSupplier.TypedData(pattern, DataType.KEYWORD, "pattern").forceLiteral()
+                    ),
                     startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
                     DataType.BOOLEAN,
                     equalTo(match)

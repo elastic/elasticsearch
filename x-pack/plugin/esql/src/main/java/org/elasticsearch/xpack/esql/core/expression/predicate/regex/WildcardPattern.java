@@ -82,6 +82,65 @@ public class WildcardPattern extends AbstractStringPattern implements Writeable 
         return wildcard;
     }
 
+    /**
+     * If this pattern has the shape {@code literal*} — exactly one unescaped
+     * {@code *} as the final character, no other wildcards — returns the
+     * literal prefix (with backslash escapes unwrapped). Returns {@code null}
+     * otherwise. Callers can use this to short-circuit to a {@code startsWith}
+     * byte comparison instead of building an {@code Automaton}.
+     */
+    public String matchesPrefix() {
+        return prefixOrSuffix(true);
+    }
+
+    /**
+     * If this pattern has the shape {@code *literal} — leading unescaped
+     * {@code *}, no other wildcards — returns the literal suffix (with
+     * backslash escapes unwrapped). Returns {@code null} otherwise.
+     */
+    public String matchesSuffix() {
+        return prefixOrSuffix(false);
+    }
+
+    private String prefixOrSuffix(boolean prefix) {
+        final int n = wildcard.length();
+        if (n == 0) {
+            return null;
+        }
+        if (prefix == false && wildcard.charAt(0) != '*') {
+            return null;
+        }
+        // The single allowed unescaped wildcard slot.
+        final int wildcardSlot = prefix ? n - 1 : 0;
+        final int litStart = prefix ? 0 : 1;
+        StringBuilder out = new StringBuilder(n);
+        int i = litStart;
+        while (i < n) {
+            char c = wildcard.charAt(i);
+            if (c == '\\') {
+                if (i + 1 >= n) {
+                    // Dangling escape — let the general automaton path handle it.
+                    return null;
+                }
+                out.append(wildcard.charAt(i + 1));
+                i += 2;
+                continue;
+            }
+            if (c == '*' || c == '?') {
+                if (c == '*' && i == wildcardSlot) {
+                    return out.toString();
+                }
+                return null;
+            }
+            out.append(c);
+            i++;
+        }
+        // For the suffix shape the leading '*' was already verified at i==0.
+        // For the prefix shape, a clean walk to the end without hitting the
+        // trailing '*' means there was no wildcard at all.
+        return prefix ? null : out.toString();
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(wildcard);

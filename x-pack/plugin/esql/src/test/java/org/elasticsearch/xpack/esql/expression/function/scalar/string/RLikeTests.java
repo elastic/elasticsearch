@@ -33,6 +33,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.randomCasing;
 import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.renderNegatedOperator;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -156,7 +157,11 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(new BytesRef(v.pattern), DataType.KEYWORD, "pattern").forceLiteral(),
                         new TestCaseSupplier.TypedData(caseInsensitive, DataType.BOOLEAN, "caseInsensitive").forceLiteral()
                     ),
-                    startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
+                    anyOf(
+                        startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
+                        startsWith("StartsWithEvaluator[str=Attribute[channel=0], prefix="),
+                        startsWith("EndsWithEvaluator[str=Attribute[channel=0], suffix=")
+                    ),
                     DataType.BOOLEAN,
                     equalTo(expected)
                 );
@@ -169,7 +174,11 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(new BytesRef(v.text), type, "e"),
                             new TestCaseSupplier.TypedData(new BytesRef(v.pattern), DataType.KEYWORD, "pattern").forceLiteral()
                         ),
-                        startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
+                        anyOf(
+                            startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
+                            startsWith("StartsWithEvaluator[str=Attribute[channel=0], prefix="),
+                            startsWith("EndsWithEvaluator[str=Attribute[channel=0], suffix=")
+                        ),
                         DataType.BOOLEAN,
                         equalTo(expected)
                     );

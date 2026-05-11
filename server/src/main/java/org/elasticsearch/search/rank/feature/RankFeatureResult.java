@@ -12,7 +12,6 @@ package org.elasticsearch.search.rank.feature;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.store.DirectoryMetrics;
-import org.elasticsearch.search.DirectoryMetricsCarrier;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -24,7 +23,7 @@ import java.io.IOException;
  * The result of a rank feature search phase.
  * Each instance holds a {@code RankFeatureShardResult} along with the references associated with it.
  */
-public class RankFeatureResult extends SearchPhaseResult implements DirectoryMetricsCarrier {
+public class RankFeatureResult extends SearchPhaseResult {
 
     private RankFeatureShardResult rankShardResult;
 
@@ -35,7 +34,6 @@ public class RankFeatureResult extends SearchPhaseResult implements DirectoryMet
         return directoryMetrics;
     }
 
-    @Override
     public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
         this.directoryMetrics = directoryMetrics;
     }

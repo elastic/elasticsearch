@@ -12,6 +12,7 @@ package org.elasticsearch.search;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -108,6 +109,16 @@ public abstract class SearchPhaseResult extends TransportResponse {
      */
     public FetchSearchResult fetchResult() {
         return null;
+    }
+
+    /**
+     * Returns the directory-level metrics captured while executing this phase on a data node.
+     * Subclasses that open a reader during shard-level execution override this; phase results
+     * that don't open a reader (e.g. can-match, open-PIT) inherit the default and return
+     * {@link DirectoryMetrics#EMPTY}.
+     */
+    public DirectoryMetrics getDirectoryMetrics() {
+        return DirectoryMetrics.EMPTY;
     }
 
     @Nullable

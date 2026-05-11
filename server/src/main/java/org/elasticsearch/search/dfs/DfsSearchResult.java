@@ -17,7 +17,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.store.DirectoryMetrics;
-import org.elasticsearch.search.DirectoryMetricsCarrier;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -29,7 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class DfsSearchResult extends SearchPhaseResult implements DirectoryMetricsCarrier {
+public final class DfsSearchResult extends SearchPhaseResult {
 
     private static final TransportVersion DFS_SEARCH_TIMED_OUT = TransportVersion.fromName("dfs_search_timed_out");
 
@@ -50,7 +49,6 @@ public final class DfsSearchResult extends SearchPhaseResult implements Director
         return directoryMetrics;
     }
 
-    @Override
     public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
         this.directoryMetrics = directoryMetrics;
     }

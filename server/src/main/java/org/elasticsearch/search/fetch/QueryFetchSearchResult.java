@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.index.store.DirectoryMetrics;
-import org.elasticsearch.search.DirectoryMetricsCarrier;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -23,7 +22,7 @@ import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 
-public final class QueryFetchSearchResult extends SearchPhaseResult implements DirectoryMetricsCarrier {
+public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
@@ -81,7 +80,6 @@ public final class QueryFetchSearchResult extends SearchPhaseResult implements D
         return fetchResult;
     }
 
-    @Override
     public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
         queryResult.setDirectoryMetrics(directoryMetrics);
     }

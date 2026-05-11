@@ -10,7 +10,6 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.index.store.DirectoryMetrics;
-import org.elasticsearch.search.DirectoryMetricsCarrier;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 
@@ -23,9 +22,9 @@ import java.util.function.Consumer;
  * every shard-level search phase that uses this listener picks up accumulation
  * automatically, without having to remember to call it from each {@code innerOnResponse}.
  * <p>
- * Only responses whose concrete type implements {@link DirectoryMetricsCarrier} contribute
- * to the accumulator; phase results that don't open a reader (e.g. can-match, open-PIT)
- * intentionally don't implement the interface and are silently ignored here.
+ * Phase results that don't open a reader (e.g. can-match, open-PIT) inherit the default
+ * {@link SearchPhaseResult#getDirectoryMetrics()} which returns {@link DirectoryMetrics#EMPTY},
+ * so they contribute nothing to the accumulator.
  */
 abstract class SearchActionListener<T extends SearchPhaseResult> implements ActionListener<T> {
 
@@ -59,9 +58,7 @@ abstract class SearchActionListener<T extends SearchPhaseResult> implements Acti
     public final void onResponse(T response) {
         response.setShardIndex(requestIndex);
         setSearchShardTarget(response);
-        if (response instanceof DirectoryMetricsCarrier carrier) {
-            directoryMetricsAccumulator.accept(carrier.getDirectoryMetrics());
-        }
+        directoryMetricsAccumulator.accept(response.getDirectoryMetrics());
         innerOnResponse(response);
     }
 

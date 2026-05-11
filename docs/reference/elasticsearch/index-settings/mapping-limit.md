@@ -197,7 +197,7 @@ $$$ignore-dynamic-beyond-limit$$$
 `index.mapping.nested_objects.limit`
 :   The maximum number of nested JSON objects that a single document can contain across all `nested` types. This limit helps to prevent out of memory errors when a document contains too many nested objects. Default is `10000`.
 
-`index.mapping.array_objects.limit`
+`index.mapping.array_objects.limit` {applies_to}`stack: ga 9.5`
 :   The maximum cumulative number of JSON object elements that a single document can contain across all arrays. The count is taken over the whole document — every nested or sibling array combined — so chunking a payload across many arrays cannot bypass the limit. This setting safeguards against "poison documents" whose arrays contain an extremely large number of objects, which can cause excessive memory consumption during parsing and dynamic mapping materialization. Default is `20000`. The minimum allowed value is `1`; to effectively disable the limit, set it to `9223372036854775807` (`Long.MAX_VALUE`).
 
 `index.mapping.field_name_length.limit`

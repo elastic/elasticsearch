@@ -29,6 +29,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.snapshots.SnapshotShardsService.getShardStateId;
@@ -89,17 +90,24 @@ public class SnapshotShardContextHelper {
 
             // We obtain a new `SnapshotsInProgress.Entry` here in order to not capture the original in the Runnable.
             // The information that we are interested in (the shards map keys) doesn't change so this is fine.
-            SnapshotsInProgress.Entry snapshotEntry = SnapshotsInProgress.get(clusterService.state()).snapshot(snapshot);
+
+            final var currentClusterState = clusterService.state();
+            final var snapshotEntry = SnapshotsInProgress.get(currentClusterState).snapshot(snapshot);
             // The snapshot is deleted, there is no reason to proceed.
             if (snapshotEntry == null) {
                 throw new IndexShardSnapshotFailedException(shardId, "snapshot is deleted");
             }
 
             int maximumShardIdForIndexInTheSnapshot = calculateMaximumShardIdForIndexInTheSnapshot(shardId, snapshotEntry);
-            if (IndexReshardService.isShardSnapshotImpactedByResharding(
-                indexShard.indexSettings().getIndexMetadata(),
-                maximumShardIdForIndexInTheSnapshot
-            )) {
+            // Using the cluster state (rather than indexShard.indexSettings()) because IndicesClusterStateService
+            // applies index metadata asynchronously. The shard's own IndexSettings may be stale while the cluster
+            // state already reflects resharding changes.
+            final var currentIndexMetadata = currentClusterState.metadata()
+                .lookupProject(shardId.getIndex())
+                .flatMap(p -> Optional.ofNullable(p.index(shardId.getIndex())))
+                .orElse(null);
+            if (currentIndexMetadata != null
+                && IndexReshardService.isShardSnapshotImpactedByResharding(currentIndexMetadata, maximumShardIdForIndexInTheSnapshot)) {
                 throw new IndexShardSnapshotFailedException(shardId, "cannot snapshot a shard during resharding");
             }
 

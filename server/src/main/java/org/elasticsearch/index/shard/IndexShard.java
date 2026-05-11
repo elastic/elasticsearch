@@ -643,7 +643,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             newPrimaryTerm
                         );
                         logger.error("{}", message);
-                        assert false : message;
+                        // Async applier batching causes this assertion to no longer hold.
+                        // See: https://github.com/elastic/elasticsearch/pull/148517
+                        // assert false : message;
                     }
                     /* Note that due to cluster state batching an initializing primary shard term can failed and re-assigned
                      * in one state causing it's term to be incremented. Note that if both current shard state and new

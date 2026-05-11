@@ -12,8 +12,10 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
@@ -185,6 +187,12 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
         logger.info("--> move replica shard from: {} to: {}", nodeB, nodeC);
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, nodeB, nodeC));
 
+        // ICSS on nodeC creates the shard (and starts the recovery) asynchronously.
+        safeAwait(
+            SubscribableListener.newForked(
+                internalCluster().getInstance(ClusterService.class, nodeC).getClusterApplierService()::awaitAllAsyncAppliers
+            )
+        );
         RecoveryResponse response = indicesAdmin().prepareRecoveries(indexName).execute().actionGet();
         List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(indexName);
         List<RecoveryState> nodeARecoveryStates = findRecoveriesForTargetNode(nodeA, recoveryStates);

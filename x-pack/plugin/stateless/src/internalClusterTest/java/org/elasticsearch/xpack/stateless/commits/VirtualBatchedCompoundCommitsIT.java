@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -581,6 +582,12 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
                 .equals(getNodeId(indexNodeB))
         );
         assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        // Wait for async ICSS on indexNodeA to close the shard.
+        safeAwait(
+            SubscribableListener.newForked(
+                internalCluster().getInstance(ClusterService.class, indexNodeA).getClusterApplierService()::awaitAllAsyncAppliers
+            )
+        );
         logger.info("relocated primary");
 
         CountDownLatch indexNotFoundOnIndexNodeA = new CountDownLatch(1);

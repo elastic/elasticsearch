@@ -196,7 +196,7 @@ export function generateBatchCommand(batch: ClassifiedTest[]): string {
     case "test": {
       const projects = [...new Set(batch.map((t) => `${t.gradleProject}:test`))];
       const testFilters = batch.map((t) => `--tests ${t.fqcn}`).join(" ");
-      return `.ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! ${projects.join(" ")} ${testFilters}`;
+      return `.ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=7200000! ${projects.join(" ")} ${testFilters}`;
     }
     case "internalClusterTest": {
       const projects = [...new Set(batch.map((t) => `${t.gradleProject}:internalClusterTest`))];
@@ -250,7 +250,7 @@ export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
       label: typeLabel,
       key: KIND_KEYS[kind],
       command: batchCommands[0],
-      timeout_in_minutes: 60,
+      timeout_in_minutes: kind === "test" ? 120 : 60,
       agents: { ...AGENTS },
       soft_fail: true,
     };

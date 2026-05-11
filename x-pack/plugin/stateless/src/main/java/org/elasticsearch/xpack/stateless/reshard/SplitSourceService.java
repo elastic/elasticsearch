@@ -875,10 +875,13 @@ public class SplitSourceService {
                     }
 
                     IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
-                    // This shouldn't be possible.
-                    // If there is a new instance of the shard that already completed the split,
-                    // current instance of the shard should be removed and we would hit the cancelled branch above.
-                    assert split != null;
+                    if (split == null) {
+                        assert assertAsyncCancelled();
+                        // The resharding metadata has been removed from the cluster state. IndicesClusterStateService applies
+                        // cluster state changes asynchronously, so the shard may not be closed (and `cancelled` set) yet.
+                        // Complete the observer now; onNewClusterState guards against advancing the state machine in this case.
+                        return true;
+                    }
 
                     if (indexShard.state() != IndexShardState.STARTED) {
                         // State can be POST_RECOVERY here because split progress tracking is set up during recovery.
@@ -901,10 +904,9 @@ public class SplitSourceService {
                 new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        if (cancelled.get()) {
+                        if (cancelled.get() || getSplit(state, indexShard.shardId().getIndex()) == null) {
                             return;
                         }
-
                         advance(new State.TargetShardsDone());
                     }
 
@@ -923,6 +925,14 @@ public class SplitSourceService {
                 null,
                 logger
             );
+        }
+
+        private boolean assertAsyncCancelled() {
+            clusterService.getClusterApplierService().awaitAllAsyncAppliers(ActionListener.running(() -> {
+                assert cancelled.get()
+                    : indexShard.shardId() + ": expected shard state machine to be cancelled after ICSS finished applying cluster state";
+            }));
+            return true;
         }
 
         /// Signals to the search shards that they should start rejecting search requests that do not have current shard count summary.

@@ -140,8 +140,6 @@ public class TestConfigurationTests extends ESTestCase {
             TestConfiguration config = TestConfiguration.fromXContent(parser);
             assertThat(config.datasetConfig(), instanceOf(DatasetConfig.RandomGenerated.class));
             DatasetConfig.RandomGenerated pg = (DatasetConfig.RandomGenerated) config.datasetConfig();
-            assertEquals(100, pg.numPartitions());
-            assertEquals(DatasetConfig.PartitionDistribution.UNIFORM, pg.partitionDistribution());
             assertEquals(42L, pg.generatorSeed());
         }
     }

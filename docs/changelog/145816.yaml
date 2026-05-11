@@ -1,5 +1,0 @@
-area: Security
-issues: []
-pr: 145816
-summary: Allow deleting multiple views in one request
-type: enhancement

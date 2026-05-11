@@ -492,6 +492,12 @@ public class BlockFactory {
         return b;
     }
 
+    public BytesRefVector newDirectBytesRefVector(byte[] bytes, int[] startOffsets, int positionCount) {
+        var v = new DirectBytesRefVector(bytes, startOffsets, positionCount, this);
+        adjustBreaker(v.ramBytesUsed());
+        return v;
+    }
+
     public BytesRefBlock newConstantBytesRefBlockWith(BytesRef value, int positions) {
         return newConstantBytesRefVector(value, positions).asBlock();
     }
@@ -646,7 +652,7 @@ public class BlockFactory {
         return new LongRangeBlockBuilder(estimatedSize, this);
     }
 
-    public LongRangeBlock newConstantLongRangeBlock(LongRangeBlockBuilder.LongRange value, int positions) {
+    public LongRangeBlock newConstantLongRangeBlockWith(LongRangeBlockBuilder.LongRange value, int positions) {
         try (var builder = newLongRangeBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 builder.appendLongRange(value);

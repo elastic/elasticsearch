@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.4.0 [elasticsearch-9.4.0-release-notes]
-```{applies_to}
-stack: ga 9.4.0
-```
 
 ### Highlights [elasticsearch-9.4.0-highlights]
 
@@ -42,11 +39,10 @@ versatility of ES|QL and makes it easier for users to integrate with Prometheus 
 
 The syntax is illustrated in the following example:
 
-[source,yaml]
-----
+```esql
 PROMQL index=k8s-downsampled start="2026-02-17T08:00:00Z" end="2026-02-17T09:00:00Z" step=30m avg_bytes=(avg(rate(network.total_bytes_in[30m])))
 | SORT avg_bytes DESC, step;
-----
+```
 ::::
 
 ::::{dropdown} Discover time series metrics with ES|QL `METRICS_INFO`
@@ -57,22 +53,20 @@ are typed before you aggregate with `STATS`.
 
 For example, list metrics sorted by name:
 
-[source,esql]
-----
+```esql
 TS my_data_stream
 | METRICS_INFO
 | SORT metric_name
-----
+```
 
 Or filter to counters only:
 
-[source,esql]
-----
+```esql
 TS my_data_stream
 | METRICS_INFO
 | WHERE metric_type == "counter"
 | SORT metric_name
-----
+```
 ::::
 
 ::::{dropdown} Implement Prometheus remote write indexing support
@@ -89,20 +83,19 @@ time series data.
 
 For example:
 
-[source,esql]
-----
+```esql
 TS my_data_stream
 | TS_INFO
 | SORT metric_name, dimensions
-----
+```
 ::::
 
 ::::{dropdown} Downsampling preserves the resets of counters when the `aggregate` sampling method is used.
-Until {es} `9.3`, both downsampling methods (`aggregate` and `last_value`) used to store only the last value of a counter
+Until Elasticsearch `9.3`, both downsampling methods (`aggregate` and `last_value`) used to store only the last value of a counter
 in the downsampled document. This works great for the `last_value` method where we optimise for storage efficiency, but
 it is not ideal for the `aggregate` method where we optimise for accuracy.
 
-In {es} `9.4`, we change the way the (default) `aggregate` sampling method is working. We store the first encountered
+In Elasticsearch `9.4`, we change the way the (default) `aggregate` sampling method is working. We store the first encountered
 value for a counter in the downsampled document and then we add auxiliary documents when we detect counter resets.
 This enables the rate calculation to take the counter resets into account and produce more accurate results. This change
 is backwards compatible.
@@ -111,10 +104,9 @@ is backwards compatible.
 ::::{dropdown} Time series aggregations support windows that are smaller than the time bucket
 Time series aggregations in ES|QL are enhanced to support windows smaller than the time bucket.
 
-[source,yaml]
-----
+```esql
 TS metrics | STATS AVG(RATE(requests, 5m)) BY TBUCKET(10m), host
-----
+```
 
 Previously, only window values that were equal or exact multiples of the time bucket were supported.
 ::::
@@ -122,10 +114,9 @@ Previously, only window values that were equal or exact multiples of the time bu
 ::::{dropdown} Time series aggregations support windows that are not an exact multiple of the bucket
 Time series aggregations in ES|QL are enhanced to support windows that are not an exact multiple of the time bucket.
 
-[source,yaml]
-----
+```esql
 TS metrics | STATS AVG(RATE(requests, 15m)) BY TBUCKET(10m), host
-----
+```
 
 Previously, only window values that were exact multiples of the time bucket were supported.
 ::::
@@ -191,17 +182,19 @@ The average was selected because in most cases it is a more representative signa
 operations such as `max`, `min`, `sum`, `avg`, and `count` will be supported natively by the respective sub-fields.
 
 For example, the following query is now supported where `network.eth0.tx` is a an `aggregate_metric_double`:
-[source]
-----
+
+```esql
   FROM k8s-downsampled
   | STATS max = max(network.eth0.tx), std_dev = STD_DEV(network.eth0.tx) by pod
   | sort pod
-
+```
+Response:
+```
   max:double | std_dev:double | pod:keyword
   1060.0     | 275.6970067    | one
   824.0      | 184.1213952    | three
   1419.0     | 356.9865993    | two
-----
+```
 ::::
 
 ### Features and enhancements [elasticsearch-9.4.0-features-enhancements]
@@ -474,9 +467,19 @@ Logs:
 * Store fallback match only text fields in binary doc values [#140189](https://github.com/elastic/elasticsearch/pull/140189)
 
 Machine Learning:
+* Add EuroBERT and Jina v5 ops to graph validation allowlist [#3015](https://github.com/elastic/ml-cpp/pull/3015)
 * Add a suggestion for fixing the ML node allocation error [#139520](https://github.com/elastic/elasticsearch/pull/139520)
 * Add exponential-backoff retry for AD job opening during system-initiated reassignments [#144478](https://github.com/elastic/elasticsearch/pull/144478)
 * Add support for nested NDJSON records in `TextStructure` endpoints [#141045](https://github.com/elastic/elasticsearch/pull/141045) (issue: [#127777](https://github.com/elastic/elasticsearch/issues/127777))
+* Better error handling regarding quantiles state documents [#2894](https://github.com/elastic/ml-cpp/pull/2894)
+* Better handling of invalid JSON state documents [#2895](https://github.com/elastic/ml-cpp/pull/2895)
+* Better messaging regarding OOM process termination [#2841](https://github.com/elastic/ml-cpp/pull/2841)
+* Downgrade log severity for a batch of recoverable errors [#2889](https://github.com/elastic/ml-cpp/pull/2889)
+* Harden pytorch_inference with TorchScript model graph validation [#3008](https://github.com/elastic/ml-cpp/pull/3008) (issue: [#2890](https://github.com/elastic/ml-cpp/issues/2890))
+* Improve adherence to memory limits for the bucket gatherer [#2848](https://github.com/elastic/ml-cpp/pull/2848)
+* Report the actual memory usage of the autodetect process [#2846](https://github.com/elastic/ml-cpp/pull/2846)
+* Restrict file system access for pytorch models [#2851](https://github.com/elastic/ml-cpp/pull/2851)
+* Update the PyTorch library to version 2.7.1 [#2863](https://github.com/elastic/ml-cpp/pull/2863)
 
 Mapping:
 * Add option to enable accurate leaf arrays for flattened fields [#145376](https://github.com/elastic/elasticsearch/pull/145376)
@@ -746,6 +749,7 @@ Logs:
 Machine Learning:
 * Fix AD job update overrides `categorization_examples_limit` with default [#140524](https://github.com/elastic/elasticsearch/pull/140524)
 * Fix NPE when preview datafeed checks `date_nanos` for an unmapped time field [#144909](https://github.com/elastic/elasticsearch/pull/144909) (issue: [#144888](https://github.com/elastic/elasticsearch/issues/144888))
+* Fix flaky CIoManagerTest/testFileIoGood test [#3017](https://github.com/elastic/ml-cpp/pull/3017)
 * Fix validation of anomaly detection job config [#139946](https://github.com/elastic/elasticsearch/pull/139946) (issue: [#29843](https://github.com/elastic/elasticsearch/issues/29843))
 * Handle null columns in ES|QL CHANGE_POINT [#144388](https://github.com/elastic/elasticsearch/pull/144388) (issue: [#142858](https://github.com/elastic/elasticsearch/issues/142858))
 * Omit uncomputed model stats [#146186](https://github.com/elastic/elasticsearch/pull/146186)

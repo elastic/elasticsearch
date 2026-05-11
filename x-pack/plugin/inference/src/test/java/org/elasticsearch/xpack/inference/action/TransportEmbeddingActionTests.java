@@ -95,7 +95,7 @@ public class TransportEmbeddingActionTests extends BaseTransportInferenceActionT
             );
             assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
             assertThat(attributes.get("task_type"), is(modelTaskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
@@ -120,7 +120,7 @@ public class TransportEmbeddingActionTests extends BaseTransportInferenceActionT
             );
             assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
             assertThat(attributes.get("task_type"), is(modelTaskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
@@ -136,7 +136,7 @@ public class TransportEmbeddingActionTests extends BaseTransportInferenceActionT
         var listener = doExecute(TaskType.ANY);
 
         verify(listener).onResponse(any());
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
             assertThat(attributes.get("task_type"), is(taskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());

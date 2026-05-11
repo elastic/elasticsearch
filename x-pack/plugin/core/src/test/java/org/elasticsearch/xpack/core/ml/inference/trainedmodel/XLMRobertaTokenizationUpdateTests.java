@@ -19,7 +19,7 @@ public class XLMRobertaTokenizationUpdateTests extends AbstractBWCWireSerializat
         Integer span = randomBoolean() ? null : randomIntBetween(8, 128);
         Tokenization.Truncate truncate = randomBoolean() ? null : randomFrom(Tokenization.Truncate.values());
 
-        if (truncate != Tokenization.Truncate.NONE) {
+        if (truncate != null && truncate != Tokenization.Truncate.NONE) {
             span = null;
         }
         return new XLMRobertaTokenizationUpdate(truncate, span);
@@ -48,6 +48,18 @@ public class XLMRobertaTokenizationUpdateTests extends AbstractBWCWireSerializat
 
         var unmodified = new XLMRobertaTokenization(true, 512, Tokenization.Truncate.NONE, null);
         assertThat(new XLMRobertaTokenizationUpdate(null, null).apply(unmodified), sameInstance(unmodified));
+    }
+
+    /**
+     * {@link Tokenization.Truncate#NONE} with a span plus an update to span-incompatible {@code truncate} and omitted
+     * {@code span} merges the old span and fails {@link Tokenization#validateSpanAndTruncate}.
+     */
+    public void testApplyIncompatibleTruncateWithInheritedSpanThrows() {
+        var windowing = new XLMRobertaTokenization(false, 512, Tokenization.Truncate.NONE, 50);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new XLMRobertaTokenizationUpdate(Tokenization.Truncate.FIRST, null).apply(windowing)
+        );
     }
 
     @Override

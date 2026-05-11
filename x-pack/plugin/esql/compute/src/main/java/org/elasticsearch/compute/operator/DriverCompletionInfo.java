@@ -122,11 +122,7 @@ public record DriverCompletionInfo(
     }
 
     private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
-    /**
-     * TV gating the new query-wide rollup metrics: {@code rows_emitted}, {@code bytes_read},
-     * {@code read_nanos}, {@code cpu_nanos}. Older nodes don't carry these on the wire and read 0.
-     */
-    private static final TransportVersion ESQL_EXTERNAL_SOURCE_TELEMETRY = TransportVersion.fromName("esql_external_source_telemetry");
+    private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
 
     public static DriverCompletionInfo readFrom(StreamInput in) throws IOException {
         long documentsFound = in.readVLong();
@@ -135,7 +131,7 @@ public record DriverCompletionInfo(
         long bytesRead = 0;
         long readNanos = 0;
         long cpuNanos = 0;
-        if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_TELEMETRY)) {
+        if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
             rowsEmitted = in.readVLong();
             bytesRead = in.readVLong();
             readNanos = in.readVLong();
@@ -161,7 +157,7 @@ public record DriverCompletionInfo(
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(documentsFound);
         out.writeVLong(valuesLoaded);
-        if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_TELEMETRY)) {
+        if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
             out.writeVLong(rowsEmitted);
             out.writeVLong(bytesRead);
             out.writeVLong(readNanos);

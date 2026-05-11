@@ -138,7 +138,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
         );
     }
 
-    public void testReadFromBwcVersionPriorToTelemetry() throws IOException {
+    public void testReadFromBwcVersionPriorToProfile() throws IOException {
         AsyncExternalSourceOperator.Status original = new AsyncExternalSourceOperator.Status(
             5,
             10,
@@ -153,16 +153,14 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             0L,
             Map.of("row_groups_read", 7L)
         );
-        TransportVersion preTelemetry = TransportVersionUtils.getPreviousVersion(
-            TransportVersion.fromName("esql_external_source_telemetry")
-        );
-        AsyncExternalSourceOperator.Status copy = copyInstance(original, preTelemetry);
-        // Pre-telemetry fields round-trip
+        TransportVersion preProfile = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_external_source_profile"));
+        AsyncExternalSourceOperator.Status copy = copyInstance(original, preProfile);
+        // Pre-profile fields round-trip
         assertThat(copy.pagesWaiting(), equalTo(5));
         assertThat(copy.pagesEmitted(), equalTo(10));
         assertThat(copy.rowsEmitted(), equalTo(111L));
         assertThat(copy.bytesBuffered(), equalTo(2048L));
-        // Telemetry fields default to zero/empty on the receiving end
+        // Profile fields default to zero/empty on the receiving end
         assertThat(copy.processNanos(), equalTo(0L));
         assertThat(copy.splitsProcessed(), equalTo(0));
         assertThat(copy.splitsTotal(), equalTo(0));

@@ -59,12 +59,12 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * End-to-end coverage that the telemetry surfaces added to {@code AsyncExternalSourceOperator.Status}
+ * End-to-end coverage that the profile-observability fields added to {@code AsyncExternalSourceOperator.Status}
  * and {@code EsqlQueryProfile.dataset_resolution} are populated when EXTERNAL and FROM &lt;dataset&gt;
  * queries execute against a local Parquet fixture.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
-public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
+public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
 
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
 
@@ -140,17 +140,15 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
     @After
     public void cleanupRegistry() throws Exception {
         try {
-            client().execute(
-                DeleteDatasetAction.INSTANCE,
-                new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "telemetry_ds" })
-            ).get(30, TimeUnit.SECONDS);
+            client().execute(DeleteDatasetAction.INSTANCE, new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { "profile_ds" }))
+                .get(30, TimeUnit.SECONDS);
         } catch (Exception ignored) {
             // best-effort
         }
         try {
             client().execute(
                 DeleteDataSourceAction.INSTANCE,
-                new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "telemetry_src" })
+                new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { "profile_src" })
             ).get(30, TimeUnit.SECONDS);
         } catch (Exception ignored) {
             // best-effort
@@ -190,7 +188,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
             assertAcked(
                 client().execute(
                     PutDataSourceAction.INSTANCE,
-                    new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "telemetry_src", "test", null, new HashMap<>())
+                    new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, "profile_src", "test", null, new HashMap<>())
                 )
             );
             assertAcked(
@@ -199,8 +197,8 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
                     new PutDatasetAction.Request(
                         TIMEOUT,
                         TIMEOUT,
-                        "telemetry_ds",
-                        "telemetry_src",
+                        "profile_ds",
+                        "profile_src",
                         StoragePath.fileUri(parquetFile),
                         null,
                         new HashMap<>()
@@ -208,7 +206,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
                 )
             );
 
-            var request = syncEsqlQueryRequest("FROM telemetry_ds | LIMIT 5");
+            var request = syncEsqlQueryRequest("FROM profile_ds | LIMIT 5");
             request.profile(true);
 
             try (var response = run(request, TIMEOUT)) {
@@ -289,7 +287,7 @@ public class ExternalSourceTelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     private Path writeParquetFile(int rowCount, int rowGroupSize) throws IOException {
-        return writeParquetFileTo(createTempDir().resolve("telemetry_test.parquet"), rowCount, rowGroupSize);
+        return writeParquetFileTo(createTempDir().resolve("profile_test.parquet"), rowCount, rowGroupSize);
     }
 
     private static Path writeParquetFileTo(Path target, int rowCount, int rowGroupSize) throws IOException {

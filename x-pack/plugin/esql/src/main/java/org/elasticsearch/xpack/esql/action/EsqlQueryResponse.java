@@ -54,13 +54,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
     private static final TransportVersion ESQL_TIMESTAMPS_INFO = TransportVersion.fromName("esql_timestamps_info");
     private static final TransportVersion ESQL_RESPONSE_TIMEZONE_FORMAT = TransportVersion.fromName("esql_response_timezone_format");
-    /**
-     * TV gating the query-wide rollup metrics at the response root: {@code rows_emitted},
-     * {@code bytes_read}, {@code read_nanos}, {@code cpu_nanos}. Older nodes don't carry these
-     * on the wire and read 0. Shares the gate with the operator-level telemetry fields — both
-     * land in the same PR so a single TV suffices.
-     */
-    private static final TransportVersion ESQL_EXTERNAL_SOURCE_TELEMETRY = TransportVersion.fromName("esql_external_source_telemetry");
+    private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
@@ -85,11 +79,6 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     private final ZoneId zoneId;
 
-    /**
-     * Primary constructor. The 13-argument overload below delegates here with zeros for the
-     * new rollup metrics, preserving compatibility with existing callers that don't yet supply
-     * the rollup data.
-     */
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
         List<Page> pages,
@@ -128,8 +117,6 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         this.executionInfo = executionInfo;
     }
 
-    /** Convenience overload that supplies zero for the new rollup metrics (used by callers that
-     *  don't yet have a {@code DriverCompletionInfo} on hand — chiefly tests and pre-rollup paths). */
     public EsqlQueryResponse(
         List<ColumnInfoImpl> columns,
         List<Page> pages,
@@ -221,7 +208,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             long bytesRead = 0;
             long readNanos = 0;
             long cpuNanos = 0;
-            if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_TELEMETRY)) {
+            if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
                 rowsEmitted = in.readVLong();
                 bytesRead = in.readVLong();
                 readNanos = in.readVLong();
@@ -282,7 +269,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             out.writeVLong(documentsFound);
             out.writeVLong(valuesLoaded);
         }
-        if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_TELEMETRY)) {
+        if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
             out.writeVLong(rowsEmitted);
             out.writeVLong(bytesRead);
             out.writeVLong(readNanos);

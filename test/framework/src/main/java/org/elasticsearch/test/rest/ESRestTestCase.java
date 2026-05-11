@@ -2926,7 +2926,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             mapMatcher = mapMatcher.entry("values_loaded", greaterThanOrEqualTo(0));
         }
         if (includeRollupMetrics) {
-            // Query-wide rollup metrics added with esql_external_source_telemetry TV. Older nodes
+            // Query-wide rollup metrics added with esql_external_source_profile TV. Older nodes
             // don't emit these, so the flag mirrors the includeDocumentsFound treatment above.
             mapMatcher = mapMatcher.entry("rows_emitted", greaterThanOrEqualTo(0));
             mapMatcher = mapMatcher.entry("bytes_read", greaterThanOrEqualTo(0));

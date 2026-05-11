@@ -94,8 +94,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     private final BlockFactory blockFactory;
     private final SearchArgument pushedFilter;
     private final OrcPushedExpressions pushedExpressions;
-    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
-    // shared across the OrcPageIterator instances spawned by {@link #read} and {@link #readRange}.
     private final OrcReaderCounters counters = new OrcReaderCounters();
 
     public OrcFormatReader(BlockFactory blockFactory) {
@@ -257,9 +255,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         boolean[] include = buildIncludeMask(schema, projectedColumns);
 
         Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
-        // For a full-file read, every stripe is considered. Apache ORC may further skip stripes
-        // internally (stats / dictionary / bloom rejection) but the public Reader API doesn't
-        // expose that, so we only report the considered count.
         long stripeCount = reader.getStripes().size();
         int totalColumns = schema.getFieldNames().size();
         counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), stripeCount);
@@ -271,9 +266,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         return rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
     }
 
-    /** Returns the count of {@code true} entries in the ORC include mask, or {@code totalColumns}
-     *  when the mask is null (no projection — every column kept). Index 0 is the struct root and
-     *  is always set, so it's skipped from the count. */
     private static int countProjected(boolean[] include, int totalColumns) {
         if (include == null) {
             return totalColumns;
@@ -381,9 +373,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
 
         Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
         readOptions.range(rangeStart, rangeEnd - rangeStart);
-        // Stripes intersecting the range are the considered set. Apache ORC may further reject
-        // some of those internally (stats / dictionary / bloom) but the public Reader API doesn't
-        // expose which — see OrcReaderCounters javadoc.
         long stripesInRange = countStripesInRange(reader, rangeStart, rangeEnd);
         long stripesInFile = reader.getStripes().size();
         int totalColumns = schema.getFieldNames().size();
@@ -576,7 +565,6 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         private boolean batchReady = false;
         private final Map<String, Integer> fieldNameToIndex;
 
-        // Reader-level counters shared with the owning OrcFormatReader and any sibling iterators.
         private final OrcReaderCounters counters;
 
         OrcPageIterator(

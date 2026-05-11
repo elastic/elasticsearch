@@ -16,18 +16,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * Mutable, thread-safe counter struct for {@link OrcFormatReader}. One instance per reader,
- * shared across the parallel {@code OrcPageIterator} segments. Iterators bump these counters;
- * {@link #snapshot()} produces the immutable {@link Map} folded into the operator-status envelope.
- * <p>
- * What's observable: stripe count we asked the reader to consider, SearchArgument pushdown flags,
- * column projection counts, total rows yielded, total read nanos. What's NOT observable: which
- * stripes the ORC library accepted vs. rejected via stats / dictionary / bloom filter — the public
- * Reader API doesn't surface that, so we don't either. Selectivity has to be inferred from
- * {@code rows_emitted} vs the row count implied by {@code stripes_total}.
- * <p>
- * {@link LongAdder} keeps concurrent updates from segment threads non-blocking. {@code volatile}
- * scalars handle "set-once" style fields like the projection counts and the pushdown flag.
+ * Thread-safe counter struct for {@link OrcFormatReader}; {@link #snapshot()} yields the immutable
+ * {@code format_reader} map. ORC's internal stripe rejection (stats / dictionary / bloom) is not
+ * exposed by the Reader API, so selectivity must be inferred from {@code rows_emitted} vs.
+ * {@code stripes_total}.
  */
 public final class OrcReaderCounters {
 
@@ -99,14 +91,6 @@ public final class OrcReaderCounters {
         }
     }
 
-    /**
-     * Returns an immutable snapshot of the current counter values. Keys: {@code format} (discriminator),
-     * {@code rows_emitted} (rows the iterator yielded — same key name across all four format readers
-     * for cross-format consumer aggregation), {@code footer_read_nanos}, {@code footer_size_bytes},
-     * {@code stripes_in_file}, {@code stripes_total}, {@code predicate_pushdown_used},
-     * {@code predicate_columns} (sorted), {@code columns_projected}, {@code columns_total},
-     * {@code read_nanos}.
-     */
     public Map<String, Object> snapshot() {
         Map<String, Object> snap = new LinkedHashMap<>();
         snap.put("format", "orc");
@@ -116,7 +100,6 @@ public final class OrcReaderCounters {
         snap.put("stripes_in_file", stripesInFile.sum());
         snap.put("stripes_total", stripesTotal.sum());
         snap.put("predicate_pushdown_used", predicatePushdownUsed);
-        // Sorted, deduplicated, immutable for stable output across snapshots.
         Set<String> sortedPredicates = new LinkedHashSet<>();
         predicateColumns.stream().sorted().forEach(sortedPredicates::add);
         snap.put("predicate_columns", Collections.unmodifiableSet(sortedPredicates));

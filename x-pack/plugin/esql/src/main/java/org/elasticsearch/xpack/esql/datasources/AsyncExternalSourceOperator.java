@@ -125,12 +125,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         );
     }
 
-    /**
-     * Extracts the producer-thread read time from the format-reader's status snapshot. Surfaced
-     * at the operator top level so the value can roll up to driver and response-root via the
-     * {@link Operator.Status#readNanos()} accessor. Same number also remains visible inside the
-     * {@code format_reader} sub-map for per-format detail.
-     */
+    /** Lifts {@code read_nanos} from the format-reader snapshot to the operator top level for rollup. */
     private static long readNanosFromFormatReaderStatus(Map<String, Object> snapshot) {
         if (snapshot == null) {
             return 0L;
@@ -150,15 +145,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             "esql_async_source_bytes_buffered"
         );
 
-        /**
-         * Shared gate across two semantically separate feature sets that land in the same PR:
-         * (1) operator-level fields on this {@code Status} ({@code process_nanos}, splits triplet,
-         * {@code bytes_read}, {@code read_nanos}, {@code format_reader}); (2) query-wide rollups on
-         * {@link org.elasticsearch.compute.operator.DriverCompletionInfo} ({@code rows_emitted},
-         * {@code bytes_read}, {@code read_nanos}, {@code cpu_nanos}). One TV suffices because both
-         * surface together — older nodes read zeros / empty maps in both places.
-         */
-        private static final TransportVersion ESQL_EXTERNAL_SOURCE_TELEMETRY = TransportVersion.fromName("esql_external_source_telemetry");
+        private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
 
         private final int pagesWaiting;
         private final int pagesEmitted;
@@ -198,9 +185,6 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             this.currentSplit = currentSplit;
             this.bytesRead = bytesRead;
             this.readNanos = readNanos;
-            // Null-default lives at AsyncExternalSourceBuffer (field initialiser +
-            // recordFormatReaderStatus(null) → Map.of()); the StreamInput ctor below also defends
-            // the wire path independently.
             this.formatReader = formatReader;
         }
 
@@ -210,7 +194,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             rowsEmitted = in.readVLong();
             bytesBuffered = in.getTransportVersion().supports(ESQL_ASYNC_SOURCE_BYTES_BUFFERED) ? in.readVLong() : 0;
             failure = in.readException();
-            if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_TELEMETRY)) {
+            if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
                 processNanos = in.readVLong();
                 splitsProcessed = in.readVInt();
                 splitsTotal = in.readVInt();
@@ -239,7 +223,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 out.writeVLong(bytesBuffered);
             }
             out.writeException(failure);
-            if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_TELEMETRY)) {
+            if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
                 out.writeVLong(processNanos);
                 out.writeVInt(splitsProcessed);
                 out.writeVInt(splitsTotal);

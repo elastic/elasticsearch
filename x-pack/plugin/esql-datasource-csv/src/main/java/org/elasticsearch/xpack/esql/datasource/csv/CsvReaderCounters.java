@@ -12,13 +12,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * Mutable, thread-safe counter struct for {@link CsvFormatReader}. One instance per reader,
- * shared across the parallel {@code CsvBatchIterator} segments. Iterators bump these counters;
- * {@link #snapshot()} produces the immutable {@link Map} folded into the operator-status envelope.
- * <p>
- * {@link LongAdder} keeps concurrent updates from segment threads non-blocking.
- * {@code headerDetected} uses {@code volatile boolean} with monotonic false→true transition
- * so any segment that sees a header row marks the reader-wide flag.
+ * Thread-safe counter struct for {@link CsvFormatReader}; {@link #snapshot()} yields the immutable
+ * {@code format_reader} map.
  */
 public final class CsvReaderCounters {
 
@@ -40,7 +35,6 @@ public final class CsvReaderCounters {
     }
 
     public void markHeaderDetected() {
-        // Monotonic; safe to set from multiple threads.
         headerDetected = true;
     }
 
@@ -50,14 +44,6 @@ public final class CsvReaderCounters {
         }
     }
 
-    /**
-     * Returns an immutable snapshot of the current counter values, suitable for
-     * {@code AsyncExternalSourceOperator.Status.format_reader}. Keys: {@code format} (discriminator),
-     * {@code rows_emitted} (rows the iterator produced — same key name across all four format readers
-     * for cross-format consumer aggregation), {@code parse_errors} (CSV-specific count of malformed
-     * rows skipped under lenient policies), {@code header_detected} (CSV-specific setup flag),
-     * {@code read_nanos}.
-     */
     public Map<String, Object> snapshot() {
         Map<String, Object> snap = new LinkedHashMap<>();
         snap.put("format", "csv");

@@ -62,7 +62,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     private static final TransportVersion ESQL_QUERY_PROFILE_VIEW_RESOLUTION = TransportVersion.fromName(
         "esql_query_profile_view_resolution"
     );
-    private static final TransportVersion ESQL_EXTERNAL_SOURCE_TELEMETRY = TransportVersion.fromName("esql_external_source_telemetry");
+    private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
     private static final TransportVersion ESQL_SEPARATE_DEPENDENCY_RESOLUTION = TransportVersion.fromName(
         "esql_separate_dependency_resolution"
     );
@@ -115,7 +115,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             if (in.getTransportVersion().supports(ESQL_QUERY_PROFILE_VIEW_RESOLUTION)) {
                 viewResolution = in.readOptionalWriteable(TimeSpan::readFrom);
             }
-            if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_TELEMETRY)) {
+            if (in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
                 datasetResolution = in.readOptionalWriteable(TimeSpan::readFrom);
             }
             preAnalysis = in.readOptionalWriteable(TimeSpan::readFrom);
@@ -153,7 +153,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             if (out.getTransportVersion().supports(ESQL_QUERY_PROFILE_VIEW_RESOLUTION)) {
                 out.writeOptionalWriteable(viewResolutionMarker.timeSpan());
             }
-            if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_TELEMETRY)) {
+            if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_PROFILE)) {
                 out.writeOptionalWriteable(datasetResolutionMarker.timeSpan());
             }
             out.writeOptionalWriteable(preAnalysisMarker.timeSpan());

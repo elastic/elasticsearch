@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -63,11 +64,24 @@ import java.util.concurrent.Executor;
 public class TransportGetAction extends TransportSingleShardAction<GetRequest, GetResponse> {
 
     public static final ActionType<GetResponse> TYPE = new ActionType<>("indices:data/read/get");
+
+    /**
+     * Maximum time to wait for cluster state updates while retrying a realtime get or mget on an unpromotable shard after
+     * retryable errors (e.g., indexing shard moved).
+     */
+    public static final Setting<TimeValue> STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "stateless.get.realtime.wait_for_active_primary_timeout",
+        TimeValue.timeValueMinutes(2),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(TransportGetAction.class);
 
     private final IndicesService indicesService;
     private final ExecutorSelector executorSelector;
     private final NodeClient client;
+    private volatile TimeValue statelessGetRealtimeActivePrimaryTimeout;
 
     @Inject
     public TransportGetAction(
@@ -95,6 +109,11 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         this.indicesService = indicesService;
         this.executorSelector = executorSelector;
         this.client = client;
+        clusterService.getClusterSettings()
+            .initializeAndWatch(
+                STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING,
+                v -> this.statelessGetRealtimeActivePrimaryTimeout = v
+            );
         // register the internal TransportGetFromTranslogAction
         new TransportGetFromTranslogAction(transportService, indicesService, actionFilters);
     }
@@ -232,7 +251,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             final var observer = new ClusterStateObserver(
                 state,
                 clusterService,
-                TimeValue.timeValueSeconds(60),
+                statelessGetRealtimeActivePrimaryTimeout,
                 logger,
                 threadPool.getThreadContext()
             );

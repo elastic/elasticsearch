@@ -188,6 +188,7 @@ import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTaskExecutor;
 import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
+import org.elasticsearch.xpack.stateless.recovery.RelocationHandoffMetrics;
 import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
@@ -314,6 +315,9 @@ public class StatelessPlugin extends Plugin
     public static final String UPLOAD_PREWARM_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_UPLOAD_PREWARMING_THREAD_NAME;
     public static final String UPLOAD_PREWARM_THREAD_POOL_SETTING = "stateless." + UPLOAD_PREWARM_THREAD_POOL + "_thread_pool";
 
+    public static final String BLOB_COPY_THREAD_POOL = BlobStoreRepository.STATELESS_BLOB_COPY_THREAD_NAME;
+    public static final String BLOB_COPY_THREAD_POOL_SETTING = "stateless." + BLOB_COPY_THREAD_POOL + "_thread_pool";
+
     public static final String MEMORY_NODE_ATTR = NAME + ".memory";
 
     /**
@@ -349,6 +353,8 @@ public class StatelessPlugin extends Plugin
         final int prewarmMaxThreads;
         final int uploadPrewarmCoreThreads;
         final int uploadPrewarmMaxThreads;
+        final int blobCopyCoreThreads;
+        final int blobCopyMaxThreads;
 
         if (hasIndexRole) {
             shardReadMaxThreads = Math.min(processors * 4, 10);
@@ -370,6 +376,8 @@ public class StatelessPlugin extends Plugin
             // threads around to reduce churn and re-use the existing buffers more
             uploadPrewarmMaxThreads = Math.min(processors * 4, 10);
             uploadPrewarmCoreThreads = uploadPrewarmMaxThreads / 2;
+            blobCopyCoreThreads = 0;
+            blobCopyMaxThreads = 4;
         } else {
             shardReadMaxThreads = Math.min(processors * 4, 28);
             translogCoreThreads = 0;
@@ -387,6 +395,8 @@ public class StatelessPlugin extends Plugin
             fillVirtualBatchedCompoundCommitCacheMaxThreads = Math.max(processors, 2);
             uploadPrewarmCoreThreads = 0;
             uploadPrewarmMaxThreads = 1;
+            blobCopyCoreThreads = 0;
+            blobCopyMaxThreads = 1;
         }
 
         return new ExecutorBuilder<?>[] {
@@ -457,7 +467,15 @@ public class StatelessPlugin extends Plugin
                 TimeValue.timeValueMinutes(5),
                 true,
                 UPLOAD_PREWARM_THREAD_POOL_SETTING
-            ) };
+            ),
+            new ScalingExecutorBuilder(
+                BLOB_COPY_THREAD_POOL,
+                blobCopyCoreThreads,
+                blobCopyMaxThreads,
+                TimeValue.timeValueMinutes(5),
+                true,
+                BLOB_COPY_THREAD_POOL_SETTING
+            ), };
     }
 
     private final SetOnce<SplitTargetService> splitTargetService = new SetOnce<>();
@@ -474,6 +492,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
     private final SetOnce<TranslogRecoveryMetrics> translogReplicatorMetrics = new SetOnce<>();
     private final SetOnce<HollowShardsMetrics> hollowShardMetrics = new SetOnce<>();
+    private final SetOnce<RelocationHandoffMetrics> relocationHandoffMetrics = new SetOnce<>();
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     // protected for testing
@@ -822,7 +841,13 @@ public class StatelessPlugin extends Plugin
         setAndGet(this.closedShardService, closedShardService);
         var translogReplicator = setAndGet(
             this.translogReplicator,
-            new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService)
+            new TranslogReplicator(
+                threadPool,
+                settings,
+                objectStoreService,
+                consistencyService,
+                projectResolver.get().supportsMultipleProjects()
+            )
         );
         setAndGet(this.translogReplicatorMetrics, new TranslogRecoveryMetrics(services.telemetryProvider().getMeterRegistry()));
         setAndGet(
@@ -830,6 +855,8 @@ public class StatelessPlugin extends Plugin
             HollowShardsMetrics.from(services.telemetryProvider().getMeterRegistry(), this::amountOfHollowableShards)
         );
         components.add(hollowShardMetrics.get());
+        setAndGet(relocationHandoffMetrics, RelocationHandoffMetrics.from(services.telemetryProvider().getMeterRegistry()));
+        components.add(relocationHandoffMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
         setAndGet(this.bccHeaderReadExecutor, new BCCHeaderReadExecutor(threadPool));
 
@@ -1244,6 +1271,7 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING,
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
             SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
+            SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
@@ -1475,7 +1503,8 @@ public class StatelessPlugin extends Plugin
                 clusterService.get().getClusterSettings(),
                 getStatelessSharedBlobCacheService(),
                 snapshotsCommitService,
-                clusterService.get()
+                clusterService.get(),
+                relocationHandoffMetrics.get()
             )
         );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());

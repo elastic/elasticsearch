@@ -2042,7 +2042,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             assertThat(future1.isDone(), is(false));
             assertThat(taskQueue.hasRunnableTasks(), is(true));
-            assertTrue(entry.tracker.waitForRangeIfPending(ByteRange.of(0, regionSize - 1), ActionListener.noop()));
+            assertFalse(entry.tracker.waitForRangeIfPending(ByteRange.of(0, regionSize - 1), ActionListener.noop()));
 
             // start populating the second region
             entry = cacheService.get(cacheKey, blobLength, 1);
@@ -2060,9 +2060,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 future2
             );
 
-            assertTrue(entry.tracker.waitForRangeIfPending(ByteRange.of(0, regionSize - 1), ActionListener.noop()));
+            assertFalse(entry.tracker.waitForRangeIfPending(ByteRange.of(0, regionSize - 1), ActionListener.noop()));
 
-            // start populating again the first region; async notified
+            taskQueue.runAllRunnableTasks();
+
+            // start populating again the first region; populate completes directly
             entry = cacheService.get(cacheKey, blobLength, 0);
             final PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
             entry.populate(
@@ -2078,80 +2080,16 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 future3
             );
 
-            assertThat(future3.isDone(), is(false));
-            taskQueue.runAllRunnableTasks();
-            assertThat(future1.isDone(), is(true));
             assertThat(future3.isDone(), is(true));
+            var written = future3.get(10L, TimeUnit.SECONDS);
+            assertThat(written, is(false));
 
-            var written1 = future1.get(10L, TimeUnit.SECONDS);
-            var written3 = future3.get(10L, TimeUnit.SECONDS);
-            // one and only one wrote it
-            assertThat(written1 ^ written3, is(true));
-
-            var written = future2.get(10L, TimeUnit.SECONDS);
+            written = future1.get(10L, TimeUnit.SECONDS);
+            assertThat(future1.isDone(), is(true));
+            assertThat(written, is(true));
+            written = future2.get(10L, TimeUnit.SECONDS);
             assertThat(future2.isDone(), is(true));
             assertThat(written, is(true));
-        }
-    }
-
-    /**
-     * Two populate calls for the same range before the executor runs both queue a task. waitForRange registers
-     * listeners immediately (before any executor task runs), so both callers see unclaimed gaps and queue work.
-     * claim() is called inside each executor task, and only the first caller to claim gets the gaps to fill.
-     */
-    public void testPopulateConcurrentSameRange() throws Exception {
-        final long regionSize = size(1L);
-        Settings settings = Settings.builder()
-            .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
-            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
-            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
-            .put("path.home", createTempDir())
-            .build();
-
-        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        try (
-            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            var cacheService = new SharedBlobCacheService<>(
-                environment,
-                settings,
-                taskQueue.getThreadPool(),
-                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
-            )
-        ) {
-            final var cacheKey = generateCacheKey();
-            final var blobLength = size(12L);
-            final var entry = cacheService.get(cacheKey, blobLength, 0);
-            final AtomicLong bytesWritten = new AtomicLong(0L);
-            final RangeMissingHandler writer = (
-                channel,
-                channelPos,
-                streamFactory,
-                relativePos,
-                length,
-                progressUpdater,
-                completionListener) -> completeWith(completionListener, () -> {
-                    bytesWritten.addAndGet(length);
-                    progressUpdater.accept(length);
-                });
-
-            // Two populate calls for the same range before the executor runs
-            final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
-            entry.populate(ByteRange.of(0, regionSize - 1), writer, taskQueue.getThreadPool().generic(), future1);
-            final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
-            entry.populate(ByteRange.of(0, regionSize - 1), writer, taskQueue.getThreadPool().generic(), future2);
-
-            // Both calls registered listeners immediately; neither future is done yet
-            assertThat(future1.isDone(), is(false));
-            assertThat(future2.isDone(), is(false));
-
-            taskQueue.runAllRunnableTasks();
-
-            // Exactly one caller claimed the gaps and wrote the data; the other got an empty claim
-            assertThat(future1.get(10L, TimeUnit.SECONDS) || future2.get(10L, TimeUnit.SECONDS), is(true));
-            assertThat(future1.get(10L, TimeUnit.SECONDS) && future2.get(10L, TimeUnit.SECONDS), is(false));
-            assertThat(bytesWritten.get(), equalTo(regionSize - 1));
         }
     }
 

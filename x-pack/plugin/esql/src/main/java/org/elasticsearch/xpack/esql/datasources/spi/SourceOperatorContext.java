@@ -75,7 +75,6 @@ public record SourceOperatorContext(
         partitionColumnNames = partitionColumnNames != null && partitionColumnNames.isEmpty() == false
             ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
             : Set.of();
-        // Empty and null both mean "no anchor"; collapse them.
         readSchema = (readSchema == null || readSchema.isEmpty()) ? null : List.copyOf(readSchema);
 
         if (batchSize <= 0) {

@@ -320,10 +320,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             ? in.readNamedWriteableCollectionAsList(ExternalSplit.class)
             : List.of();
         // Older nodes don't write the field; on the wire empty list represents the in-memory null.
-        List<Attribute> wireFileSchema = in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)
+        List<Attribute> wireReadSchema = in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)
             ? in.readNamedWriteableCollectionAsList(Attribute.class)
             : List.of();
-        List<Attribute> readSchema = wireFileSchema.isEmpty() ? null : wireFileSchema;
+        List<Attribute> readSchema = wireReadSchema.isEmpty() ? null : wireReadSchema;
 
         return new ExternalSourceExec(
             source,

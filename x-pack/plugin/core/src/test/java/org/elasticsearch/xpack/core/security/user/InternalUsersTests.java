@@ -396,8 +396,7 @@ public class InternalUsersTests extends ESTestCase {
             TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
             TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
             "cluster:internal:data/read/esql/open_exchange",
-            "cluster:internal:data/read/esql/exchange",
-            XPackInfoAction.NAME
+            "cluster:internal:data/read/esql/exchange"
         );
 
         for (String clusterAction : allowedClusterActions) {
@@ -407,7 +406,7 @@ public class InternalUsersTests extends ESTestCase {
         checkClusterAccess(
             crossProjectSearchUser,
             role,
-            randomFrom(ClusterStateAction.NAME, TransportService.HANDSHAKE_ACTION_NAME),
+            randomFrom(ClusterStateAction.NAME, XPackInfoAction.NAME, TransportService.HANDSHAKE_ACTION_NAME),
             false
         );
 

@@ -19,12 +19,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE;
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT;
+import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_SIZE;
+import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_TIMEOUT;
 
-public abstract class AbstractBulkByScrollRequestBuilder<
-    Request extends AbstractBulkByScrollRequest<Request>,
-    Self extends AbstractBulkByScrollRequestBuilder<Request, Self>> extends ActionRequestLazyBuilder<Request, BulkByScrollResponse> {
+public abstract class AbstractBulkByPaginatedSearchRequestBuilder<
+    Request extends AbstractBulkByPaginatedSearchRequest<Request>,
+    Self extends AbstractBulkByPaginatedSearchRequestBuilder<Request, Self>> extends ActionRequestLazyBuilder<
+        Request,
+        BulkByScrollResponse> {
     private final SearchRequestBuilder source;
     private Integer maxDocs;
     private Boolean abortOnVersionConflict;
@@ -37,7 +39,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<
     private Boolean shouldStoreResult;
     private Integer slices;
 
-    protected AbstractBulkByScrollRequestBuilder(
+    protected AbstractBulkByPaginatedSearchRequestBuilder(
         ElasticsearchClient client,
         ActionType<BulkByScrollResponse> action,
         SearchRequestBuilder source
@@ -48,7 +50,7 @@ public abstract class AbstractBulkByScrollRequestBuilder<
     }
 
     /*
-     * The following is normally done within the AbstractBulkByScrollRequest constructor. But that constructor is not called until the
+     * The following is normally done within the AbstractBulkBySearchRequest constructor. But that constructor is not called until the
      * request() method is called once this builder is complete. Doing it there blows away changes made to the source request.
      */
     private void initSourceSearchRequest() {

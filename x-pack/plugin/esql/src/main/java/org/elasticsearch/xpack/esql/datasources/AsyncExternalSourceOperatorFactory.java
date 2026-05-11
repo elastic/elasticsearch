@@ -230,7 +230,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private FilterPushdownSupport pushdownSupport;
         private Closeable onClose;
         private int parallelism = 1;
-        @Nullable
         private List<Attribute> fileSchema = List.of();
 
         private Builder(

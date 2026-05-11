@@ -187,6 +187,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     case D1Q4 -> "d1q4";
                     case D2Q4 -> "d2q4";
                     case D4Q4 -> "d4q4";
+                    case D2Q4_PACKED -> "d2q4_packed";
                 };
                 FunctionDescriptor descriptor = switch (op) {
                     case SINGLE -> longSingle;
@@ -416,18 +417,25 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return true;
         }
 
+        /**
+         * Checks dimensions for BBQ bulk operations.
+         * @param queryBytesPerDocByte see {@link BBQType#queryBytesPerDocByte()}
+         * @param dataset the MemorySegment holding the vectors to score
+         * @param query the MemorySegment holding the query vector
+         * @param datasetVectorLengthInBytes
+         * @param count
+         * @param result the MemorySegment holding the result scores
+         */
         static boolean checkBBQBulk(
-            int dataBits,
+            int queryBytesPerDocByte,
             MemorySegment dataset,
             MemorySegment query,
             int datasetVectorLengthInBytes,
             int count,
             MemorySegment result
         ) {
-            final int queryBits = 4;
             Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * count, dataset.byteSize());
-            // 1 bit data -> x4 bits query, 2 bit data -> x2 bits query
-            Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * (queryBits / dataBits), query.byteSize());
+            Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * queryBytesPerDocByte, query.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
             return true;
         }
@@ -503,22 +511,21 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         static boolean checkBBQBulkSparse(
-            int dataBits,
+            int queryBytesPerDocByte,
             MemorySegment addresses,
             MemorySegment query,
             int datasetVectorLengthInBytes,
             int count,
             MemorySegment result
         ) {
-            final int queryBits = 4;
             Objects.checkFromIndexSize(0L, (long) count * Long.BYTES, addresses.byteSize());
-            Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * (queryBits / dataBits), query.byteSize());
+            Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * queryBytesPerDocByte, query.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
             return true;
         }
 
         static boolean checkBBQBulkOffsets(
-            int dataBits,
+            int queryBytesPerDocByte,
             MemorySegment a,
             MemorySegment b,
             int datasetVectorLengthInBytes,
@@ -527,13 +534,12 @@ public final class JdkVectorLibrary implements VectorLibrary {
             int count,
             MemorySegment result
         ) {
-            final int queryBits = 4;
             if (pitch < datasetVectorLengthInBytes) throw new IllegalArgumentException(
                 "Pitch needs to be at least " + datasetVectorLengthInBytes
             );
             Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * count, a.byteSize());
-            // 1 bit data -> x4 bits query, 2 bit data -> x2 bits query
-            Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * (queryBits / dataBits), b.byteSize());
+            // STRIPED / PACKED: see BBQType#queryBytesPerDocByte for the layout-dependent multiplier.
+            Objects.checkFromIndexSize(0L, (long) datasetVectorLengthInBytes * queryBytesPerDocByte, b.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Integer.BYTES, offsets.byteSize());
             Objects.checkFromIndexSize(0L, (long) count * Float.BYTES, result.byteSize());
             assert validateBBQBulkOffsets(a, offsets, count, datasetVectorLengthInBytes, pitch, result);
@@ -760,6 +766,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0L, length, query.byteSize());
             Objects.checkFromIndexSize(0L, length, a.byteSize());
             return callSingleDistanceLong(dotD4Q4Handle, a, query, length);
+        }
+
+        private static final MethodHandle dotD2Q4PackedHandle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q4_PACKED, Operation.SINGLE)
+        );
+
+        static long dotProductD2Q4_PACKED(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0L, (long) length * 4, query.byteSize());
+            Objects.checkFromIndexSize(0L, length, a.byteSize());
+            return callSingleDistanceLong(dotD2Q4PackedHandle, a, query, length);
         }
 
         private static void checkByteSize(long aSize, long bSize) {
@@ -1074,7 +1090,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                         )
                                     );
                                     yield MethodHandles.guardWithTest(
-                                        MethodHandles.insertArguments(checkMethod, 0, bbq.dataBits()),
+                                        MethodHandles.insertArguments(checkMethod, 0, bbq.queryBytesPerDocByte()),
                                         op.getValue(),
                                         MethodHandles.empty(op.getValue().type())
                                     );
@@ -1161,7 +1177,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                         )
                                     );
                                     yield MethodHandles.guardWithTest(
-                                        MethodHandles.insertArguments(checkMethod, 0, bbq.dataBits()),
+                                        MethodHandles.insertArguments(checkMethod, 0, bbq.queryBytesPerDocByte()),
                                         op.getValue(),
                                         MethodHandles.empty(op.getValue().type())
                                     );
@@ -1210,7 +1226,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                         )
                                     );
                                     yield MethodHandles.guardWithTest(
-                                        MethodHandles.insertArguments(checkMethod, 0, bbq.dataBits()),
+                                        MethodHandles.insertArguments(checkMethod, 0, bbq.queryBytesPerDocByte()),
                                         op.getValue(),
                                         MethodHandles.empty(op.getValue().type())
                                     );

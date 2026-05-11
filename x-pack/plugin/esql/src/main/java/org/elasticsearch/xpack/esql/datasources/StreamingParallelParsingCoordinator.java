@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -91,6 +92,25 @@ public final class StreamingParallelParsingCoordinator {
         Executor executor,
         ErrorPolicy errorPolicy
     ) throws IOException {
+        return parallelRead(reader, decompressedStream, projectedColumns, batchSize, parallelism, executor, errorPolicy, null);
+    }
+
+    /**
+     * Variant that propagates a planner-resolved anchor file schema. Mirrors the {@code fileSchema}
+     * parameter on {@link ParallelParsingCoordinator#parallelRead}; the streaming path must thread
+     * the same field through so multi-file globs over gzip/zstd/bz2 inputs honor the anchor schema
+     * instead of re-inferring per file. Pass {@code null} when no anchor is bound.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        InputStream decompressedStream,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        @Nullable List<Attribute> fileSchema
+    ) throws IOException {
         ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
 
         if (parallelism <= 1) {
@@ -98,6 +118,7 @@ public final class StreamingParallelParsingCoordinator {
                 .projectedColumns(projectedColumns)
                 .batchSize(batchSize)
                 .errorPolicy(effectivePolicy)
+                .fileSchema(fileSchema)
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
         }
@@ -109,7 +130,8 @@ public final class StreamingParallelParsingCoordinator {
             batchSize,
             parallelism,
             executor,
-            effectivePolicy
+            effectivePolicy,
+            fileSchema
         );
     }
 
@@ -132,6 +154,9 @@ public final class StreamingParallelParsingCoordinator {
         private final int batchSize;
         private final int parallelism;
         private final ErrorPolicy errorPolicy;
+        /** Planner-bound anchor schema or {@code null} for per-file inference. See {@link FormatReadContext#fileSchema()}. */
+        @Nullable
+        private final List<Attribute> fileSchema;
 
         private final ArrayBlockingQueue<byte[]> bufferPool;
         private final ArrayBlockingQueue<Chunk> chunkQueue;
@@ -166,13 +191,15 @@ public final class StreamingParallelParsingCoordinator {
             int batchSize,
             int parallelism,
             Executor executor,
-            ErrorPolicy errorPolicy
+            ErrorPolicy errorPolicy,
+            @Nullable List<Attribute> fileSchema
         ) {
             this.reader = reader;
             this.projectedColumns = projectedColumns;
             this.batchSize = batchSize;
             this.parallelism = parallelism;
             this.errorPolicy = errorPolicy;
+            this.fileSchema = fileSchema;
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;
 
@@ -445,6 +472,7 @@ public final class StreamingParallelParsingCoordinator {
                             .firstSplit(chunk.index == 0)
                             .lastSplit(true)
                             .recordAligned(true)
+                            .fileSchema(fileSchema)
                             .build();
 
                         try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {

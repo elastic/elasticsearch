@@ -1171,7 +1171,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         batchSize,
                         parsingParallelism,
                         executor,
-                        policy
+                        policy,
+                        fileSchema
                     );
                 } catch (Exception e) {
                     decompressed.close();

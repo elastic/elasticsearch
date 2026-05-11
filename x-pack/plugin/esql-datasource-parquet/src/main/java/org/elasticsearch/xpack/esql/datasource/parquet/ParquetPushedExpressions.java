@@ -30,6 +30,7 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -572,6 +574,16 @@ final class ParquetPushedExpressions {
         return names;
     }
 
+    /**
+     * Returns the set of column names referenced by a single expression.
+     * Used by multi-stage Phase 1 to group expressions into per-column stages.
+     */
+    static Set<String> columnNamesOf(Expression expr) {
+        Set<String> names = new HashSet<>();
+        collectColumnNames(expr, names);
+        return names;
+    }
+
     private static void collectColumnNames(Expression expr, Set<String> names) {
         if (expr instanceof EsqlBinaryComparison bc && bc.left() instanceof NamedExpression ne) {
             names.add(ne.name());
@@ -608,6 +620,33 @@ final class ParquetPushedExpressions {
      * @param reusable        a reusable WordMask instance to avoid allocation
      * @return the survivor mask with bits set for passing rows, or null if all rows survive
      */
+    /**
+     * Evaluates a single expression against blocks decoded from specific columns. Used by
+     * multi-stage Phase 1 where each stage evaluates one expression at a time.
+     *
+     * @param expr             the expression to evaluate
+     * @param blocks           decoded blocks indexed by column position (may have nulls for non-stage columns)
+     * @param attributes       the projected attribute list for column name resolution
+     * @param rowCount         the number of rows in the batch
+     * @param intermediateMask optional cumulative mask from prior stages (for mask short-circuit)
+     * @return survivor mask, or null if all rows survive
+     */
+    WordMask evaluateSingleExpression(
+        Expression expr,
+        Block[] blocks,
+        List<Attribute> attributes,
+        int rowCount,
+        @Nullable WordMask intermediateMask
+    ) {
+        Map<String, Block> blockMap = new HashMap<>();
+        for (int i = 0; i < blocks.length; i++) {
+            if (blocks[i] != null && i < attributes.size()) {
+                blockMap.put(attributes.get(i).name(), blocks[i]);
+            }
+        }
+        return evaluateExpression(expr, blockMap, rowCount, intermediateMask);
+    }
+
     WordMask evaluateFilter(Map<String, Block> predicateBlocks, int rowCount, WordMask reusable) {
         reusable.setAll(rowCount);
         for (Expression expr : expressions) {
@@ -1233,18 +1272,14 @@ final class ParquetPushedExpressions {
     }
 
     /**
-     * Returns {@code true} when running the predicate over the dictionary entries is expected
-     * to be cheaper than running it over every row. Dictionary scan cost is
-     * {@code O(dictionarySize)} compares; the per-row scalar path is {@code O(rowCount)}
-     * compares plus the same indirection through the ordinal block. The optimization is a
-     * clear win only when the dictionary is materially smaller than the row count.
-     *
-     * <p>Reuses {@link OrdinalBytesRefBlock#isDense}, which encodes the same crossover
-     * heuristic ({@code rowCount >= 2 * dictionarySize}). This also filters out tiny blocks
-     * where the constant cost of allocating the {@code boolean[]} dominates.
+     * Returns {@code true} when evaluating the predicate against dictionary entries is expected
+     * to be cheaper than per-row evaluation. For ordinal-encoded blocks, the dictionary path
+     * runs the predicate once per unique value and then scatters results via integer lookups —
+     * always cheaper than running the predicate per row since dictionary size &lt;= row count.
+     * The minimum of 10 positions avoids the boolean[] allocation overhead for tiny blocks.
      */
     private static boolean shouldShortCircuitOnDictionary(OrdinalBytesRefBlock block) {
-        return block.isDense();
+        return block.getPositionCount() >= 10;
     }
 
     /**

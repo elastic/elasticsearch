@@ -64,6 +64,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
@@ -367,6 +368,11 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
 
         assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_TOTAL, Operation.PUT_OBJECT), equalTo(1L));
         assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.PUT_OBJECT), equalTo(1L));
+    }
+
+    @Override
+    public void testTenaciousRetries() {
+        assertThat(testTenaciousRetries.get(), is(false));
     }
 
     private void addErrorStatus(RestStatus... statuses) {

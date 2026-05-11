@@ -124,7 +124,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     private String region;
     private final AtomicBoolean shouldFailCompleteMultipartUploadRequest = new AtomicBoolean();
 
-    private static final AtomicBoolean testTenaciousRetries = new AtomicBoolean(false);
+    protected static final AtomicBoolean testTenaciousRetries = new AtomicBoolean(false);
     private static final AtomicLong tenaciousAttempts = new AtomicLong(0);
     private static final AtomicLong tenaciousRetriesRequired = new AtomicLong(0);
 

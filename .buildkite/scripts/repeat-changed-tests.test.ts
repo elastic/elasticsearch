@@ -6,6 +6,7 @@ import {
   deduplicateYamlRunners,
   generateBatchCommand,
   generatePipeline,
+  resolveMergeBaseTarget,
   toGradleProject,
   toFqcn,
   ClassifiedTest,
@@ -29,6 +30,16 @@ describe("toGradleProject", () => {
     expect(toGradleProject("x-pack/plugin/ml/qa/native-multi-node-tests")).toBe(
       ":x-pack:plugin:ml:qa:native-multi-node-tests"
     );
+  });
+
+  test("prefixes test- on children of test/external-modules", () => {
+    expect(toGradleProject("test/external-modules/apm-integration")).toBe(
+      ":test:external-modules:test-apm-integration"
+    );
+  });
+
+  test("leaves sibling test paths unchanged", () => {
+    expect(toGradleProject("test/fixtures/some-fixture")).toBe(":test:fixtures:some-fixture");
   });
 });
 
@@ -151,6 +162,21 @@ describe("classifyChangedFiles", () => {
         kind: "test",
         sourceSet: "test",
         fqcn: "org.elasticsearch.xpack.core.SomeTests",
+      },
+    ]);
+  });
+
+  test("classifies external-modules javaRestTest with test- prefix", () => {
+    const result = classifyChangedFiles([
+      "test/external-modules/apm-integration/src/javaRestTest/java/org/elasticsearch/test/apmintegration/ApmAgentTracesIT.java",
+    ]);
+
+    expect(result).toEqual([
+      {
+        gradleProject: ":test:external-modules:test-apm-integration",
+        kind: "javaRestTest",
+        sourceSet: "javaRestTest",
+        fqcn: "org.elasticsearch.test.apmintegration.ApmAgentTracesIT",
       },
     ]);
   });
@@ -321,7 +347,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":libs:core", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.core.BarTests" },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test :libs:core:test --tests org.elasticsearch.index.FooTests --tests org.elasticsearch.core.BarTests"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.FooTests :libs:core:test --tests org.elasticsearch.core.BarTests"
     );
   });
 
@@ -369,7 +395,7 @@ describe("generateBatchCommand", () => {
       { gradleProject: ":mod:b", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "org.es.BarIT" },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :mod:a:javaRestTest :mod:b:javaRestTest --tests org.es.FooIT --tests org.es.BarIT --rerun"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :mod:a:javaRestTest --tests org.es.FooIT --rerun :mod:b:javaRestTest --tests org.es.BarIT --rerun"
     );
   });
 
@@ -392,7 +418,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest -Dtests.rest.suite=ml/anomaly_detectors_get --rerun"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/anomaly_detectors_get"
     );
   });
 
@@ -412,7 +438,27 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest -Dtests.rest.suite=ml/test1,ml/test2 --rerun"
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test1,ml/test2"
+    );
+  });
+
+  test("YAML REST test suites across projects", () => {
+    const batch: ClassifiedTest[] = [
+      {
+        gradleProject: ":x-pack:plugin:ml",
+        kind: "yamlRestTestSuite",
+        sourceSet: "yamlRestTest",
+        suitePath: "ml/test1",
+      },
+      {
+        gradleProject: ":x-pack:plugin:security",
+        kind: "yamlRestTestSuite",
+        sourceSet: "yamlRestTest",
+        suitePath: "security/test1",
+      },
+    ];
+    expect(generateBatchCommand(batch)).toBe(
+      ".ci/scripts/repeat-rest-test.sh 10 .ci/scripts/run-gradle.sh :x-pack:plugin:ml:yamlRestTest --rerun :x-pack:plugin:security:yamlRestTest --rerun -Dtests.rest.suite.:x-pack:plugin:ml:yamlRestTest=ml/test1 -Dtests.rest.suite.:x-pack:plugin:security:yamlRestTest=security/test1"
     );
   });
 });
@@ -517,5 +563,39 @@ describe("generatePipeline", () => {
     expect(pipeline.steps).toHaveLength(1);
     expect(pipeline.steps[0].group).toBe("repeat-changed-tests");
     expect(pipeline.steps[0].steps).toEqual([]);
+  });
+});
+
+describe("resolveMergeBaseTarget", () => {
+  test("uses target branch directly when ref exists locally", () => {
+    const commands: string[] = [];
+    const runner = (command: string): Buffer => {
+      commands.push(command);
+      return Buffer.from("");
+    };
+
+    const result = resolveMergeBaseTarget("main", runner, "/repo");
+
+    expect(result).toBe("main");
+    expect(commands).toEqual(["git rev-parse --verify main^{commit}"]);
+  });
+
+  test("fetches remote target and falls back to FETCH_HEAD when ref is missing", () => {
+    const commands: string[] = [];
+    const runner = (command: string): Buffer => {
+      commands.push(command);
+      if (command.startsWith("git rev-parse")) {
+        throw new Error("missing ref");
+      }
+      return Buffer.from("");
+    };
+
+    const result = resolveMergeBaseTarget("gh/MattAlp/1/base", runner, "/repo");
+
+    expect(result).toBe("FETCH_HEAD");
+    expect(commands).toEqual([
+      "git rev-parse --verify gh/MattAlp/1/base^{commit}",
+      "git fetch --no-tags origin gh/MattAlp/1/base",
+    ]);
   });
 });

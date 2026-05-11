@@ -537,13 +537,23 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
         LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
             super(blockFactory);
+            List<Page> readPages;
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
-                this.pages = bsi.readCollectionAsList(Page::new);
+                readPages = bsi.readReleasableCollectionAsList(Page::new);
             }
-            if (in.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
-                this.planString = in.readOptionalString();
-            } else {
-                this.planString = null;
+            boolean success = false;
+            try {
+                if (in.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
+                    this.planString = in.readOptionalString();
+                } else {
+                    this.planString = null;
+                }
+                this.pages = readPages;
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(readPages);
+                }
             }
         }
 

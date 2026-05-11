@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -28,6 +29,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.zip.GZIPOutputStream;
 
@@ -65,7 +67,8 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
     }
 
     public void testFormatNameAndExtensionsDelegated() {
-        FormatReader innerReader = new FormatReader() {
+        FormatReader innerReader = new NoConfigFormatReader() {
+
             @Override
             public SourceMetadata metadata(StorageObject object) {
                 return null;
@@ -104,6 +107,29 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
     public void testNullCodecThrows() {
         FormatReader inner = new CapturingFormatReader();
         expectThrows(QlIllegalArgumentException.class, () -> new CompressionDelegatingFormatReader(inner, null));
+    }
+
+    public void testUnwrapReturnsInnerReader() {
+        FormatReader inner = new CapturingFormatReader();
+        DecompressionCodec codec = mockCodec();
+        CompressionDelegatingFormatReader delegating = new CompressionDelegatingFormatReader(inner, codec);
+
+        assertSame(inner, delegating.unwrap());
+        assertSame(codec, delegating.codec());
+    }
+
+    public void testUnwrapPreservedThroughWithConfig() {
+        FormatReader inner = new CapturingFormatReader();
+        DecompressionCodec codec = mockCodec();
+        CompressionDelegatingFormatReader delegating = new CompressionDelegatingFormatReader(inner, codec);
+
+        FormatReader configured = delegating.withConfig(Map.of());
+        assertSame(delegating, configured);
+
+        if (configured instanceof CompressionDelegatingFormatReader cdr) {
+            assertSame(inner, cdr.unwrap());
+            assertSame(codec, cdr.codec());
+        }
     }
 
     private static byte[] gzip(byte[] input) throws IOException {
@@ -150,7 +176,8 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         };
     }
 
-    private static class CapturingFormatReader implements FormatReader {
+    private static class CapturingFormatReader implements NoConfigFormatReader {
+
         boolean metadataCalled;
         boolean readCalled;
 

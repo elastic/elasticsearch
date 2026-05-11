@@ -20,7 +20,6 @@ import org.elasticsearch.gradle.internal.test.rerun.InternalTestRerunPlugin;
 import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.gradle.api.Action;
-import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -74,9 +73,11 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
         // none of this stuff is applicable to the `:buildSrc` project tests
         File heapdumpDir = new File(project.getBuildDir(), "heapdump");
+        final boolean isCi = buildParams.get().getCi();
 
         project.getTasks().withType(Test.class).configureEach(test -> {
             File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
+            test.getReports().getHtml().getRequired().set(isCi == false);
 
             ErrorReportingTestListener listener = new ErrorReportingTestListener(test, testOutputDir);
             test.getExtensions().getExtraProperties().set(DUMP_OUTPUT_ON_FAILURE_PROP_NAME, true);
@@ -133,17 +134,11 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "--add-opens=java.management/java.lang.management=ALL-UNNAMED",
                 "--enable-native-access=ALL-UNNAMED",
                 "--add-modules=jdk.incubator.vector",
-                "-XX:+HeapDumpOnOutOfMemoryError"
+                "-XX:+HeapDumpOnOutOfMemoryError",
+                "-XX:-UseGCOverheadLimit"
             );
 
             test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-XX:HeapDumpPath=" + heapdumpDir));
-            test.getJvmArgumentProviders().add(() -> {
-                if (test.getJavaVersion().compareTo(JavaVersion.VERSION_23) <= 0) {
-                    return List.of("-Djava.security.manager=allow");
-                } else {
-                    return List.of();
-                }
-            });
             test.getJvmArgumentProviders()
                 .add(() -> List.of("-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=" + test.getJavaVersion().getMajorVersion()));
 
@@ -161,16 +156,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 System.out.println("disable assertions");
                 test.setEnableAssertions(false);
             }
-            Map<String, String> sysprops = Map.of(
-                "java.awt.headless",
-                "true",
-                "tests.artifact",
-                project.getName(),
-                "tests.security.manager",
-                "true",
-                "jna.nosys",
-                "true"
-            );
+            Map<String, String> sysprops = Map.of("java.awt.headless", "true", "tests.artifact", project.getName(), "jna.nosys", "true");
             test.systemProperties(sysprops);
 
             // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability

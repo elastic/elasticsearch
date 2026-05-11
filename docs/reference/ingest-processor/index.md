@@ -144,7 +144,7 @@ We’ve categorized the available processors on this page and summarized their f
 [`date` processor](/reference/ingest-processor/date-processor.md)
 :   Extracts and converts date fields.
 
-[`dot_expand` processor](/reference/ingest-processor/dot-expand-processor.md)
+[`dot_expander` processor](/reference/ingest-processor/dot-expand-processor.md)
 :   Expands a field with dots into an object field.
 
 [`html_strip` processor](/reference/ingest-processor/htmlstrip-processor.md)

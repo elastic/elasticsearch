@@ -5,13 +5,13 @@ mapped_pages:
 
 # Content extraction [es-connectors-content-extraction]
 
-Connectors use the [Elastic ingest attachment processor^](/reference/ingest-processor/attachment.md) to extract file contents. The processor extracts files using the [Apache Tika](https://tika.apache.org) text extraction library. The logic for content extraction is defined in [utils.py](https://github.com/elastic/connectors/tree/main/connectors/utils.py).
+Connectors use the [Elastic ingest attachment processor](/reference/ingest-processor/attachment.md) to extract file contents. The processor extracts files using the [Apache Tika](https://tika.apache.org) text extraction library. The logic for content extraction is defined in [utils.py](https://github.com/elastic/connectors/tree/main/connectors/utils.py).
 
 While intended primarily for PDF and Microsoft Office formats, you can use any of the [supported formats](#es-connectors-content-extraction-supported-file-types).
 
-Search uses an [Elasticsearch ingest pipeline^](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md) to power binary content extraction. The default pipeline, `search-default-ingestion` is automatically created.
+Search uses an [Elasticsearch ingest pipeline](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md) to power binary content extraction. The default pipeline, `search-default-ingestion` is automatically created.
 
-You can [view^](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#create-manage-ingest-pipelines) this pipeline in Kibana. Customizing your pipeline usage is also an option. See [Ingest pipelines for Search indices](docs-content://solutions/search/ingest-for-search.md).
+You can [view](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#create-manage-ingest-pipelines) this pipeline in Kibana. Customizing your pipeline usage is also an option. See [Ingest pipelines for Search indices](docs-content://solutions/search/ingest-for-search.md).
 
 For advanced use cases, the [self-hosted extraction service](#es-connectors-content-extraction-local) can be used to extract content from files larger than 10MB.
 

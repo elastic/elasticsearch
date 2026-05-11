@@ -497,9 +497,6 @@ tests:
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionIT
   method: testEndToEndFrozenTransition
   issue: https://github.com/elastic/elasticsearch/issues/148467
-- class: org.elasticsearch.xpack.stateless.StatelessIndexCommitListenerIT
-  method: testRefIsNotReleasedUponNotificationFailure
-  issue: https://github.com/elastic/elasticsearch/issues/148471
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testCommitPrefetching
   issue: https://github.com/elastic/elasticsearch/issues/148476

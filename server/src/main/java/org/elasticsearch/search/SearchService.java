@@ -283,7 +283,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         "search.fetch_phase_chunked_target_chunk_bytes",
         ByteSizeValue.of(1, ByteSizeUnit.MB),
         ByteSizeValue.of(1, ByteSizeUnit.MB),
-        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+        ByteSizeValue.of(64, ByteSizeUnit.MB),
         Property.Dynamic,
         Property.NodeScope
     );
@@ -546,8 +546,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.fetchPhaseMaxInFlightChunks = fetchPhaseMaxInFlightChunks;
     }
 
-    private void setFetchPhaseTargetChunkBytes(ByteSizeValue fetchPhaseTargetChunkBytes) {
-        this.fetchPhaseTargetChunkBytes = Math.toIntExact(fetchPhaseTargetChunkBytes.getBytes());
+    private void setFetchPhaseTargetChunkBytes(ByteSizeValue byteSizeValue) {
+        this.fetchPhaseTargetChunkBytes = Math.toIntExact(byteSizeValue.getBytes());
     }
 
     private static void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {

@@ -218,24 +218,36 @@ public final class FetchPhase {
             buildSearchHits(context, docIdsToLoad, docsIterator, resolvedBuildListener, hitsListener);
         } else {
             assert continuationExecutor != null : "continuationExecutor is required in streaming mode";
-            int resolvedMaxInFlightChunks = maxInFlightChunks != null
-                ? maxInFlightChunks
-                : SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.get(context.getSearchExecutionContext().getIndexSettings().getSettings());
-            int resolvedTargetChunkBytes = targetChunkBytes != null
-                ? targetChunkBytes
-                : Math.toIntExact(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.getDefault(Settings.EMPTY).getBytes());
+            var settings = context.getSearchExecutionContext().getIndexSettings().getSettings();
             buildSearchHitsStreaming(
                 context,
                 docIdsToLoad,
                 docsIterator,
                 writer,
-                resolvedMaxInFlightChunks,
-                resolvedTargetChunkBytes,
+                resolveMaxInFlightChunks(maxInFlightChunks, settings),
+                resolveTargetChunkBytes(targetChunkBytes, settings),
                 continuationExecutor,
                 resolvedBuildListener,
                 hitsListener
             );
         }
+    }
+
+    /**
+     * Resolves the streaming-fetch max in-flight chunk count. Explicit caller overrides win; otherwise the value is read
+     * from the (potentially cluster-overridden) {@link SearchService#FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS} setting.
+     */
+    static int resolveMaxInFlightChunks(@Nullable Integer override, Settings settings) {
+        return override != null ? override : SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.get(settings);
+    }
+
+    /**
+     * Resolves the streaming-fetch target chunk size in bytes. Explicit caller overrides win; otherwise the value is read
+     * from the (potentially cluster-overridden) {@link SearchService#FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES} setting so
+     * cluster-level changes are honoured rather than always falling back to the hard-coded default.
+     */
+    static int resolveTargetChunkBytes(@Nullable Integer override, Settings settings) {
+        return override != null ? override : Math.toIntExact(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.get(settings).getBytes());
     }
 
     private static class PreloadedSourceProvider implements SourceProvider {

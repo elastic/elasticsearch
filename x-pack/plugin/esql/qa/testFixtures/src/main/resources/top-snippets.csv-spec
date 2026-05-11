@@ -433,3 +433,32 @@ ROW content = "The dogs bark loudly."
 
 content:keyword
 ;
+
+topSnippetsAnalyzerFromBooks
+required_capability: top_snippets_analyzer
+
+FROM books
+| WHERE MATCH(title, "Return")
+| EVAL snippets = TOP_SNIPPETS(title, "Returns", { "analyzer": "english", "highlight": true, "num_words": 0 })
+| KEEP title, author, snippets
+;
+ignoreOrder: true
+
+title:text                                                       | author:text                                      | snippets:keyword
+Return of the King Being the Third Part of The Lord of the Rings | J. R. R. Tolkien                                 | <em>Return</em> of the King Being the Third Part of The Lord of the Rings
+Return of the Shadow                                             | [Christopher Tolkien, John Ronald Reuel Tolkien] | <em>Return</em> of the Shadow
+;
+
+topSnippetsAnalyzerFromBooksInFilter
+required_capability: top_snippets_analyzer
+
+FROM books
+| WHERE mv_count(TOP_SNIPPETS(title, "Returns", { "analyzer": "english", "highlight": true, "num_words": 0 })) > 0
+| KEEP title, author
+;
+ignoreOrder: true
+
+title:text                                                       | author:text
+Return of the King Being the Third Part of The Lord of the Rings | J. R. R. Tolkien
+Return of the Shadow                                             | [Christopher Tolkien, John Ronald Reuel Tolkien]
+;

@@ -26,12 +26,13 @@
 //   [packed_len..2*packed_len) -> stripe 1 (bits 5:4)
 //   [2*packed_len..3*packed_len) -> stripe 2 (bits 3:2)
 //   [3*packed_len..4*packed_len) -> stripe 3 (bits 1:0)
+// Four 2-bit fields per doc byte: element E occupies bits [7-2E : 6-2E], i.e. shifts 6/4/2/0.
+constexpr int elements_per_byte = 4;
+
 static inline int32_t dotd2q4_packed_inner(const int8_t* a, const int8_t* query, int32_t packed_len) {
     const uint8x16_t mask_two_bits = vdupq_n_u8(0x03);
-    uint32x4_t acc_s0 = vdupq_n_u32(0);
-    uint32x4_t acc_s1 = vdupq_n_u32(0);
-    uint32x4_t acc_s2 = vdupq_n_u32(0);
-    uint32x4_t acc_s3 = vdupq_n_u32(0);
+    uint32x4_t acc[elements_per_byte];
+    apply_indexed<elements_per_byte>([&](auto E) { acc[E] = vdupq_n_u32(0); });
 
     constexpr int stride = sizeof(uint8x16_t);
     const int blk = packed_len & ~(stride - 1);
@@ -41,31 +42,29 @@ static inline int32_t dotd2q4_packed_inner(const int8_t* a, const int8_t* query,
     // headroom — effectively unbounded for any realistic packed_len.
     for (int i = 0; i < blk; i += stride) {
         uint8x16_t doc_bytes = vld1q_u8((const uint8_t*)(a + i));
-        // Extract the four 2-bit planes via per-byte right shifts (NEON has u8 shift, no cross-byte leakage).
-        uint8x16_t doc_s0 = vshrq_n_u8(doc_bytes, 6);
-        uint8x16_t doc_s1 = vandq_u8(vshrq_n_u8(doc_bytes, 4), mask_two_bits);
-        uint8x16_t doc_s2 = vandq_u8(vshrq_n_u8(doc_bytes, 2), mask_two_bits);
-        uint8x16_t doc_s3 = vandq_u8(doc_bytes, mask_two_bits);
 
-        uint8x16_t query_s0 = vld1q_u8((const uint8_t*)(query + i));
-        uint8x16_t query_s1 = vld1q_u8((const uint8_t*)(query + i + packed_len));
-        uint8x16_t query_s2 = vld1q_u8((const uint8_t*)(query + i + 2 * packed_len));
-        uint8x16_t query_s3 = vld1q_u8((const uint8_t*)(query + i + 3 * packed_len));
+        // Extract the four 2-bit planes via per-byte right shifts (NEON's u8 shift has no
+        // cross-byte leakage, so the highest plane needs no mask).
+        uint8x16_t doc_e[elements_per_byte];
+        doc_e[0] = vshrq_n_u8(doc_bytes, 6);
+        doc_e[1] = vandq_u8(vshrq_n_u8(doc_bytes, 4), mask_two_bits);
+        doc_e[2] = vandq_u8(vshrq_n_u8(doc_bytes, 2), mask_two_bits);
+        doc_e[3] = vandq_u8(doc_bytes, mask_two_bits);
 
-        acc_s0 = vdotq_u32(acc_s0, doc_s0, query_s0);
-        acc_s1 = vdotq_u32(acc_s1, doc_s1, query_s1);
-        acc_s2 = vdotq_u32(acc_s2, doc_s2, query_s2);
-        acc_s3 = vdotq_u32(acc_s3, doc_s3, query_s3);
+        apply_indexed<elements_per_byte>([&](auto E) {
+            uint8x16_t query_e = vld1q_u8((const uint8_t*)(query + i + E * packed_len));
+            acc[E] = vdotq_u32(acc[E], doc_e[E], query_e);
+        });
     }
 
-    int32_t total = (int32_t)vaddvq_u32(vaddq_u32(vaddq_u32(acc_s0, acc_s1), vaddq_u32(acc_s2, acc_s3)));
+    int32_t total = (int32_t)vaddvq_u32(tree_reduce<elements_per_byte, uint32x4_t, vaddq_u32>(acc));
 
     for (int i = blk; i < packed_len; i++) {
         uint8_t doc_byte = (uint8_t)a[i];
-        total += ((doc_byte >> 6) & 0x03) * query[i];
-        total += ((doc_byte >> 4) & 0x03) * query[i + packed_len];
-        total += ((doc_byte >> 2) & 0x03) * query[i + 2 * packed_len];
-        total += (doc_byte & 0x03) * query[i + 3 * packed_len];
+        apply_indexed<elements_per_byte>([&](auto E) {
+            constexpr int shift = 6 - 2 * E;
+            total += ((doc_byte >> shift) & 0x03) * query[i + E * packed_len];
+        });
     }
     return total;
 }
@@ -92,56 +91,56 @@ static inline void dotd2q4_packed_bulk_impl(
 
     for (; c + batches - 1 < count; c += batches) {
         const int8_t* doc_ptrs[batches];
-        uint32x4_t acc_s0[batches];
-        uint32x4_t acc_s1[batches];
-        uint32x4_t acc_s2[batches];
-        uint32x4_t acc_s3[batches];
+        uint32x4_t acc[elements_per_byte][batches];
 
         apply_indexed<batches>([&](auto I) {
             doc_ptrs[I] = mapper(docs, c + I, offsets, pitch);
-            acc_s0[I] = vdupq_n_u32(0);
-            acc_s1[I] = vdupq_n_u32(0);
-            acc_s2[I] = vdupq_n_u32(0);
-            acc_s3[I] = vdupq_n_u32(0);
+            apply_indexed<elements_per_byte>([&](auto E) {
+                acc[E][I] = vdupq_n_u32(0);
+            });
         });
 
         int i = 0;
         for (; i < blk; i += stride) {
-            uint8x16_t query_s0 = vld1q_u8((const uint8_t*)(query + i));
-            uint8x16_t query_s1 = vld1q_u8((const uint8_t*)(query + i + packed_len));
-            uint8x16_t query_s2 = vld1q_u8((const uint8_t*)(query + i + 2 * packed_len));
-            uint8x16_t query_s3 = vld1q_u8((const uint8_t*)(query + i + 3 * packed_len));
+            uint8x16_t query_e[elements_per_byte];
+            apply_indexed<elements_per_byte>([&](auto E) {
+                query_e[E] = vld1q_u8((const uint8_t*)(query + i + E * packed_len));
+            });
 
             apply_indexed<batches>([&](auto I) {
                 uint8x16_t doc_bytes = vld1q_u8((const uint8_t*)(doc_ptrs[I] + i));
-                uint8x16_t doc_s0 = vshrq_n_u8(doc_bytes, 6);
-                uint8x16_t doc_s1 = vandq_u8(vshrq_n_u8(doc_bytes, 4), mask_two_bits);
-                uint8x16_t doc_s2 = vandq_u8(vshrq_n_u8(doc_bytes, 2), mask_two_bits);
-                uint8x16_t doc_s3 = vandq_u8(doc_bytes, mask_two_bits);
+                // Extract the four 2-bit planes via per-byte right shifts (NEON's u8 shift has no
+                // cross-byte leakage, so the highest plane needs no mask).
+                uint8x16_t doc_e[elements_per_byte];
+                doc_e[0] = vshrq_n_u8(doc_bytes, 6);
+                doc_e[1] = vandq_u8(vshrq_n_u8(doc_bytes, 4), mask_two_bits);
+                doc_e[2] = vandq_u8(vshrq_n_u8(doc_bytes, 2), mask_two_bits);
+                doc_e[3] = vandq_u8(doc_bytes, mask_two_bits);
 
-                acc_s0[I] = vdotq_u32(acc_s0[I], doc_s0, query_s0);
-                acc_s1[I] = vdotq_u32(acc_s1[I], doc_s1, query_s1);
-                acc_s2[I] = vdotq_u32(acc_s2[I], doc_s2, query_s2);
-                acc_s3[I] = vdotq_u32(acc_s3[I], doc_s3, query_s3);
+                apply_indexed<elements_per_byte>([&](auto E) {
+                    acc[E][I] = vdotq_u32(acc[E][I], doc_e[E], query_e[E]);
+                });
             });
         }
 
         int32_t res[batches];
         apply_indexed<batches>([&](auto I) {
-            res[I] = (int32_t)vaddvq_u32(vaddq_u32(vaddq_u32(acc_s0[I], acc_s1[I]), vaddq_u32(acc_s2[I], acc_s3[I])));
+            uint32x4_t per_batch[elements_per_byte];
+            apply_indexed<elements_per_byte>([&](auto E) { per_batch[E] = acc[E][I]; });
+            res[I] = (int32_t)vaddvq_u32(tree_reduce<elements_per_byte, uint32x4_t, vaddq_u32>(per_batch));
         });
 
         for (; i < packed_len; i++) {
-            uint8_t q0 = (uint8_t)query[i];
-            uint8_t q1 = (uint8_t)query[i + packed_len];
-            uint8_t q2 = (uint8_t)query[i + 2 * packed_len];
-            uint8_t q3 = (uint8_t)query[i + 3 * packed_len];
+            uint8_t q[elements_per_byte];
+            apply_indexed<elements_per_byte>([&](auto E) {
+                q[E] = (uint8_t)query[i + E * packed_len];
+            });
             apply_indexed<batches>([&](auto I) {
                 uint8_t doc_byte = (uint8_t)doc_ptrs[I][i];
-                res[I] += ((doc_byte >> 6) & 0x03) * q0;
-                res[I] += ((doc_byte >> 4) & 0x03) * q1;
-                res[I] += ((doc_byte >> 2) & 0x03) * q2;
-                res[I] += (doc_byte & 0x03) * q3;
+                apply_indexed<elements_per_byte>([&](auto E) {
+                    constexpr int shift = 6 - 2 * E;
+                    res[I] += ((doc_byte >> shift) & 0x03) * q[E];
+                });
             });
         }
 

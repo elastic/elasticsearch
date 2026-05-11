@@ -40,10 +40,9 @@ public class CohereCompletionModelTests extends ESTestCase {
         return new CohereCompletionModel(
             "id",
             new CohereCompletionServiceSettings(
-                new CohereCommonServiceSettings(model, null, CohereCommonServiceSettings.CohereApiVersion.V2)
+                new CohereCommonServiceSettings(testUri, model, null, CohereCommonServiceSettings.CohereApiVersion.V2)
             ),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            testUri
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
 

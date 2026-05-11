@@ -35,9 +35,9 @@ public abstract class CohereModel extends RateLimitGroupingModel {
         ModelConfigurations configurations,
         ModelSecrets secrets,
         @Nullable ApiKeySecrets apiKeySecrets,
-        RateLimitSettings rateLimitSettings
+        CohereCommonServiceSettings commonSettings
     ) {
-        this(configurations, secrets, apiKeySecrets, rateLimitSettings, null);
+        this(configurations, secrets, apiKeySecrets, commonSettings.rateLimitSettings(), commonSettings.uri());
     }
 
     protected CohereModel(

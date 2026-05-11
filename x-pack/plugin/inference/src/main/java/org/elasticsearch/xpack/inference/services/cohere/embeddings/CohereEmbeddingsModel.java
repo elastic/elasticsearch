@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.net.URI;
 import java.util.Map;
 
 public class CohereEmbeddingsModel extends CohereModel {
@@ -59,30 +58,12 @@ public class CohereEmbeddingsModel extends CohereModel {
         );
     }
 
-    // should be used directly only for testing — accepts a URI to override the default Cohere endpoint
-    CohereEmbeddingsModel(
-        String modelId,
-        CohereEmbeddingsServiceSettings serviceSettings,
-        CohereEmbeddingsTaskSettings taskSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable DefaultSecretSettings secretSettings,
-        @Nullable URI testUri
-    ) {
-        super(
-            new ModelConfigurations(modelId, TaskType.TEXT_EMBEDDING, CohereService.NAME, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings.getCommonSettings().rateLimitSettings(),
-            testUri
-        );
-    }
-
     public CohereEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
             modelConfigurations,
             modelSecrets,
             (DefaultSecretSettings) modelSecrets.getSecretSettings(),
-            ((CohereEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).rateLimitSettings()
+            ((CohereEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
         );
     }
 

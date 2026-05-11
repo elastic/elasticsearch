@@ -966,11 +966,15 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             var model = new CohereRerankModel(
                 INFERENCE_ENTITY_ID,
                 new CohereRerankServiceSettings(
-                    new CohereCommonServiceSettings(modelName, null, CohereCommonServiceSettings.CohereApiVersion.V2)
+                    new CohereCommonServiceSettings(
+                        ServiceUtils.createUri(getUrl(webServer)),
+                        modelName,
+                        null,
+                        CohereCommonServiceSettings.CohereApiVersion.V2
+                    )
                 ),
                 new CohereRerankTaskSettings(null, null, null),
-                new DefaultSecretSettings(new SecureString(secret.toCharArray())),
-                ServiceUtils.createUri(getUrl(webServer))
+                new DefaultSecretSettings(new SecureString(secret.toCharArray()))
             );
 
             var queryString = "a query";

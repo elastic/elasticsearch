@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
-import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -667,21 +666,18 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
     @Override
     protected CohereEmbeddingsServiceSettings mutateInstanceForVersion(CohereEmbeddingsServiceSettings instance, TransportVersion version) {
         var embeddingType = CohereEmbeddingType.translateToVersion(instance.embeddingType(), version);
-        if (version.supports(ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR) == false) {
-            // old format did not write apiVersion if ML_INFERENCE_COHERE_API_VERSION was not supported
-            if (version.supports(ML_INFERENCE_COHERE_API_VERSION) == false) {
-                return new CohereEmbeddingsServiceSettings(
-                    new CohereCommonServiceSettings(
-                        instance.getCommonSettings().modelId(),
-                        instance.getCommonSettings().rateLimitSettings(),
-                        CohereCommonServiceSettings.CohereApiVersion.V1
-                    ),
-                    instance.similarity(),
-                    instance.dimensions(),
-                    instance.maxInputTokens(),
-                    embeddingType
-                );
-            }
+        if (version.supports(ML_INFERENCE_COHERE_API_VERSION) == false) {
+            return new CohereEmbeddingsServiceSettings(
+                new CohereCommonServiceSettings(
+                    instance.getCommonSettings().modelId(),
+                    instance.getCommonSettings().rateLimitSettings(),
+                    CohereCommonServiceSettings.CohereApiVersion.V1
+                ),
+                instance.similarity(),
+                instance.dimensions(),
+                instance.maxInputTokens(),
+                embeddingType
+            );
         }
         return new CohereEmbeddingsServiceSettings(
             instance.getCommonSettings(),

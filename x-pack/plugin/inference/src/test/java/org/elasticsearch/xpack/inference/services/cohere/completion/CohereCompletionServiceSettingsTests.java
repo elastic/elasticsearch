@@ -28,7 +28,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
-import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR;
 import static org.hamcrest.Matchers.is;
 
 public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereCompletionServiceSettings> {
@@ -208,17 +207,14 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
 
     @Override
     protected CohereCompletionServiceSettings mutateInstanceForVersion(CohereCompletionServiceSettings instance, TransportVersion version) {
-        if (version.supports(ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR) == false) {
-            // old format did not write apiVersion if ML_INFERENCE_COHERE_API_VERSION was not supported
-            if (version.supports(ML_INFERENCE_COHERE_API_VERSION) == false) {
-                return new CohereCompletionServiceSettings(
-                    new CohereCommonServiceSettings(
-                        instance.modelId(),
-                        instance.rateLimitSettings(),
-                        CohereCommonServiceSettings.CohereApiVersion.V1
-                    )
-                );
-            }
+        if (version.supports(ML_INFERENCE_COHERE_API_VERSION) == false) {
+            return new CohereCompletionServiceSettings(
+                new CohereCommonServiceSettings(
+                    instance.modelId(),
+                    instance.rateLimitSettings(),
+                    CohereCommonServiceSettings.CohereApiVersion.V1
+                )
+            );
         }
         return instance;
     }

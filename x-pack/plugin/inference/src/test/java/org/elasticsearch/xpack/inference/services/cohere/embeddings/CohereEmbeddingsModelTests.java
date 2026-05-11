@@ -123,7 +123,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
         return new CohereEmbeddingsModel(
             "id",
             new CohereEmbeddingsServiceSettings(
-                new CohereCommonServiceSettings(model, null, CohereCommonServiceSettings.CohereApiVersion.V2),
+                new CohereCommonServiceSettings(testUri, model, null, CohereCommonServiceSettings.CohereApiVersion.V2),
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
                 tokenLimit,
@@ -131,8 +131,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             ),
             taskSettings,
             chunkingSettings,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            testUri
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
 
@@ -171,7 +170,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
         return new CohereEmbeddingsModel(
             "id",
             new CohereEmbeddingsServiceSettings(
-                new CohereCommonServiceSettings(model, null, apiVersion),
+                new CohereCommonServiceSettings(testUri, model, null, apiVersion),
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
                 tokenLimit,
@@ -179,8 +178,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             ),
             taskSettings,
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            testUri
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
 
@@ -198,7 +196,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
         return new CohereEmbeddingsModel(
             "id",
             new CohereEmbeddingsServiceSettings(
-                new CohereCommonServiceSettings(model, null, CohereCommonServiceSettings.CohereApiVersion.V2),
+                new CohereCommonServiceSettings(testUri, model, null, CohereCommonServiceSettings.CohereApiVersion.V2),
                 similarityMeasure,
                 dimensions,
                 tokenLimit,
@@ -206,8 +204,7 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             ),
             taskSettings,
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            testUri
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
 }

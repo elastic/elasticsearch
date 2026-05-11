@@ -27,9 +27,6 @@
 //   [2*packed_len..3*packed_len) -> stripe 2 (bits 3:2)
 //   [3*packed_len..4*packed_len) -> stripe 3 (bits 1:0)
 
-// Four 2-bit fields per doc byte: stripe S occupies bits [7-2S : 6-2S], i.e. shifts 6/4/2/0.
-constexpr int elements_per_byte = 4;
-
 static inline int32_t dotd2q4_packed_inner(const int8_t* a, const int8_t* query, int32_t packed_len) {
     const __m256i mask_two_bits = _mm256_set1_epi8(0x03);
     const __m256i ones = _mm256_set1_epi16(1);
@@ -45,43 +42,49 @@ static inline int32_t dotd2q4_packed_inner(const int8_t* a, const int8_t* query,
 
     int i = 0;
     while (i < blk) {
-        __m256i acc_16[elements_per_byte];
-        apply_indexed<elements_per_byte>([&](auto E) { acc_16[E] = _mm256_setzero_si256(); });
+        __m256i acc_s0_16 = _mm256_setzero_si256();
+        __m256i acc_s1_16 = _mm256_setzero_si256();
+        __m256i acc_s2_16 = _mm256_setzero_si256();
+        __m256i acc_s3_16 = _mm256_setzero_si256();
         const int end = std::min(i + chunk, blk);
 
         for (; i < end; i += stride) {
             __m256i doc_bytes = _mm256_loadu_si256((const __m256i*)(a + i));
 
-            apply_indexed<elements_per_byte>([&](auto E) {
-                // Extract each 2-bit plane via a 16-bit-lane shift; the 0x03 mask cleans cross-byte leakage.
-                constexpr int shift = 6 - 2 * E;
-                __m256i doc_e;
-                if constexpr (shift == 0) {
-                    doc_e = _mm256_and_si256(doc_bytes, mask_two_bits);
-                } else {
-                    doc_e = _mm256_and_si256(_mm256_srli_epi16(doc_bytes, shift), mask_two_bits);
-                }
-                __m256i query_e = _mm256_loadu_si256((const __m256i*)(query + i + E * packed_len));
-                // Doc 0..3, query 0..15 — both fit in unsigned bytes; signedness of maddubs is irrelevant here.
-                // Accumulate in 16-bit; widen to 32-bit after the chunk.
-                acc_16[E] = _mm256_add_epi16(acc_16[E], _mm256_maddubs_epi16(doc_e, query_e));
-            });
+            // Extract the four 2-bit planes via 16-bit-lane shifts; the 0x03 mask cleans cross-byte leakage.
+            __m256i doc_s0 = _mm256_and_si256(_mm256_srli_epi16(doc_bytes, 6), mask_two_bits);
+            __m256i doc_s1 = _mm256_and_si256(_mm256_srli_epi16(doc_bytes, 4), mask_two_bits);
+            __m256i doc_s2 = _mm256_and_si256(_mm256_srli_epi16(doc_bytes, 2), mask_two_bits);
+            __m256i doc_s3 = _mm256_and_si256(doc_bytes, mask_two_bits);
+
+            __m256i query_s0 = _mm256_loadu_si256((const __m256i*)(query + i));
+            __m256i query_s1 = _mm256_loadu_si256((const __m256i*)(query + i + packed_len));
+            __m256i query_s2 = _mm256_loadu_si256((const __m256i*)(query + i + 2 * packed_len));
+            __m256i query_s3 = _mm256_loadu_si256((const __m256i*)(query + i + 3 * packed_len));
+
+            // Doc 0..3, query 0..15 — both fit in unsigned bytes; signedness of maddubs is irrelevant here.
+            // Accumulate in 16-bit; widen to 32-bit after the chunk.
+            acc_s0_16 = _mm256_add_epi16(acc_s0_16, _mm256_maddubs_epi16(doc_s0, query_s0));
+            acc_s1_16 = _mm256_add_epi16(acc_s1_16, _mm256_maddubs_epi16(doc_s1, query_s1));
+            acc_s2_16 = _mm256_add_epi16(acc_s2_16, _mm256_maddubs_epi16(doc_s2, query_s2));
+            acc_s3_16 = _mm256_add_epi16(acc_s3_16, _mm256_maddubs_epi16(doc_s3, query_s3));
         }
 
         // Widen 16->32 bit and accumulate into the running 32-bit total.
-        apply_indexed<elements_per_byte>([&](auto E) {
-            acc = _mm256_add_epi32(acc, _mm256_madd_epi16(ones, acc_16[E]));
-        });
+        acc = _mm256_add_epi32(acc, _mm256_madd_epi16(ones, acc_s0_16));
+        acc = _mm256_add_epi32(acc, _mm256_madd_epi16(ones, acc_s1_16));
+        acc = _mm256_add_epi32(acc, _mm256_madd_epi16(ones, acc_s2_16));
+        acc = _mm256_add_epi32(acc, _mm256_madd_epi16(ones, acc_s3_16));
     }
 
     int32_t total = mm256_reduce_epi32<_mm_add_epi32>(acc);
 
     for (int i = blk; i < packed_len; i++) {
         uint8_t doc_byte = (uint8_t)a[i];
-        apply_indexed<elements_per_byte>([&](auto E) {
-            constexpr int shift = 6 - 2 * E;
-            total += ((doc_byte >> shift) & 0x03) * query[i + E * packed_len];
-        });
+        total += ((doc_byte >> 6) & 0x03) * query[i];
+        total += ((doc_byte >> 4) & 0x03) * query[i + packed_len];
+        total += ((doc_byte >> 2) & 0x03) * query[i + 2 * packed_len];
+        total += (doc_byte & 0x03) * query[i + 3 * packed_len];
     }
     return total;
 }
@@ -130,41 +133,44 @@ static inline void dotd2q4_packed_bulk_impl(
 
         int i = 0;
         while (i < blk) {
-            __m256i acc_16[elements_per_byte][batches];
-            apply_indexed<elements_per_byte>([&](auto E) {
-                apply_indexed<batches>([&](auto I) {
-                    acc_16[E][I] = _mm256_setzero_si256();
-                });
+            __m256i acc_s0_16[batches];
+            __m256i acc_s1_16[batches];
+            __m256i acc_s2_16[batches];
+            __m256i acc_s3_16[batches];
+            apply_indexed<batches>([&](auto I) {
+                acc_s0_16[I] = _mm256_setzero_si256();
+                acc_s1_16[I] = _mm256_setzero_si256();
+                acc_s2_16[I] = _mm256_setzero_si256();
+                acc_s3_16[I] = _mm256_setzero_si256();
             });
 
             const int end = std::min(i + chunk, blk);
 
             for (; i < end; i += stride) {
-                __m256i query_e[elements_per_byte];
-                apply_indexed<elements_per_byte>([&](auto E) {
-                    query_e[E] = _mm256_loadu_si256((const __m256i*)(query + i + E * packed_len));
-                });
+                __m256i query_s0 = _mm256_loadu_si256((const __m256i*)(query + i));
+                __m256i query_s1 = _mm256_loadu_si256((const __m256i*)(query + i + packed_len));
+                __m256i query_s2 = _mm256_loadu_si256((const __m256i*)(query + i + 2 * packed_len));
+                __m256i query_s3 = _mm256_loadu_si256((const __m256i*)(query + i + 3 * packed_len));
 
                 apply_indexed<batches>([&](auto I) {
                     __m256i doc_bytes = _mm256_loadu_si256((const __m256i*)(current_doc_ptrs[I] + i));
-                    apply_indexed<elements_per_byte>([&](auto E) {
-                        // Extract each 2-bit plane via a 16-bit-lane shift; the 0x03 mask cleans cross-byte leakage.
-                        constexpr int shift = 6 - 2 * E;
-                        __m256i doc_e;
-                        if constexpr (shift == 0) {
-                            doc_e = _mm256_and_si256(doc_bytes, mask_two_bits);
-                        } else {
-                            doc_e = _mm256_and_si256(_mm256_srli_epi16(doc_bytes, shift), mask_two_bits);
-                        }
-                        acc_16[E][I] = _mm256_add_epi16(acc_16[E][I], _mm256_maddubs_epi16(doc_e, query_e[E]));
-                    });
+                    __m256i doc_s0 = _mm256_and_si256(_mm256_srli_epi16(doc_bytes, 6), mask_two_bits);
+                    __m256i doc_s1 = _mm256_and_si256(_mm256_srli_epi16(doc_bytes, 4), mask_two_bits);
+                    __m256i doc_s2 = _mm256_and_si256(_mm256_srli_epi16(doc_bytes, 2), mask_two_bits);
+                    __m256i doc_s3 = _mm256_and_si256(doc_bytes, mask_two_bits);
+
+                    acc_s0_16[I] = _mm256_add_epi16(acc_s0_16[I], _mm256_maddubs_epi16(doc_s0, query_s0));
+                    acc_s1_16[I] = _mm256_add_epi16(acc_s1_16[I], _mm256_maddubs_epi16(doc_s1, query_s1));
+                    acc_s2_16[I] = _mm256_add_epi16(acc_s2_16[I], _mm256_maddubs_epi16(doc_s2, query_s2));
+                    acc_s3_16[I] = _mm256_add_epi16(acc_s3_16[I], _mm256_maddubs_epi16(doc_s3, query_s3));
                 });
             }
 
             apply_indexed<batches>([&](auto I) {
-                apply_indexed<elements_per_byte>([&](auto E) {
-                    acc32[I] = _mm256_add_epi32(acc32[I], _mm256_madd_epi16(ones, acc_16[E][I]));
-                });
+                acc32[I] = _mm256_add_epi32(acc32[I], _mm256_madd_epi16(ones, acc_s0_16[I]));
+                acc32[I] = _mm256_add_epi32(acc32[I], _mm256_madd_epi16(ones, acc_s1_16[I]));
+                acc32[I] = _mm256_add_epi32(acc32[I], _mm256_madd_epi16(ones, acc_s2_16[I]));
+                acc32[I] = _mm256_add_epi32(acc32[I], _mm256_madd_epi16(ones, acc_s3_16[I]));
             });
         }
 
@@ -174,16 +180,16 @@ static inline void dotd2q4_packed_bulk_impl(
         });
 
         for (; i < packed_len; i++) {
-            uint8_t q[elements_per_byte];
-            apply_indexed<elements_per_byte>([&](auto E) {
-                q[E] = (uint8_t)query[i + E * packed_len];
-            });
+            uint8_t q0 = (uint8_t)query[i];
+            uint8_t q1 = (uint8_t)query[i + packed_len];
+            uint8_t q2 = (uint8_t)query[i + 2 * packed_len];
+            uint8_t q3 = (uint8_t)query[i + 3 * packed_len];
             apply_indexed<batches>([&](auto I) {
                 uint8_t doc_byte = (uint8_t)current_doc_ptrs[I][i];
-                apply_indexed<elements_per_byte>([&](auto E) {
-                    constexpr int shift = 6 - 2 * E;
-                    res[I] += ((doc_byte >> shift) & 0x03) * q[E];
-                });
+                res[I] += ((doc_byte >> 6) & 0x03) * q0;
+                res[I] += ((doc_byte >> 4) & 0x03) * q1;
+                res[I] += ((doc_byte >> 2) & 0x03) * q2;
+                res[I] += (doc_byte & 0x03) * q3;
             });
         }
 

@@ -536,84 +536,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148619
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.evalComputedColumn [S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/148655
-- class: org.elasticsearch.xpack.esql.datasource.parquet.parquetrs.NativeLoaderTests
-  method: testLoad
-  issue: https://github.com/elastic/elasticsearch/issues/148693
-- class: org.elasticsearch.xpack.esql.datasource.parquet.parquetrs.ParquetRsDiscoverSplitRangesStatsTests
-  method: testDiscoverSplitRangesIncludesColumnMinMaxKeys
-  issue: https://github.com/elastic/elasticsearch/issues/148698
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.aggregateAverageSalary [HTTP]}
-  issue: https://github.com/elastic/elasticsearch/issues/148711
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.topNSortBySalaryDesc [GCS]}
-  issue: https://github.com/elastic/elasticsearch/issues/148712
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.renameColumn [LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/148717
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.operatorLikeCaseInsensitiveAfterToUpper [S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/148718
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.evalComputedColumn [LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/148719
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.selectHeightVariants [GCS]}
-  issue: https://github.com/elastic/elasticsearch/issues/148720
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.filterByGender [LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/148721
 - class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
   method: testGenerationalFileBlobReferenceIsRetainedCorrectly
   issue: https://github.com/elastic/elasticsearch/issues/148723
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.inlineStatsMaxSalary [S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/148725
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.uriPartsFromEval [LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/148726
 - class: org.elasticsearch.xpack.spatial.index.query.GeoShapeWithDocValuesQueryTests
   method: testQueryRandomGeoCollection
   issue: https://github.com/elastic/elasticsearch/issues/148727
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.enrich [AZURE]}
-  issue: https://github.com/elastic/elasticsearch/issues/148728
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.topSnippetsFunction [AZURE]}
-  issue: https://github.com/elastic/elasticsearch/issues/148729
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.topNFilteredSortBySalary [HTTP]}
-  issue: https://github.com/elastic/elasticsearch/issues/148730
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.lookupJoinAfterStats [HTTP]}
-  issue: https://github.com/elastic/elasticsearch/issues/148731
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.evalComputedColumn [GCS]}
-  issue: https://github.com/elastic/elasticsearch/issues/148732
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.enrich [LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/148733
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.aggregateByGender [LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/148734
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.selectSpecificColumns [GCS]}
-  issue: https://github.com/elastic/elasticsearch/issues/148735
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.convertToString [S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/148737
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.filterBySalaryRange [AZURE]}
-  issue: https://github.com/elastic/elasticsearch/issues/148739
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.uriPartsFromEval [S3]}
-  issue: https://github.com/elastic/elasticsearch/issues/148742
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.aggregateSumSalary [GCS]}
-  issue: https://github.com/elastic/elasticsearch/issues/148744
 - class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
   method: testDynamicSettingUpdateAffectsSubsequentDocuments
   issue: https://github.com/elastic/elasticsearch/issues/148745
@@ -626,18 +554,9 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/148748
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.filterBySalaryRange [LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/148749
 - class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
   method: testSnapshotRecovery
   issue: https://github.com/elastic/elasticsearch/issues/148750
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.selectSpecificColumns [LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/148751
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
-  method: test {csv-spec:external-basic.categorizeByFullName [LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/148752
 - class: org.elasticsearch.xpack.ml.integration.MlDailyMaintenanceServiceIT
   method: testTriggerCloseIdleJobsWithStoppedDatafeeds
   issue: https://github.com/elastic/elasticsearch/issues/148758

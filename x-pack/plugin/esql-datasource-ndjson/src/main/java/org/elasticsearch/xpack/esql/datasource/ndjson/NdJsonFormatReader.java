@@ -272,11 +272,14 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Convenience overload that builds a minimal {@link FormatReadContext}. Does not propagate a
-     * planner-resolved {@code readSchema}; the resulting context has {@code readSchema=null} and
-     * the reader falls back to per-file inference. Safe for single-file reads; do NOT use to
-     * iterate the files of a multi-file glob — cross-file type drift will not be prevented.
+     * Convenience overload that builds a minimal {@link FormatReadContext} without a planner-resolved
+     * {@code readSchema}. Safe for single-file reads (reader falls back to per-file inference); do
+     * NOT use to iterate the files of a multi-file glob — cross-file type drift will not be prevented.
+     *
+     * @deprecated use {@link #read(StorageObject, FormatReadContext)} so callers express
+     *             {@code readSchema} intent (or {@code null}) explicitly.
      */
+    @Deprecated
     @Override
     public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
         return read(

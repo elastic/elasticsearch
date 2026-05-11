@@ -43,13 +43,16 @@ import java.util.List;
  *   <li>Produce ESQL Page batches for the query pipeline</li>
  * </ul>
  *
- * <p><b>Single-file only.</b> This factory takes a single {@link StoragePath} and does not
+ * <p><b>Single-file only; no production callers.</b> Takes one {@link StoragePath} and does not
  * propagate the planner-resolved {@code readSchema} into {@link FormatReadContext}. Calling it
  * for multi-file glob paths would route reads back through per-file inference and re-introduce
- * the cross-file type-drift bug fixed for the production multi-file path in
- * {@link AsyncExternalSourceOperatorFactory}. Use {@code AsyncExternalSourceOperatorFactory} for
- * any multi-file traffic.
+ * the cross-file type-drift bug fixed in {@link AsyncExternalSourceOperatorFactory}.
+ *
+ * @deprecated retained for test fixtures only; new code should use
+ *             {@link AsyncExternalSourceOperatorFactory}, which propagates the planner-resolved
+ *             {@code readSchema} and supports multi-file paths.
  */
+@Deprecated
 public class ExternalSourceOperatorFactory implements SourceOperator.SourceOperatorFactory {
 
     private final StorageProvider storageProvider;

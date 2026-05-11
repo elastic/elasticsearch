@@ -46,11 +46,9 @@ import java.util.Objects;
  *       locally on each data node by the LocalPhysicalPlanOptimizer via FormatReader.filterPushdownSupport()</li>
  *   <li><b>Data node execution</b>: Created on data nodes by LocalMapper from
  *       {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation} inside FragmentExec</li>
- *   <li><b>Optional anchor file schema</b>: For multi-file sources where the planner has resolved a
- *       single representative file's positional column schema (e.g. headerless CSV anchor inference),
- *       that schema travels here via {@link #readSchema()} so runtime readers can use it as the
- *       authoritative positional layout instead of re-inferring per file. {@code null} when no
- *       anchor schema is available — readers fall back to existing per-file inference.</li>
+ *   <li><b>Optional read schema</b>: {@link #readSchema()} carries the planner-resolved schema
+ *       (typically inferred from one representative file in a multi-file glob). Runtime readers
+ *       use it as the authoritative positional layout; {@code null} → per-file inference.</li>
  * </ul>
  */
 public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, DataSourceExec {
@@ -83,11 +81,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final FileList fileList; // NOT serialized - resolved on coordinator, null on data nodes
     private final List<ExternalSplit> splits;
     /**
-     * Positional file schema resolved at planning time (anchor file in a multi-file glob). Runtime
-     * readers may use it as the authoritative positional column layout instead of per-file inference.
-     * Serialized cross-node, gated by {@link #ESQL_EXTERNAL_SOURCE_READ_SCHEMA}. {@code null} = no
-     * anchor (older nodes, sources that don't compute one, or constructions that bypass
-     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()}).
+     * Planner-resolved typed column layout for the source. Serialized cross-node, gated by
+     * {@link #ESQL_EXTERNAL_SOURCE_READ_SCHEMA}. {@code null} = older nodes, sources that don't
+     * compute one, or constructions that bypass
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()}.
      */
     @Nullable
     private final List<Attribute> readSchema;
@@ -148,12 +145,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         );
     }
 
-    /**
-     * Public ctor that also accepts the optional anchor file schema. Use this from
-     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()} when the
-     * planner has resolved an anchor schema; existing call sites that do not populate the schema
-     * can keep using the shorter overload above (it forwards {@code null}).
-     */
+    /** Ctor variant that also accepts the optional {@link #readSchema()}. */
     public ExternalSourceExec(
         Source source,
         String sourcePath,
@@ -216,11 +208,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         );
     }
 
-    /**
-     * Public 13-arg ctor (after Source): variant with pushed expressions AND optional anchor file schema.
-     * Mirrors the canonical ctor below but without the transient {@code pushedTopN} hint.
-     * Used by {@link #info()} so tree-rewrite preserves the anchor schema across optimizer transforms.
-     */
+    /** Variant with pushed expressions AND optional {@link #readSchema()}; used by {@link #info()}. */
     public ExternalSourceExec(
         Source source,
         String sourcePath,
@@ -455,10 +443,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         return splits;
     }
 
-    /**
-     * Positional file schema resolved at planning time (anchor file in a multi-file glob).
-     * {@code null} when no anchor was computed — readers fall back to per-file inference.
-     */
+    /** See field-level Javadoc on {@link #readSchema}. */
     @Nullable
     public List<Attribute> readSchema() {
         return readSchema;
@@ -600,14 +585,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        // pushedTopN is intentionally excluded from info(): it is a transient local-execution hint set after the
-        // plan has been distributed, and including it here would (a) require a public ctor that exposes the hint
-        // and breaks the node-reflection invariant in EsqlNodeSubclassTests#testInfoParameters and (b) leak the
-        // hint into any generic transform-based plan rewrite. The hint is preserved by the explicit with* methods
-        // that need it and is rendered in nodeString() for debuggability.
-        //
-        // readSchema IS included: it is a structural planning-time field that must survive tree-rewrites by
-        // optimizer rules. Excluding it would silently drop it on every plan-rebuild.
+        // pushedTopN: excluded — transient local-execution hint; including it would break the
+        // node-reflection invariant in EsqlNodeSubclassTests#testInfoParameters. Preserved via
+        // explicit with* methods; rendered in nodeString() for debuggability.
+        // readSchema: included — structural planning-time field that must survive tree-rewrites.
         return NodeInfo.create(
             this,
             ExternalSourceExec::new,

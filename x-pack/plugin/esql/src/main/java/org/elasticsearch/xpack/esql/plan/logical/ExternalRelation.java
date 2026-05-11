@@ -148,10 +148,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         Map<String, Object> enrichedMetadata = metadata.statistics()
             .map(stats -> SourceStatisticsSerializer.embedStatistics(metadata.sourceMetadata(), stats))
             .orElse(metadata.sourceMetadata());
-        // Thread the anchor-file schema to the physical node. The SourceMetadata contract states
-        // schema() is never null, so this is always populated for real sources; null at the
-        // ExternalSourceExec layer is reserved for older serialized plans + test fixtures, where
-        // readers fall back to per-file inference. See ExternalSourceExec#readSchema().
+        // metadata.schema() is contract-non-null for real sources; pass through to readSchema.
         return new ExternalSourceExec(
             source(),
             sourcePath,

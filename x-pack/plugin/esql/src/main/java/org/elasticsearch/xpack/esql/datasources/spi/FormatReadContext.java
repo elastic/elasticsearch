@@ -37,17 +37,12 @@ import java.util.List;
  *                         (e.g. bzip2 / zstd-indexed macro-splits). When {@code true}, the split is known
  *                         to start exactly on a record boundary (e.g. streaming-parallel chunks sliced on
  *                         {@code \n}). Has no effect on the first split.
- * @param readSchema       optional positional file schema resolved at planning time (typically the
- *                         anchor file in a multi-file glob). When non-{@code null}, format readers
- *                         may use it as the authoritative positional column layout; when {@code null},
+ * @param readSchema       optional planner-resolved positional column layout. When non-{@code null},
+ *                         format readers use it as the authoritative typed schema; when {@code null},
  *                         readers fall back to per-file inference. Distinct from
- *                         {@link FormatReader#withSchema}, which carries the projected output
- *                         attributes (a possibly-pruned subset of the file's columns).
- *                         <p>
- *                         {@code null} and the empty list are <b>not</b> equivalent: {@code null}
- *                         means "no planner-bound schema available, infer per file"; an empty
- *                         list is undefined (no anchor file has zero columns) but would still be
- *                         interpreted as "use this schema" and skip inference.
+ *                         {@link FormatReader#withSchema}, which carries the projection. Empty
+ *                         list and {@code null} both mean "no schema"; the compact constructor
+ *                         collapses empty to {@code null} so readers do one check.
  */
 public record FormatReadContext(
     List<String> projectedColumns,

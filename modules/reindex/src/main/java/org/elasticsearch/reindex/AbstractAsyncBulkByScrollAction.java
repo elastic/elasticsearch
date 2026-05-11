@@ -309,6 +309,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
         sourceBuilder.version(needsSourceDocumentVersions);
         sourceBuilder.seqNoAndPrimaryTerm(needsSourceDocumentSeqNoAndPrimaryTerm);
 
+        // Force accurate track_total_hits for PIT reindex so Status#total reflects the actual number of matching
+        // documents instead of being clamped at the search default. Scroll doesn't need this, it already forces
+        // accurate counting
+        if (sourceBuilder.pointInTimeBuilder() != null && sourceBuilder.trackTotalHitsUpTo() == null) {
+            sourceBuilder.trackTotalHits(true);
+        }
+
         if (needsVectors) {
             // always include vectors in the response unless explicitly set
             var fetchSource = sourceBuilder.fetchSource();

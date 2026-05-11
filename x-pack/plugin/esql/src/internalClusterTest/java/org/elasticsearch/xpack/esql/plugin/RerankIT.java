@@ -49,6 +49,9 @@ public class RerankIT extends InferenceCommandIntegTestCase {
 
     @Override
     protected QueryPragmas getPragmas() {
+        if (canUseQueryPragmas() == false) {
+            return QueryPragmas.EMPTY;
+        }
         Settings.Builder settings = Settings.builder();
         settings.put("task_concurrency", randomLongBetween(1, 4));
         settings.put("task_queue_size", randomIntBetween(1, 10));

@@ -5,49 +5,245 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.transform.UnzipTransform
+import org.elasticsearch.gradle.OS
+
+import java.security.MessageDigest
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
 
-versions << [
-  'hadoop' : '3.4.3',
-]
-
 esplugin {
   name = 'esql-datasource-parquet-rs'
-  description = 'Rust FFI foundation for parquet-rs backed Parquet support in ESQL'
+  description = 'parquet-rs backed native Parquet reader for ESQL external data sources'
   classname = 'org.elasticsearch.xpack.esql.datasource.parquet.parquetrs.ParquetRsPlugin'
+  extendedPlugins = ['x-pack-esql']
 }
 
 base {
   archivesName = 'esql-datasource-parquet-rs'
 }
 
+def nativeLib="libesql_parquet_rs"
+def nativeDir = "${project.projectDir}/native"
+
+def buildingDockerImage = gradle.startParameter.taskNames.any { it.matches("build.*DockerImage") }
+
+// Where to get native libraries from? The default is:
+// - If the "native/target" directory exists and we're not in CI and not building a Docker image,
+//   build the library on the local host.
+// - Otherwise, fetch libraries from Artifactory. The "version" is the sha1 of the native source code.
+//   The libraries must have been published already, or the build will fail. See "native/Makefile" to build them.
+//
+// To override the default behaviour, export NATIVE_BUILD with one of:
+//   - "artifactory":  download the prebuilt libraries from Artifactory.
+//   - "local":        Build the library only for the local host.
+//                     Mostly useful when "native/target" doesn't yet exist.
+//   - "local-multi":  use multi-platform libraries from "native/build/libraries" (see native/Makefile
+//                     to build them)
+//                     Mostly useful to build local Docker images without publishing to Artifactory.
+def nativeBuildType = {
+  def envValue = System.getenv("NATIVE_BUILD")
+  if (buildParams.ci) {
+    // Always use Artifactory in CI
+    "artifactory"
+  } else if (envValue == null) {
+    // No directive: build locally if 'target' dir is present and we're not building a Docker image
+    if (buildingDockerImage == false && file("${nativeDir}/target").isDirectory()) {
+      "local"
+    } else {
+      "artifactory"
+    }
+  } else {
+    if (["local", "artifactory", "local-multi"].contains(envValue) == false) {
+      throw new GradleException("NATIVE_BUILD must be one of: local, artifactory, local-multi (got: ${envValue})")
+    }
+    if (buildingDockerImage && envValue == "local") {
+      throw new GradleException("NATIVE_BUILD cannot be 'local' when building a Docker image")
+    }
+    envValue
+  }
+}()
+
+def buildLocally = nativeBuildType == "local"
+def useLocalMulti = nativeBuildType == "local-multi"
+def useArtifactory = nativeBuildType == "artifactory"
+
+configurations {
+  libs {
+    attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    canBeConsumed = false
+  }
+}
+
+// The "version" of native libraries in Artifactory is the SHA-1 of all source files used to build them.
+def computeNativeCodeHash = {
+  def md = MessageDigest.getInstance("SHA-1")
+  def paths = []
+  // Collect all native file names and sort them. We use File objects and convert them to String
+  // ensure the same sort order on every platform (file sorting is platform-dependent).
+  file("${nativeDir}/.cargo").eachFileRecurse(groovy.io.FileType.FILES) { paths << it.toString() }
+  file("${nativeDir}/src").eachFileRecurse(groovy.io.FileType.FILES)    { paths << it.toString() }
+  paths << file("${nativeDir}/Cargo.toml").toString()
+  paths << file("${nativeDir}/Cargo.lock").toString()
+  paths.sort().each { rel ->
+    def bytes = new File(rel).bytes
+    // Strip CR to normalize line ends (may be CRLF on Windows)
+    def out = new ByteArrayOutputStream(bytes.length)
+    for (b in bytes) { if (b != '\r') out.write(b) }
+    md.update(out.toByteArray())
+  }
+  md.digest().encodeHex().toString()
+}
+
+def nativeVersion = {
+  if (useArtifactory) {
+    computeNativeCodeHash()
+  } else if (useLocalMulti) {
+    "local-multi"
+  } else {
+    "local"
+  }
+}()
+
+// Prints the native source code hash for scripts needing it (see native/build-tools/publish-libraries.sh)
+// Prefixed with `native-code-hash:` so callers can reliably extract it from build output.
+tasks.register("printNativeCodeHash") {
+  doLast {
+    println "native-code-hash:${computeNativeCodeHash()}"
+  }
+}
+
 dependencies {
+  compileOnly project(path: xpackModule('esql'))
+  compileOnly project(path: xpackModule('esql-core'))
+  compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
+  compileOnly project(xpackModule('esql:compute'))
+  compileOnly project(xpackModule('esql:arrow'))
 
-  // Parquet-rs library (Rust FFI via libs/native)
-  compileOnly project(':libs:parquet-rs')
-
-  testImplementation project(':test:framework')
-  testImplementation(testArtifact(project(xpackModule('core'))))
-
-  // Arrow C Data Interface — used in tests to validate schema FFI output.
-  // The PR will promote these to implementation when production code uses them.
-  testImplementation("org.apache.arrow:arrow-c-data:18.3.0") {
+  // Arrow C Data Interface for zero-copy FFI transfer from Rust
+  implementation("org.apache.arrow:arrow-c-data:18.3.0") {
     exclude group: 'org.slf4j'
   }
-  testImplementation(project(':libs:arrow'))
+  implementation(project(':libs:arrow')) {
+    exclude group: 'org.slf4j'
+  }
 
-  // Parquet writing for test fixtures
   testImplementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
-  testImplementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
-  testImplementation("org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}")
+  testImplementation("org.apache.hadoop:hadoop-client-api:3.4.3")
+  testImplementation("org.apache.hadoop:hadoop-client-runtime:3.4.3")
   // jts-core is needed at test time: parquet-hadoop-bundle's ColumnChunkPageWriteStore
   // references GeospatialStatistics which requires JTS. Normally resolved transitively
   // via esql-core, but this module does not depend on esql-core.
   testImplementation("org.locationtech.jts:jts-core:1.20.0")
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+
+  if (useArtifactory) {
+    registerTransform(UnzipTransform, transformSpec -> {
+      transformSpec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
+      transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+    });
+    libs "org.elasticsearch:${nativeLib}:${nativeVersion}@zip"
+  }
 }
+
+repositories {
+  exclusiveContent {
+    forRepository {
+      maven {
+        url = "https://artifactory.elastic.dev/artifactory/elasticsearch-native"
+        metadataSources {
+          artifact()
+        }
+      }
+    }
+    filter {
+      includeModule("org.elasticsearch", nativeLib)
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Native Rust library build
+// ---------------------------------------------------------------------------
+
+String libFileName = switch (OS.current()) {
+  case OS.LINUX -> "${nativeLib}.so"
+  case OS.MAC -> "${nativeLib}.dylib"
+  // Not produced yet but the windows archive CI tests need it.
+  case OS.WINDOWS -> "${nativeLib}.dll"
+  default -> throw new GradleException("Unsupported platform: ${os}")
+}
+
+def cargoOutputDir = "${nativeDir}/target/release"
+
+tasks.register("cargoBuild", Exec) {
+  description = "Build the ${nativeLib} library locally (release mode)"
+  workingDir nativeDir
+
+  def cargoPath = org.gradle.internal.os.OperatingSystem.current().findInPath("cargo")
+  commandLine cargoPath?.absolutePath ?: "cargo", "build", "--release"
+
+  inputs.dir("${nativeDir}/src")
+  inputs.file("${nativeDir}/Cargo.toml")
+  inputs.file("${nativeDir}/Cargo.lock")
+  outputs.file("${cargoOutputDir}/${libFileName}")
+
+  onlyIf {
+    buildLocally
+  }
+}
+
+sourceSets {
+  main {
+    resources {
+      srcDir(layout.buildDirectory.dir("native-libs/${nativeVersion}"))
+    }
+  }
+}
+
+def extractNativeLibs = tasks.register('extractNativeLibs', Copy) {
+  if (buildLocally) {
+    dependsOn("cargoBuild")
+    from "${cargoOutputDir}/${libFileName}"
+  } else if (useLocalMulti) {
+    from "${nativeDir}/build/libraries"
+  } else {
+    from configurations.libs
+  }
+  into layout.buildDirectory.dir("native-libs/${nativeVersion}/platform")
+  // Should not be executable
+  filePermissions {unix("644") }
+}
+
+tasks.named("processResources").configure {
+  dependsOn extractNativeLibs
+}
+
+tasks.named("splitPackagesAudit").configure {
+  dependsOn extractNativeLibs
+}
+
+// ---------------------------------------------------------------------------
 
 tasks.named("test").configure {
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /arrow-.*/, to: 'arrow'
+  mapping from: /parquet-.*/, to: 'parquet'
+  mapping from: /hadoop-.*/, to: 'hadoop'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses()
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.dylib'
+  exclude '**/*.so'
 }

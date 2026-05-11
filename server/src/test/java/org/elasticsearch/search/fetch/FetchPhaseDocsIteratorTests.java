@@ -216,6 +216,12 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         assertThat(SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.get(Settings.EMPTY), equalTo(3));
     }
 
+    public void testFetchPhaseTargetChunkBytesSettingIsReadCorrectly() {
+        Settings customSettings = Settings.builder().put(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.getKey(), "2mb").build();
+        assertThat(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.get(customSettings), equalTo(ByteSizeValue.ofMb(2)));
+        assertThat(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.get(Settings.EMPTY), equalTo(ByteSizeValue.ofMb(1)));
+    }
+
     public void testIterateAsyncSingleDocument() throws Exception {
         LuceneDocs docs = createDocs(1, false);
         CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));

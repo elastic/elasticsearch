@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -91,7 +92,7 @@ public final class FetchPhase {
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
         // Synchronous wrapper for backward compatibility,
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        execute(context, docIdsToLoad, rankDocs, null, null, null, null, null, future);
+        execute(context, docIdsToLoad, rankDocs, null, null, null, null, null, null, future);
         try {
             future.actionGet();
         } catch (UncategorizedExecutionException e) {
@@ -112,7 +113,7 @@ public final class FetchPhase {
     public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, @Nullable IntConsumer memoryChecker) {
         // Synchronous wrapper for backward compatibility,
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        execute(context, docIdsToLoad, rankDocs, memoryChecker, null, null, null, null, future);
+        execute(context, docIdsToLoad, rankDocs, memoryChecker, null, null, null, null, null, future);
         try {
             future.actionGet();
         } catch (UncategorizedExecutionException e) {
@@ -135,6 +136,10 @@ public final class FetchPhase {
      * @param rankDocs ranking information
      * @param memoryChecker optional callback for memory tracking, may be {@code null}
      * @param writer optional chunk writer for streaming mode, may be {@code null}
+     * @param maxInFlightChunks optional override for the maximum concurrent in-flight chunks in streaming mode; when {@code null}
+     *                          the value is resolved from {@link SearchService#FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS}.
+     * @param targetChunkBytes  optional override for the target chunk size in bytes in streaming mode; when {@code null} the
+     *                          value is resolved from {@link SearchService#FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES}.
      * @param continuationExecutor executor for dispatching chunk production after ACK-driven continuation in streaming mode.
      *                             When a chunk ACK arrives on a network thread, this executor ensures the next chunk is produced
      *                             on a search thread rather than inline on the network thread. Required when {@code writer} is
@@ -157,6 +162,7 @@ public final class FetchPhase {
         @Nullable IntConsumer memoryChecker,
         @Nullable FetchPhaseResponseChunk.Writer writer,
         @Nullable Integer maxInFlightChunks,
+        @Nullable Integer targetChunkBytes,
         @Nullable Executor continuationExecutor,
         @Nullable ActionListener<Void> buildListener,
         ActionListener<Void> listener
@@ -215,12 +221,16 @@ public final class FetchPhase {
             int resolvedMaxInFlightChunks = maxInFlightChunks != null
                 ? maxInFlightChunks
                 : SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.get(context.getSearchExecutionContext().getIndexSettings().getSettings());
+            int resolvedTargetChunkBytes = targetChunkBytes != null
+                ? targetChunkBytes
+                : Math.toIntExact(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.getDefault(Settings.EMPTY).getBytes());
             buildSearchHitsStreaming(
                 context,
                 docIdsToLoad,
                 docsIterator,
                 writer,
                 resolvedMaxInFlightChunks,
+                resolvedTargetChunkBytes,
                 continuationExecutor,
                 resolvedBuildListener,
                 hitsListener
@@ -446,6 +456,7 @@ public final class FetchPhase {
         StreamingFetchPhaseDocsIterator docsIterator,
         FetchPhaseResponseChunk.Writer writer,
         int maxInFlightChunks,
+        int targetChunkBytes,
         Executor continuationExecutor,
         ActionListener<Void> buildListener,
         ActionListener<SearchHitsWithSizeBytes> listener
@@ -454,8 +465,6 @@ public final class FetchPhase {
         final AtomicReference<ReleasableBytesReference> lastChunkBytesRef = new AtomicReference<>();
         final AtomicLong lastChunkHitCountRef = new AtomicLong(0);
         final AtomicLong lastChunkSequenceStartRef = new AtomicLong(-1);
-
-        final int targetChunkBytes = StreamingFetchPhaseDocsIterator.DEFAULT_TARGET_CHUNK_BYTES;
 
         // RefCountingListener tracks chunk ACKs in streaming mode.
         // Each chunk calls acquire() to get a listener, which is completed when the ACK arrives.

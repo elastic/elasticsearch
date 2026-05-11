@@ -1,7 +1,7 @@
 {
   "ingest.processor_grok": {
     "documentation": {
-      "url": "https://www.elastic.co/docs/reference/enrich-processor/grok-processor",
+      "url": "https://www.elastic.co/docs/reference/ingest-processor/grok-processor",
       "description": "Run a grok processor"
     },
     "stability": "stable",

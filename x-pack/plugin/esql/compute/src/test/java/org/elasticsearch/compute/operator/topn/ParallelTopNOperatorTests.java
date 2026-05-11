@@ -51,9 +51,11 @@ public class ParallelTopNOperatorTests extends ComputeTestCase {
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
 
         int topCount = 10;
-        int totalRows = 1_000;        // well above the promotion threshold below
-        int rowsPerPage = 20;
-        long promotionThresholdRows = 100;
+        // Push enough rows to clear PROMOTION_THRESHOLD_ROWS so the operator actually
+        // promotes mid-stream. Distinct longs in [0, totalRows) — the expected top-10
+        // ascending is [0..9] regardless of shuffle.
+        int totalRows = (int) (TopNOperator.PROMOTION_THRESHOLD_ROWS + 10_000);
+        int rowsPerPage = 1_000;
 
         // Build a shuffled list of distinct longs [0, totalRows).
         List<Long> values = new ArrayList<>(totalRows);
@@ -74,8 +76,10 @@ public class ParallelTopNOperatorTests extends ComputeTestCase {
                 Integer.MAX_VALUE,                                      // maxPageRows
                 Long.MAX_VALUE,                                         // jumboPageBytes (no splitting)
                 TopNOperator.InputOrdering.NOT_SORTED,
-                null
-            ).enableParallelFinalMerge(driverContext, executor, 4, 8, promotionThresholdRows)
+                null,
+                driverContext,
+                new TopNOperator.ParallelFinalMergeConfig(executor, 4, 8)
+            )
         ) {
             // Push pages.
             for (int start = 0; start < totalRows; start += rowsPerPage) {

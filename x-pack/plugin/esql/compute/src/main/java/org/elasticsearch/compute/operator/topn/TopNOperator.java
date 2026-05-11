@@ -146,16 +146,15 @@ public class TopNOperator implements Operator, Accountable {
     /**
      * Number of rows received before sequential mode promotes itself to the
      * parallel final-merge path. Operator-level policy; not threaded through
-     * the planner. Tests can override via the {@link #enableParallelFinalMerge}
-     * argument.
+     * the planner.
      */
     public static final long PROMOTION_THRESHOLD_ROWS = 1_000_000L;
 
     /**
-     * Optional config that, when present, opts the operator into the parallel
-     * final-merge path. The factory invokes {@link #enableParallelFinalMerge}
-     * after constructing the operator; the operator decides whether to actually
-     * promote based on {@link #PROMOTION_THRESHOLD_ROWS}.
+     * Optional config that, when passed to the constructor, opts the operator
+     * into the parallel final-merge path. The operator stays on the sequential
+     * code path until it has received more than {@link #PROMOTION_THRESHOLD_ROWS}
+     * rows, then transitions one-way to parallel mode.
      */
     public record ParallelFinalMergeConfig(Executor executor, int workerCount, int maxInFlightPages) {}
 
@@ -182,7 +181,7 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public TopNOperator get(DriverContext driverContext) {
-            TopNOperator op = new TopNOperator(
+            return new TopNOperator(
                 driverContext.blockFactory(),
                 driverContext.breaker(),
                 topCount,
@@ -192,18 +191,10 @@ public class TopNOperator implements Operator, Accountable {
                 maxPageRows,
                 jumboPageBytes,
                 inputOrdering,
-                minCompetitive
+                minCompetitive,
+                driverContext,
+                parallelFinalMerge
             );
-            if (parallelFinalMerge != null && parallelFinalMerge.workerCount() >= 2) {
-                op.enableParallelFinalMerge(
-                    driverContext,
-                    parallelFinalMerge.executor(),
-                    parallelFinalMerge.workerCount(),
-                    parallelFinalMerge.maxInFlightPages(),
-                    PROMOTION_THRESHOLD_ROWS
-                );
-            }
-            return op;
         }
 
         @Override
@@ -287,23 +278,25 @@ public class TopNOperator implements Operator, Accountable {
      */
     private final int topCount;
 
-    // ---- Parallel-final-merge configuration (set via enableParallelFinalMerge, optional) ----
+    // ---- Parallel-final-merge configuration (set at construction, optional) ----
     //
-    // When configured and the row threshold is exceeded mid-ingest, the operator
-    // promotes itself: hands the current inputQueue to worker 0 of `helper` and
-    // delegates all further lifecycle calls to the helper. Until promotion, the
-    // operator behaves byte-for-byte as today. If `helper` stays null for the
-    // entire query, this is the existing single-threaded TopN.
+    // When configured and {@link #PROMOTION_THRESHOLD_ROWS} is exceeded mid-ingest,
+    // the operator promotes itself: hands the current inputQueue to worker 0 of
+    // {@code helper} and delegates all further lifecycle calls to the helper.
+    // Until promotion, the operator behaves byte-for-byte as the single-threaded
+    // version. If {@code parallelFinalMerge} is null, this is the existing
+    // single-threaded TopN.
     @Nullable
-    private DriverContext driverContext;
+    private final DriverContext driverContext;
     @Nullable
-    private Executor executor;
-    private int workerCount;
-    private int maxInFlightPages;
-    private long promotionThresholdRows = Long.MAX_VALUE;
+    private final ParallelFinalMergeConfig parallelFinalMerge;
     @Nullable
     private WorkerFanOut<TopNWorkerState> helper;
 
+    /**
+     * Convenience constructor for sequential-only operation; equivalent to passing
+     * {@code null} for both {@code driverContext} and {@code parallelFinalMerge}.
+     */
     public TopNOperator(
         BlockFactory blockFactory,
         CircuitBreaker breaker,
@@ -316,6 +309,44 @@ public class TopNOperator implements Operator, Accountable {
         InputOrdering inputOrdering,
         @Nullable SharedMinCompetitive.Supplier minCompetitiveSupplier
     ) {
+        this(
+            blockFactory,
+            breaker,
+            topCount,
+            elementTypes,
+            encoders,
+            sortOrders,
+            maxPageRows,
+            jumboPageBytes,
+            inputOrdering,
+            minCompetitiveSupplier,
+            null,
+            null
+        );
+    }
+
+    public TopNOperator(
+        BlockFactory blockFactory,
+        CircuitBreaker breaker,
+        int topCount,
+        List<ElementType> elementTypes,
+        List<TopNEncoder> encoders,
+        List<SortOrder> sortOrders,
+        int maxPageRows,
+        long jumboPageBytes,
+        InputOrdering inputOrdering,
+        @Nullable SharedMinCompetitive.Supplier minCompetitiveSupplier,
+        @Nullable DriverContext driverContext,
+        @Nullable ParallelFinalMergeConfig parallelFinalMerge
+    ) {
+        if (parallelFinalMerge != null) {
+            if (driverContext == null) {
+                throw new IllegalArgumentException("parallelFinalMerge requires a non-null DriverContext");
+            }
+            if (parallelFinalMerge.workerCount() < 2) {
+                throw new IllegalArgumentException("parallelFinalMerge requires workerCount >= 2, got " + parallelFinalMerge.workerCount());
+            }
+        }
         TopNQueue inputQueue = null;
         SharedMinCompetitive minCompetitive = null;
         boolean success = false;
@@ -343,36 +374,10 @@ public class TopNOperator implements Operator, Accountable {
         for (SortOrder so : sortOrders) {
             channelInKey[so.channel] = true;
         }
-    }
-
-    /**
-     * Opt the operator into parallel final-merge. Must be called before any
-     * {@link #addInput}. While {@link #rowsReceived} is below
-     * {@code promotionThresholdRows} the operator behaves identically to the
-     * single-threaded version. Once the threshold is exceeded, subsequent pages
-     * are dispatched round-robin across {@code workerCount} background tasks on
-     * {@code executor}; the pre-promotion {@link TopNQueue} is handed to worker
-     * 0 so no rows are lost.
-     */
-    public TopNOperator enableParallelFinalMerge(
-        DriverContext driverContext,
-        Executor executor,
-        int workerCount,
-        int maxInFlightPages,
-        long promotionThresholdRows
-    ) {
-        if (pagesReceived != 0) {
-            throw new IllegalStateException("enableParallelFinalMerge must be called before addInput");
-        }
-        if (workerCount < 2) {
-            throw new IllegalArgumentException("parallel final merge requires workerCount >= 2, got " + workerCount);
-        }
-        this.driverContext = driverContext;
-        this.executor = executor;
-        this.workerCount = workerCount;
-        this.maxInFlightPages = maxInFlightPages;
-        this.promotionThresholdRows = promotionThresholdRows;
-        return this;
+        // Only retain DriverContext in parallel mode; sequential operators don't use it,
+        // and holding a strong reference here would inflate reflection-based RAM accounting.
+        this.driverContext = parallelFinalMerge != null ? driverContext : null;
+        this.parallelFinalMerge = parallelFinalMerge;
     }
 
     @Override
@@ -408,7 +413,7 @@ public class TopNOperator implements Operator, Accountable {
             rowsReceived += page.getPositionCount();
             receiveNanos += System.nanoTime() - start;
         }
-        if (executor != null && helper == null && output == null && rowsReceived > promotionThresholdRows) {
+        if (parallelFinalMerge != null && helper == null && output == null && rowsReceived > PROMOTION_THRESHOLD_ROWS) {
             promote();
         }
     }
@@ -634,7 +639,14 @@ public class TopNOperator implements Operator, Accountable {
      * lifecycle calls delegate to it.
      */
     private void promote() {
-        final WorkerFanOut<TopNWorkerState> built = new WorkerFanOut<>(driverContext, executor, workerCount, maxInFlightPages) {
+        assert parallelFinalMerge != null && driverContext != null : "promote() called without parallel config";
+        final int workerCount = parallelFinalMerge.workerCount();
+        final WorkerFanOut<TopNWorkerState> built = new WorkerFanOut<>(
+            driverContext,
+            parallelFinalMerge.executor(),
+            workerCount,
+            parallelFinalMerge.maxInFlightPages()
+        ) {
             int dispatchCursor = 0;
 
             @Override

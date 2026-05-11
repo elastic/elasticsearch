@@ -236,7 +236,7 @@ public class LookupFromIndexServiceResponseTests extends AbstractWireSerializing
             sender.decRef();
         }
 
-        BlockFactory receiverFactory = blockFactory(ByteSizeValue.ofBytes(pagesHeapBytes / 2));
+        BlockFactory receiverFactory = blockFactory(ByteSizeValue.ofBytes(pagesHeapBytes / 4));
         try (StreamInput in = new NamedWriteableAwareStreamInput(wireBytes.streamInput(), new NamedWriteableRegistry(List.of()))) {
             in.setTransportVersion(TransportVersion.current());
             expectThrows(CircuitBreakingException.class, () -> new LookupFromIndexService.LookupResponse(in, receiverFactory));

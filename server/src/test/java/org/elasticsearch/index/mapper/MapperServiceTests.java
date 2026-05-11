@@ -139,6 +139,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         MapperService mapperService = createMapperService(settings, mapping(b -> {}));
         assertTrue(mapperService.documentMapper().routingFieldMapper().required());
+        assertTrue(mapperService.documentMapper().routingFieldMapper().docValues());
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -146,11 +147,21 @@ public class MapperServiceTests extends MapperServiceTestCase {
         );
         assertThat(e.getMessage(), containsString("must not configure [_routing] settings when [index.slice.enabled] is true"));
 
+        IllegalArgumentException docValuesException = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(settings, topMapping(b -> b.startObject("_routing").field("doc_values", false).endObject()))
+        );
+        assertThat(
+            docValuesException.getMessage(),
+            containsString("must not configure [_routing] settings when [index.slice.enabled] is true")
+        );
+
         MapperService explicitRequired = createMapperService(
             settings,
-            topMapping(b -> b.startObject("_routing").field("required", true).endObject())
+            topMapping(b -> b.startObject("_routing").field("required", true).field("doc_values", true).endObject())
         );
         assertTrue(explicitRequired.documentMapper().routingFieldMapper().required());
+        assertTrue(explicitRequired.documentMapper().routingFieldMapper().docValues());
     }
 
     public void testIndexSortWithNestedFields() throws IOException {

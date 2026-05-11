@@ -991,13 +991,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(
             mapper.docValuesParameters(),
-            equalTo(
-                new FieldMapper.DocValuesParameter.Values(
-                    true,
-                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
-                )
-            )
+            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true))
         );
         assertScriptDocValues(mapperService, List.of("bar", "foo"), equalTo(List.of("bar", "foo")));
     }
@@ -1010,13 +1004,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(
             mapper.docValuesParameters(),
-            equalTo(
-                new FieldMapper.DocValuesParameter.Values(
-                    true,
-                    FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
-                )
-            )
+            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH, true))
         );
         assertScriptDocValues(mapperService, List.of("bar", "foo"), equalTo(List.of("bar", "foo")));
     }
@@ -1062,74 +1050,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
     }
 
-    public void testMultiValueSortedSet() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        MapperService mapperService = createSytheticSourceMapperService(
-            fieldMapping(
-                b -> b.field("type", "keyword")
-                    .startObject("doc_values")
-                    .field("multi_value", "sorted_set")
-                    .field("cardinality", "low")
-                    .endObject()
-            )
-        );
-        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(
-            mapper.docValuesParameters(),
-            equalTo(
-                new FieldMapper.DocValuesParameter.Values(
-                    true,
-                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
-                )
-            )
-        );
-        assertScriptDocValues(mapperService, List.of("foo", "bar", "foo"), equalTo(List.of("bar", "foo")));
+    @Override
+    protected boolean supportsMultiValueParameter() {
+        return true;
     }
 
-    public void testMultiValueDefaultIsSortedSet() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
-        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET));
-    }
-
-    public void testMultiValueSortedNotAllowed() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        var e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(
-                fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", "sorted").endObject())
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("Unknown value [sorted] for field [multi_value] - accepted values are [no, sorted_set, arrays]")
-        );
-    }
-
-    public void testSingleValueIsAcceptedWhenMultiValueNo() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", "no").endObject())
-        );
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(5))));
-        assertEquals(1, doc.rootDoc().getFields("field").stream().filter(f -> f.fieldType().docValuesType() != DocValuesType.NONE).count());
-    }
-
-    public void testSecondValueIsRejectedWhenMultiValueNo() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", "no").endObject())
-        );
-        DocumentParsingException e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", randomAlphanumericOfLength(3), randomAlphanumericOfLength(4))))
-        );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
-        );
+    @Override
+    protected DocValuesType expectedSingleValuedDocValuesType() {
+        return DocValuesType.SORTED;
     }
 
     /**
@@ -1137,11 +1065,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      * to the {@code field._original} fallback field. Enforcement fires at the document-level, so the multi-valued input is rejected
      * regardless of which suffix the second write would have targeted.
      */
-    public void testMultiValueNoRejectsNormalPlusIgnoreAboveFallback() throws IOException {
+    public void testMultiValueFalseRejectsNormalPlusIgnoreAboveFallback() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createSytheticSourceMapperService(
             fieldMapping(
-                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", "no").endObject()
+                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
             )
         ).documentMapper();
         DocumentParsingException e = expectThrows(
@@ -1150,19 +1078,19 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 
     /**
-     * Mirror of {@link #testMultiValueNoRejectsNormalPlusIgnoreAboveFallback} with the order reversed: first value routes to the
+     * Mirror of {@link #testMultiValueFalseRejectsNormalPlusIgnoreAboveFallback} with the order reversed: first value routes to the
      * {@code field._original} fallback and the second indexes normally.
      */
-    public void testMultiValueNoRejectsIgnoreAboveFallbackPlusNormal() throws IOException {
+    public void testMultiValueFalseRejectsIgnoreAboveFallbackPlusNormal() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createSytheticSourceMapperService(
             fieldMapping(
-                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", "no").endObject()
+                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
             )
         ).documentMapper();
         DocumentParsingException e = expectThrows(
@@ -1171,18 +1099,18 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 
     /**
      * Both values exceed {@code ignore_above}, so both would route to {@code field._original}. Enforcement throws on the second value.
      */
-    public void testMultiValueNoRejectsTwoIgnoreAboveFallbacks() throws IOException {
+    public void testMultiValueFalseRejectsTwoIgnoreAboveFallbacks() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createSytheticSourceMapperService(
             fieldMapping(
-                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", "no").endObject()
+                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
             )
         ).documentMapper();
         DocumentParsingException e = expectThrows(
@@ -1191,15 +1119,15 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 
-    public void testMultiValueNoAcceptsSingleIgnoreAboveValue() throws IOException {
+    public void testMultiValueFalseAcceptsSingleIgnoreAboveValue() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createSytheticSourceMapperService(
             fieldMapping(
-                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", "no").endObject()
+                b -> b.field("type", "keyword").field("ignore_above", 5).startObject("doc_values").field("multi_value", false).endObject()
             )
         ).documentMapper();
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomAlphanumericOfLength(20))));
@@ -1207,14 +1135,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * The {@code copy_to} target is configured with {@code multi_value=no}. The source field writes one value, then the destination field
-     * receives a direct value - giving the destination two values and tripping enforcement.
+     * The {@code copy_to} target is configured with {@code multi_value=false}. The source field writes one value, then the destination
+     * field receives a direct value - giving the destination two values and tripping enforcement.
      */
-    public void testMultiValueNoRejectsCopyToTargetWithDirectValue() throws IOException {
+    public void testMultiValueFalseRejectsCopyToTargetWithDirectValue() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("source").field("type", "keyword").field("copy_to", "target").endObject();
-            b.startObject("target").field("type", "keyword").startObject("doc_values").field("multi_value", "no").endObject().endObject();
+            b.startObject("target").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject().endObject();
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -1222,18 +1150,19 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 
     /**
-     * Every source element is copied to the target, so the target receives two values and its own {@code multi_value=no} enforcement fires.
+     * Every source element is copied to the target, so the target receives two values and its own {@code multi_value=false} enforcement
+     * fires.
      */
-    public void testMultiValueNoRejectsCopyToTargetFromSourceArray() throws IOException {
+    public void testMultiValueFalseRejectsCopyToTargetFromSourceArray() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("source").field("type", "keyword").field("copy_to", "target").endObject();
-            b.startObject("target").field("type", "keyword").startObject("doc_values").field("multi_value", "no").endObject().endObject();
+            b.startObject("target").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject().endObject();
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -1241,22 +1170,22 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 
     /**
-     * Source field itself has {@code multi_value=no}. A multi-valued array on the source is rejected before {@code copy_to} runs, so
+     * Source field itself has {@code multi_value=false}. A multi-valued array on the source is rejected before {@code copy_to} runs, so
      * the target never sees the values.
      */
-    public void testMultiValueNoRejectsCopyToSourceWithMultipleValues() throws IOException {
+    public void testMultiValueFalseRejectsCopyToSourceWithMultipleValues() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("source")
                 .field("type", "keyword")
                 .field("copy_to", "target")
                 .startObject("doc_values")
-                .field("multi_value", "no")
+                .field("multi_value", false)
                 .endObject()
                 .endObject();
             b.startObject("target").field("type", "keyword").endObject();
@@ -1267,62 +1196,62 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 
     /**
      * null still counts as a value, so the second value is rejected.
      */
-    public void testMultiValueNoRejectsNullThenValue() throws IOException {
+    public void testMultiValueFalseRejectsNullThenValue() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", "no").endObject())
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
         );
         DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("field").nullValue().value(randomAlphanumericOfLength(5)).endArray();
         })));
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 
     /**
-     * Mirror of {@link #testMultiValueNoRejectsNullThenValue} with the order reversed: first value is non-null, second is null.
+     * Mirror of {@link #testMultiValueFalseRejectsNullThenValue} with the order reversed: first value is non-null, second is null.
      */
-    public void testMultiValueNoRejectsValueThenNull() throws IOException {
+    public void testMultiValueFalseRejectsValueThenNull() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", "no").endObject())
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
         );
         DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("field").value(randomAlphanumericOfLength(5)).nullValue().endArray();
         })));
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 
-    public void testMultiValueNoAcceptsSingleNull() throws IOException {
+    public void testMultiValueFalseAcceptsSingleNull() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", "no").endObject())
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject())
         );
         mapper.parse(source(b -> b.nullField("field")));
     }
 
     /**
-     * A sub-field configures {@code multi_value=no}. Parent field has two values, each of which triggers a sub-field parse so enforcement
-     * on the sub-field fires twice and throws, rejecting the second value.
+     * A sub-field configures {@code multi_value=false}. Parent field has two values, each of which triggers a sub-field parse so
+     * enforcement on the sub-field fires twice and throws, rejecting the second value.
      */
-    public void testMultiValueNoOnMultiFieldRejectsParentSecondValue() throws IOException {
+    public void testMultiValueFalseOnMultiFieldRejectsParentSecondValue() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("parent").field("type", "keyword");
             b.startObject("fields");
-            b.startObject("child").field("type", "keyword").startObject("doc_values").field("multi_value", "no").endObject().endObject();
+            b.startObject("child").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject().endObject();
             b.endObject();
             b.endObject();
         }));
@@ -1332,16 +1261,16 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 
-    public void testMultiValueNoOnMultiFieldAcceptsParentSingleValue() throws IOException {
+    public void testMultiValueFalseOnMultiFieldAcceptsParentSingleValue() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("parent").field("type", "keyword");
             b.startObject("fields");
-            b.startObject("child").field("type", "keyword").startObject("doc_values").field("multi_value", "no").endObject().endObject();
+            b.startObject("child").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject().endObject();
             b.endObject();
             b.endObject();
         }));
@@ -1349,13 +1278,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     /**
-     * Parent has {@code multi_value=no}. Enforcement on the parent's slot fires before multi-fields are processed, so the second value
+     * Parent has {@code multi_value=false}. Enforcement on the parent's slot fires before multi-fields are processed, so the second value
      * throws on the parent's path.
      */
-    public void testMultiValueNoOnParentWithMultiFieldRejectsParentArray() throws IOException {
+    public void testMultiValueFalseOnParentWithMultiFieldRejectsParentArray() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("parent").field("type", "keyword").startObject("doc_values").field("multi_value", "no").endObject();
+            b.startObject("parent").field("type", "keyword").startObject("doc_values").field("multi_value", false).endObject();
             b.startObject("fields");
             b.startObject("child").field("type", "keyword").endObject();
             b.endObject();
@@ -1367,7 +1296,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 

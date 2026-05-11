@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
+import org.apache.parquet.hadoop.ParquetReader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
+import org.apache.parquet.hadoop.example.GroupReadSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
@@ -30,13 +33,19 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -161,16 +170,10 @@ public class TwoPhaseReaderTests extends ESTestCase {
         );
     }
 
-    public void testTwoPhaseFallsBackToSinglePhaseWhenNoProjectionOnlyColumn() throws Exception {
-        // When the only projected column is also a predicate column, two-phase has nothing to
-        // save in Phase 2 — the gate rejects and the iterator falls back to the standard read
-        // path. The reader is still constructed with the late-materialization *flag* enabled
-        // ({@code lateMaterializationEnabled=true} via the default ctor), but the runtime
-        // {@code lateMaterialization} decision inside {@code OptimizedParquetColumnIterator}
-        // turns off because there are no projection-only columns. With late-mat off, the
-        // parquet-mr filter only drives row-group / page-index pruning, not row-level filtering;
-        // a single small row group survives entirely. The iterator must still read the file
-        // end-to-end without throwing — that's the contract this test pins.
+    public void testFilterEvaluatedWhenNoProjectionOnlyColumn() throws Exception {
+        // When every projected column is also a predicate column, two-phase I/O does not activate
+        // (nothing to defer), but late-materialization filter evaluation MUST still run: pushed
+        // YES expressions depend on the reader evaluating the filter since FilterExec is removed.
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
 
         byte[] parquetData = buildParquet(schema, 100, i -> {
@@ -188,14 +191,13 @@ public class TwoPhaseReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
         List<Page> pages = readAllPages(reader, obj);
 
-        // Reader returns all rows; the filter would have been applied by an upstream operator.
         int total = pages.stream().mapToInt(Page::getPositionCount).sum();
-        assertThat("expected all rows when there's no late-mat opportunity", total, equalTo(100));
+        assertThat("filter must be evaluated even without projection-only columns", total, equalTo(30));
     }
 
     /**
      * High predicate-byte-ratio shape on native-async storage: predicate column dominates projected
-     * bytes (the q22-on-ClickBench shape). After removing the file-level byte-ratio gate, late
+     * bytes. After removing the file-level byte-ratio gate, late
      * materialization must still filter rows; the iterator's own 0.4 two-phase gate correctly keeps
      * the more expensive two-phase prefetch off, but the cheap late-mat decode-skip remains in
      * effect. The byte-traffic cross-check against a non-async {@link CountingStorageObject} pins
@@ -354,6 +356,820 @@ public class TwoPhaseReaderTests extends ESTestCase {
         List<Page> singlePhasePages = readAllPages(syncReader, syncObj);
         int singlePhaseRows = singlePhasePages.stream().mapToInt(Page::getPositionCount).sum();
         assertThat("single-phase and two-phase row counts must match", twoPhaseRows, equalTo(singlePhaseRows));
+    }
+
+    /**
+     * Regression test: when every projected column is also a predicate column (no projection-only
+     * columns), the late-materialization gate ({@code hasProjectionOnlyColumns}) was false, causing
+     * pushed YES expressions (WildcardLike) to never be evaluated. FilterExec was already removed
+     * from the plan, so all rows leaked through unfiltered.
+     */
+    public void testLikeFilterEvaluatedWhenAllColumnsArePredicate() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("test_schema");
+
+        int rowCount = 100;
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory factory = new SimpleGroupFactory(schema);
+            Group g = factory.newGroup();
+            if (i % 10 == 0) {
+                g.add("url", "http://www.google.com/page" + i);
+            } else {
+                g.add("url", "http://www.example.com/page" + i);
+            }
+            return g;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, urlAttr, new WildcardPattern("*google*"));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        // Verify that LIKE-only produces a null FilterPredicate (no native Parquet translation)
+        assertNull("LIKE must not translate to a Parquet FilterPredicate", pushed.toFilterPredicate(schema));
+
+        // Test both sync and async paths — the trivially-passes shortcut must not leak rows
+        // when filterPredicate is null regardless of storage type
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            List<Page> pages = readAllPages(reader, obj);
+
+            int totalRows = pages.stream().mapToInt(Page::getPositionCount).sum();
+            assertThat("LIKE filter must be evaluated (nativeAsync=" + nativeAsync + ")", totalRows, equalTo(10));
+        }
+    }
+
+    /**
+     * Oracle-validated: LIKE filter column NOT in the output projection (simulates
+     * {@code WHERE url LIKE "*google*" | STATS COUNT(*)} where the planner projects only
+     * a non-predicate column). The reader must augment the projection to include the
+     * predicate column so the filter can be evaluated.
+     */
+    public void testLikeFilterColumnNotInProjectionVsOracle() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("test_schema");
+
+        int rowCount = 200;
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            g.add("url", (i % 10 == 0) ? "http://google.com/" + i : "http://example.com/" + i);
+            return g;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, urlAttr, new WildcardPattern("*google*"));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        // Oracle
+        int oracleCount = countWithApacheMrOracle(parquetData, schema, g -> g.getString("url", 0).contains("google"));
+        assertThat("oracle count", oracleCount, equalTo(20));
+
+        // Project only 'id' — the predicate column 'url' is NOT in the projection.
+        // The reader must augment the projection to include 'url' for filter evaluation.
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id")).build();
+            try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
+                int engineCount = 0;
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    engineCount += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                assertThat(
+                    "filter column not in projection (nativeAsync=" + nativeAsync + ") must match oracle",
+                    engineCount,
+                    equalTo(oracleCount)
+                );
+            }
+        }
+    }
+
+    /**
+     * Oracle-validated: LIKE + comparison with NO projection-only columns (every projected
+     * column is also a predicate column). Both {@code url} and {@code searchphrase} are
+     * predicate AND projected — no column is projection-only.
+     * The late-mat gate must still evaluate both predicates.
+     * Validated against apache-mr GroupReader + Java evaluator (independent of our engine).
+     */
+    public void testLikeAndComparisonNoProjectionOnlyColumnsVsOracle() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("searchphrase")
+            .named("test_schema");
+
+        int rowCount = 1000;
+        byte[] parquetData = buildParquetWithPageSize(schema, rowCount, 128, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("url", (i % 20 == 0) ? "http://www.google.com/" + i : "http://example.com/" + i);
+            g.add("searchphrase", (i % 3 == 0) ? "" : "query_" + i);
+            return g;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        ReferenceAttribute spAttr = new ReferenceAttribute(Source.EMPTY, "searchphrase", DataType.KEYWORD);
+        Expression likeFilter = new WildcardLike(Source.EMPTY, urlAttr, new WildcardPattern("*google*"));
+        Expression neFilter = new NotEquals(Source.EMPTY, spAttr, new Literal(Source.EMPTY, new BytesRef(""), DataType.KEYWORD), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(likeFilter, neFilter));
+
+        // Oracle: count matching rows via apache-mr (independent stack)
+        int oracleCount = countWithApacheMrOracle(parquetData, schema, g -> {
+            String url = g.getString("url", 0);
+            String sp = g.getString("searchphrase", 0);
+            return url.contains("google") && sp.isEmpty() == false;
+        });
+        assertTrue("oracle must find some survivors", oracleCount > 0);
+
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            List<Page> pages = readAllPages(reader, obj);
+            int engineCount = pages.stream().mapToInt(Page::getPositionCount).sum();
+
+            assertThat("engine (nativeAsync=" + nativeAsync + ") must match oracle count", engineCount, equalTo(oracleCount));
+        }
+    }
+
+    /**
+     * Oracle-validated: multi-row-group file with LIKE as the sole predicate on a SINGLE column
+     * (no projection-only columns — url is both the predicate and the only projected column).
+     * Uses a small row group size to force multiple row groups. Validated against apache-mr.
+     */
+    public void testMultiRowGroupLikeOnlyVsOracle() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("test_schema");
+
+        int rowCount = 2000;
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        OutputFile out = buildOutputFile(baos);
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(out)
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withPageSize(64)
+                .withRowGroupSize(4096L)
+                .withConf(new PlainParquetConfiguration())
+                .build()
+        ) {
+            for (int i = 0; i < rowCount; i++) {
+                SimpleGroupFactory f = new SimpleGroupFactory(schema);
+                Group g = f.newGroup();
+                g.add("url", (i % 50 == 0) ? "http://google.com/search?q=" + i : "http://example.org/" + i);
+                writer.write(g);
+            }
+        }
+        byte[] parquetData = baos.toByteArray();
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, urlAttr, new WildcardPattern("*google*"));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        // Oracle: count via apache-mr (independent stack)
+        int oracleCount = countWithApacheMrOracle(parquetData, schema, g -> g.getString("url", 0).contains("google"));
+        assertThat("oracle must find 40 survivors (every 50th of 2000)", oracleCount, equalTo(40));
+
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            List<Page> pages = readAllPages(reader, obj);
+            int engineCount = pages.stream().mapToInt(Page::getPositionCount).sum();
+
+            assertThat("multi-RG LIKE-only (nativeAsync=" + nativeAsync + ") must match oracle", engineCount, equalTo(oracleCount));
+        }
+    }
+
+    /**
+     * Oracle-validated: trivially-passes shortcut should correctly fire when stats prove all
+     * rows match AND the filter is fully translatable (no LIKE). This verifies the optimization
+     * still works after the guards were tightened. A GreaterThanOrEqual(id, 0) filter trivially
+     * passes for all row groups (all values are 0-999). Validated against apache-mr.
+     */
+    public void testTriviallyPassesCorrectlyFiresVsOracle() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("payload")
+            .named("test_schema");
+
+        int rowCount = 500;
+        byte[] parquetData = buildParquetWithPageSize(schema, rowCount, 128, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            g.add("payload", "data_" + i);
+            return g;
+        });
+
+        // id >= 0 trivially passes for all rows (values are 0-499)
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        Expression filter = new GreaterThanOrEqual(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 0L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        // Oracle: all 500 rows should survive
+        Set<Long> oracleIds = readIdsWithApacheMrOracle(parquetData, schema, g -> g.getLong("id", 0) >= 0);
+
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            List<Page> pages = readAllPages(reader, obj);
+            Set<Long> engineIds = collectIds(pages);
+
+            assertEquals("trivially-passing filter (nativeAsync=" + nativeAsync + ") must return all rows", oracleIds, engineIds);
+            assertThat("all 500 rows must survive", engineIds.size(), equalTo(500));
+        }
+    }
+
+    /**
+     * No overlap between filter and projection columns: filter on {@code url} (LIKE "*google*"),
+     * projection on {@code [id, title]} only. The filter column is NOT in the projection.
+     * The reader must augment the projection to include {@code url} so the filter can be evaluated.
+     * Oracle-validated against apache-mr.
+     */
+    public void testFilterAndProjectionDisjoint() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("title")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("status")
+            .named("test_schema");
+
+        int rowCount = 500;
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            g.add("url", (i % 10 == 0) ? "http://google.com/" + i : "http://example.com/" + i);
+            g.add("title", "title_" + (i % 50));
+            g.add("status", (long) (i % 5));
+            return g;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, urlAttr, new WildcardPattern("*google*"));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        int oracleCount = countWithApacheMrOracle(parquetData, schema, g -> g.getString("url", 0).contains("google"));
+        assertThat("oracle count", oracleCount, equalTo(50));
+
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id", "title")).build();
+            try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
+                int engineCount = 0;
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    engineCount += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                assertThat(
+                    "disjoint filter/projection (nativeAsync=" + nativeAsync + ") must match oracle",
+                    engineCount,
+                    equalTo(oracleCount)
+                );
+            }
+        }
+    }
+
+    /**
+     * Partial overlap between filter and projection columns: filter on {@code url}
+     * (LIKE "*google*") AND {@code status < 2}, projection on {@code [id, status]}.
+     * {@code status} is in both filter and projection; {@code url} is only in filter.
+     * The reader must augment the projection with {@code url}. Oracle-validated.
+     */
+    public void testFilterAndProjectionPartialOverlap() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("title")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("status")
+            .named("test_schema");
+
+        int rowCount = 500;
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            g.add("url", (i % 10 == 0) ? "http://google.com/" + i : "http://example.com/" + i);
+            g.add("title", "title_" + (i % 50));
+            g.add("status", (long) (i % 5));
+            return g;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        ReferenceAttribute statusAttr = new ReferenceAttribute(Source.EMPTY, "status", DataType.LONG);
+        Expression likeFilter = new WildcardLike(Source.EMPTY, urlAttr, new WildcardPattern("*google*"));
+        Expression ltFilter = new LessThan(Source.EMPTY, statusAttr, new Literal(Source.EMPTY, 2L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(likeFilter, ltFilter));
+
+        int oracleCount = countWithApacheMrOracle(
+            parquetData,
+            schema,
+            g -> g.getString("url", 0).contains("google") && g.getLong("status", 0) < 2
+        );
+        assertTrue("oracle must find some survivors", oracleCount > 0);
+
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id", "status")).build();
+            try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
+                int engineCount = 0;
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    engineCount += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                assertThat(
+                    "partial overlap filter/projection (nativeAsync=" + nativeAsync + ") must match oracle",
+                    engineCount,
+                    equalTo(oracleCount)
+                );
+            }
+        }
+    }
+
+    /**
+     * Full overlap between filter and projection columns: filter on {@code url}
+     * (LIKE "*google*") AND {@code status < 2}, projection on {@code [url, status]}.
+     * All filter columns are already projected. No augmentation needed. Oracle-validated.
+     */
+    public void testFilterAndProjectionFullOverlap() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("title")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("status")
+            .named("test_schema");
+
+        int rowCount = 500;
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            g.add("url", (i % 10 == 0) ? "http://google.com/" + i : "http://example.com/" + i);
+            g.add("title", "title_" + (i % 50));
+            g.add("status", (long) (i % 5));
+            return g;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        ReferenceAttribute statusAttr = new ReferenceAttribute(Source.EMPTY, "status", DataType.LONG);
+        Expression likeFilter = new WildcardLike(Source.EMPTY, urlAttr, new WildcardPattern("*google*"));
+        Expression ltFilter = new LessThan(Source.EMPTY, statusAttr, new Literal(Source.EMPTY, 2L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(likeFilter, ltFilter));
+
+        int oracleCount = countWithApacheMrOracle(
+            parquetData,
+            schema,
+            g -> g.getString("url", 0).contains("google") && g.getLong("status", 0) < 2
+        );
+        assertTrue("oracle must find some survivors", oracleCount > 0);
+
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("url", "status")).build();
+            try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
+                int engineCount = 0;
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    engineCount += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                assertThat(
+                    "full overlap filter/projection (nativeAsync=" + nativeAsync + ") must match oracle",
+                    engineCount,
+                    equalTo(oracleCount)
+                );
+            }
+        }
+    }
+
+    /**
+     * Filter on projected column, aggregate on non-projected: filter on {@code id < 100},
+     * projection on {@code [id]}. All filter columns are already projected. Oracle: 100
+     * survivors. Simulates {@code WHERE id < 100 | STATS COUNT(*)}.
+     */
+    public void testFilterOnProjectedColumnQueryOnNonProjected() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("title")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("status")
+            .named("test_schema");
+
+        int rowCount = 500;
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            g.add("url", (i % 10 == 0) ? "http://google.com/" + i : "http://example.com/" + i);
+            g.add("title", "title_" + (i % 50));
+            g.add("status", (long) (i % 5));
+            return g;
+        });
+
+        ReferenceAttribute idAttr = new ReferenceAttribute(Source.EMPTY, "id", DataType.LONG);
+        Expression filter = new LessThan(Source.EMPTY, idAttr, new Literal(Source.EMPTY, 100L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        int oracleCount = countWithApacheMrOracle(parquetData, schema, g -> g.getLong("id", 0) < 100);
+        assertThat("oracle count", oracleCount, equalTo(100));
+
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id")).build();
+            try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
+                int engineCount = 0;
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    engineCount += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                assertThat(
+                    "filter on projected column (nativeAsync=" + nativeAsync + ") must match oracle",
+                    engineCount,
+                    equalTo(oracleCount)
+                );
+            }
+        }
+    }
+
+    /**
+     * Multiple filters, none projected: filter on {@code url LIKE "*google*"} AND
+     * {@code status < 3}, projection on {@code [id, title]}. Neither filter column is in the
+     * projection. The reader must augment with both {@code url} and {@code status}.
+     * Oracle-validated.
+     */
+    public void testMultipleFiltersOnNonProjectedColumns() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("title")
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("status")
+            .named("test_schema");
+
+        int rowCount = 500;
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            g.add("url", (i % 10 == 0) ? "http://google.com/" + i : "http://example.com/" + i);
+            g.add("title", "title_" + (i % 50));
+            g.add("status", (long) (i % 5));
+            return g;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        ReferenceAttribute statusAttr = new ReferenceAttribute(Source.EMPTY, "status", DataType.LONG);
+        Expression likeFilter = new WildcardLike(Source.EMPTY, urlAttr, new WildcardPattern("*google*"));
+        Expression ltFilter = new LessThan(Source.EMPTY, statusAttr, new Literal(Source.EMPTY, 3L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(likeFilter, ltFilter));
+
+        int oracleCount = countWithApacheMrOracle(
+            parquetData,
+            schema,
+            g -> g.getString("url", 0).contains("google") && g.getLong("status", 0) < 3
+        );
+        assertTrue("oracle must find some survivors", oracleCount > 0);
+
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id", "title")).build();
+            try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
+                int engineCount = 0;
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    engineCount += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                assertThat(
+                    "multiple filters on non-projected columns (nativeAsync=" + nativeAsync + ") must match oracle",
+                    engineCount,
+                    equalTo(oracleCount)
+                );
+            }
+        }
+    }
+
+    /**
+     * Dictionary short-circuit for high-cardinality LIKE: 500 rows with unique URLs (density
+     * ratio ~1.0, well below the old isDense() threshold of 2.0). Every 25th row contains
+     * "google". The relaxed threshold (positionCount >= 10) enables dictionary evaluation
+     * even when dictSize ~= rowCount. Oracle-validated.
+     */
+    public void testDictionaryShortCircuitForHighCardinalityLike() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("test_schema");
+
+        int rowCount = 500;
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            if (i % 25 == 0) {
+                g.add("url", "http://google.com/search?q=" + i);
+            } else {
+                g.add("url", "http://site" + i + ".com/page");
+            }
+            return g;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, urlAttr, new WildcardPattern("*google*"));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        int oracleCount = countWithApacheMrOracle(parquetData, schema, g -> g.getString("url", 0).contains("google"));
+        assertThat("oracle count", oracleCount, equalTo(20));
+
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id", "url")).build();
+            try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
+                int engineCount = 0;
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    engineCount += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                assertThat(
+                    "high-cardinality LIKE dict short-circuit (nativeAsync=" + nativeAsync + ") must match oracle",
+                    engineCount,
+                    equalTo(oracleCount)
+                );
+            }
+        }
+    }
+
+    /**
+     * Dictionary short-circuit for high-cardinality Equals: same high-cardinality URL data
+     * as the LIKE test. Equals matches exactly one row. Verifies Equals still works correctly
+     * with the relaxed dictionary threshold. Oracle-validated.
+     */
+    public void testDictionaryShortCircuitForHighCardinalityEquals() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("test_schema");
+
+        int rowCount = 500;
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            if (i % 25 == 0) {
+                g.add("url", "http://google.com/search?q=" + i);
+            } else {
+                g.add("url", "http://site" + i + ".com/page");
+            }
+            return g;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        Expression filter = new Equals(
+            Source.EMPTY,
+            urlAttr,
+            new Literal(Source.EMPTY, new BytesRef("http://google.com/search?q=100"), DataType.KEYWORD),
+            null
+        );
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        int oracleCount = countWithApacheMrOracle(parquetData, schema, g -> g.getString("url", 0).equals("http://google.com/search?q=100"));
+        assertThat("oracle count", oracleCount, equalTo(1));
+
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id", "url")).build();
+            try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
+                int engineCount = 0;
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    engineCount += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                assertThat(
+                    "high-cardinality Equals dict short-circuit (nativeAsync=" + nativeAsync + ") must match oracle",
+                    engineCount,
+                    equalTo(oracleCount)
+                );
+            }
+        }
+    }
+
+    /**
+     * Dictionary short-circuit for high-cardinality StartsWith: same high-cardinality URL data.
+     * StartsWith matches the 20 google URLs. Oracle-validated.
+     */
+    public void testDictionaryShortCircuitForHighCardinalityStartsWith() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("test_schema");
+
+        int rowCount = 500;
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            if (i % 25 == 0) {
+                g.add("url", "http://google.com/search?q=" + i);
+            } else {
+                g.add("url", "http://site" + i + ".com/page");
+            }
+            return g;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        Expression filter = new StartsWith(
+            Source.EMPTY,
+            urlAttr,
+            new Literal(Source.EMPTY, new BytesRef("http://google"), DataType.KEYWORD)
+        );
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        int oracleCount = countWithApacheMrOracle(parquetData, schema, g -> g.getString("url", 0).startsWith("http://google"));
+        assertThat("oracle count", oracleCount, equalTo(20));
+
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            FormatReadContext ctx = FormatReadContext.builder().batchSize(1024).projectedColumns(List.of("id", "url")).build();
+            try (CloseableIterator<Page> it = reader.read(obj, ctx)) {
+                int engineCount = 0;
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    engineCount += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+                assertThat(
+                    "high-cardinality StartsWith dict short-circuit (nativeAsync=" + nativeAsync + ") must match oracle",
+                    engineCount,
+                    equalTo(oracleCount)
+                );
+            }
+        }
+    }
+
+    /**
+     * Tiny block (5 rows, below the >= 10 threshold): dictionary short-circuit is skipped
+     * but the per-row evaluation path must still produce correct results. Oracle-validated.
+     */
+    public void testDictionaryShortCircuitTinyBlockSkipped() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("test_schema");
+
+        int rowCount = 5;
+        byte[] parquetData = buildParquet(schema, rowCount, i -> {
+            SimpleGroupFactory f = new SimpleGroupFactory(schema);
+            Group g = f.newGroup();
+            g.add("id", (long) i);
+            g.add("url", (i == 2) ? "http://google.com/page" : "http://example.com/" + i);
+            return g;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        Expression filter = new WildcardLike(Source.EMPTY, urlAttr, new WildcardPattern("*google*"));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+
+        int oracleCount = countWithApacheMrOracle(parquetData, schema, g -> g.getString("url", 0).contains("google"));
+        assertThat("oracle count", oracleCount, equalTo(1));
+
+        for (boolean nativeAsync : new boolean[] { false, true }) {
+            CountingStorageObject obj = new CountingStorageObject(parquetData, nativeAsync);
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+            List<Page> pages = readAllPages(reader, obj);
+            int engineCount = pages.stream().mapToInt(Page::getPositionCount).sum();
+
+            assertThat("tiny block LIKE (nativeAsync=" + nativeAsync + ") must match oracle", engineCount, equalTo(oracleCount));
+        }
+    }
+
+    /**
+     * Oracle: reads ALL rows from a Parquet file via apache-mr's {@link ParquetReader} (independent
+     * of our engine), applies a Java predicate, and returns the count of matching rows. This is
+     * the authoritative answer — any disagreement means our engine has a bug.
+     */
+    private int countWithApacheMrOracle(byte[] parquetData, MessageType schema, java.util.function.Predicate<Group> filter)
+        throws IOException {
+        StorageObject storage = new CountingStorageObject(parquetData, false);
+        ParquetReader.Builder<Group> builder = new ParquetReader.Builder<Group>(
+            new ParquetStorageObjectAdapter(storage),
+            new PlainParquetConfiguration()
+        ) {
+            @Override
+            protected org.apache.parquet.hadoop.api.ReadSupport<Group> getReadSupport() {
+                return new GroupReadSupport();
+            }
+        };
+        int count = 0;
+        try (ParquetReader<Group> mrReader = builder.build()) {
+            Group g;
+            while ((g = mrReader.read()) != null) {
+                if (filter.test(g)) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Oracle variant that returns id sets (requires an {@code id} column of type INT64).
+     */
+    private Set<Long> readIdsWithApacheMrOracle(byte[] parquetData, MessageType schema, java.util.function.Predicate<Group> filter)
+        throws IOException {
+        StorageObject storage = new CountingStorageObject(parquetData, false);
+        ParquetReader.Builder<Group> builder = new ParquetReader.Builder<Group>(
+            new ParquetStorageObjectAdapter(storage),
+            new PlainParquetConfiguration()
+        ) {
+            @Override
+            protected org.apache.parquet.hadoop.api.ReadSupport<Group> getReadSupport() {
+                return new GroupReadSupport();
+            }
+        };
+        Set<Long> ids = new HashSet<>();
+        try (ParquetReader<Group> mrReader = builder.build()) {
+            Group g;
+            while ((g = mrReader.read()) != null) {
+                if (filter.test(g)) {
+                    ids.add(g.getLong("id", 0));
+                }
+            }
+        }
+        return ids;
     }
 
     private byte[] buildParquetWithPageSize(

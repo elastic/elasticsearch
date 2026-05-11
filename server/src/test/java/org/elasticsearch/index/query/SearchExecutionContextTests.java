@@ -481,7 +481,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             new KeywordFieldMapper.Builder("cat", defaultIndexSettings()).ignoreAbove(100)
         ).build(MapperBuilderContext.root(true, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
-        MappingLookup lookup = MappingLookup.fromMapping(mapping, randomFrom(IndexMode.values()));
+        MappingLookup lookup = MappingLookup.fromMapping(mapping, randomFrom(IndexMode.availableModes()));
 
         SearchExecutionContext sec = createSearchExecutionContext("index", "", lookup, Map.of());
         assertTrue(sec.isSourceSynthetic());

@@ -1492,6 +1492,27 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertEquals("timestamp", ((FieldSortBuilder) preparedSearchRequest.source().sorts().getFirst()).getFieldName());
     }
 
+    public void testPrepareSearchRequestEnablesAccurateTrackTotalHitsForPit() {
+        configurePitOrScroll(true);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        assertEquals(Integer.valueOf(Integer.MAX_VALUE), preparedSearchRequest.source().trackTotalHitsUpTo());
+    }
+
+    public void testPrepareSearchRequestDoesNotSetTrackTotalHitsForScroll() {
+        configurePitOrScroll(false);
+        assertNull(testRequest.getSearchRequest().source().trackTotalHitsUpTo());
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        assertNull(preparedSearchRequest.source().trackTotalHitsUpTo());
+    }
+
+    public void testPrepareSearchRequestPreservesExplicitTrackTotalHits() {
+        configurePitOrScroll(randomBoolean());
+        int userTrackTotalHitsUpTo = randomIntBetween(1, 1000);
+        testRequest.getSearchRequest().source().trackTotalHitsUpTo(userTrackTotalHitsUpTo);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        assertEquals(Integer.valueOf(userTrackTotalHitsUpTo), preparedSearchRequest.source().trackTotalHitsUpTo());
+    }
+
     /**
      * When using PIT, verifies that the action builds a {@link ClientPitPaginatedHitSource} as its paginated hit source.
      */

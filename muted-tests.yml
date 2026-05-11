@@ -611,3 +611,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
   method: test {csv-spec:external-basic.filterBySalaryRange [AZURE]}
   issue: https://github.com/elastic/elasticsearch/issues/148739
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
+  method: test {csv-spec:external-basic.uriPartsFromEval [S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/148742

@@ -1,0 +1,120 @@
+setup:
+  - requires:
+      cluster_features: "semantic_field.semantic_field_mapper"
+      reason: "semantic field needs to be available"
+
+  - do:
+      inference.put:
+        task_type: embedding
+        inference_id: embedding-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-semantic-field-index
+        body:
+          mappings:
+            properties:
+              my_field:
+                type: semantic
+                inference_id: embedding-inference-id
+
+---
+"KNN search on semantic field":
+  - do:
+      index:
+        index: test-semantic-field-index
+        id: "1"
+        body:
+          my_field: "the quick brown fox"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-index
+        body:
+          query:
+            knn:
+              field: my_field
+              k: 1
+              num_candidates: 10
+              query_vector_builder:
+                embedding:
+                  inference_id: embedding-inference-id
+                  input: "the quick brown fox"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+---
+"Match query on semantic field with image content":
+
+  - do:
+      index:
+        index: test-semantic-field-index
+        id: "img_1"
+        body:
+          # TODO Use a real type: image when it's supported on indexing
+          my_field: "data:image/jpeg;base64,Y2F0IG9uIGEgd2luZG93c2lsbA=="
+        refresh: true
+
+  - do:
+      index:
+        index: test-semantic-field-index
+        id: "img_2"
+        body:
+          my_field: "data:image/jpeg;base64,ZG9nIHJ1bm5pbmcgaW4gYSBwYXJr"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-index
+        body:
+          query:
+            match:
+              my_field:
+                query: "cat on a windowsill"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "img_1" }
+
+---
+"Semantic query on semantic field":
+
+  - do:
+      index:
+        index: test-semantic-field-index
+        id: "1"
+        body:
+          my_field: "the quick brown fox"
+        refresh: true
+
+  - do:
+      index:
+        index: test-semantic-field-index
+        id: "2"
+        body:
+          my_field: "the slow green turtle"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-field-index
+        body:
+          query:
+            semantic:
+              field: my_field
+              query: "the quick brown fox"
+
+  - match: { hits.total.value: 2 }

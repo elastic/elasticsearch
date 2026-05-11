@@ -9,18 +9,14 @@
 
 package org.elasticsearch.reindex;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.TaskRelocatedException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -32,13 +28,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.core.Strings.format;
-
 public abstract class AbstractBaseReindexRestHandler<
-    Request extends AbstractBulkByScrollRequest<Request>,
+    Request extends AbstractBulkByPaginatedSearchRequest<Request>,
     A extends ActionType<BulkByScrollResponse>> extends BaseRestHandler {
-
-    private static final Logger logger = LogManager.getLogger(AbstractBaseReindexRestHandler.class);
 
     private final A action;
 
@@ -77,16 +69,7 @@ public abstract class AbstractBaseReindexRestHandler<
         }
         final var responseListener = new SubscribableListener<BulkByScrollResponse>();
         final var task = client.executeLocally(action, internal, responseListener);
-        final ActionListener<BulkByScrollResponse> loggingListener = ActionListener.wrap(response -> {
-            logger.info("{} finished with response {}", task.getId(), response);
-        }, e -> {
-            if (e instanceof TaskRelocatedException relocatedException) {
-                logger.info("{} was relocated to {}", task.getId(), relocatedException.getRelocatedTaskId().orElseThrow());
-            } else {
-                logger.warn(() -> format("%s failed with exception", task.getId()), e);
-            }
-        });
-        responseListener.addListener(loggingListener);
+        responseListener.addListener(new LoggingReindexTaskListener(task));
         return sendTask(client.getLocalNodeId(), task);
     }
 
@@ -96,7 +79,7 @@ public abstract class AbstractBaseReindexRestHandler<
     protected abstract Request buildRequest(RestRequest request) throws IOException;
 
     /**
-     * Sets common options of {@link AbstractBulkByScrollRequest} requests.
+     * Sets common options of {@link AbstractBulkByPaginatedSearchRequest} requests.
      */
     protected Request setCommonOptions(RestRequest restRequest, Request request) {
         assert restRequest != null : "RestRequest should not be null";
@@ -144,8 +127,8 @@ public abstract class AbstractBaseReindexRestHandler<
             return null;
         }
 
-        if (slicesString.equals(AbstractBulkByScrollRequest.AUTO_SLICES_VALUE)) {
-            return AbstractBulkByScrollRequest.AUTO_SLICES;
+        if (slicesString.equals(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES_VALUE)) {
+            return AbstractBulkByPaginatedSearchRequest.AUTO_SLICES;
         }
 
         int slices;
@@ -191,8 +174,8 @@ public abstract class AbstractBaseReindexRestHandler<
         return requestsPerSecond;
     }
 
-    static void setMaxDocsValidateIdentical(AbstractBulkByScrollRequest<?> request, int maxDocs) {
-        if (request.getMaxDocs() != AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() != maxDocs) {
+    static void setMaxDocsValidateIdentical(AbstractBulkByPaginatedSearchRequest<?> request, int maxDocs) {
+        if (request.getMaxDocs() != AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() != maxDocs) {
             throw new IllegalArgumentException(
                 "[max_docs] set to two different values [" + request.getMaxDocs() + "]" + " and [" + maxDocs + "]"
             );

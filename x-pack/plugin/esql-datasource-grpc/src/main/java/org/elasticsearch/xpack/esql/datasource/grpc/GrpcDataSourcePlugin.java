@@ -31,7 +31,7 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-        StorageProviderFactory factory = s -> new FlightStorageProvider();
+        StorageProviderFactory factory = StorageProviderFactory.noConfigKeys(FlightStorageProvider::new);
         return Map.of("flight", factory, "grpc", factory);
     }
 

@@ -75,6 +75,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
@@ -306,6 +308,51 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             aliasFilterMap.put(index.getUUID(), aliasFilter);
         }
         return aliasFilterMap;
+    }
+
+    static String validateAndResolveSearchSliceRouting(
+        SearchRequest searchRequest,
+        Map<Index, IndexMetadata> concreteLocalIndicesMetadata,
+        String[] requestedIndices,
+        boolean hasRemoteIndices
+    ) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            return null;
+        }
+        final boolean fromSlice = searchRequest.isRoutingFromSlice();
+        final String requestedSlice = fromSlice ? searchRequest.searchSlice() : null;
+        final boolean anySliceEnabled = concreteLocalIndicesMetadata.values()
+            .stream()
+            .anyMatch(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()));
+        final String target = requestedIndices.length == 0
+            ? concreteLocalIndicesMetadata.keySet().stream().map(Index::getName).collect(Collectors.joining(","))
+            : Strings.arrayToCommaDelimitedString(requestedIndices);
+        if (searchRequest.pointInTimeBuilder() != null && anySliceEnabled) {
+            throw new IllegalArgumentException(
+                "[point in time] is not supported when [index.slice.enabled] is true for search request targeting [" + target + "]"
+            );
+        }
+        if (anySliceEnabled && fromSlice == false && searchRequest.routing() != null) {
+            throw new IllegalArgumentException(
+                "[routing] is not allowed when [index.slice.enabled] is true for search request targeting ["
+                    + target
+                    + "], use [_slice] instead"
+            );
+        }
+        if (fromSlice && anySliceEnabled == false && hasRemoteIndices == false) {
+            throw new IllegalArgumentException(
+                "[_slice] is not allowed when [index.slice.enabled] is false for search request targeting [" + target + "]"
+            );
+        }
+        if (anySliceEnabled && fromSlice == false) {
+            throw new IllegalArgumentException(
+                "[_slice] is required when [index.slice.enabled] is true for search request targeting [" + target + "]"
+            );
+        }
+        if (fromSlice) {
+            searchRequest.routing(SliceIndexing.SLICE_ALL.equals(requestedSlice) ? null : requestedSlice);
+        }
+        return requestedSlice;
     }
 
     private Map<String, Float> resolveIndexBoosts(SearchRequest searchRequest, ClusterState clusterState) {
@@ -638,6 +685,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         rewritten.indicesOptions(),
                         rewritten.preference(),
                         rewritten.routing(),
+                        rewritten.searchSlice(),
+                        rewritten.isRoutingFromSlice(),
                         rewritten.source() != null ? rewritten.source().query() : null,
                         Objects.requireNonNullElse(rewritten.allowPartialSearchResults(), searchService.defaultAllowPartialSearchResults()),
                         searchContext,
@@ -885,6 +934,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     ) {
         final var remoteClientResponseExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         if (resolvedIndices.getLocalIndices() == null && resolvedIndices.getRemoteClusterIndices().size() == 1) {
+            SearchCoordinatorContext searchCoordinatorContext = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(searchRequest);
             // if we are searching against a single remote cluster, we simply forward the original search request to such cluster
             // and we directly perform final reduction in the remote cluster
             Map.Entry<String, OriginalIndices> entry = resolvedIndices.getRemoteClusterIndices().entrySet().iterator().next();
@@ -907,10 +957,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 public void onResponse(SearchResponse searchResponse) {
                     // overwrite the existing cluster entry with the updated one
                     ccsClusterInfoUpdate(searchResponse, clusters, clusterAlias, shouldSkipOnFailure);
-                    Map<String, SearchProfileShardResult> profileResults = searchResponse.getProfileResults();
-                    SearchProfileResults profile = profileResults == null || profileResults.isEmpty()
-                        ? null
-                        : new SearchProfileResults(profileResults);
+                    SearchProfileResults profile = getSearchProfileResults(searchResponse, searchCoordinatorContext);
 
                     ActionListener.respondAndRelease(
                         listener,
@@ -967,13 +1014,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 connectionListener
             );
         } else {
+            SearchCoordinatorContext searchCoordinatorContext = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(searchRequest);
             SearchResponseMerger searchResponseMerger = createSearchResponseMerger(
                 searchRequest.source(),
                 timeProvider,
-                aggReduceContextBuilder
+                aggReduceContextBuilder,
+                searchCoordinatorContext
             );
             task.setSearchResponseMergerSupplier(
-                () -> createSearchResponseMerger(searchRequest.source(), timeProvider, aggReduceContextBuilder)
+                () -> createSearchResponseMerger(searchRequest.source(), timeProvider, aggReduceContextBuilder, searchCoordinatorContext)
             );
             final AtomicReference<Exception> exceptions = new AtomicReference<>();
             int totalClusters = resolvedIndices.getRemoteClusterIndices().size() + (resolvedIndices.getLocalIndices() == null ? 0 : 1);
@@ -1054,10 +1103,22 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
+    static SearchProfileResults getSearchProfileResults(SearchResponse searchResponse, SearchCoordinatorContext searchCoordinatorContext) {
+        Map<String, SearchProfileShardResult> profileResults = searchResponse.getSearchProfileShardResults();
+        SearchProfileResults profile = profileResults == null || profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
+
+        if (profile != null) {
+            profile.setOriginalSource(searchCoordinatorContext.originalSource());
+            profile.setRequestIndices(searchCoordinatorContext.requestIndices());
+        }
+        return profile;
+    }
+
     static SearchResponseMerger createSearchResponseMerger(
         SearchSourceBuilder source,
         SearchTimeProvider timeProvider,
-        AggregationReduceContext.Builder aggReduceContextBuilder
+        AggregationReduceContext.Builder aggReduceContextBuilder,
+        SearchCoordinatorContext searchCoordinatorContext
     ) {
         final int from;
         final int size;
@@ -1076,7 +1137,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             source.from(0);
             source.size(from + size);
         }
-        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, aggReduceContextBuilder);
+        return new SearchResponseMerger(from, size, trackTotalHitsUpTo, timeProvider, aggReduceContextBuilder, searchCoordinatorContext);
     }
 
     /**
@@ -1349,6 +1410,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         IndicesOptions originalIdxOpts,
         String preference,
         String routing,
+        String searchSlice,
+        boolean routingFromSlice,
         QueryBuilder query,
         boolean allowPartialResults,
         SearchContextId searchContext,
@@ -1441,6 +1504,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         searchShardsIdxOpts,
                         query,
                         routing,
+                        searchSlice,
+                        routingFromSlice,
                         preference,
                         allowPartialResults,
                         clusterAlias
@@ -1669,9 +1734,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     null,
                     searchShardsGroup.preFiltered(),
                     searchShardsGroup.skipped(),
-                    // This parameter is specific to the resharding feature.
-                    // Resharding is currently not supported with CCS.
-                    SplitShardCountSummary.UNSET
+                    searchShardsGroup.reshardSplitShardCountSummary()
                 );
                 remoteShardIterators.add(shardIterator);
             }
@@ -1795,6 +1858,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // No user preference defined in search request - apply cluster service default
             searchRequest.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
         }
+        validateAndResolveSearchSliceRouting(
+            searchRequest,
+            resolvedIndices.getConcreteLocalIndicesMetadata(),
+            searchRequest.indices(),
+            remoteShardIterators.isEmpty() == false
+        );
 
         // TODO: I think startTime() should become part of ActionRequest and that should be used both for index name
         // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead

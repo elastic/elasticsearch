@@ -262,7 +262,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 mapping,
                 List.of(dtfm, dateFieldMapper),
                 List.of(),
-                randomFrom(IndexMode.values())
+                randomFrom(IndexMode.availableModes())
             );
             indicesService = DataStreamTestHelper.mockIndicesServices(mappingLookup);
         }

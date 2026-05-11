@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
@@ -40,7 +40,14 @@ import static org.mockito.Mockito.when;
 
 public class RequestTaskTests extends ESTestCase {
 
-    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String INFERENCE_ID = "id";
+    private static final TimeValue ONE_MILLISECOND = TimeValue.timeValueMillis(1);
+    private static final String REQUEST_TIMED_OUT_MESSAGE = format(
+        "Request timed out after [%s] for inference id [%s]",
+        ONE_MILLISECOND,
+        INFERENCE_ID
+    );
+
     private ThreadPool threadPool;
 
     @Before
@@ -61,9 +68,9 @@ public class RequestTaskTests extends ESTestCase {
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
 
         var requestTask = new RequestTask(
-            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
             new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            TimeValue.timeValueMillis(1),
+            ONE_MILLISECOND,
             mockThreadPool,
             listener
         );
@@ -81,18 +88,18 @@ public class RequestTaskTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var requestTask = new RequestTask(
-            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
             new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            TimeValue.timeValueMillis(1),
+            ONE_MILLISECOND,
             threadPool,
             listener
         );
 
-        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
+        var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(thrownException.getMessage(), is(REQUEST_TIMED_OUT_MESSAGE));
         assertTrue(requestTask.hasCompleted());
         assertTrue(requestTask.getRequestCompletedFunction().get());
-        assertThat(thrownException.status(), is(RestStatus.GATEWAY_TIMEOUT));
+        assertThat(thrownException.status(), is(RestStatus.TOO_MANY_REQUESTS));
     }
 
     public void testRequest_DoesNotCallOnFailureTwiceWhenTimingOut() throws Exception {
@@ -105,18 +112,18 @@ public class RequestTaskTests extends ESTestCase {
         }).when(listener).onFailure(any());
 
         var requestTask = new RequestTask(
-            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
             new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            TimeValue.timeValueMillis(1),
+            ONE_MILLISECOND,
             threadPool,
             listener
         );
 
-        calledOnFailureLatch.await(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        calledOnFailureLatch.await(ESTestCase.TEST_REQUEST_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
 
         ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
         verify(listener, times(1)).onFailure(argument.capture());
-        assertThat(argument.getValue().getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
+        assertThat(argument.getValue().getMessage(), is(REQUEST_TIMED_OUT_MESSAGE));
         assertTrue(requestTask.hasCompleted());
         assertTrue(requestTask.getRequestCompletedFunction().get());
 
@@ -134,18 +141,18 @@ public class RequestTaskTests extends ESTestCase {
         }).when(listener).onFailure(any());
 
         var requestTask = new RequestTask(
-            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
             new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            TimeValue.timeValueMillis(1),
+            ONE_MILLISECOND,
             threadPool,
             listener
         );
 
-        calledOnFailureLatch.await(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+        calledOnFailureLatch.await(ESTestCase.TEST_REQUEST_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
 
         ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
         verify(listener, times(1)).onFailure(argument.capture());
-        assertThat(argument.getValue().getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
+        assertThat(argument.getValue().getMessage(), is(REQUEST_TIMED_OUT_MESSAGE));
         assertTrue(requestTask.hasCompleted());
         assertTrue(requestTask.getRequestCompletedFunction().get());
 
@@ -161,9 +168,9 @@ public class RequestTaskTests extends ESTestCase {
         ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
 
         var requestTask = new RequestTask(
-            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, "id", threadPool),
+            OpenAiEmbeddingsRequestManagerTests.makeCreator("url", null, "key", "model", null, INFERENCE_ID, threadPool),
             new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            TimeValue.timeValueMillis(1),
+            ONE_MILLISECOND,
             mockThreadPool,
             listener
         );

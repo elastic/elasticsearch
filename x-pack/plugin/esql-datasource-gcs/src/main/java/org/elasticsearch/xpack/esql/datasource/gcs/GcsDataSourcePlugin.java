@@ -12,11 +12,11 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Data source plugin providing Google Cloud Storage support for ESQL.
@@ -36,22 +36,12 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
     }
 
     @Override
-    public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-        StorageProviderFactory gcsFactory = new StorageProviderFactory() {
-            @Override
-            public StorageProvider create(Settings settings) {
-                return new GcsStorageProvider((GcsConfiguration) null);
-            }
-
-            @Override
-            public StorageProvider create(Settings settings, Map<String, Object> config) {
-                if (config == null || config.isEmpty()) {
-                    return create(settings);
-                }
-                GcsConfiguration gcsConfig = GcsConfiguration.fromMap(config);
-                return new GcsStorageProvider(gcsConfig);
-            }
-        };
+    public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
+        StorageProviderFactory gcsFactory = StorageProviderFactory.of(
+            () -> new GcsStorageProvider((GcsConfiguration) null),
+            GcsConfiguration::fromQueryConfig,
+            GcsStorageProvider::new
+        );
         return Map.of("gs", gcsFactory);
     }
 

@@ -161,6 +161,22 @@ public abstract class DocumentParserContext {
     }
 
     /**
+     * Tracks the cumulative number of object elements encountered inside arrays while parsing the
+     * current document. The same mutable instance is shared across every {@link DocumentParserContext}
+     * spawned from the root context (child, nested, copy-to, switched parser, etc.) so the count
+     * reflects every nested or sibling array in the same document. This is what
+     * {@link MapperService#INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING} bounds; tracking per array
+     * invocation would let a caller bypass the limit by chunking a payload across many arrays.
+     */
+    private static final class ObjectArrayElementCounter {
+        private long count = 0;
+
+        long incrementAndGet() {
+            return ++count;
+        }
+    }
+
+    /**
      * Defines the scope parser is currently in.
      * This is used for synthetic source related logic during parsing.
      */
@@ -176,6 +192,7 @@ public abstract class DocumentParserContext {
 
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
+    private final Set<String> singleValuedFields;
     private Scope currentScope;
 
     private final Map<String, List<Mapper.Builder>> dynamicMappers;
@@ -192,6 +209,8 @@ public abstract class DocumentParserContext {
     private final Set<String> fieldsAppliedFromTemplates;
 
     private FieldArrayContext fieldArrayContext;
+
+    private final ObjectArrayElementCounter objectArrayElementCounter;
 
     /**
      * Fields that are copied from values of other fields via copy_to.
@@ -228,13 +247,16 @@ public abstract class DocumentParserContext {
         Set<String> mappingCopyToFields,
         Set<String> copyToFields,
         DynamicMapperSize dynamicMapperSize,
-        boolean recordedSource
+        ObjectArrayElementCounter objectArrayElementCounter,
+        boolean recordedSource,
+        Set<String> singleValuedFields
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
+        this.singleValuedFields = singleValuedFields;
         this.currentScope = currentScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
@@ -251,6 +273,7 @@ public abstract class DocumentParserContext {
         assert this.mappingCopyToFields == Set.copyOf(this.mappingCopyToFields); // ensure that we've been passed an ImmutableSet(12|N)
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
+        this.objectArrayElementCounter = objectArrayElementCounter;
         this.recordedSource = recordedSource;
         this.fieldNamesFieldMapper = mappingLookup.getMapping().fieldNamesFieldMapper();
     }
@@ -277,7 +300,9 @@ public abstract class DocumentParserContext {
             in.mappingCopyToFields,
             in.copyToFields,
             in.dynamicMappersSize,
-            in.recordedSource
+            in.objectArrayElementCounter,
+            in.recordedSource,
+            in.singleValuedFields
         );
     }
 
@@ -309,7 +334,9 @@ public abstract class DocumentParserContext {
             mappingLookup.fieldTypesLookup().getCopyToDestinationFields(),
             new HashSet<>(),
             new DynamicMapperSize(),
-            false
+            new ObjectArrayElementCounter(),
+            false,
+            new HashSet<>()
         );
     }
 
@@ -351,6 +378,19 @@ public abstract class DocumentParserContext {
 
     public final String routing() {
         return mappingParserContext.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? null : sourceToParse.routing();
+    }
+
+    /**
+     * Enforces that a field configured with {@code multi_value=false} receives at most one value per document. The first call for a given
+     * field name succeeds; a subsequent call for the same name throws {@link IllegalArgumentException}. Shared across all child contexts
+     * so the constraint is respected regardless of which context sub-tree the duplicate value comes from.
+     */
+    public final void enforceSingleValue(String fieldName) {
+        if (singleValuedFields.add(fieldName) == false) {
+            throw new IllegalArgumentException(
+                "Field [" + fieldName + "] is configured with [multi_value=false] but encountered multiple values in the same document"
+            );
+        }
     }
 
     /**
@@ -419,6 +459,26 @@ public abstract class DocumentParserContext {
         BytesRef encoded = XContentDataHelper.encodeToken(parser());
         path().setWithinLeafObject(old);
         return encoded;
+    }
+
+    /**
+     * Counts the next object element parsed inside an array against {@link MapperService#INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING}
+     * and throws if the per-document cumulative limit has been exceeded. The counter is shared across every sub-context spawned
+     * for the document (nested objects, sibling arrays, copy-to, switched parsers), so chunking a payload across many arrays
+     * cannot bypass the limit. Must be called exactly once per object element parsed inside an array.
+     */
+    public final void incrementAndCheckObjectArrayElementLimit() {
+        long limit = indexSettings().getMappingArrayObjectsLimit();
+        if (objectArrayElementCounter.incrementAndGet() > limit) {
+            throw new DocumentParsingException(
+                parser().getTokenLocation(),
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of ["
+                    + limit
+                    + "]. This limit can be set by changing the ["
+                    + MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey()
+                    + "] index level setting."
+            );
+        }
     }
 
     /**

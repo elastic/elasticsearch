@@ -779,6 +779,7 @@ War and Peace: A Novel (6 Volumes) | WAR AND PEACE: A NOVEL (6 VOLUMES)
 externalRerankBooks
 required_capability: external_command
 required_capability: rerank
+required_capability: datasource_file_readers_no_text_type
 
 EXTERNAL "{{books}}"
 | WHERE book_no IN ("5327", "9032", "4536", "2776")
@@ -830,6 +831,7 @@ emp_no:integer |d:double
 topSnippetsFunction
 required_capability: external_command
 required_capability: top_snippets_function
+required_capability: datasource_file_readers_no_text_type
 
 EXTERNAL "{{books}}"
 | EVAL snippets = TOP_SNIPPETS(description, "Tolkien")
@@ -845,6 +847,7 @@ scoreFunction
 required_capability: external_command
 required_capability: top_snippets_function
 required_capability: score_function
+required_capability: datasource_file_readers_no_text_type
 
 EXTERNAL "{{books}}"
 | EVAL score = SCORE(TOP_SNIPPETS(description, "Tolkien"))
@@ -873,4 +876,23 @@ emp_no:integer |first_name:keyword
 10072          |Hironoby
 10095          |Hilari
 10100          |Hironobu
+;
+
+// The optimizer rewrites TO_UPPER(first_name) LIKE "GEOR*" into a case-insensitive
+// WildcardLike over first_name (see ReplaceStringCasingWithInsensitiveRegexMatch).
+// The stored values are "Georgi" / "Georgy" (mixed case), so the test only passes if
+// the case-insensitive bit is honored end-to-end. Pushdown implementations that ignore
+// caseInsensitive() will return zero rows and fail this test.
+operatorLikeCaseInsensitiveAfterToUpper
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| KEEP emp_no, first_name
+| WHERE TO_UPPER(first_name) LIKE "GEOR*"
+| SORT emp_no
+;
+
+emp_no:integer |first_name:keyword
+10001          |Georgi
+10055          |Georgy
 ;

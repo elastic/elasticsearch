@@ -9,18 +9,21 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link IrateIntAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class IrateIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final boolean isDelta;
+  WarningSourceLocation warningsSource;
 
   private final boolean isDateNanos;
 
-  public IrateIntAggregatorFunctionSupplier(boolean isDelta, boolean isDateNanos) {
-    this.isDelta = isDelta;
+  public IrateIntAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
+      boolean isDateNanos) {
+    this.warningsSource = warningsSource;
     this.isDateNanos = isDateNanos;
   }
 
@@ -42,7 +45,8 @@ public final class IrateIntAggregatorFunctionSupplier implements AggregatorFunct
   @Override
   public IrateIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new IrateIntGroupingAggregatorFunction(channels, driverContext, isDelta, isDateNanos);
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    return new IrateIntGroupingAggregatorFunction(warnings, channels, driverContext, isDateNanos);
   }
 
   @Override

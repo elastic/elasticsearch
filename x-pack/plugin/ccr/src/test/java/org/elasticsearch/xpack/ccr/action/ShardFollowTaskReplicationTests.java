@@ -281,8 +281,6 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                                 delegate.run();
                             } catch (InterruptedException e) {
                                 Thread.currentThread().interrupt();
-                            } catch (AssertionError e) {
-                                errorHandler.accept(new RuntimeException(e));
                             } finally {
                                 if (acquired) {
                                     replacePrimaryLock.readLock().unlock();
@@ -841,18 +839,14 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             Consumer<Exception> errorHandler
         ) {
             return () -> {
-                try {
-                    BulkShardOperationsRequest request = new BulkShardOperationsRequest(
-                        params.getFollowShardId(),
-                        followerHistoryUUID,
-                        operations,
-                        maxSeqNoOfUpdates
-                    );
-                    ActionListener<BulkShardOperationsResponse> listener = ActionListener.wrap(handler::accept, errorHandler);
-                    new CcrAction(request, listener, followerGroup).execute();
-                } catch (AssertionError e) {
-                    errorHandler.accept(new RuntimeException(e));
-                }
+                BulkShardOperationsRequest request = new BulkShardOperationsRequest(
+                    params.getFollowShardId(),
+                    followerHistoryUUID,
+                    operations,
+                    maxSeqNoOfUpdates
+                );
+                ActionListener<BulkShardOperationsResponse> listener = ActionListener.wrap(handler::accept, errorHandler);
+                new CcrAction(request, listener, followerGroup).execute();
             };
         }
 

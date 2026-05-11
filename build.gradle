@@ -94,9 +94,8 @@ tasks.named('zipAggregation').configure {
  *
  * */
 ext.testArtifact = { p, String name = "test" ->
-  def projectDependency = p.dependencies.create(p)
-  projectDependency.capabilities {
-    requireCapabilities("${p.group}:${projectDependency.name}-${name}-artifacts")
+  p.capabilities {
+    requireCapabilities("${p.group}:${p.name}-${name}-artifacts")
   };
 }
 
@@ -400,6 +399,8 @@ allprojects {
       if (project.path.contains("security") || project.path.contains(":ml")) {
         splitForCI(project, "Part4")
       } else if (project.path.contains(":esql-datasource") || project.path.contains(":esql-core")) {
+        splitForCI(project, "Part5")
+      } else if (project.path.contains(":esql:qa") && project.path.contains("multi-node")) {
         splitForCI(project, "Part5")
       } else if (project.path.contains(":esql:qa")) {
         splitForCI(project, "Part3")

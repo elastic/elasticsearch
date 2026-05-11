@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -27,6 +28,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
@@ -35,7 +37,6 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
@@ -52,6 +53,7 @@ import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveInferenceTimeout;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedEmbeddingOperation;
 
 public class SageMakerService implements InferenceService, RerankingInferenceService {
@@ -170,7 +172,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
             listener.onFailure(createInvalidModelException(model));
             return;
         }
-        timeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
+        timeout = resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
         var inferenceRequest = new SageMakerInferenceRequest(query, returnDocuments, topN, input, stream, inputType);
 
         try {
@@ -184,6 +186,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
                     regionAndSecrets,
                     request,
                     timeout,
+                    model.getInferenceEntityId(),
                     ActionListener.wrap(
                         response -> listener.onResponse(schema.streamResponse(sageMakerModel, response)),
                         e -> listener.onFailure(schema.error(sageMakerModel, e))
@@ -196,6 +199,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
                     regionAndSecrets,
                     request,
                     timeout,
+                    model.getInferenceEntityId(),
                     ActionListener.wrap(
                         response -> listener.onResponse(schema.response(sageMakerModel, response, threadPool.getThreadContext())),
                         e -> listener.onFailure(schema.error(sageMakerModel, e))
@@ -243,6 +247,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
             listener.onFailure(createInvalidModelException(model));
             return;
         }
+        timeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, TaskType.CHAT_COMPLETION);
 
         try {
             var sageMakerModel = (SageMakerModel) model;
@@ -252,7 +257,8 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
             client.invokeStream(
                 regionAndSecrets,
                 sagemakerRequest,
-                timeout != null ? timeout : DEFAULT_TIMEOUT,
+                timeout,
+                model.getInferenceEntityId(),
                 ActionListener.wrap(
                     response -> listener.onResponse(schema.chatCompletionStreamResponse(sageMakerModel, response)),
                     e -> listener.onFailure(schema.chatCompletionError(sageMakerModel, e))
@@ -266,6 +272,11 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
     @Override
     public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         throwUnsupportedEmbeddingOperation(NAME);
+    }
+
+    @Override
+    public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        throw new IllegalStateException(Strings.format("New rerank code path invoked for %s service that does not support it", name()));
     }
 
     @Override
@@ -285,6 +296,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
         if (input.isEmpty()) {
             listener.onResponse(List.of());
         }
+        var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
         try {
             var sageMakerModel = ((SageMakerModel) model).override(taskSettings);
             var batchedRequests = new EmbeddingRequestChunker<>(
@@ -307,7 +319,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
                         false, // we never stream when chunking
                         null, // since we pass sageMakerModel as the model, we already overwrote the model with the task settings
                         inputType,
-                        timeout,
+                        resolvedInferenceTimeout,
                         ActionListener.runAfter(request.listener(), () -> l.onResponse(null))
                     )
                 );

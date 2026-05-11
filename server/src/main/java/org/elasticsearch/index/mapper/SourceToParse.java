@@ -83,8 +83,6 @@ public class SourceToParse {
         @Nullable EirfRowXContentParser.SchemaNode schemaTree,
         @Nullable EirfRowReader row
     ) {
-        // Source must be null if row is not null. And vice versa.
-        assert source == null || row == null;
         this.id = id;
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
@@ -175,6 +173,8 @@ public class SourceToParse {
             XContentType xContentType,
             boolean includeSourceOnError
         ) {
+            // originalSourceBytes must be null if row is not null. And vice versa.
+            assert originalSourceBytes == null || row == null;
             this.schemaTree = schemaTree;
             this.row = row;
             // we always convert back to byte array, since we store it and Field only supports bytes.

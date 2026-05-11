@@ -60,6 +60,13 @@ public record FormatReadContext(
     @Nullable List<Attribute> fileSchema
 ) {
 
+    public FormatReadContext {
+        // Empty and null both mean "no anchor"; collapse them.
+        if (fileSchema != null && fileSchema.isEmpty()) {
+            fileSchema = null;
+        }
+    }
+
     /**
      * Creates a minimal context for the common non-split case. Leaves {@code errorPolicy} as
      * {@code null} so the reader falls back to its own default — typically the policy resolved

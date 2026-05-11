@@ -75,7 +75,8 @@ public record SourceOperatorContext(
         partitionColumnNames = partitionColumnNames != null && partitionColumnNames.isEmpty() == false
             ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
             : Set.of();
-        fileSchema = fileSchema != null ? List.copyOf(fileSchema) : null;
+        // Empty and null both mean "no anchor"; collapse them.
+        fileSchema = (fileSchema == null || fileSchema.isEmpty()) ? null : List.copyOf(fileSchema);
 
         if (batchSize <= 0) {
             throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);

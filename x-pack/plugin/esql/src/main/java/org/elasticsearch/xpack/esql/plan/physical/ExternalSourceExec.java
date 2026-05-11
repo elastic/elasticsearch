@@ -297,7 +297,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.estimatedRowSize = estimatedRowSize;
         this.fileList = fileList;
         this.splits = splits != null ? List.copyOf(splits) : List.of();
-        this.fileSchema = fileSchema != null ? List.copyOf(fileSchema) : null;
+        // Empty and null both mean "no anchor schema bound" — collapse them so readers see only null.
+        this.fileSchema = (fileSchema == null || fileSchema.isEmpty()) ? null : List.copyOf(fileSchema);
     }
 
     public ExternalSourceExec(

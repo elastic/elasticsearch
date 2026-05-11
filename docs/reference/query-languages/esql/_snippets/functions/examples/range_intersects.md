@@ -9,6 +9,11 @@ FROM employees
 | SORT emp_no
 ```
 
+| emp_no:integer | hire_date:date |
+| --- | --- |
+| 10009 | 1985-02-18T00:00:00.000Z |
+| 10048 | 1985-02-24T00:00:00.000Z |
+
 
 Find ranges that overlap a target window
 

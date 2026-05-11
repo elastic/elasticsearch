@@ -599,9 +599,11 @@ FROM employees
 // end::rangeContains[]
 ;
 
+// tag::rangeContains-result[]
 emp_no:integer | hire_date:date
 10009          | 1985-02-18T00:00:00.000Z
 10048          | 1985-02-24T00:00:00.000Z
+// end::rangeContains-result[]
 ;
 
 rangeContainsWithDateRangesTable
@@ -647,9 +649,11 @@ FROM employees
 // end::rangeIntersects[]
 ;
 
+// tag::rangeIntersects-result[]
 emp_no:integer | hire_date:date
 10009          | 1985-02-18T00:00:00.000Z
 10048          | 1985-02-24T00:00:00.000Z
+// end::rangeIntersects-result[]
 ;
 
 rangeIntersectsTwoRanges

@@ -54,9 +54,11 @@ public class RangeContains extends EsqlScalarFunction implements OnlySurrogateEx
         returnType = "boolean",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
-        description = "Returns true if the first argument (a date_range) contains the second argument. "
-            + "Inverse of [RANGE_WITHIN](#esql-range_within); equivalent to `RANGE_WITHIN(b, a)`. "
-            + "Supports (date_range, date) and (date_range, date_range). The first argument must be a date_range.",
+        description = """
+            Returns true if the first argument
+            [contains](https://www.elastic.co/docs/reference/query-languages/query-dsl/query-dsl-range-query) the second argument.
+            This is the inverse of [RANGE_WITHIN](#esql-range_within); equivalent to `RANGE_WITHIN(b, a)`.
+            Supports (date_range, date) and (date_range, date_range). The first argument must be a date_range.""",
         examples = @Example(
             file = "date_range",
             tag = "rangeContains",

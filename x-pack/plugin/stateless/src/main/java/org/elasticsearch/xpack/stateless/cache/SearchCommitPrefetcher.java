@@ -246,7 +246,7 @@ public class SearchCommitPrefetcher {
             );
 
             logger.info(
-                "[REPRO] prefetcher-computed-ranges: shard={} commit={} maxPrefetched(snapshot)={} maxBCCGenToPrefetch={} ranges={}",
+                "---> prefetcher-computed-ranges: shard={} commit={} maxPrefetched(snapshot)={} maxBCCGenToPrefetch={} ranges={}",
                 shardId,
                 compoundCommit.primaryTermAndGeneration(),
                 currentMaxPrefetchedOffset,
@@ -345,7 +345,7 @@ public class SearchCommitPrefetcher {
                                     (original, candidate) -> original.compareTo(candidate) < 0 ? candidate : original
                                 );
                                 logger.info(
-                                    "[REPRO] maxPrefetched-update: shard={} blobFile={} region={} adjustedRange=[{}-{}] before={} candidate={} after={}",
+                                    "---> maxPrefetched-update: shard={} blobFile={} region={} adjustedRange=[{}-{}] before={} candidate={} after={}",
                                     shardId,
                                     blobFile.blobName(),
                                     regionForLog,

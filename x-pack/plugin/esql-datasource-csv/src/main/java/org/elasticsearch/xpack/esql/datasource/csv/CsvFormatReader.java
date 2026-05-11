@@ -785,8 +785,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         } else if (context.recordAligned()) {
             // Non-first split that the caller guarantees starts on a record boundary
-            // (e.g. streaming-parallel chunks sliced on \n). No partial line to drop, no header
-            // to parse — use the pre-bound schema directly.
+            // (e.g. streaming-parallel chunks sliced on record boundaries). No partial line to
+            // drop, no header to parse — use the pre-bound schema directly.
             effectiveSchema = resolvedSchema;
         } else {
             // Non-first byte-range split (e.g. bzip2 / zstd-indexed macro-split). The leading

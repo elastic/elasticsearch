@@ -150,6 +150,11 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         return plugins;
     }
 
+    @Override
+    protected boolean randomlyUseColumnarId() {
+        return false;
+    }
+
     public void testInvalidIndexMode() {
         final var indexName = randomIdentifier();
         var randomNonTsdbIndexMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()));

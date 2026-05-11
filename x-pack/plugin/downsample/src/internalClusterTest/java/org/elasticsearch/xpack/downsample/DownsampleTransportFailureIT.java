@@ -157,6 +157,11 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         return List.of(MockTransportService.TestPlugin.class, TestSeedPlugin.class);
     }
 
+    @Override
+    protected boolean randomlyUseColumnarId() {
+        return false;
+    }
+
     @Before
     public void setup() throws IOException, ExecutionException, InterruptedException {
         startTime = LocalDateTime.parse("2020-09-09T18:00:00").atZone(ZoneId.of("UTC")).toInstant().toEpochMilli();

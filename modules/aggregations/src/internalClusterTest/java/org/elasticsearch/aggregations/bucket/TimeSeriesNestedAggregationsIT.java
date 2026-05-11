@@ -72,6 +72,11 @@ public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
         assertEquals(RestStatus.OK.getStatus(), client().admin().indices().prepareFlush("index").get().getStatus().getStatus());
     }
 
+    @Override
+    protected boolean randomlyUseColumnarId() {
+        return false;
+    }
+
     private static XContentBuilder timeSeriesDocument(
         final String fooDimValue,
         final String barDimValue,

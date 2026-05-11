@@ -32,13 +32,15 @@ public interface MachineLearningExtension {
      * Cloud credential manager used by datafeeds for cross-project search authentication.
      */
     default CloudCredentialManager getCloudCredentialManager() {
+        // TODO: this is a hack to unblock the ML CPS integration; ideally we'd use SPI for this
         return CloudCredentialsExtension.getInstance().credentialManager();
     }
 
     /**
-     * Internal cloud API key service used by datafeeds to mint per-datafeed cloud-managed credentials.
+     * Internal cloud API key service used by datafeeds to grant per-datafeed cloud-managed API key credentials.
      */
     default InternalCloudApiKeyService getCloudApiKeyService() {
+        // TODO: this is a hack to unblock the ML CPS integration; ideally we'd use SPI for this
         return CloudCredentialsExtension.getInstance().internalCloudApiKeyService();
     }
 }

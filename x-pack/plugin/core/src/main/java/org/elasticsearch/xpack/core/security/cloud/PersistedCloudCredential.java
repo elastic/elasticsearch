@@ -25,8 +25,10 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * Persistence envelope for a cloud-managed credential, pairing the public key {@code id}
- * with the opaque {@link CloudCredential}.
+ * Persistence envelope for a cloud-managed credential, pairing the public API key {@code id} with
+ * the opaque {@link CloudCredential} value. The {@code version} field exists so that a future
+ * envelope encoding (e.g. an encrypted payload) can be introduced without breaking documents
+ * written today.
  */
 public final class PersistedCloudCredential implements Writeable, ToXContentObject, Releasable {
 
@@ -62,6 +64,11 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
     }
 
     private PersistedCloudCredential(int version, String id, CloudCredential credential) {
+        if (version <= 0 || version > CURRENT_VERSION) {
+            throw new IllegalStateException(
+                "unsupported PersistedCloudCredential version [" + version + "]; supported versions are [1.." + CURRENT_VERSION + "]"
+            );
+        }
         this.version = version;
         this.id = Objects.requireNonNull(id, "id must not be null");
         this.credential = Objects.requireNonNull(credential, "credential must not be null");
@@ -103,6 +110,9 @@ public final class PersistedCloudCredential implements Writeable, ToXContentObje
         return PARSER.parse(parser, null);
     }
 
+    /**
+     * Releases the underlying {@link CloudCredential} and the {@link SecureString} it owns.
+     */
     @Override
     public void close() {
         credential.close();

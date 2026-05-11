@@ -65,14 +65,24 @@ public interface CloudCredentialManager {
      */
     Client wrapClient(Client delegate, CloudCredentialResolver resolver);
 
-    /** Convenience: wraps via {@link #resolverOf(CloudCredential)}. Returns {@code delegate} when {@code credential} is null. */
-    Client wrapClient(Client delegate, @Nullable CloudCredential credential);
-
-    /** Convenience: wraps via {@link #resolverOf(PersistedCloudCredential)}. Returns {@code delegate} when {@code persisted} is null. */
-    Client wrapClient(Client delegate, @Nullable PersistedCloudCredential persisted);
+    /**
+     * Wraps client and injects the cloud credential via {@link #resolverOf(CloudCredential)}. Returns {@code delegate} when
+     * {@code credential} is null.
+     */
+    default Client wrapClient(Client delegate, @Nullable CloudCredential credential) {
+        return credential == null ? delegate : wrapClient(delegate, resolverOf(credential));
+    }
 
     /**
-     * No-op default used when serverless security is not loaded.
+     * Wraps client and injects the cloud credential via {@link #resolverOf(PersistedCloudCredential)}.
+     * Returns {@code delegate} when {@code persisted} is null.
+     */
+    default Client wrapClient(Client delegate, @Nullable PersistedCloudCredential persisted) {
+        return persisted == null ? delegate : wrapClient(delegate, resolverOf(persisted));
+    }
+
+    /**
+     * No-op default used when no real implementation is loaded.
      */
     class Noop implements CloudCredentialManager {
 

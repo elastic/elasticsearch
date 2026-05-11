@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.core.security.cloud;
 
 import org.elasticsearch.common.util.FeatureFlag;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Extension point for handling cloud credentials, including service for granting
- * and revoking API keys as well as manager for managing the cloud credentials at runtime.
+ * Extension point bundling the cloud credential services: {@link InternalCloudApiKeyService} and
+ * {@link CloudCredentialManager}.
  */
 public interface CloudCredentialsExtension {
 
@@ -33,12 +34,18 @@ public interface CloudCredentialsExtension {
         return REFERENCE.get();
     }
 
+    /**
+     * Installs the active extension. Must be called at most once per JVM, replacing the {@link Noop}
+     * default; replacing a non-noop instance trips an assertion.
+     */
     static void setInstance(CloudCredentialsExtension instance) {
-        REFERENCE.set(instance);
+        Objects.requireNonNull(instance, "CloudCredentialsExtension instance must not be null");
+        final CloudCredentialsExtension previous = REFERENCE.getAndSet(instance);
+        assert previous instanceof Noop : "CloudCredentialsExtension already installed: " + previous.getClass().getName();
     }
 
     /**
-     * No-op default used when serverless security is not loaded.
+     * No-op default used when no real implementation is loaded.
      */
     class Noop implements CloudCredentialsExtension {
 

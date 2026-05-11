@@ -26,5 +26,14 @@ public class CloudCredentialsExtensionTests extends ESTestCase {
     public void testGetInstanceDefaultsToNoopExtension() {
         var instance = CloudCredentialsExtension.getInstance();
         assertThat(instance, notNullValue());
+        assertThat(instance, instanceOf(CloudCredentialsExtension.Noop.class));
+        assertThat(instance.credentialManager(), instanceOf(CloudCredentialManager.Noop.class));
+        assertThat(instance.internalCloudApiKeyService(), instanceOf(InternalCloudApiKeyService.Default.class));
+    }
+
+    public void testSetInstanceRejectsNull() {
+        expectThrows(NullPointerException.class, () -> CloudCredentialsExtension.setInstance(null));
+        // The reference must not have been mutated by a failed call.
+        assertThat(CloudCredentialsExtension.getInstance(), instanceOf(CloudCredentialsExtension.Noop.class));
     }
 }

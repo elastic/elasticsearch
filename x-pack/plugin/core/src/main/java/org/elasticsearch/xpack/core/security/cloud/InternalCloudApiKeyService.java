@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 /**
- * Service for managing cloud API keys for ML cross-project search jobs.
+ * Service for programmatically granting cloud API keys for ML cross-project search jobs.
  */
 public interface InternalCloudApiKeyService {
 
@@ -37,7 +37,7 @@ public interface InternalCloudApiKeyService {
     );
 
     /**
-     * Default used when serverless security is not loaded.
+     * Default used when no real implementation is loaded.
      */
     class Default implements InternalCloudApiKeyService {
         @Override

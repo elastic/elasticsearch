@@ -42,6 +42,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class TransportNodesStatsAction extends TransportNodesAction<
     NodesStatsRequest,
@@ -87,12 +88,17 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         return SubscribableListener.newForked(l -> {
             var metrics = request.getNodesStatsRequestParameters().requestedMetrics();
             if (metrics.contains(Metric.FS) || metrics.contains(Metric.ALLOCATIONS)) {
+                final String[] requestedNodeIds = request.nodesIds();
+                final Set<String> resolvedNodeIds = requestedNodeIds == null || requestedNodeIds.length == 0
+                    ? null
+                    : Set.of(clusterService.state().nodes().resolveNodes(requestedNodeIds));
                 new ParentTaskAssigningClient(client, clusterService.localNode(), task).execute(
                     TransportGetAllocationStatsAction.TYPE,
                     new TransportGetAllocationStatsAction.Request(
                         Objects.requireNonNullElse(request.timeout(), RestUtils.REST_MASTER_TIMEOUT_DEFAULT),
                         new TaskId(clusterService.localNode().getId(), task.getId()),
-                        metrics
+                        metrics,
+                        resolvedNodeIds
                     ),
                     l
                 );

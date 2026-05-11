@@ -22,29 +22,35 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * Base class for operators that fan page-level work across a fixed pool of worker
- * slots, each owning its own per-slot state of type {@code W}. The Driver thread
- * delivers incoming pages via {@link #addInput} and the subclass routes each page
- * (or a sub-page) to a worker slot via the {@link Dispatcher} callback. The base
- * class submits each routed page to {@code executor}, holds a per-slot lock so
- * that {@link #processPage} is only ever invoked single-threaded on a given
- * state, tracks in-flight count for backpressure, and cooperatively yields the
- * Driver via {@link #isBlocked()}. Once {@link #finish()} has been called and
- * all in-flight work has drained, {@link #mergeAndBuildResult} is invoked once
- * on the Driver thread to produce the output iterator.
+ * Internal helper that fans page-level work across a fixed pool of worker slots,
+ * each owning its own per-slot state of type {@code W}. The owning {@link Operator}
+ * holds an instance via composition and forwards its lifecycle calls (addInput /
+ * finish / getOutput / isBlocked / close) to this helper's same-named methods.
+ * Subclasses route incoming pages to worker slots via the {@link Dispatcher} callback;
+ * this class submits each routed page to {@code executor}, holds a per-slot lock so
+ * that {@link #processPage} is only ever invoked single-threaded on a given state,
+ * tracks in-flight count for backpressure, and cooperatively yields via
+ * {@link #isBlocked()}. Once {@link #finish()} has been called and all in-flight
+ * work has drained, {@link #mergeAndBuildResult} is invoked once on the Driver
+ * thread to produce the output iterator.
+ *
+ * <p>This class is intentionally <em>not</em> an {@link Operator}: it is only ever
+ * used as an internal helper. Its method shapes mirror Operator's lifecycle so the
+ * owning operator can forward calls 1:1, but it carries no factory and is never
+ * handed to a Driver directly.
  *
  * <p>Modeled on {@link AsyncOperator}; reuses the same blocked-future pattern,
  * {@link FailureCollector} for cross-thread error propagation, and
  * {@link DriverContext#addAsyncAction} bookkeeping. Unlike AsyncOperator, this
- * class assumes mutable per-worker state (not 1-page-in-1-result-out) and
- * defers all output to a single merge phase after {@code finish()}.
+ * class assumes mutable per-worker state (not 1-page-in-1-result-out) and defers
+ * all output to a single merge phase after {@code finish()}.
  *
- * <p>Threading: {@link #createWorkerState}, {@link #dispatch},
- * {@link #mergeAndBuildResult}, and all {@link Operator} lifecycle methods run
- * on the Driver thread. {@link #processPage} runs on a worker thread under the
- * slot's lock; the state passed to it is therefore touched single-threaded.
+ * <p>Threading: {@link #createWorkerState}, {@link #dispatch}, {@link #mergeAndBuildResult},
+ * and all forwarded lifecycle methods run on the Driver thread. {@link #processPage}
+ * runs on a worker thread under the slot's lock; the state passed to it is therefore
+ * touched single-threaded.
  */
-public abstract class ParallelOperator<W extends Releasable> implements Operator {
+public abstract class ParallelOperator<W extends Releasable> implements Releasable {
 
     /**
      * Callback supplied to {@link #dispatch}. Ownership of {@code page} passes
@@ -144,12 +150,10 @@ public abstract class ParallelOperator<W extends Releasable> implements Operator
      */
     protected abstract ReleasableIterator<Page> mergeAndBuildResult(List<W> states);
 
-    @Override
     public final boolean needsInput() {
         return finished == false && output == null && inFlight.get() < maxInFlightPages && failureCollector.hasFailure() == false;
     }
 
-    @Override
     public final void addInput(Page page) {
         if (closed || failureCollector.hasFailure()) {
             page.releaseBlocks();
@@ -239,24 +243,20 @@ public abstract class ParallelOperator<W extends Releasable> implements Operator
         }
     }
 
-    @Override
     public final void finish() {
         finished = true;
         notifyIfBlocked();
     }
 
-    @Override
     public final boolean isFinished() {
         checkFailure();
         return finished && inFlight.get() == 0 && output != null && output.hasNext() == false;
     }
 
-    @Override
     public final boolean canProduceMoreDataWithoutExtraInput() {
         return (output != null && output.hasNext()) || (finished && inFlight.get() > 0) || (finished && output == null);
     }
 
-    @Override
     public final Page getOutput() {
         checkFailure();
         if (output == null) {
@@ -283,7 +283,6 @@ public abstract class ParallelOperator<W extends Releasable> implements Operator
         return mergeAndBuildResult(states);
     }
 
-    @Override
     public final IsBlockedResult isBlocked() {
         if (notBlocked()) {
             return Operator.NOT_BLOCKED;

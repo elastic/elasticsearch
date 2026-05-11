@@ -1702,6 +1702,9 @@ public class BasicBlockTests extends ESTestCase {
     public void testFilterOrdinalBytesRefBlock() {
         int dictSize = between(1, 10);
         int positionCount = between(1, 100);
+        // Track the value at each position so we can verify it survives the filter.
+        // null means the position is null; otherwise it is the original dictionary index list for that position.
+        List<int[]> positionOrds = new ArrayList<>(positionCount);
         try (
             var dictBuilder = blockFactory.newBytesRefVectorBuilder(dictSize);
             var ordinalBuilder = blockFactory.newIntBlockBuilder(positionCount)
@@ -1712,14 +1715,24 @@ public class BasicBlockTests extends ESTestCase {
             for (int i = 0; i < positionCount; i++) {
                 int valueCount = randomIntBetween(0, 2);
                 switch (valueCount) {
-                    case 0 -> ordinalBuilder.appendNull();
-                    case 1 -> ordinalBuilder.appendInt(randomIntBetween(0, dictSize - 1));
+                    case 0 -> {
+                        ordinalBuilder.appendNull();
+                        positionOrds.add(null);
+                    }
+                    case 1 -> {
+                        int ord = randomIntBetween(0, dictSize - 1);
+                        ordinalBuilder.appendInt(ord);
+                        positionOrds.add(new int[] { ord });
+                    }
                     default -> {
                         ordinalBuilder.beginPositionEntry();
+                        int[] ords = new int[valueCount];
                         for (int v = 0; v < valueCount; v++) {
-                            ordinalBuilder.appendInt(randomIntBetween(0, dictSize - 1));
+                            ords[v] = randomIntBetween(0, dictSize - 1);
+                            ordinalBuilder.appendInt(ords[v]);
                         }
                         ordinalBuilder.endPositionEntry();
+                        positionOrds.add(ords);
                     }
                 }
             }
@@ -1728,14 +1741,69 @@ public class BasicBlockTests extends ESTestCase {
                 for (int i = 0; i < masks.length; i++) {
                     masks[i] = randomIntBetween(0, positionCount - 1);
                 }
-                try (var filtered = block.filter(true, masks)) {
-                    assertThat(filtered, not(instanceOf(OrdinalBytesRefBlock.class)));
-                }
+                assertFilterOrdinalBytesRefBlock(block, masks, positionOrds);
+                // Filtering with the full range of positions exercises the kept-everything fast path
+                // when the original block already references every dictionary entry.
+                int[] allPositions = IntStream.range(0, positionCount).toArray();
+                assertFilterOrdinalBytesRefBlock(block, allPositions, positionOrds);
                 assertSliceFullRange(block);
                 assertSliceOrdinalBytesRefBlock(block, 0, 0);
                 if (positionCount > 1) {
                     assertSliceOrdinalBytesRefBlock(block, 0, 1);
                     assertSliceOrdinalBytesRefBlock(block, 1, positionCount);
+                }
+            }
+        }
+    }
+
+    private void assertFilterOrdinalBytesRefBlock(OrdinalBytesRefBlock block, int[] masks, List<int[]> positionOrds) {
+        int dictSize = block.getDictionaryVector().getPositionCount();
+        // Track both the referenced dict entries and the total value count after filtering, so we
+        // can predict whether OrdinalBytesRefBlock.filter takes the ordinal path or materializes
+        // (which it does when the compacted result would not pass isDense).
+        BitSet referenced = new BitSet(dictSize);
+        int totalValues = 0;
+        for (int pos : masks) {
+            int[] ords = positionOrds.get(pos);
+            if (ords == null) {
+                continue;
+            }
+            totalValues += ords.length;
+            for (int ord : ords) {
+                referenced.set(ord);
+            }
+        }
+        int expectedDictSize = referenced.cardinality();
+        boolean expectOrdinal = OrdinalBytesRefBlock.isDense(totalValues, expectedDictSize);
+        try (var filtered = block.filter(true, masks)) {
+            assertThat(filtered.getPositionCount(), equalTo(masks.length));
+            if (expectOrdinal) {
+                assertThat(filtered, instanceOf(OrdinalBytesRefBlock.class));
+                OrdinalBytesRefBlock filteredOrdinal = (OrdinalBytesRefBlock) filtered;
+                assertThat(filteredOrdinal.getDictionaryVector().getPositionCount(), equalTo(expectedDictSize));
+                if (expectedDictSize == dictSize) {
+                    // Share-dictionary fast path: dict instance is reused.
+                    assertThat(filteredOrdinal.getDictionaryVector(), sameInstance(block.getDictionaryVector()));
+                }
+            } else {
+                assertThat(filtered, not(instanceOf(OrdinalBytesRefBlock.class)));
+            }
+            BytesRef scratch = new BytesRef();
+            BytesRef expectedScratch = new BytesRef();
+            for (int p = 0; p < masks.length; p++) {
+                int sourcePos = masks[p];
+                int[] expectedOrds = positionOrds.get(sourcePos);
+                if (expectedOrds == null) {
+                    assertThat(filtered.isNull(p), is(true));
+                } else {
+                    assertThat(filtered.isNull(p), is(false));
+                    assertThat(filtered.getValueCount(p), equalTo(expectedOrds.length));
+                    int first = filtered.getFirstValueIndex(p);
+                    for (int v = 0; v < expectedOrds.length; v++) {
+                        BytesRef expected = block.getDictionaryVector().getBytesRef(expectedOrds[v], expectedScratch);
+                        BytesRef actual = filtered.getBytesRef(first + v, scratch);
+                        assertThat(actual, equalTo(expected));
+                    }
                 }
             }
         }
@@ -1751,6 +1819,7 @@ public class BasicBlockTests extends ESTestCase {
     public void testFilterOrdinalBytesRefVector() {
         int dictSize = between(1, 10);
         int positionCount = between(1, 100);
+        int[] sourceOrds = new int[positionCount];
         try (
             var dictBuilder = blockFactory.newBytesRefVectorBuilder(dictSize);
             var ordinalBuilder = blockFactory.newIntVectorBuilder(positionCount)
@@ -1759,16 +1828,18 @@ public class BasicBlockTests extends ESTestCase {
                 dictBuilder.appendBytesRef(new BytesRef("value" + i));
             }
             for (int i = 0; i < positionCount; i++) {
-                ordinalBuilder.appendInt(randomIntBetween(0, dictSize - 1));
+                sourceOrds[i] = randomIntBetween(0, dictSize - 1);
+                ordinalBuilder.appendInt(sourceOrds[i]);
             }
             try (var vector = new OrdinalBytesRefVector(ordinalBuilder.build(), dictBuilder.build())) {
                 int[] masks = new int[between(1, 100)];
                 for (int i = 0; i < masks.length; i++) {
                     masks[i] = randomIntBetween(0, positionCount - 1);
                 }
-                try (var filtered = vector.filter(true, masks)) {
-                    assertThat(filtered, not(instanceOf(OrdinalBytesRefVector.class)));
-                }
+                assertFilterOrdinalBytesRefVector(vector, masks, sourceOrds);
+                // Filtering with the full position range exercises the kept-everything fast path.
+                int[] allPositions = IntStream.range(0, positionCount).toArray();
+                assertFilterOrdinalBytesRefVector(vector, allPositions, sourceOrds);
                 assertSliceFullRange(vector);
                 assertSliceOrdinalBytesRefVector(vector, 0, 0);
                 if (positionCount > 1) {
@@ -1779,10 +1850,112 @@ public class BasicBlockTests extends ESTestCase {
         }
     }
 
+    private void assertFilterOrdinalBytesRefVector(OrdinalBytesRefVector vector, int[] masks, int[] sourceOrds) {
+        int dictSize = vector.getDictionaryVector().getPositionCount();
+        BitSet referenced = new BitSet(dictSize);
+        for (int pos : masks) {
+            referenced.set(sourceOrds[pos]);
+        }
+        int expectedDictSize = referenced.cardinality();
+        boolean expectOrdinal = OrdinalBytesRefBlock.isDense(masks.length, expectedDictSize);
+        try (var filtered = vector.filter(true, masks)) {
+            assertThat(filtered.getPositionCount(), equalTo(masks.length));
+            if (expectOrdinal) {
+                assertThat(filtered, instanceOf(OrdinalBytesRefVector.class));
+                OrdinalBytesRefVector filteredOrdinal = (OrdinalBytesRefVector) filtered;
+                assertThat(filteredOrdinal.getDictionaryVector().getPositionCount(), equalTo(expectedDictSize));
+                if (expectedDictSize == dictSize) {
+                    // Share-dictionary fast path: dict instance is reused.
+                    assertThat(filteredOrdinal.getDictionaryVector(), sameInstance(vector.getDictionaryVector()));
+                }
+            } else {
+                assertThat(filtered, not(instanceOf(OrdinalBytesRefVector.class)));
+            }
+            BytesRef scratch = new BytesRef();
+            BytesRef expectedScratch = new BytesRef();
+            for (int p = 0; p < masks.length; p++) {
+                BytesRef expected = vector.getDictionaryVector().getBytesRef(sourceOrds[masks[p]], expectedScratch);
+                BytesRef actual = filtered.getBytesRef(p, scratch);
+                assertThat(actual, equalTo(expected));
+            }
+        }
+    }
+
     private void assertSliceOrdinalBytesRefVector(OrdinalBytesRefVector vector, int beginInclusive, int endExclusive) {
         try (var sliced = vector.slice(beginInclusive, endExclusive)) {
             assertThat(sliced, instanceOf(OrdinalBytesRefVector.class));
             assertThat(sliced.getPositionCount(), equalTo(endExclusive - beginInclusive));
+        }
+    }
+
+    public void testFilterOrdinalBytesRefVectorMaterializesWhenNotDense() {
+        // Construct a dense source (12 rows, 3 dict entries) so the source itself is ordinal-encoded.
+        // Then filter to a position set whose compacted dictionary fails isDense (dict 3, positions 4 ->
+        // dict > positions/2). Result should be a plain BytesRefVector, not OrdinalBytesRefVector.
+        try (var dictBuilder = blockFactory.newBytesRefVectorBuilder(3); var ordinalBuilder = blockFactory.newIntVectorBuilder(12)) {
+            dictBuilder.appendBytesRef(new BytesRef("a"));
+            dictBuilder.appendBytesRef(new BytesRef("b"));
+            dictBuilder.appendBytesRef(new BytesRef("c"));
+            for (int i = 0; i < 12; i++) {
+                ordinalBuilder.appendInt(i % 3);
+            }
+            try (var vector = new OrdinalBytesRefVector(ordinalBuilder.build(), dictBuilder.build())) {
+                // Pick one position per dict entry plus a duplicate -> 4 positions, 3 distinct dict entries.
+                int[] sparseMasks = new int[] { 0, 1, 2, 0 };
+                try (var filtered = vector.filter(true, sparseMasks)) {
+                    assertThat(filtered, not(instanceOf(OrdinalBytesRefVector.class)));
+                    assertThat(filtered.getPositionCount(), equalTo(4));
+                    BytesRef scratch = new BytesRef();
+                    assertThat(filtered.getBytesRef(0, scratch), equalTo(new BytesRef("a")));
+                    assertThat(filtered.getBytesRef(1, scratch), equalTo(new BytesRef("b")));
+                    assertThat(filtered.getBytesRef(2, scratch), equalTo(new BytesRef("c")));
+                    assertThat(filtered.getBytesRef(3, scratch), equalTo(new BytesRef("a")));
+                }
+                // Sanity: a denser filter (10 positions touching all 3 entries) keeps the ordinal encoding.
+                int[] denseMasks = new int[] { 0, 1, 2, 0, 1, 2, 0, 1, 2, 0 };
+                try (var filtered = vector.filter(true, denseMasks)) {
+                    assertThat(filtered, instanceOf(OrdinalBytesRefVector.class));
+                    assertThat(((OrdinalBytesRefVector) filtered).getDictionaryVector().getPositionCount(), equalTo(3));
+                }
+            }
+        }
+    }
+
+    public void testFilterOrdinalBytesRefBlockMaterializesWhenNotDense() {
+        // Same shape as the vector test but with nulls + multivalues to exercise the block materialize path.
+        try (var dictBuilder = blockFactory.newBytesRefVectorBuilder(4); var ordinalBuilder = blockFactory.newIntBlockBuilder(8)) {
+            dictBuilder.appendBytesRef(new BytesRef("w"));
+            dictBuilder.appendBytesRef(new BytesRef("x"));
+            dictBuilder.appendBytesRef(new BytesRef("y"));
+            dictBuilder.appendBytesRef(new BytesRef("z"));
+            ordinalBuilder.appendInt(0);
+            ordinalBuilder.appendInt(1);
+            ordinalBuilder.appendNull();
+            ordinalBuilder.beginPositionEntry();
+            ordinalBuilder.appendInt(2);
+            ordinalBuilder.appendInt(3);
+            ordinalBuilder.endPositionEntry();
+            ordinalBuilder.appendInt(0);
+            ordinalBuilder.appendInt(1);
+            ordinalBuilder.appendInt(2);
+            ordinalBuilder.appendInt(3);
+            try (var block = new OrdinalBytesRefBlock(ordinalBuilder.build(), dictBuilder.build())) {
+                // Filter to 4 positions with 4 distinct values -> not dense -> materialized.
+                // Position 3 is the multivalue [y, z]; positions 0/1/2 give w/x/null.
+                int[] masks = new int[] { 0, 1, 2, 3 };
+                try (var filtered = block.filter(true, masks)) {
+                    assertThat(filtered, not(instanceOf(OrdinalBytesRefBlock.class)));
+                    assertThat(filtered.getPositionCount(), equalTo(4));
+                    BytesRef scratch = new BytesRef();
+                    assertThat(filtered.getBytesRef(0, scratch), equalTo(new BytesRef("w")));
+                    assertThat(filtered.getBytesRef(1, scratch), equalTo(new BytesRef("x")));
+                    assertThat(filtered.isNull(2), is(true));
+                    assertThat(filtered.getValueCount(3), equalTo(2));
+                    int first = filtered.getFirstValueIndex(3);
+                    assertThat(filtered.getBytesRef(first, scratch), equalTo(new BytesRef("y")));
+                    assertThat(filtered.getBytesRef(first + 1, scratch), equalTo(new BytesRef("z")));
+                }
+            }
         }
     }
 

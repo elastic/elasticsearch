@@ -46,6 +46,7 @@ import java.util.stream.LongStream;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class BlockHashTests extends BlockHashTestCase {
@@ -506,6 +507,59 @@ public class BlockHashTests extends BlockHashTestCase {
                 }
                 assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 3)));
             }, new OrdinalBytesRefBlock(ords.build(), bytes.build()));
+        }
+    }
+
+    /**
+     * Regression test for the OrdinalBytesRefBlock.filter ordinal-preserving fast path.
+     * Filters away every row referencing two of the four dictionary entries and asserts the
+     * downstream BlockHash sees only the surviving values - no phantom groups for the
+     * dropped dictionary entries (which would leak through if filter() returned the original
+     * dictionary unchanged). The position count is large enough that the compacted result
+     * passes OrdinalBytesRefBlock.isDense, so filter() takes the ordinal-preserving path.
+     */
+    public void testOrdinalsAfterFilterDropsUnreferencedEntries() {
+        // 24 input rows cycling through 4 dict entries; we keep the 12 rows that reference
+        // alpha+bravo. Compacted result: 12 positions, 2 dict entries -> dense, ordinal-preserved.
+        int sourceRows = 24;
+        try (
+            IntVector.Builder ords = blockFactory.newIntVectorFixedBuilder(sourceRows);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(4)
+        ) {
+            for (int i = 0; i < sourceRows; i++) {
+                ords.appendInt(i % 4);
+            }
+            bytes.appendBytesRef(new BytesRef("alpha"));
+            bytes.appendBytesRef(new BytesRef("bravo"));
+            bytes.appendBytesRef(new BytesRef("charlie"));
+            bytes.appendBytesRef(new BytesRef("delta"));
+
+            // Positions whose ord is 0 (alpha) or 1 (bravo): every (4*k) and (4*k+1) for k=0..5.
+            int[] kept = new int[12];
+            for (int k = 0; k < 6; k++) {
+                kept[2 * k] = 4 * k;
+                kept[2 * k + 1] = 4 * k + 1;
+            }
+
+            BytesRefBlock filtered;
+            try (var ordinalBlock = new OrdinalBytesRefVector(ords.build(), bytes.build()).asBlock()) {
+                filtered = ordinalBlock.filter(false, kept);
+            }
+            assertThat(filtered, instanceOf(OrdinalBytesRefBlock.class));
+            assertThat(((OrdinalBytesRefBlock) filtered).getDictionaryVector().getPositionCount(), equalTo(2));
+            // hash() takes ownership of the block and releases it.
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description(), startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=2, size="));
+                    assertOrds(ordsAndKeys.ords(), 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(0, 2)));
+                } else {
+                    assertThat(ordsAndKeys.description(), startsWith("BytesRefBlockHash{channel=0, entries=2, size="));
+                    assertOrds(ordsAndKeys.ords(), 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 3)));
+                }
+                assertKeys(ordsAndKeys.keys(), "alpha", "bravo");
+            }, filtered);
         }
     }
 

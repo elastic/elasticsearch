@@ -94,7 +94,8 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {
         var indexMode = c.getIndexSettings().getMode();
-        return new Builder(indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.COLUMNAR_LOGSDB);
+        boolean slicesEnabled = c.getIndexSettings().isSliceEnabled();
+        return new Builder(slicesEnabled || indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.COLUMNAR_LOGSDB);
     });
 
     /**

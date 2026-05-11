@@ -136,3 +136,193 @@ bucket:datetime          | cluster:keyword | irate_bytes:double
 2024-05-10T00:15:00.000Z | prod-delta      | null
 2024-05-10T00:15:00.000Z | prod-null       | null
 ;
+
+// ---------------------------------------------------------------------------------
+
+
+histogramAggsWithoutTBucket
+required_capability: ts_command_v0
+required_capability: tsdb_temporality_support_v5
+
+TS metric_temporality
+ | STATS cnt = COUNT(bytes_per_request), med = MEDIAN(bytes_per_request), avg = AVG(bytes_per_request), mn = MIN(bytes_per_request), mx = MAX(bytes_per_request) BY cluster
+ | EVAL med = round(med), avg = round(avg, 2)
+ | KEEP cluster, cnt, med, avg, mn, mx
+ | SORT cluster
+;
+
+cluster:keyword | cnt:long | med:double | avg:double | mn:double | mx:double
+prod-cumulative | 10354    | 600.0      | 516.11     | 11.0      | 998.0
+prod-delta      | 667      | 600.0      | 523.18     | 11.0      | 998.0
+prod-null       | 667      | 600.0      | 523.18     | 11.0      | 998.0
+;
+
+// ---------------------------------------------------------------------------------
+
+
+histogramAggsGroupedByTemporality
+required_capability: ts_command_v0
+required_capability: tsdb_temporality_support_v5
+
+TS metric_temporality
+ | STATS cnt = COUNT(bytes_per_request), med = MEDIAN(bytes_per_request), avg = AVG(bytes_per_request), mn = MIN(bytes_per_request), mx = MAX(bytes_per_request) BY my_temporality
+ | EVAL med = round(med), avg = round(avg, 2)
+ | KEEP my_temporality, cnt, med, avg, mn, mx
+ | SORT my_temporality
+;
+
+my_temporality:keyword | cnt:long | med:double | avg:double | mn:double | mx:double
+cumulative             | 10354    | 600.0      | 516.11     | 11.0      | 998.0
+delta                  | 667      | 600.0      | 523.18     | 11.0      | 998.0
+null                   | 667      | 600.0      | 523.18     | 11.0      | 998.0
+;
+
+// ---------------------------------------------------------------------------------
+
+
+histogramAggsByTBucket
+required_capability: ts_command_v0
+required_capability: tsdb_temporality_support_v5
+
+TS metric_temporality
+ | STATS cnt = COUNT(bytes_per_request), med = MEDIAN(bytes_per_request), avg = AVG(bytes_per_request), mn = MIN(bytes_per_request), mx = MAX(bytes_per_request) BY cluster, bucket = TBUCKET(300s)
+ | EVAL med = round(med), avg = round(avg, 2)
+ | KEEP bucket, cluster, cnt, med, avg, mn, mx
+ | SORT bucket, cluster
+;
+
+bucket:datetime          | cluster:keyword | cnt:long | med:double | avg:double | mn:double | mx:double
+2024-05-10T00:00:00.000Z | prod-cumulative | 1283     | 424.0      | 507.93     | 11.0      | 998.0
+2024-05-10T00:00:00.000Z | prod-delta      | 228      | 424.0      | 502.75     | 11.0      | 998.0
+2024-05-10T00:00:00.000Z | prod-null       | 228      | 424.0      | 502.75     | 11.0      | 998.0
+2024-05-10T00:05:00.000Z | prod-cumulative | 4943     | 600.0      | 506.84     | 11.0      | 998.0
+2024-05-10T00:05:00.000Z | prod-delta      | 195      | 600.0      | 506.65     | 11.0      | 994.0
+2024-05-10T00:05:00.000Z | prod-null       | 195      | 600.0      | 506.65     | 11.0      | 994.0
+2024-05-10T00:10:00.000Z | prod-cumulative | 3959     | 600.0      | 528.81     | 11.0      | 998.0
+2024-05-10T00:10:00.000Z | prod-delta      | 226      | 556.0      | 558.87     | 28.0      | 998.0
+2024-05-10T00:10:00.000Z | prod-null       | 226      | 556.0      | 558.87     | 28.0      | 998.0
+2024-05-10T00:15:00.000Z | prod-cumulative | 169      | 661.0      | 552.09     | 27.0      | 997.0
+2024-05-10T00:15:00.000Z | prod-delta      | 18       | 609.0      | 513.06     | 27.0      | 995.0
+2024-05-10T00:15:00.000Z | prod-null       | 18       | 609.0      | 513.06     | 27.0      | 995.0
+;
+
+// ---------------------------------------------------------------------------------
+
+
+histogramOverTimeAggsByTemporality
+required_capability: ts_command_v0
+required_capability: tsdb_temporality_support_v5
+
+TS metric_temporality
+ | STATS avg_ot = SUM(avg_over_time(bytes_per_request)),
+         min_ot = SUM(min_over_time(bytes_per_request)),
+         max_ot = SUM(max_over_time(bytes_per_request)),
+         cnt_ot = SUM(count_over_time(bytes_per_request)),
+         sum_ot = SUM(sum_over_time(bytes_per_request)),
+         p50_ot = SUM(percentile_over_time(bytes_per_request, 50))
+         BY my_temporality
+ | EVAL avg_ot = round(avg_ot, 2), min_ot = round(min_ot, 2), max_ot = round(max_ot, 2), sum_ot = round(sum_ot, 2), p50_ot = round(p50_ot)
+ | KEEP my_temporality, avg_ot, min_ot, max_ot, cnt_ot, sum_ot, p50_ot
+ | SORT my_temporality
+;
+
+my_temporality:keyword | avg_ot:double | min_ot:double | max_ot:double | cnt_ot:long | sum_ot:double | p50_ot:double
+cumulative             | 516.11        | 11.0          | 998.0         | 10354       | 5343818.0     | 600.0
+delta                  | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 600.0
+null                   | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 600.0
+;
+
+// ---------------------------------------------------------------------------------
+
+
+tdigestAggsWithoutTBucket
+required_capability: ts_command_v0
+required_capability: tsdb_temporality_support_v5
+
+TS metric_temporality
+ | STATS cnt = COUNT(bytes_per_request::tdigest), med = MEDIAN(bytes_per_request::tdigest), avg = AVG(bytes_per_request::tdigest), mn = MIN(bytes_per_request::tdigest), mx = MAX(bytes_per_request::tdigest) BY cluster
+ | EVAL med = round(med), avg = round(avg, 2)
+ | KEEP cluster, cnt, med, avg, mn, mx
+ | SORT cluster
+;
+
+cluster:keyword | cnt:long | med:double    | avg:double | mn:double | mx:double
+prod-cumulative | 10354    | 517.0..617.0  | 516.11     | 11.0      | 998.0
+prod-delta      | 667      | 503.0..603.0  | 523.18     | 11.0      | 998.0
+prod-null       | 667      | 503.0..603.0  | 523.18     | 11.0      | 998.0
+;
+
+// ---------------------------------------------------------------------------------
+
+
+tdigestAggsGroupedByTemporality
+required_capability: ts_command_v0
+required_capability: tsdb_temporality_support_v5
+
+TS metric_temporality
+ | STATS cnt = COUNT(bytes_per_request::tdigest), med = MEDIAN(bytes_per_request::tdigest), avg = AVG(bytes_per_request::tdigest), mn = MIN(bytes_per_request::tdigest), mx = MAX(bytes_per_request::tdigest) BY my_temporality
+ | EVAL med = round(med), avg = round(avg, 2)
+ | KEEP my_temporality, cnt, med, avg, mn, mx
+ | SORT my_temporality
+;
+
+my_temporality:keyword | cnt:long | med:double    | avg:double | mn:double | mx:double
+cumulative             | 10354    | 517.0..617.0  | 516.11     | 11.0      | 998.0
+delta                  | 667      | 503.0..603.0  | 523.18     | 11.0      | 998.0
+null                   | 667      | 503.0..603.0  | 523.18     | 11.0      | 998.0
+;
+
+// ---------------------------------------------------------------------------------
+
+
+tdigestAggsByTBucket
+required_capability: ts_command_v0
+required_capability: tsdb_temporality_support_v5
+
+TS metric_temporality
+ | STATS cnt = COUNT(bytes_per_request::tdigest), med = MEDIAN(bytes_per_request::tdigest), avg = AVG(bytes_per_request::tdigest), mn = MIN(bytes_per_request::tdigest), mx = MAX(bytes_per_request::tdigest) BY cluster, bucket = TBUCKET(300s)
+ | EVAL med = round(med), avg = round(avg, 2)
+ | KEEP bucket, cluster, cnt, med, avg, mn, mx
+ | SORT bucket, cluster
+;
+
+bucket:datetime          | cluster:keyword | cnt:long | med:double    | avg:double | mn:double | mx:double
+2024-05-10T00:00:00.000Z | prod-cumulative | 1283     | 432.0..532.0  | 507.93     | 11.0      | 998.0
+2024-05-10T00:00:00.000Z | prod-delta      | 228      | 427.0..527.0  | 502.75     | 11.0      | 998.0
+2024-05-10T00:00:00.000Z | prod-null       | 228      | 427.0..527.0  | 502.75     | 11.0      | 998.0
+2024-05-10T00:05:00.000Z | prod-cumulative | 4943     | 478.0..578.0  | 506.84     | 11.0      | 998.0
+2024-05-10T00:05:00.000Z | prod-delta      | 195      | 514.0..614.0  | 506.65     | 11.0      | 994.0
+2024-05-10T00:05:00.000Z | prod-null       | 195      | 514.0..614.0  | 506.65     | 11.0      | 994.0
+2024-05-10T00:10:00.000Z | prod-cumulative | 3959     | 545.0..645.0  | 528.81     | 11.0      | 998.0
+2024-05-10T00:10:00.000Z | prod-delta      | 226      | 533.0..633.0  | 558.87     | 28.0      | 998.0
+2024-05-10T00:10:00.000Z | prod-null       | 226      | 533.0..633.0  | 558.87     | 28.0      | 998.0
+2024-05-10T00:15:00.000Z | prod-cumulative | 169      | 546.0..646.0  | 552.09     | 27.0      | 997.0
+2024-05-10T00:15:00.000Z | prod-delta      | 18       | 546.0..646.0  | 513.06     | 27.0      | 995.0
+2024-05-10T00:15:00.000Z | prod-null       | 18       | 546.0..646.0  | 513.06     | 27.0      | 995.0
+;
+
+// ---------------------------------------------------------------------------------
+
+
+tdigestOverTimeAggsByTemporality
+required_capability: ts_command_v0
+required_capability: tsdb_temporality_support_v5
+
+TS metric_temporality
+ | STATS avg_ot = SUM(avg_over_time(bytes_per_request::tdigest)),
+         min_ot = SUM(min_over_time(bytes_per_request::tdigest)),
+         max_ot = SUM(max_over_time(bytes_per_request::tdigest)),
+         cnt_ot = SUM(count_over_time(bytes_per_request::tdigest)),
+         sum_ot = SUM(sum_over_time(bytes_per_request::tdigest)),
+         p50_ot = SUM(percentile_over_time(bytes_per_request::tdigest, 50))
+         BY my_temporality
+ | EVAL avg_ot = round(avg_ot, 2), min_ot = round(min_ot, 2), max_ot = round(max_ot, 2), sum_ot = round(sum_ot, 2), p50_ot = round(p50_ot)
+ | KEEP my_temporality, avg_ot, min_ot, max_ot, cnt_ot, sum_ot, p50_ot
+ | SORT my_temporality
+;
+
+my_temporality:keyword | avg_ot:double | min_ot:double | max_ot:double | cnt_ot:long | sum_ot:double | p50_ot:double
+cumulative             | 516.11        | 11.0          | 998.0         | 10354       | 5343818.0     | 517.0..617.0
+delta                  | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 503.0..603.0
+null                   | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 503.0..603.0
+;

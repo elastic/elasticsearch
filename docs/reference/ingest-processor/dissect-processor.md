@@ -7,7 +7,7 @@ mapped_pages:
 # Dissect processor [dissect-processor]
 
 
-Similar to the [Grok Processor](/reference/ingest-processor/grok-processor.md), dissect also extracts structured fields out of a single text field within a document. However unlike the [Grok Processor](/reference/ingest-processor/grok-processor.md), dissect does not use [Regular Expressions](https://en.wikipedia.org/wiki/Regular_expression). This allows dissect’s syntax to be simple and for some cases faster than the [Grok Processor](/reference/ingest-processor/grok-processor.md).
+Similar to the [grok pRrcessor](/reference/ingest-processor/grok-processor.md), dissect also extracts structured fields out of a single text field within a document. However, unlike the grok processor, dissect does not use [regular expressions](https://en.wikipedia.org/wiki/Regular_expression). This allows dissect’s syntax to be simple and for some cases faster than the grok processor.
 
 Dissect matches a single text field against a defined pattern.
 

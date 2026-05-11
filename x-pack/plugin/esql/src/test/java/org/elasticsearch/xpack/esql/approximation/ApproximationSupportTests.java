@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -171,6 +172,7 @@ public class ApproximationSupportTests extends ESTestCase {
         // These plans don't occur in a correct analyzed query.
         UnresolvedRelation.class,
         UnresolvedExternalRelation.class,
+        ViewShadowRelation.class,
         Drop.class,
         Keep.class,
         InlineStats.class,

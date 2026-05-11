@@ -59,6 +59,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -422,6 +423,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ClusterState clusterState,
         Runnable onRequestsCompleted
     ) {
+
+        assert task instanceof CancellableTask;
+        CancellableTask cancellableTask = (CancellableTask) this.task;
+
         if (requestsByShard.isEmpty()) {
             closeBatchEncoders();
             onRequestsCompleted.run();
@@ -436,6 +441,12 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         try (RefCountingRunnable bulkItemRequestCompleteRefCount = new RefCountingRunnable(onRequestsCompleted)) {
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
+
+                if (cancellableTask.isCancelled()) {
+                    // Graceful cancellation is desired not cancellableTask.ensureNotCancelled() kill the flow.
+                    break;
+                }
+
                 final ShardId shardId = entry.getKey();
                 final List<BulkItemRequest> requests = entry.getValue();
 

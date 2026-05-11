@@ -12,9 +12,6 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
-```{applies_to}
-stack: ga 9.4.0
-```
 ## 9.4.0 [elasticsearch-9.4.0-breaking-changes]
 
 ILM:

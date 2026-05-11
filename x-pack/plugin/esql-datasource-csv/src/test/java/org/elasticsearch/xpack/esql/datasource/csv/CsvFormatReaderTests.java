@@ -4201,7 +4201,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     // per-file inference. This closes the multi-file headerless CSV type-drift bug where two
     // files in the same glob would otherwise infer different types for the same column.
 
-    public void testHeaderlessReadHonorsContextFileSchema() throws IOException {
+    public void testHeaderlessReadHonorsContextReadSchema() throws IOException {
         // Headerless CSV with two integer-looking columns. Per-file inference would say INTEGER,
         // INTEGER. With a bound schema of [col1:KEYWORD, col2:LONG], the emitted blocks must
         // reflect the bound types, not the inferred ones.
@@ -4231,7 +4231,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
-    public void testHeaderlessReadFallsBackToInferenceWhenContextFileSchemaNull() throws IOException {
+    public void testHeaderlessReadFallsBackToInferenceWhenContextReadSchemaNull() throws IOException {
         // Same input as the previous test but with no bound schema. The reader falls back to
         // per-file inference (INTEGER, INTEGER). This is the negative control proving the new
         // slot is opt-in: existing call sites that don't set readSchema get the existing behavior.
@@ -4255,7 +4255,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
-    public void testHeaderlessReadFileSchemaResolvesCrossFileTypeDrift() throws IOException {
+    public void testHeaderlessReadSchemaResolvesCrossFileTypeDrift() throws IOException {
         // Cross-file type-drift case: two headerless files whose per-file inference would disagree
         // on col1 (file A has empty col1 → KEYWORD fallback; file B has integer col1 → INTEGER).
         // With a planner-resolved read schema [col1:KEYWORD, col2:LONG] passed via

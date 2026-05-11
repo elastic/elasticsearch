@@ -91,7 +91,7 @@ public class PushLimitToExternalSourceTests extends ESTestCase {
      * field, runtime readers would lose the bound schema and fall back to per-file inference — the
      * cross-file type-drift bug this whole change exists to fix would re-emerge.
      */
-    public void testFileSchemaPreservedAcrossPushLimit() {
+    public void testReadSchemaPreservedAcrossPushLimit() {
         List<Attribute> attrs = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.INTEGER));
         List<Attribute> readSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, "x", DataType.KEYWORD),

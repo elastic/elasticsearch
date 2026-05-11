@@ -1672,6 +1672,68 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         drainWarnings();
     }
 
+    /**
+     * Parallel segments from {@code ParallelParsingCoordinator} set {@link FormatReadContext#recordAligned()}
+     * {@code true}. The NDJSON reader must not consume the first complete row on non-first splits — that row is a
+     * full record starting exactly at the segment boundary.
+     */
+    public void testRecordAlignedNonFirstSplitKeepsFirstRow() throws IOException {
+        byte[] all = "{\"a\":1}\n{\"a\":2}\n{\"a\":3}\n".getBytes(StandardCharsets.UTF_8);
+        int start = "{\"a\":1}\n".getBytes(StandardCharsets.UTF_8).length;
+        int length = all.length - start;
+        StorageObject tailAlignedStart = new StorageObject() {
+            @Override
+            public InputStream newStream() throws IOException {
+                return new ByteArrayInputStream(all, start, length);
+            }
+
+            @Override
+            public InputStream newStream(long position, long rangeLength) throws IOException {
+                return new ByteArrayInputStream(all, start + Math.toIntExact(position), Math.toIntExact(rangeLength));
+            }
+
+            @Override
+            public long length() {
+                return length;
+            }
+
+            @Override
+            public Instant lastModified() throws IOException {
+                return Instant.EPOCH;
+            }
+
+            @Override
+            public boolean exists() throws IOException {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://segment.ndjson");
+            }
+        };
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var ctx = FormatReadContext.builder()
+            .projectedColumns(List.of("a"))
+            .batchSize(10)
+            .firstSplit(false)
+            .lastSplit(true)
+            .recordAligned(true)
+            .build();
+        List<Integer> values = new ArrayList<>();
+        try (var iterator = reader.read(tailAlignedStart, ctx)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                IntBlock block = (IntBlock) page.getBlock(0);
+                for (int i = 0; i < block.getPositionCount(); i++) {
+                    values.add(block.getInt(i));
+                }
+            }
+        }
+        assertEquals(List.of(2, 3), values);
+    }
+
     private static DataType dataType(Block block) {
         return switch (block.elementType()) {
             case BOOLEAN -> DataType.BOOLEAN;

@@ -33,11 +33,12 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEvalFoldables;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateInlineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateNullable;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropgateUnmappedFields;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateUnmappedFields;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyAggregates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyForkBranches;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneFilters;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInChangePointBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInLimitBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
@@ -64,6 +65,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReorderLimitProjectA
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateAggExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateNestedExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceChangePointByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceOrderByExpressionWithEval;
@@ -74,7 +76,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFiltered
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceTrivialTypeConversions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SetAsOptimized;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyAggregateOverArithmetic;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnEmptyMappings;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SkipQueryOnLimitZero;
@@ -170,9 +171,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new TranslateTimeSeriesAggregate(),
             new ApplyWindowFilter(),
             new PruneUnusedIndexMode(),
-            // simplify aggregations over arithmetic expressions (e.g. SUM(col + K) -> SUM(col) + K * COUNT(*))
-            // must run before ReplaceAggregateNestedExpressionWithEval which would extract the arithmetic into a pre-eval
-            new SimplifyAggregateOverArithmetic(),
             // first extract nested expressions inside aggs
             new ReplaceAggregateNestedExpressionWithEval(),
             // then extract nested aggs top-level
@@ -197,6 +195,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceTrivialTypeConversions(),
             new ReplaceOrderByExpressionWithEval(),
             new ReplaceLimitByExpressionWithEval(),
+            new ReplaceChangePointByExpressionWithEval(),
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
             new SubstituteApproximationPlan()
         );
@@ -241,6 +240,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneColumns(),
             new PruneLiteralsInOrderBy(),
             new PruneLiteralsInLimitBy(),
+            new PruneLiteralsInChangePointBy(),
             new PushDownAndCombineLimits(),
             new PushDownAndCombineLimitBy(),
             new PushLimitToKnn(),
@@ -273,7 +273,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceLimitAndSortAsTopN(),
             new HoistRemoteEnrichTopN(),
             new ReplaceRowAsLocalRelation(),
-            new PropgateUnmappedFields(),
+            new PropagateUnmappedFields(),
             new CombineLimitTopN(),
             new ReorderLimitProjectAndOrderBy()
         );

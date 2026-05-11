@@ -100,7 +100,7 @@ DESC : 'desc';
 DOT : '.';
 FALSE : 'false';
 FIRST : 'first';
-IN: 'in';
+IN: 'in' -> pushMode(IN_MODE);
 IS: 'is';
 LAST : 'last';
 LIKE: 'like';
@@ -178,3 +178,5 @@ EXPR_MULTILINE_COMMENT
 EXPR_WS
     : WS -> channel(HIDDEN)
     ;
+
+mode IN_MODE;

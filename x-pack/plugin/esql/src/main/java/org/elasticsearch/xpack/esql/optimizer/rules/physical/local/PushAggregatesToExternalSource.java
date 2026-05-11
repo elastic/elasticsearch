@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -54,10 +57,15 @@ import java.util.List;
  * Statistics come from {@code ExternalSourceExec.sourceMetadata()} for single-split queries, or
  * from merged per-split statistics in {@code FileSplit.splitStats()} for multi-split queries.
  * Falls back to normal execution when any split lacks statistics.
+ * <p>
+ * Substitution is skipped when the source has pushed scan-time predicates ({@code pushedExpressions}
+ * or {@code pushedFilter}), because statistics describe whole splits before those predicates.
  */
 public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     AggregateExec,
     LocalPhysicalOptimizerContext> {
+
+    private static final Logger logger = LogManager.getLogger(PushAggregatesToExternalSource.class);
 
     @Override
     protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext ctx) {
@@ -65,6 +73,10 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
             return aggregateExec;
         }
         ExternalSourceExec externalExec = (ExternalSourceExec) aggregateExec.child();
+
+        if (externalExec.pushedFilter() != null) {
+            return aggregateExec;
+        }
 
         AggregatorMode mode = aggregateExec.getMode();
         if (mode != AggregatorMode.SINGLE && mode != AggregatorMode.INITIAL) {
@@ -90,6 +102,23 @@ public class PushAggregatesToExternalSource extends PhysicalOptimizerRules.Param
         }
         if (formatReader.aggregatePushdownSupport()
             .canPushAggregates(aggFunctions, List.of()) != AggregatePushdownSupport.Pushability.YES) {
+            return aggregateExec;
+        }
+
+        // Row-group / footer statistics describe whole splits before any scan-time predicates. When a
+        // reader applies a predicate during read ({@link ExternalSourceExec#pushedExpressions()} /
+        // {@link ExternalSourceExec#pushedFilter()} after PushFiltersToSource removes FilterExec),
+        // answering COUNT(*) / MIN / MAX purely from statistics would ignore that predicate — wrong counts.
+        if (externalExec.pushedExpressions().isEmpty() == false || externalExec.pushedFilter() != null) {
+            logger.info(
+                () -> Strings.format(
+                    "PushAggregatesToExternalSource: skipping stats substitution (source has pushed scan predicates)"
+                        + " path=[{}] projections=[{}] type=[{}]",
+                    externalExec.sourcePath(),
+                    externalExec.pushedExpressions().size(),
+                    externalExec.sourceType()
+                )
+            );
             return aggregateExec;
         }
 

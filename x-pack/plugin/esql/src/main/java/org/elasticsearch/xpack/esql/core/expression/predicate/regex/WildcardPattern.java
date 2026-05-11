@@ -102,6 +102,44 @@ public class WildcardPattern extends AbstractStringPattern implements Writeable 
         return prefixOrSuffix(false);
     }
 
+    /**
+     * If this pattern has the shape {@code *literal*} — leading and trailing
+     * unescaped {@code *}, no other wildcards in between — returns the inner
+     * literal (with backslash escapes unwrapped). Returns {@code null}
+     * otherwise. Callers can use this to short-circuit to a substring search
+     * instead of building an {@code Automaton}. An empty pattern ({@code **})
+     * returns an empty string; a substring search for the empty string
+     * matches every input.
+     */
+    public String matchesContains() {
+        final int n = wildcard.length();
+        if (n < 2 || wildcard.charAt(0) != '*' || wildcard.charAt(n - 1) != '*') {
+            return null;
+        }
+        StringBuilder out = new StringBuilder(n - 2);
+        int i = 1;
+        final int last = n - 1;
+        while (i < last) {
+            char c = wildcard.charAt(i);
+            if (c == '\\') {
+                if (i + 1 >= last) {
+                    // Dangling escape right before the trailing '*' — let the
+                    // general automaton path handle it.
+                    return null;
+                }
+                out.append(wildcard.charAt(i + 1));
+                i += 2;
+                continue;
+            }
+            if (c == '*' || c == '?') {
+                return null;
+            }
+            out.append(c);
+            i++;
+        }
+        return out.toString();
+    }
+
     private String prefixOrSuffix(boolean prefix) {
         final int n = wildcard.length();
         if (n == 0) {

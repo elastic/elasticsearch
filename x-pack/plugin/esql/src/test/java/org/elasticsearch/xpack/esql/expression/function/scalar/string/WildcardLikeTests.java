@@ -92,8 +92,8 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
                     equalTo(match)
                 );
             }));
-            // Contains-only pattern (*literal*) — should still route through AutomataMatch.
-            suppliers.add(new TestCaseSupplier("contains with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
+            // Contains pattern (*literal*) — verifies dispatch to the byte-scan WildcardLikeContainsEvaluator.
+            suppliers.add(new TestCaseSupplier("contains match with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
                 String middle = randomAlphaOfLength(2);
                 BytesRef str = new BytesRef(randomAlphaOfLength(2) + middle + randomAlphaOfLength(2));
                 BytesRef pattern = new BytesRef("*" + middle + "*");
@@ -103,9 +103,42 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(str, type, "str"),
                         new TestCaseSupplier.TypedData(pattern, DataType.KEYWORD, "pattern").forceLiteral()
                     ),
-                    startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
+                    startsWith("WildcardLikeContainsEvaluator[str=Attribute[channel=0], pattern="),
                     DataType.BOOLEAN,
                     equalTo(match)
+                );
+            }));
+            // Contains pattern where the substring is NOT present — exercises the false branch.
+            suppliers.add(new TestCaseSupplier("contains no-match with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
+                String middle = randomAlphaOfLength(3);
+                String different = randomValueOtherThanMany(s -> s.contains(middle), () -> randomAlphaOfLength(5));
+                BytesRef str = new BytesRef(different);
+                BytesRef pattern = new BytesRef("*" + middle + "*");
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(str, type, "str"),
+                        new TestCaseSupplier.TypedData(pattern, DataType.KEYWORD, "pattern").forceLiteral()
+                    ),
+                    startsWith("WildcardLikeContainsEvaluator[str=Attribute[channel=0], pattern="),
+                    DataType.BOOLEAN,
+                    equalTo(false)
+                );
+            }));
+            // Embedded wildcard in the middle (*foo*bar*) — must NOT take the contains fast path;
+            // falls through to AutomataMatch.
+            suppliers.add(new TestCaseSupplier("multi-wildcard with " + type.esType(), List.of(type, DataType.KEYWORD), () -> {
+                String a = randomAlphaOfLength(2);
+                String b = randomAlphaOfLength(2);
+                BytesRef str = new BytesRef(a + randomAlphaOfLength(1) + b);
+                BytesRef pattern = new BytesRef("*" + a + "*" + b + "*");
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(str, type, "str"),
+                        new TestCaseSupplier.TypedData(pattern, DataType.KEYWORD, "pattern").forceLiteral()
+                    ),
+                    startsWith("AutomataMatchEvaluator[input=Attribute[channel=0], pattern=digraph Automaton {\n"),
+                    DataType.BOOLEAN,
+                    equalTo(true)
                 );
             }));
         }

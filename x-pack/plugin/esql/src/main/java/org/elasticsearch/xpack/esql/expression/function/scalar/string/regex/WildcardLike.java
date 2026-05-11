@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string.regex;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -151,12 +154,15 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
     }
 
     /**
-     * Fast path for prefix and suffix wildcard shapes (e.g. {@code LIKE "foo*"}
-     * and {@code LIKE "*foo"}): dispatch to the byte-comparison evaluators
-     * used by {@code STARTS_WITH}/{@code ENDS_WITH} instead of building an
-     * {@link org.apache.lucene.util.automaton.Automaton} and running
-     * {@code RunAutomaton.step} per row. The general path (other patterns,
-     * case-insensitive matching) still goes through {@code AutomataMatch}.
+     * Fast path for prefix, suffix, and contains wildcard shapes (e.g.
+     * {@code LIKE "foo*"}, {@code LIKE "*foo"}, {@code LIKE "*foo*"}):
+     * dispatch to byte-comparison / byte-substring-search evaluators instead
+     * of building an {@link org.apache.lucene.util.automaton.Automaton} and
+     * running {@code RunAutomaton.step} per row. The general path (other
+     * patterns, case-insensitive matching) still goes through
+     * {@code AutomataMatch}. Prefix and suffix reuse the
+     * {@code STARTS_WITH}/{@code ENDS_WITH} evaluators; contains uses the
+     * {@link #processContains} byte scan below.
      */
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
@@ -169,8 +175,51 @@ public class WildcardLike extends RegexMatch<WildcardPattern> {
             if (suffix != null) {
                 return new EndsWith(source(), field(), Literal.keyword(source(), suffix)).toEvaluator(toEvaluator);
             }
+            String contains = pattern().matchesContains();
+            if (contains != null) {
+                return new WildcardLikeContainsEvaluator.Factory(source(), toEvaluator.apply(field()), new BytesRef(contains));
+            }
         }
         return super.toEvaluator(toEvaluator);
+    }
+
+    /**
+     * Byte-level substring search emulating {@code LIKE "*literal*"}. Naive
+     * scan: at each candidate starting position, compare against the pattern
+     * bytes until a mismatch or full match. For the ClickBench-style URL
+     * patterns this hits (`*google*`, `*.google.*`) the patterns are short
+     * ASCII and the cost is dominated by the outer loop over input bytes —
+     * which is exactly what {@code RunAutomaton.step} also pays, minus the
+     * automaton state machine overhead and the UTF-8&rarr;UTF-16 decode that
+     * {@code AutomataMatch} needs to do per row.
+     */
+    @Evaluator(extraName = "Contains")
+    static boolean processContains(BytesRef str, @Fixed BytesRef pattern) {
+        final int pl = pattern.length;
+        if (pl == 0) {
+            return true;
+        }
+        if (str.length < pl) {
+            return false;
+        }
+        final byte[] sb = str.bytes;
+        final byte[] pb = pattern.bytes;
+        final int so = str.offset;
+        final int po = pattern.offset;
+        final int last = so + str.length - pl;
+        final byte first = pb[po];
+        outer: for (int i = so; i <= last; i++) {
+            if (sb[i] != first) {
+                continue;
+            }
+            for (int j = 1; j < pl; j++) {
+                if (sb[i + j] != pb[po + j]) {
+                    continue outer;
+                }
+            }
+            return true;
+        }
+        return false;
     }
 
     @Override

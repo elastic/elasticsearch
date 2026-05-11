@@ -54,6 +54,8 @@ import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -98,6 +100,14 @@ import static org.elasticsearch.index.IndexService.parseRuntimeMappings;
  * the context before executing each query.
  */
 public class SearchExecutionContext extends QueryRewriteContext {
+
+    /**
+     * Per-call telemetry for the pre-flight reservation swap in
+     * {@link #addCircuitBreakerMemory(long, long, String)}. Enable at {@code DEBUG} to validate
+     * the {@code reservation/actual} ratio in production and tune
+     * {@link org.elasticsearch.common.lucene.search.AutomatonQueries#COMPILED_AUTOMATON_PEAK_MULTIPLIER}.
+     */
+    private static final Logger CB_RESERVATION_LOGGER = LogManager.getLogger("org.elasticsearch.cb.automaton.reservation");
 
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
@@ -778,7 +788,52 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * @param label a descriptive label for the memory allocation, used in circuit breaker error messages
      */
     public void addCircuitBreakerMemory(long bytes, String label) {
+        addCircuitBreakerMemory(bytes, 0L, label);
+    }
+
+    /**
+     * Swap-style variant of {@link #addCircuitBreakerMemory(long, String)}: first refunds
+     * {@code heldBreakerBytes} (a reservation previously charged via the single-arg form), then
+     * charges the final {@code bytes}. Both the breaker reading and the request-scoped
+     * {@link #queryConstructionMemoryUsed} counter are updated, so the existing
+     * {@link #releaseQueryConstructionMemory()} cleanup remains correct on either path:
+     * <ul>
+     *   <li>Successful path: caller charges a reservation via the single-arg form before the
+     *       work, then calls this method to swap the reservation for the actual
+     *       {@code ramBytesUsed()}.</li>
+     *   <li>Failure path: if the work between reservation and swap throws, the reservation stays
+     *       in {@code queryConstructionMemoryUsed} and is refunded by the request-end Releasable.</li>
+     * </ul>
+     * If the post-refund charge trips the breaker, the refund has already taken effect: both the
+     * breaker and the counter end at their pre-reservation baseline, so no manual rollback is
+     * required.
+     * <p>
+     * Passing {@code heldBreakerBytes <= 0} skips the refund and behaves exactly like the
+     * single-arg form, which itself delegates here with {@code heldBreakerBytes = 0L}.
+     * <p>
+     * Used by automaton-based query construction (wildcard / regexp) to keep the in-flight clause
+     * visible to the breaker across the unguarded {@code CompiledAutomaton} build window without
+     * an explicit try/catch at the call site.
+     *
+     * @param bytes             the final {@code ramBytesUsed()} to charge to the breaker
+     * @param heldBreakerBytes  bytes already charged by a prior reservation; refunded before
+     *                          {@code bytes} is charged. Values {@code <= 0} are ignored.
+     * @param label             descriptive label for circuit breaker error messages
+     */
+    public void addCircuitBreakerMemory(long bytes, long heldBreakerBytes, String label) {
         if (circuitBreaker != null) {
+            if (heldBreakerBytes > 0) {
+                circuitBreaker.addWithoutBreaking(-heldBreakerBytes);
+                queryConstructionMemoryUsed.addAndGet(-heldBreakerBytes);
+                if (CB_RESERVATION_LOGGER.isDebugEnabled()) {
+                    CB_RESERVATION_LOGGER.debug(
+                        "automaton CB reservation swap: actual=[{}] reservation=[{}] label=[{}]",
+                        bytes,
+                        heldBreakerBytes,
+                        label
+                    );
+                }
+            }
             circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
             queryConstructionMemoryUsed.addAndGet(bytes);
         }

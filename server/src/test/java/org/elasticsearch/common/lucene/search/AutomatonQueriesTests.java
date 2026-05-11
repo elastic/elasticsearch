@@ -203,4 +203,47 @@ public class AutomatonQueriesTests extends ESTestCase {
         return '?';
     }
 
+    // ------------------------------------------------------------------
+    // Pre-flight reservation sizing for the CompiledAutomaton blind window (#147428)
+    // ------------------------------------------------------------------
+
+    public void testCompiledAutomatonReservationBytesScalesWithDfa() {
+        // Pick inputs that comfortably exceed the floor so we exercise the multiplier path,
+        // not the floor.
+        long mediumDfa = AutomatonQueries.COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES;
+        long largeDfa = mediumDfa * 100;
+        assertEquals(
+            mediumDfa * AutomatonQueries.COMPILED_AUTOMATON_PEAK_MULTIPLIER,
+            AutomatonQueries.compiledAutomatonReservationBytes(mediumDfa)
+        );
+        assertEquals(
+            largeDfa * AutomatonQueries.COMPILED_AUTOMATON_PEAK_MULTIPLIER,
+            AutomatonQueries.compiledAutomatonReservationBytes(largeDfa)
+        );
+    }
+
+    public void testCompiledAutomatonReservationBytesAppliesFloorForSmallDfa() {
+        // A tiny DFA's K-multiplied size is below the floor; the floor must dominate.
+        long tinyDfa = 100L;
+        long reservation = AutomatonQueries.compiledAutomatonReservationBytes(tinyDfa);
+        assertEquals(AutomatonQueries.COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES, reservation);
+        assertTrue(
+            "reservation must not regress below the floor",
+            reservation >= AutomatonQueries.COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES
+        );
+    }
+
+    public void testCompiledAutomatonReservationBytesIsZeroSafe() {
+        // Defensive: a 0-byte DFA shouldn't yield a 0 reservation; the floor still applies.
+        assertEquals(AutomatonQueries.COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES, AutomatonQueries.compiledAutomatonReservationBytes(0));
+    }
+
+    public void testCompiledAutomatonReservationBytesSaturatesOnOverflow() {
+        // A DFA so large that ramBytes * multiplier would overflow long arithmetic must saturate
+        // to Long.MAX_VALUE rather than wrap to a small positive (or negative) value that would
+        // silently under-reserve.
+        long overflowingDfa = Long.MAX_VALUE / AutomatonQueries.COMPILED_AUTOMATON_PEAK_MULTIPLIER + 1;
+        assertEquals(Long.MAX_VALUE, AutomatonQueries.compiledAutomatonReservationBytes(overflowingDfa));
+        assertEquals(Long.MAX_VALUE, AutomatonQueries.compiledAutomatonReservationBytes(Long.MAX_VALUE));
+    }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -115,10 +116,10 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
         assertMap(
             result,
             matchesMap().entry("documents_found", documentsFound)
-                .entry("rows_emitted", greaterThanOrEqualTo(0L))
-                .entry("bytes_read", greaterThanOrEqualTo(0L))
-                .entry("read_nanos", greaterThanOrEqualTo(0L))
-                .entry("cpu_nanos", greaterThanOrEqualTo(0L))
+                .entry("rows_emitted", IntOrLongMatcher.isIntOrLong())
+                .entry("bytes_read", IntOrLongMatcher.isIntOrLong())
+                .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry(
                     "profile",
                     matchesMap() //

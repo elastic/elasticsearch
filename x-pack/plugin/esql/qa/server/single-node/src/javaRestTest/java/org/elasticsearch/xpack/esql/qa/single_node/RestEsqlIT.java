@@ -19,6 +19,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -1249,9 +1250,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("sleeps", matchesMap().extraOk())
             .entry("documents_found", greaterThanOrEqualTo(0))
             .entry("values_loaded", greaterThanOrEqualTo(0))
-            .entry("rows_emitted", greaterThanOrEqualTo(0L))
-            .entry("bytes_read", greaterThanOrEqualTo(0L))
-            .entry("read_nanos", greaterThanOrEqualTo(0L));
+            .entry("rows_emitted", IntOrLongMatcher.isIntOrLong())
+            .entry("bytes_read", IntOrLongMatcher.isIntOrLong())
+            .entry("read_nanos", IntOrLongMatcher.isIntOrLong());
     }
 
     public void testProfileConditionalBlockLoader() throws IOException {

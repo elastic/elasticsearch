@@ -25,6 +25,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -284,10 +285,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .entry("is_partial", any(Boolean.class))
                 .entry("documents_found", 0)
                 .entry("values_loaded", 0)
-                .entry("rows_emitted", greaterThanOrEqualTo(0L))
-                .entry("bytes_read", greaterThanOrEqualTo(0L))
-                .entry("read_nanos", greaterThanOrEqualTo(0L))
-                .entry("cpu_nanos", greaterThanOrEqualTo(0L))
+                .entry("rows_emitted", IntOrLongMatcher.isIntOrLong())
+                .entry("bytes_read", IntOrLongMatcher.isIntOrLong())
+                .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("columns", List.of(colA, colB))
                 .entry("values", List.of(List.of(1, 2)))
                 .entry("completion_time_in_millis", greaterThan(0L))

@@ -80,6 +80,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -2927,12 +2928,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         if (includeRollupMetrics) {
             // Query-wide rollup metrics added with esql_external_source_profile TV. Older nodes
-            // don't emit these, so the flag mirrors the includeDocumentsFound treatment above.
-            // All four are emitted as longs and parse as Long when large enough to overflow Integer.
-            mapMatcher = mapMatcher.entry("rows_emitted", greaterThanOrEqualTo(0L));
-            mapMatcher = mapMatcher.entry("bytes_read", greaterThanOrEqualTo(0L));
-            mapMatcher = mapMatcher.entry("read_nanos", greaterThanOrEqualTo(0L));
-            mapMatcher = mapMatcher.entry("cpu_nanos", greaterThanOrEqualTo(0L));
+            // don't emit these. JSON parsing yields Integer for small values and Long for large
+            // (e.g. cpu_nanos easily overflows Integer); use isIntOrLong() per the EsqlListQueriesActionIT precedent.
+            mapMatcher = mapMatcher.entry("rows_emitted", IntOrLongMatcher.isIntOrLong());
+            mapMatcher = mapMatcher.entry("bytes_read", IntOrLongMatcher.isIntOrLong());
+            mapMatcher = mapMatcher.entry("read_nanos", IntOrLongMatcher.isIntOrLong());
+            mapMatcher = mapMatcher.entry("cpu_nanos", IntOrLongMatcher.isIntOrLong());
         }
         if (includeTimestamps) {
             // Older versions may not return start_time_in_millis, completion_time_in_millis and expiration_time_in_millis

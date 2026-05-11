@@ -43,6 +43,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -105,7 +106,10 @@ public class APMMeterRegistry implements MeterRegistry {
         Supplier<Collection<DoubleWithAttributes>> observer
     ) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return register(doubleAsynchronousCounters, new DoubleAsyncCounterAdapter(meter, name, description, unit, observer));
+            return register(
+                doubleAsynchronousCounters,
+                new DoubleAsyncCounterAdapter(meter, name, description, unit, observer, deregisterFunc(doubleAsynchronousCounters))
+            );
         }
     }
 
@@ -134,7 +138,7 @@ public class APMMeterRegistry implements MeterRegistry {
         Supplier<Collection<DoubleWithAttributes>> observer
     ) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return register(doubleGauges, new DoubleGaugeAdapter(meter, name, description, unit, observer));
+            return register(doubleGauges, new DoubleGaugeAdapter(meter, name, description, unit, observer, deregisterFunc(doubleGauges)));
         }
     }
 
@@ -170,7 +174,10 @@ public class APMMeterRegistry implements MeterRegistry {
         Supplier<Collection<LongWithAttributes>> observer
     ) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return register(longAsynchronousCounters, new LongAsyncCounterAdapter(meter, name, description, unit, observer));
+            return register(
+                longAsynchronousCounters,
+                new LongAsyncCounterAdapter(meter, name, description, unit, observer, deregisterFunc(longAsynchronousCounters))
+            );
         }
     }
 
@@ -199,7 +206,7 @@ public class APMMeterRegistry implements MeterRegistry {
     @Override
     public LongGauge registerLongsGauge(String name, String description, String unit, Supplier<Collection<LongWithAttributes>> observer) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return register(longGauges, new LongGaugeAdapter(meter, name, description, unit, observer));
+            return register(longGauges, new LongGaugeAdapter(meter, name, description, unit, observer, deregisterFunc(longGauges)));
         }
     }
 
@@ -222,8 +229,17 @@ public class APMMeterRegistry implements MeterRegistry {
 
     private <T extends AbstractInstrument<?>> T register(Registrar<T> registrar, T adapter) {
         assert registrars.contains(registrar) : "usage of unknown registrar";
-        logger.debug("Registering an instrument with name: " + adapter.getName());
+        logger.debug("Registering an instrument with name: {}", adapter.getName());
         return registrar.register(adapter);
+    }
+
+    private Consumer<AbstractInstrument<?>> deregisterFunc(Registrar<?> registrar) {
+        return instrument -> {
+            assert registrars.contains(registrar) : "usage of unknown registrar";
+            try (ReleasableLock ignored = registerLock.acquire()) {
+                registrar.remove(instrument.getName());
+            }
+        };
     }
 
     public void setProvider(Meter meter) {
@@ -257,6 +273,10 @@ public class APMMeterRegistry implements MeterRegistry {
 
         T get(String name) {
             return registered.get(name);
+        }
+
+        void remove(String name) {
+            registered.remove(name);
         }
 
         void setProvider(Meter meter) {

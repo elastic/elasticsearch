@@ -465,9 +465,9 @@ public abstract class DocumentParserContext {
      * Counts the next object element parsed inside an array against {@link MapperService#INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING}
      * and throws if the per-document cumulative limit has been exceeded. The counter is shared across every sub-context spawned
      * for the document (nested objects, sibling arrays, copy-to, switched parsers), so chunking a payload across many arrays
-     * cannot bypass the limit.
+     * cannot bypass the limit. Must be called exactly once per object element parsed inside an array.
      */
-    public final void checkObjectArrayElementLimit() {
+    public final void incrementAndCheckObjectArrayElementLimit() {
         long limit = indexSettings().getMappingArrayObjectsLimit();
         if (objectArrayElementCounter.incrementAndGet() > limit) {
             throw new DocumentParsingException(

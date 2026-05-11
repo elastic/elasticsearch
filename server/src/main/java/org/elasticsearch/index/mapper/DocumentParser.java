@@ -790,7 +790,7 @@ public final class DocumentParser {
         int valueElements = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
-                context.checkObjectArrayElementLimit();
+                context.incrementAndCheckObjectArrayElementLimit();
                 parseObject(context, lastFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
                 parseArray(context, lastFieldName);

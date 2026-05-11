@@ -693,7 +693,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         if (splits.isEmpty() == false) {
             sb.append("[splits=").append(splits.size()).append("]");
         }
-        if (fileSchema.isEmpty() == false) {
+        if (fileSchema != null && fileSchema.isEmpty() == false) {
             sb.append("[fileSchema=").append(fileSchema.size()).append("]");
         }
         NodeUtils.toString(sb, attributes, format);

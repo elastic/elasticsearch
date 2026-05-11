@@ -4240,7 +4240,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
 
         FormatReadContext ctx = FormatReadContext.builder().batchSize(10).build();
-        assertTrue("fileSchema must default to empty list", ctx.fileSchema().isEmpty());
+        assertNull("fileSchema must default to null", ctx.fileSchema());
 
         try (CloseableIterator<Page> iterator = reader.read(object, ctx)) {
             assertTrue(iterator.hasNext());

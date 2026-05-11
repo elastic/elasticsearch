@@ -97,6 +97,6 @@ public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedTo
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toTruncatedString(this, true, true);
     }
 }

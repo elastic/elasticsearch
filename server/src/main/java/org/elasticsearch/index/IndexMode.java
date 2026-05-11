@@ -427,7 +427,7 @@ public enum IndexMode {
 
         @Override
         public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+            return ProvidedIdFieldMapper.DOCUMENT_ID;
         }
 
         @Override
@@ -512,7 +512,7 @@ public enum IndexMode {
 
         @Override
         public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+            return ProvidedIdFieldMapper.DOCUMENT_ID;
         }
 
         @Override

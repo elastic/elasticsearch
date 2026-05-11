@@ -78,11 +78,11 @@ public class DeltaOnlyHistogramMergeOverTimeTDigestAggregator {
      * Wraps {@link TDigestStates.GroupingState} to carry temporality accessor and warnings.
      */
     public static final class TemporalityAwareTDigestGroupingState implements Releasable, GroupingAggregatorState {
-        final TDigestStates.GroupingState delegate;
-        TemporalityAccessor cachedTemporalityAccessor;
-        final Warnings warnings;
+        private final TDigestStates.GroupingState delegate;
+        private TemporalityAccessor cachedTemporalityAccessor;
+        private final Warnings warnings;
 
-        TemporalityAwareTDigestGroupingState(BigArrays bigArrays, DriverContext driverContext, Warnings warnings) {
+        private TemporalityAwareTDigestGroupingState(BigArrays bigArrays, DriverContext driverContext, Warnings warnings) {
             this.delegate = new TDigestStates.GroupingState(bigArrays, driverContext.breaker());
             this.warnings = warnings;
         }

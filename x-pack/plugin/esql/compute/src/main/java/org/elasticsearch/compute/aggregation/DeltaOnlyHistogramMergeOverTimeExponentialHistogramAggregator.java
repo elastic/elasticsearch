@@ -84,11 +84,11 @@ public class DeltaOnlyHistogramMergeOverTimeExponentialHistogramAggregator {
      * Wraps {@link ExponentialHistogramStates.GroupingState} to carry temporality accessor and warnings.
      */
     public static final class TemporalityAwareExpHistGroupingState implements Releasable, GroupingAggregatorState {
-        final ExponentialHistogramStates.GroupingState delegate;
-        TemporalityAccessor cachedTemporalityAccessor;
-        final Warnings warnings;
+        private final ExponentialHistogramStates.GroupingState delegate;
+        private TemporalityAccessor cachedTemporalityAccessor;
+        private final Warnings warnings;
 
-        TemporalityAwareExpHistGroupingState(BigArrays bigArrays, DriverContext driverContext, Warnings warnings) {
+        private TemporalityAwareExpHistGroupingState(BigArrays bigArrays, DriverContext driverContext, Warnings warnings) {
             this.delegate = new ExponentialHistogramStates.GroupingState(bigArrays, driverContext.breaker());
             this.warnings = warnings;
         }

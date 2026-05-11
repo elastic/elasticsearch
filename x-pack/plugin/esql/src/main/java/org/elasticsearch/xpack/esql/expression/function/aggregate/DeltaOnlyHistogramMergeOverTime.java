@@ -36,9 +36,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * Merges multiple histograms per time series into a single histogram, taking temporality into account.
- * Null temporality is interpreted as delta (unlike irate which defaults to cumulative).
- * Cumulative temporality is unsupported and produces a warning.
+ * Time series variant of {@link HistogramMerge}. In addition to merging histograms,
+ * this implementation also loads the temporality and ignores cumulative histograms (with a warning).
+ * <p>
+ * For backwards compatibility, the intermediate state produced by this aggregation is compatible with {@link HistogramMerge}:
+ * In previous versions, we used {@link HistogramMerge} directly as per-timeseries aggregation.
  */
 public class DeltaOnlyHistogramMergeOverTime extends TimeSeriesAggregateFunction
     implements

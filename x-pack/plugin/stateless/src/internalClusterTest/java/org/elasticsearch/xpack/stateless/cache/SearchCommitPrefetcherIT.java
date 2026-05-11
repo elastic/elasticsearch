@@ -378,8 +378,6 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
 
         flush(indexName);
 
-        // Snapshot the vBCC size and padding AFTER the flush freezes it. The vBCC stays mutable until flush, so async
-        // Lucene activity could in theory keep growing it between an earlier snapshot and the flush.
         var bccTotalPaddingInBytes = currentVirtualBcc.getTotalPaddingInBytes();
         var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 

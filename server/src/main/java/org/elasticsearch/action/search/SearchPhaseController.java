@@ -402,7 +402,7 @@ public final class SearchPhaseController {
                 0,
                 true,
                 null,
-                null,
+                VectorIndexTypeTelemetry.NONE,
                 false,
                 null
             );
@@ -517,7 +517,7 @@ public final class SearchPhaseController {
             from,
             false,
             timeRangeFilterFromMillis,
-            vectorIndexType.label(),
+            vectorIndexType,
             semanticFieldQueried,
             topHitsToRelease
         );
@@ -604,8 +604,9 @@ public final class SearchPhaseController {
         // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
         boolean isEmptyResult,
         Long timeRangeFilterFromMillis,
-        // dense_vector index type used by KNN queries on this search (or "mixed", or null when no KNN ran)
-        @Nullable String vectorIndexType,
+        // dense_vector index telemetry bucket from KNN queries on this search; NONE when no KNN ran,
+        // MIXED when more than one bucket was observed across shards
+        VectorIndexTypeTelemetry vectorIndexType,
         // true iff a semantic_text (or other semantic-prefixed) field was queried on any shard
         boolean semanticFieldQueried,
         // SearchHits from top_hits aggs for release by SearchResponse (may be null)

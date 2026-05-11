@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
+import org.elasticsearch.search.query.VectorIndexTypeTelemetry;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -93,7 +94,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     // only used for telemetry purposes on the coordinating node, where the search response gets created
     private transient Long timeRangeFilterFromMillis;
     // only used for telemetry purposes on the coordinating node, where the search response gets created
-    private transient String vectorIndexType;
+    private transient VectorIndexTypeTelemetry vectorIndexType;
     // only used for telemetry purposes on the coordinating node, where the search response gets created
     private transient boolean semanticFieldQueried;
 
@@ -547,10 +548,11 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     /**
-     * The dense_vector index type used by KNN queries in this search (or {@code "mixed"} when more than
-     * one type was used across shards). {@code null} when no KNN query ran. Coordinator-side telemetry only.
+     * The dense_vector index telemetry bucket used by KNN queries in this search, or
+     * {@link VectorIndexTypeTelemetry#MIXED} when more than one bucket was observed across shards, or
+     * {@link VectorIndexTypeTelemetry#NONE} when no KNN query ran. Coordinator-side telemetry only.
      */
-    public String getVectorIndexType() {
+    public VectorIndexTypeTelemetry getVectorIndexType() {
         return vectorIndexType;
     }
 

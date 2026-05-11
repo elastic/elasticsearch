@@ -16,6 +16,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
+import org.elasticsearch.search.query.VectorIndexTypeTelemetry;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.util.Collections;
@@ -37,7 +38,7 @@ public class SearchResponseSections implements Releasable {
         null,
         1,
         null,
-        null,
+        VectorIndexTypeTelemetry.NONE,
         false,
         null,
         null
@@ -51,7 +52,7 @@ public class SearchResponseSections implements Releasable {
         null,
         1,
         null,
-        null,
+        VectorIndexTypeTelemetry.NONE,
         false,
         null,
         null
@@ -64,8 +65,7 @@ public class SearchResponseSections implements Releasable {
     protected final Boolean terminatedEarly;
     protected final int numReducePhases;
     protected final Long timeRangeFilterFromMillis;
-    @Nullable
-    protected final String vectorIndexType;
+    protected final VectorIndexTypeTelemetry vectorIndexType;
     protected final boolean semanticFieldQueried;
     // List of top_hits SearchHits to release; cleared when transferred to SearchResponse so close() does not release
     private List<SearchHits> topHitsToRelease;
@@ -91,7 +91,7 @@ public class SearchResponseSections implements Releasable {
             profileResults,
             numReducePhases,
             timeRangeFilterFromMillis,
-            null,
+            VectorIndexTypeTelemetry.NONE,
             false,
             null,
             null
@@ -107,7 +107,7 @@ public class SearchResponseSections implements Releasable {
         SearchProfileResults profileResults,
         int numReducePhases,
         Long timeRangeFilterFromMillis,
-        @Nullable String vectorIndexType,
+        VectorIndexTypeTelemetry vectorIndexType,
         boolean semanticFieldQueried,
         @Nullable List<SearchHits> topHitsToRelease,
         @Nullable List<SearchHit> completionOptionHitsToRelease

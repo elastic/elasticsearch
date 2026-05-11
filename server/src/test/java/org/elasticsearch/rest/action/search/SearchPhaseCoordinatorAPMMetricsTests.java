@@ -260,7 +260,7 @@ public class SearchPhaseCoordinatorAPMMetricsTests extends ESSingleNodeTestCase 
         assertSearchHitsWithoutFailures(client().prepareSearch(indexName).setQuery(simpleQueryStringQuery("doc1")), "1");
         List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM);
         assertThat(measurements, hasSize(1));
-        assertNull(measurements.getFirst().attributes().get(SearchRequestAttributesExtractor.VECTOR_INDEX_TYPE_ATTRIBUTE));
+        assertFalse(measurements.getFirst().attributes().containsKey(SearchRequestAttributesExtractor.VECTOR_INDEX_TYPE_ATTRIBUTE));
     }
 
     private void resetMeter() {

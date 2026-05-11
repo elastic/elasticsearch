@@ -72,7 +72,7 @@ public class CohereEmbeddingsModel extends CohereModel {
             new ModelConfigurations(modelId, TaskType.TEXT_EMBEDDING, CohereService.NAME, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
-            serviceSettings.getCommonSettings(),
+            serviceSettings.getCommonSettings().rateLimitSettings(),
             testUri
         );
     }
@@ -82,7 +82,7 @@ public class CohereEmbeddingsModel extends CohereModel {
             modelConfigurations,
             modelSecrets,
             (DefaultSecretSettings) modelSecrets.getSecretSettings(),
-            ((CohereEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
+            ((CohereEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).rateLimitSettings()
         );
     }
 

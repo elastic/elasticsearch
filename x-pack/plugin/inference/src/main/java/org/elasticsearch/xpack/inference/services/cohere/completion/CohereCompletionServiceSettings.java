@@ -16,12 +16,10 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
-import org.elasticsearch.xpack.inference.services.cohere.CohereRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
@@ -32,7 +30,7 @@ import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServ
 /**
  * Settings for the Cohere completion service.
  */
-public class CohereCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings, CohereRateLimitServiceSettings {
+public class CohereCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
     public static final String NAME = "cohere_completion_service_settings";
 
@@ -73,19 +71,12 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
         return commonSettings;
     }
 
-    @Override
     public RateLimitSettings rateLimitSettings() {
         return commonSettings.rateLimitSettings();
     }
 
-    @Override
     public CohereCommonServiceSettings.CohereApiVersion apiVersion() {
         return commonSettings.apiVersion();
-    }
-
-    @Override
-    public URI uri() {
-        return commonSettings.uri();
     }
 
     @Override

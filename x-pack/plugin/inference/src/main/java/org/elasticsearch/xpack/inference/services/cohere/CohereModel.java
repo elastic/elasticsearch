@@ -27,7 +27,7 @@ import java.util.Objects;
 public abstract class CohereModel extends RateLimitGroupingModel {
 
     private final SecureString apiKey;
-    private final CohereRateLimitServiceSettings rateLimitServiceSettings;
+    private final RateLimitSettings rateLimitSettings;
     @Nullable
     private final URI testUri;
 
@@ -35,34 +35,34 @@ public abstract class CohereModel extends RateLimitGroupingModel {
         ModelConfigurations configurations,
         ModelSecrets secrets,
         @Nullable ApiKeySecrets apiKeySecrets,
-        CohereRateLimitServiceSettings rateLimitServiceSettings
+        RateLimitSettings rateLimitSettings
     ) {
-        this(configurations, secrets, apiKeySecrets, rateLimitServiceSettings, null);
+        this(configurations, secrets, apiKeySecrets, rateLimitSettings, null);
     }
 
     protected CohereModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
         @Nullable ApiKeySecrets apiKeySecrets,
-        CohereRateLimitServiceSettings rateLimitServiceSettings,
+        RateLimitSettings rateLimitSettings,
         @Nullable URI testUri
     ) {
         super(configurations, secrets);
-        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
+        this.rateLimitSettings = Objects.requireNonNull(rateLimitSettings);
         this.apiKey = ServiceUtils.apiKey(apiKeySecrets);
         this.testUri = testUri;
     }
 
     protected CohereModel(CohereModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
+        rateLimitSettings = model.rateLimitSettings();
         apiKey = model.apiKey();
         testUri = model.testUri;
     }
 
     protected CohereModel(CohereModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
-        rateLimitServiceSettings = model.rateLimitServiceSettings();
+        rateLimitSettings = model.rateLimitSettings();
         apiKey = model.apiKey();
         testUri = model.testUri;
     }
@@ -71,14 +71,14 @@ public abstract class CohereModel extends RateLimitGroupingModel {
         return apiKey;
     }
 
-    public CohereRateLimitServiceSettings rateLimitServiceSettings() {
-        return rateLimitServiceSettings;
+    public RateLimitSettings rateLimitServiceSettings() {
+        return rateLimitSettings;
     }
 
     public abstract ExecutableAction accept(CohereActionVisitor creator, Map<String, Object> taskSettings);
 
     public RateLimitSettings rateLimitSettings() {
-        return rateLimitServiceSettings.rateLimitSettings();
+        return rateLimitSettings;
     }
 
     public int rateLimitGroupingHash() {

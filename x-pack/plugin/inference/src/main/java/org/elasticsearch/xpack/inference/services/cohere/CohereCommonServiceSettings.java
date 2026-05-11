@@ -46,11 +46,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
  * This class is not a named writeable: it is only serialized as an embedded
  * component inside the task-specific settings classes.
  */
-public class CohereCommonServiceSettings extends FilteredXContentObject
-    implements
-        CohereRateLimitServiceSettings,
-        ToXContentFragment,
-        Writeable {
+public class CohereCommonServiceSettings extends FilteredXContentObject implements ToXContentFragment, Writeable {
 
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
     public static final TransportVersion ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR = TransportVersion.fromName(
@@ -182,17 +178,14 @@ public class CohereCommonServiceSettings extends FilteredXContentObject
         this.apiVersion = in.readEnum(CohereApiVersion.class);
     }
 
-    @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
     }
 
-    @Override
     public CohereApiVersion apiVersion() {
         return apiVersion;
     }
 
-    @Override
     public URI uri() {
         return uri;
     }

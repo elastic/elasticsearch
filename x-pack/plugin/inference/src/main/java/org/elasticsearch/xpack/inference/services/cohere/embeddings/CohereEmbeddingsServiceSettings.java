@@ -184,6 +184,10 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         return commonSettings;
     }
 
+    public RateLimitSettings rateLimitSettings() {
+        return commonSettings.rateLimitSettings();
+    }
+
     public Integer maxInputTokens() {
         return maxInputTokens;
     }

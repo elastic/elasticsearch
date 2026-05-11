@@ -544,3 +544,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
   method: test {csv-spec:external-basic.evalComputedColumn [S3]}
   issue: https://github.com/elastic/elasticsearch/issues/148655
+- class: org.elasticsearch.xpack.esql.datasource.parquet.parquetrs.NativeLoaderTests
+  method: testLoad
+  issue: https://github.com/elastic/elasticsearch/issues/148693

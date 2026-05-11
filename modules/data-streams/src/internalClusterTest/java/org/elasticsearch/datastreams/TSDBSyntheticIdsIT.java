@@ -152,7 +152,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     public void testInvalidIndexMode() {
         final var indexName = randomIdentifier();
-        var randomNonTsdbIndexMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));
+        var randomNonTsdbIndexMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()));
 
         var exception = expectThrows(
             IllegalArgumentException.class,

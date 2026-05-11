@@ -32,6 +32,18 @@ testClusters.register("runTask") {
       keystore 'bootstrap.password', 'password'
       user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
       numberOfNodes = 1
+      // Arrow memory allocator needs access to java.nio internals
+      jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+      // Forward RUST_LOG into the ES JVM so the parquet-rs native lib's
+      // `env_logger` picks it up. Set with: `-Drun.rust_log=esql_parquet_rs=debug`
+      // (or via the RUST_LOG env var of the gradle process). Defaults to empty,
+      // which leaves the native lib at its compiled default level (`warn`).
+      String rustLog = providers.systemProperty('run.rust_log')
+          .orElse(providers.environmentVariable('RUST_LOG'))
+          .getOrElse('')
+      if (rustLog) {
+        environment 'RUST_LOG', rustLog
+      }
     }
 }
 

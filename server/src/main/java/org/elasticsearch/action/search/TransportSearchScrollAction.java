@@ -101,7 +101,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                 // instead so a client can terminate on hits.length == 0 without special-casing the error.
                 String responseScrollId = request.scroll() != null ? request.scrollId() : null;
                 ActionListener.respondAndRelease(
-                    loggingAndMetrics,
+                    listener,
                     SearchResponse.emptyResponseBuilder().scrollId(responseScrollId).build()
                 );
                 return;

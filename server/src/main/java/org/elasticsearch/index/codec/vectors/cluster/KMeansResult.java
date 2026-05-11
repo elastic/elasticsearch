@@ -20,7 +20,9 @@ import java.util.List;
 public class KMeansResult {
     private float[][] centroids;
     private final int[] assignments;
+    private int[] clusterCounts;
     private int[] soarAssignments;
+
     public static KMeansResult EMPTY = new KMeansResult(new float[0][], new int[0], new int[0]) {
         @Override
         public float[] getCentroid(int vectorOrdinal) {
@@ -54,6 +56,7 @@ public class KMeansResult {
         this.centroids = centroids;
         this.assignments = assignments;
         this.soarAssignments = soarAssignments;
+        clusterCounts = new int[centroids.length];
     }
 
     public float[] getCentroid(int vectorOrdinal) {
@@ -70,10 +73,15 @@ public class KMeansResult {
 
     void setCentroids(float[][] centroids) {
         this.centroids = centroids;
+        this.clusterCounts = new int[centroids.length];
     }
 
     public int[] assignments() {
         return assignments;
+    }
+
+    public int[] clusterCounts() {
+        return clusterCounts;
     }
 
     void setSoarAssignments(int[] soarAssignments) {

@@ -515,15 +515,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.SoftDeletesRetentionIT
   method: testRetentionLeasesIgnoredForSoftDeletesPolicy
   issue: https://github.com/elastic/elasticsearch/issues/148557
-- class: org.elasticsearch.index.reindex.ReindexPluginMetricsIT
-  method: testReindexEmitsSearchContextKeepaliveExpiredMetric
-  issue: https://github.com/elastic/elasticsearch/issues/148558
-- class: org.elasticsearch.index.reindex.ReindexPluginMetricsIT
-  method: testLocalReindexPitOpenFailureMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/148559
-- class: org.elasticsearch.index.reindex.ReindexPluginMetricsIT
-  method: testRemoteReindexVersionLookupFailureMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/148560
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148339
@@ -553,3 +544,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
   method: test {csv-spec:external-basic.evalComputedColumn [S3]}
   issue: https://github.com/elastic/elasticsearch/issues/148655
+- class: org.elasticsearch.xpack.esql.datasource.parquet.parquetrs.NativeLoaderTests
+  method: testLoad
+  issue: https://github.com/elastic/elasticsearch/issues/148693
+- class: org.elasticsearch.xpack.esql.datasource.parquet.parquetrs.ParquetRsDiscoverSplitRangesStatsTests
+  method: testDiscoverSplitRangesIncludesColumnMinMaxKeys
+  issue: https://github.com/elastic/elasticsearch/issues/148698

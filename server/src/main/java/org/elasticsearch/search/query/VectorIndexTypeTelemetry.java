@@ -18,8 +18,8 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorIndex
  * format. The wire encoding has 16 ordinals available; new buckets can be appended without a
  * transport version bump.
  *
- * <p>{@link #UNKNOWN} is reserved for ordinals that arrive from a newer node and are not yet
- * defined locally. Preserving the signal as {@code UNKNOWN} (rather than collapsing to
+ * <p>{@link #UNRECOGNIZED} is reserved for ordinals that arrive from a newer node and are not yet
+ * defined locally. Preserving the signal as {@code UNRECOGNIZED} (rather than collapsing to
  * {@link #NONE}) lets dashboards distinguish "no KNN on this shard" from "this node doesn't
  * recognize the bucket the producer used", which matters during mixed-version rollouts.
  *
@@ -29,7 +29,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorIndex
  */
 public enum VectorIndexTypeTelemetry {
     NONE(null),
-    UNKNOWN("unknown"),
+    UNRECOGNIZED("unrecognized"),
     HNSW("hnsw"),
     FLAT("flat"),
     BBQ("bbq"),
@@ -52,11 +52,11 @@ public enum VectorIndexTypeTelemetry {
 
     /**
      * Decode a wire ordinal. Out-of-range values (a bucket defined on a newer node we don't
-     * recognize) decode to {@link #UNKNOWN} so the signal is preserved rather than dropped.
+     * recognize) decode to {@link #UNRECOGNIZED} so the signal is preserved rather than dropped.
      */
     public static VectorIndexTypeTelemetry fromOrdinal(int ordinal) {
         if (ordinal < 0 || ordinal >= VALUES.length) {
-            return UNKNOWN;
+            return UNRECOGNIZED;
         }
         return VALUES[ordinal];
     }

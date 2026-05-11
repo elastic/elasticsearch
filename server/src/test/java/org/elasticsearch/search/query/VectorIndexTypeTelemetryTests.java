@@ -21,7 +21,7 @@ public class VectorIndexTypeTelemetryTests extends ESTestCase {
      */
     public void testOrdinalsAreStable() {
         assertEquals(0, VectorIndexTypeTelemetry.NONE.ordinal());
-        assertEquals(1, VectorIndexTypeTelemetry.UNKNOWN.ordinal());
+        assertEquals(1, VectorIndexTypeTelemetry.UNRECOGNIZED.ordinal());
         assertEquals(2, VectorIndexTypeTelemetry.HNSW.ordinal());
         assertEquals(3, VectorIndexTypeTelemetry.FLAT.ordinal());
         assertEquals(4, VectorIndexTypeTelemetry.BBQ.ordinal());
@@ -33,17 +33,17 @@ public class VectorIndexTypeTelemetryTests extends ESTestCase {
     public void testFromOrdinalIsStable() {
         // Since this is serialized, the order must be stable.
         assertEquals(VectorIndexTypeTelemetry.NONE, VectorIndexTypeTelemetry.fromOrdinal(0));
-        assertEquals(VectorIndexTypeTelemetry.UNKNOWN, VectorIndexTypeTelemetry.fromOrdinal(1));
+        assertEquals(VectorIndexTypeTelemetry.UNRECOGNIZED, VectorIndexTypeTelemetry.fromOrdinal(1));
         assertEquals(VectorIndexTypeTelemetry.HNSW, VectorIndexTypeTelemetry.fromOrdinal(2));
         assertEquals(VectorIndexTypeTelemetry.FLAT, VectorIndexTypeTelemetry.fromOrdinal(3));
         assertEquals(VectorIndexTypeTelemetry.BBQ, VectorIndexTypeTelemetry.fromOrdinal(4));
         assertEquals(VectorIndexTypeTelemetry.MIXED, VectorIndexTypeTelemetry.fromOrdinal(5));
-        assertEquals(VectorIndexTypeTelemetry.UNKNOWN, VectorIndexTypeTelemetry.fromOrdinal(6));
+        assertEquals(VectorIndexTypeTelemetry.UNRECOGNIZED, VectorIndexTypeTelemetry.fromOrdinal(6));
     }
 
     public void testLabels() {
         assertNull(VectorIndexTypeTelemetry.NONE.label());
-        assertEquals("unknown", VectorIndexTypeTelemetry.UNKNOWN.label());
+        assertEquals("unrecognized", VectorIndexTypeTelemetry.UNRECOGNIZED.label());
         assertEquals("hnsw", VectorIndexTypeTelemetry.HNSW.label());
         assertEquals("flat", VectorIndexTypeTelemetry.FLAT.label());
         assertEquals("bbq", VectorIndexTypeTelemetry.BBQ.label());
@@ -56,10 +56,10 @@ public class VectorIndexTypeTelemetryTests extends ESTestCase {
         }
     }
 
-    public void testFromOrdinalOutOfRangeReturnsUnknown() {
-        assertSame(VectorIndexTypeTelemetry.UNKNOWN, VectorIndexTypeTelemetry.fromOrdinal(-1));
-        assertSame(VectorIndexTypeTelemetry.UNKNOWN, VectorIndexTypeTelemetry.fromOrdinal(15));
-        assertSame(VectorIndexTypeTelemetry.UNKNOWN, VectorIndexTypeTelemetry.fromOrdinal(Integer.MAX_VALUE));
+    public void testFromOrdinalOutOfRangeReturnsUnrecognized() {
+        assertSame(VectorIndexTypeTelemetry.UNRECOGNIZED, VectorIndexTypeTelemetry.fromOrdinal(-1));
+        assertSame(VectorIndexTypeTelemetry.UNRECOGNIZED, VectorIndexTypeTelemetry.fromOrdinal(15));
+        assertSame(VectorIndexTypeTelemetry.UNRECOGNIZED, VectorIndexTypeTelemetry.fromOrdinal(Integer.MAX_VALUE));
     }
 
     public void testEveryVectorIndexTypeBucketsToConcreteValue() {
@@ -69,7 +69,7 @@ public class VectorIndexTypeTelemetryTests extends ESTestCase {
             assertNotSame("VectorIndexType " + type + " must bucket to a concrete telemetry value", VectorIndexTypeTelemetry.NONE, bucket);
             assertNotSame(
                 "VectorIndexType " + type + " must bucket to a concrete telemetry value",
-                VectorIndexTypeTelemetry.UNKNOWN,
+                VectorIndexTypeTelemetry.UNRECOGNIZED,
                 bucket
             );
             assertNotSame("VectorIndexType " + type + " must bucket to a concrete telemetry value", VectorIndexTypeTelemetry.MIXED, bucket);
@@ -104,14 +104,14 @@ public class VectorIndexTypeTelemetryTests extends ESTestCase {
         assertSame(VectorIndexTypeTelemetry.MIXED, VectorIndexTypeTelemetry.HNSW.merge(VectorIndexTypeTelemetry.FLAT));
         assertSame(VectorIndexTypeTelemetry.MIXED, VectorIndexTypeTelemetry.HNSW.merge(VectorIndexTypeTelemetry.BBQ));
         assertSame(VectorIndexTypeTelemetry.MIXED, VectorIndexTypeTelemetry.FLAT.merge(VectorIndexTypeTelemetry.BBQ));
-        // UNKNOWN combined with any other concrete bucket is genuinely mixed: we don't know what
-        // the unknown side actually was, so we cannot claim agreement.
-        assertSame(VectorIndexTypeTelemetry.MIXED, VectorIndexTypeTelemetry.UNKNOWN.merge(VectorIndexTypeTelemetry.HNSW));
-        assertSame(VectorIndexTypeTelemetry.MIXED, VectorIndexTypeTelemetry.HNSW.merge(VectorIndexTypeTelemetry.UNKNOWN));
+        // UNRECOGNIZED combined with any other concrete bucket is genuinely mixed: we don't know what
+        // the unrecognized side actually was, so we cannot claim agreement.
+        assertSame(VectorIndexTypeTelemetry.MIXED, VectorIndexTypeTelemetry.UNRECOGNIZED.merge(VectorIndexTypeTelemetry.HNSW));
+        assertSame(VectorIndexTypeTelemetry.MIXED, VectorIndexTypeTelemetry.HNSW.merge(VectorIndexTypeTelemetry.UNRECOGNIZED));
     }
 
-    public void testMergeUnknownWithUnknown() {
-        assertSame(VectorIndexTypeTelemetry.UNKNOWN, VectorIndexTypeTelemetry.UNKNOWN.merge(VectorIndexTypeTelemetry.UNKNOWN));
+    public void testMergeUnrecognizedWithUnrecognized() {
+        assertSame(VectorIndexTypeTelemetry.UNRECOGNIZED, VectorIndexTypeTelemetry.UNRECOGNIZED.merge(VectorIndexTypeTelemetry.UNRECOGNIZED));
     }
 
     public void testMergeMixedIsAbsorbing() {

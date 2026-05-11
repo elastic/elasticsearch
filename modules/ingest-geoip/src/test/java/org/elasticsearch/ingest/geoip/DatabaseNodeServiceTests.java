@@ -133,7 +133,7 @@ public class DatabaseNodeServiceTests extends ESTestCase {
         projectId = multiProject ? randomProjectIdOrDefault() : ProjectId.DEFAULT;
         projectResolver = multiProject ? TestProjectResolvers.singleProject(projectId) : TestProjectResolvers.DEFAULT_PROJECT_ONLY;
         final Path geoIpConfigDir = createTempDir();
-        GeoIpCache cache = new GeoIpCache(1000);
+        GeoIpCache cache = GeoIpCache.createGeoIpCacheWithMaxCount(1000);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
         copyDefaultDatabases(geoIpConfigDir, configDatabases);
 

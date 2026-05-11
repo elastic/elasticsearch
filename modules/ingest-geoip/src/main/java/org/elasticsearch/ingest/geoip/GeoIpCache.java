@@ -10,9 +10,11 @@ package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.db.NodeCache;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.geoip.stats.CacheStats;
 
@@ -29,44 +31,69 @@ import java.util.function.LongSupplier;
  */
 public final class GeoIpCache {
 
+    static GeoIpCache createGeoIpCacheWithMaxCount(long maxSize) {
+        if (maxSize < 0) {
+            throw new IllegalArgumentException("geoip max cache size must be 0 or greater");
+        }
+        return new GeoIpCache(System::nanoTime, CacheBuilder.<CacheKey, IpDatabase.Response>builder().setMaximumWeight(maxSize).build());
+    }
+
+    static GeoIpCache createGeoIpCacheWithMaxBytes(ByteSizeValue maxByteSize) {
+        if (maxByteSize.getBytes() < 0) {
+            throw new IllegalArgumentException("geoip max cache size in bytes must be 0 or greater");
+        }
+        return new GeoIpCache(
+            System::nanoTime,
+            CacheBuilder.<CacheKey, IpDatabase.Response>builder()
+                .setMaximumWeight(maxByteSize.getBytes())
+                .weigher((key, value) -> key.sizeInBytes() + value.sizeInBytes())
+                .build()
+        );
+    }
+
+    // package private for testing
+    static GeoIpCache createGeoIpCacheWithMaxCountAndCustomTimeProvider(long maxSize, LongSupplier relativeNanoTimeProvider) {
+        return new GeoIpCache(
+            relativeNanoTimeProvider,
+            CacheBuilder.<CacheKey, IpDatabase.Response>builder().setMaximumWeight(maxSize).build()
+        );
+    }
+
     /**
      * Internal-only sentinel object for recording that a result from the geoip database was null (i.e. there was no result). By caching
      * this no-result we can distinguish between something not being in the cache because we haven't searched for that data yet, versus
      * something not being in the cache because the data doesn't exist in the database.
      */
     // visible for testing
-    static final Object NO_RESULT = new Object() {
+    static final IpDatabase.Response NO_RESULT = new IpDatabase.Response() {
         @Override
         public String toString() {
             return "NO_RESULT";
         }
     };
 
-    private final Cache<CacheKey, Object> cache;
+    private final Cache<CacheKey, IpDatabase.Response> cache;
     private final LongSupplier relativeNanoTimeProvider;
     private final LongAdder hitsTimeInNanos = new LongAdder();
     private final LongAdder missesTimeInNanos = new LongAdder();
 
-    // package private for testing
-    GeoIpCache(long maxSize, LongSupplier relativeNanoTimeProvider) {
-        if (maxSize < 0) {
-            throw new IllegalArgumentException("geoip max cache size must be 0 or greater");
-        }
+    private GeoIpCache(LongSupplier relativeNanoTimeProvider, Cache<CacheKey, IpDatabase.Response> cache) {
         this.relativeNanoTimeProvider = relativeNanoTimeProvider;
-        this.cache = CacheBuilder.<CacheKey, Object>builder().setMaximumWeight(maxSize).build();
-    }
-
-    GeoIpCache(long maxSize) {
-        this(maxSize, System::nanoTime);
+        this.cache = cache;
     }
 
     @SuppressWarnings("unchecked")
-    <RESPONSE> RESPONSE putIfAbsent(ProjectId projectId, String ip, String databasePath, Function<String, RESPONSE> retrieveFunction) {
+    <RESPONSE extends IpDatabase.Response> RESPONSE putIfAbsent(
+        ProjectId projectId,
+        String ip,
+        String databasePath,
+        Function<String, RESPONSE> retrieveFunction
+    ) {
         // can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
         CacheKey cacheKey = new CacheKey(projectId, ip, databasePath);
         long cacheStart = relativeNanoTimeProvider.getAsLong();
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
-        Object response = cache.get(cacheKey);
+        IpDatabase.Response response = cache.get(cacheKey);
         long cacheRequestTime = relativeNanoTimeProvider.getAsLong() - cacheStart;
 
         // populate the cache for this key, if necessary
@@ -136,5 +163,21 @@ public final class GeoIpCache {
      * path is needed to be included in the cache key. For example, if we only used the IP address as the key the City and ASN the same
      * IP may be in both with different values and we need to cache both.
      */
-    private record CacheKey(ProjectId projectId, String ip, String databasePath) {}
+    private record CacheKey(ProjectId projectId, String ip, String databasePath) {
+
+        private static final long BASE_BYTES = RamUsageEstimator.shallowSizeOfInstance(CacheKey.class);
+        private static final long PROJECT_ID_BASE_BYTES = RamUsageEstimator.shallowSizeOfInstance(ProjectId.class);
+
+        private long sizeInBytes() {
+            return keySizeInBytes(projectId, ip, databasePath);
+        }
+    }
+
+    // visible for testing
+    static long keySizeInBytes(ProjectId projectId, String ip, String databasePath) {
+        // TODO: Check this size computation before merging:
+        return CacheKey.BASE_BYTES + CacheKey.PROJECT_ID_BASE_BYTES + RamUsageEstimator.sizeOf(projectId.id()) + RamUsageEstimator.sizeOf(
+            ip
+        ) + RamUsageEstimator.sizeOf(databasePath);
+    }
 }

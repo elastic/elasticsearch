@@ -153,7 +153,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         long fileOffset,
         int[] assignments,
         int[] overspillAssignments,
-        IvfSegmentConfig fieldWritingContext
+        IvfSegmentConfig ivfSegmentConfig
     ) throws IOException;
 
     public abstract CentroidOffsetAndLength buildAndWritePostingsLists(
@@ -165,7 +165,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         MergeState mergeState,
         int[] assignments,
         int[] overspillAssignments,
-        IvfSegmentConfig fieldWritingContext
+        IvfSegmentConfig ivfSegmentConfig
     ) throws IOException;
 
     public abstract CentroidSupplier createCentroidSupplier(

@@ -3251,6 +3251,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             int adjustedK = k;
+            // By default utilize the quantized oversample is configured
+            // allow the user provided at query time overwrite
             // precedence: query oversample > persisted (per-segment) > mapping rescore_vector
             Float oversample = queryOversample;
             Float mappingOversampleDefault = indexOptions instanceof QuantizedIndexOptions qio && qio.rescoreVector != null

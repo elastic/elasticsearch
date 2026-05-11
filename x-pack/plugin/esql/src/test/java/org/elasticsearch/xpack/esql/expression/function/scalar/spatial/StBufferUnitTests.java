@@ -214,4 +214,32 @@ public class StBufferUnitTests extends ESTestCase {
         );
         assertThat(ex.getMessage(), containsString("Invalid value [invalid] for option [join]"));
     }
+
+    public void testEndCapButtAlias() {
+        // "butt" is an accepted synonym for "flat"; both must produce the same polygon
+        var flat = process("LINESTRING(0 0, 10 0)", 2.0, mapOf("endcap", "flat"));
+        var butt = process("LINESTRING(0 0, 10 0)", 2.0, mapOf("endcap", "butt"));
+        assertEquals(UNSPECIFIED.wkbToWkt(flat), UNSPECIFIED.wkbToWkt(butt));
+    }
+
+    public void testJoinMiterAlias() {
+        // "miter" is an accepted synonym for "mitre"; both must produce the same polygon
+        var mitre = process("LINESTRING(0 0, 10 0, 10 10)", 2.0, mapOf("endcap", "flat", "join", "mitre"));
+        var miter = process("LINESTRING(0 0, 10 0, 10 10)", 2.0, mapOf("endcap", "flat", "join", "miter"));
+        assertEquals(UNSPECIFIED.wkbToWkt(mitre), UNSPECIFIED.wkbToWkt(miter));
+    }
+
+    public void testEndCapCaseInsensitive() {
+        // Endcap values are matched case-insensitively
+        var lower = process("LINESTRING(0 0, 10 0)", 2.0, mapOf("endcap", "flat"));
+        var upper = process("LINESTRING(0 0, 10 0)", 2.0, mapOf("endcap", "FLAT"));
+        assertEquals(UNSPECIFIED.wkbToWkt(lower), UNSPECIFIED.wkbToWkt(upper));
+    }
+
+    public void testJoinCaseInsensitive() {
+        // Join values are matched case-insensitively
+        var lower = process("LINESTRING(0 0, 10 0, 10 10)", 2.0, mapOf("join", "mitre"));
+        var upper = process("LINESTRING(0 0, 10 0, 10 10)", 2.0, mapOf("join", "MITRE"));
+        assertEquals(UNSPECIFIED.wkbToWkt(lower), UNSPECIFIED.wkbToWkt(upper));
+    }
 }

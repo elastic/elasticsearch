@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -79,15 +80,10 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
     private static final String OPTIONS_APPLIES_TO = """
         {"serverless": "preview", "stack": "preview 9.5.0"}""";
 
-    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(
-        QUAD_SEGS_OPTION,
-        INTEGER,
-        ENDCAP_OPTION,
-        KEYWORD,
-        JOIN_OPTION,
-        KEYWORD,
-        MITRE_LIMIT_OPTION,
-        DOUBLE
+    // TreeMap so the keys iterate in alphabetical order; this makes "expected one of [...]"
+    // error messages deterministic across JVM hash seeds, which is important for tests.
+    public static final Map<String, DataType> ALLOWED_OPTIONS = new TreeMap<>(
+        Map.of(QUAD_SEGS_OPTION, INTEGER, ENDCAP_OPTION, KEYWORD, JOIN_OPTION, KEYWORD, MITRE_LIMIT_OPTION, DOUBLE)
     );
 
     private static final SpatialGeometryBlockProcessor processor = new SpatialGeometryBlockProcessor(UNSPECIFIED, StBuffer::bufferOp);
@@ -298,6 +294,9 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
         }
         MapExpression mapOptions = (MapExpression) options;
         for (EntryExpression entry : mapOptions.entryExpressions()) {
+            // Entry keys and values are always Literals here: the parser rejects non-literal
+            // map values syntactically, and Options.resolve enforces the same invariant during
+            // resolveType. The casts below are therefore safe.
             String name = BytesRefs.toString(((Literal) entry.key()).value());
             Object value = ((Literal) entry.value()).value();
             switch (name) {

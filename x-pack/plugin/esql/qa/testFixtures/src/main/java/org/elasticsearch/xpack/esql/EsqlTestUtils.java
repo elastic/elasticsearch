@@ -1448,7 +1448,7 @@ public final class EsqlTestUtils {
         try (InputStream content = entity.getContent()) {
             XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
             assertEquals(expectedContentType, xContentType);
-            return XContentHelper.convertToMap(xContentType.xContent(), content, false /* ordered */);
+            return XContentHelper.convertToMap(xContentType.xContent(), content, true /* ordered */);
         }
     }
 

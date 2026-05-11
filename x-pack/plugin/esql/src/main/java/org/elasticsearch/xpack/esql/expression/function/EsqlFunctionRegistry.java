@@ -123,6 +123,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateUnitCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
@@ -620,6 +622,8 @@ public class EsqlFunctionRegistry {
                 // dense vector functions
                 Magnitude.DEFINITION,
                 // date_range functions
+                RangeContains.DEFINITION,
+                RangeIntersects.DEFINITION,
                 RangeMax.DEFINITION,
                 RangeMin.DEFINITION,
                 RangeWithin.DEFINITION,

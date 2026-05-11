@@ -757,47 +757,6 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         return bytesReadFromIndexingNode;
     }
 
-    /// Tracks unique bytes received from the indexing-node chunk endpoint by recording each `[offset, offset + respLen)`
-    /// range and merging overlaps.
-    private static final class UniqueRangesTracker {
-        private final NavigableMap<Long, Long> rangesByStart = new TreeMap<>();
-
-        /// Records a `[offset, offset + length)` range and returns the running total of unique bytes after the merge.
-        private synchronized long addRange(long offset, long length) {
-            if (length > 0) {
-                long start = offset;
-                long end = offset + length;
-                // coalesce with the predecessor entry if it overlaps or touches
-                final var floor = rangesByStart.floorEntry(start);
-                if (floor != null && floor.getValue() >= start) {
-                    start = floor.getKey();
-                    end = Math.max(end, floor.getValue());
-                    rangesByStart.remove(floor.getKey());
-                }
-                // coalesce with any subsequent entries that the merged range now overlaps or touches
-                final var iter = rangesByStart.tailMap(start, false).entrySet().iterator();
-                while (iter.hasNext()) {
-                    final var entry = iter.next();
-                    if (entry.getKey() > end) {
-                        break;
-                    }
-                    end = Math.max(end, entry.getValue());
-                    iter.remove();
-                }
-                rangesByStart.put(start, end);
-            }
-            return bytesCount();
-        }
-
-        synchronized long bytesCount() {
-            long total = 0;
-            for (final var entry : rangesByStart.entrySet()) {
-                total += entry.getValue() - entry.getKey();
-            }
-            return total;
-        }
-    }
-
     private AtomicLong meterBlobStoreReadsForBCC(String searchNode, String bccBlobName) {
         var bytesReadFromBlobStore = new AtomicLong();
         setNodeRepositoryStrategy(searchNode, new StatelessMockRepositoryStrategy() {
@@ -826,6 +785,46 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             }
         });
         return bytesReadFromBlobStore;
+    }
+
+    /// Tracks unique bytes received from the indexing-node chunk endpoint by recording each `[offset, offset + respLen)`
+    /// range and merging overlaps.
+    private static final class UniqueRangesTracker {
+        private final NavigableMap<Long, Long> rangesByStart = new TreeMap<>();
+
+        /// Records a `[offset, offset + length)` range and returns the running total of unique bytes after the merge.
+        private synchronized void addRange(long offset, long length) {
+            if (length > 0) {
+                long start = offset;
+                long end = offset + length;
+                // coalesce with the predecessor entry if it overlaps or touches
+                final var floor = rangesByStart.floorEntry(start);
+                if (floor != null && floor.getValue() >= start) {
+                    start = floor.getKey();
+                    end = Math.max(end, floor.getValue());
+                    rangesByStart.remove(floor.getKey());
+                }
+                // coalesce with any subsequent entries that the merged range now overlaps or touches
+                final var iter = rangesByStart.tailMap(start, false).entrySet().iterator();
+                while (iter.hasNext()) {
+                    final var entry = iter.next();
+                    if (entry.getKey() > end) {
+                        break;
+                    }
+                    end = Math.max(end, entry.getValue());
+                    iter.remove();
+                }
+                rangesByStart.put(start, end);
+            }
+        }
+
+        synchronized long bytesCount() {
+            long total = 0;
+            for (final var entry : rangesByStart.entrySet()) {
+                total += entry.getValue() - entry.getKey();
+            }
+            return total;
+        }
     }
 
     public static final class TestStatelessPluginNoRecoveryPrewarming extends TestUtils.StatelessPluginWithTrialLicense {

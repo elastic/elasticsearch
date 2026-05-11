@@ -241,7 +241,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         Settings settings = Settings.builder().put(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.getKey(), "4mb").build();
         assertThat(FetchPhase.resolveTargetChunkBytes(123_456, settings), equalTo(123_456));
     }
-    
+
     public void testResolveTargetChunkBytesFallsBackToClusterSettingWhenNoOverride() {
         Settings settings = Settings.builder().put(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.getKey(), "4mb").build();
         assertThat(FetchPhase.resolveTargetChunkBytes(null, settings), equalTo(Math.toIntExact(ByteSizeValue.ofMb(4).getBytes())));

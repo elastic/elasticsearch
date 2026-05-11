@@ -103,6 +103,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -180,6 +181,7 @@ public class ComputeService {
     private final PlannerSettings.Holder plannerSettings;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
+    private final Executor esqlExecutor;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -197,7 +199,7 @@ public class ComputeService {
         this.exchangeService = transportActionServices.exchangeService();
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
-        var esqlExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.esqlExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         this.driverRunner = new DriverTaskRunner(transportService, esqlExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
@@ -1164,7 +1166,8 @@ public class ComputeService {
                 inferenceService,
                 userAgentParserRegistry,
                 physicalOperationProviders,
-                operatorFactoryRegistry
+                operatorFactoryRegistry,
+                esqlExecutor
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

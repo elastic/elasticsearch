@@ -202,7 +202,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             pageSize,
             Long.MAX_VALUE,
             InputOrdering.NOT_SORTED,
-            minCompetitive
+            minCompetitive,
+            null
         );
     }
 
@@ -283,7 +284,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             maxPageSize,
             jumboPageBytes,
             inputOrdering,
-            minCompetitive
+            minCompetitive,
+            null
         );
     }
 

@@ -143,6 +143,14 @@ public class TopNOperator implements Operator, Accountable {
         }
     }
 
+    /**
+     * Optional config that, when present, opts the operator into the parallel
+     * final-merge path. The factory invokes {@link #enableParallelFinalMerge}
+     * after constructing the operator; the operator itself decides when (and
+     * whether) to actually promote based on the row threshold.
+     */
+    public record ParallelFinalMergeConfig(Executor executor, int workerCount, int maxInFlightPages, long promotionThresholdRows) {}
+
     public record TopNOperatorFactory(
         int topCount,
         List<ElementType> elementTypes,
@@ -151,7 +159,8 @@ public class TopNOperator implements Operator, Accountable {
         int maxPageRows,
         long jumboPageBytes,
         InputOrdering inputOrdering,
-        @Nullable SharedMinCompetitive.Supplier minCompetitive
+        @Nullable SharedMinCompetitive.Supplier minCompetitive,
+        @Nullable ParallelFinalMergeConfig parallelFinalMerge
     ) implements OperatorFactory {
         public TopNOperatorFactory
 
@@ -165,7 +174,7 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public TopNOperator get(DriverContext driverContext) {
-            return new TopNOperator(
+            TopNOperator op = new TopNOperator(
                 driverContext.blockFactory(),
                 driverContext.breaker(),
                 topCount,
@@ -177,6 +186,16 @@ public class TopNOperator implements Operator, Accountable {
                 inputOrdering,
                 minCompetitive
             );
+            if (parallelFinalMerge != null && parallelFinalMerge.workerCount() >= 2) {
+                op.enableParallelFinalMerge(
+                    driverContext,
+                    parallelFinalMerge.executor(),
+                    parallelFinalMerge.workerCount(),
+                    parallelFinalMerge.maxInFlightPages(),
+                    parallelFinalMerge.promotionThresholdRows()
+                );
+            }
+            return op;
         }
 
         @Override

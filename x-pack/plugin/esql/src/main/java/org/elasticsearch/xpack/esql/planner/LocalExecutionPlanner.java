@@ -73,6 +73,7 @@ import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
@@ -183,6 +184,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -222,6 +224,13 @@ public class LocalExecutionPlanner {
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final PhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
+    /**
+     * Executor used by operators that fan work out to background tasks (e.g. parallel
+     * final-merge in {@link TopNOperator}). May be {@code null} in test contexts where
+     * no parallel path is needed; operators behave sequentially in that case.
+     */
+    @Nullable
+    private final Executor parallelWorkerExecutor;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -238,7 +247,8 @@ public class LocalExecutionPlanner {
         InferenceService inferenceService,
         UserAgentParserRegistry userAgentParserRegistry,
         PhysicalOperationProviders physicalOperationProviders,
-        OperatorFactoryRegistry operatorFactoryRegistry
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        @Nullable Executor parallelWorkerExecutor
     ) {
 
         this.sessionId = sessionId;
@@ -256,6 +266,7 @@ public class LocalExecutionPlanner {
         this.userAgentParserRegistry = userAgentParserRegistry;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
+        this.parallelWorkerExecutor = parallelWorkerExecutor;
     }
 
     /**
@@ -615,10 +626,28 @@ public class LocalExecutionPlanner {
                 context.pageSize(topNExec, rowSize),
                 context.plannerSettings.valuesLoadingJumboSize().getBytes(),
                 topNExec.inputOrdering(),
-                topNExec.minCompetitive()
+                topNExec.minCompetitive(),
+                parallelTopNConfig()
             ),
             source.layout
         );
+    }
+
+    /**
+     * Build the parallel-final-merge config passed to {@link TopNOperatorFactory}.
+     * Returns {@code null} (sequential-only) when no parallel executor is wired in
+     * (e.g. unit-test contexts). Constants are intentionally hardcoded for the
+     * prototype; cluster settings can be added once we've tuned them.
+     */
+    @Nullable
+    private TopNOperator.ParallelFinalMergeConfig parallelTopNConfig() {
+        if (parallelWorkerExecutor == null) {
+            return null;
+        }
+        int workerCount = 4;
+        int maxInFlightPages = 8;
+        long promotionThresholdRows = 1_000_000L;
+        return new TopNOperator.ParallelFinalMergeConfig(parallelWorkerExecutor, workerCount, maxInFlightPages, promotionThresholdRows);
     }
 
     private PhysicalOperation planTopNBy(TopNByExec topNByExec, LocalExecutionPlannerContext context) {

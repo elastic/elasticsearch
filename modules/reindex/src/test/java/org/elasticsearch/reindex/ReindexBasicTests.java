@@ -15,7 +15,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -197,18 +197,18 @@ public class ReindexBasicTests extends ReindexTestCase {
         indexRandom(true, docs);
         assertHitCount(prepareSearch(source).setSize(0), max);
 
-        int expectedStatuses = expectedSliceStatuses(AbstractBulkByScrollRequest.AUTO_SLICES, source);
+        int expectedStatuses = expectedSliceStatuses(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES, source);
 
         ReindexRequestBuilder copy = reindex().source(source)
             .destination(dest)
             .refresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(greaterThanOrEqualTo(max / 5)).slices(hasSize(expectedStatuses)));
         assertHitCount(prepareSearch(dest).setSize(0), max);
 
         int half = max / 2;
-        copy = reindex().source(source).destination(destHalf).refresh(true).setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        copy = reindex().source(source).destination(destHalf).refresh(true).setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
         copy.source().setSize(5);
         copy.maxDocs(half);
         BulkByScrollResponse response = copy.get();
@@ -283,14 +283,14 @@ public class ReindexBasicTests extends ReindexTestCase {
             assertHitCount(prepareSearch(entry.getKey()).setSize(0), entry.getValue().size());
         }
 
-        int expectedStatuses = expectedSliceStatuses(AbstractBulkByScrollRequest.AUTO_SLICES, docs.keySet());
+        int expectedStatuses = expectedSliceStatuses(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES, docs.keySet());
 
         String dest = prefix + "_dest";
         String[] sourceNames = docs.keySet().toArray(new String[0]);
         ReindexRequestBuilder request = reindex().source(sourceNames)
             .destination(dest)
             .refresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
         request.source().setSize(5);
 
         BulkByScrollResponse response = request.get();
@@ -343,7 +343,7 @@ public class ReindexBasicTests extends ReindexTestCase {
     public void testMissingSources() {
         BulkByScrollResponse response = updateByQuery().source("missing-index-*")
             .refresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
             .get();
         assertThat(response, matcher().created(0).slices(hasSize(0)));
     }

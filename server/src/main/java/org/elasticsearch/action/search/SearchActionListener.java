@@ -25,23 +25,19 @@ import java.util.function.Consumer;
  * Phase results that don't open a reader (e.g. can-match, open-PIT) inherit the default
  * {@link SearchPhaseResult#getDirectoryMetrics()} which returns {@link DirectoryMetrics#EMPTY},
  * so they contribute nothing to the accumulator.
+ * <p>
+ * Callers must supply an accumulator explicitly or a noop
+ * when accumulation is handled elsewhere (e.g. the coordinator-side onShardResult path,
+ * or a data-node-side batched listener whose results are accumulated on the coordinator) and
+ * justify the choice with an inline comment at the call site.
  */
 abstract class SearchActionListener<T extends SearchPhaseResult> implements ActionListener<T> {
 
-    private static final Consumer<DirectoryMetrics> NOOP_ACCUMULATOR = m -> {};
+    static final Consumer<DirectoryMetrics> NOOP_ACCUMULATOR = m -> {};
 
     final int requestIndex;
     private final SearchShardTarget searchShardTarget;
     private final Consumer<DirectoryMetrics> directoryMetricsAccumulator;
-
-    /**
-     * Creates a listener that does not accumulate directory metrics. Use this when the
-     * caller is not the coordinator merging metrics across shards (e.g. a data-node-side
-     * batched listener).
-     */
-    protected SearchActionListener(SearchShardTarget searchShardTarget, int shardIndex) {
-        this(searchShardTarget, shardIndex, NOOP_ACCUMULATOR);
-    }
 
     protected SearchActionListener(
         SearchShardTarget searchShardTarget,

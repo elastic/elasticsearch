@@ -330,6 +330,10 @@
           }
         }
       },
+      "cloud_internal_api_key" : {
+        "type" : "object",
+        "enabled" : false
+      },
       "config_type" : {
         "type" : "keyword"
       },

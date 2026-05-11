@@ -7,21 +7,16 @@
 
 package org.elasticsearch.xpack.core.security.cloud;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Objects;
 
 /**
- * Cloud credential management that deals with handling credentials at runtime (write and read from thread context)
- * and persistence of the cloud credentials (read from persisted form).
+ * Cloud credential management for runtime handling (read and write of the active {@link ThreadContext})
+ * and persistence (decoding a {@link PersistedCloudCredential} envelope into a usable
+ * {@link CloudCredential}).
  */
 public interface CloudCredentialManager {
 
@@ -60,52 +55,26 @@ public interface CloudCredentialManager {
     CloudCredentialResolver resolverOf(PersistedCloudCredential persisted);
 
     /**
-     * Returns a cloud credentials-aware {@link Client}. On every {@code execute(...)}, calls
-     * {@code resolver.resolve()} to obtain a {@link CloudCredential}, injects it into the active
-     * {@link ThreadContext} via {@link #injectCloudManagedCredential}, then delegates to {@code delegate}.
+     * Returns a cloud-credentials-aware {@link Client}. On every {@code execute(...)} the
+     * implementation obtains a {@link CloudCredential} from {@code resolver}, injects it into
+     * the active {@link ThreadContext} via {@link #injectCloudManagedCredential}, and dispatches
+     * to {@code delegate} under that isolated context.
      * <p>
      * The credential or persisted envelope captured by {@code resolver} must remain open for the
      * lifetime of the returned client.
      */
-    default Client wrapClient(Client delegate, @Nullable CloudCredentialResolver resolver) {
-        if (resolver == null) {
-            return delegate;
-        }
-        final CloudCredentialManager self = this;
-        return new FilterClient(delegate) {
-            @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                ActionListener.run(listener, l -> {
-                    final CloudCredential credential = resolver.resolve();
-                    final ThreadContext threadContext = threadPool().getThreadContext();
-                    final var preservedListener = ContextPreservingActionListener.wrapPreservingContext(l, threadContext);
-                    try (var ignored = threadContext.newStoredContext()) {
-                        self.injectCloudManagedCredential(threadContext, credential);
-                        super.doExecute(action, request, preservedListener);
-                    }
-                });
-            }
-        };
-    }
+    Client wrapClient(Client delegate, CloudCredentialResolver resolver);
 
     /** Convenience: wraps via {@link #resolverOf(CloudCredential)}. Returns {@code delegate} when {@code credential} is null. */
-    default Client wrapClient(Client delegate, @Nullable CloudCredential credential) {
-        return wrapClient(delegate, credential == null ? null : resolverOf(credential));
-    }
+    Client wrapClient(Client delegate, @Nullable CloudCredential credential);
 
     /** Convenience: wraps via {@link #resolverOf(PersistedCloudCredential)}. Returns {@code delegate} when {@code persisted} is null. */
-    default Client wrapClient(Client delegate, @Nullable PersistedCloudCredential persisted) {
-        return wrapClient(delegate, persisted == null ? null : resolverOf(persisted));
-    }
+    Client wrapClient(Client delegate, @Nullable PersistedCloudCredential persisted);
 
     /**
      * No-op default used when serverless security is not loaded.
      */
-    class Default implements CloudCredentialManager {
+    class Noop implements CloudCredentialManager {
 
         @Override
         public boolean hasCloudManagedCredential(ThreadContext threadContext) {
@@ -125,6 +94,21 @@ public interface CloudCredentialManager {
         @Override
         public CloudCredentialResolver resolverOf(PersistedCloudCredential persisted) {
             throw new UnsupportedOperationException("cloud-managed credential decoding is not available");
+        }
+
+        @Override
+        public Client wrapClient(Client delegate, CloudCredentialResolver resolver) {
+            return delegate;
+        }
+
+        @Override
+        public Client wrapClient(Client delegate, @Nullable CloudCredential credential) {
+            return delegate;
+        }
+
+        @Override
+        public Client wrapClient(Client delegate, @Nullable PersistedCloudCredential persisted) {
+            return delegate;
         }
     }
 }

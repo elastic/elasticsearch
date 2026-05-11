@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.cloud;
 
+import org.elasticsearch.common.util.FeatureFlag;
+
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -15,15 +17,17 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public interface CloudCredentialsExtension {
 
+    FeatureFlag ML_CROSS_PROJECT = new FeatureFlag("ml_cross_project");
+
     InternalCloudApiKeyService internalCloudApiKeyService();
 
     CloudCredentialManager credentialManager();
 
     // TODO this is a hack to unblock the ML CPS integration; ideally we'd use SPI for this,
     // but we need to solve:
-    // 1) An implementation (i.e. `Default`) needs to be available when Security is disabled
+    // 1) An implementation (i.e. `Noop`) needs to be available when Security is disabled
     // 2) How to wire the serverless implementation into places that can't use `@Inject` (e.g. `Transform`)
-    AtomicReference<CloudCredentialsExtension> REFERENCE = new AtomicReference<>(new Default());
+    AtomicReference<CloudCredentialsExtension> REFERENCE = new AtomicReference<>(new Noop());
 
     static CloudCredentialsExtension getInstance() {
         return REFERENCE.get();
@@ -33,11 +37,13 @@ public interface CloudCredentialsExtension {
         REFERENCE.set(instance);
     }
 
-    /** No-op default used when serverless security is not loaded. */
-    class Default implements CloudCredentialsExtension {
+    /**
+     * No-op default used when serverless security is not loaded.
+     */
+    class Noop implements CloudCredentialsExtension {
 
         private static final InternalCloudApiKeyService API_KEY_SERVICE = new InternalCloudApiKeyService.Default();
-        private static final CloudCredentialManager CREDENTIAL_MANAGER = new CloudCredentialManager.Default();
+        private static final CloudCredentialManager CREDENTIAL_MANAGER = new CloudCredentialManager.Noop();
 
         @Override
         public InternalCloudApiKeyService internalCloudApiKeyService() {

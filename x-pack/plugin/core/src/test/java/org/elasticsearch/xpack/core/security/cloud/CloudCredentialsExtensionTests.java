@@ -14,16 +14,16 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class CloudCredentialsExtensionTests extends ESTestCase {
 
-    public void testDefault() {
-        var extension = new CloudCredentialsExtension.Default();
+    public void testNoop() {
+        var extension = new CloudCredentialsExtension.Noop();
 
         assertThat(extension.internalCloudApiKeyService(), notNullValue());
         assertThat(extension.internalCloudApiKeyService(), instanceOf(InternalCloudApiKeyService.Default.class));
         assertThat(extension.credentialManager(), notNullValue());
-        assertThat(extension.credentialManager(), instanceOf(CloudCredentialManager.Default.class));
+        assertThat(extension.credentialManager(), instanceOf(CloudCredentialManager.Noop.class));
     }
 
-    public void testGetInstanceDefaultsToDefaultExtension() {
+    public void testGetInstanceDefaultsToNoopExtension() {
         var instance = CloudCredentialsExtension.getInstance();
         assertThat(instance, notNullValue());
     }

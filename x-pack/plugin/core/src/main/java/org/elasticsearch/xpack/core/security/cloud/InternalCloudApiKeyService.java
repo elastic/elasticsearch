@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.cloud;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 /**
@@ -23,8 +22,6 @@ public interface InternalCloudApiKeyService {
      * the grant request. The granted key is then authenticated to produce an {@link Authentication}
      * that the caller can persist alongside the credential.
      *
-     * @param threadContext          the current thread context (used by the impl to preserve security
-     *                               headers across the async grant call)
      * @param cloudManagedCredential the caller credential (extracted from the active request via
      *                               {@link CloudCredentialManager#extractCloudManagedCredential})
      * @param description            a human-readable description for the granted key, by convention
@@ -34,19 +31,17 @@ public interface InternalCloudApiKeyService {
      *                               {@link Authentication}
      */
     void grantCloudAuthentication(
-        ThreadContext threadContext,
         CloudCredential cloudManagedCredential,
         String description,
         ActionListener<CloudGrantApiKeyResult> listener
     );
 
     /**
-     * No-op default used when serverless security is not loaded.
+     * Default used when serverless security is not loaded.
      */
     class Default implements InternalCloudApiKeyService {
         @Override
         public void grantCloudAuthentication(
-            ThreadContext threadContext,
             CloudCredential cloudManagedCredential,
             String description,
             ActionListener<CloudGrantApiKeyResult> listener

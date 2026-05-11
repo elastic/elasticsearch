@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -27,18 +26,17 @@ public interface ExternalSourceFactory {
     SourceMetadata resolveMetadata(String location, Map<String, Object> config);
 
     /**
-     * Resolves the full file layout (metadata + split ranges) for a single file in one pass.
-     * The default implementation defers to {@link #resolveMetadata} and returns no split ranges,
-     * preserving backward compatibility for non-file factories (connectors, table catalogs).
+     * Reject configuration keys this factory doesn't recognize at the given location. Implementations
+     * compose their claimed-key sets and call {@link ConfigKeyValidator#check}.
      * <p>
-     * File-based factories that work with range-aware (columnar) formats should override this
-     * to read the file's footer once and emit both schema/statistics and split ranges, avoiding
-     * the double-read that would otherwise happen across {@code resolveMetadata} and
-     * {@link RangeAwareFormatReader#resolveFileLayout}.
+     * <b>Required override.</b> Every factory must explicitly state its validation contract — either
+     * by composing claimed-key sets and delegating to {@link ConfigKeyValidator#check}, or, for
+     * factories with no per-query config keys today, by calling
+     * {@code ConfigKeyValidator.check(config, List.of())} to reject any non-empty config map. An
+     * empty method body would silently accept typo'd configurations — exactly the footgun this
+     * abstract contract exists to prevent — so do not write one.
      */
-    default FileLayout resolveFileLayout(String location, Map<String, Object> config) {
-        return new FileLayout(resolveMetadata(location, config), List.of());
-    }
+    void validateConfig(String location, Map<String, Object> config);
 
     default FilterPushdownSupport filterPushdownSupport() {
         return null;

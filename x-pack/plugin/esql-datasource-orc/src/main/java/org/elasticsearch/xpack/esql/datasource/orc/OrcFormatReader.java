@@ -44,13 +44,13 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
-import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
-import org.elasticsearch.xpack.esql.datasources.spi.FileLayout;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
@@ -75,9 +75,9 @@ import java.util.OptionalLong;
  * ESQL's columnar {@link Block}/{@link Page} model. Each ORC {@link ColumnVector} is
  * converted directly to the corresponding ESQL Block type.
  *
- * <p>Supports stripe-level split parallelism: {@link #resolveFileLayout} exposes
- * per-stripe byte ranges (alongside file metadata), and {@link #readRange} restricts
- * reading to stripes within a given byte range via ORC's {@code Reader.Options.range()}.
+ * <p>Supports stripe-level split parallelism: {@link #discoverSplitRanges} exposes
+ * per-stripe byte ranges, and {@link #readRange} restricts reading to stripes within
+ * a given byte range via ORC's {@code Reader.Options.range()}.
  *
  * <p>Key features:
  * <ul>
@@ -87,7 +87,7 @@ import java.util.OptionalLong;
  *   <li>Stripe-level split parallelism for multi-stripe files</li>
  * </ul>
  */
-public class OrcFormatReader implements RangeAwareFormatReader {
+public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatReader {
 
     private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
 
@@ -116,51 +116,17 @@ public class OrcFormatReader implements RangeAwareFormatReader {
         return this;
     }
 
-    /**
-     * Resolves both schema/statistics and split ranges in a single pass over the ORC file's
-     * footer. This is the single primitive of the {@link RangeAwareFormatReader} SPI; the
-     * inherited {@code metadata} default discards the split ranges for metadata-only callers
-     * and still pays exactly one footer read per call.
-     */
     @Override
-    public FileLayout resolveFileLayout(StorageObject object) throws IOException {
+    public SourceMetadata metadata(StorageObject object) throws IOException {
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
-        try (Reader reader = OrcFile.createReader(path, orcReaderOptions(fs))) {
-            SourceMetadata metadata = buildMetadata(reader, object);
-            List<SplitRange> ranges = buildSplitRangesFromStripes(reader);
-            return new FileLayout(metadata, ranges);
+        OrcFile.ReaderOptions options = orcReaderOptions(fs);
+        try (Reader reader = OrcFile.createReader(path, options)) {
+            TypeDescription schema = reader.getSchema();
+            List<Attribute> attributes = convertOrcSchemaToAttributes(schema);
+            SourceStatistics statistics = extractStatistics(reader, schema);
+            return new SimpleSourceMetadata(attributes, formatName(), object.path().toString(), statistics, null);
         }
-    }
-
-    private SourceMetadata buildMetadata(Reader reader, StorageObject object) {
-        TypeDescription schema = reader.getSchema();
-        List<Attribute> attributes = convertOrcSchemaToAttributes(schema);
-        SourceStatistics statistics = extractStatistics(reader, schema);
-        return new SimpleSourceMetadata(attributes, formatName(), object.path().toString(), statistics, null);
-    }
-
-    private static List<SplitRange> buildSplitRangesFromStripes(Reader reader) throws IOException {
-        List<StripeInformation> stripes = reader.getStripes();
-        if (stripes.isEmpty()) {
-            return List.of();
-        }
-        List<StripeStatistics> stripeStats = reader.getStripeStatistics();
-        TypeDescription schema = reader.getSchema();
-        if (stripes.size() == 1) {
-            StripeInformation stripe = stripes.getFirst();
-            Map<String, Object> stats = stripeStats.isEmpty() == false
-                ? buildStripeStats(stripe, stripeStats.getFirst(), schema)
-                : Map.of();
-            return List.of(new SplitRange(stripe.getOffset(), stripe.getLength(), stats));
-        }
-        List<SplitRange> ranges = new ArrayList<>(stripes.size());
-        for (int i = 0; i < stripes.size(); i++) {
-            StripeInformation stripe = stripes.get(i);
-            Map<String, Object> stats = (i < stripeStats.size()) ? buildStripeStats(stripe, stripeStats.get(i), schema) : Map.of();
-            ranges.add(new SplitRange(stripe.getOffset(), stripe.getLength(), stats));
-        }
-        return ranges;
     }
 
     /**
@@ -293,6 +259,34 @@ public class OrcFormatReader implements RangeAwareFormatReader {
         return rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
     }
 
+    @Override
+    public List<SplitRange> discoverSplitRanges(StorageObject object) throws IOException {
+        OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
+        Path path = new Path(object.path().toString());
+        try (Reader reader = OrcFile.createReader(path, orcReaderOptions(fs))) {
+            List<StripeInformation> stripes = reader.getStripes();
+            if (stripes.isEmpty()) {
+                return List.of();
+            }
+            List<StripeStatistics> stripeStats = reader.getStripeStatistics();
+            TypeDescription schema = reader.getSchema();
+            if (stripes.size() == 1) {
+                StripeInformation stripe = stripes.getFirst();
+                Map<String, Object> stats = stripeStats.isEmpty() == false
+                    ? buildStripeStats(stripe, stripeStats.getFirst(), schema)
+                    : Map.of();
+                return List.of(new SplitRange(stripe.getOffset(), stripe.getLength(), stats));
+            }
+            List<SplitRange> ranges = new ArrayList<>(stripes.size());
+            for (int i = 0; i < stripes.size(); i++) {
+                StripeInformation stripe = stripes.get(i);
+                Map<String, Object> stats = (i < stripeStats.size()) ? buildStripeStats(stripe, stripeStats.get(i), schema) : Map.of();
+                ranges.add(new SplitRange(stripe.getOffset(), stripe.getLength(), stats));
+            }
+            return ranges;
+        }
+    }
+
     private static Map<String, Object> buildStripeStats(StripeInformation stripe, StripeStatistics stats, TypeDescription schema) {
         Map<String, Object> map = new HashMap<>();
         map.put(SourceStatisticsSerializer.STATS_ROW_COUNT, stripe.getNumberOfRows());
@@ -334,15 +328,13 @@ public class OrcFormatReader implements RangeAwareFormatReader {
      * structural (corrupt stripe, schema mismatch) rather than row-level.
      */
     @Override
-    public CloseableIterator<Page> readRange(
-        StorageObject object,
-        List<String> projectedColumns,
-        int batchSize,
-        long rangeStart,
-        long rangeEnd,
-        List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
-    ) throws IOException {
+    public CloseableIterator<Page> readRange(StorageObject object, RangeReadContext context) throws IOException {
+        long rangeStart = context.rangeStart();
+        long rangeEnd = context.rangeEnd();
+        List<String> projectedColumns = context.projectedColumns();
+        int batchSize = context.batchSize();
+        List<Attribute> resolvedAttributes = context.resolvedAttributes();
+
         if (rangeEnd <= rangeStart) {
             throw new IllegalArgumentException("rangeEnd [" + rangeEnd + "] must be greater than rangeStart [" + rangeStart + "]");
         }

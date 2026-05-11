@@ -1467,3 +1467,18 @@ FROM airport_city_boundaries
 region:text
 Свердлов району
 ;
+
+likeQuestionMarkWildcardOnIndexMetadataField
+required_capability: fix_index_like_question_mark_wildcard
+FROM employees METADATA _index | WHERE _index LIKE "employ?es" | KEEP emp_no | SORT emp_no | LIMIT 1;
+
+emp_no:integer
+10001
+;
+
+likeQuestionMarkWildcardNoMatchOnIndexMetadataField
+required_capability: fix_index_like_question_mark_wildcard
+FROM employees METADATA _index | WHERE _index LIKE "employ??es" | KEEP emp_no;
+
+emp_no:integer
+;

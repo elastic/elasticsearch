@@ -21,8 +21,7 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -30,14 +29,16 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
-import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.DEFAULT_RATE_LIMIT;
-import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.INITIAL_TEST_MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.INITIAL_TEST_RATE_LIMIT;
-import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.TEST_MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.TEST_RATE_LIMIT;
 import static org.hamcrest.Matchers.is;
 
 public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<VoyageAIEmbeddingsServiceSettings> {
+
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final int DEFAULT_RATE_LIMIT = 2_000;
 
     private static final int TEST_DIMENSIONS = 1536;
     private static final int INITIAL_TEST_DIMENSIONS = 3072;
@@ -54,7 +55,8 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
 
     public static VoyageAIEmbeddingsServiceSettings createRandom() {
         return new VoyageAIEmbeddingsServiceSettings(
-            VoyageAICommonServiceSettingsTests.createRandom(),
+            randomAlphaOfLength(15),
+            RateLimitSettingsTests.createRandom(),
             randomFrom(VoyageAIEmbeddingType.values()),
             randomFrom(randomSimilarityMeasure(), null),
             randomFrom(randomIntBetween(128, 256), null),
@@ -81,7 +83,8 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
             serviceSettings,
             is(
                 new VoyageAIEmbeddingsServiceSettings(
-                    new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+                    TEST_MODEL_ID,
+                    new RateLimitSettings(TEST_RATE_LIMIT),
                     TEST_EMBEDDING_TYPE,
                     TEST_SIMILARITY_MEASURE,
                     TEST_DIMENSIONS,
@@ -111,7 +114,8 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
             serviceSettings,
             is(
                 new VoyageAIEmbeddingsServiceSettings(
-                    new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+                    TEST_MODEL_ID,
+                    new RateLimitSettings(TEST_RATE_LIMIT),
                     TEST_EMBEDDING_TYPE,
                     TEST_SIMILARITY_MEASURE,
                     TEST_DIMENSIONS,
@@ -132,7 +136,8 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
             serviceSettings,
             is(
                 new VoyageAIEmbeddingsServiceSettings(
-                    new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT)),
+                    TEST_MODEL_ID,
+                    new RateLimitSettings(DEFAULT_RATE_LIMIT),
                     DEFAULT_EMBEDDING_TYPE,
                     null,
                     null,
@@ -154,7 +159,8 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
             serviceSettings,
             is(
                 new VoyageAIEmbeddingsServiceSettings(
-                    new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT)),
+                    TEST_MODEL_ID,
+                    new RateLimitSettings(DEFAULT_RATE_LIMIT),
                     DEFAULT_EMBEDDING_TYPE,
                     null,
                     null,
@@ -175,7 +181,8 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
             serviceSettings,
             is(
                 new VoyageAIEmbeddingsServiceSettings(
-                    new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT)),
+                    TEST_MODEL_ID,
+                    new RateLimitSettings(DEFAULT_RATE_LIMIT),
                     DEFAULT_EMBEDDING_TYPE,
                     null,
                     null,
@@ -227,7 +234,8 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
         var initialDimensionsSetByUser = randomBoolean();
         var originalServiceSettings = new VoyageAIEmbeddingsServiceSettings(
-            new VoyageAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)),
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
             INITIAL_TEST_EMBEDDING_TYPE,
             INITIAL_TEST_SIMILARITY_MEASURE,
             INITIAL_TEST_DIMENSIONS,
@@ -251,7 +259,8 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
             updatedServiceSettings,
             is(
                 new VoyageAIEmbeddingsServiceSettings(
-                    new VoyageAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+                    INITIAL_TEST_MODEL_ID,
+                    new RateLimitSettings(TEST_RATE_LIMIT),
                     INITIAL_TEST_EMBEDDING_TYPE,
                     INITIAL_TEST_SIMILARITY_MEASURE,
                     INITIAL_TEST_DIMENSIONS,
@@ -264,7 +273,8 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
 
     public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
         var originalServiceSettings = new VoyageAIEmbeddingsServiceSettings(
-            new VoyageAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)),
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
             INITIAL_TEST_EMBEDDING_TYPE,
             INITIAL_TEST_SIMILARITY_MEASURE,
             INITIAL_TEST_DIMENSIONS,
@@ -276,13 +286,62 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
+        boolean dimensionsSetByUser = randomBoolean();
         var serviceSettings = new VoyageAIEmbeddingsServiceSettings(
-            new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)),
+            TEST_MODEL_ID,
+            new RateLimitSettings(TEST_RATE_LIMIT),
             TEST_EMBEDDING_TYPE,
             TEST_SIMILARITY_MEASURE,
             TEST_DIMENSIONS,
             TEST_MAX_INPUT_TOKENS,
-            randomBoolean()
+            dimensionsSetByUser
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        serviceSettings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(
+            xContentResult,
+            is(
+                XContentHelper.stripWhitespace(
+                    Strings.format(
+                        """
+                            {
+                                "model_id": "%s",
+                                "rate_limit": {
+                                    "requests_per_minute": %d
+                                },
+                                "similarity": "%s",
+                                "dimensions": %d,
+                                "max_input_tokens": %d,
+                                "embedding_type": "%s",
+                                "dimensions_set_by_user": %b
+                            }
+                            """,
+                        TEST_MODEL_ID,
+                        TEST_RATE_LIMIT,
+                        TEST_SIMILARITY_MEASURE,
+                        TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS,
+                        TEST_EMBEDDING_TYPE,
+                        dimensionsSetByUser
+                    )
+                )
+            )
+        );
+    }
+
+    public void testToXContent_OnlyMandatoryFields_WritesOnlyMandatoryFieldsAndDefaults() throws IOException {
+        boolean dimensionsSetByUser = randomBoolean();
+        var serviceSettings = new VoyageAIEmbeddingsServiceSettings(
+            TEST_MODEL_ID,
+            null,
+            TEST_EMBEDDING_TYPE,
+            null,
+            null,
+            null,
+            dimensionsSetByUser
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -295,36 +354,10 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
                 "rate_limit": {
                     "requests_per_minute": %d
                 },
-                "similarity": "%s",
-                "dimensions": %d,
-                "max_input_tokens": %d,
-                "embedding_type": "%s"
+                "embedding_type": "%s",
+                "dimensions_set_by_user": %b
             }
-            """, TEST_MODEL_ID, TEST_RATE_LIMIT, TEST_SIMILARITY_MEASURE, TEST_DIMENSIONS, TEST_MAX_INPUT_TOKENS, TEST_EMBEDDING_TYPE))));
-    }
-
-    public void testToXContent_OnlyMandatoryFields_WritesOnlyMandatoryFieldsAndDefaults() throws IOException {
-        var serviceSettings = new VoyageAIEmbeddingsServiceSettings(
-            new VoyageAICommonServiceSettings(TEST_MODEL_ID, null),
-            null,
-            null,
-            null,
-            null,
-            randomBoolean()
-        );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        serviceSettings.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, is(XContentHelper.stripWhitespace(Strings.format("""
-            {
-                "model_id": "%s",
-                "rate_limit": {
-                    "requests_per_minute": %d
-                }
-            }
-            """, TEST_MODEL_ID, DEFAULT_RATE_LIMIT))));
+            """, TEST_MODEL_ID, DEFAULT_RATE_LIMIT, TEST_EMBEDDING_TYPE.toString(), dimensionsSetByUser))));
     }
 
     @Override
@@ -339,24 +372,27 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractBWCWireSeria
 
     @Override
     protected VoyageAIEmbeddingsServiceSettings mutateInstance(VoyageAIEmbeddingsServiceSettings instance) throws IOException {
-        var commonSettings = instance.getCommonSettings();
-        var embeddingType = instance.getEmbeddingType();
+        var modelId = instance.modelId();
+        var rateLimitSettings = instance.rateLimitSettings();
+        var embeddingType = instance.embeddingType();
         var similarity = instance.similarity();
         var dimensions = instance.dimensions();
         var maxInputTokens = instance.maxInputTokens();
         var dimensionsSetByUser = instance.dimensionsSetByUser();
-        switch (randomInt(5)) {
-            case 0 -> commonSettings = randomValueOtherThan(commonSettings, VoyageAICommonServiceSettingsTests::createRandom);
-            case 1 -> embeddingType = randomValueOtherThan(embeddingType, () -> randomFrom(VoyageAIEmbeddingType.values()));
-            case 2 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
-            case 3 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomIntBetween(1, 2048), null));
-            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 2048), null));
-            case 5 -> dimensionsSetByUser = dimensionsSetByUser == false;
+        switch (randomInt(6)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(15));
+            case 1 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 2 -> embeddingType = randomValueOtherThan(embeddingType, () -> randomFrom(VoyageAIEmbeddingType.values()));
+            case 3 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
+            case 4 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomIntBetween(1, 2048), null));
+            case 5 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 2048), null));
+            case 6 -> dimensionsSetByUser = dimensionsSetByUser == false;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new VoyageAIEmbeddingsServiceSettings(
-            commonSettings,
+            modelId,
+            rateLimitSettings,
             embeddingType,
             similarity,
             dimensions,

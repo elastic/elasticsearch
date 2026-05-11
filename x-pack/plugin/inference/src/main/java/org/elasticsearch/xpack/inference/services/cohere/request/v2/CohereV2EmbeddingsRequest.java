@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.services.cohere.request.v2;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-public class CohereV2EmbeddingsRequest extends CohereRequest implements DenseEmbeddingRequest {
+public class CohereV2EmbeddingsRequest extends CohereRequest implements OutboundDenseEmbeddingRequest {
 
     private final List<String> input;
     private final InputType inputType;

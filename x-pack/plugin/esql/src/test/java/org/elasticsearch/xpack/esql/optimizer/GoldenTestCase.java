@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -58,6 +60,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.internal.AssumptionViolatedException;
@@ -85,7 +88,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -254,13 +256,16 @@ public abstract class GoldenTestCase extends ESTestCase {
             Path queryPath = PathUtils.get(basePath.toString(), queryPathParts);
             Files.createDirectories(queryPath.getParent());
             Files.writeString(queryPath, esqlQuery);
+            UnmappedResolution unmappedResolution = statement.setting(UNMAPPED_FIELDS);
             TestAnalyzer testAnalyzer = analyzer().addLanguagesLookup()
                 .addTestLookup()
                 .addAnalysisTestsEnrichResolution()
                 .addAnalysisTestsInferenceResolution()
                 .minimumTransportVersion(transportVersion)
-                .unmappedResolution(statement.setting(UNMAPPED_FIELDS));
-            loadIndexResolution(testDatasets(parsedPlan)).forEach(
+                .unmappedResolution(unmappedResolution);
+            boolean trackUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD
+                || parsedPlan.anyMatch(p -> p instanceof Insist);
+            loadIndexResolution(testDatasets(parsedPlan), trackUnmappedFieldIndices).forEach(
                 (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)
             );
             Analyzer analyzer = testAnalyzer.buildAnalyzer();
@@ -505,8 +510,13 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     /**
      * Normalizes synthetic attribute names of the form $$something($something)* that are followed by # (node id).
-     * Digit-only segments (generated at run time) are replaced with a stable running integer; text segments are kept as-is.
-     * Digits may appear anywhere in the name, including in the middle (e.g. {@code $$SUM$field$0$sum}).
+     * Each distinct synthetic name is assigned a stable id by order of first appearance in the plan, and that id
+     * replaces every digit-only segment in the name when rebuilt; text segments are kept as-is. Digits may appear
+     * anywhere in the name, including in the middle (e.g. {@code $$SUM$field$0$sum}).
+     * <p>
+     * Keying by the full name (rather than just the digit segments) ensures that two unrelated synthetic names
+     * with different text prefixes get independent ids, even when their digit tails happen to collide because
+     * the JVM-global counters that produced them drifted differently across test runs.
      */
     private static String normalizeSyntheticNames(String full) {
         return replaceMatches(full, SYNTHETIC_PATTERN, (matcher, idMap) -> {
@@ -518,7 +528,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     appendSegment(numericSegments, seg);
                 } else {
                     if (numericSegments.isEmpty() == false) {
-                        appendSegment(result, idMap.getId(numericSegments.toString()));
+                        appendSegment(result, idMap.getId(matcher.group(1)));
                         numericSegments.setLength(0);
                         hasNormalized = true;
                     }
@@ -526,7 +536,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 }
             }
             if (numericSegments.isEmpty() == false) {
-                appendSegment(result, idMap.getId(numericSegments.toString()));
+                appendSegment(result, idMap.getId(matcher.group(1)));
                 hasNormalized = true;
             }
             return hasNormalized ? result.toString() : matcher.group();
@@ -753,33 +763,38 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     public static Map<IndexPattern, IndexResolution> loadIndexResolution(
-        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets,
+        boolean trackUnmappedFieldIndices
     ) {
         Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
         for (var entry : datasets.entrySet()) {
-            indexResolutions.put(entry.getKey(), loadIndexResolution(entry.getValue()));
+            indexResolutions.put(entry.getKey(), loadIndexResolution(entry.getValue(), trackUnmappedFieldIndices));
         }
         return indexResolutions;
     }
 
+    public static Map<IndexPattern, IndexResolution> loadIndexResolution(
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets
+    ) {
+        return loadIndexResolution(datasets, false);
+    }
+
     public static IndexResolution loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset datasets) {
+        return loadIndexResolution(datasets, false);
+    }
+
+    public static IndexResolution loadIndexResolution(
+        CsvTestsDataLoader.MultiIndexTestDataset datasets,
+        boolean trackUnmappedFieldIndices
+    ) {
         var indexNames = datasets.datasets().stream().map(CsvTestsDataLoader.TestDataset::indexName);
         Map<String, IndexMode> indexModes = indexNames.collect(Collectors.toMap(x -> x, x -> IndexMode.STANDARD));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
             .map(ds -> new MappingPerIndex(ds.indexName(), createMappingForIndex(ds)))
             .toList();
-        var mergedMappings = mergeMappings(mappings);
-        return IndexResolution.valid(
-            new EsIndex(
-                datasets.indexPattern(),
-                mergedMappings.mapping,
-                indexModes,
-                Map.of(),
-                Map.of(),
-                mergedMappings.fieldToUnmappedIndices
-            )
-        );
+        var mergedMappings = mergeMappings(mappings, trackUnmappedFieldIndices);
+        return IndexResolution.valid(new EsIndex(datasets.indexPattern(), mergedMappings.mapping, indexModes, Map.of(), Map.of()));
     }
 
     // TODO should de-duplicate, strong overlap with CsvTestsDataLoader#readMappingFile
@@ -833,46 +848,39 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     record MappingPerIndex(String index, Map<String, EsField> mapping) {}
 
-    record MergedResult(Map<String, EsField> mapping, Map<String, Set<String>> fieldToUnmappedIndices) {}
+    record MergedResult(Map<String, EsField> mapping) {}
 
-    private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
-        int numberOfIndices = mappingsPerIndex.size();
-        Set<String> allIndices = mappingsPerIndex.stream().map(MappingPerIndex::index).collect(toSet());
-        Map<String, Map<String, EsField>> columnNamesToFieldByIndices = new HashMap<>();
+    private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex, boolean trackUnmappedFieldIndices) {
+        Map<String, Map<String, EsField>> fieldNamesToFieldByIndices = new HashMap<>();
         for (var mappingPerIndex : mappingsPerIndex) {
             for (var entry : mappingPerIndex.mapping().entrySet()) {
-                String columnName = entry.getKey();
-                EsField field = entry.getValue();
-                columnNamesToFieldByIndices.computeIfAbsent(columnName, k -> new HashMap<>()).put(mappingPerIndex.index(), field);
+                fieldNamesToFieldByIndices.computeIfAbsent(entry.getKey(), k -> new HashMap<>())
+                    .put(mappingPerIndex.index(), entry.getValue());
             }
         }
-
-        Map<String, Set<String>> fieldToUnmappedIndices = new HashMap<>();
-        for (var e : columnNamesToFieldByIndices.entrySet()) {
-            if (e.getValue().size() < numberOfIndices) {
-                Set<String> unmappedIndices = allIndices.stream().filter(i -> e.getValue().containsKey(i) == false).collect(toSet());
-                if (unmappedIndices.isEmpty() == false) {
-                    fieldToUnmappedIndices.put(e.getKey(), unmappedIndices);
-                }
-            }
-        }
-        var mappings = columnNamesToFieldByIndices.entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> mergeFields(e.getKey(), e.getValue())));
-        return new MergedResult(mappings, fieldToUnmappedIndices);
+        int numberOfIndices = mappingsPerIndex.size();
+        var mappings = fieldNamesToFieldByIndices.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> {
+            String fieldName = e.getKey();
+            Map<String, EsField> indexToFields = e.getValue();
+            EsField field = mergeFields(fieldName, indexToFields);
+            return trackUnmappedFieldIndices
+                ? IndexResolver.wrapIfPartiallyUnmapped(field, fieldName, fieldName, indexToFields.keySet(), numberOfIndices)
+                : field;
+        }));
+        return new MergedResult(mappings);
     }
 
-    private static EsField mergeFields(String index, Map<String, EsField> columnNameToField) {
-        var indexFields = columnNameToField.values();
-        if (indexFields.stream().distinct().count() > 1) {
+    private static EsField mergeFields(String fieldName, Map<String, EsField> indexToFields) {
+        var fields = indexToFields.values();
+        if (fields.stream().distinct().count() > 1) {
             var typesToIndices = new HashMap<String, Set<String>>();
-            for (var typeToIndex : columnNameToField.entrySet()) {
-                typesToIndices.computeIfAbsent(typeToIndex.getValue().getDataType().typeName(), k -> new HashSet<>())
-                    .add(typeToIndex.getKey());
+            for (var indexToField : indexToFields.entrySet()) {
+                typesToIndices.computeIfAbsent(indexToField.getValue().getDataType().typeName(), k -> new HashSet<>())
+                    .add(indexToField.getKey());
             }
-            return new InvalidMappedField(index, typesToIndices);
+            return new InvalidMappedField(fieldName, typesToIndices);
         } else {
-            return indexFields.iterator().next();
+            return fields.iterator().next();
         }
     }
 }

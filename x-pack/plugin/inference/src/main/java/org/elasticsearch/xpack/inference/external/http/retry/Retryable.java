@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 /**
  * Provides an interface for determining if an error should be retried and a way to modify
  * the request to based on the type of failure that occurred.
  */
 public interface Retryable {
-    Request rebuildRequest(Request original);
+    OutboundRequest rebuildRequest(OutboundRequest original);
 
     boolean shouldRetry();
 }

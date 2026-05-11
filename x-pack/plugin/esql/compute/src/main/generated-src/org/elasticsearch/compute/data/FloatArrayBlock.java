@@ -89,6 +89,11 @@ public final class FloatArrayBlock extends AbstractArrayBlock implements FloatBl
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public float getFloat(int valueIndex) {
         return vector.getFloat(valueIndex);
     }

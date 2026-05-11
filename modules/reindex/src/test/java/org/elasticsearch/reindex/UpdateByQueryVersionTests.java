@@ -54,7 +54,8 @@ public class UpdateByQueryVersionTests extends AbstractAsyncBulkByScrollActionMe
                 null,
                 request(),
                 listener(),
-                randomPositiveTimeValue()
+                randomPositiveTimeValue(),
+                null
             );
         }
 

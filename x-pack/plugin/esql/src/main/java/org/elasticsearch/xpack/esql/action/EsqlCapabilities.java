@@ -1259,6 +1259,14 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
 
         /**
+         * Support IN non-correlated subqueries in WHERE command.
+         * TODO: drop the {@code Build.current().isSnapshot()} gate (and the matching
+         * {@code {this.isDevVersion()}?} predicates in InExpression.g4 / EsqlBaseParser.g4)
+         * once the InSubquery feature graduates from snapshot-only to production.
+         */
+        WHERE_IN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,

@@ -37,7 +37,6 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -2392,37 +2391,8 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
     }
 
-    public void testBBQESNextFormatUsesProvidedSliceField() throws Exception {
-        IndexVersion indexVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT);
-        assumeTrue(
-            "test requires version on or after DISK_BBQ_QUANTIZE_BITS",
-            indexVersion.onOrAfter(IndexVersions.DISK_BBQ_QUANTIZE_BITS)
-        );
-        DenseVectorFieldMapper.BBQIVFIndexOptions options = new DenseVectorFieldMapper.BBQIVFIndexOptions(
-            ES940DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER,
-            -1,
-            10.0d,
-            false,
-            null,
-            indexVersion,
-            false,
-            1,
-            true
-        );
-        KnnVectorsFormat format = options.getVectorsFormat(ElementType.FLOAT, null, 1, RoutingFieldMapper.NAME);
-        assertThat(format, instanceOf(ESNextDiskBBQVectorsFormat.class));
-        var sliceField = ESNextDiskBBQVectorsFormat.class.getDeclaredField("sliceField");
-        sliceField.setAccessible(true);
-        assertEquals(RoutingFieldMapper.NAME, sliceField.get(format));
-    }
-
     public void testSliceEnabledPassesRoutingSliceFieldToKnnFormatSelection() {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        IndexVersion indexVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISK_BBQ_LICENSE_ENFORCEMENT);
-        assumeTrue(
-            "test requires version on or after DISK_BBQ_QUANTIZE_BITS",
-            indexVersion.onOrAfter(IndexVersions.DISK_BBQ_QUANTIZE_BITS)
-        );
         TestDenseVectorIndexOptions testIndexOptions = new TestDenseVectorIndexOptions(
             new DenseVectorFieldMapper.BBQIVFIndexOptions(
                 ES940DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER,
@@ -2430,12 +2400,14 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 10.0d,
                 false,
                 null,
-                indexVersion,
+                IndexVersion.current(),
                 false,
                 1,
                 true
-            )
+            ),
+            false
         );
+        assertEquals(DenseVectorFieldMapper.VectorIndexType.BBQ_DISK, testIndexOptions.type);
         var mapper = new DenseVectorFieldMapper.Builder("field", IndexVersion.current(), true, false, List.of(), false).indexOptions(
             testIndexOptions
         ).dimensions(128).elementType(ElementType.FLOAT).build(MapperBuilderContext.root(false, false));
@@ -2447,10 +2419,10 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             "foo",
             Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), false).build()
         );
-        mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), enabled, null);
-        assertEquals(RoutingFieldMapper.NAME, testIndexOptions.passedSliceField);
-        mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), disabled, null);
-        assertNull(testIndexOptions.passedSliceField);
+        KnnVectorsFormat enabledFormat = mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), enabled, null);
+        assertThat(enabledFormat.toString(), containsString("sliceField=" + RoutingFieldMapper.NAME));
+        KnnVectorsFormat disabledFormat = mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), disabled, null);
+        assertThat(disabledFormat.toString(), containsString("sliceField=null"));
     }
 
     @Override
@@ -2519,13 +2491,18 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     private static class TestDenseVectorIndexOptions extends DenseVectorFieldMapper.DenseVectorIndexOptions {
 
         private final DenseVectorFieldMapper.DenseVectorIndexOptions inner;
+        private final boolean delegateToInner;
         private ExecutorService passedMergingExecutorService;
         private int passedNumMergeWorkers = -1;
-        private String passedSliceField;
 
         TestDenseVectorIndexOptions(DenseVectorFieldMapper.DenseVectorIndexOptions inner) {
+            this(inner, true);
+        }
+
+        TestDenseVectorIndexOptions(DenseVectorFieldMapper.DenseVectorIndexOptions inner, boolean delegateToInner) {
             super(inner.type);
             this.inner = inner;
+            this.delegateToInner = delegateToInner;
         }
 
         @Override
@@ -2542,8 +2519,15 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         ) {
             this.passedMergingExecutorService = mergingExecutorService;
             this.passedNumMergeWorkers = numMergeWorkers;
-            this.passedSliceField = sliceField;
-            return inner.getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, sliceField);
+            if (delegateToInner) {
+                return inner.getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, sliceField);
+            }
+            return new ES93HnswVectorsFormat() {
+                @Override
+                public String toString() {
+                    return "TestSliceAwareKnnVectorsFormat(sliceField=" + sliceField + ")";
+                }
+            };
         }
 
         @Override

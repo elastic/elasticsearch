@@ -16,7 +16,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -26,11 +25,11 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
@@ -66,7 +65,7 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
             String expectedString = Build.current().isSnapshot()
-                ? "ESNextDiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ")"
+                ? "ESNextDiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ", sliceField=null)"
                 : "ES940DiskBBQVectorsFormat(vectorPerCluster=384, mergeExec=" + enabled + ")";
             assertEquals(expectedString, knnVectorsFormat.toString());
         }
@@ -113,25 +112,8 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
                 codec = deduplicateFieldInfosCodec.delegate();
             }
             KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-            KnnVectorsFormat innerFormat = unwrapKnnVectorsFormat(knnVectorsFormat);
-            assertThat(innerFormat, instanceOf(ESNextDiskBBQVectorsFormat.class));
-            var sliceField = ESNextDiskBBQVectorsFormat.class.getDeclaredField("sliceField");
-            sliceField.setAccessible(true);
-            assertEquals(RoutingFieldMapper.NAME, sliceField.get(innerFormat));
+            assertThat(knnVectorsFormat.toString(), containsString("sliceField=" + RoutingFieldMapper.NAME));
         }
-    }
-
-    private static KnnVectorsFormat unwrapKnnVectorsFormat(KnnVectorsFormat format) throws IllegalAccessException {
-        for (Field field : format.getClass().getDeclaredFields()) {
-            if (KnnVectorsFormat.class.isAssignableFrom(field.getType())) {
-                field.setAccessible(true);
-                Object inner = field.get(format);
-                if (inner instanceof KnnVectorsFormat knnVectorsFormat) {
-                    return knnVectorsFormat;
-                }
-            }
-        }
-        return format;
     }
 
 }

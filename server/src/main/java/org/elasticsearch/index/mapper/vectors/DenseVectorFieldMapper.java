@@ -3368,7 +3368,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] cannot be blank for KNN queries");
             }
             if (SliceIndexing.SLICE_ALL.equals(trimmed)) {
-                throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] value [" + SliceIndexing.SLICE_ALL + "] is not supported for KNN");
+                throw new IllegalArgumentException(
+                    "[" + SliceIndexing.PARAM_NAME + "] value [" + SliceIndexing.SLICE_ALL + "] is not supported for KNN"
+                );
             }
             if (trimmed.indexOf(',') >= 0) {
                 throw new IllegalArgumentException(

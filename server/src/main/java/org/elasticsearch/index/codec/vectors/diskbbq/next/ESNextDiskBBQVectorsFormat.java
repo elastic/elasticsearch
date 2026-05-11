@@ -449,7 +449,16 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public String toString() {
-        return "ESNextDiskBBQVectorsFormat(" + "vectorPerCluster=" + vectorPerCluster + ", " + "mergeExec=" + (mergeExec != null) + ')';
+        return "ESNextDiskBBQVectorsFormat("
+            + "vectorPerCluster="
+            + vectorPerCluster
+            + ", "
+            + "mergeExec="
+            + (mergeExec != null)
+            + ", "
+            + "sliceField="
+            + sliceField
+            + ')';
     }
 
 }

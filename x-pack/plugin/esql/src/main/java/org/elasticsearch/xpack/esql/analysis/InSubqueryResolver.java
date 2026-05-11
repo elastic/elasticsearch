@@ -15,7 +15,9 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -59,7 +61,7 @@ public class InSubqueryResolver {
     public static void resolve(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
         try {
             LogicalPlan resolved = resolveInSubqueries(plan);
-            checkForUnresolvedInSubquery(resolved);
+            verify(resolved);
             listener.onResponse(resolved);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -72,29 +74,12 @@ public class InSubqueryResolver {
      */
     public static LogicalPlan resolve(LogicalPlan plan) {
         LogicalPlan resolved = resolveInSubqueries(plan);
-        checkForUnresolvedInSubquery(resolved);
+        verify(resolved);
         return resolved;
     }
 
     private static LogicalPlan resolveInSubqueries(LogicalPlan plan) {
         return plan.transformUp(Filter.class, InSubqueryResolver::resolveInSubqueryInFilter);
-    }
-
-    /**
-     * Checks the plan for any remaining {@link InSubquery} expressions that were not resolved.
-     * These indicate unsupported usage such as IN subquery inside EVAL, SORT, or STATS BY.
-     */
-    public static void checkForUnresolvedInSubquery(LogicalPlan plan) {
-        Failures failures = new Failures();
-        plan.forEachDown(
-            p -> p.forEachExpression(
-                InSubquery.class,
-                inSub -> failures.add(fail(inSub, "IN/NOT IN subquery is not supported in {} [{}]", p.nodeName(), p.sourceText()))
-            )
-        );
-        if (failures.hasFailures()) {
-            throw new VerificationException(failures);
-        }
     }
 
     private static LogicalPlan resolveInSubqueryInFilter(Filter filter) {
@@ -285,5 +270,56 @@ public class InSubqueryResolver {
             return containsInSubquery(not.field());
         }
         return expr.children().stream().anyMatch(InSubqueryResolver::containsInSubquery);
+    }
+
+    public static void verify(LogicalPlan plan) {
+        Failures failures = new Failures();
+        checkInSubqueryUsage(plan, failures);
+        if (failures.hasFailures()) {
+            throw new VerificationException(failures);
+        }
+    }
+
+    private static void checkInSubqueryUsage(LogicalPlan plan, Failures failures) {
+        plan.forEachDown(p -> {
+            if (p instanceof Filter filter) {
+                checkInFilterCondition(filter, filter.condition(), null, failures);
+            } else {
+                p.forEachExpression(
+                    InSubquery.class,
+                    inSub -> failures.add(fail(inSub, "IN subquery is not supported in [{}]", p.sourceText()))
+                );
+            }
+        });
+    }
+
+    /**
+     * Walks the {@code WHERE} condition tree to validate IN subquery usage that the
+     * {@link InSubqueryResolver} could not rewrite into a {@link SemiJoin}/{@link AntiJoin}.
+     * <p>
+     * If the IN subquery sits at the top of the boolean condition (i.e. only {@link And} /
+     * {@link Or} / {@link Not} above it) the resolver normally rewrites it; if one survives here
+     * it means the surrounding boolean shape is not yet supported (e.g. an IN subquery hidden
+     * inside an unresolvable {@code OR} branch). In that case we report the whole filter source
+     * (the entire {@code WHERE} clause) so the user can see the unsupported predicate.
+     * <p>
+     * Otherwise (the IN subquery is nested inside a non-boolean expression such as a scalar
+     * function or {@code IS NOT NULL}), we report the immediately enclosing expression.
+     */
+    private static void checkInFilterCondition(Filter filter, Expression expr, Expression outerExpr, Failures failures) {
+        if (expr instanceof InSubquery in) {
+            if (outerExpr == null) {
+                failures.add(fail(in, "Complicated IN subquery is not yet supported in the WHERE command [{}]", filter.sourceText()));
+            } else {
+                failures.add(fail(in, "IN subquery is not supported within other expressions [{}]", outerExpr.sourceText()));
+            }
+        }
+        Expression newOuterExpr = outerExpr == null
+            && expr instanceof And == false
+            && expr instanceof Or == false
+            && expr instanceof Not == false ? expr : outerExpr;
+        for (Expression child : expr.children()) {
+            checkInFilterCondition(filter, child, newOuterExpr, failures);
+        }
     }
 }

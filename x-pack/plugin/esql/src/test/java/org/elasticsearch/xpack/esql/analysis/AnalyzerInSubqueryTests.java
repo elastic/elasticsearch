@@ -1639,27 +1639,26 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
      * InSubquery, so the NOT IN inside it cannot be extracted. This is rejected.
      */
     public void testRejectsNestedConjunctiveAndDisjunctiveInSubquery() {
-        errorInSubquery("""
-            FROM test
-            | WHERE emp_no IN (FROM employees | KEEP emp_no)
-               OR (salary > 50000 AND (languages < 3 OR gender NOT IN (FROM employees | KEEP gender)))
-            """, containsString("IN/NOT IN subquery is not supported in Filter [WHERE emp_no IN (FROM employees | KEEP emp_no)"));
+        errorInSubquery(
+            """
+                FROM test
+                | WHERE emp_no IN (FROM employees | KEEP emp_no)
+                   OR (salary > 50000 AND (languages < 3 OR gender NOT IN (FROM employees | KEEP gender)))
+                """,
+            containsString(
+                "Complicated IN subquery is not yet supported in the WHERE command [WHERE emp_no IN (FROM employees | KEEP emp_no)"
+            )
+        );
     }
 
     /**
      * Verifies that an IN subquery in STATS WHERE filter is rejected.
      */
     public void testRejectsInSubqueryInStatsWhereFilter() {
-        errorInSubquery(
-            """
-                FROM test
-                | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)
-                """,
-            containsString(
-                "IN/NOT IN subquery is not supported in "
-                    + "Aggregate [STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)]"
-            )
-        );
+        errorInSubquery("""
+            FROM test
+            | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)
+            """, containsString("IN subquery is not supported in [STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)]"));
     }
 
     /**
@@ -1671,10 +1670,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                 FROM test
                 | STATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
                 """,
-            containsString(
-                "IN/NOT IN subquery is not supported in "
-                    + "Aggregate [STATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)]"
-            )
+            containsString("IN subquery is not supported in [STATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)]")
         );
     }
 
@@ -1688,8 +1684,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                 | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages
                 """,
             containsString(
-                "IN/NOT IN subquery is not supported in "
-                    + "Aggregate [STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages]"
+                "IN subquery is not supported in [STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages]"
             )
         );
     }
@@ -1705,10 +1700,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                 FROM test
                 | INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)
                 """,
-            containsString(
-                "IN/NOT IN subquery is not supported in "
-                    + "Aggregate [INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)]"
-            )
+            containsString("IN subquery is not supported in [INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)]")
         );
     }
 
@@ -1722,8 +1714,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                 | INLINESTATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
                 """,
             containsString(
-                "IN/NOT IN subquery is not supported in "
-                    + "Aggregate [INLINESTATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)]"
+                "IN subquery is not supported in [INLINESTATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)]"
             )
         );
     }
@@ -1738,8 +1729,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                 | INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages
                 """,
             containsString(
-                "IN/NOT IN subquery is not supported in "
-                    + "Aggregate [INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages]"
+                "IN subquery is not supported in [INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages]"
             )
         );
     }
@@ -1753,20 +1743,17 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         errorInSubquery("""
             FROM test
             | EVAL x = emp_no IN (FROM employees | KEEP emp_no)
-            """, containsString("IN/NOT IN subquery is not supported in " + "Eval [EVAL x = emp_no IN (FROM employees | KEEP emp_no)]"));
+            """, containsString("IN subquery is not supported in [EVAL x = emp_no IN (FROM employees | KEEP emp_no)]"));
     }
 
     /**
      * Verifies that a NOT IN subquery inside EVAL is rejected.
      */
     public void testRejectsNotInSubqueryInEval() {
-        errorInSubquery(
-            """
-                FROM test
-                | EVAL x = emp_no NOT IN (FROM employees | KEEP emp_no)
-                """,
-            containsString("IN/NOT IN subquery is not supported in " + "Eval [EVAL x = emp_no NOT IN (FROM employees | KEEP emp_no)]")
-        );
+        errorInSubquery("""
+            FROM test
+            | EVAL x = emp_no NOT IN (FROM employees | KEEP emp_no)
+            """, containsString("IN subquery is not supported in [EVAL x = emp_no NOT IN (FROM employees | KEEP emp_no)]"));
     }
 
     // -- approximation incompatibility tests --
@@ -2087,7 +2074,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         errorInSubquery("""
             FROM test
             | SORT emp_no IN (FROM employees | KEEP emp_no)
-            """, containsString("IN/NOT IN subquery is not supported in OrderBy"));
+            """, containsString("IN subquery is not supported in [SORT emp_no IN (FROM employees | KEEP emp_no)]"));
     }
 
     /**
@@ -2097,7 +2084,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         errorInSubquery("""
             FROM test
             | SORT emp_no NOT IN (FROM employees | KEEP emp_no)
-            """, containsString("IN/NOT IN subquery is not supported in OrderBy"));
+            """, containsString("IN subquery is not supported in [SORT emp_no NOT IN (FROM employees | KEEP emp_no)]"));
     }
 
     /**
@@ -2107,7 +2094,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         errorInSubquery("""
             FROM test
             | STATS cnt = COUNT(*) BY emp_no IN (FROM employees | KEEP emp_no)
-            """, containsString("IN/NOT IN subquery is not supported in Aggregate"));
+            """, containsString("IN subquery is not supported in [STATS cnt = COUNT(*) BY emp_no IN (FROM employees | KEEP emp_no)]"));
     }
 
     /**
@@ -2117,7 +2104,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         errorInSubquery("""
             FROM test
             | STATS cnt = COUNT(*) BY emp_no NOT IN (FROM employees | KEEP emp_no)
-            """, containsString("IN/NOT IN subquery is not supported in Aggregate"));
+            """, containsString("IN subquery is not supported in [STATS cnt = COUNT(*) BY emp_no NOT IN (FROM employees | KEEP emp_no)]"));
     }
 
     /**
@@ -2128,7 +2115,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             FROM test
             | SORT emp_no
             | LIMIT 10 BY emp_no IN (FROM employees | KEEP emp_no)
-            """, containsString("IN/NOT IN subquery is not supported in LimitBy"));
+            """, containsString("IN subquery is not supported in [LIMIT 10 BY emp_no IN (FROM employees | KEEP emp_no)]"));
     }
 
     /**
@@ -2139,17 +2126,20 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             FROM test
             | SORT emp_no
             | LIMIT 10 BY emp_no NOT IN (FROM employees | KEEP emp_no)
-            """, containsString("IN/NOT IN subquery is not supported in LimitBy"));
+            """, containsString("IN subquery is not supported in [LIMIT 10 BY emp_no NOT IN (FROM employees | KEEP emp_no)]"));
     }
 
     /**
      * Verifies that an IN subquery inside EVAL with multiple fields (one being the IN subquery) is rejected.
      */
     public void testRejectsInSubqueryInEvalAmongMultipleFields() {
-        errorInSubquery("""
-            FROM test
-            | EVAL a = 1, is_match = emp_no IN (FROM employees | KEEP emp_no), b = salary
-            """, containsString("IN/NOT IN subquery is not supported in Eval"));
+        errorInSubquery(
+            """
+                FROM test
+                | EVAL a = 1, is_match = emp_no IN (FROM employees | KEEP emp_no), b = salary
+                """,
+            containsString("IN subquery is not supported in [EVAL a = 1, is_match = emp_no IN (FROM employees | KEEP emp_no), b = salary]")
+        );
     }
 
     /**
@@ -2158,10 +2148,13 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
      * that IN/NOT IN subquery is not supported in Eval.
      */
     public void testRejectsInSubqueryAsFunctionArgInEval() {
-        errorInSubquery("""
-            FROM test
-            | EVAL result = COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
-            """, containsString("IN/NOT IN subquery is not supported in Eval"));
+        errorInSubquery(
+            """
+                FROM test
+                | EVAL result = COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
+                """,
+            containsString("IN subquery is not supported in [EVAL result = COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)]")
+        );
     }
 
     // -- IN subquery nested in WHERE expressions --
@@ -2177,7 +2170,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                 | WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)
                 """,
             containsString(
-                "IN/NOT IN subquery is not supported in Filter [WHERE CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)]"
+                "IN subquery is not supported within other expressions [CASE(emp_no IN (FROM employees | KEEP emp_no), true, false)]"
             )
         );
     }
@@ -2192,7 +2185,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                 FROM test
                 | WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL
                 """,
-            containsString("IN/NOT IN subquery is not supported in Filter [WHERE (emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL]")
+            containsString("IN subquery is not supported within other expressions [(emp_no IN (FROM employees | KEEP emp_no)) IS NOT NULL]")
         );
     }
 

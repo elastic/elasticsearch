@@ -780,34 +780,28 @@ public class InSubqueryResolverTests extends ESTestCase {
     public void testRejectsNestedConjunctiveAndDisjunctiveInSubquery() {
         assertResolveError(
             "FROM main | WHERE x IN (FROM sub1) OR (y == 1 AND (z < 0 OR w NOT IN (FROM sub2)))",
-            "line 1:61: IN/NOT IN subquery is not supported in "
-                + "Filter [WHERE x IN (FROM sub1) OR (y == 1 AND (z < 0 OR w NOT IN (FROM sub2)))]"
+            "line 1:61: Complicated IN subquery is not yet supported in the WHERE command "
+                + "[WHERE x IN (FROM sub1) OR (y == 1 AND (z < 0 OR w NOT IN (FROM sub2)))]"
         );
     }
 
     // ---- negative: IN subquery in EVAL ----
 
     public void testRejectsInSubqueryInEval() {
-        assertResolveError(
-            "FROM main | EVAL z = x IN (FROM sub)",
-            "line 1:22: IN/NOT IN subquery is not supported in Eval [EVAL z = x IN (FROM sub)]"
-        );
+        assertResolveError("FROM main | EVAL z = x IN (FROM sub)", "line 1:22: IN subquery is not supported in [EVAL z = x IN (FROM sub)]");
     }
 
     public void testRejectsNotInSubqueryInEval() {
         assertResolveError(
             "FROM main | EVAL z = x NOT IN (FROM sub)",
-            "line 1:22: IN/NOT IN subquery is not supported in Eval [EVAL z = x NOT IN (FROM sub)]"
+            "line 1:22: IN subquery is not supported in [EVAL z = x NOT IN (FROM sub)]"
         );
     }
 
     // ---- negative: IN subquery in SORT ----
 
     public void testRejectsInSubqueryInSort() {
-        assertResolveError(
-            "FROM main | SORT x IN (FROM sub)",
-            "line 1:18: IN/NOT IN subquery is not supported in OrderBy [SORT x IN (FROM sub)]"
-        );
+        assertResolveError("FROM main | SORT x IN (FROM sub)", "line 1:18: IN subquery is not supported in [SORT x IN (FROM sub)]");
     }
 
     // ---- negative: IN subquery in STATS BY ----
@@ -815,7 +809,7 @@ public class InSubqueryResolverTests extends ESTestCase {
     public void testRejectsInSubqueryInStatsBy() {
         assertResolveError(
             "FROM main | STATS c = COUNT(*) BY x IN (FROM sub)",
-            "line 1:35: IN/NOT IN subquery is not supported in Aggregate [STATS c = COUNT(*) BY x IN (FROM sub)]"
+            "line 1:35: IN subquery is not supported in [STATS c = COUNT(*) BY x IN (FROM sub)]"
         );
     }
 
@@ -824,7 +818,7 @@ public class InSubqueryResolverTests extends ESTestCase {
     public void testRejectsInSubqueryInStatsWhereFilter() {
         assertResolveError(
             "FROM main | STATS c = COUNT(*) WHERE x IN (FROM sub)",
-            "line 1:38: IN/NOT IN subquery is not supported in Aggregate [STATS c = COUNT(*) WHERE x IN (FROM sub)]"
+            "line 1:38: IN subquery is not supported in [STATS c = COUNT(*) WHERE x IN (FROM sub)]"
         );
     }
 
@@ -833,7 +827,7 @@ public class InSubqueryResolverTests extends ESTestCase {
     public void testRejectsInSubqueryInLimitBy() {
         assertResolveError(
             "FROM main | SORT a | LIMIT 10 BY x IN (FROM sub)",
-            "line 1:34: IN/NOT IN subquery is not supported in LimitBy [LIMIT 10 BY x IN (FROM sub)]"
+            "line 1:34: IN subquery is not supported in [LIMIT 10 BY x IN (FROM sub)]"
         );
     }
 
@@ -842,7 +836,7 @@ public class InSubqueryResolverTests extends ESTestCase {
     public void testRejectsInSubqueryAsFunctionArgInWhere() {
         assertResolveError(
             "FROM main | WHERE CASE(x IN (FROM sub), true, false)",
-            "line 1:24: IN/NOT IN subquery is not supported in Filter [WHERE CASE(x IN (FROM sub), true, false)]"
+            "line 1:24: IN subquery is not supported within other expressions [CASE(x IN (FROM sub), true, false)]"
         );
     }
 
@@ -851,7 +845,7 @@ public class InSubqueryResolverTests extends ESTestCase {
     public void testRejectsInSubqueryWithIsNotNullInWhere() {
         assertResolveError(
             "FROM main | WHERE (x IN (FROM sub)) IS NOT NULL",
-            "line 1:20: IN/NOT IN subquery is not supported in Filter [WHERE (x IN (FROM sub)) IS NOT NULL]"
+            "line 1:20: IN subquery is not supported within other expressions [(x IN (FROM sub)) IS NOT NULL]"
         );
     }
 
@@ -873,8 +867,8 @@ public class InSubqueryResolverTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "IN/NOT IN subquery is not supported in Filter"
-                    + " [WHERE CASE(x IN (FROM sub1) OR (y == 1 OR (w NOT IN (FROM sub2)) OR z < 0), true, false)]"
+                "IN subquery is not supported within other expressions"
+                    + " [CASE(x IN (FROM sub1) OR (y == 1 OR (w NOT IN (FROM sub2)) OR z < 0), true, false)]"
             )
         );
     }

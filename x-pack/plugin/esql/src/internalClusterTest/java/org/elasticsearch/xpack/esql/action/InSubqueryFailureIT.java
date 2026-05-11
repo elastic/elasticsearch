@@ -65,43 +65,48 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
 
     public void testRejectsInSubqueryInEval() {
         var e = expectThrows(VerificationException.class, () -> run("FROM test | EVAL x = id IN (FROM test | KEEP id)"));
-        assertThat(e.getMessage(), containsString("IN/NOT IN subquery is not supported in Eval [EVAL x = id IN (FROM test | KEEP id)]"));
+        assertThat(e.getMessage(), containsString("IN subquery is not supported in [EVAL x = id IN (FROM test | KEEP id)]"));
     }
 
     public void testRejectsNotInSubqueryInEval() {
         var e = expectThrows(VerificationException.class, () -> run("FROM test | EVAL x = id NOT IN (FROM test | KEEP id)"));
-        assertThat(
-            e.getMessage(),
-            containsString("IN/NOT IN subquery is not supported in Eval [EVAL x = id NOT IN (FROM test | KEEP id)]")
-        );
+        assertThat(e.getMessage(), containsString("IN subquery is not supported in [EVAL x = id NOT IN (FROM test | KEEP id)]"));
     }
 
     public void testRejectsInSubqueryInSort() {
         var e = expectThrows(VerificationException.class, () -> run("FROM test | SORT id IN (FROM test | KEEP id)"));
-        assertThat(e.getMessage(), containsString("IN/NOT IN subquery is not supported in OrderBy [SORT id IN (FROM test | KEEP id)]"));
+        assertThat(e.getMessage(), containsString("IN subquery is not supported in [SORT id IN (FROM test | KEEP id)]"));
     }
 
     public void testRejectsInSubqueryInStatsBy() {
         var e = expectThrows(VerificationException.class, () -> run("FROM test | STATS c = COUNT(*) BY id IN (FROM test | KEEP id)"));
-        assertThat(
-            e.getMessage(),
-            containsString("IN/NOT IN subquery is not supported in Aggregate [STATS c = COUNT(*) BY id IN (FROM test | KEEP id)]")
-        );
+        assertThat(e.getMessage(), containsString("IN subquery is not supported in [STATS c = COUNT(*) BY id IN (FROM test | KEEP id)]"));
     }
 
     public void testRejectsInSubqueryInStatsWhereFilter() {
         var e = expectThrows(VerificationException.class, () -> run("FROM test | STATS c = COUNT(*) WHERE id IN (FROM test | KEEP id)"));
         assertThat(
             e.getMessage(),
-            containsString("IN/NOT IN subquery is not supported in Aggregate [STATS c = COUNT(*) WHERE id IN (FROM test | KEEP id)]")
+            containsString("IN subquery is not supported in [STATS c = COUNT(*) WHERE id IN (FROM test | KEEP id)]")
         );
     }
 
-    public void testRejectsInSubqueryInWhereNonPredicate() {
+    public void testRejectsInSubqueryInWhereInsideCaseExpression() {
         var e = expectThrows(VerificationException.class, () -> run("FROM test | WHERE CASE(id IN (FROM test | KEEP id), true, false)"));
         assertThat(
             e.getMessage(),
-            containsString("IN/NOT IN subquery is not supported in Filter [WHERE CASE(id IN (FROM test | KEEP id), true, false)]")
+            containsString("IN subquery is not supported within other expressions [CASE(id IN (FROM test | KEEP id), true, false)]")
+        );
+    }
+
+    public void testRejectInSubqueryUsedInWhereInsideMvContains() {
+        var e = expectThrows(
+            VerificationException.class,
+            () -> run("FROM main_index | WHERE emp_no > 0 and MV_CONTAINS(x IN (FROM main_index), [true, false])")
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("IN subquery is not supported within other expressions [MV_CONTAINS(x IN (FROM main_index), [true, false])]")
         );
     }
 

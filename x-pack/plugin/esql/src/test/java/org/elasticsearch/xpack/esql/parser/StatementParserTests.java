@@ -3690,13 +3690,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
     // this test checks that they are properly replaced in the error message
     public void testPreserveParentheses() {
         // test for (
-        // The logicalInSubquery alternative causes ANTLR to give a broader "no viable alternative" error
-        // when EOF follows IN, instead of the specific "expecting '('" error.
+        // With WHERE_IN_SUBQUERY enabled the parser has two IN alternatives (value list / subquery),
+        // so error recovery emits a "no viable alternative" message instead of the single-alt one.
         expectError("row a = 1 not in", "line 1:17: no viable alternative at input '1 not in'");
         expectError("row a = 1 | where a not in", "line 1:27: no viable alternative at input 'a not in'");
-        expectError("row a = 1 | where a not in (1", "line 1:30: mismatched input '<EOF>' expecting {',', ')'}");
         expectError("row a = 1 | where a not in [1", "line 1:28: no viable alternative at input 'a not in ['");
         expectError("row a = 1 | where a not in 123", "line 1:28: no viable alternative at input 'a not in 123'");
+        expectError("row a = 1 | where a not in (1", "line 1:30: mismatched input '<EOF>' expecting {',', ')'}");
         // test for [
         if (EsqlCapabilities.Cap.EXPLAIN.isEnabled()) {
             expectError("explain", "line 1:8: mismatched input '<EOF>' expecting '('");
@@ -4408,7 +4408,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         try (XContentBuilder report = JsonXContent.contentBuilder().humanReadable(true).prettyPrint().lfAtEnd()) {
             report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
-            if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V2.isEnabled() == false) {
+            if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V5.isEnabled() == false) {
                 // Some types do not have a converter function if the capability is disabled
                 namesAndAliases.removeAll(List.of("date_range"));
             }

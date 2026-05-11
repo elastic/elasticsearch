@@ -16,7 +16,6 @@ import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -70,7 +69,6 @@ public class CsvTestsDataLoader {
     static {
         // Ensure the logging factory is initialized before the static logger field below. When running standalone (via main() or
         // Gradle's loadCsvSpecData task), nothing has initialized the ES logging system before this class is loaded.
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 
@@ -163,6 +161,7 @@ public class CsvTestsDataLoader {
         new TestDataset("ages"),
         new TestDataset("heights"),
         new TestDataset("decades"),
+        new TestDataset("mv_decades"),
         new TestDataset("airports"),
         new TestDataset("airports").withIndex("airports_mp").withData("airports_mp.csv").withSetting("lookup-settings.json"),
         new TestDataset("airports_no_doc_values").withData("airports.csv"),
@@ -253,7 +252,7 @@ public class CsvTestsDataLoader {
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V2),
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V5),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
@@ -296,6 +295,7 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
         new ViewConfig("employees_extra"),
+        new ViewConfig("view_with_subquery"),
         new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY)),
         new ViewConfig("employees_in_subquery_stats", List.of(WHERE_IN_SUBQUERY)),
         new ViewConfig("employees_in_subquery_conjunction", List.of(WHERE_IN_SUBQUERY)),
@@ -326,7 +326,6 @@ public class CsvTestsDataLoader {
      */
     public static void main(String[] args) throws IOException {
         // Need to setup the log configuration properly to avoid messages when creating a new RestClient
-        PluginManager.addPackage(LogConfigurator.class.getPackage().getName());
         LogConfigurator.configureESLogging();
         boolean indexes = false;
         boolean policies = false;

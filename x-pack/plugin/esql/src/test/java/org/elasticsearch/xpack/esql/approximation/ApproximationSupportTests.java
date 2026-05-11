@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Irate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Latest;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.LegacyIrate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -83,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAllFromDisjunctiveInSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -174,6 +176,7 @@ public class ApproximationSupportTests extends ESTestCase {
         // These plans don't occur in a correct analyzed query.
         UnresolvedRelation.class,
         UnresolvedExternalRelation.class,
+        ViewShadowRelation.class,
         Drop.class,
         Keep.class,
         InlineStats.class,
@@ -263,6 +266,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Idelta.class,
         Increase.class,
         Irate.class,
+        LegacyIrate.class,
         HistogramMergeOverTime.class,
         LastOverTime.class,
         MaxOverTime.class,
@@ -307,7 +311,7 @@ public class ApproximationSupportTests extends ESTestCase {
 
     @Before
     public void assume() {
-        assumeTrue("needs inline stats approximation", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS.isEnabled());
+        assumeTrue("needs inline stats approximation", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
         assumeTrue("needs lookup join approximation", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
     }
 

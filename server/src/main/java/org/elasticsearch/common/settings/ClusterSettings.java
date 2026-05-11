@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
 import org.elasticsearch.action.search.SearchTaskWatchdog;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -48,6 +49,7 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
+import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundSummaryService;
@@ -403,6 +405,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SniffConnectionStrategySettings.REMOTE_CONNECTIONS_PER_CLUSTER,
         SniffConnectionStrategySettings.REMOTE_NODE_CONNECTIONS,
         TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
+        TransportGetAction.STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING,
         ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING,
         SnapshotShutdownProgressTracker.SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING,
         NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING,
@@ -686,6 +689,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         WriteLoadMetrics.SHARD_WRITE_LOAD_METRICS_ENABLED_SETTING,
         IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING,
         IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_EXCESS_SHARDS,
+        IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_ENABLED_SETTING,
+        IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_REFRESH_INTERVAL_SETTING,
         WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_MINIMUM_LOGGING_INTERVAL,
         BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING,
         ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW,

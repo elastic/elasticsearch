@@ -64,38 +64,29 @@ public abstract class LexerConfig extends Lexer {
     }
 
     /**
-     * Look ahead past '(' and whitespace to check whether the next word is a source command keyword.
-     * Used by IN_SUBQUERY_LP in IN_MODE to determine whether '(' starts a subquery (push DEFAULT_MODE) or a value list
-     * (push EXPRESSION_MODE).
+     * Rewinds the lexer back to the position of the token currently being matched,
+     * keeping the first {@code charsToKeep} characters as part of the emitted token
+     * and exposing the remaining input to the next {@link #nextToken()} call.
+     *
+     * <p>Used by lookahead-style lexer rules (see {@code IN_SUBQUERY_LP} and
+     * {@code IN_EXPR_FALLBACK} in {@code InExpression.g4}) that match more text than
+     * they want to consume — e.g. peek at {@code '(' KEYWORD WS*} but only emit
+     * {@code '('}, leaving the keyword to be re-lexed in a different mode.
+     *
+     * <p>{@code _input.seek} alone is not enough: {@code consume()} has already
+     * advanced the lexer's line and column counters for every matched character,
+     * and those counters drive the columns reported in error messages for
+     * subsequent tokens. This method rewinds all three (input, line, column) in
+     * lockstep.
+     *
+     * <p>The kept prefix must not contain a newline; this is true at both current
+     * call sites (the kept prefix is either empty or a single {@code '('}). If
+     * that ever changes, the line counter would need to be advanced by however
+     * many newlines the prefix contains.
      */
-    boolean isNextSourceCommand() {
-        int offset = 2; // LA(1) is '(', start scanning from LA(2)
-        while (true) {
-            int c = _input.LA(offset);
-            if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
-                offset++;
-            } else {
-                break;
-            }
-        }
-        return matchesKeywordAtOffset(offset, "from")
-            || matchesKeywordAtOffset(offset, "row")
-            || matchesKeywordAtOffset(offset, "show")
-            || matchesKeywordAtOffset(offset, "ts")
-            || matchesKeywordAtOffset(offset, "promql");
-    }
-
-    private boolean matchesKeywordAtOffset(int offset, String keyword) {
-        for (int i = 0; i < keyword.length(); i++) {
-            int c = _input.LA(offset + i);
-            if (c == -1) {
-                return false;
-            }
-            if (Character.toLowerCase(c) != keyword.charAt(i)) {
-                return false;
-            }
-        }
-        int next = _input.LA(offset + keyword.length());
-        return next == -1 || (Character.isLetterOrDigit(next) == false && next != '_');
+    void rewindToTokenStart(int charsToKeep) {
+        _input.seek(_tokenStartCharIndex + charsToKeep);
+        getInterpreter().setLine(_tokenStartLine);
+        getInterpreter().setCharPositionInLine(_tokenStartCharPositionInLine + charsToKeep);
     }
 }

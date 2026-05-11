@@ -179,6 +179,4 @@ EXPR_WS
     : WS -> channel(HIDDEN)
     ;
 
-// Placeholder to declare IN_MODE; actual rules are in InExpression.g4
 mode IN_MODE;
-IN_DEFAULT : {false}? . ;

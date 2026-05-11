@@ -52,6 +52,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
+import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
@@ -92,6 +93,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         COUNTER_LONG,
         COUNTER_INTEGER,
         COUNTER_DOUBLE,
+        FLATTENED,
         OBJECT,
         SOURCE,
         DATE_PERIOD,
@@ -352,6 +354,12 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     private static boolean comparableTypes(Attribute left, Attribute right) {
         DataType leftType = left.dataType();
         DataType rightType = right.dataType();
+        if (leftType == NULL) {
+            // A field can have NULL type when UNMAPPED_FIELDS="NULLIFY" resolves a missing field to null.
+            // Only the left side needs checking: lookup indices are excluded from nullification (see ResolveUnmapped#nullify),
+            // and for INLINE STATS the right side's grouping key inherits its type from the left.
+            return true;
+        }
         if (leftType.isNumeric() && rightType.isNumeric()) {
             // Allow byte, short, integer, long, half_float, scaled_float, float and double to join against each other
             return commonType(leftType, rightType) != null;

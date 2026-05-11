@@ -19,6 +19,7 @@ import java.util.Objects;
 
 /**
  * Unresolved expression for {@code field IN (subquery)} where the subquery is a full ES|QL query.
+ * <p>
  * This node will be resolved by {@code InSubqueryResolver} into a concrete logical plan. InSubquery serves
  * as the clean boundary between parsing and pre analysis, LogicalPlanBuilder creates an expression,
  * {@link org.elasticsearch.xpack.esql.analysis.InSubqueryResolver InSubqueryResolver} transforms it into a logical plan.

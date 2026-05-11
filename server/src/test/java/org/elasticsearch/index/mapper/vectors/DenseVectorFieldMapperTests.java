@@ -2465,19 +2465,9 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
         @Override
         KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
-            return getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, null);
-        }
-
-        @Override
-        KnnVectorsFormat getVectorsFormat(
-            ElementType elementType,
-            ExecutorService mergingExecutorService,
-            int numMergeWorkers,
-            String sliceField
-        ) {
             this.passedMergingExecutorService = mergingExecutorService;
             this.passedNumMergeWorkers = numMergeWorkers;
-            return inner.getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, sliceField);
+            return inner.getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers);
         }
 
         @Override

@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /** Maps _uid value to its version information. */
 public final class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
-    private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>(false);
+    private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
 
     private final LiveVersionMapArchive archive;
 
@@ -539,8 +539,13 @@ public final class LiveVersionMap implements ReferenceManager.RefreshListener, A
         return keyedLock.acquire(uid);
     }
 
+    /**
+     * Try-acquire variant that rejects re-entry by the current thread. Used by batch indexing to ensure
+     * duplicate UIDs cannot share a sub-batch (which would let later operations plan against stale
+     * version-map state read at the start of the sub-batch).
+     */
     Releasable tryAcquireLock(BytesRef uid) {
-        return keyedLock.tryAcquire(uid);
+        return keyedLock.tryAcquireNoReentrancy(uid);
     }
 
     boolean assertKeyedLockHeldByCurrentThread(BytesRef uid) {

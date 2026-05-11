@@ -128,89 +128,36 @@ public class KeyedLockTests extends ESTestCase {
         assertFalse(lock.hasLockedKeys());
     }
 
-    public void testNonReentrantIfMapEmptyAfterLotsOfAcquireAndReleases() throws InterruptedException {
-        ConcurrentHashMap<String, Integer> counter = new ConcurrentHashMap<>();
-        ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<>();
-        KeyedLock<String> connectionLock = new KeyedLock<>(false);
-        String[] names = new String[randomIntBetween(1, 40)];
-        for (int i = 0; i < names.length; i++) {
-            names[i] = randomRealisticUnicodeOfLengthBetween(10, 20);
-        }
-        int numThreads = randomIntBetween(3, 10);
-        final CountDownLatch startLatch = new CountDownLatch(1 + numThreads);
-        NonReentrantAcquireAndReleaseThread[] threads = new NonReentrantAcquireAndReleaseThread[numThreads];
-        for (int i = 0; i < numThreads; i++) {
-            threads[i] = new NonReentrantAcquireAndReleaseThread(startLatch, connectionLock, names, counter, safeCounter);
-        }
-        for (int i = 0; i < numThreads; i++) {
-            threads[i].start();
-        }
-        startLatch.countDown();
+    public void testTryAcquireNoReentrancy() throws InterruptedException {
+        KeyedLock<String> lock = new KeyedLock<>();
 
-        for (int i = 0; i < numThreads; i++) {
-            threads[i].join();
-        }
-        assertThat(connectionLock.hasLockedKeys(), equalTo(false));
-
-        Set<Entry<String, Integer>> entrySet = counter.entrySet();
-        assertThat(counter.size(), equalTo(safeCounter.size()));
-        for (Entry<String, Integer> entry : entrySet) {
-            AtomicInteger atomicInteger = safeCounter.get(entry.getKey());
-            assertThat(atomicInteger, not(Matchers.nullValue()));
-            assertThat(atomicInteger.get(), equalTo(entry.getValue()));
-        }
-    }
-
-    public void testNonReentrantTryAcquire() throws InterruptedException {
-        KeyedLock<String> lock = new KeyedLock<>(false);
-        Releasable foo = lock.tryAcquire("foo");
+        // a fresh tryAcquireNoReentrancy succeeds, and a second call from the same thread is rejected
+        Releasable foo = lock.tryAcquireNoReentrancy("foo");
         assertNotNull(foo);
-        // same thread cannot re-acquire
-        assertNull(lock.tryAcquire("foo"));
-        assertTrue(lock.hasLockedKeys());
+        assertNull(lock.tryAcquireNoReentrancy("foo"));
+        // a different key on the same thread is fine
+        Releasable bar = lock.tryAcquireNoReentrancy("bar");
+        assertNotNull(bar);
+        bar.close();
+        // after release the same thread can re-acquire
         foo.close();
         assertFalse(lock.hasLockedKeys());
-        // can acquire again after release
-        Releasable acquire = lock.tryAcquire("foo");
-        assertNotNull(acquire);
-        final AtomicBoolean check = new AtomicBoolean(false);
-        CountDownLatch latch = new CountDownLatch(1);
-        Thread thread = new Thread(() -> {
-            latch.countDown();
-            try (Releasable ignore = lock.acquire("foo")) {
-                assertTrue(check.get());
-            }
-        });
-        thread.start();
-        safeAwait(latch);
-        check.set(true);
-        acquire.close();
-        thread.join();
-    }
+        foo = lock.tryAcquireNoReentrancy("foo");
+        assertNotNull(foo);
 
-    public void testLockIsNotReentrant() throws InterruptedException {
-        KeyedLock<String> lock = new KeyedLock<>(false);
-        Releasable foo = lock.acquire("foo");
-        assertTrue(lock.isHeldByCurrentThread("foo"));
-        assertFalse(lock.isHeldByCurrentThread("bar"));
-        // tryAcquire returns null for the holding thread — the key difference from the reentrant case
-        assertNull(lock.tryAcquire("foo"));
-        assertTrue(lock.isHeldByCurrentThread("foo"));
-        AtomicInteger test = new AtomicInteger(0);
-        CountDownLatch latch = new CountDownLatch(1);
-        Thread t = new Thread(() -> {
-            latch.countDown();
-            try (Releasable ignored = lock.acquire("foo")) {
-                test.incrementAndGet();
-            }
-        });
+        // the holding thread is also rejected when it acquired via the blocking acquire()
+        Releasable baz = lock.acquire("baz");
+        assertNull(lock.tryAcquireNoReentrancy("baz"));
+        baz.close();
+
+        // another thread sees the lock held and gets null from tryAcquireNoReentrancy
+        final AtomicBoolean otherThreadGotNull = new AtomicBoolean();
+        Thread t = new Thread(() -> otherThreadGotNull.set(lock.tryAcquireNoReentrancy("foo") == null));
         t.start();
-        safeAwait(latch);
-        Thread.yield(); // give t a chance to acquire the lock (test blocking rather than just scheduling/lag)
-        assertEquals(0, test.get());
-        foo.close();
         t.join();
-        assertEquals(1, test.get());
+        assertTrue(otherThreadGotNull.get());
+
+        foo.close();
         assertFalse(lock.hasLockedKeys());
     }
 
@@ -269,64 +216,6 @@ public class KeyedLockTests extends ESTestCase {
                             Thread.yield(); // hold the lock across a yield to increase contention in this stress test
                         }
                     }
-                    counter.merge(curName, 1, Integer::sum);
-                }
-                AtomicInteger atomicInteger = new AtomicInteger(0);
-                AtomicInteger value = safeCounter.putIfAbsent(curName, atomicInteger);
-                Objects.requireNonNullElse(value, atomicInteger).incrementAndGet();
-            }
-        }
-    }
-
-    private static class NonReentrantAcquireAndReleaseThread extends Thread {
-        private final CountDownLatch startLatch;
-        private final KeyedLock<String> connectionLock;
-        private final String[] names;
-        private final ConcurrentHashMap<String, Integer> counter;
-        private final ConcurrentHashMap<String, AtomicInteger> safeCounter;
-        private final int numRuns = scaledRandomIntBetween(5000, 50000);
-
-        NonReentrantAcquireAndReleaseThread(
-            CountDownLatch startLatch,
-            KeyedLock<String> connectionLock,
-            String[] names,
-            ConcurrentHashMap<String, Integer> counter,
-            ConcurrentHashMap<String, AtomicInteger> safeCounter
-        ) {
-            this.startLatch = startLatch;
-            this.connectionLock = connectionLock;
-            this.names = names;
-            this.counter = counter;
-            this.safeCounter = safeCounter;
-        }
-
-        @Override
-        public void run() {
-            startLatch.countDown();
-            safeAwait(startLatch);
-            for (int i = 0; i < numRuns; i++) {
-                String curName = names[randomInt(names.length - 1)];
-                assert connectionLock.isHeldByCurrentThread(curName) == false;
-                Releasable lock;
-                if (randomIntBetween(0, 10) < 4) {
-                    int tries = 0;
-                    boolean stepOut = false;
-                    while ((lock = connectionLock.tryAcquire(curName)) == null) {
-                        assertFalse(connectionLock.isHeldByCurrentThread(curName));
-                        if (tries++ == 10) {
-                            stepOut = true;
-                            break;
-                        }
-                    }
-                    if (stepOut) {
-                        break;
-                    }
-                } else {
-                    lock = connectionLock.acquire(curName);
-                }
-                try (Releasable ignore = lock) {
-                    assert connectionLock.isHeldByCurrentThread(curName);
-                    assert connectionLock.isHeldByCurrentThread(curName + "bla") == false;
                     counter.merge(curName, 1, Integer::sum);
                 }
                 AtomicInteger atomicInteger = new AtomicInteger(0);

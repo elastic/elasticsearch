@@ -161,8 +161,26 @@ setup:
       reason: "previously threw ArrayIndexOutOfBoundsException when hard_bounds excluded all rounding points"
 
   - do:
+      indices.create:
+        index: hard_bounds_outside_data
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              date:
+                type: date
+
+  - do:
+      index:
+        index: hard_bounds_outside_data
+        refresh: true
+        body: { "date": "2020-06-15T00:00:00Z" }
+
+  - do:
       search:
-        index: test_date_hist
+        index: hard_bounds_outside_data
+        allow_partial_search_results: false
         body:
           size: 0
           aggs:
@@ -178,6 +196,7 @@ setup:
                       "min": "2030-01-01"
                       "max": "2030-01-02"
 
+  - match: { _shards.failed: 0 }
   - length: { aggregations.outer.histo.buckets: 0 }
 
 ---

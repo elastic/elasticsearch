@@ -614,3 +614,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
   method: test {csv-spec:external-basic.uriPartsFromEval [S3]}
   issue: https://github.com/elastic/elasticsearch/issues/148742
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateSumSalary [GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/148744

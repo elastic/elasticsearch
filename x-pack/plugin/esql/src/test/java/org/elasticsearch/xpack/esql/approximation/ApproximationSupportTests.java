@@ -134,12 +134,7 @@ public class ApproximationSupportTests extends ESTestCase {
         // TODO: investigate whether these plans are supported or explain why not
         Fuse.class,
         FuseScoreEval.class,
-        Lookup.class,
         MMR.class,
-
-        // Non-unary plans are not supported yet.
-        // These require more complicated expression tree traversal.
-        ParameterizedQuery.class,
 
         // Timeseries indices are not supported yet.
         // They require chained Stats commands.
@@ -162,16 +157,18 @@ public class ApproximationSupportTests extends ESTestCase {
         CompoundOutputEval.class,
 
         // These plans don't occur in a correct analyzed query.
-        UnresolvedRelation.class,
-        UnresolvedExternalRelation.class,
-        ViewShadowRelation.class,
         Drop.class,
-        Keep.class,
         InlineStats.class,
+        Keep.class,
+        Lookup.class,
         LookupJoin.class,
+        ParameterizedQuery.class,
         Rename.class,
         ResolvingProject.class,
         SparklineGenerateEmptyBuckets.class,
+        UnresolvedExternalRelation.class,
+        UnresolvedRelation.class,
+        ViewShadowRelation.class,
 
         // PromQL plans are not supported yet.
         PromqlCommand.class,

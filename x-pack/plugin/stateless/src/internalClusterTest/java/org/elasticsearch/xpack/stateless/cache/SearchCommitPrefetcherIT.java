@@ -818,7 +818,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             }
         }
 
-        synchronized long bytesCount() {
+        private synchronized long bytesCount() {
             long total = 0;
             for (final var entry : rangesByStart.entrySet()) {
                 total += entry.getValue() - entry.getKey();

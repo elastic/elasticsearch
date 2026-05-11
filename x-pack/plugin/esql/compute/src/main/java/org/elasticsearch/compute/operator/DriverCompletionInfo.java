@@ -122,6 +122,7 @@ public record DriverCompletionInfo(
     }
 
     private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
+    /** Gates response-root rollups here, per-operator Status fields on AsyncExternalSourceOperator, and the dataset_resolution span on EsqlQueryProfile. */
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_PROFILE = TransportVersion.fromName("esql_external_source_profile");
 
     public static DriverCompletionInfo readFrom(StreamInput in) throws IOException {

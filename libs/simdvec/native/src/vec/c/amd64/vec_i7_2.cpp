@@ -249,18 +249,26 @@ EXPORT void vec_doti7u_bulk_sparse_2(
     dot7u_bulk_avx512<const int8_t*, sparse_mapper, 4, 1>((const int8_t* const*)addresses, b, dims, 0, NULL, count, results);
 }
 
+// Accumulates acc += sqr_distance(a, b) for unsigned 7-bit int lanes already
+// loaded into 64-byte SIMD registers.
+inline void sqri7u(__m512i& acc, __m512i a, __m512i b) {
+    const __m512i dist = _mm512_sub_epi8(a, b);
+    // abs_epi8 makes the difference non-negative so it fits the unsigned
+    // slot of maddubs_epi16, which treats its first operand as unsigned and
+    // its second as signed. Squared value is unchanged: (a-b)^2 == |a-b|^2.
+    const __m512i abs_dist = _mm512_abs_epi8(dist);
+    const __m512i sqr_add = _mm512_maddubs_epi16(abs_dist, abs_dist);
+    const __m512i ones = _mm512_set1_epi16(1);
+    acc = _mm512_add_epi32(_mm512_madd_epi16(ones, sqr_add), acc);
+}
+
 // Accumulates acc += sqr_distance(pa, pb) for unsigned 7-bit int lanes (64 bytes per step).
 template<int offsetRegs>
 inline void sqri7u(__m512i& acc, const int8_t* pa, const int8_t* pb) {
     constexpr int lanes = offsetRegs * sizeof(__m512i);
     const __m512i a = _mm512_loadu_si512((const __m512i*)(pa + lanes));
     const __m512i b = _mm512_loadu_si512((const __m512i*)(pb + lanes));
-
-    const __m512i dist = _mm512_sub_epi8(a, b);
-    const __m512i abs_dist = _mm512_abs_epi8(dist);
-    const __m512i sqr_add = _mm512_maddubs_epi16(abs_dist, abs_dist);
-    const __m512i ones = _mm512_set1_epi16(1);
-    acc = _mm512_add_epi32(_mm512_madd_epi16(ones, sqr_add), acc);
+    sqri7u(acc, a, b);
 }
 
 static inline int32_t sqr7u_inner(const int8_t* a, const int8_t* b, const int32_t dims) {
@@ -355,7 +363,6 @@ static inline void sqr7u_bulk_avx512(
 ) {
     constexpr int stride = sizeof(__m512i);
     const int blk = dims & ~(stride - 1);
-    const __m512i ones = _mm512_set1_epi16(1);
     const int lines_to_fetch = dims / CACHE_LINE_SIZE + 1;
     int c = 0;
 
@@ -385,10 +392,7 @@ static inline void sqr7u_bulk_avx512(
             __m512i bv = _mm512_loadu_si512((const __m512i*)(b + i));
             apply_indexed<batches>([&](auto I) {
                 __m512i av = _mm512_loadu_si512((const __m512i*)(current_vecs[I] + i));
-                __m512i dist = _mm512_sub_epi8(av, bv);
-                __m512i abs_dist = _mm512_abs_epi8(dist);
-                __m512i sqr_add = _mm512_maddubs_epi16(abs_dist, abs_dist);
-                acc[I] = _mm512_add_epi32(acc[I], _mm512_madd_epi16(ones, sqr_add));
+                sqri7u(acc[I], av, bv);
             });
         }
 
@@ -398,10 +402,7 @@ static inline void sqr7u_bulk_avx512(
             __m512i bv = _mm512_maskz_loadu_epi8(mask, b + i);
             apply_indexed<batches>([&](auto I) {
                 __m512i av = _mm512_maskz_loadu_epi8(mask, current_vecs[I] + i);
-                __m512i dist = _mm512_sub_epi8(av, bv);
-                __m512i abs_dist = _mm512_abs_epi8(dist);
-                acc[I] = _mm512_add_epi32(acc[I],
-                    _mm512_madd_epi16(ones, _mm512_maddubs_epi16(abs_dist, abs_dist)));
+                sqri7u(acc[I], av, bv);
             });
         }
 

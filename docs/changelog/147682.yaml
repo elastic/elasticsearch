@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 147681
-pr: 147682
-summary: Better validation for fulltext functions after LIMIT BY
-type: bug

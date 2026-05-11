@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.util.concurrent.Flow;
@@ -27,20 +27,21 @@ public interface ResponseHandler {
      *
      * @param throttlerManager a throttler for the logs
      * @param logger the logger to use for logging
-     * @param request the original request
+     * @param outboundRequest the original request
      * @param result the response from the server
      * @throws RetryException if the response is invalid
      */
-    void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result) throws RetryException;
+    void validateResponse(ThrottlerManager throttlerManager, Logger logger, OutboundRequest outboundRequest, HttpResult result)
+        throws RetryException;
 
     /**
      * A method for parsing the response from the server.
-     * @param request The original request sent to the server
+     * @param outboundRequest The original request sent to the server
      * @param result The wrapped response from the server
      * @return the parsed inference results
      * @throws RetryException if a parsing error occurs
      */
-    InferenceServiceResults parseResult(Request request, HttpResult result) throws RetryException;
+    InferenceServiceResults parseResult(OutboundRequest outboundRequest, HttpResult result) throws RetryException;
 
     /**
      * A string to uniquely identify the type of request that is being handled. This allows loggers to clarify which type of request
@@ -60,12 +61,12 @@ public interface ResponseHandler {
      * {@link Flow.Publisher#subscribe(Flow.Subscriber)} method on the {@code Flow.Publisher<HttpResult> flow} parameter in order to stream
      * HttpResults to the InferenceServiceResults.
      *
-     * @param request The original request sent to the server
+     * @param outboundRequest The original request sent to the server
      * @param flow    The remaining stream of results from the server.  If the result is HTTP 200, these results will contain content bytes
      * @return an inference results with {@link InferenceServiceResults#publisher()} set and {@link InferenceServiceResults#isStreaming()}
      * set to true.
      */
-    default InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
+    default InferenceServiceResults parseResult(OutboundRequest outboundRequest, Flow.Publisher<HttpResult> flow) {
         assert canHandleStreamingResponses() == false : "This must be implemented when canHandleStreamingResponses() == true";
         throw new UnsupportedOperationException("This must be implemented when canHandleStreamingResponses() == true");
     }

@@ -88,8 +88,6 @@ public class KnnIndexTester {
     public static final Logger logger;
 
     static {
-        LogConfigurator.loadLog4jPlugins();
-
         // necessary otherwise the es.logger.level system configuration in build.gradle is ignored
         ProcessInfo pinfo = ProcessInfo.fromSystem();
         Map<String, String> sysprops = pinfo.sysprops();
@@ -222,7 +220,7 @@ public class KnnIndexTester {
                     args.doPrecondition(),
                     args.preconditioningBlockDims(),
                     flatVectorThreshold,
-                    null
+                    args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null
                 );
             }
             case GPU_HNSW -> switch (quantizeBits) {
@@ -518,7 +516,7 @@ public class KnnIndexTester {
             }
             numSegments(indexPath, indexResults, sharedDir);
 
-            boolean hasQueries = testConfiguration.numQueries() > 0 && dataGenerator.hasQueries();
+            boolean hasQueries = testConfiguration.numQueries() > 0 && dataGenerator.numQueries() > 0;
             if (hasQueries) {
                 Directory readDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
                 try {

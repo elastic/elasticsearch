@@ -259,6 +259,13 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(promql.end().value(), nullValue());
     }
 
+    public void testRangeQueryWithoutIndexUsesDefaultMetricsPattern() {
+        PromqlCommand promql = parse("PROMQL step=5m avg(foo)");
+        List<UnresolvedRelation> unresolvedRelations = promql.collect(UnresolvedRelation.class);
+        assertThat(unresolvedRelations, hasSize(1));
+        assertThat(unresolvedRelations.getFirst().indexPattern().indexPattern(), equalTo(PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN));
+    }
+
     public void testRangeQueryBucketsRequiresPositiveInteger() {
         ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test buckets=0 (avg(foo))"));
         assertThat(e.getMessage(), containsString("Invalid value [0] for parameter [buckets], expected a positive integer"));

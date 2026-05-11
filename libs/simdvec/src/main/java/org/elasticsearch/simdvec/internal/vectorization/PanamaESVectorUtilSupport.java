@@ -13,6 +13,7 @@ import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
 import jdk.incubator.vector.LongVector;
+import jdk.incubator.vector.ShortVector;
 import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorShape;
@@ -32,10 +33,13 @@ import org.elasticsearch.simdvec.MultiVectorsSource;
 import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.lang.foreign.MemorySegment;
+import java.nio.ShortBuffer;
 
 import static jdk.incubator.vector.VectorOperators.ADD;
+import static jdk.incubator.vector.VectorOperators.AND;
 import static jdk.incubator.vector.VectorOperators.ASHR;
 import static jdk.incubator.vector.VectorOperators.LSHL;
+import static jdk.incubator.vector.VectorOperators.LSHR;
 import static jdk.incubator.vector.VectorOperators.MAX;
 import static jdk.incubator.vector.VectorOperators.MIN;
 import static jdk.incubator.vector.VectorOperators.OR;
@@ -48,6 +52,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     private static final VectorSpecies<Float> FLOAT_SPECIES = PanamaVectorConstants.PREFERRED_FLOAT_SPECIES;
     private static final VectorSpecies<Integer> INTEGER_SPECIES = PanamaVectorConstants.PREFERRED_INTEGER_SPECIES;
+    private static final VectorSpecies<Long> LONG_SPECIES = PanamaVectorConstants.PREFERRED_LONG_SPECIES;
     /** Whether integer vectors can be trusted to actually be fast. */
     static final boolean HAS_FAST_INTEGER_VECTORS = PanamaVectorConstants.ENABLE_INTEGER_VECTORS;
 
@@ -66,6 +71,65 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             return Math.fma(a, b, c);
         } else {
             return a * b + c;
+        }
+    }
+
+    // BFloats as shorts needs to be half the float vector bitsize
+    private static final VectorSpecies<Short> BFLOAT_SPECIES;
+
+    static {
+        VectorSpecies<Short> species;
+        try {
+            species = VectorSpecies.of(short.class, VectorShape.forBitSize(FLOAT_SPECIES.vectorBitSize() / 2));
+        } catch (IllegalArgumentException e) {
+            species = null;
+        }
+        BFLOAT_SPECIES = species;
+    }
+
+    @Override
+    public void floatToBFloat16(float[] floats, ShortBuffer bFloats) {
+        if (!SUPPORTS_HEAP_SEGMENTS || BFLOAT_SPECIES == null) {
+            DefaultESVectorUtilSupport.floatToBFloat16(floats, bFloats, 0);
+        } else {
+            MemorySegment buffer = MemorySegment.ofBuffer(bFloats);
+            int vectorEnd = FLOAT_SPECIES.loopBound(floats.length);
+
+            for (int i = 0; i < vectorEnd; i += FLOAT_SPECIES.length()) {
+                IntVector bits = FloatVector.fromArray(FLOAT_SPECIES, floats, i).reinterpretAsInts();
+                // roundingBias = 0x7fff + ((bits >> 16) & 1)
+                IntVector bias = bits.lanewise(LSHR, 16).lanewise(AND, 1).add(0x7fff);
+                bits = bits.add(bias);
+                bits.lanewise(LSHR, 16)
+                    .convertShape(VectorOperators.I2S, BFLOAT_SPECIES, 0)
+                    .intoMemorySegment(buffer, (long) i * Short.BYTES, bFloats.order());
+            }
+            bFloats.position(bFloats.position() + vectorEnd);
+
+            // scalar tail
+            DefaultESVectorUtilSupport.floatToBFloat16(floats, bFloats, vectorEnd);
+        }
+    }
+
+    @Override
+    public void bFloat16ToFloat(ShortBuffer bFloats, float[] floats) {
+        if (!SUPPORTS_HEAP_SEGMENTS || BFLOAT_SPECIES == null) {
+            DefaultESVectorUtilSupport.bFloat16ToFloat(bFloats, floats, 0);
+        } else {
+            MemorySegment buffer = MemorySegment.ofBuffer(bFloats);
+            int vectorEnd = BFLOAT_SPECIES.loopBound(floats.length);    // take the number of elements as the length of the array
+
+            for (int i = 0; i < vectorEnd; i += BFLOAT_SPECIES.length()) {
+                ShortVector sv = ShortVector.fromMemorySegment(BFLOAT_SPECIES, buffer, (long) i * Short.BYTES, bFloats.order());
+                sv.convertShape(VectorOperators.ZERO_EXTEND_S2I, INTEGER_SPECIES, 0)
+                    .lanewise(LSHL, 16)
+                    .reinterpretAsFloats()
+                    .intoArray(floats, i);
+            }
+            bFloats.position(bFloats.position() + vectorEnd);
+
+            // scalar tail
+            DefaultESVectorUtilSupport.bFloat16ToFloat(bFloats, floats, vectorEnd);
         }
     }
 
@@ -1559,4 +1623,20 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         return canUseBulkPath(source) && source.vectorByteSize() == source.vectorDims();
     }
 
+    @Override
+    public void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        assert values.length % 8 == 0 && matches.length == values.length / 64;
+        // values.length is a multiple of 8, and lane counts (2, 4, 8) all divide it,
+        // so no scalar prefix or tail is ever needed.
+        // Each aligned chunk of laneCount longs produces a laneCount-bit mask that fits cleanly
+        // within one matches word.
+        int laneCount = LONG_SPECIES.length();
+        LongVector lowerVec = LongVector.broadcast(LONG_SPECIES, lowerValue);
+        LongVector upperVec = LongVector.broadcast(LONG_SPECIES, upperValue);
+        for (int i = 0; i < values.length; i += laneCount) {
+            LongVector vec = LongVector.fromArray(LONG_SPECIES, values, i);
+            long mask = vec.compare(VectorOperators.GE, lowerVec).and(vec.compare(VectorOperators.LE, upperVec)).toLong();
+            matches[i >>> 6] |= mask << i;
+        }
+    }
 }

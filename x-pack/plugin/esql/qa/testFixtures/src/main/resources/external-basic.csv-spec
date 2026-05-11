@@ -877,3 +877,22 @@ emp_no:integer |first_name:keyword
 10095          |Hilari
 10100          |Hironobu
 ;
+
+// The optimizer rewrites TO_UPPER(first_name) LIKE "GEOR*" into a case-insensitive
+// WildcardLike over first_name (see ReplaceStringCasingWithInsensitiveRegexMatch).
+// The stored values are "Georgi" / "Georgy" (mixed case), so the test only passes if
+// the case-insensitive bit is honored end-to-end. Pushdown implementations that ignore
+// caseInsensitive() will return zero rows and fail this test.
+operatorLikeCaseInsensitiveAfterToUpper
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| KEEP emp_no, first_name
+| WHERE TO_UPPER(first_name) LIKE "GEOR*"
+| SORT emp_no
+;
+
+emp_no:integer |first_name:keyword
+10001          |Georgi
+10055          |Georgy
+;

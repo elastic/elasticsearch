@@ -428,6 +428,11 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return inferInternal(endpoint, input, null, Map.of());
     }
 
+    protected Map<String, Object> rerankInfer(String modelId, List<String> input, String query) throws IOException {
+        var endpoint = Strings.format("_inference/%s", modelId);
+        return inferInternal(endpoint, input, query, Map.of());
+    }
+
     protected Deque<ServerSentEvent> streamInferOnMockService(
         String modelId,
         TaskType taskType,

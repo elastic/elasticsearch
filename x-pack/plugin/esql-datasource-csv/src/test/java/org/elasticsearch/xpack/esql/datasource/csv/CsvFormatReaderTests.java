@@ -2648,11 +2648,6 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     // --- findLastRecordBoundary tests ---
-    // findLastRecordBoundary is the SPI hook used by the streaming-parallel coordinator to choose
-    // chunk cut points. It must skip newlines inside quoted/bracketed cells; otherwise multi-MiB
-    // CSV reads with embedded newlines split chunks mid-record and parser threads throw
-    // "Unclosed quoted field". The default in SegmentableFormatReader is a backward `\n` scan
-    // (correct for NDJSON, preserves its O(1) fast path); CSV/TSV must override.
 
     public void testFindLastRecordBoundarySimpleTwoLines() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
@@ -2664,7 +2659,6 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testFindLastRecordBoundarySingleTrailingLineNoTerminator() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         byte[] data = "a,b\nc,d".getBytes(StandardCharsets.UTF_8);
-        // Last terminator is the \n after "a,b"; "c,d" is incomplete and must be carried over.
         int boundary = reader.findLastRecordBoundary(data, data.length);
         assertEquals(3, boundary);
     }
@@ -2675,37 +2669,30 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testFindLastRecordBoundaryAllInsideQuotedField() throws IOException {
+        // Unterminated quoted cell: no boundary; caller must grow.
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        // Buffer is entirely the inside of an unterminated quoted cell. There is no record
-        // boundary anywhere within it — the caller must grow the buffer to keep reading.
         byte[] data = "\"line one\nline two\nline three\n".getBytes(StandardCharsets.UTF_8);
         assertEquals(-1, reader.findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastRecordBoundarySkipsEmbeddedNewlineInQuotedField() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        // Two records: one with an embedded \n inside a quoted cell, one plain. The boundary
-        // returned must point at the \n that terminates the plain record (offset = full length - 1),
-        // NOT at any of the embedded \n bytes inside the quoted field.
         byte[] data = "\"row1\nwith\nembedded\",a\nrow2,b\n".getBytes(StandardCharsets.UTF_8);
         int boundary = reader.findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
     }
 
     public void testFindLastRecordBoundaryEmbeddedNewlineFollowedByUnterminatedTail() throws IOException {
+        // Complete row, then an unterminated quoted field whose closing quote is in the next chunk.
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        // Production shape: a complete row, then a quoted field with an embedded \n whose closing
-        // quote is presumably in the next chunk. The boundary must point at the \n terminating the
-        // first record; the unterminated bytes must be carried over.
         byte[] data = "row1,a\n\"row2 starts here\nstill inside quote".getBytes(StandardCharsets.UTF_8);
         int boundary = reader.findLastRecordBoundary(data, data.length);
         assertEquals("row1,a\n".length() - 1, boundary);
     }
 
     public void testFindLastRecordBoundaryRespectsBracketMvc() throws IOException {
+        // Embedded \n inside [..] must not be a boundary.
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        // Two records: one with embedded \n inside a [..] MVC cell, one plain. Bracket-aware path
-        // must not cut inside the bracket cell.
         byte[] data = "a,[v1\nv2\nv3],b\nrow2,plain,c\n".getBytes(StandardCharsets.UTF_8);
         int boundary = reader.findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
@@ -2713,7 +2700,6 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     public void testFindLastRecordBoundaryLengthSubsetOfBuffer() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        // Buffer has trailing garbage past `length` that must be ignored — the scan must respect length.
         byte[] body = "a,b\nc,d\n".getBytes(StandardCharsets.UTF_8);
         byte[] padded = new byte[body.length + 64];
         System.arraycopy(body, 0, padded, 0, body.length);
@@ -2724,8 +2710,6 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     public void testFindLastRecordBoundaryCRLF() throws IOException {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        // A CRLF-terminated stream must report the offset of the trailing \n of the last record, not the \r.
-        // Mirrors testFindNextRecordBoundaryCRLF on the backward-scan side.
         byte[] data = "a,b\r\nc,d\r\n".getBytes(StandardCharsets.UTF_8);
         int boundary = reader.findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
@@ -2733,11 +2717,8 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testFindLastRecordBoundaryDoubledQuoteEscape() throws IOException {
+        // RFC 4180: "" is a literal quote inside a quoted field, not close-then-reopen.
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
-        // RFC 4180 doubled-quote escape inside a quoted field: each {@code ""} is a literal quote,
-        // not a close-then-reopen. A scan that flipped quote state on every {@code "} would
-        // prematurely exit the quoted region and report a boundary inside the field; verify the
-        // final \n is selected instead.
         byte[] data = "\"value with \"\"escaped\"\" quotes\"\nrest\n".getBytes(StandardCharsets.UTF_8);
         int boundary = reader.findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);

@@ -828,7 +828,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             int lastBoundary = -1;
             int cumulative = 0;
             while (cumulative < length) {
-                long consumed = findNextRecordBoundary(new java.io.ByteArrayInputStream(buf, cumulative, length - cumulative));
+                long consumed = findNextRecordBoundary(new ByteArrayInputStream(buf, cumulative, length - cumulative));
                 if (consumed < 0) {
                     return lastBoundary;
                 }

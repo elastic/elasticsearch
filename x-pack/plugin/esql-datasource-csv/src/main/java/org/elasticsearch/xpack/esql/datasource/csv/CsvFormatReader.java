@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -823,13 +824,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Quote-aware backward boundary scan: drives {@link #findNextRecordBoundary} over fresh
-     * {@link java.io.ByteArrayInputStream} slices and returns the offset of the last terminator
-     * byte. Reuses the existing quote-state logic in {@link #findNextRecordBoundaryQuotedFieldsOnly}
-     * and {@link #findNextRecordBoundaryBracketCommaMvc} rather than duplicating it.
-     * <p>
-     * NDJSON keeps the default backward-{@code \n} scan from the SPI; only CSV/TSV with embedded
-     * newlines in quoted fields needs this override.
+     * Drives {@link #findNextRecordBoundary} forward through the buffer and returns the offset of
+     * the last terminator byte, so newlines inside quoted/bracketed cells are correctly skipped.
      */
     @Override
     public int findLastRecordBoundary(byte[] buf, int length) throws IOException {
@@ -839,7 +835,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         int lastBoundary = -1;
         int cumulative = 0;
         while (cumulative < length) {
-            java.io.ByteArrayInputStream bis = new java.io.ByteArrayInputStream(buf, cumulative, length - cumulative);
+            ByteArrayInputStream bis = new ByteArrayInputStream(buf, cumulative, length - cumulative);
             long consumed = findNextRecordBoundary(bis);
             if (consumed < 0) {
                 return lastBoundary;

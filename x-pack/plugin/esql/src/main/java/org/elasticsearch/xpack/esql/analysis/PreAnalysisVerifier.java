@@ -66,35 +66,35 @@ public final class PreAnalysisVerifier {
     private static void checkInSubqueryUsage(LogicalPlan plan, Failures failures) {
         plan.forEachDown(p -> {
             if (p instanceof Filter filter) {
-                checkInFilterCondition(filter.condition(), true, failures, p);
+                checkInFilterCondition(filter.condition(), null, failures);
             } else {
                 p.forEachExpression(
                     InSubquery.class,
-                    inSub -> failures.add(fail(inSub, "IN subquery is not supported in {} [{}]", p.nodeName(), p.sourceText()))
+                    inSub -> failures.add(fail(inSub, "IN subquery is not supported in [{}]", p.sourceText()))
                 );
             }
         });
     }
 
     /**
-     * Walks the {@code WHERE} condition tree, propagating whether the current node is in
-     * boolean predicate position. Children of {@link And} / {@link Or} / {@link Not}
-     * inherit predicate position; children of anything else (notably scalar functions) do
-     * not — those are value contexts. {@link InSubquery} encountered in a value context
-     * is rejected as misuse; in predicate position the existing "not yet supported"
-     * message stands.
+     * Walks the {@code WHERE} condition tree. If the IN subquery appears as a top expression
+     * (for example as a child of {@link And} / {@link Or} / {@link Not}), we fail with a
+     * message IN subquery is not yet supported (which will be removed once the
+     * {@code InSubqueryResolver} / optimizer / executor PRs land). If we are in a
+     * inner expression (i.e. children of anything else (notably scalar functions) we fail with
+     * a message that reflects that)
      */
-    private static void checkInFilterCondition(Expression expr, boolean inPredicatePosition, Failures failures, LogicalPlan p) {
+    private static void checkInFilterCondition(Expression expr, Expression innerExpr, Failures failures) {
         if (expr instanceof InSubquery in) {
-            if (inPredicatePosition) {
+            if (innerExpr == null) {
                 failures.add(fail(in, "IN subquery is not yet supported"));
             } else {
-                failures.add(fail(in, "IN subquery is not supported in {} [{}]", p.nodeName(), p.sourceText()));
+                failures.add(fail(in, "IN subquery is not supported within other expressions [{}]", innerExpr.sourceText()));
             }
         }
-        boolean childrenInPredicatePosition = inPredicatePosition && (expr instanceof And || expr instanceof Or || expr instanceof Not);
+        Expression newParent = innerExpr == null && !(expr instanceof And || expr instanceof Or || expr instanceof Not) ? expr : innerExpr;
         for (Expression child : expr.children()) {
-            checkInFilterCondition(child, childrenInPredicatePosition, failures, p);
+            checkInFilterCondition(child, newParent, failures);
         }
     }
 }

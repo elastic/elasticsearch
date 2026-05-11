@@ -55,7 +55,7 @@ public class PreAnalysisVerifierIT extends AbstractEsqlIntegTestCase {
         assumeTrue("IN subquery is not enabled", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
         expectThrows(
             VerificationException.class,
-            containsString("IN subquery is not supported in Eval [EVAL y = x IN (FROM sub_index)]"),
+            containsString("IN subquery is not supported in [EVAL y = x IN (FROM sub_index)]"),
             () -> run(syncEsqlQueryRequest("FROM main_index | EVAL y = x IN (FROM sub_index)"))
         );
     }
@@ -64,7 +64,7 @@ public class PreAnalysisVerifierIT extends AbstractEsqlIntegTestCase {
         assumeTrue("IN subquery is not enabled", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
         expectThrows(
             VerificationException.class,
-            containsString("IN subquery is not supported in Aggregate [STATS c = COUNT(*) WHERE x IN (FROM sub_index)]"),
+            containsString("IN subquery is not supported in [STATS c = COUNT(*) WHERE x IN (FROM sub_index)]"),
             () -> run(syncEsqlQueryRequest("FROM main_index | STATS c = COUNT(*) WHERE x IN (FROM sub_index)"))
         );
     }
@@ -74,7 +74,7 @@ public class PreAnalysisVerifierIT extends AbstractEsqlIntegTestCase {
 
         expectThrows(
             VerificationException.class,
-            containsString("IN subquery is not supported in Aggregate [INLINE STATS c = COUNT(*) WHERE x IN (FROM sub_index)]"),
+            containsString("IN subquery is not supported in [INLINE STATS c = COUNT(*) WHERE x IN (FROM sub_index)]"),
             () -> run(syncEsqlQueryRequest("FROM main_index | INLINE STATS c = COUNT(*) WHERE x IN (FROM sub_index)"))
         );
     }
@@ -84,9 +84,7 @@ public class PreAnalysisVerifierIT extends AbstractEsqlIntegTestCase {
 
         expectThrows(
             VerificationException.class,
-            containsString(
-                "IN subquery is not supported in Filter [WHERE emp_no > 0 and MV_CONTAINS(x IN (FROM main_index), [true, false])]"
-            ),
+            containsString("IN subquery is not supported within other expressions [MV_CONTAINS(x IN (FROM main_index), [true, false])]"),
             () -> run(syncEsqlQueryRequest("FROM main_index | WHERE emp_no > 0 and MV_CONTAINS(x IN (FROM main_index), [true, false])"))
         );
     }

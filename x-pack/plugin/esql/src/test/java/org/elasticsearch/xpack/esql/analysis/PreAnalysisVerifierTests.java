@@ -40,28 +40,28 @@ public class PreAnalysisVerifierTests extends AbstractStatementParserTests {
     public void testInSubqueryInEvalRejected() {
         expectVerifierError(
             "from test | eval x = emp_no in (from test)",
-            containsString("IN subquery is not supported in Eval [eval x = emp_no in (from test)]")
+            containsString("IN subquery is not supported in [eval x = emp_no in (from test)]")
         );
     }
 
     public void testInSubqueryInSortRejected() {
         expectVerifierError(
             "from test | sort emp_no in (from test)",
-            containsString(" IN subquery is not supported in OrderBy [sort emp_no in (from test)]")
+            containsString("IN subquery is not supported in [sort emp_no in (from test)]")
         );
     }
 
     public void testInSubqueryInStatsFilterRejected() {
         expectVerifierError(
             "from test | stats c = count(*) where emp_no in (from test)",
-            containsString("IN subquery is not supported in Aggregate [stats c = count(*) where emp_no in (from test)]")
+            containsString("IN subquery is not supported in [stats c = count(*) where emp_no in (from test)]")
         );
     }
 
     public void testInSubqueryInInlineStatsFilterRejected() {
         expectVerifierError(
             "from test | inline stats c = count(*) where emp_no in (from test)",
-            containsString("IN subquery is not supported in Aggregate [inline stats c = count(*) where emp_no in (from test)]")
+            containsString("IN subquery is not supported in [inline stats c = count(*) where emp_no in (from test)]")
         );
     }
 
@@ -83,21 +83,21 @@ public class PreAnalysisVerifierTests extends AbstractStatementParserTests {
     public void testInSubqueryAsValueUnderAndRejected() {
         expectVerifierError(
             "from test | where emp_no > 0 and MV_CONTAINS(x IN (from test), [true, false])",
-            containsString("IN subquery is not supported in Filter [where emp_no > 0 and MV_CONTAINS(x IN (from test), [true, false])]")
+            containsString("IN subquery is not supported within other expressions [MV_CONTAINS(x IN (from test), [true, false])]")
         );
     }
 
     public void testInSubqueryAsValueUnderOrRejected() {
         expectVerifierError(
             "from test | where MV_CONTAINS(x IN (from test), [true, false]) or emp_no > 0",
-            containsString("IN subquery is not supported in Filter [where MV_CONTAINS(x IN (from test), [true, false]) or emp_no > 0]")
+            containsString("IN subquery is not supported within other expressions [MV_CONTAINS(x IN (from test), [true, false])]")
         );
     }
 
     public void testInSubqueryAsValueUnderNotRejected() {
         expectVerifierError(
             "from test | where not MV_CONTAINS(x IN (from test), [true, false])",
-            containsString("IN subquery is not supported in Filter [where not MV_CONTAINS(x IN (from test), [true, false])]")
+            containsString("IN subquery is not supported within other expressions [MV_CONTAINS(x IN (from test), [true, false])]")
         );
     }
 

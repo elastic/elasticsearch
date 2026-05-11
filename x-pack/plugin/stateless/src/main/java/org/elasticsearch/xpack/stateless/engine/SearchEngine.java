@@ -144,11 +144,12 @@ public class SearchEngine extends Engine {
         StatelessSharedBlobCacheService statelessSharedBlobCacheService,
         ClusterSettings clusterSettings,
         Executor prefetchExecutor,
-        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings
+        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings,
+        ReshardUnownedBitsetCache reshardUnownedBitsetCache
     ) {
         super(config);
         assert config.isPromotableToPrimary() == false;
-        this.reshardUnownedBitsetCache = new ReshardUnownedBitsetCache(config.getIndexSettings().getNodeSettings());
+        this.reshardUnownedBitsetCache = reshardUnownedBitsetCache;
         this.closedShardService = closedShardService;
         var refreshExecutor = config.getThreadPool().executor(ThreadPool.Names.REFRESH);
         // we limit to one task to force sequential execution of enqueued tasks
@@ -253,7 +254,7 @@ public class SearchEngine extends Engine {
             throw new EngineCreationFailureException(config.getShardId(), "Failed to create a search engine", e);
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(readerManager, directoryReader, store::decRef, reshardUnownedBitsetCache);
+                IOUtils.closeWhileHandlingException(readerManager, directoryReader, store::decRef);
             }
         }
     }
@@ -629,13 +630,7 @@ public class SearchEngine extends Engine {
                 // Save any active reader information to the ClosedShardService BEFORE potentially closing the store. The ClosedShardService
                 // is hooked into store closure, so we don't want to race with it!
                 closedShardService.onShardClose(shardId, getAcquiredPrimaryTermAndGenerations());
-                IOUtils.close(
-                    this::failSegmentGenerationListeners,
-                    readerManager,
-                    relocatedPITReaderTracker,
-                    store::decRef,
-                    reshardUnownedBitsetCache
-                );
+                IOUtils.close(this::failSegmentGenerationListeners, readerManager, relocatedPITReaderTracker, store::decRef);
                 assert segmentGenerationListeners.isEmpty() : segmentGenerationListeners;
             } catch (Exception ex) {
                 logger.warn("failed to close reader", ex);

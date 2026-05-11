@@ -416,13 +416,15 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 ReshardUnownedBitsetCache.CACHE_SIZE_SETTING
             )
         );
+        ReshardUnownedBitsetCache reshardUnownedBitsetCache = new ReshardUnownedBitsetCache(Settings.EMPTY);
         return new SearchEngine(
             searchConfig,
             new ClosedShardService(),
             sharedBlobCacheService,
             clusterSettings,
             DIRECT_EXECUTOR_SERVICE,
-            new SearchCommitPrefetcherDynamicSettings(clusterSettings)
+            new SearchCommitPrefetcherDynamicSettings(clusterSettings),
+            reshardUnownedBitsetCache
         ) {
             @Override
             public void close() throws IOException {
@@ -430,6 +432,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                     super.close();
                 } finally {
                     searchConfig.getStore().decRef();
+                    IOUtils.close(reshardUnownedBitsetCache);
                 }
             }
         };
@@ -576,20 +579,22 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 ReshardUnownedBitsetCache.CACHE_SIZE_SETTING
             )
         );
+        ReshardUnownedBitsetCache reshardUnownedBitsetCache = new ReshardUnownedBitsetCache(Settings.EMPTY);
         return new SearchEngine(
             searchConfig,
             new ClosedShardService(),
             sharedBlobCacheService,
             clusterSettings,
             DIRECT_EXECUTOR_SERVICE,
-            new SearchCommitPrefetcherDynamicSettings(clusterSettings)
+            new SearchCommitPrefetcherDynamicSettings(clusterSettings),
+            reshardUnownedBitsetCache
         ) {
             @Override
             public void close() throws IOException {
                 try {
                     super.close();
                 } finally {
-                    IOUtils.close(searchConfig.getStore()::decRef, nodeEnvironment);
+                    IOUtils.close(searchConfig.getStore()::decRef, nodeEnvironment, reshardUnownedBitsetCache);
                 }
             }
         };

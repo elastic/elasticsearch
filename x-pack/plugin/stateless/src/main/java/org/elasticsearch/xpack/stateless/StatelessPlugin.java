@@ -63,6 +63,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -513,6 +514,11 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<SearchCommitPrefetcher.PrefetchExecutor> prefetchExecutor = new SetOnce<>();
     private final SetOnce<BCCHeaderReadExecutor> bccHeaderReadExecutor = new SetOnce<>();
     private final SetOnce<SearchCommitPrefetcherDynamicSettings> prefetchingDynamicSettings = new SetOnce<>();
+    /**
+     * One cache per search-tier node; null when this node has no search role.
+     */
+    @Nullable
+    private ReshardUnownedBitsetCache nodeReshardUnownedBitsetCache;
     private final SetOnce<SearchShardInformationIndexListener> searchShardInformationIndexListener = new SetOnce<>();
     private final SetOnce<PITRelocationService> pitRelocationService = new SetOnce<>();
     private final SetOnce<List<StatelessExtensionProvider>> statelessServicesConsumerProviders = new SetOnce<>();
@@ -996,6 +1002,7 @@ public class StatelessPlugin extends Plugin
             // created whenever we create the search engine and it might miss the settings that were updated before the node was started.
             // also note that we create one search engine per index so we could end up with many instances of settings listeners.
             setAndGet(this.prefetchingDynamicSettings, new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings()));
+            this.nodeReshardUnownedBitsetCache = new ReshardUnownedBitsetCache(settings);
             SearchShardInformationMetricsCollector shardInformationMetricsCollector = new SearchShardInformationMetricsCollector(
                 services.telemetryProvider()
             );
@@ -1180,6 +1187,7 @@ public class StatelessPlugin extends Plugin
             Thread.currentThread().interrupt();
         }
         Releasables.close(sharedBlobCacheService.get());
+        IOUtils.close(nodeReshardUnownedBitsetCache);
         try {
             IOUtils.close(blobStoreHealthIndicator.get());
         } catch (IOException e) {
@@ -1665,13 +1673,15 @@ public class StatelessPlugin extends Plugin
             } else {
                 assert prefetchExecutor.get() != null : "Prefetch executor should be instantiated in search nodes";
                 assert prefetchingDynamicSettings.get() != null : "Prefetching dynamic settings should be instantiated in search nodes";
+                assert nodeReshardUnownedBitsetCache != null : "Reshard unowned bitset cache should be instantiated in search nodes";
                 return new SearchEngine(
                     config,
                     getClosedShardService(),
                     sharedBlobCacheService.get(),
                     clusterService.get().getClusterSettings(),
                     prefetchExecutor.get(),
-                    prefetchingDynamicSettings.get()
+                    prefetchingDynamicSettings.get(),
+                    nodeReshardUnownedBitsetCache
                 );
             }
         });

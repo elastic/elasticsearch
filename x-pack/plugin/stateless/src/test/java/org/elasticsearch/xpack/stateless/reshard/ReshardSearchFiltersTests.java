@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -328,6 +329,32 @@ public class ReshardSearchFiltersTests extends ESTestCase {
             }
         } finally {
             cache.close();
+        }
+    }
+
+    public void testFilterQueryMatchingNoDocumentsLeavesReaderUnfiltered() throws IOException {
+        IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE).setMaxBufferedDocs(100));
+        var docs = randomIntBetween(1, 10);
+        for (int i = 0; i < docs; i++) {
+            var document = new Document();
+            document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), Field.Store.NO));
+            iw.addDocument(document);
+        }
+        iw.commit();
+        try (
+            DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(
+                DirectoryReader.open(iw),
+                new ShardId(new Index("index", "_na_"), 0)
+            );
+            iw
+        ) {
+            var wrapper = new ReshardSearchFilters.QueryFilterDirectoryReader(directoryReader, Queries.NO_DOCS_INSTANCE, null);
+            assertEquals(docs, directoryReader.numDocs());
+            assertEquals(docs, wrapper.numDocs());
+            assertEquals(1, wrapper.leaves().size());
+            var delegateLeaf = directoryReader.leaves().get(0).reader();
+            var wrappedLeaf = wrapper.leaves().get(0).reader();
+            assertSame(delegateLeaf.getLiveDocs(), wrappedLeaf.getLiveDocs());
         }
     }
 

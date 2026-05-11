@@ -20,6 +20,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -118,6 +119,31 @@ public class ReshardUnownedBitsetCacheTests extends ESTestCase {
 
             LeafReaderContext ctx = reader.leaves().get(0);
             assertTrue(cache.getBitSet(query, ctx) instanceof MatchAllBitSet);
+        } finally {
+            cache.close();
+            directory.close();
+        }
+    }
+
+    // When no documents match the query, a NULL bitset is returned (we check cached path twice). Note that
+    // cache still holds one entry (NULL_MARKER).
+    public void testGetBitSetReturnsNullWhenQueryMatchesNoDocuments() throws Exception {
+        Directory directory = newDirectory();
+        try (IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
+            var document = new Document();
+            document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("only"), Field.Store.NO));
+            iw.addDocument(document);
+            iw.commit();
+        }
+        Settings settings = Settings.builder().put(ReshardUnownedBitsetCache.CACHE_SIZE_SETTING.getKey(), "256mb").build();
+        ReshardUnownedBitsetCache cache = new ReshardUnownedBitsetCache(settings);
+        try (DirectoryReader reader = DirectoryReader.open(directory)) {
+            LeafReaderContext ctx = reader.leaves().get(0);
+            assertNull(ReshardUnownedBitsetCache.computeBitSet(Queries.NO_DOCS_INSTANCE, ctx));
+            assertNull(cache.getBitSet(Queries.NO_DOCS_INSTANCE, ctx));
+            assertEquals(1, cache.entryCount());
+            assertNull(cache.getBitSet(Queries.NO_DOCS_INSTANCE, ctx));
+            cache.verifyInternalConsistency();
         } finally {
             cache.close();
             directory.close();

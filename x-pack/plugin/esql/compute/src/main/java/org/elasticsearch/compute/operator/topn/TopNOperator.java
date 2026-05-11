@@ -18,7 +18,7 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.ParallelOperator;
+import org.elasticsearch.compute.operator.WorkerFanOut;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
@@ -275,7 +275,7 @@ public class TopNOperator implements Operator, Accountable {
     private int maxInFlightPages;
     private long promotionThresholdRows = Long.MAX_VALUE;
     @Nullable
-    private ParallelOperator<TopNWorkerState> helper;
+    private WorkerFanOut<TopNWorkerState> helper;
 
     public TopNOperator(
         BlockFactory blockFactory,
@@ -607,7 +607,7 @@ public class TopNOperator implements Operator, Accountable {
      * lifecycle calls delegate to it.
      */
     private void promote() {
-        final ParallelOperator<TopNWorkerState> built = new ParallelOperator<>(driverContext, executor, workerCount, maxInFlightPages) {
+        final WorkerFanOut<TopNWorkerState> built = new WorkerFanOut<>(driverContext, executor, workerCount, maxInFlightPages) {
             int dispatchCursor = 0;
 
             @Override

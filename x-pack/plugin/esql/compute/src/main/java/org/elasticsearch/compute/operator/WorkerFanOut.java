@@ -50,7 +50,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * runs on a worker thread under the slot's lock; the state passed to it is therefore
  * touched single-threaded.
  */
-public abstract class ParallelOperator<W extends Releasable> implements Releasable {
+public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
 
     /**
      * Callback supplied to {@link #dispatch}. Ownership of {@code page} passes
@@ -79,7 +79,7 @@ public abstract class ParallelOperator<W extends Releasable> implements Releasab
     private ReleasableIterator<Page> output;
 
     @SuppressWarnings({ "unchecked", "this-escape" })
-    protected ParallelOperator(DriverContext driverContext, Executor executor, int workerCount, int maxInFlightPages) {
+    protected WorkerFanOut(DriverContext driverContext, Executor executor, int workerCount, int maxInFlightPages) {
         if (workerCount < 1) {
             throw new IllegalArgumentException("workerCount must be >= 1, got " + workerCount);
         }
@@ -294,7 +294,7 @@ public abstract class ParallelOperator<W extends Releasable> implements Releasab
             if (blockedFuture == null) {
                 blockedFuture = new SubscribableListener<>();
             }
-            return new IsBlockedResult(blockedFuture, "ParallelOperator");
+            return new IsBlockedResult(blockedFuture, "WorkerFanOut");
         }
     }
 

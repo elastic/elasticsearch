@@ -18,14 +18,11 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.SegmentReadState;
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
-import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 
@@ -97,35 +94,8 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
     }
 
     @Override
-    public FlatVectorsScorer getFlatVectorScorer(String field) {
-        // this should not actually be used at all
-        return new FlatVectorsScorer() {
-            @Override
-            public RandomVectorScorerSupplier getRandomVectorScorerSupplier(
-                VectorSimilarityFunction similarityFunction,
-                KnnVectorValues vectorValues
-            ) throws IOException {
-                throw new UnsupportedOperationException("Scorer should not be used");
-            }
-
-            @Override
-            public RandomVectorScorer getRandomVectorScorer(
-                VectorSimilarityFunction similarityFunction,
-                KnnVectorValues vectorValues,
-                float[] target
-            ) throws IOException {
-                throw new UnsupportedOperationException("Scorer should not be used");
-            }
-
-            @Override
-            public RandomVectorScorer getRandomVectorScorer(
-                VectorSimilarityFunction similarityFunction,
-                KnnVectorValues vectorValues,
-                byte[] target
-            ) throws IOException {
-                throw new UnsupportedOperationException("Scorer should not be used");
-            }
-        };
+    public FlatVectorsScorer getFlatVectorScorer(String field) throws IOException {
+        return genericReaders.getReaderForField(findField(field)).getFlatVectorScorer(field);
     }
 
     @Override

@@ -42,6 +42,9 @@ static inline int32_t dotd2q4_packed_inner(const int8_t* a, const int8_t* query,
 
     int i = 0;
     while (i < blk) {
+        // We are avoiding templates here because the masks required to extract the 4 elements from a byte
+        // are different enough to make templated code look less readable.
+        // See commit ddb46a776397ce4293fdff6667eacc0781297119
         __m256i acc_s0_16 = _mm256_setzero_si256();
         __m256i acc_s1_16 = _mm256_setzero_si256();
         __m256i acc_s2_16 = _mm256_setzero_si256();

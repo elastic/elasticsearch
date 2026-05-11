@@ -250,6 +250,6 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         if (indexResponses.size() > 0) {
             return "FieldCapabilitiesResponse{unmerged}";
         }
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 }

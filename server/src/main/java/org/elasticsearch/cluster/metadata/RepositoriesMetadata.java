@@ -296,6 +296,6 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 }

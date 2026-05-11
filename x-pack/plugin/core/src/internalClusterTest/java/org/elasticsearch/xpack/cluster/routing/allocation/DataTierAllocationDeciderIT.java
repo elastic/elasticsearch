@@ -552,7 +552,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     }
 
     private String explainAllocation(int shard) {
-        return Strings.toString(
+        return Strings.toTruncatedString(
             ClusterAllocationExplanationUtils.getClusterAllocationExplanation(client(), index, shard, true),
             true,
             true

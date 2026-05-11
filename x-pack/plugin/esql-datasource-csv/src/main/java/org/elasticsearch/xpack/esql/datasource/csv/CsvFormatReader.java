@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -820,6 +821,36 @@ public class CsvFormatReader implements SegmentableFormatReader {
         int markLimit = recordBoundaryMarkLimit();
         long maxMvcSuffixBytes = Math.max(0L, markLimit - 1L);
         return findNextRecordBoundaryBracketCommaMvc(bis, markLimit, maxMvcSuffixBytes);
+    }
+
+    /**
+     * Quote-aware backward boundary scan: drives {@link #findNextRecordBoundary} over fresh
+     * {@link ByteArrayInputStream} slices and returns the offset of the last terminator byte.
+     * Reuses the existing quote-state logic in {@link #findNextRecordBoundaryQuotedFieldsOnly} and
+     * {@link #findNextRecordBoundaryBracketCommaMvc} rather than duplicating it.
+     * <p>
+     * Fresh slice per iteration: {@code findNextRecordBoundary} may bulk-read ahead of the
+     * terminator (the quoted-fields-only path reads 8 KiB at a time), so we resume from the
+     * cumulative count rather than the stream position. Allocations are bounded — this runs on the
+     * streaming-coordinator thread, not parser threads.
+     */
+    @Override
+    public int findLastRecordBoundary(byte[] buf, int length) throws IOException {
+        if (length <= 0) {
+            return -1;
+        }
+        int lastBoundary = -1;
+        int cumulative = 0;
+        while (cumulative < length) {
+            ByteArrayInputStream bis = new ByteArrayInputStream(buf, cumulative, length - cumulative);
+            long consumed = findNextRecordBoundary(bis);
+            if (consumed < 0) {
+                return lastBoundary;
+            }
+            cumulative += Math.toIntExact(consumed);
+            lastBoundary = cumulative - 1;
+        }
+        return lastBoundary;
     }
 
     /**

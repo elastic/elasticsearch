@@ -12,6 +12,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -267,6 +269,138 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    public void testQuoteAwareReaderPreventsChunkCutInsideQuotedField() throws Exception {
+        // Each record is one line, but some records contain a {@code \n} inside a {@code "..."}
+        // quoted field. A quote-unaware backward newline scan would slice a chunk in the middle
+        // of the quoted field; the per-chunk parser would then see an unterminated record and either
+        // throw or emit wrong data. With the SPI override the coordinator drives the reader's
+        // quote-aware {@link SegmentableFormatReader#findLastRecordBoundary}, which keeps the entire
+        // quoted record inside a single chunk.
+        List<String> expected = new ArrayList<>();
+        StringBuilder content = new StringBuilder();
+        for (int i = 0; i < 80; i++) {
+            String rec;
+            if (i % 3 == 1) {
+                // Quoted field with embedded newline. The reader treats the whole thing as one record.
+                rec = "\"rec-" + i + "-line-a\nline-b\nline-c\"";
+            } else {
+                rec = "rec-" + i + "-plain";
+            }
+            expected.add(rec);
+            content.append(rec).append('\n');
+        }
+        InputStream stream = new ByteArrayInputStream(content.toString().getBytes(StandardCharsets.UTF_8));
+
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            // Small chunk size forces many chunk boundaries; deterministically lands one inside
+            // a quoted-newline record.
+            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(64);
+            List<String> got = collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 16, 4, executor, ErrorPolicy.STRICT)
+            );
+            assertEquals(expected, got);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * End-to-end exercise of the real {@link CsvFormatReader} through the streaming coordinator: the
+     * quote-aware-stub tests above prove the SPI wiring; this one proves the production CSV implementation
+     * of {@link SegmentableFormatReader#findLastRecordBoundary} actually keeps embedded-newline quoted rows
+     * intact when chunked. Subclasses {@code CsvFormatReader} solely to shrink {@code minimumSegmentSize} —
+     * the default 1 MiB would either need a multi-megabyte fixture or simply not exercise multiple chunks.
+     */
+    public void testRealCsvFormatReaderThroughCoordinatorPreservesQuotedNewlineRows() throws Exception {
+        int rowCount = 200;
+        // Mix of plain rows and rows whose "name" cell holds embedded \n inside a quoted field. With a
+        // small chunk size every couple of rows triggers a chunk cut; some boundaries will land inside
+        // the quoted block. Pre-fix the segmentator cut a chunk on the embedded \n and the parser saw
+        // "Unclosed quoted field" on the first record.
+        StringBuilder csv = new StringBuilder("id:long,name:keyword,tag:keyword\n");
+        List<Long> expectedIds = new ArrayList<>(rowCount);
+        List<String> expectedNames = new ArrayList<>(rowCount);
+        for (int i = 0; i < rowCount; i++) {
+            String name = (i % 4 == 1) ? "\"line-a-" + i + "\nline-b-" + i + "\nline-c-" + i + "\"" : "plain-" + i;
+            csv.append(i).append(',').append(name).append(",t-").append(i).append('\n');
+            expectedIds.add((long) i);
+            // Unquote+unescape what the CSV parser will emit so the comparison reflects the parsed value.
+            expectedNames.add(name.startsWith("\"") ? name.substring(1, name.length() - 1) : name);
+        }
+        InputStream stream = new ByteArrayInputStream(csv.toString().getBytes(StandardCharsets.UTF_8));
+
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            // 256-byte chunks deterministically force boundaries inside the multi-line quoted cells.
+            CsvFormatReader reader = new CsvFormatReader(TEST_BLOCK_FACTORY) {
+                @Override
+                public long minimumSegmentSize() {
+                    return 256;
+                }
+            };
+            List<Long> gotIds = new ArrayList<>();
+            List<String> gotNames = new ArrayList<>();
+            try (
+                CloseableIterator<Page> it = StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    stream,
+                    List.of("id", "name"),
+                    32,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT
+                )
+            ) {
+                BytesRef scratch = new BytesRef();
+                while (it.hasNext()) {
+                    Page page = it.next();
+                    LongBlock idBlock = page.<LongBlock>getBlock(0);
+                    BytesRefBlock nameBlock = page.<BytesRefBlock>getBlock(1);
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        gotIds.add(idBlock.getLong(i));
+                        gotNames.add(nameBlock.getBytesRef(i, scratch).utf8ToString());
+                    }
+                    page.releaseBlocks();
+                }
+            }
+            assertEquals(expectedIds, gotIds);
+            assertEquals(expectedNames, gotNames);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    public void testQuoteAwareGrowPathHandlesSingleOversizedQuotedRecord() throws Exception {
+        // Single record larger than the chunk size, with embedded newlines inside its quoted field.
+        // Exercises the grow path: the segmentator must keep growing the buffer until a real (outside-quotes)
+        // record terminator appears. The quote-unaware code would have stopped at the first embedded \n
+        // and dispatched a mid-quoted chunk.
+        StringBuilder big = new StringBuilder();
+        big.append('"');
+        for (int i = 0; i < 200; i++) {
+            big.append("embedded-line-").append(i).append('\n');
+        }
+        big.append("\"\n");
+        String record = big.toString();
+        String tail = "after,plain\n";
+        InputStream stream = new ByteArrayInputStream((record + tail).getBytes(StandardCharsets.UTF_8));
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(64);
+            List<String> got = collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(reader, stream, List.of("line"), 16, 2, executor, ErrorPolicy.STRICT)
+            );
+            // Two records emitted: the big quoted one (with all embedded newlines preserved) and the plain trailing one.
+            assertEquals(2, got.size());
+            assertEquals(record.substring(0, record.length() - 1), got.get(0)); // drop the terminating \n
+            assertEquals(tail.substring(0, tail.length() - 1), got.get(1));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     /**
      * Closing must unblock the segmentator when it is parked on {@code dispatchPermits.acquire()}
      * while no consumer drains permits — relies on {@code dispatchChunk} observing {@code closed} after a wake-up acquire.
@@ -504,6 +638,145 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public List<String> fileExtensions() {
             return List.of(".txt");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Minimal quote-aware reader used to validate that the coordinator routes chunk-cut decisions
+     * through {@link SegmentableFormatReader#findLastRecordBoundary}. Records are one-per-line, but
+     * a {@code "} character opens a quoted region in which {@code \n} is a literal byte rather than
+     * a record terminator. A matching {@code "} closes the region. This mirrors the rule CSV applies
+     * to quoted fields, in just enough detail to drive the segmentator's quote-aware path.
+     */
+    private static class QuoteAwareLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+
+        private final long minSegment;
+
+        QuoteAwareLineFormatReader(long minSegment) {
+            this.minSegment = minSegment;
+        }
+
+        @Override
+        public long findNextRecordBoundary(InputStream stream) throws IOException {
+            long consumed = 0;
+            boolean inQuotes = false;
+            int b;
+            while ((b = stream.read()) != -1) {
+                consumed++;
+                if (b == '"') {
+                    inQuotes = inQuotes == false;
+                } else if (b == '\n' && inQuotes == false) {
+                    return consumed;
+                }
+            }
+            return -1;
+        }
+
+        @Override
+        public int findLastRecordBoundary(byte[] buf, int length) throws IOException {
+            if (length <= 0) {
+                return -1;
+            }
+            ByteArrayInputStream bis = new ByteArrayInputStream(buf, 0, length);
+            int lastBoundary = -1;
+            int cumulative = 0;
+            while (true) {
+                long consumed = findNextRecordBoundary(bis);
+                if (consumed < 0) {
+                    return lastBoundary;
+                }
+                cumulative += Math.toIntExact(consumed);
+                lastBoundary = cumulative - 1;
+            }
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return minSegment;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return new SimpleSourceMetadata(
+                List.of(new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)),
+                formatName(),
+                object.path().toString()
+            );
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            InputStream stream = object.newStream();
+            List<String> records = new ArrayList<>();
+            StringBuilder current = new StringBuilder();
+            boolean skipFirst = context.firstSplit() == false && context.recordAligned() == false;
+            boolean inQuotes = false;
+            int b;
+            while ((b = stream.read()) != -1) {
+                if (b == '"') {
+                    inQuotes = inQuotes == false;
+                    current.append((char) b);
+                    continue;
+                }
+                if (b == '\n' && inQuotes == false) {
+                    if (skipFirst) {
+                        skipFirst = false;
+                        current.setLength(0);
+                        continue;
+                    }
+                    if (current.length() > 0) {
+                        records.add(current.toString());
+                    }
+                    current.setLength(0);
+                } else {
+                    current.append((char) b);
+                }
+            }
+            if (current.length() > 0 && skipFirst == false) {
+                records.add(current.toString());
+            }
+
+            int batchSize = context.batchSize();
+            List<Page> pages = new ArrayList<>();
+            for (int start = 0; start < records.size(); start += batchSize) {
+                int end = Math.min(start + batchSize, records.size());
+                int count = end - start;
+                try (var builder = TEST_BLOCK_FACTORY.newBytesRefBlockBuilder(count)) {
+                    for (int i = start; i < end; i++) {
+                        builder.appendBytesRef(new BytesRef(records.get(i)));
+                    }
+                    pages.add(new Page(count, builder.build()));
+                }
+            }
+            return new CloseableIterator<>() {
+                int idx = 0;
+
+                @Override
+                public boolean hasNext() {
+                    return idx < pages.size();
+                }
+
+                @Override
+                public Page next() {
+                    return pages.get(idx++);
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "quoted-line";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".qline");
         }
 
         @Override

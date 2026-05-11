@@ -1,0 +1,5 @@
+pr: 148696
+summary: Quote-aware chunk boundaries in streaming parallel CSV parser
+area: ES|QL
+type: bug
+issues: []

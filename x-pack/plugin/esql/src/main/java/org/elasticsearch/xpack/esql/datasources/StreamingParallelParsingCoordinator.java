@@ -244,7 +244,8 @@ public final class StreamingParallelParsingCoordinator {
                     int totalBytes = offset + Math.max(bytesRead, 0);
                     boolean isEof = bytesRead < 0 || totalBytes < buf.length;
 
-                    int lastNewline = findLastNewline(buf, totalBytes);
+                    // Quote-aware via the SPI; NDJSON keeps the default backward \n scan.
+                    int lastNewline = reader.findLastRecordBoundary(buf, totalBytes);
 
                     if (lastNewline < 0) {
                         if (isEof) {
@@ -258,13 +259,11 @@ public final class StreamingParallelParsingCoordinator {
                                 break;
                             }
                         } else {
-                            // Single record larger than chunk size — grow a temporary buffer.
-                            // {@link #growUntilNewline} only copies from {@code buf}; the original pool buffer
-                            // is independent of {@code grown} and must be returned to the pool here so the
-                            // pool does not leak one entry per oversized record.
+                            // Single record larger than chunk size — grow a temporary buffer. The pool
+                            // buffer is not retained by {@code grown}, so return it here to avoid a leak.
                             byte[] grown = growUntilNewline(stream, buf, totalBytes, chunkSize);
                             recycleBuffer(buf);
-                            int grownNewline = findLastNewline(grown, grown.length);
+                            int grownNewline = reader.findLastRecordBoundary(grown, grown.length);
                             if (grownNewline < 0) {
                                 if (chunkIndex == 0) {
                                     bindSchemaFromFirstChunk(grown, grown.length);
@@ -426,8 +425,9 @@ public final class StreamingParallelParsingCoordinator {
                         // first split; otherwise CSV-style readers re-run header inference on data
                         // rows. NDJSON does not have a header, so the readers ignore firstSplit.
                         // - lastSplit: the segmentator only dispatches a chunk after locating its
-                        // trailing \n via findLastNewline (or grows the buffer until one is found),
-                        // so the chunk's final byte is always a record terminator. The original
+                        // trailing record terminator via SegmentableFormatReader#findLastRecordBoundary
+                        // (or grows the buffer until one is found), so the chunk's final byte is always
+                        // a record terminator. The original
                         // chunk.last flag was set only on the EOF chunk, leaving every interior
                         // chunk wrapped in TrimLastPartialLineInputStream's per-byte tail scan —
                         // pure overhead on already-aligned data. Setting lastSplit=true everywhere
@@ -482,16 +482,16 @@ public final class StreamingParallelParsingCoordinator {
             return totalRead;
         }
 
-        private static int findLastNewline(byte[] buf, int length) {
-            for (int i = length - 1; i >= 0; i--) {
-                if (buf[i] == '\n') {
-                    return i;
-                }
-            }
-            return -1;
-        }
-
-        private static byte[] growUntilNewline(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
+        /**
+         * Grows the buffer until {@link SegmentableFormatReader#findLastRecordBoundary} reports a
+         * complete record terminates within it, or until the stream is exhausted. Quote-aware via
+         * the SPI, so embedded {@code \n} in quoted CSV cells does not stop the grow.
+         * <p>
+         * Cost: O(N²/growBy) total scan work where N is the final size of the oversized record —
+         * each iteration re-scans the full grown buffer. Bounded by the offending record's size;
+         * deliberate trade-off for keeping the SPI stateless.
+         */
+        private byte[] growUntilNewline(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
             byte[] grown = new byte[existingLen + growBy];
             System.arraycopy(existing, 0, grown, 0, existingLen);
 
@@ -504,13 +504,10 @@ public final class StreamingParallelParsingCoordinator {
                     }
                     return Arrays.copyOf(grown, offset);
                 }
-                // Check for newline in the newly read bytes
-                for (int i = offset; i < offset + n; i++) {
-                    if (grown[i] == '\n') {
-                        return Arrays.copyOf(grown, offset + n);
-                    }
-                }
                 offset += n;
+                if (reader.findLastRecordBoundary(grown, offset) >= 0) {
+                    return Arrays.copyOf(grown, offset);
+                }
                 if (offset >= grown.length) {
                     grown = Arrays.copyOf(grown, grown.length + growBy);
                 }

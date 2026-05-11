@@ -62,4 +62,27 @@ public interface SegmentableFormatReader extends FormatReader {
     default long minimumSegmentSize() {
         return 1024 * 1024;
     }
+
+    /**
+     * Returns the offset of the byte that terminates the latest complete record within
+     * {@code buf[0..length)}, or {@code -1} if no complete record terminates inside the buffer.
+     * Used by streaming-parallel chunkers to slice on a record boundary; bytes after the offset
+     * are carried into the next chunk.
+     * <p>
+     * <b>Open-tail contract:</b> when the tail is mid-record (e.g. an unterminated quoted cell),
+     * implementations MUST return the offset of the last complete record that <em>precedes</em>
+     * the open region (or {@code -1} if none). Returning an offset inside the open region would
+     * dispatch a malformed chunk.
+     * <p>
+     * Default: backward scan for {@code \n} — correct for NDJSON; O(1) when the buffer ends near a
+     * boundary. Formats with embedded newlines (e.g. quoted CSV) must override to track quote state.
+     */
+    default int findLastRecordBoundary(byte[] buf, int length) throws IOException {
+        for (int i = length - 1; i >= 0; i--) {
+            if (buf[i] == '\n') {
+                return i;
+            }
+        }
+        return -1;
+    }
 }

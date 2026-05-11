@@ -199,7 +199,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         return false;
     }
 
-    protected FlattenedFieldSyntheticWriterHelper getWriter() throws IOException {
+    protected FlattenedFieldSyntheticWriterHelper getWriter(List<SourceLoader.SyntheticFieldLoader> subFieldLoaders) throws IOException {
         FlattenedFieldSyntheticWriterHelper.SortedKeyedValues sortedKeyedValues = docValues.getValues();
         TreeSet<BytesRef> ignoredValuesSet = collectIgnoredValues();
         if (ignoredValuesSet != null) {
@@ -211,7 +211,13 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             return value != null ? FlattenedFieldArrayContext.parseOffsetField(value) : null;
         };
 
-        return new FlattenedFieldSyntheticWriterHelper(sortedKeyedValues, keyedOffsetFieldSupplier);
+        String parentPrefix = fieldFullPath + ".";
+        List<Map.Entry<String, SourceLoader.SyntheticFieldLoader>> sortedSubFieldEntries = subFieldLoaders.stream()
+            .filter(SourceLoader.SyntheticFieldLoader::hasValue)
+            .map(loader -> Map.entry(loader.fieldName().substring(parentPrefix.length()), loader))
+            .toList();
+
+        return new FlattenedFieldSyntheticWriterHelper(sortedKeyedValues, keyedOffsetFieldSupplier, sortedSubFieldEntries);
     }
 
     private TreeSet<BytesRef> collectIgnoredValues() throws IOException {
@@ -247,15 +253,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         }
 
         b.startObject(leafName);
-        if (hasFlattenedValues) {
-            var writer = getWriter();
-            writer.write(b, FlattenedFieldSyntheticWriterHelper.OutputStructure.NESTED);
-        }
-        for (SourceLoader.SyntheticFieldLoader loader : mappedSubFieldLoaders) {
-            if (loader.hasValue()) {
-                loader.write(b);
-            }
-        }
+        getWriter(mappedSubFieldLoaders).writeNested(b);
         b.endObject();
     }
 

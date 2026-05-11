@@ -1,0 +1,4 @@
+pr: 148765
+summary: Fix `ArrayIndexOutOfBoundsException` in `date_histogram` with `hard_bounds` outside data
+area: Aggregations
+type: bug

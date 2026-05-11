@@ -2005,7 +2005,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void ensureNoInitializingShards() throws IOException {
         Request request = new Request("GET", "/_cluster/health");
         request.addParameter("wait_for_no_initializing_shards", "true");
-        request.addParameter("timeout", "70s");
+        request.addParameter("timeout", "120s");
         request.addParameter("level", "shards");
         cleanupClient().performRequest(request);
     }

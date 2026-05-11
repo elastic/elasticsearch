@@ -876,9 +876,9 @@ public class SplitSourceService {
 
                     IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
                     if (split == null) {
-                        assert assertAsyncCancelled();
                         // The resharding metadata has been removed from the cluster state. IndicesClusterStateService applies
-                        // cluster state changes asynchronously, so the shard may not be closed (and `cancelled` set) yet.
+                        // cluster state changes asynchronously, and shard closure is itself async (via ShardCloseExecutor),
+                        // so the shard may not be closed (and `cancelled` set) yet.
                         // Complete the observer now; onNewClusterState guards against advancing the state machine in this case.
                         return true;
                     }
@@ -925,14 +925,6 @@ public class SplitSourceService {
                 null,
                 logger
             );
-        }
-
-        private boolean assertAsyncCancelled() {
-            clusterService.getClusterApplierService().awaitAllAsyncAppliers(ActionListener.running(() -> {
-                assert cancelled.get()
-                    : indexShard.shardId() + ": expected shard state machine to be cancelled after ICSS finished applying cluster state";
-            }));
-            return true;
         }
 
         /// Signals to the search shards that they should start rejecting search requests that do not have current shard count summary.

@@ -76,7 +76,7 @@ public final class ParallelParsingCoordinator {
         int parallelism,
         Executor executor
     ) throws IOException {
-        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null, false, true, List.of());
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null, false, true, null);
     }
 
     /**
@@ -93,7 +93,7 @@ public final class ParallelParsingCoordinator {
         Executor executor,
         ErrorPolicy errorPolicy
     ) throws IOException {
-        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, errorPolicy, false, true, List.of());
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, errorPolicy, false, true, null);
     }
 
     /**
@@ -125,7 +125,7 @@ public final class ParallelParsingCoordinator {
             errorPolicy,
             splitStartsAtRecordBoundary,
             true,
-            List.of()
+            null
         );
     }
 
@@ -158,16 +158,16 @@ public final class ParallelParsingCoordinator {
             errorPolicy,
             splitStartsAtRecordBoundary,
             splitIncludesFileLeader,
-            List.of()
+            null
         );
     }
 
     /**
      * Full-control overload that also propagates a planner-resolved file schema (used for multi-file
-     * headerless reads to prevent per-file type-drift). Pass {@code List.of()} when no anchor schema
+     * headerless reads to prevent per-file type-drift). Pass {@code null} when no anchor schema
      * is available; the reader will fall back to its normal per-file inference.
      *
-     * @param fileSchema planner-bound anchor-file schema, or empty to use per-file inference
+     * @param fileSchema planner-bound anchor-file schema, or {@code null} to use per-file inference
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -197,14 +197,16 @@ public final class ParallelParsingCoordinator {
         }
 
         ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
-        List<Attribute> effectiveFileSchema = fileSchema != null ? fileSchema : List.of();
+        // fileSchema is @Nullable end-to-end: null means "no planner-bound schema, fall back to
+        // per-file inference". Empty list would be interpreted by readers as "schema with 0 columns"
+        // and reject rows with the well-tested COUNT(*)/empty-projection path.
         FormatReadContext baseCtx = FormatReadContext.builder()
             .projectedColumns(projectedColumns)
             .batchSize(batchSize)
             .errorPolicy(effectivePolicy)
             .firstSplit(splitIncludesFileLeader)
             .recordAligned(splitStartsAtRecordBoundary)
-            .fileSchema(effectiveFileSchema)
+            .fileSchema(fileSchema)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
             return parallelReader.read(storageObject, baseCtx);
@@ -225,7 +227,7 @@ public final class ParallelParsingCoordinator {
             executor,
             effectivePolicy,
             splitIncludesFileLeader,
-            effectiveFileSchema
+            fileSchema
         );
     }
 
@@ -301,6 +303,7 @@ public final class ParallelParsingCoordinator {
         private final int batchSize;
         private final ErrorPolicy errorPolicy;
         private final boolean splitIncludesFileLeader;
+        @org.elasticsearch.core.Nullable
         private final List<Attribute> fileSchema;
 
         private final List<BlockingQueue<Page>> segmentQueues;
@@ -328,7 +331,7 @@ public final class ParallelParsingCoordinator {
             this.batchSize = batchSize;
             this.errorPolicy = errorPolicy;
             this.splitIncludesFileLeader = splitIncludesFileLeader;
-            this.fileSchema = fileSchema != null ? fileSchema : List.of();
+            this.fileSchema = fileSchema;
             this.allDone = new CountDownLatch(segments.size());
 
             this.segmentQueues = new ArrayList<>(segments.size());

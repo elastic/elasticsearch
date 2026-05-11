@@ -9,4 +9,6 @@
 % * [`RANGE_MAX`](../../functions-operators/date-time-functions/range_max.md)
 % * [`RANGE_MIN`](../../functions-operators/date-time-functions/range_min.md)
 % * [`RANGE_WITHIN`](../../functions-operators/date-time-functions/range_within.md)
+% * [`RANGE_CONTAINS`](../../functions-operators/date-time-functions/range_contains.md)
+% * [`RANGE_INTERSECTS`](../../functions-operators/date-time-functions/range_intersects.md)
 * [`TRANGE`](../../functions-operators/date-time-functions/trange.md) {applies_to}`stack: ga 9.3`

@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -785,8 +786,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         } else if (context.recordAligned()) {
             // Non-first split that the caller guarantees starts on a record boundary
-            // (e.g. streaming-parallel chunks sliced on \n). No partial line to drop, no header
-            // to parse — use the pre-bound schema directly.
+            // (e.g. streaming-parallel chunks sliced on record boundaries). No partial line to
+            // drop, no header to parse — use the pre-bound schema directly.
             effectiveSchema = resolvedSchema;
         } else {
             // Non-first byte-range split (e.g. bzip2 / zstd-indexed macro-split). The leading
@@ -820,6 +821,29 @@ public class CsvFormatReader implements SegmentableFormatReader {
         int markLimit = recordBoundaryMarkLimit();
         long maxMvcSuffixBytes = Math.max(0L, markLimit - 1L);
         return findNextRecordBoundaryBracketCommaMvc(bis, markLimit, maxMvcSuffixBytes);
+    }
+
+    /**
+     * Drives {@link #findNextRecordBoundary} forward through the buffer and returns the offset of
+     * the last terminator byte, so newlines inside quoted/bracketed cells are correctly skipped.
+     */
+    @Override
+    public int findLastRecordBoundary(byte[] buf, int length) throws IOException {
+        if (length <= 0) {
+            return -1;
+        }
+        int lastBoundary = -1;
+        int cumulative = 0;
+        while (cumulative < length) {
+            ByteArrayInputStream bis = new ByteArrayInputStream(buf, cumulative, length - cumulative);
+            long consumed = findNextRecordBoundary(bis);
+            if (consumed < 0) {
+                return lastBoundary;
+            }
+            cumulative += Math.toIntExact(consumed);
+            lastBoundary = cumulative - 1;
+        }
+        return lastBoundary;
     }
 
     /**

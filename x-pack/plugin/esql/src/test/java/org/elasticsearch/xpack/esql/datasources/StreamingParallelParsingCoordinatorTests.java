@@ -356,6 +356,175 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Content with multi-line quoted fields where the embedded {@code \n} falls exactly on a chunk
+     * boundary must not split the logical record across two parser-thread chunks.
+     * <p>
+     * Uses a tiny chunk size (64 bytes) so the quoted field's inner newline is almost certain to
+     * land on a chunk boundary at some offset; the test verifies every record is delivered intact.
+     */
+    public void testMultiLineQuotedFieldsAcrossChunkBoundaries() throws Exception {
+        // 50 records, some with multi-line quoted fields containing embedded \n
+        StringBuilder sb = new StringBuilder();
+        int recordCount = 0;
+        for (int i = 0; i < 50; i++) {
+            if (i % 5 == 0) {
+                sb.append("\"multi\nline-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\"\n");
+            } else {
+                sb.append("simple-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append('\n');
+            }
+            recordCount++;
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            // chunkSize=64 forces many splits; quoted \n must not become a chunk boundary
+            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(64);
+            List<String> allLines = collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    new ByteArrayInputStream(bytes),
+                    List.of("line"),
+                    50,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT
+                )
+            );
+
+            assertEquals(recordCount, allLines.size());
+            int multiLineCount = 0;
+            for (String line : allLines) {
+                if (line.startsWith("multi\nline-")) {
+                    multiLineCount++;
+                }
+            }
+            assertEquals("every 5th record is multi-line", 10, multiLineCount);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * When the chunk size is smaller than a single multi-line record (no record boundary in the
+     * initial buffer), the coordinator must grow the buffer until it finds a real record boundary.
+     */
+    public void testGrowUntilRecordBoundaryForOversizedQuotedField() throws Exception {
+        // One giant multi-line quoted field that is larger than the chunk size, followed by a
+        // normal record. The coordinator must grow past the first \n inside the quoted field.
+        StringBuilder sb = new StringBuilder();
+        sb.append("\"");
+        // ~200 bytes of quoted content with embedded \n every 40 chars
+        for (int i = 0; i < 5; i++) {
+            sb.append("chunk-of-text-that-is-about-forty-bytes!");
+            if (i < 4) sb.append('\n');
+        }
+        sb.append("\"\n");
+        sb.append("trailing-record\n");
+
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            // Chunk size smaller than the first record → forces growUntilRecordBoundary
+            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(64);
+            List<String> allLines = collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    new ByteArrayInputStream(bytes),
+                    List.of("line"),
+                    50,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT
+                )
+            );
+
+            assertEquals(2, allLines.size());
+            assertTrue("first record should contain embedded newlines", allLines.get(0).contains("\n"));
+            assertEquals("trailing-record", allLines.get(1));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * A large stream where every Nth record has a multi-line quoted field: verifies order
+     * preservation and correct record count end-to-end under realistic parallelism.
+     */
+    public void testLargeStreamWithInterspersedMultiLineRecords() throws Exception {
+        int totalRecords = 2000;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < totalRecords; i++) {
+            if (i % 7 == 0) {
+                sb.append("\"quoted\nrecord-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\"\n");
+            } else {
+                sb.append("plain-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append('\n');
+            }
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        ExecutorService executor = Executors.newFixedThreadPool(10);
+        try {
+            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(512);
+            List<String> allLines = collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    new ByteArrayInputStream(bytes),
+                    List.of("line"),
+                    100,
+                    6,
+                    executor,
+                    ErrorPolicy.STRICT
+                )
+            );
+
+            assertEquals(totalRecords, allLines.size());
+            for (int i = 0; i < totalRecords; i++) {
+                String line = allLines.get(i);
+                if (i % 7 == 0) {
+                    String expected = "quoted\nrecord-" + String.format(java.util.Locale.ROOT, "%04d", i);
+                    assertEquals("record " + i, expected, line);
+                } else {
+                    String expected = "plain-" + String.format(java.util.Locale.ROOT, "%04d", i);
+                    assertEquals("record " + i, expected, line);
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * When all records are simple (no quoting), the quote-aware boundary finder must behave
+     * identically to the naive newline finder — regression guard.
+     */
+    public void testQuoteAwareReaderWithNoQuotedFieldsMatchesNaiveBehavior() throws Exception {
+        int lineCount = 500;
+        String content = buildContent(lineCount);
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            QuoteAwareLineFormatReader reader = new QuoteAwareLineFormatReader(256);
+            List<String> allLines = collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    new ByteArrayInputStream(bytes),
+                    List.of("line"),
+                    50,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT
+                )
+            );
+
+            assertEquals(lineCount, allLines.size());
+            for (int i = 0; i < lineCount; i++) {
+                assertEquals("line-" + String.format(java.util.Locale.ROOT, "%04d", i), allLines.get(i));
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
      * A minimal format reader that treats each line as a record, producing one keyword block per page.
      * <p>
      * Tracks {@link #metadataCalls}, {@link #boundReadCalls}, and {@link #unboundReadCalls} per
@@ -589,6 +758,174 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public List<String> fileExtensions() {
             return List.of();
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * A format reader that supports {@code "}-quoted multi-line fields, modelling the CSV case
+     * where a {@code \n} inside {@code "..."} is part of the field value, not a record boundary.
+     * <p>
+     * The format is trivial: each record is one "field" terminated by {@code \n}. If the field
+     * starts with {@code "}, the record ends at the closing {@code "} followed by {@code \n}
+     * (embedded {@code \n} are literal). {@link #findNextRecordBoundary} mirrors this quoting
+     * convention so the streaming coordinator splits chunks at real record boundaries.
+     * <p>
+     * <b>Limitation:</b> escaped quotes ({@code ""}) are not handled; {@code "} is treated as a
+     * simple open/close toggle. This is sufficient for testing the coordinator's chunk-splitting
+     * logic but does not model full RFC 4180 quoting.
+     */
+    private static class QuoteAwareLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+
+        private final long minSegment;
+        private final List<Attribute> resolvedSchema;
+
+        QuoteAwareLineFormatReader(long minSegment) {
+            this(minSegment, null);
+        }
+
+        private QuoteAwareLineFormatReader(long minSegment, List<Attribute> resolvedSchema) {
+            this.minSegment = minSegment;
+            this.resolvedSchema = resolvedSchema;
+        }
+
+        @Override
+        public long findNextRecordBoundary(InputStream stream) throws IOException {
+            long consumed = 0;
+            int first = stream.read();
+            if (first == -1) return -1;
+            consumed++;
+            if (first == '\n') {
+                return consumed;
+            }
+            boolean inQuotes = (first == '"');
+            int b;
+            while ((b = stream.read()) != -1) {
+                consumed++;
+                if (inQuotes) {
+                    if (b == '"') {
+                        inQuotes = false;
+                    }
+                } else if (b == '\n') {
+                    return consumed;
+                }
+            }
+            return -1;
+        }
+
+        /**
+         * Quote-aware override: drives {@link #findNextRecordBoundary} forward through the buffer.
+         * Bypasses the SPI default (backward {@code \n} scan) because embedded {@code \n} bytes
+         * inside {@code "..."} must not be treated as record terminators.
+         */
+        @Override
+        public int findLastRecordBoundary(byte[] buf, int length) throws IOException {
+            if (length <= 0) {
+                return -1;
+            }
+            int lastBoundary = -1;
+            int cumulative = 0;
+            while (cumulative < length) {
+                long consumed = findNextRecordBoundary(new ByteArrayInputStream(buf, cumulative, length - cumulative));
+                if (consumed < 0) {
+                    return lastBoundary;
+                }
+                cumulative += Math.toIntExact(consumed);
+                lastBoundary = cumulative - 1;
+            }
+            return lastBoundary;
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return minSegment;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
+            );
+            return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            return new QuoteAwareLineFormatReader(minSegment, schema);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            InputStream stream = object.newStream();
+            List<String> records = new ArrayList<>();
+            StringBuilder current = new StringBuilder();
+            boolean inQuotes = false;
+
+            int b;
+            while ((b = stream.read()) != -1) {
+                char c = (char) b;
+                if (inQuotes) {
+                    if (c == '"') {
+                        inQuotes = false;
+                    } else {
+                        current.append(c);
+                    }
+                } else if (c == '"' && current.length() == 0) {
+                    inQuotes = true;
+                } else if (c == '\n') {
+                    if (current.length() > 0) {
+                        records.add(current.toString());
+                    }
+                    current.setLength(0);
+                } else {
+                    current.append(c);
+                }
+            }
+            if (current.length() > 0) {
+                records.add(current.toString());
+            }
+
+            List<Page> pages = new ArrayList<>();
+            int batchSize = context.batchSize();
+            for (int start = 0; start < records.size(); start += batchSize) {
+                int end = Math.min(start + batchSize, records.size());
+                int count = end - start;
+                try (var builder = TEST_BLOCK_FACTORY.newBytesRefBlockBuilder(count)) {
+                    for (int i = start; i < end; i++) {
+                        builder.appendBytesRef(new BytesRef(records.get(i)));
+                    }
+                    pages.add(new Page(count, builder.build()));
+                }
+            }
+
+            return new CloseableIterator<>() {
+                int idx = 0;
+
+                @Override
+                public boolean hasNext() {
+                    return idx < pages.size();
+                }
+
+                @Override
+                public Page next() {
+                    return pages.get(idx++);
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "quote-aware-line";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".txt");
         }
 
         @Override

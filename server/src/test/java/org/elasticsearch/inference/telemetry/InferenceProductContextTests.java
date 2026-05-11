@@ -24,8 +24,13 @@ public class InferenceProductContextTests extends ESTestCase {
         var expectedContext = randomInferenceProductContext();
 
         var threadContext = new ThreadContext(Settings.EMPTY);
-        threadContext.putHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, expectedContext.productUseCase());
-        threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, expectedContext.productOrigin());
+        if (expectedContext.productUseCase() != null) {
+            threadContext.putHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, expectedContext.productUseCase());
+        }
+
+        if (expectedContext.productOrigin() != null) {
+            threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, expectedContext.productOrigin());
+        }
 
         var createdContext = InferenceProductContext.create(threadContext);
 

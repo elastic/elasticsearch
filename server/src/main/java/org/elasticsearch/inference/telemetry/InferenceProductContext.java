@@ -14,7 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 
 /**
- * Carries per-request product attribution context for inference metrics.
+ * Carries per-request product attribution context.
  *
  * @param productUseCase the specific user flow, sourced from the {@code X-elastic-product-use-case} header (e.g. "security ai assistant").
  *                       Can be null if not defined.

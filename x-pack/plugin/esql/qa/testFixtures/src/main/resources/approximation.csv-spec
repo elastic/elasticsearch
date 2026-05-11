@@ -111,6 +111,43 @@ count:long      | avg:double | sum:long            | _approximation_confidence_i
 ;
 
 
+Approximate with sample aggregation on large data
+required_capability: approximation_v7
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+  | STATS sample=SAMPLE(sv, 10)
+  | EVAL sample_size = MV_COUNT(sample)
+  | DROP sample
+;
+
+documents_found: 8000..12000
+
+sample_size:long
+10
+;
+
+
+Approximate with sample aggregation on small data
+required_capability: approximation_v7
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM many_numbers
+  | WHERE sv < 10
+  | STATS sample=SAMPLE(sv, 100)
+  | EVAL sample_size = MV_COUNT(sample)
+  | DROP sample
+;
+
+documents_found: 45..55
+
+sample_size:long
+45
+;
+
+
 Approximate stats on large multi-valued data
 required_capability: approximation_v7
 request_stored: skip
@@ -1252,6 +1289,7 @@ null             | fork2         | 100..2000  | 700        | null               
 Subqueries before stats
 required_capability: approximation_v7
 required_capability: approximation_fork
+required_capability: subquery_in_from_command
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -1270,6 +1308,7 @@ count:long     | _approximation_confidence_interval(count):long | _approximation
 Subqueries with stats
 required_capability: approximation_v7
 required_capability: approximation_fork
+required_capability: subquery_in_from_command
 request_stored: skip
 
 SET approximation={"rows":10000}\;
@@ -1283,6 +1322,30 @@ documents_found: 8000..12000
 value:long          | _approximation_confidence_interval(value):long | _approximation_certified(value):boolean
 245350              | [245350,245350]                                | {any}
 90000000..140000000 | [90000000..140000000,90000000..140000000]      | {any}
+;
+
+
+Subqueries with stats by
+required_capability: approximation_v7
+required_capability: approximation_fork
+required_capability: subquery_in_from_command
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM (FROM many_numbers | STATS count  = 100.0*COUNT() BY sv | RENAME value = count ),
+     (FROM many_numbers | STATS median = MEDIAN(sv)  BY sv | RENAME value = median)
+| SORT sv DESC, value ASC
+| LIMIT 5
+;
+
+documents_found: 16000..24000
+
+value:double           | sv:integer | _approximation_confidence_interval(value):double | _approximation_certified(value):boolean
+699.999999..700.000001 | 700        | [699.999999..700.000001,699.999999..700.000001]  | {any}
+10000..200000          | 700        | [10000..200000,10000..200000]                    | {any}
+698.999999..699.000001 | 699        | [698.999999..700.000001,698.999999..699.000001]  | {any}
+10000..200000          | 699        | [10000..200000,10000..200000]                    | {any}
+697.999999..698.000001 | 698        | [697.999999..700.000001,697.999999..698.000001]  | {any}
 ;
 
 

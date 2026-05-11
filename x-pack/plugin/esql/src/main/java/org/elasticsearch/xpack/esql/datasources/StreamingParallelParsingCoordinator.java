@@ -96,10 +96,10 @@ public final class StreamingParallelParsingCoordinator {
     }
 
     /**
-     * Variant that propagates a planner-resolved anchor file schema. Mirrors the {@code readSchema}
-     * parameter on {@link ParallelParsingCoordinator#parallelRead}; the streaming path must thread
-     * the same field through so multi-file globs over gzip/zstd/bz2 inputs honor the anchor schema
-     * instead of re-inferring per file. Pass {@code null} when no anchor is bound.
+     * Variant that propagates the planner-resolved {@code readSchema}. Mirrors the same parameter on
+     * {@link ParallelParsingCoordinator#parallelRead}; the streaming path must thread it so multi-file
+     * globs over gzip/zstd/bz2 inputs honor the planner's typing instead of re-inferring per file.
+     * Pass {@code null} when no read schema is bound.
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -154,7 +154,7 @@ public final class StreamingParallelParsingCoordinator {
         private final int batchSize;
         private final int parallelism;
         private final ErrorPolicy errorPolicy;
-        /** Planner-bound anchor schema or {@code null} for per-file inference. See {@link FormatReadContext#readSchema()}. */
+        /** See {@link FormatReadContext#readSchema()}. {@code null} = per-file inference. */
         @Nullable
         private final List<Attribute> readSchema;
 

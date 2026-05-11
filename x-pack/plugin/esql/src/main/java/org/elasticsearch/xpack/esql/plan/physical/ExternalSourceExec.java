@@ -80,12 +80,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final Integer estimatedRowSize;
     private final FileList fileList; // NOT serialized - resolved on coordinator, null on data nodes
     private final List<ExternalSplit> splits;
-    /**
-     * Planner-resolved typed column layout for the source. Serialized cross-node, gated by
-     * {@link #ESQL_EXTERNAL_SOURCE_READ_SCHEMA}. {@code null} = older nodes, sources that don't
-     * compute one, or constructions that bypass
-     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()}.
-     */
+    /** Planner-resolved typed column layout; {@code null} means runtime falls back to per-file inference. */
     @Nullable
     private final List<Attribute> readSchema;
 
@@ -108,6 +103,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            List.of(),
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             fileList,
@@ -137,43 +133,12 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
-            pushedLimit,
-            estimatedRowSize,
-            fileList,
-            splits,
-            null
-        );
-    }
-
-    /** Ctor variant that also accepts the optional {@link #readSchema()}. */
-    public ExternalSourceExec(
-        Source source,
-        String sourcePath,
-        String sourceType,
-        List<Attribute> attributes,
-        Map<String, Object> config,
-        Map<String, Object> sourceMetadata,
-        Object pushedFilter,
-        int pushedLimit,
-        Integer estimatedRowSize,
-        FileList fileList,
-        List<ExternalSplit> splits,
-        List<Attribute> readSchema
-    ) {
-        this(
-            source,
-            sourcePath,
-            sourceType,
-            attributes,
-            config,
-            sourceMetadata,
-            pushedFilter,
             List.of(),
             pushedLimit,
             estimatedRowSize,
             fileList,
             splits,
-            readSchema
+            null
         );
     }
 
@@ -208,7 +173,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         );
     }
 
-    /** Variant with pushed expressions AND optional {@link #readSchema()}; used by {@link #info()}. */
+    /** Longest public ctor; used by {@link #info()}, {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()}, and tree tests. */
     public ExternalSourceExec(
         Source source,
         String sourcePath,
@@ -285,7 +250,6 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.estimatedRowSize = estimatedRowSize;
         this.fileList = fileList;
         this.splits = splits != null ? List.copyOf(splits) : List.of();
-        // Empty and null both mean "no anchor schema bound" — collapse them so readers see only null.
         this.readSchema = (readSchema == null || readSchema.isEmpty()) ? null : List.copyOf(readSchema);
     }
 
@@ -307,6 +271,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            List.of(),
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
@@ -332,6 +297,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             null,
+            List.of(),
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
@@ -367,6 +333,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             null,
+            List.of(),
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
@@ -388,7 +355,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             out.writeNamedWriteableCollection(splits);
         }
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)) {
-            // Empty list on the wire represents the in-memory null (no anchor schema).
+            // Empty on the wire encodes the in-memory null.
             out.writeNamedWriteableCollection(readSchema != null ? readSchema : List.of());
         }
     }

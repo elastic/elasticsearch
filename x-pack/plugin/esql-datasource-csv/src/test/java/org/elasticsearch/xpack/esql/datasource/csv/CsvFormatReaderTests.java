@@ -4196,10 +4196,10 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     // --- FormatReadContext.readSchema() honor tests ---
-    // These tests prove the runtime CSV reader uses the planner's anchor schema (passed via
+    // These tests prove the runtime CSV reader uses the planner-resolved read schema (passed via
     // FormatReadContext.readSchema()) as the authoritative positional column layout, overriding
-    // per-file inference. This closes the multi-file headerless CSV type-drift bug where the
-    // anchor and a non-anchor file would otherwise infer different types for the same column.
+    // per-file inference. This closes the multi-file headerless CSV type-drift bug where two
+    // files in the same glob would otherwise infer different types for the same column.
 
     public void testHeaderlessReadHonorsContextFileSchema() throws IOException {
         // Headerless CSV with two integer-looking columns. Per-file inference would say INTEGER,
@@ -4258,25 +4258,25 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testHeaderlessReadFileSchemaResolvesCrossFileTypeDrift() throws IOException {
         // Cross-file type-drift case: two headerless files whose per-file inference would disagree
         // on col1 (file A has empty col1 → KEYWORD fallback; file B has integer col1 → INTEGER).
-        // With a planner-resolved anchor schema [col1:KEYWORD, col2:LONG] passed via
+        // With a planner-resolved read schema [col1:KEYWORD, col2:LONG] passed via
         // context.readSchema(), file B emits BytesRefBlock for col1 instead of IntBlock —
         // the type-mismatch crash that TopN otherwise catches goes away.
-        String fileB = "10,20\n30,40\n"; // would infer col1 as INTEGER without an anchor schema
+        String fileB = "10,20\n30,40\n"; // would infer col1 as INTEGER without a bound read schema
         StorageObject fileBObject = createStorageObject(fileB);
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
 
-        List<Attribute> anchorSchema = List.of(
+        List<Attribute> readSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD, Nullability.TRUE, null, false),
             new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.LONG, Nullability.TRUE, null, false)
         );
-        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).readSchema(anchorSchema).build();
+        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).readSchema(readSchema).build();
 
         try (CloseableIterator<Page> iterator = reader.read(fileBObject, ctx)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
             // col1 must be BytesRef-typed despite the file's integer-looking content.
             assertTrue(
-                "col1 must be BytesRefBlock under anchor schema, got " + page.getBlock(0).getClass().getSimpleName(),
+                "col1 must be BytesRefBlock under bound read schema, got " + page.getBlock(0).getClass().getSimpleName(),
                 page.getBlock(0) instanceof BytesRefBlock
             );
         }

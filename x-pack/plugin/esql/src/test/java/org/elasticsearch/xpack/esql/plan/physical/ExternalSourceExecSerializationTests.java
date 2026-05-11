@@ -31,8 +31,8 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
         Map<String, Object> sourceMetadata = randomBoolean() ? Map.of() : randomSourceMetadataWithStats();
         Integer estimatedRowSize = randomEstimatedRowSize();
         List<ExternalSplit> splits = randomSplits();
-        // Toggle null vs populated to exercise the "no anchor" wire path (empty list on the wire,
-        // null in-memory) alongside the populated path.
+        // Toggle null vs populated to exercise the wire path that encodes in-memory null as an
+        // empty list, alongside the populated path.
         List<Attribute> readSchema = randomBoolean() ? null : randomFieldAttributes(1, 5, false);
         return new ExternalSourceExec(
             source,
@@ -42,6 +42,7 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
             config,
             sourceMetadata,
             null,
+            List.of(),
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
@@ -150,6 +151,7 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
             config,
             sourceMetadata,
             null,
+            List.of(),
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,

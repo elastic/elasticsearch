@@ -56,7 +56,6 @@ public record FormatReadContext(
 ) {
 
     public FormatReadContext {
-        // Empty and null both mean "no anchor"; collapse them.
         if (readSchema != null && readSchema.isEmpty()) {
             readSchema = null;
         }

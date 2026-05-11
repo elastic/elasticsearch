@@ -201,7 +201,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Resolve the effective schema when the planner has bound the anchor file's schema. When the
+     * Resolve the effective schema when the planner has bound a read schema. When the
      * coordinator-side projection ({@code resolvedSchema}) is unavailable, the bound schema is used
      * as-is. Otherwise the bound schema's column order is preserved and projection types/nullability
      * overlay matching names — same semantics as {@link #mergeInferredWithPreferred}, just with the
@@ -298,8 +298,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         boolean skipFirstLine = context.firstSplit() == false && context.recordAligned() == false;
         boolean trimLastPartialLine = context.lastSplit() == false && context.recordAligned() == false;
         ErrorPolicy errorPolicy = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
-        // Planner-bound anchor schema wins when non-null; null falls through to per-file inference.
-        // Prevents cross-file type drift on multi-file globs (anchor y:LONG vs file-with-1.5 y:DOUBLE).
+        // Bound read schema wins when non-null; null falls through to per-file inference.
+        // Prevents cross-file type drift on multi-file globs (e.g. y:LONG vs file-with-1.5 y:DOUBLE).
         List<Attribute> effectiveSchema = context.readSchema() == null
             ? inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine)
             : mergeBoundWithProjection(context.readSchema(), resolvedSchema);

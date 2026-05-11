@@ -111,10 +111,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     /** Number of driver instances created for this factory. Used for batch-size heuristics. */
     private final int parallelism;
     /**
-     * Anchor file schema threaded into every {@link FormatReadContext} this factory builds. Readers
-     * that honor it (today: {@code CsvFormatReader} for multi-file headerless globs, and
-     * {@code NdJsonFormatReader} for multi-file glob type-drift avoidance) use it as the
-     * positional column layout; {@code null} means "no anchor — use existing per-file inference".
+     * Planner-resolved read schema threaded into every {@link FormatReadContext} this factory builds.
+     * Honored today by {@code CsvFormatReader} (multi-file headerless globs) and {@code NdJsonFormatReader}
+     * (multi-file glob type-drift). {@code null} → per-file inference.
      */
     @Nullable
     private final List<Attribute> readSchema;

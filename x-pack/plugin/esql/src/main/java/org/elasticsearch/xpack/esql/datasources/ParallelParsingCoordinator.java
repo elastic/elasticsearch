@@ -163,11 +163,10 @@ public final class ParallelParsingCoordinator {
     }
 
     /**
-     * Full-control overload that also propagates a planner-resolved file schema (used for multi-file
-     * headerless reads to prevent per-file type-drift). Pass {@code null} when no anchor schema
-     * is available; the reader will fall back to its normal per-file inference.
+     * Full-control overload that propagates the planner-resolved {@code readSchema} (so multi-file
+     * headerless reads do not drift per file). Pass {@code null} to fall back to per-file inference.
      *
-     * @param readSchema planner-bound anchor-file schema, or {@code null} to use per-file inference
+     * @param readSchema planner-bound read schema, or {@code null} for per-file inference
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -197,7 +196,7 @@ public final class ParallelParsingCoordinator {
         }
 
         ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
-        // Empty list would be read as "schema with 0 columns"; pass null through to mean "no anchor".
+        // Empty list would read as "0-column schema"; pass null through.
         FormatReadContext baseCtx = FormatReadContext.builder()
             .projectedColumns(projectedColumns)
             .batchSize(batchSize)

@@ -38,9 +38,9 @@ import java.util.concurrent.Executor;
  * is never serialized - it's created during local physical optimization and consumed
  * immediately by the operator factory in the same JVM.
  *
- * <p>The {@link #readSchema()} is an optional anchor-file schema slot threaded down to
- * {@link FormatReadContext#readSchema()}; {@code null} means "no anchor available — readers
- * fall back to per-file inference".
+ * <p>The {@link #readSchema()} is an optional planner-resolved typed column layout threaded down
+ * to {@link FormatReadContext#readSchema()}; {@code null} means readers fall back to per-file
+ * inference.
  */
 public record SourceOperatorContext(
     String sourceType,

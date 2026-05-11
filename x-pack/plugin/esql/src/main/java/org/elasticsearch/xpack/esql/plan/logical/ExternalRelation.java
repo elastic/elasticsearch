@@ -148,7 +148,6 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         Map<String, Object> enrichedMetadata = metadata.statistics()
             .map(stats -> SourceStatisticsSerializer.embedStatistics(metadata.sourceMetadata(), stats))
             .orElse(metadata.sourceMetadata());
-        // metadata.schema() is contract-non-null for real sources; pass through to readSchema.
         return new ExternalSourceExec(
             source(),
             sourcePath,
@@ -157,6 +156,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             metadata.config(),
             enrichedMetadata,
             null,
+            List.of(),
             FormatReader.NO_LIMIT,
             null,
             fileList,

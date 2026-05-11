@@ -85,7 +85,7 @@ public class PushLimitToExternalSourceTests extends ESTestCase {
     }
 
     /**
-     * Verifies that the planner-resolved anchor file schema survives the push-limit optimizer
+     * Verifies that the planner-resolved read schema survives the push-limit optimizer
      * transformation. The rule reconstructs a new {@link ExternalSourceExec} via {@code withPushedLimit};
      * if that with-method (or any tree-rewrite that runs as part of the rule) silently dropped the
      * field, runtime readers would lose the bound schema and fall back to per-file inference — the
@@ -93,7 +93,7 @@ public class PushLimitToExternalSourceTests extends ESTestCase {
      */
     public void testFileSchemaPreservedAcrossPushLimit() {
         List<Attribute> attrs = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.INTEGER));
-        List<Attribute> anchorSchema = List.of(
+        List<Attribute> readSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, "x", DataType.KEYWORD),
             new ReferenceAttribute(Source.EMPTY, "y", DataType.LONG)
         );
@@ -105,20 +105,21 @@ public class PushLimitToExternalSourceTests extends ESTestCase {
             Map.of(),
             Map.of(),
             null,
+            List.of(),
             FormatReader.NO_LIMIT,
             null,
             null,
             List.of(),
-            anchorSchema
+            readSchema
         );
-        assertEquals(anchorSchema, ext.readSchema());
+        assertEquals(readSchema, ext.readSchema());
 
         LimitExec limitExec = new LimitExec(Source.EMPTY, ext, literal(10), null);
         PhysicalPlan result = applyRule(limitExec);
 
         ExternalSourceExec resultExt = (ExternalSourceExec) ((LimitExec) result).child();
         assertEquals("pushed limit must be 10 after the rule fires", 10, resultExt.pushedLimit());
-        assertEquals("readSchema must survive the optimizer transformation", anchorSchema, resultExt.readSchema());
+        assertEquals("readSchema must survive the optimizer transformation", readSchema, resultExt.readSchema());
     }
 
     private static ExternalSourceExec externalSource() {

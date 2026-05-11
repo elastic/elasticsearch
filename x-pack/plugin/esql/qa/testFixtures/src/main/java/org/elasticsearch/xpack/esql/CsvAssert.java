@@ -592,12 +592,8 @@ public final class CsvAssert {
                 LongRangeBlockBuilder.LongRange.class,
                 x -> EsqlDataTypeConverter.dateRangeToString((LongRangeBlockBuilder.LongRange) x)
             );
-            case FLATTENED -> {
-                // Keep expected as a string so comparison with actual is order-sensitive
-                yield expectedValue;
-            }
             case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, JSON, NULL, BOOLEAN,
-                DENSE_VECTOR, TDIGEST, UNSUPPORTED -> expectedValue;
+                DENSE_VECTOR, TDIGEST, UNSUPPORTED, FLATTENED -> expectedValue;
         };
     }
 
@@ -620,9 +616,8 @@ public final class CsvAssert {
             );
             case FLATTENED -> {
                 if (actualValue instanceof Map<?, ?> map) {
-                    // REST test: serialize the Map preserving its natural key iteration order so
-                    // the comparison is order-sensitive (a LinkedHashMap from JSON deserialization
-                    // preserves the server's key order).
+                    // REST tests come back as a LinkedHashMap and our assertions are json strings.
+                    // So we convert to json strings. This preserves order *because* of the LinkedHashMap.
                     @SuppressWarnings("unchecked")
                     Map<String, Object> typedMap = (Map<String, Object>) map;
                     try (XContentBuilder builder = XContentFactory.jsonBuilder()) {

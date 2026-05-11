@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
@@ -79,7 +80,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-            return Map.of("file", s -> new MockFileStorageProvider());
+            return Map.of("file", StorageProviderFactory.noConfigKeys(MockFileStorageProvider::new));
         }
 
         @Override
@@ -129,7 +130,8 @@ public class DataSourceModuleTests extends ESTestCase {
     /**
      * Mock CSV format reader for testing.
      */
-    private static class MockCsvFormatReader implements FormatReader {
+    private static class MockCsvFormatReader implements NoConfigFormatReader {
+
         private final String format;
         private final List<String> extensions;
 
@@ -165,7 +167,8 @@ public class DataSourceModuleTests extends ESTestCase {
     /**
      * Mock TSV format reader for testing.
      */
-    private static class MockTsvFormatReader implements FormatReader {
+    private static class MockTsvFormatReader implements NoConfigFormatReader {
+
         @Override
         public SourceMetadata metadata(StorageObject object) {
             throw new UnsupportedOperationException("Mock reader");
@@ -213,7 +216,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         @Override
         public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-            return Map.of("file", s -> new PayloadFileStorageProvider(payloadByPath));
+            return Map.of("file", StorageProviderFactory.noConfigKeys(() -> new PayloadFileStorageProvider(payloadByPath)));
         }
 
         @Override
@@ -304,7 +307,8 @@ public class DataSourceModuleTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class SegmentableTestNdjsonReader implements SegmentableFormatReader {
+    private static class SegmentableTestNdjsonReader implements SegmentableFormatReader, NoConfigFormatReader {
+
         @Override
         public SourceMetadata metadata(StorageObject object) {
             throw new UnsupportedOperationException("Mock reader");
@@ -677,10 +681,8 @@ public class DataSourceModuleTests extends ESTestCase {
             }
 
             @Override
-            public java.util.Map<String, org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory> storageProviders(
-                Settings settings
-            ) {
-                return java.util.Map.of("custom", s -> new MockStorageProvider());
+            public Map<String, org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("custom", StorageProviderFactory.noConfigKeys(MockStorageProvider::new));
             }
         };
 
@@ -780,7 +782,7 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     public void testPluginClassloaderDifferentiation() {
         List<Class<? extends DataSourcePlugin>> discoveredPluginClasses = new ArrayList<>();
-        Map<ClassLoader, List<String>> pluginsByClassloader = new java.util.HashMap<>();
+        Map<ClassLoader, List<String>> pluginsByClassloader = new HashMap<>();
 
         SPIClassIterator<DataSourcePlugin> spiIterator = SPIClassIterator.get(DataSourcePlugin.class, getClass().getClassLoader());
 
@@ -815,7 +817,7 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     public void testInstantiatedPluginClassloaderTracking() {
         List<DataSourcePlugin> instantiatedPlugins = new ArrayList<>();
-        Map<String, ClassLoader> pluginClassloaders = new java.util.HashMap<>();
+        Map<String, ClassLoader> pluginClassloaders = new HashMap<>();
 
         SPIClassIterator<DataSourcePlugin> spiIterator = SPIClassIterator.get(DataSourcePlugin.class, getClass().getClassLoader());
 

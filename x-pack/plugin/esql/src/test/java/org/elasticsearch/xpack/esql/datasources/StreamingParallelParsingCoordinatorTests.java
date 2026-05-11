@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -362,7 +363,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * variant). Tests use these counters to assert that the coordinator infers schema once and
      * dispatches every parser-thread read to the schema-bound variant.
      */
-    private static class LineFormatReader implements SegmentableFormatReader {
+    private static class LineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+
         private final long minSegment;
         private final List<Attribute> resolvedSchema;
         final AtomicInteger metadataCalls;
@@ -511,7 +513,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * A format reader that fails after reading a configured number of lines.
      */
-    private static class FailingFormatReader implements SegmentableFormatReader {
+    private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+
         private final int failAfterLines;
         private final long minSegment;
 

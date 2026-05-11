@@ -552,7 +552,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * {@link VectorIndexTypeTelemetry#NONE} when no KNN query ran. Coordinator-side telemetry only.
      */
     public VectorIndexTypeTelemetry getVectorIndexType() {
-        return vectorIndexType;
+        return vectorIndexType != null ? vectorIndexType : VectorIndexTypeTelemetry.NONE;
     }
 
     /**

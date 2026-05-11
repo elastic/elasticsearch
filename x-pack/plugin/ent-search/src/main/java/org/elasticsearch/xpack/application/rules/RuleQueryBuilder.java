@@ -232,7 +232,11 @@ public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
                 ActionListener.wrap(multiGetResponse -> {
 
                     if (multiGetResponse.getResponses() == null || multiGetResponse.getResponses().length == 0) {
-                        listener.onFailure(new ResourceNotFoundException("query rulesets " + String.join(",", rulesetIds) + " not found"));
+                        ResourceNotFoundException e = new ResourceNotFoundException(
+                            "query rulesets " + String.join(",", rulesetIds) + " not found"
+                        );
+                        e.setResources("query_ruleset", rulesetIds.toArray(String[]::new));
+                        listener.onFailure(e);
                         return;
                     }
 
@@ -248,7 +252,11 @@ public class RuleQueryBuilder extends LeafQueryBuilder<RuleQueryBuilder> {
 
                         // this happens when an individual query ruleset cannot be found
                         if (getResponse.isExists() == false) {
-                            listener.onFailure(new ResourceNotFoundException("query ruleset " + rulesetId + " not found"));
+                            ResourceNotFoundException e = new ResourceNotFoundException(
+                                "query ruleset [" + rulesetId + "] not found"
+                            );
+                            e.setResources("query_ruleset", rulesetId);
+                            listener.onFailure(e);
                             return;
                         }
 

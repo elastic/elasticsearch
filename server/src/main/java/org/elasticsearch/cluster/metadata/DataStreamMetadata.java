@@ -166,7 +166,9 @@ public class DataStreamMetadata implements Metadata.ProjectCustom {
 
         DataStreamAlias existing = dataStreamAliases.get(aliasName);
         if (mustExist && existing == null) {
-            throw new ResourceNotFoundException("alias [" + aliasName + "] doesn't exist");
+            var e = new ResourceNotFoundException("alias [" + aliasName + "] doesn't exist");
+            e.setResources("alias", aliasName);
+            throw e;
         } else if (existing == null) {
             return this;
         }

@@ -184,11 +184,13 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof IndexNotFoundException notFound) {
-                listener.onFailure(
-                    new ResourceNotFoundException(
-                        "datafeed [" + datafeed.getId() + "] cannot retrieve data because index " + notFound.getIndex() + " does not exist"
-                    )
+                ResourceNotFoundException notFoundException = new ResourceNotFoundException(
+                    "datafeed [" + datafeed.getId() + "] cannot retrieve data because index " + notFound.getIndex() + " does not exist"
                 );
+                if(notFound.getIndex() != null){
+                    notFoundException.setResources("index", notFound.getIndex().getName());
+                }
+                listener.onFailure(notFoundException);
             } else if (e instanceof IllegalArgumentException) {
                 listener.onFailure(ExceptionsHelper.badRequestException("[" + datafeed.getId() + "] " + e.getMessage()));
             } else {

@@ -165,7 +165,9 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
     private void sendFinalResponse(GetAsyncResultRequest request, Response response, long nowInMillis, ActionListener<Response> listener) {
         // check if the result has expired
         if (response.getExpirationTime() < nowInMillis) {
-            listener.onFailure(new ResourceNotFoundException(request.getId()));
+            var exception = new ResourceNotFoundException(request.getId());
+            exception.setResources("async_search", request.getId());
+            listener.onFailure(exception);
             return;
         }
 
@@ -181,7 +183,9 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
             } else {
                 // the async search document or its index is not found.
                 // That can happen if an invalid/deleted search id is provided.
-                l.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
+                var exception = new ResourceNotFoundException(searchId.getEncoded());
+                exception.setResources("async_search", searchId.getEncoded());
+                l.onFailure(exception);
             }
         }));
     }

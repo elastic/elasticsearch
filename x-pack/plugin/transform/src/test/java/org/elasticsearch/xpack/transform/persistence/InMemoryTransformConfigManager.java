@@ -210,9 +210,11 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
         }
 
         if (config == null) {
-            resultListener.onFailure(
-                new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
+            ResourceNotFoundException e = new ResourceNotFoundException(
+                TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId)
             );
+            e.setResources("transform", transformId);
+            resultListener.onFailure(e);
             return;
         }
         resultListener.onResponse(config);
@@ -227,9 +229,11 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
         TransformConfig oldConfig = oldConfigs.get(transformId);
 
         if (config == null && oldConfig == null) {
-            configAndVersionListener.onFailure(
-                new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
+            ResourceNotFoundException e = new ResourceNotFoundException(
+                TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId)
             );
+            e.setResources("transform", transformId);
+            configAndVersionListener.onFailure(e);
             return;
         }
 
@@ -355,9 +359,11 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
             return;
         }
 
-        resultListener.onFailure(
-            new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.UNKNOWN_TRANSFORM_STATS, transformId))
+        ResourceNotFoundException e = new ResourceNotFoundException(
+            TransformMessages.getMessage(TransformMessages.UNKNOWN_TRANSFORM_STATS, transformId)
         );
+        e.setResources("transform", transformId);
+        resultListener.onFailure(e);
     }
 
     @Override
@@ -399,4 +405,5 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
         outdatedIds.removeAll(configs.keySet());
         listener.onResponse(new Tuple<>(Long.valueOf(configs.size() + outdatedIds.size()), outdatedIds));
     }
+
 }

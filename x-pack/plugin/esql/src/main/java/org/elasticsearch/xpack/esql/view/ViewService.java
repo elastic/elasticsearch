@@ -140,10 +140,10 @@ public class ViewService {
     ) {
         final ProjectMetadata metadata = clusterService.state().metadata().getProject(projectId);
         final ViewMetadata viewMetadata = metadata.custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
-        Optional<String> notFoundView = viewNames.stream().filter(v -> viewMetadata.getView(v) == null).findAny();
-        // at least one of the explicitly requested views was not found, so we can fail fast without submitting a cluster state update task
-        if (notFoundView.isPresent()) {
-            listener.onFailure(new ResourceNotFoundException("view [{}] not found", notFoundView.get()));
+        if (viewMetadata.getView(name) == null) {
+            var exception = new ResourceNotFoundException("view [{}] not found", name);
+            exception.setResources("view", name);
+            listener.onFailure(exception);
             return;
         }
 

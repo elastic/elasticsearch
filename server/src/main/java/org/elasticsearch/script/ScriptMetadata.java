@@ -82,7 +82,9 @@ public final class ScriptMetadata implements Metadata.ProjectCustom, Writeable {
             StoredScriptSource deleted = scripts.remove(id);
 
             if (deleted == null) {
-                throw new ResourceNotFoundException("stored script [" + id + "] does not exist and cannot be deleted");
+                var e = new ResourceNotFoundException("stored script [" + id + "] does not exist and cannot be deleted");
+                e.setResources("script", id);
+                throw e;
             }
 
             return this;

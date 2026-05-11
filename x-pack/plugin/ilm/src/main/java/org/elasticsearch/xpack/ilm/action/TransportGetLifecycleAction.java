@@ -92,9 +92,12 @@ public class TransportGetLifecycleAction extends TransportLocalProjectMetadataAc
             if (request.getPolicyNames().length == 0) {
                 listener.onResponse(new Response(List.of()));
             } else {
-                listener.onFailure(
-                    new ResourceNotFoundException("Lifecycle policy not found: {}", Arrays.toString(request.getPolicyNames()))
+                ResourceNotFoundException e = new ResourceNotFoundException(
+                    "Lifecycle policy not found: {}",
+                    Arrays.toString(request.getPolicyNames())
                 );
+                e.setResources("lifecycle policy", request.getPolicyNames());
+                listener.onFailure(e);
             }
         } else {
             List<String> names;
@@ -134,7 +137,9 @@ public class TransportGetLifecycleAction extends TransportLocalProjectMetadataAc
                 } else {
                     LifecyclePolicyMetadata policyMetadata = metadata.getPolicyMetadatas().get(name);
                     if (policyMetadata == null) {
-                        listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}", name));
+                        ResourceNotFoundException e = new ResourceNotFoundException("Lifecycle policy not found: {}", name);
+                        e.setResources("lifecycle policy", name);
+                        listener.onFailure(e);
                         return;
                     }
                     policyResponseItemMap.put(

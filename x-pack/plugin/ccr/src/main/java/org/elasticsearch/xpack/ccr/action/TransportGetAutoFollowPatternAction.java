@@ -76,7 +76,9 @@ public class TransportGetAutoFollowPatternAction extends TransportMasterNodeRead
             if (name == null) {
                 return Collections.emptyMap();
             } else {
-                throw new ResourceNotFoundException("auto-follow pattern [{}] is missing", name);
+                ResourceNotFoundException e = new ResourceNotFoundException("auto-follow pattern [{}] is missing", name);
+                e.setResources("auto-follow pattern", name);
+                throw e;
             }
         }
 
@@ -86,7 +88,9 @@ public class TransportGetAutoFollowPatternAction extends TransportMasterNodeRead
 
         AutoFollowPattern autoFollowPattern = autoFollowMetadata.getPatterns().get(name);
         if (autoFollowPattern == null) {
-            throw new ResourceNotFoundException("auto-follow pattern [{}] is missing", name);
+            ResourceNotFoundException e = new ResourceNotFoundException("auto-follow pattern [{}] is missing", name);
+            e.setResources("auto-follow pattern", name);
+            throw e;
         }
         return Collections.singletonMap(name, autoFollowPattern);
     }

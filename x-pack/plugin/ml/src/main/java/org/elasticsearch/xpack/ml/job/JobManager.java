@@ -478,7 +478,9 @@ public class JobManager {
                 listener -> jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, false, newModelSnapshot -> {
                     if (newModelSnapshot == null) {
                         String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, modelSnapshotId, job.getId());
-                        listener.onFailure(new ResourceNotFoundException(message));
+                        ResourceNotFoundException e = new ResourceNotFoundException(message);
+                        e.setResources("model_snapshot", job.getId(), modelSnapshotId);
+                        listener.onFailure(e);
                         return;
                     }
                     jobResultsProvider.getModelSnapshot(job.getId(), job.getModelSnapshotId(), false, oldModelSnapshot -> {

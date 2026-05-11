@@ -584,7 +584,9 @@ public class ProfileService {
                                     );
                                 } else {
                                     logger.debug("Profile [{}] not found", profileUid);
-                                    errors.put(profileUid, new ResourceNotFoundException("profile document not found"));
+                                    final ResourceNotFoundException e = new ResourceNotFoundException("profile document not found");
+                                    e.setResources("profile", profileUid);
+                                    errors.put(profileUid, e);
                                 }
                             } else {
                                 assert false

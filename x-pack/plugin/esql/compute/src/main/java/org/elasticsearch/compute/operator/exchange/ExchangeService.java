@@ -136,9 +136,9 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                         server.handleBatchExchangeStatusRequest(request, channel, task);
                     } else {
                         logger.warn("Received BatchExchangeStatusRequest for unknown exchangeId={}", exchangeId);
-                        channel.sendResponse(
-                            new BatchExchangeStatusResponse(new ResourceNotFoundException("exchange [{}] not found", exchangeId))
-                        );
+                        var exception = new ResourceNotFoundException("exchange [{}] not found", exchangeId);
+                        exception.setResources("exchange", exchangeId);
+                        channel.sendResponse(new BatchExchangeStatusResponse(exception));
                     }
                 }
             }
@@ -181,7 +181,9 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     public ExchangeSinkHandler getSinkHandler(String exchangeId) {
         ExchangeSinkHandler sinkHandler = sinks.get(exchangeId);
         if (sinkHandler == null) {
-            throw new ResourceNotFoundException("sink exchanger for id [{}] doesn't exist", exchangeId);
+            var exception = new ResourceNotFoundException("sink exchanger for id [{}] doesn't exist", exchangeId);
+            exception.setResources("exchange", exchangeId);
+            throw exception;
         }
         return sinkHandler;
     }

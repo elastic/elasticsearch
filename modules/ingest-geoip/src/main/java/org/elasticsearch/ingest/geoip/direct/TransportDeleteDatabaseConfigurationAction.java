@@ -95,7 +95,9 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
             .getProject(projectId)
             .custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
         if (geoIpMeta.getDatabases().containsKey(id) == false) {
-            throw new ResourceNotFoundException("Database configuration not found: {}", id);
+            var e = new ResourceNotFoundException("Database configuration not found: {}", id);
+            e.setResources("database_configuration", id);
+            throw e;
         } else if (geoIpMeta.getDatabases().get(id).database().isReadOnly()) {
             throw new IllegalArgumentException("Database " + id + " is read only");
         }

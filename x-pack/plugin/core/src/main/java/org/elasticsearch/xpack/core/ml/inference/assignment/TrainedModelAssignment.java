@@ -466,12 +466,14 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
         public Builder updateExistingRoutingEntry(String nodeId, RoutingInfo routingInfo) {
             RoutingInfo existingRoutingInfo = nodeRoutingTable.get(nodeId);
             if (existingRoutingInfo == null) {
-                throw new ResourceNotFoundException(
+                ResourceNotFoundException e = new ResourceNotFoundException(
                     "routing entry for node [{}] for model [{}] deployment [{}] does not exist",
                     nodeId,
                     taskParams.getModelId(),
                     taskParams.getDeploymentId()
                 );
+                e.setResources("trained_model_assignment", taskParams.getDeploymentId(), nodeId);
+                throw e;
             }
             if (existingRoutingInfo.equals(routingInfo)) {
                 return this;

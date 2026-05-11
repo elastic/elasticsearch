@@ -315,7 +315,9 @@ public class ExecutionService {
                     ctx.ensureWatchExists(() -> {
                         GetResponse resp = getWatch(watchId);
                         if (resp.isExists() == false) {
-                            throw new ResourceNotFoundException("watch [{}] does not exist", watchId);
+                            ResourceNotFoundException e = new ResourceNotFoundException("watch [{}] does not exist", watchId);
+                            e.setResources("watch", watchId);
+                            throw e;
                         }
                         return parser.parseWithSecrets(
                             watchId,

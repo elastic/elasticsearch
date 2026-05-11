@@ -26,7 +26,9 @@ public class ExceptionsHelper {
     private ExceptionsHelper() {}
 
     public static ResourceNotFoundException missingJobException(String jobId) {
-        return new ResourceNotFoundException(Messages.getMessage(Messages.JOB_UNKNOWN_ID, jobId));
+        ResourceNotFoundException e = new ResourceNotFoundException(Messages.getMessage(Messages.JOB_UNKNOWN_ID, jobId));
+        e.setResources("job", jobId);
+        return e;
     }
 
     public static ResourceAlreadyExistsException jobAlreadyExists(String jobId) {
@@ -34,7 +36,9 @@ public class ExceptionsHelper {
     }
 
     public static ResourceNotFoundException missingDatafeedException(String datafeedId) {
-        return new ResourceNotFoundException(Messages.getMessage(Messages.DATAFEED_NOT_FOUND, datafeedId));
+        ResourceNotFoundException e = new ResourceNotFoundException(Messages.getMessage(Messages.DATAFEED_NOT_FOUND, datafeedId));
+        e.setResources("datafeed", datafeedId);
+        return e;
     }
 
     public static ResourceAlreadyExistsException datafeedAlreadyExists(String datafeedId) {
@@ -42,7 +46,9 @@ public class ExceptionsHelper {
     }
 
     public static ResourceNotFoundException missingDataFrameAnalytics(String id) {
-        return new ResourceNotFoundException("No known data frame analytics with id [{}]", id);
+        ResourceNotFoundException e = new ResourceNotFoundException("No known data frame analytics with id [{}]", id);
+        e.setResources("data_frame_analytics", id);
+        return e;
     }
 
     public static ResourceAlreadyExistsException dataFrameAnalyticsAlreadyExists(String id) {
@@ -50,15 +56,21 @@ public class ExceptionsHelper {
     }
 
     public static ResourceNotFoundException missingModelDeployment(String deploymentId) {
-        return new ResourceNotFoundException("No known model deployment with id [{}]", deploymentId);
+        ResourceNotFoundException e = new ResourceNotFoundException("No known model deployment with id [{}]", deploymentId);
+        e.setResources("trained_model_deployment", deploymentId);
+        return e;
     }
 
     public static ResourceNotFoundException missingTrainedModel(String modelId) {
-        return new ResourceNotFoundException(NO_KNOWN_MODEL_ERROR, modelId);
+        ResourceNotFoundException e = new ResourceNotFoundException(NO_KNOWN_MODEL_ERROR, modelId);
+        e.setResources("trained_model", modelId);
+        return e;
     }
 
     public static ResourceNotFoundException missingTrainedModel(String modelId, Exception cause) {
-        return new ResourceNotFoundException(NO_KNOWN_MODEL_ERROR, cause, modelId);
+        ResourceNotFoundException e = new ResourceNotFoundException(NO_KNOWN_MODEL_ERROR, cause, modelId);
+        e.setResources("trained_model", modelId);
+        return e;
     }
 
     public static ElasticsearchException serverError(String msg) {

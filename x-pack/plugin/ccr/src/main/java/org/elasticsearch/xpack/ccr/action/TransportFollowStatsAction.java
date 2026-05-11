@@ -81,7 +81,9 @@ public class TransportFollowStatsAction extends TransportTasksAction<
             Set<String> shardFollowTaskFollowerIndices = findFollowerIndicesFromShardFollowTasks(state, request.indices());
             if (shardFollowTaskFollowerIndices.isEmpty()) {
                 String resources = String.join(",", request.indices());
-                throw new ResourceNotFoundException("No shard follow tasks for follower indices [{}]", resources);
+                ResourceNotFoundException e = new ResourceNotFoundException("No shard follow tasks for follower indices [{}]", resources);
+                e.setResources("follower index", request.indices());
+                throw e;
             }
         }
         super.doExecute(task, request, listener);

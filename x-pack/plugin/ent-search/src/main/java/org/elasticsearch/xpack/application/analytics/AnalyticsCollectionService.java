@@ -139,7 +139,11 @@ public class AnalyticsCollectionService {
         );
         ActionListener<AcknowledgedResponse> deleteDataStreamListener = ActionListener.wrap(listener::onResponse, (Exception e) -> {
             if (e instanceof ResourceNotFoundException) {
-                listener.onFailure(new ResourceNotFoundException("analytics collection [{}] does not exists", request.getCollectionName()));
+                ResourceNotFoundException resourceNotFoundException = new ResourceNotFoundException(
+                    "analytics collection [" + request.getCollectionName() + "] does not exists"
+                );
+                resourceNotFoundException.setResources("analytics_collection", request.getCollectionName());
+                listener.onFailure(resourceNotFoundException);
                 return;
             }
 

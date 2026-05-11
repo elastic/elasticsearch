@@ -636,7 +636,9 @@ public class SynonymsManagementAPIService {
                 (l1, obj) -> client.prepareGet(SYNONYMS_ALIAS_NAME, internalSynonymRuleId(synonymSetId, synonymRuleId))
                     .execute(l1.delegateFailure((l2, getResponse) -> {
                         if (getResponse.isExists() == false) {
-                            l2.onFailure(new ResourceNotFoundException("synonym rule [" + synonymRuleId + "] not found"));
+                            var e = new ResourceNotFoundException("synonym rule [" + synonymRuleId + "] not found");
+                            e.setResources("synonym_rule", synonymRuleId);
+                            l2.onFailure(e);
                             return;
                         }
                         Map<String, Object> source = getResponse.getSourceAsMap();
@@ -657,16 +659,13 @@ public class SynonymsManagementAPIService {
             .execute(new DelegatingIndexNotFoundActionListener<>(synonymsSetId, listener, (l, deleteResponse) -> {
                 if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
                     // When not found, check whether it's the synonym set not existing
-                    checkSynonymSetExists(
-                        synonymsSetId,
-                        l.delegateFailure(
-                            (checkListener, obj) -> checkListener.onFailure(
-                                new ResourceNotFoundException(
-                                    "synonym rule [" + synonymRuleId + "] not found on synonyms set [" + synonymsSetId + "]"
-                                )
-                            )
-                        )
-                    );
+                    checkSynonymSetExists(synonymsSetId, l.delegateFailure((checkListener, obj) -> {
+                        ResourceNotFoundException e = new ResourceNotFoundException(
+                            "synonym rule [" + synonymRuleId + "] not found on synonyms set [" + synonymsSetId + "]"
+                        );
+                        e.setResources("synonym_rule", synonymRuleId);
+                        checkListener.onFailure(e);
+                    }));
                     return;
                 }
 
@@ -713,7 +712,9 @@ public class SynonymsManagementAPIService {
         client.prepareGet(SYNONYMS_ALIAS_NAME, synonymsSetId)
             .execute(new DelegatingIndexNotFoundActionListener<>(synonymsSetId, listener, (l, getResponse) -> {
                 if (getResponse.isExists() == false) {
-                    l.onFailure(new ResourceNotFoundException("synonyms set [" + synonymsSetId + "] not found"));
+                    ResourceNotFoundException e = new ResourceNotFoundException("synonyms set [" + synonymsSetId + "] not found");
+                    e.setResources("synonyms_set", synonymsSetId);
+                    l.onFailure(e);
                     return;
                 }
                 l.onResponse(null);
@@ -781,7 +782,9 @@ public class SynonymsManagementAPIService {
             deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteObjectsListener, bulkByScrollResponse) -> {
                 if (bulkByScrollResponse.getDeleted() == 0) {
                     // If nothing was deleted, synonym set did not exist
-                    deleteObjectsListener.onFailure(new ResourceNotFoundException("synonyms set [" + synonymSetId + "] not found"));
+                    ResourceNotFoundException e = new ResourceNotFoundException("synonyms set [" + synonymSetId + "] not found");
+                    e.setResources("synonyms_set", synonymSetId);
+                    deleteObjectsListener.onFailure(e);
                     return;
                 }
                 final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
@@ -909,7 +912,9 @@ public class SynonymsManagementAPIService {
                 cause = cause.getCause();
             }
             if (cause instanceof IndexNotFoundException) {
-                delegate.onFailure(new ResourceNotFoundException("synonyms set [" + synonymSetId + "] not found"));
+                ResourceNotFoundException notFound = new ResourceNotFoundException("synonyms set [" + synonymSetId + "] not found");
+                notFound.setResources("synonyms_set", synonymSetId);
+                delegate.onFailure(notFound);
                 return;
             }
             delegate.onFailure(e);

@@ -347,7 +347,13 @@ public class ExtractedFieldsDetector {
     private static Set<String> expandFields(String[] fields, Set<String> nameset, boolean allowNoMatch) {
         NameResolver nameResolver = NameResolver.newUnaliased(
             nameset,
-            (ex) -> new ResourceNotFoundException(Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, ex))
+            (ex) -> {
+                ResourceNotFoundException notFound = new ResourceNotFoundException(
+                    Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER, ex)
+                );
+                notFound.setResources("field", ex);
+                return notFound;
+            }
         );
 
         Set<String> expanded = new HashSet<>();

@@ -98,7 +98,9 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
             }
             IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
             if (currentMetadata == null || currentMetadata.getPolicyMetadatas().containsKey(request.getPolicyName()) == false) {
-                throw new ResourceNotFoundException("Lifecycle policy not found: {}", request.getPolicyName());
+                ResourceNotFoundException e = new ResourceNotFoundException("Lifecycle policy not found: {}", request.getPolicyName());
+                e.setResources("lifecycle policy", request.getPolicyName());
+                throw e;
             }
             SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
             newPolicies.remove(request.getPolicyName());

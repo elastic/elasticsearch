@@ -77,7 +77,9 @@ public class DeleteAsyncResultsService {
                 }
             }
         } catch (Exception exc) {
-            listener.onFailure(new ResourceNotFoundException(request.getId()));
+            var exception = new ResourceNotFoundException(request.getId());
+            exception.setResources("async_search", request.getId());
+            listener.onFailure(exception);
         }
     }
 
@@ -86,7 +88,9 @@ public class DeleteAsyncResultsService {
             if (resp.status() == RestStatus.OK || taskWasFound) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
-                listener.onFailure(new ResourceNotFoundException(taskId.getEncoded()));
+                var exception = new ResourceNotFoundException(taskId.getEncoded());
+                exception.setResources("async_search", taskId.getEncoded());
+                listener.onFailure(exception);
             }
         }, exc -> {
             RestStatus status = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(exc));
@@ -96,7 +100,9 @@ public class DeleteAsyncResultsService {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
                 logger.error(() -> "failed to clean async result [" + taskId.getEncoded() + "]", exc);
-                listener.onFailure(new ResourceNotFoundException(taskId.getEncoded()));
+                var exception = new ResourceNotFoundException(taskId.getEncoded());
+                exception.setResources("async_search", taskId.getEncoded());
+                listener.onFailure(exception);
             }
         }));
     }

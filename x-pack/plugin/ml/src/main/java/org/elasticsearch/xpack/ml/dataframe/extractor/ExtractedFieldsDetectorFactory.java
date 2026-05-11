@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -199,11 +200,14 @@ public class ExtractedFieldsDetectorFactory {
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof IndexNotFoundException) {
-                docValueFieldsLimitListener.onFailure(
-                    new ResourceNotFoundException(
-                        "cannot retrieve data because index " + ((IndexNotFoundException) cause).getIndex() + " does not exist"
-                    )
+                ResourceNotFoundException notFound = new ResourceNotFoundException(
+                    "cannot retrieve data because index " + ((IndexNotFoundException) cause).getIndex() + " does not exist"
                 );
+                Index index_exp = ((IndexNotFoundException) cause).getIndex();
+                if (index_exp != null) {
+                    notFound.setResources("index", index_exp.getName());
+                }
+                docValueFieldsLimitListener.onFailure(notFound);
             } else {
                 docValueFieldsLimitListener.onFailure(e);
             }

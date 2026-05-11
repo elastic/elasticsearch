@@ -100,7 +100,11 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
             }
         }
         if (searchableSnapshotIndices.isEmpty()) {
-            throw new ResourceNotFoundException("No searchable snapshots indices found");
+            final ResourceNotFoundException resourceNotFoundException = new ResourceNotFoundException(
+                "No searchable snapshots indices found"
+            );
+            resourceNotFoundException.setResources("index", concreteIndices);
+            throw resourceNotFoundException;
         }
         return state.routingTable().allShards(searchableSnapshotIndices.toArray(new String[0]));
     }

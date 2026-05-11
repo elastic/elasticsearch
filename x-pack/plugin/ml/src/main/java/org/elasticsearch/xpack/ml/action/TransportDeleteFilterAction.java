@@ -103,9 +103,11 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
                 @Override
                 public void onResponse(BulkResponse bulkResponse) {
                     if (bulkResponse.getItems()[0].status() == RestStatus.NOT_FOUND) {
-                        listener.onFailure(
-                            new ResourceNotFoundException("Could not delete filter with ID [" + filterId + "] because it does not exist")
+                        ResourceNotFoundException e = new ResourceNotFoundException(
+                            "Could not delete filter with ID [" + filterId + "] because it does not exist"
                         );
+                        e.setResources("filter", filterId);
+                        listener.onFailure(e);
                     } else {
                         listener.onResponse(AcknowledgedResponse.TRUE);
                     }

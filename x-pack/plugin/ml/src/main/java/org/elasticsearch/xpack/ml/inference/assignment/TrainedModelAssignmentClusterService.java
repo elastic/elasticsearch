@@ -1071,7 +1071,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(clusterState);
         final TrainedModelAssignment existingAssignment = metadata.getDeploymentAssignment(deploymentId);
         if (existingAssignment == null) {
-            throw new ResourceNotFoundException("assignment with id [{}] not found", deploymentId);
+            ResourceNotFoundException e = new ResourceNotFoundException("assignment with id [{}] not found", deploymentId);
+            e.setResources("trained_model_assignment", deploymentId);
+            throw e;
         }
         // If we are stopping, don't update anything
         if (existingAssignment.getAssignmentState().equals(AssignmentState.STOPPING)) {
@@ -1102,7 +1104,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         }
 
         if (existingAssignment == null) {
-            throw new ResourceNotFoundException("assignment with id [{}] not found", deploymentId);
+            ResourceNotFoundException e = new ResourceNotFoundException("assignment with id [{}] not found", deploymentId);
+            e.setResources("trained_model_assignment", deploymentId);
+            throw e;
         }
         // If we are stopping, don't update anything
         if (existingAssignment.getAssignmentState().equals(AssignmentState.STOPPING)) {
@@ -1117,7 +1121,13 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             return currentState;
         }
         if (existingAssignment.isRoutedToNode(nodeId) == false) {
-            throw new ResourceNotFoundException("assignment with id [{}]] is not routed to node [{}]", deploymentId, nodeId);
+            ResourceNotFoundException e = new ResourceNotFoundException(
+                "assignment with id [{}]] is not routed to node [{}]",
+                deploymentId,
+                nodeId
+            );
+            e.setResources("trained_model_assignment", deploymentId, nodeId);
+            throw e;
         }
         RoutingInfo routingInfo = existingAssignment.getNodeRoutingTable().get(nodeId);
         builder.getAssignment(deploymentId)
@@ -1130,7 +1140,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     static ClusterState removeAssignment(ClusterState currentState, String deploymentId) {
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
         if (builder.hasModelDeployment(deploymentId) == false) {
-            throw new ResourceNotFoundException("assignment for deployment with id [{}] not found", deploymentId);
+            ResourceNotFoundException e = new ResourceNotFoundException("assignment for deployment with id [{}] not found", deploymentId);
+            e.setResources("trained_model_assignment", deploymentId);
+            throw e;
         }
         logger.debug(() -> format("[%s] removing assignment", deploymentId));
         return update(currentState, builder.removeAssignment(deploymentId));

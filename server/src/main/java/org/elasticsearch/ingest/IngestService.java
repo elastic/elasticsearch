@@ -478,7 +478,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
             }
             if (toRemove.isEmpty() && Regex.isMatchAllPattern(request.getId()) == false) {
-                throw new ResourceNotFoundException("pipeline [{}] is missing", request.getId());
+                var e = new ResourceNotFoundException("pipeline [{}] is missing", request.getId());
+                e.setResources("pipeline", request.getId());
+                throw e;
             } else if (toRemove.isEmpty()) {
                 return currentIngestMetadata;
             }

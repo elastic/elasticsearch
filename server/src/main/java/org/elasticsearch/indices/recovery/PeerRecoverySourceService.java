@@ -348,9 +348,11 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     }
                 }
                 if (handler == null) {
-                    throw new ResourceNotFoundException(
+                    var e = new ResourceNotFoundException(
                         "Cannot reestablish recovery, recovery id [" + request.recoveryId() + "] not found."
                     );
+                    e.setResources("recovery", Long.toString(request.recoveryId()));
+                    throw e;
                 }
                 handler.addListener(listener);
             }

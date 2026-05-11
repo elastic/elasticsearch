@@ -360,11 +360,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         for (FieldInferenceRequest request : requests) {
                             Exception failure;
                             if (ExceptionsHelper.unwrap(exc, ResourceNotFoundException.class) instanceof ResourceNotFoundException) {
-                                failure = new ResourceNotFoundException(
+                                var exception = new ResourceNotFoundException(
                                     "Inference id [{}] not found for field [{}]",
                                     inferenceId,
                                     request.field
                                 );
+                                exception.setResources("inference_endpoint", inferenceId);
+                                failure = exception;
                             } else {
                                 failure = new InferenceException(
                                     "Error loading inference for inference id [{}] on field [{}]",

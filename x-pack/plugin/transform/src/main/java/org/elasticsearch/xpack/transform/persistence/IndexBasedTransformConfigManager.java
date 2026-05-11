@@ -480,9 +480,11 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
         executeAsyncWithOrigin(TransportSearchAction.TYPE, searchRequest, resultListener.delegateFailureAndWrap((l, searchResponse) -> {
             if (searchResponse.getHits().getHits().length == 0) {
-                l.onFailure(
-                    new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
+                ResourceNotFoundException e = new ResourceNotFoundException(
+                    TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId)
                 );
+                e.setResources("transform", transformId);
+                l.onFailure(e);
                 return;
             }
             BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
@@ -513,9 +515,11 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             searchRequest,
             configAndVersionListener.delegateFailureAndWrap((l, searchResponse) -> {
                 if (searchResponse.getHits().getHits().length == 0) {
-                    l.onFailure(
-                        new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
+                    ResourceNotFoundException e = new ResourceNotFoundException(
+                        TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId)
                     );
+                    e.setResources("transform", transformId);
+                    l.onFailure(e);
                     return;
                 }
                 SearchHit hit = searchResponse.getHits().getHits()[0];
@@ -578,11 +582,11 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             requiredMatches.filterMatchedIds(ids);
             if (requiredMatches.hasUnmatchedIds()) {
                 // some required Ids were not found
-                l.onFailure(
-                    new ResourceNotFoundException(
-                        TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, requiredMatches.unmatchedIdsString())
-                    )
+                ResourceNotFoundException e = new ResourceNotFoundException(
+                    TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, requiredMatches.unmatchedIdsString())
                 );
+                e.setResources("transform", requiredMatches.unmatchedIdsString());
+                l.onFailure(e);
                 return;
             }
             // if only exact ids have been given, take the count from docs to avoid potential duplicates
@@ -625,9 +629,11 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         }
         ActionListener<BulkByScrollResponse> deleteListener = ActionListener.wrap(dbqResponse -> listener.onResponse(true), e -> {
             if (e.getClass() == IndexNotFoundException.class) {
-                listener.onFailure(
-                    new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
+                ResourceNotFoundException resourceNotFoundException = new ResourceNotFoundException(
+                    TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId)
                 );
+                resourceNotFoundException.setResources("transform", transformId);
+                listener.onFailure(resourceNotFoundException);
             } else {
                 listener.onFailure(e);
             }
@@ -645,9 +651,11 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             );
         executeAsyncWithOrigin(TransportSearchAction.TYPE, searchRequest, deleteListener.delegateFailureAndWrap((l, searchResponse) -> {
             if (searchResponse.getHits().getTotalHits().value() == 0) {
-                listener.onFailure(
-                    new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
+                ResourceNotFoundException e = new ResourceNotFoundException(
+                    TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId)
                 );
+                e.setResources("transform", transformId);
+                listener.onFailure(e);
                 return;
             }
 
@@ -681,17 +689,21 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
         executeAsyncWithOrigin(DeleteByQueryAction.INSTANCE, request, ActionListener.wrap(deleteResponse -> {
             if (deleteResponse.getDeleted() == 0) {
-                listener.onFailure(
-                    new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
+                ResourceNotFoundException e = new ResourceNotFoundException(
+                    TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId)
                 );
+                e.setResources("transform", transformId);
+                listener.onFailure(e);
                 return;
             }
             listener.onResponse(true);
         }, e -> {
             if (e.getClass() == IndexNotFoundException.class) {
-                listener.onFailure(
-                    new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
+                ResourceNotFoundException resourceNotFoundException = new ResourceNotFoundException(
+                    TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId)
                 );
+                resourceNotFoundException.setResources("transform", transformId);
+                listener.onFailure(resourceNotFoundException);
             } else {
                 listener.onFailure(e);
             }
@@ -776,9 +788,11 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 if (allowNoMatch) {
                     l.onResponse(null);
                 } else {
-                    l.onFailure(
-                        new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.UNKNOWN_TRANSFORM_STATS, transformId))
+                    ResourceNotFoundException e = new ResourceNotFoundException(
+                        TransformMessages.getMessage(TransformMessages.UNKNOWN_TRANSFORM_STATS, transformId)
                     );
+                    e.setResources("transform", transformId);
+                    l.onFailure(e);
                 }
                 return;
             }

@@ -74,7 +74,9 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
         final var projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
         DataStream dataStream = projectMetadata == null ? null : projectMetadata.dataStreams().get(sourceDataStreamName);
         if (dataStream == null) {
-            listener.onFailure(new ResourceNotFoundException("Data stream named [{}] does not exist", sourceDataStreamName));
+            ResourceNotFoundException e = new ResourceNotFoundException("Data stream named [{}] does not exist", sourceDataStreamName);
+            e.setResources("data_stream", sourceDataStreamName);
+            listener.onFailure(e);
             return;
         }
         int totalIndices = dataStream.getIndices().size();

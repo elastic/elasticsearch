@@ -106,7 +106,9 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
                     } else {
                         // the async search document or its index is not found.
                         // That can happen if an invalid/deleted search id is provided.
-                        listenerWithHeaders.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
+                        var exception = new ResourceNotFoundException(searchId.getEncoded());
+                        exception.setResources("async_search", searchId.getEncoded());
+                        listenerWithHeaders.onFailure(exception);
                     }
                 }));
             } else {

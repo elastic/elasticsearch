@@ -131,6 +131,14 @@ public class TransportCancelTasksActionTests extends ESTestCase {
         assertFalse("waitForCompletion must be dropped", copy.waitForCompletion());
     }
 
+    public void testTaskNotFoundExceptionIncludesResources() {
+        final TaskId taskId = randomTaskId();
+        final ResourceNotFoundException e = TransportCancelTasksAction.taskNotFoundException(taskId);
+
+        assertEquals("task", e.getResourceType());
+        assertEquals(List.of(taskId.toString()), e.getResourceId());
+    }
+
     /// Pass 1 cancelled the task; pass 2 came back empty (task is gone). Caller must see the task, not a 404.
     public void testMergeRespFirstPassCancelledSecondPassEmpty() {
         final TaskId target = randomTaskId();

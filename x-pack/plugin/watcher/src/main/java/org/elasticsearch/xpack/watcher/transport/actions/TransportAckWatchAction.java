@@ -93,7 +93,12 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                     getRequest,
                     ActionListener.<GetResponse>wrap(getResponse -> {
                         if (getResponse.isExists() == false) {
-                            listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist", request.getWatchId()));
+                            ResourceNotFoundException e = new ResourceNotFoundException(
+                                "Watch with id [{}] does not exist",
+                                request.getWatchId()
+                            );
+                            e.setResources("watch", request.getWatchId());
+                            listener.onFailure(e);
                         } else {
                             ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
                             Watch watch = parser.parseWithSecrets(

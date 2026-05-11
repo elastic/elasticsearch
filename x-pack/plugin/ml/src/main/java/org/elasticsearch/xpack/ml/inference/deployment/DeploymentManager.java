@@ -199,15 +199,15 @@ public class DeploymentManager {
                     searchRequest,
                     ActionListener.wrap(searchVocabResponse -> {
                         if (searchVocabResponse.getHits().getHits().length == 0) {
-                            failedDeploymentListener.onFailure(
-                                new ResourceNotFoundException(
-                                    Messages.getMessage(
-                                        Messages.VOCABULARY_NOT_FOUND,
-                                        modelConfig.getModelId(),
-                                        VocabularyConfig.docId(modelConfig.getModelId())
-                                    )
+                            ResourceNotFoundException e = new ResourceNotFoundException(
+                                Messages.getMessage(
+                                    Messages.VOCABULARY_NOT_FOUND,
+                                    modelConfig.getModelId(),
+                                    VocabularyConfig.docId(modelConfig.getModelId())
                                 )
                             );
+                            e.setResources("vocabulary", modelConfig.getModelId());
+                            failedDeploymentListener.onFailure(e);
                             return;
                         }
 

@@ -363,7 +363,9 @@ public interface PersistentTasks {
                 changed = true;
                 tasks.put(taskId, new PersistentTask<>(taskInProgress, getNextAllocationId(), assignment));
             } else {
-                throw new ResourceNotFoundException("cannot reassign task with id {" + taskId + "}, the task no longer exists");
+                var e = new ResourceNotFoundException("cannot reassign task with id {" + taskId + "}, the task no longer exists");
+                e.setResources("task", taskId);
+                throw e;
             }
             return (T) this;
         }
@@ -378,7 +380,9 @@ public interface PersistentTasks {
                 changed = true;
                 tasks.put(taskId, new PersistentTask<>(taskInProgress, taskState));
             } else {
-                throw new ResourceNotFoundException("cannot update task with id {" + taskId + "}, the task no longer exists");
+                var e = new ResourceNotFoundException("cannot update task with id {" + taskId + "}, the task no longer exists");
+                e.setResources("task", taskId);
+                throw e;
             }
             return (T) this;
         }
@@ -391,7 +395,9 @@ public interface PersistentTasks {
             if (tasks.remove(taskId) != null) {
                 changed = true;
             } else {
-                throw new ResourceNotFoundException("cannot remove task with id {" + taskId + "}, the task no longer exists");
+                var e = new ResourceNotFoundException("cannot remove task with id {" + taskId + "}, the task no longer exists");
+                e.setResources("task", taskId);
+                throw e;
             }
             return (T) this;
         }

@@ -573,7 +573,9 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                         SearchHit[] hits = searchResponse.getHits().getHits();
 
                         if (searchResponse.getHits().getHits().length == 0) {
-                            failureHandler.accept(new ResourceNotFoundException("chunk document with id [" + id + "] not found"));
+                            var e = new ResourceNotFoundException("chunk document with id [" + id + "] not found");
+                            e.setResources("document", id);
+                            failureHandler.accept(e);
                             return;
                         }
                         byte[] data = (byte[]) hits[0].getSourceAsMap().get("data");

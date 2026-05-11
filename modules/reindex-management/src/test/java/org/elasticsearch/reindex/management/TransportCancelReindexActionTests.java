@@ -143,6 +143,8 @@ public class TransportCancelReindexActionTests extends ESTestCase {
             l -> action.doExecute(mock(), new CancelReindexRequest(taskId, randomBoolean()), l)
         );
         assertEquals(notFoundException(taskId).getMessage(), failure.getMessage());
+        assertEquals("reindex", failure.getResourceType());
+        assertEquals(List.of(taskId.toString()), failure.getResourceId());
     }
 
     public void testNodeFailureWithResourceNotFoundCauseTreatedAsNotFound() {

@@ -136,11 +136,11 @@ public interface DataExtractorFactory {
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof IndexNotFoundException notFound) {
-                listener.onFailure(
-                    new ResourceNotFoundException(
-                        "datafeed [" + datafeed.getId() + "] cannot retrieve data because index " + notFound.getIndex() + " does not exist"
-                    )
+                ResourceNotFoundException notFoundException = new ResourceNotFoundException(
+                    "datafeed [" + datafeed.getId() + "] cannot retrieve data because index " + notFound.getIndex() + " does not exist"
                 );
+                notFoundException.setResources("index", notFound.getIndex().getName());
+                listener.onFailure(notFoundException);
             } else {
                 listener.onFailure(e);
             }

@@ -194,7 +194,9 @@ public class SearchApplicationIndexService {
         final GetRequest getRequest = new GetRequest(SEARCH_APPLICATION_ALIAS_NAME).id(resourceName).realtime(true);
         clientWithOrigin.get(getRequest, new DelegatingIndexNotFoundActionListener<>(resourceName, listener, (l, getResponse) -> {
             if (getResponse.isExists() == false) {
-                l.onFailure(new ResourceNotFoundException(resourceName));
+                ResourceNotFoundException e = new ResourceNotFoundException("search application [" + resourceName + "] not found");
+                e.setResources("search_application", resourceName);
+                l.onFailure(e);
                 return;
             }
             final BytesReference source = getResponse.getSourceInternal();
@@ -323,7 +325,9 @@ public class SearchApplicationIndexService {
                 deleteRequest,
                 new DelegatingIndexNotFoundActionListener<>(resourceName, listener, (l, deleteResponse) -> {
                     if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(resourceName));
+                        ResourceNotFoundException e = new ResourceNotFoundException("search application [" + resourceName + "] not found");
+                        e.setResources("search_application", resourceName);
+                        l.onFailure(e);
                         return;
                     }
                     l.onResponse(deleteResponse);
@@ -511,7 +515,11 @@ public class SearchApplicationIndexService {
         public void onFailure(Exception e) {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof IndexNotFoundException) {
-                delegate.onFailure(new ResourceNotFoundException(resourceName));
+                ResourceNotFoundException resourceNotFoundException = new ResourceNotFoundException(
+                    "search application [" + resourceName + "] not found"
+                );
+                resourceNotFoundException.setResources("search_application", resourceName);
+                delegate.onFailure(resourceNotFoundException);
                 return;
             }
             delegate.onFailure(e);

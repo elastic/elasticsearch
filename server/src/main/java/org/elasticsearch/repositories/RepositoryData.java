@@ -541,7 +541,9 @@ public final class RepositoryData {
         if (newSnapshotIds.size() != snapshotIds.size() - snapshots.size()) {
             final Collection<SnapshotId> notFound = new HashSet<>(snapshots);
             notFound.removeAll(snapshotIds.values());
-            throw new ResourceNotFoundException("Attempting to remove non-existent snapshots {} from repository data", notFound);
+            var e = new ResourceNotFoundException("Attempting to remove non-existent snapshots {} from repository data", notFound);
+            e.setResources("snapshot", notFound.stream().map(SnapshotId::getName).toArray(String[]::new));
+            throw e;
         }
         final Map<String, SnapshotDetails> newSnapshotsDetails = new HashMap<>(snapshotsDetails);
         for (SnapshotId snapshotId : snapshots) {

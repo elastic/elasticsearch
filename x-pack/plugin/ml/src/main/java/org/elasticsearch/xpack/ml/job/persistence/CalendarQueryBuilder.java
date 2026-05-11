@@ -68,7 +68,11 @@ public class CalendarQueryBuilder {
     }
 
     public Exception buildNotFoundException() {
-        return new ResourceNotFoundException("No calendar with id [" + Strings.arrayToCommaDelimitedString(idTokens) + "]");
+        ResourceNotFoundException e = new ResourceNotFoundException(
+            "No calendar with id [" + Strings.arrayToCommaDelimitedString(idTokens) + "]"
+        );
+        e.setResources("calendar", idTokens);
+        return e;
     }
 
     /**

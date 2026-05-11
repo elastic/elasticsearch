@@ -103,7 +103,9 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
         }
         boolean wildcard = Regex.isSimpleMatchPattern(name);
         if (wildcard == false && currentMetadata.policies().containsKey(name) == false) {
-            throw new ResourceNotFoundException("autoscaling policy with name [" + name + "] does not exist");
+            ResourceNotFoundException e = new ResourceNotFoundException("autoscaling policy with name [" + name + "] does not exist");
+            e.setResources("autoscaling policy", name);
+            throw e;
         }
 
         final SortedMap<String, AutoscalingPolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.policies());

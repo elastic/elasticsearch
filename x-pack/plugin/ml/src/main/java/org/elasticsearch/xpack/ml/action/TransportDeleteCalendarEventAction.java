@@ -75,7 +75,9 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
                 getRequest,
                 l.delegateFailureAndWrap((delegate, getResponse) -> {
                     if (getResponse.isExists() == false) {
-                        delegate.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
+                        ResourceNotFoundException e = new ResourceNotFoundException("No event with id [" + eventId + "]");
+                        e.setResources("scheduled_event", eventId);
+                        delegate.onFailure(e);
                         return;
                     }
 
@@ -124,7 +126,9 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
             public void onResponse(DeleteResponse response) {
 
                 if (response.status() == RestStatus.NOT_FOUND) {
-                    listener.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
+                    ResourceNotFoundException e = new ResourceNotFoundException("No event with id [" + eventId + "]");
+                    e.setResources("scheduled_event", eventId);
+                    listener.onFailure(e);
                 } else {
                     jobManager.updateProcessOnCalendarChanged(
                         calendar.getJobIds(),

@@ -71,7 +71,9 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
                 dbqRequest,
                 delegate.delegateFailureAndWrap((l, response) -> {
                     if (response.getDeleted() == 0) {
-                        l.onFailure(new ResourceNotFoundException("No calendar with id [" + calendarId + "]"));
+                        ResourceNotFoundException e = new ResourceNotFoundException("No calendar with id [" + calendarId + "]");
+                        e.setResources("calendar", calendarId);
+                        l.onFailure(e);
                         return;
                     }
 

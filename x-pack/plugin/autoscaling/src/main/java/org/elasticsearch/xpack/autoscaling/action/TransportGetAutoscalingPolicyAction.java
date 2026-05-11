@@ -78,7 +78,9 @@ public class TransportGetAutoscalingPolicyAction extends TransportMasterNodeActi
             metadata = AutoscalingMetadata.EMPTY;
         }
         if (metadata.policies().containsKey(name) == false) {
-            throw new ResourceNotFoundException("autoscaling policy with name [" + name + "] does not exist");
+            ResourceNotFoundException e = new ResourceNotFoundException("autoscaling policy with name [" + name + "] does not exist");
+            e.setResources("autoscaling policy", name);
+            throw e;
         }
         return metadata.policies().get(name).policy();
     }

@@ -84,7 +84,12 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
             final var project = currentState.metadata().getProject();
             SnapshotLifecycleMetadata snapMeta = project.custom(SnapshotLifecycleMetadata.TYPE);
             if (snapMeta == null) {
-                throw new ResourceNotFoundException("snapshot lifecycle policy not found: {}", request.getLifecycleId());
+                ResourceNotFoundException e = new ResourceNotFoundException(
+                    "snapshot lifecycle policy not found: {}",
+                    request.getLifecycleId()
+                );
+                e.setResources("snapshot lifecycle policy", request.getLifecycleId());
+                throw e;
             }
             var currentMode = LifecycleOperationMetadata.currentSLMMode(currentState);
             // Check that the policy exists in the first place
@@ -93,7 +98,14 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
                 .stream()
                 .filter(e -> e.getValue().getPolicy().getId().equals(request.getLifecycleId()))
                 .findAny()
-                .orElseThrow(() -> new ResourceNotFoundException("snapshot lifecycle policy not found: {}", request.getLifecycleId()));
+                .orElseThrow(() -> {
+                    ResourceNotFoundException e = new ResourceNotFoundException(
+                        "snapshot lifecycle policy not found: {}",
+                        request.getLifecycleId()
+                    );
+                    e.setResources("snapshot lifecycle policy", request.getLifecycleId());
+                    return e;
+                });
 
             Map<String, SnapshotLifecyclePolicyMetadata> newConfigs = snapMeta.getSnapshotConfigurations()
                 .entrySet()

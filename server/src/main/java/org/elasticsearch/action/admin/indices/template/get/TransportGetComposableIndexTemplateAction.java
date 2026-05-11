@@ -102,7 +102,9 @@ public class TransportGetComposableIndexTemplateAction extends TransportLocalPro
             } else if (allTemplates.containsKey(name)) {
                 results.put(name, allTemplates.get(name));
             } else {
-                throw new ResourceNotFoundException("index template matching [" + request.name() + "] not found");
+                var e = new ResourceNotFoundException("index template matching [" + request.name() + "] not found");
+                e.setResources("index_template", request.name());
+                throw e;
             }
         }
         cancellableTask.ensureNotCancelled();

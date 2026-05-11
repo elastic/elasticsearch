@@ -277,7 +277,7 @@ final class ModelLoaderUtils {
                 case HTTP_SEE_OTHER:
                     throw new IllegalStateException("redirects aren't supported yet");
                 case HTTP_NOT_FOUND:
-                    throw new ResourceNotFoundException("{} not found", uri);
+                    throw uriNotFoundException(uri);
                 case 416: // Range not satisfiable, for some reason not in the list of constants
                     throw new IllegalStateException("Invalid request range [" + range.bytesRange() + "]");
                 default:
@@ -298,7 +298,7 @@ final class ModelLoaderUtils {
     static InputStream getFileInputStream(URI uri) {
         File file = new File(uri);
         if (file.exists() == false) {
-            throw new ResourceNotFoundException("{} not found", uri);
+            throw uriNotFoundException(uri);
         }
 
         try {
@@ -306,6 +306,12 @@ final class ModelLoaderUtils {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    private static ResourceNotFoundException uriNotFoundException(URI uri) {
+        final var e = new ResourceNotFoundException("{} not found", uri);
+        e.setResources("uri", uri.toString());
+        return e;
     }
 
     /**

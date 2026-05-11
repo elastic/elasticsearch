@@ -218,10 +218,14 @@ public abstract class TransportTasksAction<
                 if (request.match(task)) {
                     return List.of((OperationTask) task);
                 } else {
-                    throw new ResourceNotFoundException("task [{}] doesn't support this operation", request.getTargetTaskId());
+                    var e = new ResourceNotFoundException("task [{}] doesn't support this operation", request.getTargetTaskId());
+                    e.setResources("task", request.getTargetTaskId().toString());
+                    throw e;
                 }
             } else {
-                throw new ResourceNotFoundException("task [{}] is missing", request.getTargetTaskId());
+                var e = new ResourceNotFoundException("task [{}] is missing", request.getTargetTaskId());
+                e.setResources("task", request.getTargetTaskId().toString());
+                throw e;
             }
         } else {
             final var tasks = new ArrayList<OperationTask>();

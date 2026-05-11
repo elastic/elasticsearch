@@ -77,12 +77,12 @@ public class TransportGetSnapshotLifecycleAction extends TransportMasterNodeActi
             if (request.getLifecycleIds().length == 0) {
                 listener.onResponse(new GetSnapshotLifecycleAction.Response(Collections.emptyList()));
             } else {
-                listener.onFailure(
-                    new ResourceNotFoundException(
-                        "snapshot lifecycle policy or policies {} not found, no policies are configured",
-                        Arrays.toString(request.getLifecycleIds())
-                    )
+                ResourceNotFoundException e = new ResourceNotFoundException(
+                    "snapshot lifecycle policy or policies {} not found, no policies are configured",
+                    Arrays.toString(request.getLifecycleIds())
                 );
+                e.setResources("snapshot lifecycle policy", request.getLifecycleIds());
+                listener.onFailure(e);
             }
         } else {
             final Map<String, SnapshotLifecyclePolicyItem.SnapshotInProgress> inProgress = new HashMap<>();
@@ -121,12 +121,12 @@ public class TransportGetSnapshotLifecycleAction extends TransportMasterNodeActi
                 if (request.getLifecycleIds().length == 0) {
                     listener.onResponse(new GetSnapshotLifecycleAction.Response(Collections.emptyList()));
                 } else {
-                    listener.onFailure(
-                        new ResourceNotFoundException(
-                            "snapshot lifecycle policy or policies {} not found",
-                            Arrays.toString(request.getLifecycleIds())
-                        )
+                    ResourceNotFoundException e = new ResourceNotFoundException(
+                        "snapshot lifecycle policy or policies {} not found",
+                        Arrays.toString(request.getLifecycleIds())
                     );
+                    e.setResources("snapshot lifecycle policy", request.getLifecycleIds());
+                    listener.onFailure(e);
                 }
             } else {
                 listener.onResponse(new GetSnapshotLifecycleAction.Response(lifecycles));

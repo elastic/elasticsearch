@@ -102,8 +102,9 @@ public class TransportGetComponentTemplateAction extends TransportLocalProjectMe
             } else if (allTemplates.containsKey(name)) {
                 results.put(name, allTemplates.get(name));
             } else {
-                throw new ResourceNotFoundException("component template matching [" + request.name() + "] not found");
-
+                var e = new ResourceNotFoundException("component template matching [" + request.name() + "] not found");
+                e.setResources("component_template", request.name());
+                throw e;
             }
         }
         cancellableTask.ensureNotCancelled();

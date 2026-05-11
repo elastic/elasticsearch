@@ -142,7 +142,11 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
     @Override
     protected ResourceNotFoundException notFoundException(String resourceId) {
-        return new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, resourceId));
+        ResourceNotFoundException e = new ResourceNotFoundException(
+            TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, resourceId)
+        );
+        e.setResources("transform", resourceId);
+        return e;
     }
 
     @Override

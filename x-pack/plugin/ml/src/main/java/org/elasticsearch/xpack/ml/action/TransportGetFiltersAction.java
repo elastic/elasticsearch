@@ -75,7 +75,9 @@ public class TransportGetFiltersAction extends AbstractTransportGetResourcesActi
 
     @Override
     protected ResourceNotFoundException notFoundException(String resourceId) {
-        return new ResourceNotFoundException("Unable to find filter [" + resourceId + "]");
+        ResourceNotFoundException e = new ResourceNotFoundException("Unable to find filter [" + resourceId + "]");
+        e.setResources("filter", resourceId);
+        return e;
     }
 
     @Override

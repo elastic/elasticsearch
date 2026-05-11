@@ -410,7 +410,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         }
         // Check authentication for the user
         if (false == security.currentUserHasAccessToTask(asyncTask)) {
-            throw new ResourceNotFoundException(asyncExecutionId.getEncoded() + " not found");
+            var exception = new ResourceNotFoundException(asyncExecutionId.getEncoded() + " not found");
+            exception.setResources("async_search", asyncExecutionId.getEncoded());
+            throw exception;
         }
         return asyncTask;
     }
@@ -436,7 +438,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .realtime(true);
         clientWithOrigin.get(getRequest, outerListener.delegateFailure((listener, getResponse) -> {
             if (getResponse.isExists() == false) {
-                listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
+                var exception = new ResourceNotFoundException(asyncExecutionId.getEncoded());
+                exception.setResources("async_search", asyncExecutionId.getEncoded());
+                listener.onFailure(exception);
                 return;
             }
             final R resp;
@@ -483,7 +487,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                         final Map<String, String> headers = (Map<String, String>) XContentParserUtils.parseFieldsValue(parser);
                         // check the authentication of the current user against the user that initiated the async task
                         if (checkAuthentication && false == security.currentUserHasAccessToTaskWithHeaders(headers)) {
-                            throw new ResourceNotFoundException(asyncExecutionId.getEncoded());
+                            var exception = new ResourceNotFoundException(asyncExecutionId.getEncoded());
+                            exception.setResources("async_search", asyncExecutionId.getEncoded());
+                            throw exception;
                         }
                     }
                     case RESPONSE_HEADERS_FIELD -> {
@@ -525,7 +531,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         // check if the result has expired
         final ActionListener<SR> outerListener = originalListener.delegateFailure((listener, resp) -> {
             if (resp.getExpirationTime() < System.currentTimeMillis()) {
-                listener.onFailure(new ResourceNotFoundException(request.getId()));
+                var exception = new ResourceNotFoundException(request.getId());
+                exception.setResources("async_search", request.getId());
+                listener.onFailure(exception);
             } else {
                 listener.onResponse(resp);
             }
@@ -539,7 +547,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                         var response = statusProducerFromTask.apply(asyncTask);
                         outerListener.onResponse(response);
                     } else {
-                        outerListener.onFailure(new ResourceNotFoundException(request.getId()));
+                        var exception = new ResourceNotFoundException(request.getId());
+                        exception.setResources("async_search", request.getId());
+                        outerListener.onFailure(exception);
                     }
                 } else {
                     // get status response from index

@@ -462,12 +462,13 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         return ActionListener.wrap(response -> {
             SearchHit[] hits = response.getHits().getHits();
             if (hits.length == 0) {
-                failOrRespondWith0(
-                    () -> new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)),
-                    errorIfDefinitionIsMissing,
-                    modelId,
-                    listener
-                );
+                failOrRespondWith0(() -> {
+                    ResourceNotFoundException e = new ResourceNotFoundException(
+                        Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)
+                    );
+                    e.setResources("trained_model", modelId);
+                    return e;
+                }, errorIfDefinitionIsMissing, modelId, listener);
                 return;
             }
 
@@ -551,7 +552,10 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
         }, e -> {
             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                 failOrRespondWith0(() -> {
-                    Exception ex = new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId));
+                    ResourceNotFoundException ex = new ResourceNotFoundException(
+                        Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)
+                    );
+                    ex.setResources("trained_model", modelId);
                     ex.addSuppressed(e);
                     return ex;
                 }, errorIfDefinitionIsMissing, modelId, listener);

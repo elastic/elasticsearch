@@ -94,7 +94,9 @@ public class AsyncSearchSecurity {
             if (currentUserHasAccessToTaskWithHeaders(headers)) {
                 return null;
             } else {
-                throw new ResourceNotFoundException(executionId.getEncoded());
+                var exception = new ResourceNotFoundException(executionId.getEncoded());
+                exception.setResources("async_search", executionId.getEncoded());
+                throw exception;
             }
         }));
     }
@@ -106,14 +108,20 @@ public class AsyncSearchSecurity {
 
         clientWithOrigin.get(internalGet, ActionListener.wrap(get -> {
             if (get.isExists() == false) {
-                listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()));
+                var exception = new ResourceNotFoundException(executionId.getEncoded());
+                exception.setResources("async_search", executionId.getEncoded());
+                listener.onFailure(exception);
                 return;
             }
             // Check authentication for the user
             @SuppressWarnings("unchecked")
             Map<String, String> headers = (Map<String, String>) get.getSource().get(AsyncTaskIndexService.HEADERS_FIELD);
             listener.onResponse(headers);
-        }, exc -> listener.onFailure(new ResourceNotFoundException(executionId.getEncoded()))));
+        }, exc -> {
+            var exception = new ResourceNotFoundException(executionId.getEncoded());
+            exception.setResources("async_search", executionId.getEncoded());
+            listener.onFailure(exception);
+        }));
     }
 
 }

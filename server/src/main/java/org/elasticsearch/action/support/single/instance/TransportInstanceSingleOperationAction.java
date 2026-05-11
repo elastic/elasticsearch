@@ -259,17 +259,18 @@ public abstract class TransportInstanceSingleOperationAction<
 
                 @Override
                 public void onProjectMissing(ProjectId projectId, ClusterState clusterState) {
-                    listener.onFailure(
-                        new ResourceNotFoundException(
-                            "project ["
-                                + projectId
-                                + "] does not exist in cluster state ["
-                                + clusterState.stateUUID()
-                                + "] version ["
-                                + clusterState.version()
-                                + "]"
-                        )
+                    var e = new ResourceNotFoundException(
+                        "project ["
+                            + projectId
+                            + "] does not exist in cluster state ["
+                            + clusterState.stateUUID()
+                            + "] version ["
+                            + clusterState.version()
+                            + "]"
                     );
+                    e.setResources("project", projectId.toString());
+
+                    listener.onFailure(e);
                 }
 
                 @Override

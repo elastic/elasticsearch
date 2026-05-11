@@ -79,11 +79,17 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
             final FailedNodeException notFound = new FailedNodeException(
                 target.getNodeId(),
                 "Failed node [" + target.getNodeId() + "]",
-                new ResourceNotFoundException("task [{}] is not found", target)
+                taskNotFoundException(target)
             );
             return new ListTasksResponse(tasks, taskOperationFailures, List.of(notFound));
         }
         return new ListTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
+    }
+
+    static ResourceNotFoundException taskNotFoundException(final TaskId taskId) {
+        final var e = new ResourceNotFoundException("task [{}] is not found", taskId);
+        e.setResources("task", taskId.toString());
+        return e;
     }
 
     /// Fan out to every node so we can find tasks potentially relocated to other nodes.

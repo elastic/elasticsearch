@@ -79,7 +79,9 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<
             } else {
                 // If we couldn't find the job in the persistent task CS, it means it was deleted prior to this call,
                 // no need to go looking for the allocated task
-                listener.onFailure(new ResourceNotFoundException("the task with id [" + request.getId() + "] doesn't exist"));
+                ResourceNotFoundException e = new ResourceNotFoundException("the task with id [" + request.getId() + "] doesn't exist");
+                e.setResources("rollup job", request.getId());
+                listener.onFailure(e);
             }
 
         } else {

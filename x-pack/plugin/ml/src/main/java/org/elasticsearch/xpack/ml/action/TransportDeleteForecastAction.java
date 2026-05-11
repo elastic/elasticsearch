@@ -151,9 +151,11 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
             if (Strings.isAllOrWildcard(request.getForecastId()) && request.isAllowNoForecasts()) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
-                listener.onFailure(
-                    new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_FORECAST, request.getForecastId(), jobId))
+                ResourceNotFoundException e = new ResourceNotFoundException(
+                    Messages.getMessage(Messages.REST_NO_SUCH_FORECAST, request.getForecastId(), jobId)
                 );
+                e.setResources("forecast", request.getForecastId(), jobId);
+                listener.onFailure(e);
             }
             return;
         }
@@ -242,11 +244,11 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
             if (request.isAllowNoForecasts() && Strings.isAllOrWildcard(request.getForecastId())) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
-                listener.onFailure(
-                    new ResourceNotFoundException(
-                        Messages.getMessage(Messages.REST_NO_SUCH_FORECAST, request.getForecastId(), request.getJobId())
-                    )
+                ResourceNotFoundException notFound = new ResourceNotFoundException(
+                    Messages.getMessage(Messages.REST_NO_SUCH_FORECAST, request.getForecastId(), request.getJobId())
                 );
+                notFound.setResources("forecast", request.getForecastId(), request.getJobId());
+                listener.onFailure(notFound);
             }
         } else {
             if (e instanceof ElasticsearchException elasticsearchException) {

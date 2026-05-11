@@ -132,7 +132,9 @@ public final class EnrichStore {
         updateClusterState(clusterService, projectId, handler, project -> {
             final Map<String, EnrichPolicy> originalPolicies = getPolicies(project);
             if (originalPolicies.containsKey(name) == false) {
-                throw new ResourceNotFoundException("policy [{}] not found", name);
+                ResourceNotFoundException e = new ResourceNotFoundException("policy [{}] not found", name);
+                e.setResources("enrich policy", name);
+                throw e;
             }
 
             final Map<String, EnrichPolicy> updatedPolicies = new HashMap<>(originalPolicies);

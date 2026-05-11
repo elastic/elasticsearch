@@ -182,7 +182,11 @@ public class ConnectorSyncJobIndexService {
                 deleteRequest,
                 new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, deleteResponse) -> {
                     if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                        ResourceNotFoundException e = new ResourceNotFoundException(
+                            "connector sync job [" + connectorSyncJobId + "] not found"
+                        );
+                        e.setResources("connector_sync_job", connectorSyncJobId);
+                        l.onFailure(e);
                         return;
                     }
                     l.onResponse(deleteResponse);
@@ -212,7 +216,11 @@ public class ConnectorSyncJobIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                        ResourceNotFoundException e = new ResourceNotFoundException(
+                            "connector sync job [" + connectorSyncJobId + "] not found"
+                        );
+                        e.setResources("connector_sync_job", connectorSyncJobId);
+                        l.onFailure(e);
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -237,7 +245,11 @@ public class ConnectorSyncJobIndexService {
                 getRequest,
                 new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(connectorSyncJobId, listener, (l, getResponse) -> {
                     if (getResponse.isExists() == false) {
-                        l.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                        ResourceNotFoundException e = new ResourceNotFoundException(
+                            "connector sync job [" + connectorSyncJobId + "] not found"
+                        );
+                        e.setResources("connector_sync_job", connectorSyncJobId);
+                        l.onFailure(e);
                         return;
                     }
 
@@ -316,7 +328,11 @@ public class ConnectorSyncJobIndexService {
                         listener,
                         (indexNotFoundListener, updateResponse) -> {
                             if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                                indexNotFoundListener.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                                ResourceNotFoundException e = new ResourceNotFoundException(
+                                    "connector sync job [" + connectorSyncJobId + "] not found"
+                                );
+                                e.setResources("connector_sync_job", connectorSyncJobId);
+                                indexNotFoundListener.onFailure(e);
                                 return;
                             }
                             indexNotFoundListener.onResponse(updateResponse);
@@ -481,7 +497,9 @@ public class ConnectorSyncJobIndexService {
                 updateRequest,
                 new DelegatingIndexNotFoundOrDocumentMissingActionListener<>(syncJobId, listener, (l, updateResponse) -> {
                     if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        l.onFailure(new ResourceNotFoundException(syncJobId));
+                        ResourceNotFoundException e = new ResourceNotFoundException("connector sync job [" + syncJobId + "] not found");
+                        e.setResources("connector_sync_job", syncJobId);
+                        l.onFailure(e);
                         return;
                     }
                     l.onResponse(updateResponse);
@@ -510,7 +528,11 @@ public class ConnectorSyncJobIndexService {
                     final boolean connectorDoesNotExist = response.isExists() == false;
 
                     if (connectorDoesNotExist) {
-                        onFailure(new ResourceNotFoundException("Connector with id '" + connectorId + "' does not exist."));
+                        ResourceNotFoundException e = new ResourceNotFoundException(
+                            "Connector with id '" + connectorId + "' does not exist."
+                        );
+                        e.setResources("connector", connectorId);
+                        onFailure(e);
                         return;
                     }
                     try {
@@ -604,7 +626,11 @@ public class ConnectorSyncJobIndexService {
                         listener,
                         (indexNotFoundListener, updateResponse) -> {
                             if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                                indexNotFoundListener.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                                ResourceNotFoundException e = new ResourceNotFoundException(
+                                    "connector sync job [" + connectorSyncJobId + "] not found"
+                                );
+                                e.setResources("connector_sync_job", connectorSyncJobId);
+                                indexNotFoundListener.onFailure(e);
                                 return;
                             }
                             indexNotFoundListener.onResponse(updateResponse);
@@ -691,7 +717,11 @@ public class ConnectorSyncJobIndexService {
                         listener,
                         (indexNotFoundListener, updateResponse) -> {
                             if (updateResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                                indexNotFoundListener.onFailure(new ResourceNotFoundException(connectorSyncJobId));
+                                ResourceNotFoundException e = new ResourceNotFoundException(
+                                    "connector sync job [" + connectorSyncJobId + "] not found"
+                                );
+                                e.setResources("connector_sync_job", connectorSyncJobId);
+                                indexNotFoundListener.onFailure(e);
                                 return;
                             }
                             indexNotFoundListener.onResponse(updateResponse);
@@ -734,7 +764,11 @@ public class ConnectorSyncJobIndexService {
         public void onFailure(Exception e) {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof IndexNotFoundException || cause instanceof DocumentMissingException) {
-                delegate.onFailure(new ResourceNotFoundException("connector sync job [" + connectorSyncJobId + "] not found"));
+                ResourceNotFoundException resourceNotFoundException = new ResourceNotFoundException(
+                    "connector sync job [" + connectorSyncJobId + "] not found"
+                );
+                resourceNotFoundException.setResources("connector_sync_job", connectorSyncJobId);
+                delegate.onFailure(resourceNotFoundException);
                 return;
             }
             delegate.onFailure(e);

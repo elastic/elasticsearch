@@ -184,11 +184,11 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
         // Then refresh the memory
         ActionListener<Result<ModelSnapshot>> getSnapshotHandler = ActionListener.wrap(response -> {
             if (response == null) {
-                listener.onFailure(
-                    new ResourceNotFoundException(
-                        Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(), request.getJobId())
-                    )
+                ResourceNotFoundException e = new ResourceNotFoundException(
+                    Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(), request.getJobId())
                 );
+                e.setResources("model_snapshot", request.getJobId(), request.getSnapshotId());
+                listener.onFailure(e);
                 return;
             }
             if (MlConfigVersion.CURRENT.equals(response.result.getMinVersion())) {

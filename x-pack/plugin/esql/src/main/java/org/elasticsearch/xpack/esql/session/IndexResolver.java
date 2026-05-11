@@ -80,12 +80,20 @@ public class IndexResolver {
         .build();
 
     /**
-     * Configuration options used for resolving indices in a "flat world"/CPS context.
+     * Configuration options used for resolving indices in a CPS context.
      * Those options shift index resolution validation to FieldCaps action itself
      * as well as automatically expand flat expressions to multiple qualified ones.
      */
-    private static final IndicesOptions FLAT_WORLD_OPTIONS = IndicesOptions.builder(DEFAULT_OPTIONS)
+    private static final IndicesOptions FLAT_STRICT_OPTIONS = IndicesOptions.builder(DEFAULT_OPTIONS)
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .crossProjectModeOptions(new CrossProjectModeOptions(true))
+        .build();
+
+    /**
+     * Same as above, except lenient (eg allows expressions to be missing)
+     */
+    private static final IndicesOptions FLAT_LENIENT_OPTIONS = IndicesOptions.builder(DEFAULT_OPTIONS)
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .crossProjectModeOptions(new CrossProjectModeOptions(true))
         .build();
 
@@ -171,10 +179,14 @@ public class IndexResolver {
     }
 
     /**
-     * Like {@code IndexResolver#resolveIndicesVersioned}
-     * but for flat world queries.
+     * Like {@code IndexResolver#resolveIndicesVersioned} but for flat (CPS) queries. Set
+     * {@code lenient} to allow targets to be missing — used for {@code ViewShadowRelation}
+     * lookups, where finding nothing is the expected outcome when no remote project has an
+     * index matching the local view name. {@code lenient=false} is the default for the
+     * strict main index resolution path.
      */
-    public void resolveMainFlatWorldIndicesVersioned(
+    public void resolveFlatIndicesVersioned(
+        boolean lenient,
         String indexPattern,
         String projectRouting,
         Set<String> fieldNames,
@@ -191,16 +203,17 @@ public class IndexResolver {
         boolean trackUnmappedFieldIndices,
         ActionListener<Versioned<IndexResolution>> listener
     ) {
+        IndicesOptions options = lenient ? FLAT_LENIENT_OPTIONS : FLAT_STRICT_OPTIONS;
         doResolveIndices(
-            createFieldCapsRequest(FLAT_WORLD_OPTIONS, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
+            createFieldCapsRequest(options, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
             indexPattern,
-            true, /* cps/flat index expression might resolve to empty */
+            true, /* flat index expression could resolve to empty */
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
             hasTimeSeriesAggregation,
             trackUnmappedFieldIndices,
-            (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
+            (innerIndexPattern, fieldCapabilitiesResponse) -> Maps.transformValues(
                 EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
                 v -> List.copyOf(v.expression())
             ),

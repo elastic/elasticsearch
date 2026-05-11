@@ -154,14 +154,14 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
     }
 
     <
-        R extends AbstractBulkByScrollRequest<R>,
-        Self extends AbstractBulkByScrollRequestBuilder<R, Self>>
+        R extends AbstractBulkByPaginatedSearchRequest<R>,
+        Self extends AbstractBulkByPaginatedSearchRequestBuilder<R, Self>>
         void
         executeConcurrentUpdatesOnSubsetOfDocs(
             String sourceIndex,
             String targetIndex,
             boolean scriptEnabled,
-            AbstractBulkByScrollRequestBuilder<R, Self> requestBuilder,
+            AbstractBulkByPaginatedSearchRequestBuilder<R, Self> requestBuilder,
             boolean useOptimisticConcurrency,
             BiConsumer<BulkByScrollResponse, Integer> resultConsumer
         ) throws Exception {

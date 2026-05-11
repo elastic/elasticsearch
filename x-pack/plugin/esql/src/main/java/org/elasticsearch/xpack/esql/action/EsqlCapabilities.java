@@ -1824,8 +1824,11 @@ public class EsqlCapabilities {
          * warning + null (via the standard {@code warnExceptions} path) rather than an assertion error
          * in production. RANGE_MIN/MAX/WITHIN evaluators are now generated and warn on multi-valued input
          * instead of silently aggregating across values.
+         * V6: Add RANGE_CONTAINS and RANGE_INTERSECTS, completing the within/contains/intersects suite.
+         * RANGE_CONTAINS lowers to RANGE_WITHIN with swapped arguments; RANGE_INTERSECTS has its own evaluators
+         * for (date_range, date_range) and the point-in-range cases, and lowers (date, date) to plain equality.
          */
-        DATE_RANGE_FIELD_TYPE_V5(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V6(Build.current().isSnapshot()),
 
         /**
          * Network direction function.

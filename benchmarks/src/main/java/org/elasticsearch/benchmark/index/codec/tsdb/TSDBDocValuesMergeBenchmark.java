@@ -64,7 +64,6 @@ public class TSDBDocValuesMergeBenchmark {
 
     static {
         // For Elasticsearch900Lucene101Codec:
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
         LogConfigurator.setNodeName("test");
     }

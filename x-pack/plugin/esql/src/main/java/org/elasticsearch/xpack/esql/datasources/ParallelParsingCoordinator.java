@@ -197,9 +197,7 @@ public final class ParallelParsingCoordinator {
         }
 
         ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
-        // fileSchema is @Nullable end-to-end: null means "no planner-bound schema, fall back to
-        // per-file inference". Empty list would be interpreted by readers as "schema with 0 columns"
-        // and reject rows with the well-tested COUNT(*)/empty-projection path.
+        // Empty list would be read as "schema with 0 columns"; pass null through to mean "no anchor".
         FormatReadContext baseCtx = FormatReadContext.builder()
             .projectedColumns(projectedColumns)
             .batchSize(batchSize)

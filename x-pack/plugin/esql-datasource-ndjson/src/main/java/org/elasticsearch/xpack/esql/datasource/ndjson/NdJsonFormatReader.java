@@ -289,10 +289,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         boolean skipFirstLine = context.firstSplit() == false && context.recordAligned() == false;
         boolean trimLastPartialLine = context.lastSplit() == false && context.recordAligned() == false;
         ErrorPolicy errorPolicy = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
-        // Planner-bound anchor schema wins over per-file inference when present. This prevents
-        // cross-file type drift on multi-file globs (e.g. anchor has y:LONG, a later file's y
-        // contains 1.5 → DOUBLE → block-type mismatch at TopN/agg). Null falls through to the
-        // existing inference path.
+        // Planner-bound anchor schema wins when non-null; null falls through to per-file inference.
+        // Prevents cross-file type drift on multi-file globs (anchor y:LONG vs file-with-1.5 y:DOUBLE).
         List<Attribute> effectiveSchema = context.fileSchema() == null
             ? inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine)
             : mergeBoundWithProjection(context.fileSchema(), resolvedSchema);

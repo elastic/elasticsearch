@@ -613,6 +613,31 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (rowLimit != FormatReader.NO_LIMIT && state.rowsRemaining <= 0) {
                 return DrainResult.DONE;
             }
+            // Yield on upstream-blocked (e.g. streaming-parallel iterator waiting on parser threads)
+            // — symmetric to the downstream-buffer-full yield below. Without this the producer-loop
+            // would spin inside {@code hasNext()} holding its executor slot while the iterator's
+            // segmenter/parser sub-tasks compete for slots on the same pool: with default
+            // {@code parsing_parallelism = cores} and F concurrent file readers we'd need F + F + F×cores
+            // slots, exhausting the generic pool on multi-file gzip globs (50-file ClickBench shape).
+            // Synchronous iterators ({@code CloseableIterator}'s default) return an immediately-completed
+            // listener and fall straight through.
+            SubscribableListener<Void> ready = pages.waitForReady();
+            if (ready.isDone() == false) {
+                ready.addListener(ActionListener.wrap(v -> {
+                    try {
+                        executor.execute(() -> runProducerLoop(state, completionListener));
+                    } catch (Exception e) {
+                        closeQuietly(state.pages);
+                        state.pages = null;
+                        completionListener.onFailure(e);
+                    }
+                }, e -> {
+                    closeQuietly(state.pages);
+                    state.pages = null;
+                    completionListener.onFailure(e);
+                }));
+                return DrainResult.BLOCKED;
+            }
             if (pages.hasNext() == false) {
                 return DrainResult.EOF;
             }

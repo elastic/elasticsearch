@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.logging.LogManager;
@@ -157,6 +158,14 @@ public final class StreamingParallelParsingCoordinator {
         private int currentChunk = 0;
         private Page buffered = null;
         private volatile boolean closed = false;
+        /**
+         * Async-ready signal. {@code null} when no consumer is waiting. When the consumer's
+         * {@link #waitForReady()} can't satisfy synchronously it installs a fresh listener here;
+         * the producers (segmentator, parser, error-path) fire it on every event that can transition
+         * the iterator to a ready state (chunk dispatched, page emitted, POISON enqueued, EOF, error).
+         * Single-shot: after firing, cleared and replaced lazily by the next {@code waitForReady}.
+         */
+        private final AtomicReference<SubscribableListener<Void>> pendingReady = new AtomicReference<>();
 
         StreamingParallelIterator(
             SegmentableFormatReader reader,
@@ -317,6 +326,7 @@ public final class StreamingParallelParsingCoordinator {
                 }
             } catch (Exception e) {
                 firstError.compareAndSet(null, e);
+                signalReady();
             } finally {
                 try {
                     stream.close();
@@ -331,6 +341,7 @@ public final class StreamingParallelParsingCoordinator {
                     }
                 }
                 allDone.countDown();
+                signalReady();
             }
         }
 
@@ -393,6 +404,8 @@ public final class StreamingParallelParsingCoordinator {
                 return false;
             }
             chunksDispatched.incrementAndGet();
+            // Wake any consumer that was previously parked at currentChunk == chunksDispatched.
+            signalReady();
             return true;
         }
 
@@ -451,18 +464,20 @@ public final class StreamingParallelParsingCoordinator {
                                 if (firstError.get() != null || closed) {
                                     break;
                                 }
-                                queue.put(pages.next());
+                                putPageAndSignal(queue, pages.next());
                             }
                         }
                     } catch (Exception e) {
                         firstError.compareAndSet(null, e);
+                        signalReady();
                     } finally {
                         recycleBuffer(chunk.buffer);
-                        enqueuePoison(queue);
+                        putPoisonAndSignal(queue);
                     }
                 }
             } finally {
                 allDone.countDown();
+                signalReady();
             }
         }
 
@@ -544,7 +559,36 @@ public final class StreamingParallelParsingCoordinator {
             }
         }
 
-        private static void enqueuePoison(ArrayBlockingQueue<Page> queue) {
+        /**
+         * Puts {@code page} on {@code queue} and wakes any consumer parked on {@link #waitForReady()}.
+         * <p>
+         * <strong>The {@link #signalReady()} call here is load-bearing — do not remove it.</strong>
+         * The consumer registers a listener with {@link #waitForReady()} when {@code pageQueues[slot]}
+         * is empty AND the chunk for {@code slot} hasn't finished producing. The signal here is what
+         * transitions the listener from pending to fired — without it the consumer would park
+         * indefinitely while pages accumulate in the queue. The post-publish signal is also necessary
+         * for the case where the parser fills {@code pageQueues[slot]} to its capacity (16 pages):
+         * {@code queue.put} would block, and if the consumer hasn't been woken to start draining there
+         * is no one to free a slot. Signaling on every page put (one cheap {@code AtomicReference.getAndSet})
+         * is the simplest correct choice; consolidating to "signal only on 0→1 transitions" is a valid
+         * optimization but requires careful coordination with consumer-side state, so we don't bother —
+         * the overhead is negligible compared to parse cost.
+         */
+        private void putPageAndSignal(ArrayBlockingQueue<Page> queue, Page page) throws InterruptedException {
+            queue.put(page);
+            signalReady();
+        }
+
+        /**
+         * Enqueues the POISON sentinel on {@code queue} and wakes any consumer parked on
+         * {@link #waitForReady()}. The {@link #signalReady()} call here is load-bearing:
+         * POISON is the consumer's signal that a chunk's pages are fully drained; if the consumer
+         * is parked on {@code waitForReady} when the parser exits normally (typical case for tiny
+         * chunks emitting zero pages), the POISON signal is what unblocks the consumer to advance
+         * {@code currentChunk} and release a dispatchPermit. Without this signal a healthy parse can
+         * stall after the last chunk in a slot.
+         */
+        private void putPoisonAndSignal(ArrayBlockingQueue<Page> queue) {
             boolean poisoned = false;
             while (poisoned == false) {
                 try {
@@ -554,6 +598,7 @@ public final class StreamingParallelParsingCoordinator {
                     Thread.currentThread().interrupt();
                 }
             }
+            signalReady();
         }
 
         @Override
@@ -581,6 +626,57 @@ public final class StreamingParallelParsingCoordinator {
             Page result = buffered;
             buffered = null;
             return result;
+        }
+
+        /**
+         * Returns {@code true} when {@link #hasNext()} can run without blocking on upstream
+         * production: a page is already buffered, the current slot has a page or POISON, EOF has
+         * been reached, an error has been recorded, or the iterator is closed.
+         */
+        private boolean isReadyNow() {
+            if (closed || buffered != null || firstError.get() != null) {
+                return true;
+            }
+            int slot = currentChunk % pageQueueRingSize;
+            if (pageQueues[slot].peek() != null) {
+                return true;
+            }
+            // EOF: consumer has drained every dispatched chunk AND every producer has exited.
+            return currentChunk >= chunksDispatched.get() && allDone.getCount() == 0;
+        }
+
+        @Override
+        public SubscribableListener<Void> waitForReady() {
+            if (isReadyNow()) {
+                return SubscribableListener.newSucceeded(null);
+            }
+            // Install a listener for the next state-change event (page enqueued, POISON enqueued,
+            // chunk dispatched, EOF, or error). Re-check after CAS to close the gap where state
+            // flipped to ready between the first {@link #isReadyNow} call and the install.
+            SubscribableListener<Void> existing = pendingReady.get();
+            if (existing != null) {
+                return existing;
+            }
+            SubscribableListener<Void> fresh = new SubscribableListener<>();
+            if (pendingReady.compareAndSet(null, fresh) == false) {
+                return pendingReady.get();
+            }
+            if (isReadyNow()) {
+                signalReady();
+                return SubscribableListener.newSucceeded(null);
+            }
+            return fresh;
+        }
+
+        /**
+         * Fires the pending readiness listener (if any). Producers call this from any state-change
+         * site so that a consumer parked on {@link #waitForReady()} resumes promptly.
+         */
+        private void signalReady() {
+            SubscribableListener<Void> listener = pendingReady.getAndSet(null);
+            if (listener != null) {
+                listener.onResponse(null);
+            }
         }
 
         private Page takeNextPage() throws InterruptedException {
@@ -658,6 +754,8 @@ public final class StreamingParallelParsingCoordinator {
                 return;
             }
             closed = true;
+            // Wake any consumer parked on {@link #waitForReady()}; isReadyNow now returns true on closed.
+            signalReady();
             // Wake the segmentator if parked on dispatchPermits.acquire(); after a successful acquire it
             // re-checks {@code closed} and exits {@link #dispatchChunk} without enqueueing.
             dispatchPermits.release();

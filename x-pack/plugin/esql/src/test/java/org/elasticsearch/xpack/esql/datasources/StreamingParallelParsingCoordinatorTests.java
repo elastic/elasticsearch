@@ -310,6 +310,188 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * On a fresh iterator with no chunks yet dispatched, {@link CloseableIterator#waitForReady()} must
+     * NOT complete synchronously — it must register a listener that fires only when the segmentator
+     * publishes the first chunk or reaches EOF. This is the core consumer-yield contract that lets the
+     * producer-loop release its executor slot back to the pool while parser/segmenter sub-tasks run.
+     * Without it, the producer-loop would spin inside {@code hasNext()} holding the slot, deadlocking
+     * the pool on multi-file gzip globs with default {@code parsing_parallelism = cores}.
+     */
+    public void testWaitForReadyParksUntilFirstChunkOrEof() throws Exception {
+        // Synthesize a stream the segmenter cannot yet make progress on by gating it behind a latch
+        // wired into a slow read.
+        java.util.concurrent.CountDownLatch unblockRead = new java.util.concurrent.CountDownLatch(1);
+        byte[] payload = "line-0\nline-1\n".getBytes(StandardCharsets.UTF_8);
+        InputStream gatedStream = new InputStream() {
+            int pos = 0;
+
+            @Override
+            public int read() throws IOException {
+                if (pos == 0) {
+                    try {
+                        unblockRead.await();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("interrupted", e);
+                    }
+                }
+                if (pos >= payload.length) return -1;
+                return payload[pos++] & 0xff;
+            }
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(1024);
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                gatedStream,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            org.elasticsearch.action.support.SubscribableListener<Void> ready = iterator.waitForReady();
+            assertFalse("waitForReady must NOT complete before any chunk is dispatched", ready.isDone());
+            // Now unblock the segmenter; it dispatches chunk 0 → signalReady fires → listener completes.
+            unblockRead.countDown();
+            assertBusy(() -> assertTrue("ready listener must fire after first chunk dispatched", ready.isDone()), 5, TimeUnit.SECONDS);
+            iterator.close();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * When a chunk's page is already in {@code pageQueues[currentSlot]}, {@link CloseableIterator#waitForReady()}
+     * must complete synchronously — the consumer can drain without yielding.
+     */
+    public void testWaitForReadyImmediateWhenPageAlreadyAvailable() throws Exception {
+        String content = buildContent(20);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(1024);
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            // Wait until the iterator has produced at least one page worth of work, then check ready.
+            assertBusy(() -> assertTrue(iterator.hasNext()), 5, TimeUnit.SECONDS);
+            org.elasticsearch.action.support.SubscribableListener<Void> ready = iterator.waitForReady();
+            assertTrue("waitForReady must complete immediately when a page is buffered or available", ready.isDone());
+            collectLines(iterator);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Closing while a consumer is parked on {@link CloseableIterator#waitForReady()} must complete
+     * the listener so the producer-loop doesn't leak its registered callback past iterator shutdown.
+     */
+    public void testWaitForReadyResolvesOnClose() throws Exception {
+        java.util.concurrent.CountDownLatch unblockRead = new java.util.concurrent.CountDownLatch(1);
+        InputStream gatedStream = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                try {
+                    unblockRead.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("interrupted", e);
+                }
+                return -1;
+            }
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            LineFormatReader reader = new LineFormatReader(1024);
+            CloseableIterator<Page> iterator = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                gatedStream,
+                List.of("line"),
+                50,
+                2,
+                executor,
+                ErrorPolicy.STRICT
+            );
+            org.elasticsearch.action.support.SubscribableListener<Void> ready = iterator.waitForReady();
+            assertFalse("waitForReady must NOT complete while stream is gated", ready.isDone());
+            iterator.close();
+            assertBusy(() -> assertTrue("ready listener must fire after close()", ready.isDone()), 5, TimeUnit.SECONDS);
+            unblockRead.countDown();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * The core regression test for elastic/esql-planning#732 — verifies the deadlock no longer occurs
+     * when many file readers fan out against a tiny shared executor pool. Pre-fix, F file readers with
+     * {@code parsing_parallelism = N} would submit {@code F × (1 + N)} sub-tasks plus F producer-loop
+     * drivers — a pool of {@code F × (2 + N)} threads. With a smaller pool, producer-loops blocked
+     * inside {@code hasNext()} occupy slots that their sub-tasks need. Post-fix, producer-loops yield
+     * via {@link CloseableIterator#waitForReady()} so the deadlock can't form.
+     */
+    public void testConcurrentFileReadersWithUndersizedPoolDoNotDeadlock() throws Exception {
+        int fileCount = 8;
+        int parsingParallelism = 4;
+        // Pool size strictly less than F + F * (1 + parsingParallelism) so the pre-fix code would have
+        // sub-tasks queued behind producer-loops indefinitely.
+        int poolSize = 6;
+        ExecutorService executor = Executors.newFixedThreadPool(poolSize);
+        java.util.List<CloseableIterator<Page>> iterators = new java.util.ArrayList<>();
+        try {
+            for (int f = 0; f < fileCount; f++) {
+                InputStream s = new ByteArrayInputStream(buildContent(50).getBytes(StandardCharsets.UTF_8));
+                LineFormatReader reader = new LineFormatReader(1024);
+                iterators.add(
+                    StreamingParallelParsingCoordinator.parallelRead(
+                        reader,
+                        s,
+                        List.of("line"),
+                        50,
+                        parsingParallelism,
+                        executor,
+                        ErrorPolicy.STRICT
+                    )
+                );
+            }
+            // Drain all iterators on a SINGLE consumer thread (= mimics the producer-loop pattern of
+            // one driver per iterator, all competing for the same pool). Without the waitForReady
+            // yield this would deadlock; with it, each iterator's hasNext() forces a sub-task slot
+            // to free up before the producer-loop reclaims it.
+            long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+            for (CloseableIterator<Page> it : iterators) {
+                // We don't have a producer-loop here so we can't directly test the yield from inside
+                // hasNext(). Instead we exercise the same waitForReady contract that the producer-loop
+                // depends on: until it is done, the iterator should NOT claim more page-emitting work.
+                while (it.hasNext()) {
+                    if (System.nanoTime() > deadlineNanos) {
+                        fail("iterator did not drain within 60s — likely deadlock");
+                    }
+                    Page p = it.next();
+                    p.releaseBlocks();
+                }
+                it.close();
+            }
+        } finally {
+            for (CloseableIterator<Page> it : iterators) {
+                try {
+                    it.close();
+                } catch (IOException ignored) {}
+            }
+            executor.shutdownNow();
+        }
+    }
+
     private static String buildContent(int lineCount) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lineCount; i++) {

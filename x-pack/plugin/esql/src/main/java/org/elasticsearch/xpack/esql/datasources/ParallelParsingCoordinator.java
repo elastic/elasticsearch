@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -75,7 +76,7 @@ public final class ParallelParsingCoordinator {
         int parallelism,
         Executor executor
     ) throws IOException {
-        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null, false);
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null, false, true, List.of());
     }
 
     /**
@@ -92,7 +93,7 @@ public final class ParallelParsingCoordinator {
         Executor executor,
         ErrorPolicy errorPolicy
     ) throws IOException {
-        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, errorPolicy, false);
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, errorPolicy, false, true, List.of());
     }
 
     /**
@@ -123,7 +124,8 @@ public final class ParallelParsingCoordinator {
             executor,
             errorPolicy,
             splitStartsAtRecordBoundary,
-            true
+            true,
+            List.of()
         );
     }
 
@@ -146,6 +148,39 @@ public final class ParallelParsingCoordinator {
         boolean splitStartsAtRecordBoundary,
         boolean splitIncludesFileLeader
     ) throws IOException {
+        return parallelRead(
+            reader,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            splitStartsAtRecordBoundary,
+            splitIncludesFileLeader,
+            List.of()
+        );
+    }
+
+    /**
+     * Full-control overload that also propagates a planner-resolved file schema (used for multi-file
+     * headerless reads to prevent per-file type-drift). Pass {@code List.of()} when no anchor schema
+     * is available; the reader will fall back to its normal per-file inference.
+     *
+     * @param fileSchema planner-bound anchor-file schema, or empty to use per-file inference
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary,
+        boolean splitIncludesFileLeader,
+        List<Attribute> fileSchema
+    ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
 
@@ -162,12 +197,14 @@ public final class ParallelParsingCoordinator {
         }
 
         ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
+        List<Attribute> effectiveFileSchema = fileSchema != null ? fileSchema : List.of();
         FormatReadContext baseCtx = FormatReadContext.builder()
             .projectedColumns(projectedColumns)
             .batchSize(batchSize)
             .errorPolicy(effectivePolicy)
             .firstSplit(splitIncludesFileLeader)
             .recordAligned(splitStartsAtRecordBoundary)
+            .fileSchema(effectiveFileSchema)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
             return parallelReader.read(storageObject, baseCtx);
@@ -187,7 +224,8 @@ public final class ParallelParsingCoordinator {
             segments,
             executor,
             effectivePolicy,
-            splitIncludesFileLeader
+            splitIncludesFileLeader,
+            effectiveFileSchema
         );
     }
 
@@ -263,6 +301,7 @@ public final class ParallelParsingCoordinator {
         private final int batchSize;
         private final ErrorPolicy errorPolicy;
         private final boolean splitIncludesFileLeader;
+        private final List<Attribute> fileSchema;
 
         private final List<BlockingQueue<Page>> segmentQueues;
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
@@ -280,7 +319,8 @@ public final class ParallelParsingCoordinator {
             List<long[]> segments,
             Executor executor,
             ErrorPolicy errorPolicy,
-            boolean splitIncludesFileLeader
+            boolean splitIncludesFileLeader,
+            List<Attribute> fileSchema
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -288,6 +328,7 @@ public final class ParallelParsingCoordinator {
             this.batchSize = batchSize;
             this.errorPolicy = errorPolicy;
             this.splitIncludesFileLeader = splitIncludesFileLeader;
+            this.fileSchema = fileSchema != null ? fileSchema : List.of();
             this.allDone = new CountDownLatch(segments.size());
 
             this.segmentQueues = new ArrayList<>(segments.size());
@@ -337,6 +378,7 @@ public final class ParallelParsingCoordinator {
                     .firstSplit(splitIncludesFileLeader && segmentIndex == 0)
                     .lastSplit(lastSplit)
                     .recordAligned(true)
+                    .fileSchema(fileSchema)
                     .build();
                 CloseableIterator<Page> pages = reader.read(segObj, ctx);
                 try (pages) {

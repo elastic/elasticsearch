@@ -1141,7 +1141,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     executor,
                     policy,
                     recordAlignedMacroSplit,
-                    splitIncludesFileLeader
+                    splitIncludesFileLeader,
+                    fileSchema
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {

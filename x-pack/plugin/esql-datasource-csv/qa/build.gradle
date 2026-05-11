@@ -63,6 +63,17 @@ tasks.register('syncCsvIcebergFixtures', Sync) {
   into file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone")
 }
 
+// Two-file headerless fixture set with anchor-vs-other type-drift on col1. Used by the
+// csv-headerless.csv-spec multi-file glob test to prove the anchor schema is honored end-to-end.
+tasks.register('syncCsvIcebergMultifileFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesProject.file('src/main/resources/data')) {
+    include 'multifile_a_anchor.csv', 'multifile_b_other.csv'
+  }
+  into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile")
+}
+
 // Same basenames as syncCsvIcebergFixtures — external-basic.csv-spec uses {{employees}}, {{web_logs}}, {{books}}.
 def csvBasenamesForTsv = ['employees', 'web_logs', 'books']
 
@@ -96,11 +107,11 @@ sourceSets.javaRestTest.resources {
 }
 
 tasks.named('processJavaRestTestResources').configure {
-  dependsOn 'syncCsvIcebergFixtures', 'generateStandaloneTsvFixtures'
+  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'generateStandaloneTsvFixtures'
 }
 
 tasks.named('javaRestTest') {
-  dependsOn 'syncCsvIcebergFixtures', 'generateStandaloneTsvFixtures'
+  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'generateStandaloneTsvFixtures'
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
   enabled = buildParams.snapshotBuild

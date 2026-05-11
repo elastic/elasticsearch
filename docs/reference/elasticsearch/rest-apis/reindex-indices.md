@@ -90,6 +90,12 @@ POST _reindex
 
 If the request contains `wait_for_completion=false`, {{es}} performs some preflight checks, launches the request, and returns a `task` you can use to cancel or get the status of the task. {{es}} creates a record of this task as a document at `_tasks/<task_id>`.
 
+For long-running reindexes, prefer async reindexes.
+Synchronous reindex keeps a client waiting on the node that received the request.
+{applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` With async reindex, if a node is shut down in a **graceful** way, the reindex task might continue on another eligible node (if there is one).
+{applies_to}`serverless: unavailable` In the versioned {{stack}} before v9.5, use the task id from the initial response with the [task management APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-tasks) to get status or cancel.
+{applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` On {{serverless-short}}, and in the versioned {{stack}} from 9.5, you can interact with reindex tasks using the task ID from the initial response together with the reindex management APIs (`GET _reindex/<task_id>`, cancel, rethrottle).
+
 ## Reindex multiple indices sequentially [docs-reindex-multiple-sequentially]
 
 If you have many sources to reindex it is generally better to reindex them one at a time rather than using a glob pattern to pick up multiple sources.
@@ -118,7 +124,20 @@ Set `requests_per_second` to any positive decimal number (for example, `1.4`, `6
 Requests are throttled by padding each batch with a wait time.
 To disable throttling, set `requests_per_second` to `-1`.
 
-The throttling is done by waiting between batches so that the `scroll` that the reindex API uses internally can be given a timeout that takes into account the padding. The padding time is the difference between the batch size divided by the `requests_per_second` and the time spent writing. By default the batch size is `1000`, so if `requests_per_second` is set to `500`:
+The throttling is done by waiting between batches.
+Set the underlying search keep-alive long enough that a slower batch does not expire the context before the next read (see the following note).
+
+::::{note}
+**`scroll` query parameter vs PIT keep-alive**
+
+{applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` - **Point-in-time:** In the versioned {{stack}} from 9.5 and on {{serverless-short}}, reindex reads the source with **point-in-time** pagination for typical local reindexes, and for reindex from remote when the remote cluster is **{{es}} 7.10 or newer** (so a PIT can be opened there). The top-level **`scroll` parameter on the reindex request has no effect** on that path. Reindex from a remote cluster **older than {{es}} 7.10** cannot use the PIT path and **falls back to scroll**; the **`scroll`** parameter then sets scroll keep-alive (not `cluster.reindex.pit.keep_alive`).
+{applies_to}`stack: ga 9.5+` Use [`cluster.reindex.pit.keep_alive`](/reference/elasticsearch/configuration-reference/index-management-settings.md#reindex-settings) for how long those contexts stay open.
+
+{applies_to}`serverless: unavailable` - **Scroll (versioned {{stack}} 9.4 and earlier):** Reindex uses **scroll**-based pagination for local and remote sources. The **`scroll`** parameter sets scroll keep-alive; allow enough time for throttling gaps between batches.
+::::
+
+The padding time is the difference between the batch size divided by the `requests_per_second` and the time spent writing.
+By default, the batch size is `1000`, so if `requests_per_second` is set to `500`:
 
 ```txt
 target_time = 1000 / 500 per second = 2 seconds
@@ -139,7 +158,8 @@ The task ID can be found using the [task management APIs](https://www.elastic.co
 
 Just like when setting it on the Reindex API, `requests_per_second` can be either `-1` to disable throttling or any decimal number like `1.7` or `12` to throttle to that level.
 Rethrottling that speeds up the query takes effect immediately, but rethrottling that slows down the query will take effect after completing the current batch.
-This prevents scroll timeouts.
+This prevents the underlying search context used between batches from timing out.
+The same `scroll` versus point-in-time keep-alive rules apply; see the note under [Reindex with throttling](#docs-reindex-throttle).
 
 ## Reindex with slicing [docs-reindex-slice]
 
@@ -303,7 +323,7 @@ POST _reindex
 ```
 % TEST[s/^/PUT source\n/]
 
-By default the reindex API uses scroll batches of 1000. You can change the batch size with the `size` field in the `source` element:
+By default the reindex API reads the source in batches of 1000 documents (the search `size` on `source`). The same batch size applies whether the run uses scroll-based or point-in-time pagination. You can change it with the `size` field in the `source` element:
 
 ```console
 POST _reindex
@@ -889,9 +909,9 @@ GET _tasks/r1A2WoRbTwKZ516z6NEs5A:36619
  - If the `completed` field in the response to the `GET _tasks/<task_id>` call is `false` then the reindex is still running.
  - If the `completed` field is `true` and the `error` field is present then the reindex failed. Check the `error` object for details.
  - If the `completed` field is `true` and the `response` field is present then the reindex at least partially succeeded. Check the `failures` field in the `response` object to see if there were partial failures.
- - If this call returns a 404 (`NOT FOUND`) then reindex failed because the task was lost, perhaps due to a node restart.
+ - If this call returns a 404 (`NOT FOUND`), then {{es}} could not resolve a running or stored completed task for that task ID.
 
-In any of the failure cases, partial data may have been written to the destination index.
+When a reindex fails, completes with failures in the response, or returns 404 and cannot be tracked further, partial data may have been written to the destination index.
 ::::
 
 To view all currently running reindex tasks (where this API is available):

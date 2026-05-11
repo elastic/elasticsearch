@@ -247,6 +247,54 @@
             index.number_of_shards: 2
 
 ---
+"Create columnar index":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "Support for columnar index modes required"
+  - do:
+      indices.create:
+        index: test_columnar
+        body:
+          settings:
+            index.mode: columnar
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_settings:
+        index: test_columnar
+
+  - match: { test_columnar.settings.index.mode: "columnar" }
+
+---
+"Create columnar_logsdb index":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "Support for columnar index modes required"
+  - do:
+      indices.create:
+        index: test_columnar_logsdb
+        body:
+          settings:
+            index.mode: columnar_logsdb
+
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_settings:
+        index: test_columnar_logsdb
+
+  - match: { test_columnar_logsdb.settings.index.mode: "columnar_logsdb" }
+
+---
 "Create index with invalid field type":
   - requires:
       cluster_features: [ "mapper.unknown_field_mapping_update_error_message" ]

@@ -136,7 +136,8 @@ public class XPackSettings {
     public static final Setting<Boolean> AUDIT_ENABLED = Setting.boolSetting(
         "xpack.security.audit.enabled",
         false,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /** Setting for enabling or disabling document/field level security. Defaults to true. */

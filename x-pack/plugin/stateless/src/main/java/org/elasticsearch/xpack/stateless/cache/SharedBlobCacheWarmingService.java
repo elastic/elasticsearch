@@ -98,7 +98,9 @@ public class SharedBlobCacheWarmingService {
         INDEXING_EARLY(true),
         INDEXING(true),
         INDEXING_MERGE(false),
-        SEARCH(true),
+        // search shard recovery doesn't guarantee that all of region 0 has been cached, because header reads served from
+        // index shards are served at page rather than region granularity.
+        SEARCH(false),
         HOLLOWING(true),
         UNHOLLOWING(true);
 
@@ -309,12 +311,26 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Sizes the throttled task runner used by {@link AbstractWarmer.WarmBlobByteRangeTask} to fetch byte ranges into the cache, relative to
+     * the size of the prewarm thread pool. The resulting throttle limit is rounded down and capped to a minimum of 1, so even with a value
+     * of 0 we still allow one in-flight fetch. Throttling these fetches prevents the byte-range warming path from saturating the prewarm
+     * thread pool and starving other prewarming work.
+     */
+    public static final Setting<Double> WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING = Setting.doubleSetting(
+        "stateless.blob_cache_warming.warm_byte_range_throttle_ratio",
+        0.5,
+        0.0,
+        Setting.Property.NodeScope
+    );
+
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private final Executor fetchExecutor;
     private final Executor uploadPrewarmFetchExecutor;
     private final ThrottledTaskRunner throttledTaskRunner;
     private final ThrottledTaskRunner cfeThrottledTaskRunner;
+    private final ThrottledTaskRunner warmByteRangeThrottledTaskRunner;
     private final LongCounter cacheWarmingPageAlignedBytesTotalMetric;
     private final LongCounter idLookupPrewarmReqsTotalMetric;
     private final long prewarmingRangeMinimizationStep;
@@ -355,6 +371,17 @@ public class SharedBlobCacheWarmingService {
         // since their completion can also happen on that pool (and it is sized only for copying prefilled buffers to disk).
         // We have to throttle it, so we do not potentially overload the generic pool with I/O tasks.
         this.cfeThrottledTaskRunner = new ThrottledTaskRunner("cfe-prewarming-cache", 2, threadPool.generic());
+        // Throttle byte-range warming fetches so they don't saturate the PREWARM_THREAD_POOL and starve other prewarming work.
+        final int prewarmMax = threadPool.info(StatelessPlugin.PREWARM_THREAD_POOL).getMax();
+        final int warmByteRangeThrottleLimit = Math.max(
+            1,
+            (int) (prewarmMax * clusterSettings.get(WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING))
+        );
+        this.warmByteRangeThrottledTaskRunner = new ThrottledTaskRunner(
+            "warm-byte-range-prewarming-cache",
+            warmByteRangeThrottleLimit,
+            fetchExecutor
+        );
         this.cacheWarmingPageAlignedBytesTotalMetric = telemetryProvider.getMeterRegistry()
             .registerLongCounter(BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC, "Total bytes warmed in cache", "bytes");
         this.idLookupPrewarmReqsTotalMetric = telemetryProvider.getMeterRegistry()
@@ -1045,22 +1072,22 @@ public class SharedBlobCacheWarmingService {
         }
 
         private void addLocation(BlobLocation location, String fileName, long position, long length, ActionListener<Void> listener) {
-            final long start = position;
-            final long end = position + length;
+            final long start = length <= Integer.MAX_VALUE ? directory.getPosition(fileName, position, (int) length) : position;
+            final long end = start + length;
             final int regionSize = cacheService.getRegionSize();
             final int startRegion = cacheService.getRegion(start);
             final int endRegion = cacheService.getEndingRegion(end);
 
             if (startRegion == endRegion) {
                 BlobRegion blobRegion = new BlobRegion(location.blobFile(), startRegion);
-                enqueueLocation(blobRegion, fileName, location, position, length, listener);
+                enqueueLocation(blobRegion, location, start, length, listener);
             } else {
                 try (var listeners = new RefCountingListener(listener)) {
                     for (int r = startRegion; r <= endRegion; r++) {
                         // adjust the position & length to the region
                         var range = ByteRange.of(Math.max(start, (long) r * regionSize), Math.min(end, (r + 1L) * regionSize));
                         BlobRegion blobRegion = new BlobRegion(location.blobFile(), r);
-                        enqueueLocation(blobRegion, fileName, location, range.start(), range.length(), listeners.acquire());
+                        enqueueLocation(blobRegion, location, range.start(), range.length(), listeners.acquire());
                     }
                 }
             }
@@ -1108,29 +1135,25 @@ public class SharedBlobCacheWarmingService {
             }));
         }
 
-        private boolean shouldSkipLocationWarming(String fileName, long position, long length) {
+        private boolean shouldSkipLocationWarming(long position) {
             if (warmingRun.type.skipsWarmingForRegion0Locations == false) {
                 return false;
             }
-            if (length > Short.MAX_VALUE) {
-                // length is too long to be contained in replicated section
-                return false;
-            }
-            int region = (int) (directory.getPosition(fileName, position, (int) length) / cacheService.getRegionSize());
             // region 0 is already loaded by this point while resolving full set of commit files and safe to skip.
             // See org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService#readIndexingShardState
-            return region == 0;
+            // reads that span regions will be split into separate tasks, so checking the starting position suffices.
+            return position / cacheService.getRegionSize() == 0;
         }
 
+        // When using replicated ranges, the location should already be translated to its replicated counterpart
         private void enqueueLocation(
             BlobRegion blobRegion,
-            String fileName,
             BlobLocation blobLocation,
             long position,
             long length,
             ActionListener<Void> listener
         ) {
-            if (shouldSkipLocationWarming(fileName, position, length)) {
+            if (shouldSkipLocationWarming(position)) {
                 skippedTasksCount.incrementAndGet();
                 listener.onResponse(null);
                 return;
@@ -1556,7 +1579,7 @@ public class SharedBlobCacheWarmingService {
                     WarmBlobByteRangeTask.this,
                     writeBuffer::get,
                     totalBytesCopied::addAndGet,
-                    fetchExecutor,
+                    warmByteRangeThrottledTaskRunner.asExecutor(),
                     true,
                     l
                 );

@@ -396,7 +396,7 @@ public class ApproximationPlan {
         for (int trialId = 1; trialId < TRIAL_COUNT; trialId++) {
             bucketIds = new MvAppend(Source.EMPTY, bucketIds, randomBucketId);
         }
-        Alias bucketIdField = new Alias(Source.EMPTY, BUCKET_ID_COLUMN_NAME, bucketIds);
+        Alias bucketIdField = new Alias(Source.EMPTY, BUCKET_ID_COLUMN_NAME, bucketIds, null, true);
 
         // The aggregate functions in the approximation plan.
         List<NamedExpression> bucketAggregates = new ArrayList<>();
@@ -435,7 +435,9 @@ public class ApproximationPlan {
                 Alias doubleField = new Alias(
                     Source.EMPTY,
                     Attribute.rawTemporaryName(agg.name(), "todouble"),
-                    new ToDouble(Source.EMPTY, sum.field())
+                    new ToDouble(Source.EMPTY, sum.field()),
+                    null,
+                    true
                 );
                 preEvals.add(doubleField);
                 aggFn = new Sum(sum.source(), doubleField.toAttribute(), sum.filter(), sum.window(), sum.summationMode());
@@ -446,7 +448,7 @@ public class ApproximationPlan {
 
             projections.add(agg.toAttribute());
             if (needsRounding) {
-                Alias notRoundedAgg = new Alias(Source.EMPTY, Attribute.rawTemporaryName(agg.name(), "not_rounded"), aggFn);
+                Alias notRoundedAgg = new Alias(Source.EMPTY, Attribute.rawTemporaryName(agg.name(), "not_rounded"), aggFn, null, true);
                 notRoundedExpressions.put(agg.id(), notRoundedAgg.toAttribute());
                 postEvals.add(agg.replaceChild(new ToLong(Source.EMPTY, notRoundedAgg.toAttribute())));
                 agg = notRoundedAgg;
@@ -476,7 +478,9 @@ public class ApproximationPlan {
                             Attribute.rawTemporaryName(agg.name(), BUCKET_NAME_PART, Integer.toString(trialId * BUCKET_COUNT + bucketId)),
                             aggFn.withFilter(
                                 aggFn.hasFilter() == false ? bucketIdFilter : new And(Source.EMPTY, aggFn.filter(), bucketIdFilter)
-                            )
+                            ),
+                            null,
+                            true
                         );
                         bucketAggregates.add(bucket);
 
@@ -493,7 +497,9 @@ public class ApproximationPlan {
                                     BUCKET_NAME_PART,
                                     Integer.toString(trialId * BUCKET_COUNT + bucketId)
                                 ),
-                                new ToLong(Source.EMPTY, bucket.toAttribute())
+                                new ToLong(Source.EMPTY, bucket.toAttribute()),
+                                null,
+                                true
                             );
                             if (aggFn instanceof CountApproximate) {
                                 // COUNT returns 0 for no data, but the confidence computation needs NULL.
@@ -527,7 +533,9 @@ public class ApproximationPlan {
             sampleSize = new Alias(
                 Source.EMPTY,
                 Attribute.rawTemporaryName("approximation", "sample_size"),
-                new CountApproximate(Source.EMPTY, Literal.keyword(Source.EMPTY, StringUtils.WILDCARD))
+                new CountApproximate(Source.EMPTY, Literal.keyword(Source.EMPTY, StringUtils.WILDCARD)),
+                null,
+                true
             );
             aggregates.add(sampleSize);
             originalAggregates.add(sampleSize);
@@ -615,7 +623,9 @@ public class ApproximationPlan {
                                     e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id())
                                         ? fieldBuckets.get(ne.id()).get(finalBucketId)
                                         : e
-                                )
+                                ),
+                            null,
+                            true
                         );
                         fields.add(bucket);
                         buckets.add(bucket.toAttribute());
@@ -680,7 +690,9 @@ public class ApproximationPlan {
                     Alias projectedBucket = new Alias(
                         Source.EMPTY,
                         Attribute.rawTemporaryName(alias.name(), BUCKET_NAME_PART, Integer.toString(bucketId)),
-                        buckets.get(bucketId)
+                        buckets.get(bucketId),
+                        null,
+                        true
                     );
                     projections.add(projectedBucket);
                     projectedBuckets.add(projectedBucket.toAttribute());
@@ -777,7 +789,9 @@ public class ApproximationPlan {
                     Alias missingAttribute = new Alias(
                         Source.EMPTY,
                         outputAttribute.name(),
-                        new Literal(Source.EMPTY, null, outputAttribute.dataType())
+                        new Literal(Source.EMPTY, null, outputAttribute.dataType()),
+                        null,
+                        outputAttribute.synthetic()
                     );
                     missingAttributes.add(missingAttribute);
                     projections.add(missingAttribute.toAttribute());
@@ -966,7 +980,7 @@ public class ApproximationPlan {
 
         List<Alias> fields = new ArrayList<>();
         for (NamedExpression aggOrKey : sampledAggregate.aggregates()) {
-            if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
+            if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false || aggOrKey.synthetic() == false) {
                 continue;
             }
             int bucketIdentifierIndex = aggOrKey.name()

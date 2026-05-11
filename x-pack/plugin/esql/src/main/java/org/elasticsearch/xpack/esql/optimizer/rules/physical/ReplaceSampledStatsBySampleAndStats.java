@@ -185,14 +185,20 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
 
                 if (aggFnNeedsCorrection && desc.type() != ElementType.BOOLEAN) {
                     // Create a new alias for the uncorrected value, and reuse the existing attribute for the corrected value.
-                    Alias uncorrectedAlias = new Alias(Source.EMPTY, Attribute.rawTemporaryName(attr.name(), "uncorrected"), attr);
+                    Alias uncorrectedAlias = new Alias(
+                        Source.EMPTY,
+                        Attribute.rawTemporaryName(attr.name(), "uncorrected"),
+                        attr,
+                        null,
+                        true
+                    );
                     intermediateAttributes.add(uncorrectedAlias.toAttribute());
                     Expression corrected = new Div(
                         Source.EMPTY,
                         uncorrectedAlias.toAttribute(),
                         originalIntermediateNames.contains(attr.name()) ? plan.sampleProbability() : bucketSampleProbability
                     );
-                    Alias correctedAlias = new Alias(Source.EMPTY, attr.name(), corrected, attr.id());
+                    Alias correctedAlias = new Alias(Source.EMPTY, attr.name(), corrected, attr.id(), attr.synthetic());
                     sampleCorrections.add(correctedAlias);
                 } else {
                     intermediateAttributes.add(attr);
@@ -229,14 +235,14 @@ public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.
 
             if (aggFnNeedsCorrection) {
                 // Create a new alias for the uncorrected value, and reuse the existing attribute for the corrected value.
-                Alias uncorrectedAlias = new Alias(Source.EMPTY, Attribute.rawTemporaryName(attr.name(), "uncorrected"), aggFn);
+                Alias uncorrectedAlias = new Alias(Source.EMPTY, Attribute.rawTemporaryName(attr.name(), "uncorrected"), aggFn, null, true);
                 aggregates.add(uncorrectedAlias);
                 Expression corrected = new Div(
                     Source.EMPTY,
                     uncorrectedAlias.toAttribute(),
                     originalAggregatesNames.contains(attr.name()) ? plan.sampleProbability() : bucketSampleProbability
                 );
-                Alias correctedAlias = new Alias(Source.EMPTY, attr.name(), corrected, attr.id());
+                Alias correctedAlias = ((Alias) aggOrKey).replaceChild(corrected);
                 sampleCorrections.add(correctedAlias);
             } else {
                 aggregates.add(aggOrKey);

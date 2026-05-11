@@ -9,6 +9,8 @@
 
 package org.elasticsearch.nativeaccess;
 
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Optional;

@@ -431,8 +431,11 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessPluginInteg
             assertAcked(indicesAdmin().prepareDelete(indexName));
             IndexEngineTestUtils.awaitClose(engine);
         } finally {
-            plugin.listRetainedCommits(shardId).forEach(this::releaseCommit);
-            indexName = null;
+            try {
+                plugin.listRetainedCommits(shardId).forEach(this::releaseCommit);
+            } finally {
+                indexName = null;
+            }
         }
     }
 

@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.vectors.BFloat16;
@@ -48,7 +47,6 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
@@ -2391,40 +2389,6 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
     }
 
-    public void testSliceEnabledPassesRoutingSliceFieldToKnnFormatSelection() {
-        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
-        TestDenseVectorIndexOptions testIndexOptions = new TestDenseVectorIndexOptions(
-            new DenseVectorFieldMapper.BBQIVFIndexOptions(
-                ES940DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER,
-                -1,
-                10.0d,
-                false,
-                null,
-                IndexVersion.current(),
-                false,
-                1,
-                true
-            ),
-            false
-        );
-        assertEquals(DenseVectorFieldMapper.VectorIndexType.BBQ_DISK, testIndexOptions.type);
-        var mapper = new DenseVectorFieldMapper.Builder("field", IndexVersion.current(), true, false, List.of(), false).indexOptions(
-            testIndexOptions
-        ).dimensions(128).elementType(ElementType.FLOAT).build(MapperBuilderContext.root(false, false));
-        IndexSettings enabled = IndexSettingsModule.newIndexSettings(
-            "foo",
-            Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build()
-        );
-        IndexSettings disabled = IndexSettingsModule.newIndexSettings(
-            "foo",
-            Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), false).build()
-        );
-        KnnVectorsFormat enabledFormat = mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), enabled, null);
-        assertThat(enabledFormat.toString(), containsString("sliceField=" + RoutingFieldMapper.NAME));
-        KnnVectorsFormat disabledFormat = mapper.getKnnVectorsFormatForField(new ES93HnswVectorsFormat(), disabled, null);
-        assertThat(disabledFormat.toString(), containsString("sliceField=null"));
-    }
-
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
@@ -2491,18 +2455,12 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
     private static class TestDenseVectorIndexOptions extends DenseVectorFieldMapper.DenseVectorIndexOptions {
 
         private final DenseVectorFieldMapper.DenseVectorIndexOptions inner;
-        private final boolean delegateToInner;
         private ExecutorService passedMergingExecutorService;
         private int passedNumMergeWorkers = -1;
 
         TestDenseVectorIndexOptions(DenseVectorFieldMapper.DenseVectorIndexOptions inner) {
-            this(inner, true);
-        }
-
-        TestDenseVectorIndexOptions(DenseVectorFieldMapper.DenseVectorIndexOptions inner, boolean delegateToInner) {
             super(inner.type);
             this.inner = inner;
-            this.delegateToInner = delegateToInner;
         }
 
         @Override
@@ -2519,15 +2477,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         ) {
             this.passedMergingExecutorService = mergingExecutorService;
             this.passedNumMergeWorkers = numMergeWorkers;
-            if (delegateToInner) {
-                return inner.getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, sliceField);
-            }
-            return new ES93HnswVectorsFormat() {
-                @Override
-                public String toString() {
-                    return "TestSliceAwareKnnVectorsFormat(sliceField=" + sliceField + ")";
-                }
-            };
+            return inner.getVectorsFormat(elementType, mergingExecutorService, numMergeWorkers, sliceField);
         }
 
         @Override

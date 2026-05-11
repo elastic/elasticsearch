@@ -229,7 +229,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page> {
         this.codecFactory = codecFactory;
         this.pushedExpressions = pushedExpressions;
         this.isPredicateColumn = classifyPredicateColumns(attributes, columnInfos, pushedExpressions);
-        this.lateMaterialization = pushedExpressions != null && hasProjectionOnlyColumns(isPredicateColumn, columnInfos);
+        this.lateMaterialization = pushedExpressions != null;
         this.survivorMask = lateMaterialization ? new WordMask() : null;
         // Caller supplies null when late materialization is off; defensively also drop it here so
         // the trivially-passes check is gated by a single condition below.

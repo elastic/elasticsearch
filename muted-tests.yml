@@ -515,15 +515,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.SoftDeletesRetentionIT
   method: testRetentionLeasesIgnoredForSoftDeletesPolicy
   issue: https://github.com/elastic/elasticsearch/issues/148557
-- class: org.elasticsearch.index.reindex.ReindexPluginMetricsIT
-  method: testReindexEmitsSearchContextKeepaliveExpiredMetric
-  issue: https://github.com/elastic/elasticsearch/issues/148558
-- class: org.elasticsearch.index.reindex.ReindexPluginMetricsIT
-  method: testLocalReindexPitOpenFailureMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/148559
-- class: org.elasticsearch.index.reindex.ReindexPluginMetricsIT
-  method: testRemoteReindexVersionLookupFailureMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/148560
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148339
@@ -544,3 +535,12 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
   method: testSplitOnSize
   issue: https://github.com/elastic/elasticsearch/issues/148613
+- class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
+  method: testMonitorClusterHealth
+  issue: https://github.com/elastic/elasticsearch/issues/148615
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148619
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
+  method: test {csv-spec:external-basic.evalComputedColumn [S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/148655

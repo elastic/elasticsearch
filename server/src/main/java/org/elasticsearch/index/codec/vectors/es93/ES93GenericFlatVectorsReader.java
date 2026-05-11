@@ -42,8 +42,6 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
         SegmentReadState state,
         GenericFlatVectorReaders.LoadFlatVectorsReader loadReader
     ) throws IOException {
-        super(null);    // this is not actually used by anything
-
         this.fieldInfos = state.fieldInfos;
         this.genericReaders = new GenericFlatVectorReaders();
 
@@ -75,7 +73,6 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
     }
 
     private ES93GenericFlatVectorsReader(FieldInfos fieldInfos, GenericFlatVectorReaders genericReaders) {
-        super(null);
         this.fieldInfos = fieldInfos;
         this.genericReaders = genericReaders;
     }
@@ -100,7 +97,7 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
     }
 
     @Override
-    public FlatVectorsScorer getFlatVectorScorer() {
+    public FlatVectorsScorer getFlatVectorScorer(String field) {
         // this should not actually be used at all
         return new FlatVectorsScorer() {
             @Override

@@ -583,7 +583,7 @@ final class ES92GpuHnswVectorsWriter extends IndexingKnnVectorsWriter {
                     // we just build a mock graph where every node is connected to every other node
                     generateMockGraphAndWriteMeta(fieldInfo, numVectors);
                 } else if (dataType == CuVSMatrix.DataType.FLOAT) {
-                    RandomVectorScorerSupplier scorerSupplier = flatVectorsReader.getFlatVectorScorer()
+                    RandomVectorScorerSupplier scorerSupplier = flatVectorsReader.getFlatVectorScorer(fieldInfo.getName())
                         .getRandomVectorScorerSupplier(fieldInfo.getVectorSimilarityFunction(), vectorValues);
                     mergeFloatVectorField(fieldInfo, mergeState, scorerSupplier, numVectors);
                 } else {

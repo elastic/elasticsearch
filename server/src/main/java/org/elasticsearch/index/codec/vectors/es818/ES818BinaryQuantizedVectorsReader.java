@@ -22,6 +22,7 @@ package org.elasticsearch.index.codec.vectors.es818;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
@@ -92,7 +93,6 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
         FlatVectorsReader rawVectorsReader,
         ES818BinaryFlatVectorsScorer vectorsScorer
     ) throws IOException {
-        super(vectorsScorer);
         this.fields = new HashMap<>();
         this.vectorScorer = vectorsScorer;
         this.rawVectorsReader = rawVectorsReader;
@@ -135,7 +135,6 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
     }
 
     private ES818BinaryQuantizedVectorsReader(ES818BinaryQuantizedVectorsReader clone, FlatVectorsReader rawVectorsReader) {
-        super(clone.vectorScorer);
         this.rawVectorsReader = rawVectorsReader;
         this.vectorScorer = clone.vectorScorer;
         this.quantizedVectorData = clone.quantizedVectorData;
@@ -182,6 +181,11 @@ public class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader impleme
                     + numQuantizedVectorBytes
             );
         }
+    }
+
+    @Override
+    public FlatVectorsScorer getFlatVectorScorer(String field) {
+        return vectorScorer;
     }
 
     @Override

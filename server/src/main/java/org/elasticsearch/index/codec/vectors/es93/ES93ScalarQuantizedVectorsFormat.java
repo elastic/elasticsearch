@@ -149,7 +149,6 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         private final FlatVectorsReader delegate;
 
         private ES93FlatVectorReader(FlatVectorsReader delegate, Lucene99ScalarQuantizedVectorsReader reader) {
-            super(reader.getFlatVectorScorer());
             this.reader = reader;
             this.delegate = delegate;
         }
@@ -176,8 +175,8 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public FlatVectorsScorer getFlatVectorScorer() {
-            return reader.getFlatVectorScorer();
+        public FlatVectorsScorer getFlatVectorScorer(String field) throws IOException {
+            return reader.getFlatVectorScorer(field);
         }
 
         @Override

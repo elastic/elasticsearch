@@ -181,9 +181,13 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         final FlatVectorsReader rawDelegate;
 
         ES814ScalarQuantizedVectorsReader(Lucene99ScalarQuantizedVectorsReader delegate, FlatVectorsReader rawDelegate) {
-            super(delegate.getFlatVectorScorer());
             this.delegate = delegate;
             this.rawDelegate = rawDelegate;
+        }
+
+        @Override
+        public FlatVectorsScorer getFlatVectorScorer(String field) throws IOException {
+            return delegate.getFlatVectorScorer(field);
         }
 
         @Override

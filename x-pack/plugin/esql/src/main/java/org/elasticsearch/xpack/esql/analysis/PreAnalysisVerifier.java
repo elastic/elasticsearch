@@ -84,17 +84,20 @@ public final class PreAnalysisVerifier {
      * inner expression (i.e. children of anything else (notably scalar functions) we fail with
      * a message that reflects that)
      */
-    private static void checkInFilterCondition(Expression expr, Expression innerExpr, Failures failures) {
+    private static void checkInFilterCondition(Expression expr, Expression outerExpr, Failures failures) {
         if (expr instanceof InSubquery in) {
-            if (innerExpr == null) {
+            if (outerExpr == null) {
                 failures.add(fail(in, "IN subquery is not yet supported"));
             } else {
-                failures.add(fail(in, "IN subquery is not supported within other expressions [{}]", innerExpr.sourceText()));
+                failures.add(fail(in, "IN subquery is not supported within other expressions [{}]", outerExpr.sourceText()));
             }
         }
-        Expression newParent = innerExpr == null && !(expr instanceof And || expr instanceof Or || expr instanceof Not) ? expr : innerExpr;
+        Expression newOuterExpr = outerExpr == null
+            && expr instanceof And == false
+            && expr instanceof Or == false
+            && expr instanceof Not == false ? expr : outerExpr;
         for (Expression child : expr.children()) {
-            checkInFilterCondition(child, newParent, failures);
+            checkInFilterCondition(child, newOuterExpr, failures);
         }
     }
 }

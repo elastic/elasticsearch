@@ -605,3 +605,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
   method: test {csv-spec:external-basic.selectSpecificColumns [GCS]}
   issue: https://github.com/elastic/elasticsearch/issues/148735
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
+  method: test {csv-spec:external-basic.convertToString [S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/148737

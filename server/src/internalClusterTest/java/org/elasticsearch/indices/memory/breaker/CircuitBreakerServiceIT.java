@@ -433,7 +433,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         SearchRequestBuilder searchRequest = client().prepareSearch("cb-query-test").setQuery(boolQuery);
         // This is one of the cases where a CB-trip does not translate into a 429, but instead a 400, because the query is rejected
         // at construction time, before it is executed
-        assertFailures(searchRequest, RestStatus.BAD_REQUEST, containsString("Data too large"));
+        assertFailures(searchRequest, RestStatus.TOO_MANY_REQUESTS, containsString("Data too large"));
 
         NodesStatsResponse stats = client().admin().cluster().prepareNodesStats().setBreaker(true).get();
         long queryConstructionBreaks = 0;

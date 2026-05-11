@@ -284,7 +284,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     public void testDeleteBackingIndexDuringMarkReadOnly() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
-        String candidateIndex = setupClusterAndInfrastructure();
+        String candidateIndex = setupClusterAndInfrastructure(1);
         CountDownLatch latch = registerDeleteIndexInterceptor(TransportAddIndexBlockAction.TYPE.name(), candidateIndex, false);
         triggerRollover();
 
@@ -305,7 +305,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     public void testDeleteBackingIndexDuringClone() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
-        String candidateIndex = setupClusterAndInfrastructure();
+        String candidateIndex = setupClusterAndInfrastructure(1);
         CountDownLatch latch = registerDeleteIndexInterceptor(TransportResizeAction.TYPE.name(), candidateIndex, false);
         triggerRollover();
 
@@ -325,7 +325,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     public void testDeleteBackingIndexDuringSnapshot() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
-        String candidateIndex = setupClusterAndInfrastructure();
+        String candidateIndex = setupClusterAndInfrastructure(1);
         CountDownLatch latch = registerDeleteIndexInterceptor(TransportGetSnapshotsAction.TYPE.name(), candidateIndex, false);
         triggerRollover();
 
@@ -345,7 +345,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     public void testDeleteBackingIndexDuringForceMerge() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
-        String candidateIndex = setupClusterAndInfrastructure();
+        String candidateIndex = setupClusterAndInfrastructure(1);
         // Force merge runs on the data node thread — must delete asynchronously to avoid deadlock
         CountDownLatch latch = registerDeleteIndexInterceptor("indices:admin/forcemerge", candidateIndex, true);
         triggerRollover();
@@ -366,7 +366,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     public void testDeleteBackingIndexDuringMountSnapshot() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
-        String candidateIndex = setupClusterAndInfrastructure();
+        String candidateIndex = setupClusterAndInfrastructure(1);
         CountDownLatch latch = registerDeleteIndexInterceptor("cluster:admin/snapshot/mount", candidateIndex, false);
         triggerRollover();
 
@@ -387,7 +387,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     public void testDeleteBackingIndexDuringCleanup() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
-        String candidateIndex = setupClusterAndInfrastructure();
+        String candidateIndex = setupClusterAndInfrastructure(1);
         CountDownLatch latch = registerDeleteIndexInterceptor("indices:admin/data_stream/modify", candidateIndex, false);
         triggerRollover();
 
@@ -403,7 +403,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     public void testDeleteMountedFrozenIndexBeforeSwap() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
-        String candidateIndex = setupClusterAndInfrastructure();
+        String candidateIndex = setupClusterAndInfrastructure(1);
         String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
 
         CountDownLatch latch = registerDisruptionInterceptor(
@@ -426,7 +426,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     public void testConcurrentRolloverDuringTransition() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
-        String candidateIndex = setupClusterAndInfrastructure();
+        String candidateIndex = setupClusterAndInfrastructure(1);
 
         CountDownLatch latch = registerDisruptionInterceptor(
             "indices:admin/forcemerge",
@@ -461,7 +461,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     public void testLifecyclePolicyUpdatedDuringTransition() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
-        String candidateIndex = setupClusterAndInfrastructure();
+        String candidateIndex = setupClusterAndInfrastructure(1);
 
         CountDownLatch latch = registerDisruptionInterceptor("indices:admin/forcemerge", () -> {
             // no frozenAfter policy
@@ -492,18 +492,168 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
         logger.info("--> lifecycle-policy-updated-during-transition disruption handled gracefully");
     }
 
+    // ======= Master Failover Tests =======
+
+    /**
+     * Triggers a master failover during the "mark read-only" phase by stopping the current master
+     * when the {@link TransportAddIndexBlockAction} is intercepted. The new master should resume
+     * the frozen transition and complete it successfully.
+     */
+    public void testMasterFailoverDuringMarkReadOnly() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        String candidateIndex = setupClusterAndInfrastructure(3); // 3 to maintain quorum after killing master
+        CountDownLatch latch = registerMasterFailoverInterceptor(TransportAddIndexBlockAction.TYPE.name());
+        triggerRollover();
+
+        assertTrue("AddIndexBlock request was never seen by the interceptor", latch.await(30, TimeUnit.SECONDS));
+        ensureStableCluster(5); // 2 remaining masters + 2 data + 1 frozen
+        assertFrozenTransitionCompletesSuccessfully(candidateIndex);
+        logger.info("--> master-failover-during-mark-read-only completed successfully");
+    }
+
+    /**
+     * Triggers a master failover during the "clone" phase by stopping the current master when the
+     * {@link TransportResizeAction} is intercepted. The new master should detect any partial clone
+     * and resume the frozen transition.
+     */
+    public void testMasterFailoverDuringClone() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        String candidateIndex = setupClusterAndInfrastructure(3);
+        CountDownLatch latch = registerMasterFailoverInterceptor(TransportResizeAction.TYPE.name());
+        triggerRollover();
+
+        assertTrue("Resize (clone) request was never seen by the interceptor", latch.await(30, TimeUnit.SECONDS));
+        ensureStableCluster(5);
+        assertFrozenTransitionCompletesSuccessfully(candidateIndex);
+        logger.info("--> master-failover-during-clone completed successfully");
+    }
+
+    /**
+     * Triggers a master failover during the "force merge" phase. The new master should re-check
+     * the segment count and retry if needed.
+     */
+    public void testMasterFailoverDuringForceMerge() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        String candidateIndex = setupClusterAndInfrastructure(3);
+        CountDownLatch latch = registerMasterFailoverInterceptor("indices:admin/forcemerge");
+        triggerRollover();
+
+        assertTrue("ForceMerge request was never seen by the interceptor", latch.await(30, TimeUnit.SECONDS));
+        ensureStableCluster(5);
+        assertFrozenTransitionCompletesSuccessfully(candidateIndex);
+        logger.info("--> master-failover-during-force-merge completed successfully");
+    }
+
+    /**
+     * Triggers a master failover during the "snapshot" phase by stopping the current master when
+     * the {@link TransportGetSnapshotsAction} is intercepted. The new master should detect any
+     * in-progress snapshot and wait for it or restart the snapshot.
+     */
+    public void testMasterFailoverDuringSnapshot() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        String candidateIndex = setupClusterAndInfrastructure(3);
+        CountDownLatch latch = registerMasterFailoverInterceptor(TransportGetSnapshotsAction.TYPE.name());
+        triggerRollover();
+
+        assertTrue("GetSnapshots request was never seen by the interceptor", latch.await(30, TimeUnit.SECONDS));
+        ensureStableCluster(5);
+        assertFrozenTransitionCompletesSuccessfully(candidateIndex);
+        logger.info("--> master-failover-during-snapshot completed successfully");
+    }
+
+    /**
+     * Triggers a master failover during the "mount searchable snapshot" phase. The new master
+     * should check if the mount already exists before retrying.
+     */
+    public void testMasterFailoverDuringMountSnapshot() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        String candidateIndex = setupClusterAndInfrastructure(3);
+        CountDownLatch latch = registerMasterFailoverInterceptor("cluster:admin/snapshot/mount");
+        triggerRollover();
+
+        assertTrue("MountSearchableSnapshot request was never seen by the interceptor", latch.await(60, TimeUnit.SECONDS));
+        ensureStableCluster(5);
+        assertFrozenTransitionCompletesSuccessfully(candidateIndex);
+        logger.info("--> master-failover-during-mount-snapshot completed successfully");
+    }
+
+    /**
+     * Triggers a master failover during the "cleanup/swap" phase by stopping the current master
+     * when the {@code indices:admin/data_stream/modify} action is intercepted. The new master
+     * should detect the mounted frozen index and complete the swap.
+     */
+    public void testMasterFailoverDuringCleanup() throws Exception {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
+
+        String candidateIndex = setupClusterAndInfrastructure(3);
+        CountDownLatch latch = registerMasterFailoverInterceptor("indices:admin/data_stream/modify");
+        triggerRollover();
+
+        assertTrue("ModifyDataStreams request was never seen by the interceptor", latch.await(60, TimeUnit.SECONDS));
+        ensureStableCluster(5);
+        assertFrozenTransitionCompletesSuccessfully(candidateIndex);
+        logger.info("--> master-failover-during-cleanup completed successfully");
+    }
+
     // ======= Helpers =======
 
     /**
      * Starts the required cluster nodes and sets up the data stream infrastructure.
      * Returns the name of the first backing index (candidate for frozen transition after rollover).
      */
-    private String setupClusterAndInfrastructure() {
-        internalCluster().startMasterOnlyNode();
+    private String setupClusterAndInfrastructure(int numMasters) {
+        internalCluster().startMasterOnlyNodes(numMasters);
         internalCluster().startDataOnlyNodes(2);
         startFrozenOnlyNode();
-        int numReplicas = 1; // avoid unassigned shards with only 1 data node
-        return setupDataStreamInfrastructure(numReplicas);
+        return setupDataStreamInfrastructure();
+    }
+
+    /**
+     * Registers an interceptor that stops the current master node when the specified action is seen.
+     * The master stop runs on a separate thread to avoid deadlocks.
+     *
+     * @return a latch that counts down when the interceptor first fires
+     */
+    private CountDownLatch registerMasterFailoverInterceptor(String actionName) {
+        return registerDisruptionInterceptor(actionName, () -> {
+            try {
+                logger.info("--> stopping current master node during [{}]", actionName);
+                internalCluster().stopCurrentMasterNode();
+                logger.info("--> master node stopped successfully");
+            } catch (Exception e) {
+                logger.warn("Failed to stop master node during disruption", e);
+            }
+        }, true);
+    }
+
+    /**
+     * Asserts that the frozen transition completes successfully for the given candidate index.
+     * Verifies that the frozen index exists and is part of the data stream.
+     */
+    private void assertFrozenTransitionCompletesSuccessfully(String candidateIndex) throws Exception {
+        String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
+        assertBusy(() -> {
+            var projectMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .get()
+                .getState()
+                .metadata()
+                .getProject(Metadata.DEFAULT_PROJECT_ID);
+            IndexMetadata frozenMeta = projectMetadata.index(expectedFrozenIndexName);
+            assertThat("Frozen index [" + expectedFrozenIndexName + "] should exist after master failover", frozenMeta, notNullValue());
+            // Verify it's in the data stream
+            DataStream ds = projectMetadata.dataStreams().get(DATA_STREAM_NAME);
+            assertThat("Data stream should still exist", ds, notNullValue());
+            List<String> backingNames = ds.getIndices().stream().map(Index::getName).toList();
+            assertTrue(
+                "Frozen index should be part of the data stream, but backing indices are: " + backingNames,
+                backingNames.contains(expectedFrozenIndexName)
+            );
+        }, 120, TimeUnit.SECONDS);
     }
 
     /**
@@ -618,7 +768,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * Tests should register their interceptors after calling this method, then call
      * {@link #triggerRollover()} to make the index eligible for frozen transition.
      */
-    private String setupDataStreamInfrastructure(int numReplicas) {
+    private String setupDataStreamInfrastructure() {
         // Create repository and set as default so DLM can use it for snapshots
         assertAcked(
             client().execute(
@@ -636,7 +786,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
 
         Settings templateSettings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .build();
 
         TransportPutComposableIndexTemplateAction.Request putTemplateReq = new TransportPutComposableIndexTemplateAction.Request(

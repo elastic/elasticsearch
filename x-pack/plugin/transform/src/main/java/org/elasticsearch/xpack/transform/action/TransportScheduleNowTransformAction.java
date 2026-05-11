@@ -18,6 +18,7 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -52,13 +53,15 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
     private static final Logger logger = LogManager.getLogger(TransportScheduleNowTransformAction.class);
     private final TransformConfigManager transformConfigManager;
     private final TransformScheduler transformScheduler;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportScheduleNowTransformAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
-        TransformServices transformServices
+        TransformServices transformServices,
+        ProjectResolver projectResolver
     ) {
         super(
             ScheduleNowTransformAction.NAME,
@@ -72,6 +75,7 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
 
         this.transformConfigManager = transformServices.configManager();
         this.transformScheduler = transformServices.scheduler();
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -89,7 +93,10 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
         }
 
         ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(unusedConfig -> {
-            PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(request.getId(), clusterState);
+            PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
+                request.getId(),
+                projectResolver.getProjectMetadata(clusterState)
+            );
 
             // to send a request to schedule now the transform at runtime, several requirements must be met:
             // - transform must be running, meaning a task exists

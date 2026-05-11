@@ -33,7 +33,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class ES940v1DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

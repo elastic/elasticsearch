@@ -17,14 +17,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TestRule;
-import org.junit.runners.model.Statement;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -39,23 +36,14 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * Abstract base for integration tests that verify trace/span export behaviour.
- * Concrete subclasses provide the cluster (APM agent path or OTel SDK path) and
- * the {@code @ClassRule} that starts both the recording server and the cluster.
- *
- * Both paths should produce the same observable behaviour:
- * <ol>
+ * Tests in this class are applied to all subclasses, ensuring all tracing implementations satisfy our requirements:
+ * <ul>
  *   <li>Root spans are exported with correct W3C traceparent propagation.</li>
  *   <li>Only root (entry-point) spans are exported; child spans are dropped.</li>
- * </ol>
+ * </ul>
  */
-public abstract class AbstractTracesIT extends ESRestTestCase {
+public abstract class AbstractTracesIT extends AbstractTelemetryIT {
     private static final Logger logger = LogManager.getLogger(AbstractTracesIT.class);
-
-    /**
-     * The APM agent is reconfigured dynamically after booting and only reloads its configuration
-     * every 30 seconds. Give telemetry a good long time before giving up.
-     */
-    static final int TELEMETRY_TIMEOUT = 40;
 
     /**
      * After the root-span latch fires, wait briefly before asserting the span count.
@@ -66,7 +54,38 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
      */
     static final long CHILD_SPAN_GRACE_PERIOD_MS = 500;
 
-    protected static RecordingApmServer recordingApmServer = new RecordingApmServer();
+    /**
+     * Span attribute keys every exporter implementation must produce on the
+     * {@code GET /_nodes/stats} root span. Cross-path contract — the upcoming OTel SDK
+     * exporter must satisfy each entry. Anything else (e.g. APM-agent-specific HTTP
+     * headers, intake-protocol metadata) is permitted by being absent from this set.
+     */
+    static final Set<String> REQUIRED_NODE_STATS_SPAN_KEYS = Set.of(
+        "otel.attributes.es.cluster.name",
+        "otel.attributes.es.node.name",
+        "otel.attributes.http.flavour",
+        "otel.attributes.http.method",
+        "otel.attributes.http.status_code",
+        "otel.attributes.http.url",
+        "otel.span_kind"
+    );
+
+    /** Span attribute keys that must never appear on any exporter path. */
+    static final Set<String> FORBIDDEN_SPAN_KEYS = Set.of("otel.attributes.http.request.body", "otel.attributes.http.response.body");
+
+    /**
+     * Resource attribute keys every exporter implementation must produce. These are the legacy
+     * APM-agent metadata keys that downstream consumers depend on today; the OTel SDK swap is
+     * meant to be a drop-in replacement, so any future exporter must continue producing them or
+     * fail this assertion.
+     */
+    static final Set<String> REQUIRED_RESOURCE_KEYS = Set.of(
+        "service.name",
+        "service.version",
+        "service.language.name",
+        "service.agent.name",
+        "service.agent.version"
+    );
 
     /**
      * Returns a cluster builder with settings common to all traces integration tests:
@@ -80,27 +99,6 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
             .module("apm")
             .setting("telemetry.tracing.enabled", "true")
             .setting("telemetry.metrics.enabled", "false");
-    }
-
-    /**
-     * Builds the {@code @ClassRule} rule chain for a subclass:
-     * recording server starts first, then cluster, then {@code closeClients()} in finally.
-     */
-    protected static TestRule buildTracesRuleChain(RecordingApmServer server, ElasticsearchCluster cluster) {
-        return RuleChain.outerRule(server).around(cluster).around((base, description) -> new Statement() {
-            @Override
-            public void evaluate() throws Throwable {
-                try {
-                    base.evaluate();
-                } finally {
-                    try {
-                        closeClients();
-                    } catch (IOException e) {
-                        logger.error("failed to close REST clients after test", e);
-                    }
-                }
-            }
-        });
     }
 
     /**
@@ -131,7 +129,7 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
             }
         };
 
-        recordingApmServer.addMessageConsumer(messageConsumer);
+        apmServer().addMessageConsumer(messageConsumer);
 
         Request nodeStatsRequest = new Request("GET", "/_nodes/stats");
         nodeStatsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue).build());
@@ -150,15 +148,25 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
             rootSpan.parentSpanId().get()
         );
         assertNodeStatsRootSpanAttributes(rootSpan);
+        assertNodeStatsResourceAttributes();
     }
 
     /**
      * Asserts that {@code span} carries the semantic metadata expected of a sampled
      * {@code GET /_nodes/stats} HTTP server span.
      *
-     * <p>All concrete subclasses must satisfy these assertions regardless of which export path
-     * is active. Attribute keys are normalised to the {@code otel.attributes.*} namespace so
-     * that a downstream consumer sees identical keys from every exporter implementation.
+     * <p>Two layers of assertion:
+     * <ol>
+     *   <li><b>Value assertions</b> (below) cover the small set of keys where the value — not just
+     *       the key's presence — is semantically load-bearing (HTTP method, status code, URL,
+     *       span kind).</li>
+     *   <li><b>Key-set assertion</b> against {@link #REQUIRED_NODE_STATS_SPAN_KEYS} and
+     *       {@link #FORBIDDEN_SPAN_KEYS}. This is the transparency contract every exporter path
+     *       must satisfy: every required key present, no forbidden key present.</li>
+     * </ol>
+     * <p>All concrete subclasses must satisfy both layers. Attribute keys are normalised to the
+     * {@code otel.attributes.*} namespace so that a downstream consumer sees identical keys from
+     * every exporter implementation.
      */
     protected void assertNodeStatsRootSpanAttributes(ReceivedTelemetry.ReceivedSpan span) {
         Map<String, Object> attrs = span.attributes();
@@ -177,6 +185,40 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
         // ES resource attributes
         assertThat("ES node name", attrs.get("otel.attributes.es.node.name").toString(), not(emptyOrNullString()));
         assertThat("ES cluster name", attrs.get("otel.attributes.es.cluster.name").toString(), not(emptyOrNullString()));
+
+        // Cross-path key-set contract.
+        assertContainsAll("nodes_stats span attributes", REQUIRED_NODE_STATS_SPAN_KEYS, attrs.keySet());
+        assertContainsNone("nodes_stats span attributes", FORBIDDEN_SPAN_KEYS, attrs.keySet());
+    }
+
+    /**
+     * Asserts that the resource (telemetry source) that emitted the {@code GET /_nodes/stats} span
+     * carries every entry in {@link #REQUIRED_RESOURCE_KEYS}. Locks in the service / sdk attribute
+     * set every exporter must produce; the APM-agent path produces these via its
+     * {@code metadata} intake event, the OTel SDK path produces them via the Resource on each
+     * {@code ResourceSpans} batch.
+     *
+     * <p>Resource arrives on the first telemetry request from each path; we only need a short wait
+     * in case it hasn't arrived yet.
+     */
+    protected void assertNodeStatsResourceAttributes() throws Exception {
+        assertBusy(() -> assertNotNull("no resource event observed yet", apmServer().resource()), 5, TimeUnit.SECONDS);
+        ReceivedTelemetry.ReceivedResource resource = apmServer().resource();
+        assertContainsAll("nodes_stats resource attributes", REQUIRED_RESOURCE_KEYS, resource.attributes().keySet());
+    }
+
+    /** Fail with a sorted list of the required keys missing from {@code observed}. */
+    private static void assertContainsAll(String label, Set<String> required, Set<String> observed) {
+        Set<String> missing = new TreeSet<>(required);
+        missing.removeAll(observed);
+        assertTrue(label + " is missing required keys: " + missing, missing.isEmpty());
+    }
+
+    /** Fail with a sorted list of the forbidden keys present in {@code observed}. */
+    private static void assertContainsNone(String label, Set<String> forbidden, Set<String> observed) {
+        Set<String> present = new TreeSet<>(forbidden);
+        present.retainAll(observed);
+        assertTrue(label + " contains forbidden keys: " + present, present.isEmpty());
     }
 
     /**
@@ -203,7 +245,7 @@ public abstract class AbstractTracesIT extends ESRestTestCase {
             }
         };
 
-        recordingApmServer.addMessageConsumer(messageConsumer);
+        apmServer().addMessageConsumer(messageConsumer);
 
         Request nodeStatsRequest = new Request("GET", "/_nodes/stats");
         nodeStatsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.TRACE_PARENT_HTTP_HEADER, traceParentValue).build());

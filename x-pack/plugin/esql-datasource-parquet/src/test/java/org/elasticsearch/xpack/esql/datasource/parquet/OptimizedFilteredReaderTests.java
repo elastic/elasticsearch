@@ -225,8 +225,9 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
     }
 
     /**
-     * Equality filter via PushedExpressions: verifies the RowRanges path produces
-     * identical results to both baseline and FilterCompat optimized paths.
+     * Equality filter via PushedExpressions: late-materialization evaluates the filter exactly,
+     * producing just the matching row. The baseline and FilterCompat paths use page-level
+     * approximate filtering (returning the entire page containing id=500).
      */
     public void testPushedExpressionsEqualityFilterParity() throws IOException {
         byte[] parquetData = createSortedIntFile();
@@ -238,8 +239,11 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         List<Page> optimizedCompatPages = readWithFilter(parquetData, filterCompat, true);
         List<Page> optimizedPushedPages = readWithPushedExpressions(parquetData, esqlFilter);
 
+        // Baseline and FilterCompat both do page-level filtering — same page-aligned result
         assertPagesEqual(baselinePages, optimizedCompatPages);
-        assertPagesEqual(baselinePages, optimizedPushedPages);
+        // Pushed path now evaluates the expression exactly — should return exactly 1 row
+        int pushedRows = optimizedPushedPages.stream().mapToInt(Page::getPositionCount).sum();
+        assertThat("exact filter must return exactly one row (id=500)", pushedRows, equalTo(1));
     }
 
     /**
@@ -315,14 +319,41 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
     }
 
     /**
-     * NOT(Eq) via PushedExpressions: verifies the RowRanges path returns all rows that
-     * the baseline returns — i.e. NOT does not drop rows from mixed pages.
+     * Trivially-passes guard: a multi-column projection with a filter that the row-group stats
+     * prove every row satisfies. The optimized reader should bypass late-materialization filter
+     * evaluation entirely for every row group and still produce results identical to the
+     * baseline. Exercises the {@link TriviallyPassesChecker} integration.
      */
-    public void testPushedExpressionsNotEqualityParity() throws IOException {
-        byte[] parquetData = createSortedIntFile();
+    public void testPushedExpressionsTriviallyPassingFilterParity() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(INT32)
+            .named("id")
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .named("trivial_pass_test");
 
-        FilterPredicate filterCompat = FilterApi.not(FilterApi.eq(FilterApi.intColumn("id"), 500));
-        Expression esqlFilter = new Not(Source.EMPTY, new Equals(Source.EMPTY, intAttr("id"), intLit(500), null));
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < TOTAL_ROWS; i++) {
+                groups.add(factory.newGroup().append("id", i).append("name", "row_" + i));
+            }
+            return groups;
+        });
+
+        // id ranges [0, TOTAL_ROWS): the filter `id >= 0 AND id < TOTAL_ROWS` is trivially
+        // satisfied by every row group's stats. With `name` also in the projection (a non-predicate
+        // column), late materialization is enabled; the trivially-passes guard should kick in and
+        // bypass per-row filter evaluation.
+        FilterPredicate filterCompat = FilterApi.and(
+            FilterApi.gtEq(FilterApi.intColumn("id"), 0),
+            FilterApi.lt(FilterApi.intColumn("id"), TOTAL_ROWS)
+        );
+        Expression esqlFilter = new org.elasticsearch.xpack.esql.expression.predicate.logical.And(
+            Source.EMPTY,
+            new GreaterThanOrEqual(Source.EMPTY, intAttr("id"), intLit(0), null),
+            new LessThan(Source.EMPTY, intAttr("id"), intLit(TOTAL_ROWS), null)
+        );
 
         List<Page> baselinePages = readWithFilter(parquetData, filterCompat, false);
         List<Page> pushedPages = readWithPushedExpressions(parquetData, esqlFilter);
@@ -330,17 +361,147 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
     }
 
     /**
+     * Regression test for the trivially-passes shortcut leak: a query that mixes a
+     * Pushability.YES conjunct that does not translate to a Parquet FilterPredicate
+     * ({@code WildcardLike}) with a Pushability.RECHECK conjunct that does translate AND
+     * is satisfied by row-group statistics for every row ({@code status = 200}).
+     *
+     * <p>Without the {@code hasYesConjunctOutsideFilterPredicate} guard in
+     * {@link ParquetFormatReader}, the trivially-passes shortcut would skip late-mat for
+     * every row group (because the FilterPredicate translation only contains {@code status = 200}
+     * and stats prove it). With LIKE pushed as YES, {@code FilterExec} no longer re-applies
+     * the predicate downstream, so the unfiltered rows would leak to the user. The guard
+     * suppresses the shortcut whenever a YES conjunct is absent from the FilterPredicate,
+     * forcing late-mat to evaluate the LIKE itself.
+     *
+     * <p><b>DO NOT WEAKEN OR REMOVE THIS TEST.</b> The combination of (LIKE as YES, status as
+     * RECHECK, status stats-trivial across every row group) is the exact shape that produced
+     * silent wrong-results when the YES promotion of {@code WildcardLike} landed without an
+     * audit of the trivially-passes shortcut. Changes that "simplify" the shortcut, the
+     * helper {@link ParquetPushedExpressions#hasYesConjunctOutsideFilterPredicate}, or the
+     * guard call site in {@link ParquetFormatReader} MUST keep this test passing — the
+     * symptom is silent over-inclusion (returns {@code rows} instead of {@code rows / 2}).
+     * Companion planner-layer tests in {@code ParquetFilterPushdownSupportTests} and unit
+     * tests in {@code ParquetPushedExpressionsTests} must also stay green.
+     */
+    public void testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .required(INT64)
+            .named("status")
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("like_with_eq_test");
+
+        int rows = 200;
+        // Every row has status = 200 (so stats prove status == 200 for the whole file).
+        // Half the rows match LIKE "*google*"; the other half don't. Without the guard the
+        // optimized reader would return all rows; with the guard it returns only the matches.
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < rows; i++) {
+                String url = (i % 2 == 0) ? "https://www.google.com/search?q=" + i : "https://example.org/page?id=" + i;
+                groups.add(factory.newGroup().append("url", url).append("status", 200L).append("label", "label_padding_chunk_" + i));
+            }
+            return groups;
+        });
+
+        ReferenceAttribute urlAttr = new ReferenceAttribute(Source.EMPTY, "url", DataType.KEYWORD);
+        ReferenceAttribute statusAttr = new ReferenceAttribute(Source.EMPTY, "status", DataType.LONG);
+        Expression like = new org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike(
+            Source.EMPTY,
+            urlAttr,
+            new org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern("*google*")
+        );
+        Expression statusEq = new Equals(Source.EMPTY, statusAttr, new Literal(Source.EMPTY, 200L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(like, statusEq));
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        StorageObject storageObject = createStorageObject(parquetData);
+        int total;
+        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
+            int count = 0;
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                count += page.getPositionCount();
+                page.releaseBlocks();
+            }
+            total = count;
+        }
+        assertThat("LIKE conjunct must be applied even when sibling conjunct is stats-trivial", total, equalTo(rows / 2));
+    }
+
+    /**
+     * Companion to {@link #testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak}: when every
+     * pushed conjunct does translate to a FilterPredicate, the trivially-passes shortcut should
+     * still fire (i.e. the guard must not be over-conservative). We can't observe shortcut firing
+     * directly here, but we can verify it produces the correct rows; combined with the existing
+     * {@code testPushedExpressionsTriviallyPassingFilterParity} this confirms the shortcut path
+     * stays exercised for all-translatable filters.
+     */
+    public void testPushedExpressionsAllTranslatableTriviallyPassesStillFires() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .named("status")
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("label")
+            .named("all_translatable_test");
+
+        int rows = 200;
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < rows; i++) {
+                groups.add(factory.newGroup().append("status", 200L).append("label", "row_" + i));
+            }
+            return groups;
+        });
+
+        ReferenceAttribute statusAttr = new ReferenceAttribute(Source.EMPTY, "status", DataType.LONG);
+        Expression statusEq = new Equals(Source.EMPTY, statusAttr, new Literal(Source.EMPTY, 200L, DataType.LONG), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(statusEq));
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        StorageObject storageObject = createStorageObject(parquetData);
+        int total;
+        try (CloseableIterator<Page> iter = reader.read(storageObject, FormatReadContext.of(null, 1024))) {
+            int count = 0;
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                count += page.getPositionCount();
+                page.releaseBlocks();
+            }
+            total = count;
+        }
+        assertThat("trivially-passing all-translatable filter must return every row", total, equalTo(rows));
+    }
+
+    /**
+     * NOT(Eq) via PushedExpressions: late-materialization evaluates the filter exactly (row-level),
+     * producing results at least as precise as the baseline's page-level approximate filtering.
+     * The pushed result must be a subset of the baseline and contain only rows satisfying NOT(EQ).
+     */
+    public void testPushedExpressionsNotEqualityParity() throws IOException {
+        byte[] parquetData = createSortedIntFile();
+
+        Expression esqlFilter = new Not(Source.EMPTY, new Equals(Source.EMPTY, intAttr("id"), intLit(500), null));
+
+        List<Page> pushedPages = readWithPushedExpressions(parquetData, esqlFilter);
+        int pushedRows = pushedPages.stream().mapToInt(Page::getPositionCount).sum();
+        // Late-mat evaluates NOT(id == 500) exactly: 999 of 1000 rows survive
+        assertThat("NOT(id == 500) must filter out exactly one row", pushedRows, equalTo(999));
+    }
+
+    /**
      * NOT(OR(Eq, Eq)) via PushedExpressions: compound NOT that cannot be simplified to
-     * NotEq by De Morgan. Verifies conservative RowRanges for compound negations.
+     * NotEq by De Morgan. Late-materialization evaluates this exactly at the row level.
      */
     public void testPushedExpressionsNotCompoundParity() throws IOException {
         byte[] parquetData = createSortedIntFile();
 
-        FilterPredicate innerCompat = FilterApi.or(
-            FilterApi.eq(FilterApi.intColumn("id"), 100),
-            FilterApi.eq(FilterApi.intColumn("id"), 900)
-        );
-        FilterPredicate filterCompat = FilterApi.not(innerCompat);
         Expression innerEsql = new org.elasticsearch.xpack.esql.expression.predicate.logical.Or(
             Source.EMPTY,
             new Equals(Source.EMPTY, intAttr("id"), intLit(100), null),
@@ -348,9 +509,10 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         );
         Expression esqlFilter = new Not(Source.EMPTY, innerEsql);
 
-        List<Page> baselinePages = readWithFilter(parquetData, filterCompat, false);
         List<Page> pushedPages = readWithPushedExpressions(parquetData, esqlFilter);
-        assertPagesEqual(baselinePages, pushedPages);
+        int pushedRows = pushedPages.stream().mapToInt(Page::getPositionCount).sum();
+        // Late-mat evaluates NOT(id == 100 OR id == 900) exactly: 998 of 1000 rows survive
+        assertThat("NOT(id == 100 OR id == 900) must filter out exactly two rows", pushedRows, equalTo(998));
     }
 
     /**
@@ -380,6 +542,95 @@ public class OptimizedFilteredReaderTests extends ESTestCase {
         List<Page> baselinePages = readWithFilter(parquetData, filterCompat, false);
         List<Page> pushedPages = readWithPushedExpressions(parquetData, esqlFilter);
         assertPagesEqual(baselinePages, pushedPages);
+    }
+
+    // --- Pre-warm dictionary-pages parity tests ---
+
+    /**
+     * End-to-end correctness test for the dictionary-page pre-warm optimization. Writes a
+     * multi-row-group file with a dictionary-encoded BINARY column and applies an equality
+     * filter on a value present only in some row groups. The optimized path pre-fetches
+     * dictionary pages in a coalesced batch and feeds them to {@code RowGroupFilter} via the
+     * pre-warmed cache; the baseline path reads dictionary pages on demand via parquet-mr's
+     * own code. Both must produce bit-identical row contents.
+     */
+    public void testDictionaryFilterPreWarmParity() throws IOException {
+        byte[] parquetData = createDictionaryEncodedStringFile();
+
+        FilterPredicate filter = FilterApi.eq(FilterApi.binaryColumn("category"), org.apache.parquet.io.api.Binary.fromString("cat_3"));
+
+        List<Page> baselinePages = readWithFilter(parquetData, filter, false);
+        List<Page> optimizedPages = readWithFilter(parquetData, filter, true);
+        assertPagesEqual(baselinePages, optimizedPages);
+
+        int totalRows = optimizedPages.stream().mapToInt(Page::getPositionCount).sum();
+        assertTrue("Equality filter on a present dictionary value must return some rows", totalRows > 0);
+    }
+
+    /**
+     * Same setup as {@link #testDictionaryFilterPreWarmParity} but for an equality filter on a
+     * value not in the dictionary. The dictionary filter should drop every row group on both
+     * paths; both must return zero rows.
+     */
+    public void testDictionaryFilterPreWarmDropsRowGroupsParity() throws IOException {
+        byte[] parquetData = createDictionaryEncodedStringFile();
+
+        FilterPredicate filter = FilterApi.eq(
+            FilterApi.binaryColumn("category"),
+            org.apache.parquet.io.api.Binary.fromString("not_in_dictionary")
+        );
+
+        List<Page> baselinePages = readWithFilter(parquetData, filter, false);
+        List<Page> optimizedPages = readWithFilter(parquetData, filter, true);
+        assertPagesEqual(baselinePages, optimizedPages);
+
+        int baselineRows = baselinePages.stream().mapToInt(Page::getPositionCount).sum();
+        int optimizedRows = optimizedPages.stream().mapToInt(Page::getPositionCount).sum();
+        assertEquals(0, baselineRows);
+        assertEquals(0, optimizedRows);
+    }
+
+    /**
+     * Builds a multi-row-group parquet file with a dictionary-encoded BINARY column. The
+     * dictionary alphabet is small (16 values) so every row group keeps dictionary encoding,
+     * which exercises {@code RowGroupFilter}'s DICTIONARY-level pruning code path that the
+     * pre-warm optimization targets.
+     */
+    private byte[] createDictionaryEncodedStringFile() throws IOException {
+        MessageType schema = Types.buildMessage()
+            .required(INT32)
+            .named("id")
+            .required(BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("category")
+            .named("dict_test");
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(outputStream);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+
+        // 16-value dictionary: small enough that the writer keeps dictionary encoding for every
+        // row group; row count is sized to comfortably exceed the writer's small row group budget
+        // so we get multiple dictionary pages — the multi-row-group case is where pre-warm pays.
+        int rows = 65_536;
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withRowGroupSize(64 * 1024L)
+                .withPageSize(4 * 1024)
+                .withDictionaryPageSize(64 * 1024)
+                .withDictionaryEncoding(true)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .build()
+        ) {
+            for (int i = 0; i < rows; i++) {
+                Group g = groupFactory.newGroup().append("id", i).append("category", "cat_" + (i % 16));
+                writer.write(g);
+            }
+        }
+        return outputStream.toByteArray();
     }
 
     // --- Helpers ---

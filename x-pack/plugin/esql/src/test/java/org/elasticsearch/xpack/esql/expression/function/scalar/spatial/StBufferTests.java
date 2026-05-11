@@ -10,14 +10,20 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
+import org.elasticsearch.xpack.esql.expression.function.GeometryDocSvg;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.operation.buffer.BufferOp;
 
+import java.io.IOException;
+import java.text.ParseException;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
@@ -73,5 +79,72 @@ public class StBufferTests extends AbstractSpatialGeometryTransformTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new StBuffer(source, args.get(0), args.get(1));
+    }
+
+    /**
+     * Diagrams shown in the generated docs to illustrate the effect of {@code distance}.
+     * Each entry renders the original geometry beneath the result.
+     */
+    public static List<DocsV3Support.GeometryDiagram> geometryDiagrams() {
+        return List.of(
+            diagram(
+                "shrink_polygon",
+                "Negative distance shrinks a polygon",
+                "Buffering a 10x10 square by `-2` produces a smaller square inset by 2 units on each side.",
+                "POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))",
+                BufferOp.bufferOp(jts("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))"), -2)
+            ),
+            diagram(
+                "point",
+                "Buffering a point produces a circle",
+                "A point with positive distance becomes a polygon approximating a circle (8 segments per quadrant by default).",
+                "POINT(0 0)",
+                BufferOp.bufferOp(jts("POINT(0 0)"), 1)
+            ),
+            diagram(
+                "line_round",
+                "Default round end caps on a line",
+                "A line buffered with the default round end caps becomes a stadium shape.",
+                "LINESTRING(0 0, 10 0)",
+                BufferOp.bufferOp(jts("LINESTRING(0 0, 10 0)"), 2)
+            )
+        );
+    }
+
+    private static DocsV3Support.GeometryDiagram diagram(
+        String name,
+        String title,
+        String description,
+        String inputWkt,
+        Geometry jtsResult
+    ) {
+        return new DocsV3Support.GeometryDiagram(
+            name,
+            title,
+            description,
+            GeometryDocSvg.Config.DEFAULT.width(360).height(240),
+            List.of(GeometryDocSvg.Layer.filled(toEs(jtsResult)), GeometryDocSvg.Layer.outline(parseEs(inputWkt)))
+        );
+    }
+
+    private static Geometry jts(String wkt) {
+        try {
+            return new org.locationtech.jts.io.WKTReader().read(wkt);
+        } catch (org.locationtech.jts.io.ParseException e) {
+            throw new AssertionError("invalid wkt: " + wkt, e);
+        }
+    }
+
+    /** Convert a JTS geometry to an Elasticsearch geometry by round-tripping through WKT. */
+    private static org.elasticsearch.geometry.Geometry toEs(Geometry jtsGeom) {
+        return parseEs(jtsGeom.toText());
+    }
+
+    private static org.elasticsearch.geometry.Geometry parseEs(String wkt) {
+        try {
+            return WellKnownText.fromWKT(StandardValidator.instance(false), false, wkt);
+        } catch (IOException | ParseException e) {
+            throw new AssertionError("invalid wkt: " + wkt, e);
+        }
     }
 }

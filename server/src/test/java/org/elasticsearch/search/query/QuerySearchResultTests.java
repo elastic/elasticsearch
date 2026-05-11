@@ -100,6 +100,12 @@ public class QuerySearchResultTests extends ESTestCase {
         if (randomBoolean()) {
             result.aggregations(InternalAggregationsTests.createTestInstance());
         }
+        if (randomBoolean()) {
+            result.setVectorIndexType(randomFrom(VectorIndexTypeTelemetry.values()));
+        }
+        if (randomBoolean()) {
+            result.setSemanticFieldQueried(randomBoolean());
+        }
         return result;
     }
 
@@ -139,6 +145,8 @@ public class QuerySearchResultTests extends ESTestCase {
                     assertThat(deserialized.aggregations(), is(nullValue()));
                 }
                 assertEquals(querySearchResult.terminatedEarly(), deserialized.terminatedEarly());
+                assertSame(querySearchResult.getVectorIndexType(), deserialized.getVectorIndexType());
+                assertEquals(querySearchResult.isSemanticFieldQueried(), deserialized.isSemanticFieldQueried());
             } finally {
                 releaseCompletionSuggestOptionHits(deserialized);
                 deserialized.decRef();

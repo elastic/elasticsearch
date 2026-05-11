@@ -271,6 +271,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
     }
 
+    /**
+     * Convenience overload that builds a minimal {@link FormatReadContext}. Does not propagate a
+     * planner-resolved {@code readSchema}; the resulting context has {@code readSchema=null} and
+     * the reader falls back to per-file inference. Safe for single-file reads; do NOT use to
+     * iterate the files of a multi-file glob — cross-file type drift will not be prevented.
+     */
     @Override
     public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) throws IOException {
         return read(

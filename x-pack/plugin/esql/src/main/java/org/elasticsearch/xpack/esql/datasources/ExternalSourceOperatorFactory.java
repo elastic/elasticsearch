@@ -42,6 +42,13 @@ import java.util.List;
  *   <li>Use FormatReader to parse the data format</li>
  *   <li>Produce ESQL Page batches for the query pipeline</li>
  * </ul>
+ *
+ * <p><b>Single-file only.</b> This factory takes a single {@link StoragePath} and does not
+ * propagate the planner-resolved {@code readSchema} into {@link FormatReadContext}. Calling it
+ * for multi-file glob paths would route reads back through per-file inference and re-introduce
+ * the cross-file type-drift bug fixed for the production multi-file path in
+ * {@link AsyncExternalSourceOperatorFactory}. Use {@code AsyncExternalSourceOperatorFactory} for
+ * any multi-file traffic.
  */
 public class ExternalSourceOperatorFactory implements SourceOperator.SourceOperatorFactory {
 

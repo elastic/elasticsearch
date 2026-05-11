@@ -72,6 +72,33 @@ public class SourceToParse {
 
     public SourceToParse(
         @Nullable String id,
+        EirfRowXContentParser.SchemaNode schemaTree,
+        EirfRowReader row,
+        XContentType xContentType,
+        @Nullable String routing,
+        Map<String, String> dynamicTemplates,
+        Map<String, Map<String, String>> dynamicTemplateParams,
+        boolean includeSourceOnError,
+        XContentMeteringParserDecorator meteringParserDecorator,
+        @Nullable BytesRef tsid
+    ) {
+        this(
+            id,
+            null,
+            xContentType,
+            routing,
+            dynamicTemplates,
+            dynamicTemplateParams,
+            includeSourceOnError,
+            meteringParserDecorator,
+            tsid,
+            schemaTree,
+            row
+        );
+    }
+
+    private SourceToParse(
+        @Nullable String id,
         @Nullable BytesReference source,
         XContentType xContentType,
         @Nullable String routing,

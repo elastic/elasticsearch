@@ -194,16 +194,15 @@ public final class ShardBatchIndexer {
                 final XContentType xContentType = indexRequest.getContentType() != null ? indexRequest.getContentType() : XContentType.JSON;
                 final SourceToParse sourceToParse = new SourceToParse(
                     indexRequest.id(),
-                    null,
+                    schemaTree,
+                    row,
                     xContentType,
                     indexRequest.routing(),
                     Map.of(),
                     Map.of(),
                     indexRequest.getIncludeSourceOnError(),
                     XContentMeteringParserDecorator.NOOP,
-                    indexRequest.tsid(),
-                    schemaTree,
-                    row
+                    indexRequest.tsid()
                 );
                 Engine.Index operation;
                 try {

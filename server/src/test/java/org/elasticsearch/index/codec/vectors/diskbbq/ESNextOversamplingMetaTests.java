@@ -39,7 +39,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class ESNextCentroidOversamplingMetaTests extends BaseKnnVectorsFormatTestCase {
+public class ESNextOversamplingMetaTests extends BaseKnnVectorsFormatTestCase {
 
     static {
         LogConfigurator.configureESLogging();

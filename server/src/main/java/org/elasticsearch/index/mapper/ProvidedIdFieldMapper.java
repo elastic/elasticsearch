@@ -53,15 +53,11 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             + "If you require sorting or aggregating on this field you should also include the id in the "
             + "body of your documents, and map this field as a keyword field that has [doc_values] enabled";
 
-    public static final ProvidedIdFieldMapper NO_FIELD_DATA = new ProvidedIdFieldMapper(() -> false);
+    public static final ProvidedIdFieldMapper INSTANCE = new ProvidedIdFieldMapper();
 
     static final class IdFieldType extends AbstractIdFieldType {
 
-        private final BooleanSupplier fieldDataEnabled;
-
-        IdFieldType(BooleanSupplier fieldDataEnabled) {
-            this.fieldDataEnabled = fieldDataEnabled;
-        }
+        IdFieldType() {}
 
         @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
@@ -69,13 +65,19 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
+        public boolean isAggregatable(BooleanSupplier idFieldDataEnabled) {
+            return idFieldDataEnabled.getAsBoolean();
+        }
+
+        @Override
         public boolean isAggregatable() {
-            return fieldDataEnabled.getAsBoolean();
+            return false;
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            if (fieldDataEnabled.getAsBoolean() == false) {
+            final boolean idFieldDataEnabled = fieldDataContext.idFieldDataEnabled().getAsBoolean();
+            if (idFieldDataEnabled == false) {
                 throw new IllegalArgumentException(
                     "Fielddata access on the _id field is disallowed, "
                         + "you can re-enable it by updating the dynamic cluster setting: "
@@ -188,8 +190,8 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         };
     }
 
-    public ProvidedIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-        super(new IdFieldType(fieldDataEnabled));
+    public ProvidedIdFieldMapper() {
+        super(new IdFieldType());
     }
 
     @Override

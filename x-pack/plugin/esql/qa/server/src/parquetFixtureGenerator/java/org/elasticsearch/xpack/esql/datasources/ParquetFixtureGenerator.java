@@ -29,7 +29,12 @@ import java.util.List;
 
 /**
  * Build-time generator for Parquet fixture files. Converts CSV to Parquet.
- * Accepts source CSV path and output Parquet path as arguments.
+ * <p>
+ * Single-file mode: {@code <source-csv> <output.parquet>}
+ * <br>
+ * Split mode:       {@code <source-csv> <output-dir> <num-parts>} — writes
+ * {@code <basename>_00.parquet}, {@code <basename>_01.parquet}, … into the directory.
+ * <p>
  * Uses {@link CsvFixtureParser} for bracket-aware CSV parsing with correct multi-value handling.
  */
 public final class ParquetFixtureGenerator {
@@ -38,25 +43,51 @@ public final class ParquetFixtureGenerator {
 
     @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.out and Path.of")
     public static void main(String[] args) throws IOException {
-        if (args.length != 2) {
-            System.err.println("Usage: ParquetFixtureGenerator <source-csv-path> <output-parquet-path>");
+        if (args.length == 2) {
+            Path sourcePath = Path.of(args[0]);
+            Path outputPath = Path.of(args[1]);
+            if (Files.exists(sourcePath) == false) {
+                throw new IOException("Source CSV not found: " + sourcePath);
+            }
+            Files.createDirectories(outputPath.getParent());
+            byte[] parquetBytes = generateFromCsv(sourcePath, 0, Integer.MAX_VALUE);
+            Files.write(outputPath, parquetBytes);
+            System.out.println("Generated Parquet fixture: " + outputPath);
+        } else if (args.length == 3) {
+            Path sourcePath = Path.of(args[0]);
+            Path outputDir = Path.of(args[1]);
+            int numParts = Integer.parseInt(args[2]);
+            if (Files.exists(sourcePath) == false) {
+                throw new IOException("Source CSV not found: " + sourcePath);
+            }
+            Files.createDirectories(outputDir);
+            String baseName = sourcePath.getFileName().toString().replaceFirst("\\.csv$", "");
+            CsvFixtureParser.CsvFixtureResult result = CsvFixtureParser.parseCsvFile(sourcePath);
+            int total = result.rows().size();
+            int partSize = (total + numParts - 1) / numParts;
+            for (int part = 0; part < numParts; part++) {
+                int from = part * partSize;
+                int to = Math.min(from + partSize, total);
+                String fileName = String.format(java.util.Locale.ROOT, "%s_%02d.parquet", baseName, part);
+                Path outputPath = outputDir.resolve(fileName);
+                byte[] parquetBytes = generateFromRows(result, from, to);
+                Files.write(outputPath, parquetBytes);
+                System.out.println("Generated Parquet fixture: " + outputPath);
+            }
+        } else {
+            System.err.println("Usage: ParquetFixtureGenerator <source-csv> <output.parquet>");
+            System.err.println("       ParquetFixtureGenerator <source-csv> <output-dir> <num-parts>");
             System.exit(1);
         }
-        Path sourcePath = Path.of(args[0]);
-        Path outputPath = Path.of(args[1]);
-        if (Files.exists(sourcePath) == false) {
-            throw new IOException("Source CSV not found: " + sourcePath);
-        }
-        Files.createDirectories(outputPath.getParent());
-        byte[] parquetBytes = generateFromCsv(sourcePath);
-        Files.write(outputPath, parquetBytes);
-        System.out.println("Generated Parquet fixture: " + outputPath);
     }
 
-    private static byte[] generateFromCsv(Path sourcePath) throws IOException {
-        CsvFixtureParser.CsvFixtureResult result = CsvFixtureParser.parseCsvFile(sourcePath);
+    private static byte[] generateFromCsv(Path sourcePath, int from, int to) throws IOException {
+        return generateFromRows(CsvFixtureParser.parseCsvFile(sourcePath), from, to);
+    }
+
+    private static byte[] generateFromRows(CsvFixtureParser.CsvFixtureResult result, int from, int to) throws IOException {
         List<CsvFixtureParser.ColumnSpec> columns = result.schema();
-        List<Object[]> rows = result.rows();
+        List<Object[]> rows = result.rows().subList(from, Math.min(to, result.rows().size()));
 
         boolean[] isListColumn = new boolean[columns.size()];
         for (int c = 0; c < columns.size(); c++) {

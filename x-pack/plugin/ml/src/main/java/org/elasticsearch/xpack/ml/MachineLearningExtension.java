@@ -31,14 +31,14 @@ public interface MachineLearningExtension {
     /**
      * Cloud credential manager used by datafeeds for cross-project search authentication.
      */
-    default CloudCredentialManager cloudCredentialManager() {
+    default CloudCredentialManager getCloudCredentialManager() {
         return CloudCredentialsExtension.getInstance().credentialManager();
     }
 
     /**
      * Internal cloud API key service used by datafeeds to mint per-datafeed cloud-managed credentials.
      */
-    default InternalCloudApiKeyService internalCloudApiKeyService() {
+    default InternalCloudApiKeyService getCloudApiKeyService() {
         return CloudCredentialsExtension.getInstance().internalCloudApiKeyService();
     }
 }

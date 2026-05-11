@@ -230,6 +230,11 @@ tasks.named("splitPackagesAudit").configure {
 // ---------------------------------------------------------------------------
 
 tasks.named("test").configure {
+  if (OS.current() == OS.WINDOWS) {
+    // Not supported
+    enabled = false
+  }
+
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 

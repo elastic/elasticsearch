@@ -9,7 +9,7 @@
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
@@ -57,7 +57,7 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
 
     static int randomSlices(int min, int max) {
         if (randomBoolean()) {
-            return AbstractBulkByScrollRequest.AUTO_SLICES;
+            return AbstractBulkByPaginatedSearchRequest.AUTO_SLICES;
         } else {
             return between(min, max);
         }
@@ -71,7 +71,7 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
      * Figures out how many slices the request handling will use
      */
     protected int expectedSlices(int requestSlices, Collection<String> indices) {
-        if (requestSlices == AbstractBulkByScrollRequest.AUTO_SLICES) {
+        if (requestSlices == AbstractBulkByPaginatedSearchRequest.AUTO_SLICES) {
             int leastNumShards = Collections.min(
                 indices.stream().map(sourceIndex -> getNumShards(sourceIndex).numPrimaries).collect(Collectors.toList())
             );

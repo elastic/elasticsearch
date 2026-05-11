@@ -231,7 +231,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         swapCluster(clusterAlias, (ca, previous) -> {
             var expr = indexExpression;
             if (previous != null) {
-                expr = previous.getIndexExpression() + "," + indexExpression;
+                expr = Strings.isNullOrBlank(indexExpression)
+                    ? previous.getIndexExpression()
+                    : previous.getIndexExpression() + "," + indexExpression;
             }
             var displayClusterAlias = Objects.equals(clusterAlias, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? localCusterName : null;
             return new Cluster(clusterAlias, displayClusterAlias, expr, shouldSkipOnFailure(clusterAlias));

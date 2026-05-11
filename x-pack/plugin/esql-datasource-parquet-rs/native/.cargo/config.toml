@@ -5,10 +5,13 @@ rustflags = ["-C", "target-cpu=native"]
 
 # Cross-compilation targets: override [build] when --target is used.
 # x86-64-v3 = AVX2 baseline (Haswell+, all modern cloud x86 instances)
-# skylake_avx512 = AVX512 baseline
+# x86-64-v4 = AVX512 baseline
 # See rustc --target x86_64-unknown-linux-gnu --print target-cpus
 [target.x86_64-unknown-linux-gnu]
-rustflags = ["-C", "target-cpu=skylake_avx512"]
+# Target AVX2. First-generation GCE instances (n1 series) use a mixed set of CPUs, some not supporting AVX512
+# TODO: if benchmarks show a difference, we may add an additional target for x86-64-v4
+# and select at start time by sniffing CPU capabilities.
+rustflags = ["-C", "target-cpu=x86-64-v3"]
 
 # neoverse-n1 = AWS Graviton2/3 baseline (most aarch64 cloud instances)
 # neoverse-n2 = AWS Graviton4/5

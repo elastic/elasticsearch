@@ -19,7 +19,7 @@ import org.elasticsearch.xcontent.ToXContent;
 /**
  * Shared superclass for testing reindex and friends. In particular it makes sure to test the slice features.
  */
-public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulkByScrollRequest<R> & ToXContent> extends
+public abstract class AbstractBulkByPaginatedSearchRequestTestCase<R extends AbstractBulkByPaginatedSearchRequest<R> & ToXContent> extends
     AbstractXContentTestCase<R> {
 
     public void testForSlice() {
@@ -46,7 +46,7 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         // it's not important how many slices there are, we just need a number for forSlice
         int actualSlices = between(2, 1000);
         int activeSlices = between(1, actualSlices);
-        original.setSlices(randomBoolean() ? actualSlices : AbstractBulkByScrollRequest.AUTO_SLICES);
+        original.setSlices(randomBoolean() ? actualSlices : AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
 
         TaskId slicingTask = new TaskId(randomAlphaOfLength(5), randomLong());
         SearchRequest sliceRequest = new SearchRequest();
@@ -67,8 +67,8 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         );
         assertEquals(
             "max_docs is split evenly between all slices",
-            original.getMaxDocs() == AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES
-                ? AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES
+            original.getMaxDocs() == AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES
+                ? AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES
                 : original.getMaxDocs() / actualSlices,
             forSliced.getMaxDocs()
         );

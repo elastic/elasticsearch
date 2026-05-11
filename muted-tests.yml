@@ -389,9 +389,6 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexCancelIT
   method: testCancellingChildTaskRejected
   issue: https://github.com/elastic/elasticsearch/issues/147925
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testRecoverHollowShardReadsSingleRegionAndEvictsCache
-  issue: https://github.com/elastic/elasticsearch/issues/147937
 - class: org.elasticsearch.xpack.sql.qa.single_node.RestSqlIT
   method: testNextPageText
   issue: https://github.com/elastic/elasticsearch/issues/147950

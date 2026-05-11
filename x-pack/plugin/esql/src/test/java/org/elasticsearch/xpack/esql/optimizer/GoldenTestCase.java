@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -58,6 +60,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.internal.AssumptionViolatedException;
@@ -85,7 +88,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
@@ -254,13 +256,16 @@ public abstract class GoldenTestCase extends ESTestCase {
             Path queryPath = PathUtils.get(basePath.toString(), queryPathParts);
             Files.createDirectories(queryPath.getParent());
             Files.writeString(queryPath, esqlQuery);
+            UnmappedResolution unmappedResolution = statement.setting(UNMAPPED_FIELDS);
             TestAnalyzer testAnalyzer = analyzer().addLanguagesLookup()
                 .addTestLookup()
                 .addAnalysisTestsEnrichResolution()
                 .addAnalysisTestsInferenceResolution()
                 .minimumTransportVersion(transportVersion)
-                .unmappedResolution(statement.setting(UNMAPPED_FIELDS));
-            loadIndexResolution(testDatasets(parsedPlan)).forEach(
+                .unmappedResolution(unmappedResolution);
+            boolean trackUnmappedFieldIndices = unmappedResolution == UnmappedResolution.LOAD
+                || parsedPlan.anyMatch(p -> p instanceof Insist);
+            loadIndexResolution(testDatasets(parsedPlan), trackUnmappedFieldIndices).forEach(
                 (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)
             );
             Analyzer analyzer = testAnalyzer.buildAnalyzer();
@@ -758,33 +763,38 @@ public abstract class GoldenTestCase extends ESTestCase {
     }
 
     public static Map<IndexPattern, IndexResolution> loadIndexResolution(
-        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets,
+        boolean trackUnmappedFieldIndices
     ) {
         Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
         for (var entry : datasets.entrySet()) {
-            indexResolutions.put(entry.getKey(), loadIndexResolution(entry.getValue()));
+            indexResolutions.put(entry.getKey(), loadIndexResolution(entry.getValue(), trackUnmappedFieldIndices));
         }
         return indexResolutions;
     }
 
+    public static Map<IndexPattern, IndexResolution> loadIndexResolution(
+        Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> datasets
+    ) {
+        return loadIndexResolution(datasets, false);
+    }
+
     public static IndexResolution loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset datasets) {
+        return loadIndexResolution(datasets, false);
+    }
+
+    public static IndexResolution loadIndexResolution(
+        CsvTestsDataLoader.MultiIndexTestDataset datasets,
+        boolean trackUnmappedFieldIndices
+    ) {
         var indexNames = datasets.datasets().stream().map(CsvTestsDataLoader.TestDataset::indexName);
         Map<String, IndexMode> indexModes = indexNames.collect(Collectors.toMap(x -> x, x -> IndexMode.STANDARD));
         List<MappingPerIndex> mappings = datasets.datasets()
             .stream()
             .map(ds -> new MappingPerIndex(ds.indexName(), createMappingForIndex(ds)))
             .toList();
-        var mergedMappings = mergeMappings(mappings);
-        return IndexResolution.valid(
-            new EsIndex(
-                datasets.indexPattern(),
-                mergedMappings.mapping,
-                indexModes,
-                Map.of(),
-                Map.of(),
-                mergedMappings.fieldToUnmappedIndices
-            )
-        );
+        var mergedMappings = mergeMappings(mappings, trackUnmappedFieldIndices);
+        return IndexResolution.valid(new EsIndex(datasets.indexPattern(), mergedMappings.mapping, indexModes, Map.of(), Map.of()));
     }
 
     // TODO should de-duplicate, strong overlap with CsvTestsDataLoader#readMappingFile
@@ -838,75 +848,66 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     private record MappingPerIndex(String index, Map<String, EsField> mapping) {}
 
-    private record MergedResult(Map<String, EsField> mapping, Map<String, Set<String>> fieldToUnmappedIndices) {}
+    private record MergedResult(Map<String, EsField> mapping) {}
 
-    private record MergedField(EsField field, Map<String, Set<String>> fieldToUnmappedIndices) {
-        static MergedField leaf(EsField field) {
-            return new MergedField(field, Map.of());
-        }
-    }
-
-    private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
-        Map<String, Map<String, EsField>> columnNamesToFieldByIndices = new HashMap<>();
+    private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex, boolean trackUnmappedFieldIndices) {
+        Map<String, Map<String, EsField>> fieldNamesToFieldByIndices = new HashMap<>();
         for (var mappingPerIndex : mappingsPerIndex) {
             for (var entry : mappingPerIndex.mapping().entrySet()) {
-                columnNamesToFieldByIndices.computeIfAbsent(entry.getKey(), k -> new HashMap<>())
+                fieldNamesToFieldByIndices.computeIfAbsent(entry.getKey(), k -> new HashMap<>())
                     .put(mappingPerIndex.index(), entry.getValue());
             }
         }
-
-        Map<String, Set<String>> fieldToUnmappedIndices = new HashMap<>();
+        int numberOfIndices = mappingsPerIndex.size();
         Map<String, EsField> mappings = new HashMap<>();
-        Set<String> allIndices = mappingsPerIndex.stream().map(MappingPerIndex::index).collect(toSet());
-        for (var e : columnNamesToFieldByIndices.entrySet()) {
-            if (e.getValue().size() < mappingsPerIndex.size()) {
-                Set<String> unmappedIndices = allIndices.stream().filter(i -> e.getValue().containsKey(i) == false).collect(toSet());
-                if (unmappedIndices.isEmpty() == false) {
-                    fieldToUnmappedIndices.put(e.getKey(), unmappedIndices);
-                }
-            }
-            MergedField merged = mergeFields(e.getKey(), e.getValue());
-            mappings.put(e.getKey(), merged.field());
-            fieldToUnmappedIndices.putAll(merged.fieldToUnmappedIndices());
+        for (var entry : fieldNamesToFieldByIndices.entrySet()) {
+            String fieldName = entry.getKey();
+            mappings.put(
+                fieldName,
+                mergeFields(fieldName, fieldName, entry.getValue(), trackUnmappedFieldIndices, numberOfIndices)
+            );
         }
-        return new MergedResult(mappings, fieldToUnmappedIndices);
+        return new MergedResult(mappings);
     }
 
-    private static MergedField mergeFields(String fieldName, Map<String, EsField> fieldByIndex) {
+    private static EsField mergeFields(
+        String fieldName,
+        String fullName,
+        Map<String, EsField> fieldByIndex,
+        boolean trackUnmappedFieldIndices,
+        int numberOfIndices
+    ) {
+        EsField field;
         if (fieldByIndex.values().stream().map(EsField::getDataType).distinct().count() > 1) {
-            return MergedField.leaf(new InvalidMappedField(fieldName, getTypesToIndices(fieldByIndex)));
+            field = new InvalidMappedField(fieldName, getTypesToIndices(fieldByIndex));
+        } else {
+            // We take scalar attributes (name, dataType, aggregatable, timeSeriesFieldType) from an arbitrary representative.
+            // This is safe because: dataType is already verified identical above, name is the map key, and the only fields
+            // that reach this path are OBJECT parents whose children differ; objects are never aggregatable and always have
+            // TimeSeriesFieldType.NONE (time series types are set on leaf fields, not parent objects).
+            List<EsField> fields = fieldByIndex.values().stream().distinct().limit(2).toList();
+            EsField representative = fields.getFirst();
+            if (fields.size() == 1) {
+                field = representative;
+            } else {
+                Map<String, EsField> mergedChildren = mergeSubFields(
+                    fullName,
+                    getSubNameToIndexToSubField(fieldByIndex),
+                    trackUnmappedFieldIndices,
+                    numberOfIndices
+                );
+                field = new EsField(
+                    representative.getName(),
+                    representative.getDataType(),
+                    mergedChildren,
+                    representative.isAggregatable(),
+                    representative.getTimeSeriesFieldType()
+                );
+            }
         }
-
-        // We take scalar attributes (name, dataType, aggregatable, timeSeriesFieldType) from an arbitrary representative.
-        // This is safe because: dataType is already verified identical above, name is the map key, and the only fields
-        // that reach this path are OBJECT parents whose children differ; objects are never aggregatable and always have
-        // TimeSeriesFieldType.NONE (time series types are set on leaf fields, not parent objects).
-        List<EsField> fields = fieldByIndex.values().stream().distinct().limit(2).toList();
-        EsField representative = fields.getFirst();
-        if (fields.size() == 1) {
-            return MergedField.leaf(representative);
-        }
-
-        Map<String, Map<String, EsField>> subNameToIndexToSubField = getSubNameToIndexToSubField(fieldByIndex);
-        Map<String, Set<String>> fieldToUnmappedIndices = getFieldToUnmappedIndices(
-            fieldName,
-            fieldByIndex.keySet(),
-            subNameToIndexToSubField
-        );
-        // Same DataType but different properties; merge sub-fields recursively.
-        MergedField mergedChildren = mergeSubFields(fieldName, subNameToIndexToSubField);
-        fieldToUnmappedIndices.putAll(mergedChildren.fieldToUnmappedIndices());
-
-        return new MergedField(
-            new EsField(
-                representative.getName(),
-                representative.getDataType(),
-                mergedChildren.field().getProperties(),
-                representative.isAggregatable(),
-                representative.getTimeSeriesFieldType()
-            ),
-            fieldToUnmappedIndices
-        );
+        return trackUnmappedFieldIndices
+            ? IndexResolver.wrapIfPartiallyUnmapped(field, fieldName, fullName, fieldByIndex.keySet(), numberOfIndices)
+            : field;
     }
 
     /** Returns {@code Map<SubName, Map<IndexName, EsField>>}; where are typedefs when you need them! */
@@ -921,35 +922,27 @@ public abstract class GoldenTestCase extends ESTestCase {
         return result;
     }
 
-    /** Returns {@code Map<FieldName, Set<IndexName>>}; where are typedefs when you need them! */
-    private static Map<String, Set<String>> getFieldToUnmappedIndices(
-        String parentName,
-        Set<String> parentIndices,
-        Map<String, Map<String, EsField>> subFieldsByIndexBySubName
+    private static Map<String, EsField> mergeSubFields(
+        String parentFullName,
+        Map<String, Map<String, EsField>> subFieldsByIndexBySubName,
+        boolean trackUnmappedFieldIndices,
+        int numberOfIndices
     ) {
-        Map<String, Set<String>> result = new HashMap<>();
-        for (var subEntry : subFieldsByIndexBySubName.entrySet()) {
-            Set<String> unmapped = parentIndices.stream().filter(i -> subEntry.getValue().containsKey(i) == false).collect(toSet());
-            if (unmapped.isEmpty() == false) {
-                result.put(parentName + "." + subEntry.getKey(), unmapped);
-            }
-        }
-        return result;
-    }
-
-    private static MergedField mergeSubFields(String fieldName, Map<String, Map<String, EsField>> subFieldsByIndexBySubName) {
         Map<String, EsField> properties = new TreeMap<>();
-        Map<String, Set<String>> fieldToUnmappedIndices = new HashMap<>();
         for (var subEntry : subFieldsByIndexBySubName.entrySet()) {
-            String dottedName = fieldName + "." + subEntry.getKey();
-            MergedField mergedChild = mergeFields(dottedName, subEntry.getValue());
-            properties.put(subEntry.getKey(), mergedChild.field());
-            fieldToUnmappedIndices.putAll(mergedChild.fieldToUnmappedIndices());
+            String subName = subEntry.getKey();
+            properties.put(
+                subName,
+                mergeFields(
+                    subName,
+                    parentFullName + "." + subName,
+                    subEntry.getValue(),
+                    trackUnmappedFieldIndices,
+                    numberOfIndices
+                )
+            );
         }
-        return new MergedField(
-            new EsField(fieldName, DataType.OBJECT, properties, false, EsField.TimeSeriesFieldType.NONE),
-            fieldToUnmappedIndices
-        );
+        return properties;
     }
 
     /** Returns {@code Map<TypeName, Set<IndexName>>}; where are typedefs when you need them! */

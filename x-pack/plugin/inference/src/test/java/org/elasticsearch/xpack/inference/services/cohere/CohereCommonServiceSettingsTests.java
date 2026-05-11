@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
@@ -34,6 +35,7 @@ public class CohereCommonServiceSettingsTests extends AbstractWireSerializingTes
 
     public static CohereCommonServiceSettings createRandom() {
         return new CohereCommonServiceSettings(
+            randomBoolean() ? null : ServiceUtils.createUri(randomAlphaOfLength(10)),
             randomAlphaOfLengthOrNull(15),
             RateLimitSettingsTests.createRandom(),
             randomFrom(CohereCommonServiceSettings.CohereApiVersion.values())
@@ -160,20 +162,22 @@ public class CohereCommonServiceSettingsTests extends AbstractWireSerializingTes
 
     @Override
     protected CohereCommonServiceSettings mutateInstance(CohereCommonServiceSettings instance) throws IOException {
+        var uri = instance.uri();
         var modelId = instance.modelId();
         var rateLimitSettings = instance.rateLimitSettings();
         var apiVersion = instance.apiVersion();
 
-        switch (randomInt(2)) {
-            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(15));
-            case 1 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
-            case 2 -> apiVersion = randomValueOtherThan(
+        switch (randomInt(3)) {
+            case 0 -> uri = randomValueOtherThan(uri, () -> ServiceUtils.createUri(randomAlphaOfLength(10)));
+            case 1 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLengthOrNull(15));
+            case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 3 -> apiVersion = randomValueOtherThan(
                 apiVersion,
                 () -> randomFrom(CohereCommonServiceSettings.CohereApiVersion.values())
             );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new CohereCommonServiceSettings(modelId, rateLimitSettings, apiVersion);
+        return new CohereCommonServiceSettings(uri, modelId, rateLimitSettings, apiVersion);
     }
 }

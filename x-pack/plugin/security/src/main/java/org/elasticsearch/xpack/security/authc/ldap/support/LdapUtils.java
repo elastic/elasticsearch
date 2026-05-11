@@ -470,11 +470,12 @@ public final class LdapUtils {
         return attributes.isEmpty() ? attributesToSearchFor((String[]) null) : attributes.toArray(new String[attributes.size()]);
     }
 
-    private static String[] encodeFilterValues(String... arguments) {
+    private static Object[] encodeFilterValues(String... arguments) {
+        Object[] encodedArguments = new Object[arguments.length];
         for (int i = 0; i < arguments.length; i++) {
-            arguments[i] = Filter.encodeValue(arguments[i]);
+            encodedArguments[i] = Filter.encodeValue(arguments[i]);
         }
-        return arguments;
+        return encodedArguments;
     }
 
     private static class SingleEntryListener extends LdapSearchResultListener {

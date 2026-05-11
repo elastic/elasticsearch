@@ -287,17 +287,6 @@ public class SynonymsManagementAPIService {
     }
 
     /**
-     * Retrieves all synonym rules for a synonym set using PIT + search_after.
-     * Results are fetched iteratively in batches of {@value PIT_BATCH_SIZE} until exhausted.
-     *
-     * @param synonymSetId the synonym set to load
-     * @param listener     receives the complete set of rules
-     */
-    public void getSynonymSetRules(String synonymSetId, ActionListener<PagedResult<SynonymRule>> listener) {
-        getSynonymSetRules(Set.of(synonymSetId), false, listener);
-    }
-
-    /**
      * Retrieves all synonym rules for multiple synonym sets in a single PIT + search_after pass,
      * using a terms query across all requested sets. After fetching, any requested set not
      * represented in the results is existence-checked; missing sets are handled according to
@@ -370,34 +359,25 @@ public class SynonymsManagementAPIService {
             currentPitId.set(response.pointInTimeId());
 
             if (searchAfter == null && totalHits > maxSynonymRules) {
-                if (synonymSetIds.size() == 1) {
-                    logger.warn(
-                        "The number of synonym rules in the synonym set [{}] exceeds the maximum allowed [{}]."
-                            + " Inconsistent synonym results may occur",
-                        synonymSetIds.iterator().next(),
-                        maxSynonymRules
-                    );
-                } else {
-                    logger.warn(
-                        "The total number of synonym rules across synonym sets [{}] exceeds the maximum allowed [{}]."
-                            + " Inconsistent synonym results may occur",
-                        String.join(", ", synonymSetIds),
-                        maxSynonymRules
-                    );
-                }
+                logger.warn(
+                    "The number of synonym rules in the synonym filter for sets [{}] exceeds the maximum allowed [{}]."
+                        + " Inconsistent synonym results may occur",
+                    String.join(", ", synonymSetIds),
+                    maxSynonymRules
+                );
             }
 
             if (hits.length == 0) {
-                Set<String> missingSets = new HashSet<>(synonymSetIds);
-                missingSets.removeAll(seenSetIds);
-                boolean allSetsHaveNoRules = missingSets.size() == synonymSetIds.size();
+                Set<String> missingSetIds = new HashSet<>(synonymSetIds);
+                missingSetIds.removeAll(seenSetIds);
+                boolean allSetsHaveNoRules = missingSetIds.size() == synonymSetIds.size();
                 PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
                 closePitAndThen(
                     currentPitId.get(),
                     () -> checkMissingSetsAndRespond(
-                        missingSets,
-                        missingSets.iterator(),
-                        0,
+                        missingSetIds,
+                        missingSetIds.iterator(),
+                        new ArrayList<>(),
                         allSetsHaveNoRules,
                         ignoreMissing,
                         result,
@@ -419,23 +399,37 @@ public class SynonymsManagementAPIService {
 
             Object[] lastSortValues = hits[hits.length - 1].getSortValues();
             fetchPagesWithPit(synonymSetIds, ignoreMissing, currentPitId.get(), lastSortValues, accumulated, seenSetIds, listener);
-        }, e -> closePitAndThen(currentPitId.get(), () -> listener.onFailure(e))));
+        }, e -> {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            Exception failure = cause instanceof IndexNotFoundException
+                ? new ResourceNotFoundException("synonyms sets " + synonymSetIds + " not found")
+                : e;
+            closePitAndThen(currentPitId.get(), () -> listener.onFailure(failure));
+        }));
     }
 
     private void checkMissingSetsAndRespond(
         Set<String> missingSetIds,
         Iterator<String> remaining,
-        int confirmedNotFoundCount,
+        List<String> confirmedMissingSetIds,
         boolean allSetsHaveNoRules,
         boolean ignoreMissing,
         PagedResult<SynonymRule> result,
         ActionListener<PagedResult<SynonymRule>> listener
     ) {
         if (remaining.hasNext() == false) {
-            if (allSetsHaveNoRules && confirmedNotFoundCount == missingSetIds.size() && confirmedNotFoundCount > 0) {
+            if (allSetsHaveNoRules && confirmedMissingSetIds.size() == missingSetIds.size()) {
                 // All originally-requested sets don't exist — propagate to let the caller handle with one consolidated message
                 listener.onFailure(new ResourceNotFoundException("synonyms sets " + missingSetIds + " not found"));
             } else {
+                // At least one set exists (even if it has no rules) — warn about each confirmed-missing set
+                for (String missingId : confirmedMissingSetIds) {
+                    logger.warn(
+                        "Synonyms set [{}] not found; synonyms from this set will not be applied,"
+                            + " but other synonym sets in this filter will still be used",
+                        missingId
+                    );
+                }
                 listener.onResponse(result);
             }
             return;
@@ -447,7 +441,7 @@ public class SynonymsManagementAPIService {
                 checkMissingSetsAndRespond(
                     missingSetIds,
                     remaining,
-                    confirmedNotFoundCount,
+                    confirmedMissingSetIds,
                     allSetsHaveNoRules,
                     ignoreMissing,
                     result,
@@ -458,17 +452,11 @@ public class SynonymsManagementAPIService {
             @Override
             public void onFailure(Exception e) {
                 if (ignoreMissing && e instanceof ResourceNotFoundException) {
-                    if (allSetsHaveNoRules == false) {
-                        // Only some sets are missing — log a per-set warning so the caller knows which ones were skipped
-                        logger.warn(
-                            "Synonyms set [{}] not found. Synonyms from this set will not be applied to search results on indices that use it",
-                            setId
-                        );
-                    }
+                    confirmedMissingSetIds.add(setId);
                     checkMissingSetsAndRespond(
                         missingSetIds,
                         remaining,
-                        confirmedNotFoundCount + 1,
+                        confirmedMissingSetIds,
                         allSetsHaveNoRules,
                         ignoreMissing,
                         result,

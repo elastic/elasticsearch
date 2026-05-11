@@ -91,6 +91,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 if (synonymsSets.isEmpty()) {
                     return new ReaderWithOrigin(new StringReader(""), "empty synonyms_set " + synonymsSets, synonymsSets);
                 }
+
                 if (synonymsSets.size() > MAX_SYNONYM_SETS_PER_FILTER) {
                     throw new IllegalArgumentException(
                         "At most "

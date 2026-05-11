@@ -487,11 +487,6 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertAcked(client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest(dsName)));
     }
 
-    /**
-     * PUT-replace semantics: a same-name DATASET must pass the validate-time collision check
-     * because the indices lookup will report itself as a DATASET. Verifies the resource is
-     * actually replaced (resource string updates) rather than rejected.
-     */
     public void testDatasetReplacesExistingDataset() throws Exception {
         final String name = "replace_target";
         final String dsName = "replace_parent";

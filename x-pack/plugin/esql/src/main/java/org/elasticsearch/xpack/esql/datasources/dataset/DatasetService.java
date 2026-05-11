@@ -86,10 +86,7 @@ public class DatasetService {
         if (parent == null) {
             throw new ResourceNotFoundException("data source [{}] not found", request.dataSource());
         }
-        // Validate-time collision check. The ProjectMetadata.Builder name-uniqueness invariant is the
-        // authoritative guard (and runs again inside the CAS task), but catching the collision here
-        // surfaces a typed ResourceAlreadyExistsException with a user-shaped message instead of the
-        // builder's IllegalStateException. Same-name DATASET is allowed (PUT replace semantics).
+        // UX: surface a typed ResourceAlreadyExistsException here instead of the builder-layer IllegalStateException.
         final IndexAbstraction existing = projectMetadata.getIndicesLookup().get(request.name());
         if (existing != null && existing.getType() != IndexAbstraction.Type.DATASET) {
             throw new ResourceAlreadyExistsException(

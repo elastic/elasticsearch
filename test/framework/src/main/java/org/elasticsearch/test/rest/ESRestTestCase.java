@@ -2928,10 +2928,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (includeRollupMetrics) {
             // Query-wide rollup metrics added with esql_external_source_profile TV. Older nodes
             // don't emit these, so the flag mirrors the includeDocumentsFound treatment above.
-            mapMatcher = mapMatcher.entry("rows_emitted", greaterThanOrEqualTo(0));
-            mapMatcher = mapMatcher.entry("bytes_read", greaterThanOrEqualTo(0));
-            mapMatcher = mapMatcher.entry("read_nanos", greaterThanOrEqualTo(0));
-            mapMatcher = mapMatcher.entry("cpu_nanos", greaterThanOrEqualTo(0));
+            // All four are emitted as longs and parse as Long when large enough to overflow Integer.
+            mapMatcher = mapMatcher.entry("rows_emitted", greaterThanOrEqualTo(0L));
+            mapMatcher = mapMatcher.entry("bytes_read", greaterThanOrEqualTo(0L));
+            mapMatcher = mapMatcher.entry("read_nanos", greaterThanOrEqualTo(0L));
+            mapMatcher = mapMatcher.entry("cpu_nanos", greaterThanOrEqualTo(0L));
         }
         if (includeTimestamps) {
             // Older versions may not return start_time_in_millis, completion_time_in_millis and expiration_time_in_millis

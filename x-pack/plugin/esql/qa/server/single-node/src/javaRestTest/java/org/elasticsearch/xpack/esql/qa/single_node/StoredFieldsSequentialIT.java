@@ -115,10 +115,10 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
         assertMap(
             result,
             matchesMap().entry("documents_found", documentsFound)
-                .entry("rows_emitted", greaterThanOrEqualTo(0))
-                .entry("bytes_read", greaterThanOrEqualTo(0))
-                .entry("read_nanos", greaterThanOrEqualTo(0))
-                .entry("cpu_nanos", greaterThanOrEqualTo(0))
+                .entry("rows_emitted", greaterThanOrEqualTo(0L))
+                .entry("bytes_read", greaterThanOrEqualTo(0L))
+                .entry("read_nanos", greaterThanOrEqualTo(0L))
+                .entry("cpu_nanos", greaterThanOrEqualTo(0L))
                 .entry(
                     "profile",
                     matchesMap() //

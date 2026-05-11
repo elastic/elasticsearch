@@ -862,10 +862,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         Map<String, EsField> mappings = new HashMap<>();
         for (var entry : fieldNamesToFieldByIndices.entrySet()) {
             String fieldName = entry.getKey();
-            mappings.put(
-                fieldName,
-                mergeFields(fieldName, fieldName, entry.getValue(), trackUnmappedFieldIndices, numberOfIndices)
-            );
+            mappings.put(fieldName, mergeFields(fieldName, fieldName, entry.getValue(), trackUnmappedFieldIndices, numberOfIndices));
         }
         return new MergedResult(mappings);
     }
@@ -933,13 +930,7 @@ public abstract class GoldenTestCase extends ESTestCase {
             String subName = subEntry.getKey();
             properties.put(
                 subName,
-                mergeFields(
-                    subName,
-                    parentFullName + "." + subName,
-                    subEntry.getValue(),
-                    trackUnmappedFieldIndices,
-                    numberOfIndices
-                )
+                mergeFields(subName, parentFullName + "." + subName, subEntry.getValue(), trackUnmappedFieldIndices, numberOfIndices)
             );
         }
         return properties;

@@ -46,3 +46,29 @@ FROM flattened_otel_logs
 @timestamp:date          | resource.attributes:flattened
 2020-01-01T00:02:48.461Z | "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
 ;
+
+count
+required_capability: flattened_datatype
+required_capability: fn_count_flattened
+
+FROM flattened_otel_logs
+| STATS count = COUNT(attributes)
+;
+
+count:long
+10
+;
+
+to_string
+required_capability: flattened_datatype
+required_capability: fn_to_string_flattened
+
+FROM flattened_otel_logs
+| WHERE @timestamp == "2020-01-01T00:02:48.461Z"
+| EVAL first_part = MV_FIRST(SPLIT(TO_STRING(attributes), ","))
+| KEEP @timestamp, first_part
+;
+
+@timestamp:date          | first_part:keyword
+2020-01-01T00:02:48.461Z | "{""rally.message_size"":""192"""
+;

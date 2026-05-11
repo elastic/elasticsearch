@@ -41,7 +41,7 @@ public class EsqlTestUtilsTests extends ESTestCase {
     public void testPromQLDefaultIndex() {
         assertThat(
             EsqlTestUtils.addRemoteIndices("PROMQL step=1m (avg(baz))", Set.of(), false),
-            equalTo("PROMQL index=*:*,* step=1m (avg(baz))")
+            equalTo("PROMQL index=*:metrics-*,metrics-* step=1m (avg(baz))")
         );
     }
 

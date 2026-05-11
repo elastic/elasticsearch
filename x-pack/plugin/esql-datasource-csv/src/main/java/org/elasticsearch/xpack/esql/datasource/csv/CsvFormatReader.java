@@ -833,34 +833,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Quote-aware backward boundary scan: drives {@link #findNextRecordBoundary} over fresh
-     * {@link java.io.ByteArrayInputStream} slices and returns the offset of the last terminator
-     * byte. Reuses the existing quote-state logic in {@link #findNextRecordBoundaryQuotedFieldsOnly}
-     * and {@link #findNextRecordBoundaryBracketCommaMvc} rather than duplicating it.
-     * <p>
-     * NDJSON keeps the default backward-{@code \n} scan from the SPI; only CSV/TSV with embedded
-     * newlines in quoted fields needs this override.
-     */
-    @Override
-    public int findLastRecordBoundary(byte[] buf, int length) throws IOException {
-        if (length <= 0) {
-            return -1;
-        }
-        int lastBoundary = -1;
-        int cumulative = 0;
-        while (cumulative < length) {
-            java.io.ByteArrayInputStream bis = new java.io.ByteArrayInputStream(buf, cumulative, length - cumulative);
-            long consumed = findNextRecordBoundary(bis);
-            if (consumed < 0) {
-                return lastBoundary;
-            }
-            cumulative += Math.toIntExact(consumed);
-            lastBoundary = cumulative - 1;
-        }
-        return lastBoundary;
-    }
-
-    /**
      * Upper bound for {@link BufferedInputStream#mark(int)} while probing bracket MVC cells during record-boundary
      * scans. Matches {@link CsvFormatOptions#maxFieldSize()} so an unclosed bracket cell cannot invalidate the mark
      * before we reset and treat {@code [} as a literal byte.

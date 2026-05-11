@@ -433,6 +433,7 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
     @SuppressWarnings("unchecked")
     private static void assertExpectedMetadataFields(Map<String, MappingMetadata> mappings, String... fields) {
         Map<String, Object> sourceAsMap = mappings.get("test").getSourceAsMap();
+        sourceAsMap.remove("_id");
         assertEquals(1, sourceAsMap.size());
         Map<String, Object> properties = (Map<String, Object>) sourceAsMap.get("properties");
         assertEquals(fields.length, properties.size());

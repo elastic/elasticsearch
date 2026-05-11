@@ -236,6 +236,11 @@ public class DataStreamMigrationIT extends ESIntegTestCase {
         assertTrue(throwableOrItsCause(e, IllegalArgumentException.class, "alias [" + alias + "] must specify a write index"));
     }
 
+    @Override
+    protected boolean randomlyUseColumnarId() {
+        return false;
+    }
+
     static <T> boolean throwableOrItsCause(Throwable t, Class<T> clazz, String message) {
         boolean found = false;
         Throwable throwable = t;

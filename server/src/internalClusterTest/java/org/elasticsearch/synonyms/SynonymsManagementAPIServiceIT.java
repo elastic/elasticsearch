@@ -26,6 +26,7 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -93,7 +94,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED, safeGet(putFuture).synonymsOperationResult());
 
         PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
-        synsApiService.getSynonymSetRules(synonymSetId, getFuture);
+        synsApiService.getSynonymSetRules(Set.of(synonymSetId), false, getFuture);
         PagedResult<SynonymRule> result = safeGet(getFuture);
         assertEquals(rulesNumber, result.totalResults());
         assertEquals(rulesNumber, result.pageResults().length);
@@ -125,11 +126,11 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
                     "warning",
                     SynonymsManagementAPIService.class.getName(),
                     Level.WARN,
-                    "The number of synonym rules in the synonym set [" + synonymSetId + "] exceeds the maximum allowed*"
+                    "*synonym filter for sets*" + synonymSetId + "*exceeds the maximum allowed*"
                 )
             );
             PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
-            synsApiService.getSynonymSetRules(synonymSetId, getFuture);
+            synsApiService.getSynonymSetRules(Set.of(synonymSetId), false, getFuture);
             PagedResult<SynonymRule> result = safeGet(getFuture);
             assertEquals(rulesNumber, result.totalResults());   // true total from index
             assertEquals(maxRules, result.pageResults().length); // capped at limit

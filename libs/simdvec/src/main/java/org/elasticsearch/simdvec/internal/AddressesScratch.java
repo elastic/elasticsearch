@@ -44,7 +44,6 @@ public final class AddressesScratch {
      * The pro would have been a more controlled/deterministic lifecycle. The cons are listed above,
      * plus the additional complexity that an auto arena does not have. Auto here seems to be
      * the sweet spot.
-     * </p>
      */
     public MemorySegment get(int count) {
         long needed = (long) count * ValueLayout.ADDRESS.byteSize();

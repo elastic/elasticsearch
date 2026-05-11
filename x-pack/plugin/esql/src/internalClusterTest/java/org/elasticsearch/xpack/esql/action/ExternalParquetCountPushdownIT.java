@@ -17,6 +17,7 @@ import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
@@ -36,6 +37,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -150,12 +152,16 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
         int totalRows = 500;
         Path parquetFile = writeParquetFile(totalRows, 80);
         try {
-            String query = "EXTERNAL \""
-                + StoragePath.fileUri(parquetFile)
-                + "\" WITH { \"external_distribution\": \"coordinator_only\" } | STATS c = COUNT(*)";
+            String query = "EXTERNAL \"" + StoragePath.fileUri(parquetFile) + "\" | STATS c = COUNT(*)";
 
             var request = syncEsqlQueryRequest(query);
             request.profile(true);
+            // Force the coordinator-only distribution strategy via the dedicated query pragma
+            // (the EXTERNAL command's WITH-clause does not bridge into pragmas).
+            request.pragmas(
+                new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "coordinator_only").build())
+            );
+            request.acceptedPragmaRisks(true);
 
             try (var response = run(request)) {
                 List<List<Object>> rows = getValuesList(response);
@@ -164,6 +170,40 @@ public class ExternalParquetCountPushdownIT extends AbstractEsqlIntegTestCase {
 
                 assertNoPushdownBypass(response);
             }
+        } finally {
+            Files.deleteIfExists(parquetFile);
+        }
+    }
+
+    /**
+     * End-to-end pin for the unknown-key rejection path. A query with a typo'd configuration key
+     * must surface as {@code IllegalArgumentException} naming the typo and the recognised options,
+     * proving the {@code ExternalSourceFactory.validateConfig} SPI hook fires before any read.
+     */
+    public void testUnknownConfigKeyIsRejectedAtPlanningTime() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        Path parquetFile = writeParquetFile(10, 100);
+        try {
+            String query = "EXTERNAL \""
+                + StoragePath.fileUri(parquetFile)
+                + "\" WITH { \"obviously_not_a_real_key\": \"x\" } | STATS c = COUNT(*)";
+            var request = syncEsqlQueryRequest(query);
+
+            Exception e = expectThrows(Exception.class, () -> { run(request).close(); });
+            // The validator's IllegalArgumentException is wrapped twice on the way up
+            // (resolveSingleSource → ExternalSourceResolver). Walk the cause chain to find it.
+            Throwable validatorIae = null;
+            for (Throwable t = e; t != null; t = t.getCause()) {
+                if (t instanceof IllegalArgumentException
+                    && t.getMessage() != null
+                    && t.getMessage().contains("obviously_not_a_real_key")) {
+                    validatorIae = t;
+                    break;
+                }
+            }
+            assertNotNull("expected validator IAE mentioning 'obviously_not_a_real_key' in cause chain of: " + e, validatorIae);
+            assertThat(validatorIae.getMessage(), containsString("unknown option"));
         } finally {
             Files.deleteIfExists(parquetFile);
         }

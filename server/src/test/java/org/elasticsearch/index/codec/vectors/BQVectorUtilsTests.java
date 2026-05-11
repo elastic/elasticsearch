@@ -20,6 +20,7 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.common.logging.LogConfigurator;
 
 public class BQVectorUtilsTests extends LuceneTestCase {
 

@@ -185,7 +185,9 @@ public class TransportCancelReindexAction extends HandledTransportAction<CancelR
             taskInfo.cancellable(),
             true,
             taskInfo.parentTaskId(),
-            taskInfo.headers()
+            taskInfo.headers(),
+            taskInfo.originalTaskId(),
+            taskInfo.originalStartTimeMillis()
         );
         return new TaskResult(r.isCompleted(), newTaskInfo, r.getError(), r.getResponse());
     }

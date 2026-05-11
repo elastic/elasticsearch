@@ -589,3 +589,50 @@
 
   - match: {hits.hits.0._id: "1"}
   - is_true: hits.hits.0._source
+
+---
+"Search timeout aborts a long-running script_score loop":
+  # The search timeout (registered on ContextIndexSearcher.cancellable) is normally checked
+  # only between leaf-reader contexts and inside CancellableBulkScorer. With one shard and
+  # one document none of those points fires, so without the in-script poll a tight loop in
+  # the score script would run to completion regardless of the request timeout. This test
+  # exercises that in-script poll path end-to-end.
+  - do:
+      indices.create:
+          index: test_script_score_timeout
+          body:
+              settings:
+                  number_of_shards: 1
+              mappings:
+                  properties:
+                      val:
+                          type: double
+  - do:
+      index:
+          index: test_script_score_timeout
+          id: d1
+          body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: test_script_score_timeout
+          timeout: 100ms
+          body:
+              query:
+                  script_score:
+                      query: {match_all: {}}
+                      script:
+                          # System.currentTimeMillis is whitelisted (@nondeterministic) so the
+                          # JIT can't fold the loop away. With cancellation wired the runtime
+                          # branch picks the cancellation poll over the legacy counter, so
+                          # cancellation is the sole stop signal — independent of hardware speed.
+                          source: |
+                              long start = System.currentTimeMillis();
+                              while (System.currentTimeMillis() - start < 60000L) {
+                                  /* deliberately empty: rely on timeout to cancel */
+                              }
+                              return 0.0;
+  - is_true: timed_out

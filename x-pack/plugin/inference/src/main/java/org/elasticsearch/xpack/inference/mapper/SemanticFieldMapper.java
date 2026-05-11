@@ -81,8 +81,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.inference.TaskType.EMBEDDING;
-import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
-import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_OFFSET_FIELD;
@@ -344,7 +342,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 indexVersionCreated,
                 false,
                 experimentalFeaturesEnabled,
-                vectorsFormatProviders
+                vectorsFormatProviders,
+                false
             );
             ExtendedDenseVectorIndexOptions extendedIndexOptions = indexOptions.get() != null
                 ? getExtendedDenseVectorIndexOptions(indexOptions.get())

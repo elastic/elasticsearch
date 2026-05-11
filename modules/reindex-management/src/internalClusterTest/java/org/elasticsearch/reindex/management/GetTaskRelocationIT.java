@@ -49,6 +49,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -93,8 +94,10 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
         shutdownAndRelocate(setup.reindexNodeName);
         final TaskId relocatedTaskId = readRelocatedTaskId(setup.originalTaskId);
 
-        final long nanosElapsedSinceStart = TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis() - setup.originalStartTimeMillis);
-
+        // we have millisecond precision here, so leave space for 1ms because runningTimeInNanos has nanosecond resolution
+        final long minNanosElapsedSinceStart = TimeUnit.MILLISECONDS.toNanos(
+            System.currentTimeMillis() - setup.originalStartTimeMillis - 1
+        );
         final TaskResult runningResult = getTask(setup.originalTaskId, false).getTask();
 
         assertThat("should not be completed (relocated task is still running)", runningResult.isCompleted(), is(false));
@@ -115,7 +118,7 @@ public class GetTaskRelocationIT extends ESIntegTestCase {
         assertThat(
             "running time should cover time since original start",
             runningResult.getTask().runningTimeNanos(),
-            greaterThan(nanosElapsedSinceStart)
+            greaterThanOrEqualTo(minNanosElapsedSinceStart)
         );
         assertThat("status should be present", runningResult.getTask().status(), is(notNullValue()));
         assertThat("no error on running task", runningResult.getError(), is(nullValue()));

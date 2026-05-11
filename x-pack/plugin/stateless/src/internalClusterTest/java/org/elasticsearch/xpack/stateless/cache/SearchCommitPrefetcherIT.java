@@ -153,12 +153,13 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             refresh(indexName);
         }
         var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
-        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         var uploadBCC = prefetchNonUploadedCommits == false || randomBoolean();
         if (uploadBCC) {
             flush(indexName);
         }
+
+        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         assertThat(bytesReadFromBlobStore.get(), is(equalTo(0L)));
         assertThat(bytesReadFromIndexingNode.bytesCount(), is(greaterThan(0L)));
@@ -290,7 +291,6 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         }
 
         var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
-        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         var uploadBCC = prefetchNonUploadedCommits == false || randomBoolean();
         if (uploadBCC) {
@@ -298,6 +298,8 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         }
         // wait for the refreshes to complete
         assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, preIngestTasksRefreshPool);
+
+        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         // it's tricky to test that something does NOT happen (you can't wait for things to not happen)
         // so we just submit a marker task to the prewarming thread pool and then check that it was the only task that ran in the pool
@@ -409,24 +411,15 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             );
 
         var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
-        var bccTotalPaddingInBytes = currentVirtualBcc.getTotalPaddingInBytes();
-        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
-        logger.info(
-            "---> snapshot-pre-flush: bccTotalSize={} padding={} pendingCommits={} idx={} blob={} prefetched={}",
-            bccTotalSizeInBytes,
-            bccTotalPaddingInBytes,
-            currentVirtualBcc.getPendingCompoundCommits().size(),
-            bytesReadFromIndexingNode.bytesCount(),
-            bytesReadFromBlobStore.get(),
-            searchEngine.getTotalPrefetchedBytes()
-        );
 
         flush(indexName);
 
+        var bccTotalPaddingInBytes = currentVirtualBcc.getTotalPaddingInBytes();
+        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
         logger.info(
             "---> post-flush: bccTotalSize={} padding={} pendingCommits={} frozen={} idx={} blob={} prefetched={}",
-            currentVirtualBcc.getTotalSizeInBytes(),
-            currentVirtualBcc.getTotalPaddingInBytes(),
+            bccTotalSizeInBytes,
+            bccTotalPaddingInBytes,
             currentVirtualBcc.getPendingCompoundCommits().size(),
             currentVirtualBcc.isFrozen(),
             bytesReadFromIndexingNode.bytesCount(),
@@ -540,8 +533,6 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             refresh(indexName);
         }
         var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
-        var bccTotalPaddingInBytes = currentVirtualBcc.getTotalPaddingInBytes();
-        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         var uploadCommitNotificationReceived = new CountDownLatch(1);
         AtomicReference<CheckedRunnable<Exception>> pendingNewCommitNotificationHandlerRef = new AtomicReference<>();
@@ -557,6 +548,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             });
 
         flush(indexName);
+
+        var bccTotalPaddingInBytes = currentVirtualBcc.getTotalPaddingInBytes();
+        var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
 
         safeAwait(uploadCommitNotificationReceived);
 

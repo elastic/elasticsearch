@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 148777
+summary: Fix `FsBlobContainer.moveBlobAtomic` fallback on CIFS filesystems
+type: bug

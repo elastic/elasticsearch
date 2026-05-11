@@ -989,7 +989,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     logCCSError(failure, clusterAlias, shouldSkipOnFailure);
                     ccsClusterInfoUpdate(failure, clusters, clusterAlias, shouldSkipOnFailure);
                     if (shouldSkipOnFailure) {
-                        ActionListener.respondAndRelease(listener, SearchResponse.empty(timeProvider::buildTookInMillis, clusters));
+                        ActionListener.respondAndRelease(
+                            listener,
+                            SearchResponse.emptyResponseBuilder().tookInMillis(timeProvider.buildTookInMillis()).clusters(clusters).build()
+                        );
                     } else {
                         listener.onFailure(wrapRemoteClusterFailure(clusterAlias, e));
                     }

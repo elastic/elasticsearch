@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -60,7 +58,6 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -343,7 +340,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
     }
 
     public void testCommitPrefetching() throws Exception {
-        var prefetchNonUploadedCommits = true; // REPRO: force the failing case observed on CI
+        var prefetchNonUploadedCommits = randomBoolean();
         var nodeSettings = Settings.builder()
             .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), prefetchNonUploadedCommits)
             // TODO fix this test to work with this randomized
@@ -364,108 +361,37 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         var shardId = new ShardId(resolveIndex(indexName), 0);
         var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(vBCCGen);
 
-        logger.info(
-            "---> test-start: shardId={} vBCCGen={} bccBlobName={} prefetchNonUploadedCommits={}",
-            shardId,
-            vBCCGen,
-            bccBlobName,
-            prefetchNonUploadedCommits
-        );
-
         var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
         var bytesReadFromIndexingNode = meterIndexingNodeReadsForBCC(indexNode, shardId, vBCCGen);
 
         var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
-        logger.info(
-            "---> before-loop: idx={} blob={} totalPrefetchedBytes={}",
-            bytesReadFromIndexingNode.bytesCount(),
-            bytesReadFromBlobStore.get(),
-            searchEngine.getTotalPrefetchedBytes()
-        );
 
         var numberOfCommits = randomIntBetween(5, 8);
         for (int j = 0; j < numberOfCommits; j++) {
-            logger.info("--> commit-{} pre-index: idx={} blob={}", j, bytesReadFromIndexingNode.bytesCount(), bytesReadFromBlobStore.get());
             // Index enough documents so the initial read happening during refresh doesn't include the complete Lucene files
             indexDocs(indexName, 10_000);
             refresh(indexName);
         }
 
-        var indicesSegments = client().admin().indices().prepareSegments(indexName).get();
-        indicesSegments.getIndices()
-            .get(indexName)
-            .getShards()
-            .forEach(
-                (sid, shardSegments) -> Arrays.stream(shardSegments.shards())
-                    .forEach(
-                        s -> logger.info(
-                            "--> [{}][{}] {} has {} segments before flush: numberOfCommits={}",
-                            indexName,
-                            sid,
-                            s.getShardRouting(),
-                            s.getSegments().size(),
-                            numberOfCommits
-                        )
-                    )
-            );
-
         var currentVirtualBcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
 
         flush(indexName);
 
+        // Snapshot the vBCC size and padding AFTER the flush freezes it. The vBCC stays mutable until flush, so async
+        // Lucene activity could in theory keep growing it between an earlier snapshot and the flush.
         var bccTotalPaddingInBytes = currentVirtualBcc.getTotalPaddingInBytes();
         var bccTotalSizeInBytes = currentVirtualBcc.getTotalSizeInBytes();
-        logger.info(
-            "---> post-flush: bccTotalSize={} padding={} pendingCommits={} frozen={} idx={} blob={} prefetched={}",
-            bccTotalSizeInBytes,
-            bccTotalPaddingInBytes,
-            currentVirtualBcc.getPendingCompoundCommits().size(),
-            currentVirtualBcc.isFrozen(),
-            bytesReadFromIndexingNode.bytesCount(),
-            bytesReadFromBlobStore.get(),
-            searchEngine.getTotalPrefetchedBytes()
-        );
 
-        try {
-            assertBusy(() -> {
-                long lhs = bccTotalSizeInBytes;
-                long blobBytes = bytesReadFromBlobStore.get();
-                long idxBytes = bytesReadFromIndexingNode.bytesCount();
-                long rhs = blobBytes + idxBytes + bccTotalPaddingInBytes;
-                logger.info(
-                    "---> poll: bccTotalSize={} rhs={} (blob={} idx={} padding={}) diff(rhs-lhs)={} prefetched={}",
-                    lhs,
-                    rhs,
-                    blobBytes,
-                    idxBytes,
-                    bccTotalPaddingInBytes,
-                    rhs - lhs,
-                    searchEngine.getTotalPrefetchedBytes()
-                );
-                assertThat(
-                    lhs,
-                    // A BCC can contain multiple Lucene commits, for performance reasons, the latest file on each commit is padded
-                    // to be page aligned. The get VBCC chunk request doesn't account for that since the padding is done by the cache
-                    // at population time and the blob is padded later on.
-                    is(equalTo(rhs))
-                );
-            });
-        } catch (AssertionError e) {
-            logger.error(
-                "---> assertion failed : bccTotalSize={} padding={} idx={} blob={} prefetched={}"
-                    + " vbccFinalSize={} vbccFinalPadding={} pendingCommits={}",
+        assertBusy(
+            () -> assertThat(
                 bccTotalSizeInBytes,
-                bccTotalPaddingInBytes,
-                bytesReadFromIndexingNode.bytesCount(),
-                bytesReadFromBlobStore.get(),
-                searchEngine.getTotalPrefetchedBytes(),
-                currentVirtualBcc.getTotalSizeInBytes(),
-                currentVirtualBcc.getTotalPaddingInBytes(),
-                currentVirtualBcc.getPendingCompoundCommits().size()
-            );
-            throw e;
-        }
+                // A BCC can contain multiple Lucene commits, for performance reasons, the latest file on each commit is padded
+                // to be page aligned. The get VBCC chunk request doesn't account for that since the padding is done by the cache
+                // at population time and the blob is padded later on.
+                is(equalTo(bytesReadFromBlobStore.get() + bytesReadFromIndexingNode.bytesCount() + bccTotalPaddingInBytes))
+            )
+        );
 
         if (prefetchNonUploadedCommits) {
             // If we prefetch all the commits through the indexing node, the cache would align writes
@@ -815,16 +741,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                             var getVBCCChunkResponse = (GetVirtualBatchedCompoundCommitChunkResponse) response;
                             if (getVBCCChunkRequest.getShardId().equals(shardId)
                                 && getVBCCChunkRequest.getVirtualBatchedCompoundCommitGeneration() == vBCCGenToMeter) {
-                                int respLen = getVBCCChunkResponse.getData().length();
-                                long running = bytesReadFromIndexingNode.addRange(getVBCCChunkRequest.getOffset(), respLen);
-                                logger.info(
-                                    "---> idx-fetch req=[off={}, len={}] resp.len={} running={} thread={} (vbccGen={})",
+                                bytesReadFromIndexingNode.addRange(
                                     getVBCCChunkRequest.getOffset(),
-                                    getVBCCChunkRequest.getLength(),
-                                    respLen,
-                                    running,
-                                    Thread.currentThread().getName(),
-                                    vBCCGenToMeter
+                                    getVBCCChunkResponse.getData().length()
                                 );
                             }
                             channel.sendResponse(response);
@@ -840,9 +759,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         return bytesReadFromIndexingNode;
     }
 
+    /// Tracks unique bytes received from the indexing-node chunk endpoint by recording each `[offset, offset + respLen)`
+    /// range and merging overlaps.
     private static final class UniqueRangesTracker {
-        private static final Logger trackerLogger = LogManager.getLogger(UniqueRangesTracker.class);
-
         private final NavigableMap<Long, Long> rangesByStart = new TreeMap<>();
 
         /// Records a `[offset, offset + length)` range and returns the running total of unique bytes after the merge.
@@ -850,13 +769,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             if (length > 0) {
                 long start = offset;
                 long end = offset + length;
-                long overlapBytes = 0;
                 // coalesce with the predecessor entry if it overlaps or touches
                 final var floor = rangesByStart.floorEntry(start);
                 if (floor != null && floor.getValue() >= start) {
-                    if (floor.getValue() > start) {
-                        overlapBytes += Math.min(floor.getValue(), end) - start;
-                    }
                     start = floor.getKey();
                     end = Math.max(end, floor.getValue());
                     rangesByStart.remove(floor.getKey());
@@ -868,21 +783,10 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
                     if (entry.getKey() > end) {
                         break;
                     }
-                    overlapBytes += Math.min(entry.getValue(), end) - entry.getKey();
                     end = Math.max(end, entry.getValue());
                     iter.remove();
                 }
                 rangesByStart.put(start, end);
-                if (overlapBytes > 0) {
-                    trackerLogger.info(
-                        "---> range-overlap: new=[{}-{}) merged=[{}-{}) overlapBytes={}",
-                        offset,
-                        offset + length,
-                        start,
-                        end,
-                        overlapBytes
-                    );
-                }
             }
             return bytesCount();
         }

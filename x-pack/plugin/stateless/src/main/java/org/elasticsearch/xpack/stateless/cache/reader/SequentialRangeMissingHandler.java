@@ -88,31 +88,8 @@ public class SequentialRangeMissingHandler implements SharedBlobCacheService.Ran
 
         final var numberGaps = gaps.size();
         if (numberGaps == 1) {
-            logger.info(
-                "---> single-gap-fetch blob={} initiator={} gap=[{}-{}] len={}",
-                blobFileName,
-                initiator,
-                gaps.get(0).start(),
-                gaps.get(0).end(),
-                gaps.get(0).end() - gaps.get(0).start()
-            );
             return null; // simple case for filling a single gap
         }
-        long gapDataSum = 0;
-        for (var g : gaps) {
-            gapDataSum += g.end() - g.start();
-        }
-        long fullSpan = gaps.get(numberGaps - 1).end() - gaps.get(0).start();
-        logger.warn(
-            "---> multi-gap fetch blob={} initiator={} numberGaps={} fullSpan={} gapDataSum={} skippedBytes={} gaps={}",
-            blobFileName,
-            initiator,
-            numberGaps,
-            fullSpan,
-            gapDataSum,
-            fullSpan - gapDataSum,
-            gaps
-        );
 
         final var totalGapLength = Math.toIntExact(gaps.get(numberGaps - 1).end() - gaps.get(0).start());
         return new SharedBlobCacheService.SourceInputStreamFactory() {

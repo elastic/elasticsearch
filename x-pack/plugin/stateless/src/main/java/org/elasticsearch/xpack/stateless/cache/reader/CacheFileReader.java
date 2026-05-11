@@ -215,13 +215,6 @@ public class CacheFileReader {
                 if (e instanceof AlreadyClosedException || e.getCause() instanceof AlreadyClosedException) {
                     assert bytesRead == 0 : "expecting bytes read to be 0 but got: " + bytesRead + " for " + cacheFile.getCacheKey();
                     int len = length - bytesRead;
-                    logger.warn(
-                        "---> bypass-read cacheKey={} position={} len={} reason={}",
-                        cacheFile.getCacheKey(),
-                        position,
-                        len,
-                        e.toString()
-                    );
                     // TODO ideally we would make it async, but it should be safe
                     // since the future is created on the shard read thread pool or GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL.
                     // ObjectStoreCacheBlobReader is completed on the same thread and before actually waiting on the future, and

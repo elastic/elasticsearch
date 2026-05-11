@@ -687,21 +687,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final boolean force,
         final ActionListener<Boolean> listener
     ) {
-        if (force == false && freeRegions.isEmpty()) {
-            boolean evicted = maybeEvictLeastUsed();
-            if (evicted) {
-                logger.warn(
-                    "--> eviction cacheKey={} region={} rangeStart={} rangeEnd={} (no free regions, evicted LRU)",
-                    cacheKey,
-                    region,
-                    range.start(),
-                    range.end()
-                );
-            } else {
-                logger.warn("---> eviction skipped cacheKey={} region={}", cacheKey, region);
-                listener.onResponse(false);
-                return;
-            }
+        if (force == false && freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
+            // no free page available and no old enough unused region to be evicted
+            logger.debug("No free regions, skipping loading region [{}]", region);
+            listener.onResponse(false);
+            return;
         }
         try {
             var regionRange = mapSubRangeToRegion(range, region);

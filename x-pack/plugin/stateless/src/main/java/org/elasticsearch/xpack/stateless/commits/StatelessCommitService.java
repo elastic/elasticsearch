@@ -1576,22 +1576,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // If the VBCC was not found, then it is already uploaded, so let the search shard query the blob store
                 throw VirtualBatchedCompoundCommit.buildResourceNotFoundException(shardId, vbccTermGen);
             } else {
-                long vbccSize = vbcc.getTotalSizeInBytes();
-                long requested = request.getLength();
                 // This length adjustment is needed because the last CC is not padded in a vBCC
-                long length = Math.min(requested, vbccSize - request.getOffset());
-                final boolean clamped = length < requested;
-                logger.info(
-                    "---> chunk-handler: shard={} vbccGen={} reqOff={} reqLen={} respLen={} vbccSize={} clamped={} pendingCommits={}",
-                    shardId,
-                    request.getVirtualBatchedCompoundCommitGeneration(),
-                    request.getOffset(),
-                    requested,
-                    length,
-                    vbccSize,
-                    clamped,
-                    vbcc.getPendingCompoundCommits().size()
-                );
+                long length = Math.min(request.getLength(), vbcc.getTotalSizeInBytes() - request.getOffset());
                 vbcc.getBytesByRange(request.getOffset(), length, output);
             }
         }

@@ -119,7 +119,46 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
                     "Unclosed character class near index 0\n[\n^".replaceAll("\n", System.lineSeparator())
                 );
         }));
+        // URL-domain byte-scan fast path: when the regex literal matches the
+        // canonical ClickBench "extract referer host" shape and the replacement
+        // literal is exactly "$1", Replace#toEvaluator dispatches to
+        // ReplaceUrlDomainConstantEvaluator. These cases verify dispatch +
+        // bit-for-bit correctness against the regex on common URL shapes and
+        // on the no-match inputs the fast path is required to leave unchanged.
+        suppliers.add(urlDomainCase("plain http", "http://example.com/path", "example.com"));
+        suppliers.add(urlDomainCase("https with www", "https://www.example.com/path/to/page", "example.com"));
+        suppliers.add(urlDomainCase("https no www", "https://example.org/", "example.org"));
+        suppliers.add(urlDomainCase("http no www no path", "http://example.com", "http://example.com"));
+        suppliers.add(urlDomainCase("no scheme", "ftp://example.com/", "ftp://example.com/"));
+        suppliers.add(urlDomainCase("empty host", "http:///foo", "http:///foo"));
+        suppliers.add(urlDomainCase("contains newline", "http://example.com/p\nq", "http://example.com/p\nq"));
+
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
+    }
+
+    /**
+     * Build a test case that forces the regex + replacement to literals so that
+     * the URL-domain fast path in {@link Replace#toEvaluator} is selected, and
+     * asserts the result matches what {@link String#replaceAll} would produce.
+     */
+    private static TestCaseSupplier urlDomainCase(String name, String input, String expected) {
+        return new TestCaseSupplier(name, List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD), () -> {
+            String regex = Replace.URL_DOMAIN_REGEX;
+            // Sanity-check the expectation against the JDK regex engine so the
+            // fast path stays bit-for-bit aligned with the slow path.
+            assert expected.equals(input.replaceAll(regex, "$1"))
+                : "URL-domain test expectation drifted from java.util.regex for input [" + input + "]";
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(input), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(regex), DataType.KEYWORD, "regex").forceLiteral(),
+                    new TestCaseSupplier.TypedData(new BytesRef("$1"), DataType.KEYWORD, "newStr").forceLiteral()
+                ),
+                "ReplaceUrlDomainConstantEvaluator[str=Attribute[channel=0]]",
+                DataType.KEYWORD,
+                equalTo(new BytesRef(expected))
+            );
+        });
     }
 
     private static TestCaseSupplier fixedCase(String name, String str, String oldStr, String newStr, String result) {

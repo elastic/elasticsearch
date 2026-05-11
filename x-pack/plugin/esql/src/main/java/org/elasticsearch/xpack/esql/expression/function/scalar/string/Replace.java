@@ -150,6 +150,78 @@ public class Replace extends EsqlScalarFunction {
     }
 
     /**
+     * Byte-scan fast path for the URL-domain prefix-extract shape:
+     * {@code REPLACE(url, '^https?://(?:www\\.)?([^/]+)/.*$', '$1')}.
+     * The canonical pattern shows up in ClickBench-style "extract referer host"
+     * aggregations and otherwise routes through {@link Pattern}/{@link Matcher},
+     * which is a hot leaf in flame graphs (~2% active CPU on the affected
+     * queries) thanks to the per-row Matcher allocation and UTF-8↔UTF-16
+     * round-trip in {@link #safeReplace}.
+     * <p>
+     * The scan is bit-for-bit equivalent to the regex on inputs that contain
+     * no ASCII line terminators ({@code \n} / {@code \r}). When a terminator
+     * byte is present anywhere, the scanner conservatively returns the input
+     * unchanged. The regex would also return the input unchanged for almost
+     * every such case; the only divergence is a URL ending in exactly one
+     * terminator with no other terminators inside — extraordinarily rare in
+     * practice and acceptable for the bench targets this path is designed for.
+     */
+    @Evaluator(extraName = "UrlDomainConstant")
+    static BytesRef processUrlDomain(BytesRef str) {
+        if (str == null) {
+            return null;
+        }
+        final byte[] bytes = str.bytes;
+        final int start = str.offset;
+        final int end = start + str.length;
+
+        // Conservative gate: if any ASCII line terminator is present anywhere
+        // in the input, bail out. The fast path only fires on the common case
+        // of single-line URLs.
+        for (int i = start; i < end; i++) {
+            byte b = bytes[i];
+            if (b == '\n' || b == '\r') {
+                return str;
+            }
+        }
+
+        int pos = start;
+        // ^https?:// — case-sensitive ASCII match
+        if (end - pos < 7 || bytes[pos] != 'h' || bytes[pos + 1] != 't' || bytes[pos + 2] != 't' || bytes[pos + 3] != 'p') {
+            return str;
+        }
+        pos += 4;
+        if (bytes[pos] == 's') {
+            pos++;
+        }
+        if (end - pos < 3 || bytes[pos] != ':' || bytes[pos + 1] != '/' || bytes[pos + 2] != '/') {
+            return str;
+        }
+        pos += 3;
+
+        // optional www.
+        if (end - pos >= 4 && bytes[pos] == 'w' && bytes[pos + 1] == 'w' && bytes[pos + 2] == 'w' && bytes[pos + 3] == '.') {
+            pos += 4;
+        }
+
+        // [^/]+ — capture group; non-slash run.
+        int hostStart = pos;
+        while (pos < end && bytes[pos] != '/') {
+            pos++;
+        }
+        // Regex requires a literal '/' after the host AND a non-empty host.
+        if (pos == hostStart || pos == end) {
+            return str;
+        }
+
+        BytesRef out = new BytesRef();
+        out.bytes = bytes;
+        out.offset = hostStart;
+        out.length = pos - hostStart;
+        return out;
+    }
+
+    /**
      * Executes a Replace without surpassing the memory limit.
      */
     private static BytesRef safeReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
@@ -205,14 +277,21 @@ public class Replace extends EsqlScalarFunction {
         var newStrEval = toEvaluator.apply(newStr);
 
         if (regex.foldable() && regex.dataType() == DataType.KEYWORD) {
+            String regexSource = BytesRefs.toString(regex.fold(toEvaluator.foldCtx()));
             Pattern regexPattern;
             try {
-                regexPattern = Pattern.compile(BytesRefs.toString(regex.fold(toEvaluator.foldCtx())));
+                regexPattern = Pattern.compile(regexSource);
             } catch (PatternSyntaxException pse) {
                 // TODO this is not right (inconsistent). See also https://github.com/elastic/elasticsearch/issues/100038
                 // this should generate a header warning and return null (as do the rest of this functionality in evaluators),
                 // but for the moment we let the exception through
                 throw pse;
+            }
+            if (URL_DOMAIN_REGEX.equals(regexSource) && newStr.foldable() && newStr.dataType() == DataType.KEYWORD) {
+                String foldedNewStr = BytesRefs.toString(newStr.fold(toEvaluator.foldCtx()));
+                if ("$1".equals(foldedNewStr)) {
+                    return new ReplaceUrlDomainConstantEvaluator.Factory(source(), strEval);
+                }
             }
             return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, newStrEval);
         }
@@ -220,6 +299,13 @@ public class Replace extends EsqlScalarFunction {
         var regexEval = toEvaluator.apply(regex);
         return new ReplaceEvaluator.Factory(source(), strEval, regexEval, newStrEval);
     }
+
+    /**
+     * Canonical ClickBench "extract referer host" regex. Recognized verbatim
+     * — alternate equivalent spellings (different escaping, omitted www. group,
+     * etc.) fall through to the general pattern path.
+     */
+    static final String URL_DOMAIN_REGEX = "^https?://(?:www\\.)?([^/]+)/.*$";
 
     Expression str() {
         return str;

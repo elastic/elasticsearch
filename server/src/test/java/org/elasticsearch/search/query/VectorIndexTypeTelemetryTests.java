@@ -111,7 +111,10 @@ public class VectorIndexTypeTelemetryTests extends ESTestCase {
     }
 
     public void testMergeUnrecognizedWithUnrecognized() {
-        assertSame(VectorIndexTypeTelemetry.UNRECOGNIZED, VectorIndexTypeTelemetry.UNRECOGNIZED.merge(VectorIndexTypeTelemetry.UNRECOGNIZED));
+        assertSame(
+            VectorIndexTypeTelemetry.UNRECOGNIZED,
+            VectorIndexTypeTelemetry.UNRECOGNIZED.merge(VectorIndexTypeTelemetry.UNRECOGNIZED)
+        );
     }
 
     public void testMergeMixedIsAbsorbing() {

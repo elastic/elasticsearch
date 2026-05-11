@@ -9,20 +9,11 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.action.support.ActionFilterChain;
-import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.ReindexSettings;
@@ -31,7 +22,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -39,8 +29,6 @@ import org.junit.After;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -86,6 +74,7 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
         } finally {
             SearchContextFailureInjectionPlugin.CONFIG.set(null);
             SearchContextFailureInjectionPlugin.PIT_SEARCH_COUNTER.set(0);
+            SearchContextFailureInjectionPlugin.SCROLL_SEARCH_COUNTER.set(0);
             super.tearDown();
         }
     }
@@ -177,79 +166,6 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
 
         ResponseException ex = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.NOT_FOUND.getStatus()));
-    }
-
-    /**
-     * {@link MappedActionFilter} that fails the second local PIT continuation search used by reindex
-     * (the first {@link SearchRequest} after opening the point-in-time, when {@code source.size} splits work
-     * across pages). Matching requests carry point-in-time and no explicit indices after
-     * {@link ReindexRequest#convertSearchRequestToUsePit}.
-     */
-    public static final class SearchContextFailureInjectionPlugin extends Plugin implements ActionPlugin {
-
-        /** Fixed at 2 so the injected failure is always the continuation page. */
-        private static final int PIT_SEARCH_TO_FAIL = 2;
-
-        static final AtomicReference<InjectionConfig> CONFIG = new AtomicReference<>();
-        static final AtomicInteger PIT_SEARCH_COUNTER = new AtomicInteger(0);
-
-        public record InjectionConfig(TimeValue sleepBeforeFail, SearchContextMissingException exception) {}
-
-        @Override
-        public Collection<MappedActionFilter> getMappedActionFilters() {
-            return List.of(new MappedActionFilter() {
-                @Override
-                public String actionName() {
-                    return TransportSearchAction.NAME;
-                }
-
-                @Override
-                public <Request extends ActionRequest, Response extends ActionResponse> void apply(
-                    Task task,
-                    String action,
-                    Request request,
-                    ActionListener<Response> listener,
-                    ActionFilterChain<Request, Response> chain
-                ) {
-                    InjectionConfig cfg = CONFIG.get();
-                    if (cfg == null || request instanceof SearchRequest == false) {
-                        chain.proceed(task, action, request, listener);
-                        return;
-                    }
-                    SearchRequest searchRequest = (SearchRequest) request;
-                    if (matchesReindexPitSearch(searchRequest) == false) {
-                        chain.proceed(task, action, request, listener);
-                        return;
-                    }
-                    int n = PIT_SEARCH_COUNTER.incrementAndGet();
-                    if (n != PIT_SEARCH_TO_FAIL) {
-                        chain.proceed(task, action, request, listener);
-                        return;
-                    }
-                    if (cfg.sleepBeforeFail != null && cfg.sleepBeforeFail.millis() > 0) {
-                        try {
-                            Thread.sleep(cfg.sleepBeforeFail.millis());
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            listener.onFailure(new ElasticsearchException(e));
-                            return;
-                        }
-                    }
-                    listener.onFailure(cfg.exception());
-                }
-            });
-        }
-
-        /**
-         * After {@link ReindexRequest#convertSearchRequestToUsePit}, reindex PIT searches carry an empty
-         * {@link SearchRequest#indices()} array and a non-null point-in-time in the source.
-         */
-        static boolean matchesReindexPitSearch(SearchRequest searchRequest) {
-            if (searchRequest.source() == null || searchRequest.source().pointInTimeBuilder() == null) {
-                return false;
-            }
-            return searchRequest.indices().length == 0;
-        }
     }
 
     private static SearchContextMissingException testMissingContext() {

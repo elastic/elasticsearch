@@ -505,8 +505,13 @@ public abstract class GoldenTestCase extends ESTestCase {
 
     /**
      * Normalizes synthetic attribute names of the form $$something($something)* that are followed by # (node id).
-     * Digit-only segments (generated at run time) are replaced with a stable running integer; text segments are kept as-is.
-     * Digits may appear anywhere in the name, including in the middle (e.g. {@code $$SUM$field$0$sum}).
+     * Each distinct synthetic name is assigned a stable id by order of first appearance in the plan, and that id
+     * replaces every digit-only segment in the name when rebuilt; text segments are kept as-is. Digits may appear
+     * anywhere in the name, including in the middle (e.g. {@code $$SUM$field$0$sum}).
+     * <p>
+     * Keying by the full name (rather than just the digit segments) ensures that two unrelated synthetic names
+     * with different text prefixes get independent ids, even when their digit tails happen to collide because
+     * the JVM-global counters that produced them drifted differently across test runs.
      */
     private static String normalizeSyntheticNames(String full) {
         return replaceMatches(full, SYNTHETIC_PATTERN, (matcher, idMap) -> {
@@ -518,7 +523,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                     appendSegment(numericSegments, seg);
                 } else {
                     if (numericSegments.isEmpty() == false) {
-                        appendSegment(result, idMap.getId(numericSegments.toString()));
+                        appendSegment(result, idMap.getId(matcher.group(1)));
                         numericSegments.setLength(0);
                         hasNormalized = true;
                     }
@@ -526,7 +531,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 }
             }
             if (numericSegments.isEmpty() == false) {
-                appendSegment(result, idMap.getId(numericSegments.toString()));
+                appendSegment(result, idMap.getId(matcher.group(1)));
                 hasNormalized = true;
             }
             return hasNormalized ? result.toString() : matcher.group();

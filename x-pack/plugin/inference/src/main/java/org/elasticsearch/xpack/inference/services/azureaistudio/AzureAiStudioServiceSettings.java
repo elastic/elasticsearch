@@ -44,13 +44,7 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
         ConfigurationParseContext context
     ) {
         var target = extractRequiredString(map, TARGET_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            AzureAiStudioService.NAME,
-            context
-        );
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
         var endpointType = extractRequiredEnum(
             map,
             ENDPOINT_TYPE_FIELD,
@@ -79,7 +73,6 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            AzureAiStudioService.NAME,
             ConfigurationParseContext.REQUEST
         );
         return new AzureAiStudioCommonSettings(this.target, this.provider, this.endpointType, extractedRateLimitSettings);

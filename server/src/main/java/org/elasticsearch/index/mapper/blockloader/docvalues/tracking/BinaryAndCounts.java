@@ -42,7 +42,9 @@ public record BinaryAndCounts(TrackingBinaryDocValues binary, @Nullable Tracking
 
             if (skipCountsIfOne) {
                 DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-                assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
+                if (countsSkipper == null) {
+                    throw new IllegalStateException("couldn't find skipper for counts field [" + countsFieldName + "]");
+                }
                 if (countsSkipper.maxValue() == 1) {
                     result = new BinaryAndCounts(binary, null);
                     return result;
@@ -51,7 +53,7 @@ public record BinaryAndCounts(TrackingBinaryDocValues binary, @Nullable Tracking
 
             counts = TrackingNumericDocValues.get(breaker, context, countsFieldName);
             if (counts == null) {
-                throw new IllegalStateException("couldn't find counts");
+                throw new IllegalStateException("couldn't find counts field [" + countsFieldName + "]");
             }
             result = new BinaryAndCounts(binary, counts);
             return result;

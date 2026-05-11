@@ -1,5 +1,0 @@
-area: Analysis
-issues: []
-pr: 143060
-summary: Support custom rulesets in analysis-icu/icu-transform plugin
-type: enhancement

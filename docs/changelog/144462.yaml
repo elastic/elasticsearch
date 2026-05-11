@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 141852
-pr: 144462
-summary: AMD return 0 on Count with no rows
-type: bug

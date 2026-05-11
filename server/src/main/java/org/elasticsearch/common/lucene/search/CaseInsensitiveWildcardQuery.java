@@ -11,7 +11,6 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
-import org.apache.lucene.util.automaton.Automaton;
 
 import static org.elasticsearch.common.lucene.search.AutomatonQueries.toCaseInsensitiveWildcardAutomaton;
 
@@ -27,26 +26,8 @@ public class CaseInsensitiveWildcardQuery extends AutomatonQuery {
         super(term, toCaseInsensitiveWildcardAutomaton(term));
     }
 
-    /**
-     * Construct from a pre-built case-insensitive wildcard automaton. Lets the caller separate
-     * the determinize step (where the breaker reservation is taken) from the
-     * {@code AutomatonQuery} super-construction (which runs Lucene's {@code CompiledAutomaton}
-     * build under the reservation).
-     */
-    public CaseInsensitiveWildcardQuery(Term term, Automaton automaton) {
-        super(term, automaton);
-    }
-
     public CaseInsensitiveWildcardQuery(Term term, boolean isBinary, RewriteMethod rewriteMethod) {
         super(term, toCaseInsensitiveWildcardAutomaton(term), isBinary, rewriteMethod);
-    }
-
-    /**
-     * Construct from a pre-built case-insensitive wildcard automaton with a custom rewrite method.
-     * See {@link #CaseInsensitiveWildcardQuery(Term, Automaton)}.
-     */
-    public CaseInsensitiveWildcardQuery(Term term, Automaton automaton, boolean isBinary, RewriteMethod rewriteMethod) {
-        super(term, automaton, isBinary, rewriteMethod);
     }
 
     @Override

@@ -193,15 +193,9 @@ public abstract class StringFieldType extends TermBasedFieldType {
             // this point, releaseQueryConstructionMemory at request end refunds the reservation.
             reservation = AutomatonQueries.compiledAutomatonReservationBytes(dfa.ramBytesUsed());
             context.addCircuitBreakerMemory(reservation, "wildcard-compiled:" + name());
-            if (caseInsensitive) {
-                query = method == null
-                    ? new CaseInsensitiveWildcardQuery(term, dfa)
-                    : new CaseInsensitiveWildcardQuery(term, dfa, false, method);
-            } else {
-                query = method == null
-                    ? new AutomatonQueryWithDescription(term, dfa, term.text())
-                    : new AutomatonQuery(term, dfa, false, method);
-            }
+            query = method == null
+                ? new AutomatonQueryWithDescription(term, dfa, term.text())
+                : new AutomatonQuery(term, dfa, false, method);
         } else {
             if (caseInsensitive) {
                 query = method == null ? new CaseInsensitiveWildcardQuery(term) : new CaseInsensitiveWildcardQuery(term, false, method);

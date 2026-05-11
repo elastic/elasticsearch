@@ -144,14 +144,14 @@ public class AutomatonQueries {
      * gaps by ensuring a minimum reservation regardless of DFA size. Production telemetry on the
      * reservation/actual ratio should be used to refine the multiplier over time.
      */
-    public static final int COMPILED_AUTOMATON_PEAK_MULTIPLIER = 200;
+    static final int COMPILED_AUTOMATON_PEAK_MULTIPLIER = 200;
 
     /**
      * Lower bound on the pre-flight reservation. Prevents under-reservation for tiny DFAs that
      * disproportionately blow up during {@code CompiledAutomaton} construction (e.g. small
      * automatons with wide-alphabet transitions like {@code ?×N}).
      */
-    public static final long COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES = 1024L * 1024L;
+    static final long COMPILED_AUTOMATON_RESERVATION_FLOOR_BYTES = 1024L * 1024L;
 
     /**
      * Returns the pre-flight breaker reservation in bytes for a unicode DFA whose
@@ -165,6 +165,7 @@ public class AutomatonQueries {
      * to trip any real-world breaker, which is the correct behavior for inputs that large.
      */
     public static long compiledAutomatonReservationBytes(long dfaRamBytes) {
+        assert dfaRamBytes >= 0 : "dfaRamBytes must be non-negative, got " + dfaRamBytes;
         long peak;
         try {
             peak = Math.multiplyExact(dfaRamBytes, (long) COMPILED_AUTOMATON_PEAK_MULTIPLIER);

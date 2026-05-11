@@ -662,10 +662,10 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertEquals(0L, context.getQueryConstructionMemoryUsed());
     }
 
-    public void testSwapKeepsAccountingConsistentWhenChargeTrips() {
-        // If the final breaker charge trips, the reservation has already been refunded and the
-        // breaker remains at its pre-reservation baseline. The request-end release must refund
-        // nothing (counter is zero) and the breaker must end where it started.
+    public void testSwapLeavesReservationHeldWhenDeltaChargeTrips() {
+        // Under the delta-based swap, a trip on the net charge (bytes - held) leaves the
+        // previously charged reservation in place on both the breaker and the request counter.
+        // The request-end release is what refunds it.
         long limit = 500L;
         TrippingCircuitBreaker breaker = new TrippingCircuitBreaker(limit);
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
@@ -673,16 +673,16 @@ public class SearchExecutionContextTests extends ESTestCase {
         context.addCircuitBreakerMemory(400L, "reservation");
         assertEquals(400L, breaker.used);
 
-        // Actual charge (600) exceeds the limit so the breaker trips on the post-refund add.
+        // Actual=600, held=400 → delta=+200; 400+200>limit trips on the delta charge.
         expectThrows(CircuitBreakingException.class, () -> context.addCircuitBreakerMemory(600L, 400L, "actual"));
 
-        // After the trip the reservation must be fully refunded and the counter at zero.
-        assertEquals("breaker must be back at baseline after a trip during swap", 0L, breaker.used);
-        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+        // Reservation residual remains until request-end release.
+        assertEquals("reservation residual must remain on the breaker after a trip", 400L, breaker.used);
+        assertEquals(400L, context.getQueryConstructionMemoryUsed());
 
-        // Release after a trip is a no-op.
         context.releaseQueryConstructionMemory();
         assertEquals(0L, breaker.used);
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
     }
 
     /**
@@ -747,7 +747,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
     /**
      * Breaker that trips {@link #addEstimateBytesAndMaybeBreak} when {@code used + bytes} would exceed
-     * {@link #limit}. Used to verify swap accounting when the post-refund charge trips rather than succeeds.
+     * {@link #limit}. Used to verify swap accounting when the delta charge trips rather than succeeds.
      * On a trip the breaker state is left unchanged, matching production breaker semantics.
      */
     private static class TrippingCircuitBreaker extends TrackingCircuitBreaker {

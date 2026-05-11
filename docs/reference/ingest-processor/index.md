@@ -48,10 +48,10 @@ We’ve categorized the available processors on this page and summarized their f
 [`enrich` processor](/reference/ingest-processor/enrich-processor.md)
 :   Enriches documents with data from another index.
 
-::::{tip}
-Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/data-enrichment.md) for detailed examples of how to use the `enrich` processor to add data from your existing indices to incoming documents during ingest.
+    ::::{tip}
+    Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/data-enrichment.md) for detailed examples of how to use the `enrich` processor to add data from your existing indices to incoming documents during ingest.
 
-::::
+    ::::
 
 
 [`inference` processor](/reference/ingest-processor/inference-processor.md)

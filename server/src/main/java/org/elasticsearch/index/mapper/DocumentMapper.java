@@ -136,7 +136,7 @@ public class DocumentMapper {
                 );
             }
         }
-        if (settings.isSliceEnabled() && routingFieldMapper().required() == false) {
+        if (settings.isSliceEnabled() && (routingFieldMapper().required() == false || routingFieldMapper().docValues() == false)) {
             throw new IllegalArgumentException(
                 "mapping type ["
                     + type()

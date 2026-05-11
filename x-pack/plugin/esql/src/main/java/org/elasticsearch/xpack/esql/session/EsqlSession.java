@@ -1282,7 +1282,6 @@ public class EsqlSession {
                 lookupIndexResolution.get().mapping(),
                 Map.of(indexName, IndexMode.LOOKUP),
                 Map.of(),
-                Map.of(),
                 Map.of()
             );
             return IndexResolution.valid(newIndex, newIndex.concreteQualifiedIndices(), lookupIndexResolution.failures());

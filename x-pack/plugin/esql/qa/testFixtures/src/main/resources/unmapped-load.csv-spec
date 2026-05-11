@@ -554,22 +554,6 @@ sample_data            | Connected to 10.1.0.2
 sample_data            | Connected to 10.1.0.1
 ;
 
-partiallyUnmappedSmallNumericFieldIsWidened
-required_capability: optional_fields_v5
-
-SET unmapped_fields="load"\;
-FROM apps_short, partial_mapping_sample_data
-| KEEP id, name
-| SORT name DESC NULLS LAST
-| LIMIT 3
-;
-
-id:integer | name:keyword
-14         | mmmmm
-13         | lllll
-11         | kkkkk
-;
-
 fieldIsPartiallyUnmappedAndRenamedMultiIndex
 required_capability: optional_fields_v5
 

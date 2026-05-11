@@ -153,6 +153,11 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             .build();
     }
 
+    @Override
+    protected boolean randomlyUseColumnarId() {
+        return false;
+    }
+
     protected void setRequestCircuitBreakerLimit(ByteSizeValue limit) {
         if (limit != null) {
             assertAcked(

@@ -39,7 +39,6 @@ import static org.hamcrest.Matchers.hasEntry;
 public class ES93ScalarQuantizedBFloat16VectorFormatTests extends BaseQuantizedBFloat16KnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

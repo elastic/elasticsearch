@@ -18,12 +18,14 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.score.Decay.DecayFunction;
 import org.hamcrest.Matcher;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
@@ -36,6 +38,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.closeTo;
@@ -105,6 +109,36 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
         // Long random
         testCaseSuppliers.addAll(longRandomTestCases());
+
+        // Unsigned Long Linear
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(0), ul(10), ul(10000000), ul(200), 0.33, "linear", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(10), ul(10), ul(10000000), ul(200), 0.33, "linear", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(50000), ul(10), ul(10000000), ul(200), 0.33, "linear", 0.99666407));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(300000), ul(10), ul(10000000), ul(200), 0.33, "linear", 0.97991407));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(123_456_789_112_123L), ul(10), ul(10000000), ul(200), 0.33, "linear", 0.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(UNSIGNED_LONG_MAX, UNSIGNED_LONG_MAX, ul(10), ul(0), 0.5, "linear", 1.0));
+
+        // Unsigned Long Exponential
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(0), ul(10), ul(10000000), ul(200), 0.33, "exp", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(10), ul(10), ul(10000000), ul(200), 0.33, "exp", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(50000), ul(10), ul(10000000), ul(200), 0.33, "exp", 0.9944951761701727));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(300000), ul(10), ul(10000000), ul(200), 0.33, "exp", 0.9673096701204178));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(123_456_789_112_123L), ul(10), ul(10000000), ul(200), 0.33, "exp", 0.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(UNSIGNED_LONG_MAX, UNSIGNED_LONG_MAX, ul(10), ul(0), 0.5, "exp", 1.0));
+
+        // Unsigned Long Gaussian
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(0), ul(10), ul(10000000), ul(200), 0.33, "gauss", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(10), ul(10), ul(10000000), ul(200), 0.33, "gauss", 1.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(50000), ul(10), ul(10000000), ul(200), 0.33, "gauss", 0.999972516142306));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(300000), ul(10), ul(10000000), ul(200), 0.33, "gauss", 0.9990040963055015));
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(123_456_789_112_123L), ul(10), ul(10000000), ul(200), 0.33, "gauss", 0.0));
+        testCaseSuppliers.addAll(unsignedLongTestCase(UNSIGNED_LONG_MAX, UNSIGNED_LONG_MAX, ul(10), ul(0), 0.5, "gauss", 1.0));
+
+        // Unsigned Long defaults
+        testCaseSuppliers.addAll(unsignedLongTestCase(ul(10), ul(0), ul(10), null, null, null, 0.5));
+
+        // Unsigned Long random
+        testCaseSuppliers.addAll(unsignedLongRandomTestCases());
 
         // Double Linear
         testCaseSuppliers.addAll(doubleTestCase(0.0, 10.0, 10000000.0, 200.0, 0.25, "linear", 1.0));
@@ -752,6 +786,112 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         };
     }
 
+    private static BigInteger ul(long v) {
+        return BigInteger.valueOf(v);
+    }
+
+    private static List<TestCaseSupplier> unsignedLongTestCase(
+        BigInteger value,
+        BigInteger origin,
+        BigInteger scale,
+        BigInteger offset,
+        Double decay,
+        String functionType,
+        double expected
+    ) {
+        return List.of(
+            new TestCaseSupplier(
+                List.of(DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG, DataType.SOURCE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(value, DataType.UNSIGNED_LONG, "value"),
+                        new TestCaseSupplier.TypedData(origin, DataType.UNSIGNED_LONG, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(scale, DataType.UNSIGNED_LONG, "scale").forceLiteral(),
+                        new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
+                            .forceLiteral()
+                    ),
+                    startsWith("DecayUnsignedLongEvaluator["),
+                    DataType.DOUBLE,
+                    closeTo(expected, Math.ulp(expected))
+                )
+            )
+        );
+    }
+
+    private static List<TestCaseSupplier> unsignedLongRandomTestCases() {
+        return List.of(
+            new TestCaseSupplier(List.of(DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG, DataType.SOURCE), () -> {
+                BigInteger randomValueBig = randomUnsignedLongBetween(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX);
+                BigInteger randomOriginBig = randomUnsignedLongBetween(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX);
+                BigInteger randomScaleBig = randomUnsignedLongBetween(BigInteger.ONE, NumericUtils.UNSIGNED_LONG_MAX);
+                BigInteger randomOffsetBig = randomUnsignedLongBetween(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX);
+
+                // Convert to the signed long representation used internally
+                long randomValue = NumericUtils.asLongUnsigned(randomValueBig);
+                long randomOrigin = NumericUtils.asLongUnsigned(randomOriginBig);
+                long randomScale = NumericUtils.asLongUnsigned(randomScaleBig);
+                long randomOffset = NumericUtils.asLongUnsigned(randomOffsetBig);
+
+                double randomDecay = randomDecayOpenUnitInterval();
+                String randomType = randomFrom("linear", "gauss", "exp");
+
+                double scoreScriptNumericResult = unsignedLongDecayWithScoreScript(
+                    randomValue,
+                    randomOrigin,
+                    randomScale,
+                    randomOffset,
+                    randomDecay,
+                    randomType
+                );
+
+                return new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(randomValue, DataType.UNSIGNED_LONG, "value"),
+                        new TestCaseSupplier.TypedData(randomOrigin, DataType.UNSIGNED_LONG, "origin").forceLiteral(),
+                        new TestCaseSupplier.TypedData(randomScale, DataType.UNSIGNED_LONG, "scale").forceLiteral(),
+                        new TestCaseSupplier.TypedData(
+                            createOptionsMap(randomOffsetBig, randomDecay, randomType),
+                            DataType.SOURCE,
+                            "options"
+                        ).forceLiteral()
+                    ),
+                    startsWith("DecayUnsignedLongEvaluator["),
+                    DataType.DOUBLE,
+                    equalTo(scoreScriptNumericResult)
+                );
+            })
+        );
+    }
+
+    private static double unsignedLongDecayWithScoreScript(long value, long origin, long scale, long offset, double decay, String type) {
+        var valueUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(value);
+        var originUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(origin);
+        var scaleUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(scale);
+        var offsetUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(offset);
+
+        return switch (type) {
+            case "linear" -> new ScoreScriptUtils.DecayNumericLinear(
+                originUnsignedLongAsDouble,
+                scaleUnsignedLongAsDouble,
+                offsetUnsignedLongAsDouble,
+                decay
+            ).decayNumericLinear(valueUnsignedLongAsDouble);
+            case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(
+                originUnsignedLongAsDouble,
+                scaleUnsignedLongAsDouble,
+                offsetUnsignedLongAsDouble,
+                decay
+            ).decayNumericGauss(valueUnsignedLongAsDouble);
+            case "exp" -> new ScoreScriptUtils.DecayNumericExp(
+                originUnsignedLongAsDouble,
+                scaleUnsignedLongAsDouble,
+                offsetUnsignedLongAsDouble,
+                decay
+            ).decayNumericExp(valueUnsignedLongAsDouble);
+            default -> throw new IllegalArgumentException("Unknown decay function type [" + type + "]");
+        };
+    }
+
     private static List<TestCaseSupplier> doubleTestCase(
         double value,
         double origin,
@@ -1203,6 +1343,10 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         return randomDoubleBetween(1e-12, Math.nextDown(1.0), true);
     }
 
+    private static Literal unsignedLongLiteral(BigInteger value) {
+        return new Literal(Source.EMPTY, asLongUnsigned(value), DataType.UNSIGNED_LONG);
+    }
+
     private static MapExpression createOptionsMap(Object offset, Double decay, String functionType) {
         List<Expression> keyValuePairs = new ArrayList<>();
 
@@ -1212,6 +1356,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
             switch (offset) {
                 case Integer value -> keyValuePairs.add(Literal.integer(Source.EMPTY, value));
                 case Long value -> keyValuePairs.add(Literal.fromLong(Source.EMPTY, value));
+                case BigInteger value -> keyValuePairs.add(unsignedLongLiteral(value));
                 case Double value -> keyValuePairs.add(Literal.fromDouble(Source.EMPTY, value));
                 case String value -> keyValuePairs.add(Literal.text(Source.EMPTY, value));
                 case Duration value -> keyValuePairs.add(Literal.timeDuration(Source.EMPTY, value));

@@ -1595,6 +1595,11 @@ public class EsqlCapabilities {
         DECAY_FUNCTION_PARAMETER_CONVERSION,
 
         /**
+         * Support DECAY with unsigned_long parameters for {@code DECAY}.
+         */
+        DECAY_FUNCTION_UNSIGNED_LONG,
+
+        /**
          * Fix latitude/longitude ordering of the in geo-point {@code DECAY}.
          * Previously the origin was serialized as "lon,lat" before being parsed by
          * {@code GeoUtils.parseGeoPoint}, which expects "lat,lon", effectively swapping the
@@ -2706,6 +2711,12 @@ public class EsqlCapabilities {
          * (e.g. by MV_EXPAND) into many rows reaching the STATS command.
          */
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
+
+        /**
+         * Fix for {@code CompoundOutputEval} commands not implementing {@code SortAgnostic}, causing {@code PruneRedundantOrderBy} to
+         * fail when a SORT precedes these commands.
+         */
+        FIX_COMPOUND_OUTPUT_EVAL_SORT_AGNOSTIC,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

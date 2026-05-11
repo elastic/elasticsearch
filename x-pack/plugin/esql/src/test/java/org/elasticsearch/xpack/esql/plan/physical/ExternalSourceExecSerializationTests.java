@@ -33,7 +33,7 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
         List<ExternalSplit> splits = randomSplits();
         // Toggle null vs populated to exercise the "no anchor" wire path (empty list on the wire,
         // null in-memory) alongside the populated path.
-        List<Attribute> fileSchema = randomBoolean() ? null : randomFieldAttributes(1, 5, false);
+        List<Attribute> readSchema = randomBoolean() ? null : randomFieldAttributes(1, 5, false);
         return new ExternalSourceExec(
             source,
             sourcePath,
@@ -46,7 +46,7 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
             estimatedRowSize,
             null,
             splits,
-            fileSchema
+            readSchema
         );
     }
 
@@ -127,7 +127,7 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
         Map<String, Object> sourceMetadata = instance.sourceMetadata();
         Integer estimatedRowSize = instance.estimatedRowSize();
         List<ExternalSplit> splits = instance.splits();
-        List<Attribute> fileSchema = instance.fileSchema();
+        List<Attribute> readSchema = instance.readSchema();
 
         switch (between(0, 6)) {
             case 0 -> sourcePath = randomValueOtherThan(sourcePath, () -> "s3://bucket/" + randomAlphaOfLength(8) + ".parquet");
@@ -139,7 +139,7 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
                 AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize
             );
             case 5 -> splits = randomValueOtherThan(splits, ExternalSourceExecSerializationTests::randomSplits);
-            case 6 -> fileSchema = randomValueOtherThan(fileSchema, () -> randomBoolean() ? null : randomFieldAttributes(1, 5, false));
+            case 6 -> readSchema = randomValueOtherThan(readSchema, () -> randomBoolean() ? null : randomFieldAttributes(1, 5, false));
             default -> throw new IllegalStateException();
         }
         return new ExternalSourceExec(
@@ -154,7 +154,7 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
             estimatedRowSize,
             null,
             splits,
-            fileSchema
+            readSchema
         );
     }
 

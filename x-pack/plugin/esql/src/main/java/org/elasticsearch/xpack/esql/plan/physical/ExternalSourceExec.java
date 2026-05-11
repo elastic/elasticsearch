@@ -48,7 +48,7 @@ import java.util.Objects;
  *       {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation} inside FragmentExec</li>
  *   <li><b>Optional anchor file schema</b>: For multi-file sources where the planner has resolved a
  *       single representative file's positional column schema (e.g. headerless CSV anchor inference),
- *       that schema travels here via {@link #fileSchema()} so runtime readers can use it as the
+ *       that schema travels here via {@link #readSchema()} so runtime readers can use it as the
  *       authoritative positional layout instead of re-inferring per file. {@code null} when no
  *       anchor schema is available — readers fall back to existing per-file inference.</li>
  * </ul>
@@ -62,7 +62,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     );
 
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_SPLITS = TransportVersion.fromName("esql_external_source_splits");
-    private static final TransportVersion ESQL_EXTERNAL_SOURCE_FILE_SCHEMA = TransportVersion.fromName("esql_external_source_file_schema");
+    private static final TransportVersion ESQL_EXTERNAL_SOURCE_READ_SCHEMA = TransportVersion.fromName("esql_external_source_read_schema");
 
     private final String sourcePath;
     private final String sourceType;
@@ -85,12 +85,12 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     /**
      * Positional file schema resolved at planning time (anchor file in a multi-file glob). Runtime
      * readers may use it as the authoritative positional column layout instead of per-file inference.
-     * Serialized cross-node, gated by {@link #ESQL_EXTERNAL_SOURCE_FILE_SCHEMA}. {@code null} = no
+     * Serialized cross-node, gated by {@link #ESQL_EXTERNAL_SOURCE_READ_SCHEMA}. {@code null} = no
      * anchor (older nodes, sources that don't compute one, or constructions that bypass
      * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()}).
      */
     @Nullable
-    private final List<Attribute> fileSchema;
+    private final List<Attribute> readSchema;
 
     public ExternalSourceExec(
         Source source,
@@ -166,7 +166,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         Integer estimatedRowSize,
         FileList fileList,
         List<ExternalSplit> splits,
-        List<Attribute> fileSchema
+        List<Attribute> readSchema
     ) {
         this(
             source,
@@ -181,7 +181,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             splits,
-            fileSchema
+            readSchema
         );
     }
 
@@ -234,7 +234,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         Integer estimatedRowSize,
         FileList fileList,
         List<ExternalSplit> splits,
-        List<Attribute> fileSchema
+        List<Attribute> readSchema
     ) {
         this(
             source,
@@ -250,7 +250,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             splits,
-            fileSchema
+            readSchema
         );
     }
 
@@ -273,7 +273,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         Integer estimatedRowSize,
         FileList fileList,
         List<ExternalSplit> splits,
-        List<Attribute> fileSchema
+        List<Attribute> readSchema
     ) {
         super(source);
         if (sourcePath == null) {
@@ -298,7 +298,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.fileList = fileList;
         this.splits = splits != null ? List.copyOf(splits) : List.of();
         // Empty and null both mean "no anchor schema bound" — collapse them so readers see only null.
-        this.fileSchema = (fileSchema == null || fileSchema.isEmpty()) ? null : List.copyOf(fileSchema);
+        this.readSchema = (readSchema == null || readSchema.isEmpty()) ? null : List.copyOf(readSchema);
     }
 
     public ExternalSourceExec(
@@ -366,10 +366,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             ? in.readNamedWriteableCollectionAsList(ExternalSplit.class)
             : List.of();
         // Older nodes don't write the field; on the wire empty list represents the in-memory null.
-        List<Attribute> wireFileSchema = in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_FILE_SCHEMA)
+        List<Attribute> wireFileSchema = in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)
             ? in.readNamedWriteableCollectionAsList(Attribute.class)
             : List.of();
-        List<Attribute> fileSchema = wireFileSchema.isEmpty() ? null : wireFileSchema;
+        List<Attribute> readSchema = wireFileSchema.isEmpty() ? null : wireFileSchema;
 
         return new ExternalSourceExec(
             source,
@@ -383,7 +383,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             null,
             splits,
-            fileSchema
+            readSchema
         );
     }
 
@@ -399,9 +399,9 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_SPLITS)) {
             out.writeNamedWriteableCollection(splits);
         }
-        if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_FILE_SCHEMA)) {
+        if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)) {
             // Empty list on the wire represents the in-memory null (no anchor schema).
-            out.writeNamedWriteableCollection(fileSchema != null ? fileSchema : List.of());
+            out.writeNamedWriteableCollection(readSchema != null ? readSchema : List.of());
         }
     }
 
@@ -460,8 +460,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
      * {@code null} when no anchor was computed — readers fall back to per-file inference.
      */
     @Nullable
-    public List<Attribute> fileSchema() {
-        return fileSchema;
+    public List<Attribute> readSchema() {
+        return readSchema;
     }
 
     public ExternalSourceExec withSplits(List<ExternalSplit> newSplits) {
@@ -479,7 +479,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             newSplits,
-            fileSchema
+            readSchema
         );
     }
 
@@ -498,7 +498,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             splits,
-            fileSchema
+            readSchema
         );
     }
 
@@ -517,7 +517,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             splits,
-            fileSchema
+            readSchema
         );
     }
 
@@ -536,7 +536,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             splits,
-            fileSchema
+            readSchema
         );
     }
 
@@ -558,7 +558,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             splits,
-            fileSchema
+            readSchema
         );
     }
 
@@ -594,7 +594,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             newEstimatedRowSize,
             fileList,
             splits,
-            fileSchema
+            readSchema
         );
     }
 
@@ -606,7 +606,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         // hint into any generic transform-based plan rewrite. The hint is preserved by the explicit with* methods
         // that need it and is rendered in nodeString() for debuggability.
         //
-        // fileSchema IS included: it is a structural planning-time field that must survive tree-rewrites by
+        // readSchema IS included: it is a structural planning-time field that must survive tree-rewrites by
         // optimizer rules. Excluding it would silently drop it on every plan-rebuild.
         return NodeInfo.create(
             this,
@@ -622,7 +622,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             splits,
-            fileSchema
+            readSchema
         );
     }
 
@@ -641,7 +641,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             splits,
-            fileSchema
+            readSchema
         );
     }
 
@@ -668,7 +668,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
             && Objects.equals(fileList, other.fileList)
             && Objects.equals(splits, other.splits)
-            && Objects.equals(fileSchema, other.fileSchema);
+            && Objects.equals(readSchema, other.readSchema);
     }
 
     @Override
@@ -694,8 +694,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         if (splits.isEmpty() == false) {
             sb.append("[splits=").append(splits.size()).append("]");
         }
-        if (fileSchema != null && fileSchema.isEmpty() == false) {
-            sb.append("[fileSchema=").append(fileSchema.size()).append("]");
+        if (readSchema != null && readSchema.isEmpty() == false) {
+            sb.append("[readSchema=").append(readSchema.size()).append("]");
         }
         NodeUtils.toString(sb, attributes, format);
     }

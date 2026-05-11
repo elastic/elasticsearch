@@ -117,7 +117,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * positional column layout; {@code null} means "no anchor — use existing per-file inference".
      */
     @Nullable
-    private final List<Attribute> fileSchema;
+    private final List<Attribute> readSchema;
     /**
      * True when the reader supports multi-file batch reads and there are no partition columns
      * that require per-split injection. When set, {@link #openNextSliceQueueLeaf} claims batches
@@ -145,7 +145,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable FilterPushdownSupport pushdownSupport,
         @Nullable Closeable onClose,
         int parallelism,
-        @Nullable List<Attribute> fileSchema
+        @Nullable List<Attribute> readSchema
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -187,7 +187,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.pushdownSupport = pushdownSupport;
         this.onClose = onClose;
         this.parallelism = Math.max(1, parallelism);
-        this.fileSchema = fileSchema;
+        this.readSchema = readSchema;
         this.batchReadCapable = formatReader instanceof RangeAwareFormatReader rr
             && rr.supportsBatchRead()
             && this.partitionColumnNames.isEmpty();
@@ -233,7 +233,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private Closeable onClose;
         private int parallelism = 1;
         @Nullable
-        private List<Attribute> fileSchema = null;
+        private List<Attribute> readSchema = null;
 
         private Builder(
             StorageProvider storageProvider,
@@ -316,9 +316,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
-        /** See {@link AsyncExternalSourceOperatorFactory#fileSchema}; {@code null} disables the override. */
-        public Builder fileSchema(@Nullable List<Attribute> fileSchema) {
-            this.fileSchema = fileSchema;
+        /** See {@link AsyncExternalSourceOperatorFactory#readSchema}; {@code null} disables the override. */
+        public Builder readSchema(@Nullable List<Attribute> readSchema) {
+            this.readSchema = readSchema;
             return this;
         }
 
@@ -342,7 +342,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 pushdownSupport,
                 onClose,
                 parallelism,
-                fileSchema
+                readSchema
             );
         }
     }
@@ -783,7 +783,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .firstSplit(firstSplit)
                         .lastSplit(lastSplit)
                         .recordAligned(recordAlignedMacro)
-                        .fileSchema(fileSchema)
+                        .readSchema(readSchema)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
@@ -875,7 +875,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .batchSize(batchSize)
                     .rowLimit(fileBudget)
                     .errorPolicy(errorPolicy)
-                    .fileSchema(fileSchema)
+                    .readSchema(readSchema)
                     .build();
                 pages = formatReader.read(obj, ctx);
             }
@@ -909,7 +909,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .batchSize(batchSize)
             .rowLimit(rowLimit)
             .errorPolicy(errorPolicy)
-            .fileSchema(fileSchema)
+            .readSchema(readSchema)
             .build();
         formatReader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
             consumePagesInBackground(iterator, buffer, driverContext, injector);
@@ -936,7 +936,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .batchSize(batchSize)
                     .rowLimit(rowLimit)
                     .errorPolicy(errorPolicy)
-                    .fileSchema(fileSchema)
+                    .readSchema(readSchema)
                     .build();
                 pages = formatReader.read(storageObject, ctx);
             }
@@ -1144,7 +1144,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     policy,
                     recordAlignedMacroSplit,
                     splitIncludesFileLeader,
-                    fileSchema
+                    readSchema
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {
@@ -1172,7 +1172,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         parsingParallelism,
                         executor,
                         policy,
-                        fileSchema
+                        readSchema
                     );
                 } catch (Exception e) {
                     decompressed.close();

@@ -37,7 +37,7 @@ import java.util.List;
  *                         (e.g. bzip2 / zstd-indexed macro-splits). When {@code true}, the split is known
  *                         to start exactly on a record boundary (e.g. streaming-parallel chunks sliced on
  *                         {@code \n}). Has no effect on the first split.
- * @param fileSchema       optional positional file schema resolved at planning time (typically the
+ * @param readSchema       optional positional file schema resolved at planning time (typically the
  *                         anchor file in a multi-file glob). When non-{@code null}, format readers
  *                         may use it as the authoritative positional column layout; when {@code null},
  *                         readers fall back to per-file inference. Distinct from
@@ -57,13 +57,13 @@ public record FormatReadContext(
     boolean firstSplit,
     boolean lastSplit,
     boolean recordAligned,
-    @Nullable List<Attribute> fileSchema
+    @Nullable List<Attribute> readSchema
 ) {
 
     public FormatReadContext {
         // Empty and null both mean "no anchor"; collapse them.
-        if (fileSchema != null && fileSchema.isEmpty()) {
-            fileSchema = null;
+        if (readSchema != null && readSchema.isEmpty()) {
+            readSchema = null;
         }
     }
 
@@ -82,21 +82,21 @@ public record FormatReadContext(
      * Returns a copy with a different row limit.
      */
     public FormatReadContext withRowLimit(int limit) {
-        return new FormatReadContext(projectedColumns, batchSize, limit, errorPolicy, firstSplit, lastSplit, recordAligned, fileSchema);
+        return new FormatReadContext(projectedColumns, batchSize, limit, errorPolicy, firstSplit, lastSplit, recordAligned, readSchema);
     }
 
     /**
      * Returns a copy with a different error policy.
      */
     public FormatReadContext withErrorPolicy(ErrorPolicy policy) {
-        return new FormatReadContext(projectedColumns, batchSize, rowLimit, policy, firstSplit, lastSplit, recordAligned, fileSchema);
+        return new FormatReadContext(projectedColumns, batchSize, rowLimit, policy, firstSplit, lastSplit, recordAligned, readSchema);
     }
 
     /**
      * Returns a copy configured for a split-based read.
      */
     public FormatReadContext withSplit(boolean first, boolean last) {
-        return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, first, last, recordAligned, fileSchema);
+        return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, first, last, recordAligned, readSchema);
     }
 
     public static Builder builder() {
@@ -115,7 +115,7 @@ public record FormatReadContext(
         private boolean lastSplit = true;
         private boolean recordAligned = false;
         @Nullable
-        private List<Attribute> fileSchema = null;
+        private List<Attribute> readSchema = null;
 
         private Builder() {}
 
@@ -158,9 +158,9 @@ public record FormatReadContext(
             return this;
         }
 
-        /** See {@link FormatReadContext#fileSchema()}; pass {@code null} to fall back to per-file inference. */
-        public Builder fileSchema(@Nullable List<Attribute> fileSchema) {
-            this.fileSchema = fileSchema;
+        /** See {@link FormatReadContext#readSchema()}; pass {@code null} to fall back to per-file inference. */
+        public Builder readSchema(@Nullable List<Attribute> readSchema) {
+            this.readSchema = readSchema;
             return this;
         }
 
@@ -176,7 +176,7 @@ public record FormatReadContext(
                 firstSplit,
                 lastSplit,
                 recordAligned,
-                fileSchema
+                readSchema
             );
         }
     }

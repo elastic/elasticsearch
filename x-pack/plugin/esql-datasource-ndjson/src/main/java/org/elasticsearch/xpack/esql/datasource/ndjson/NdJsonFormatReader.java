@@ -291,9 +291,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         ErrorPolicy errorPolicy = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
         // Planner-bound anchor schema wins when non-null; null falls through to per-file inference.
         // Prevents cross-file type drift on multi-file globs (anchor y:LONG vs file-with-1.5 y:DOUBLE).
-        List<Attribute> effectiveSchema = context.fileSchema() == null
+        List<Attribute> effectiveSchema = context.readSchema() == null
             ? inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine)
-            : mergeBoundWithProjection(context.fileSchema(), resolvedSchema);
+            : mergeBoundWithProjection(context.readSchema(), resolvedSchema);
         return new NdJsonPageIterator(
             object,
             context.projectedColumns(),

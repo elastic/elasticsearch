@@ -1403,7 +1403,7 @@ public class LocalExecutionPlanner {
             .sliceQueue(sliceQueue)
             .parsingParallelism(context.queryPragmas().parsingParallelism())
             .parallelism(instanceCount)
-            .fileSchema(externalSource.fileSchema())
+            .readSchema(externalSource.readSchema())
             .build();
 
         SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);

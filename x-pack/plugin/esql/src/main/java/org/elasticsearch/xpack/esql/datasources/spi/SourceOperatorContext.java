@@ -38,8 +38,8 @@ import java.util.concurrent.Executor;
  * is never serialized - it's created during local physical optimization and consumed
  * immediately by the operator factory in the same JVM.
  *
- * <p>The {@link #fileSchema()} is an optional anchor-file schema slot threaded down to
- * {@link FormatReadContext#fileSchema()}; {@code null} means "no anchor available — readers
+ * <p>The {@link #readSchema()} is an optional anchor-file schema slot threaded down to
+ * {@link FormatReadContext#readSchema()}; {@code null} means "no anchor available — readers
  * fall back to per-file inference".
  */
 public record SourceOperatorContext(
@@ -62,7 +62,7 @@ public record SourceOperatorContext(
     @Nullable ExternalSliceQueue sliceQueue,
     int parsingParallelism,
     int parallelism,
-    @Nullable List<Attribute> fileSchema
+    @Nullable List<Attribute> readSchema
 ) {
     public SourceOperatorContext {
         Check.notNull(path, "path cannot be null");
@@ -76,7 +76,7 @@ public record SourceOperatorContext(
             ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
             : Set.of();
         // Empty and null both mean "no anchor"; collapse them.
-        fileSchema = (fileSchema == null || fileSchema.isEmpty()) ? null : List.copyOf(fileSchema);
+        readSchema = (readSchema == null || readSchema.isEmpty()) ? null : List.copyOf(readSchema);
 
         if (batchSize <= 0) {
             throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -263,7 +263,7 @@ public record SourceOperatorContext(
         private int parsingParallelism = 1;
         private int parallelism = 1;
         @Nullable
-        private List<Attribute> fileSchema = null;
+        private List<Attribute> readSchema = null;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -365,9 +365,9 @@ public record SourceOperatorContext(
             return this;
         }
 
-        /** See {@link SourceOperatorContext#fileSchema()}; pass {@code null} to fall back to per-file inference. */
-        public Builder fileSchema(@Nullable List<Attribute> fileSchema) {
-            this.fileSchema = fileSchema;
+        /** See {@link SourceOperatorContext#readSchema()}; pass {@code null} to fall back to per-file inference. */
+        public Builder readSchema(@Nullable List<Attribute> readSchema) {
+            this.readSchema = readSchema;
             return this;
         }
 
@@ -392,7 +392,7 @@ public record SourceOperatorContext(
                 sliceQueue,
                 parsingParallelism,
                 parallelism,
-                fileSchema
+                readSchema
             );
         }
     }

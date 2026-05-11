@@ -151,7 +151,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         // Thread the anchor-file schema to the physical node. The SourceMetadata contract states
         // schema() is never null, so this is always populated for real sources; null at the
         // ExternalSourceExec layer is reserved for older serialized plans + test fixtures, where
-        // readers fall back to per-file inference. See ExternalSourceExec#fileSchema().
+        // readers fall back to per-file inference. See ExternalSourceExec#readSchema().
         return new ExternalSourceExec(
             source(),
             sourcePath,

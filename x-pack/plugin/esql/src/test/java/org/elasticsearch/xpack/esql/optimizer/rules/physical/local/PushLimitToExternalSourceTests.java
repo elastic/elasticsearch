@@ -111,14 +111,14 @@ public class PushLimitToExternalSourceTests extends ESTestCase {
             List.of(),
             anchorSchema
         );
-        assertEquals(anchorSchema, ext.fileSchema());
+        assertEquals(anchorSchema, ext.readSchema());
 
         LimitExec limitExec = new LimitExec(Source.EMPTY, ext, literal(10), null);
         PhysicalPlan result = applyRule(limitExec);
 
         ExternalSourceExec resultExt = (ExternalSourceExec) ((LimitExec) result).child();
         assertEquals("pushed limit must be 10 after the rule fires", 10, resultExt.pushedLimit());
-        assertEquals("fileSchema must survive the optimizer transformation", anchorSchema, resultExt.fileSchema());
+        assertEquals("readSchema must survive the optimizer transformation", anchorSchema, resultExt.readSchema());
     }
 
     private static ExternalSourceExec externalSource() {

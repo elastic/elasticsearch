@@ -4195,9 +4195,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertTrue("expected col2, got: " + summary, summary.contains("col2=[null]"));
     }
 
-    // --- FormatReadContext.fileSchema() honor tests ---
+    // --- FormatReadContext.readSchema() honor tests ---
     // These tests prove the runtime CSV reader uses the planner's anchor schema (passed via
-    // FormatReadContext.fileSchema()) as the authoritative positional column layout, overriding
+    // FormatReadContext.readSchema()) as the authoritative positional column layout, overriding
     // per-file inference. This closes the multi-file headerless CSV type-drift bug where the
     // anchor and a non-anchor file would otherwise infer different types for the same column.
 
@@ -4213,7 +4213,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD, Nullability.TRUE, null, false),
             new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.LONG, Nullability.TRUE, null, false)
         );
-        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).fileSchema(boundSchema).build();
+        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).readSchema(boundSchema).build();
 
         try (CloseableIterator<Page> iterator = reader.read(object, ctx)) {
             assertTrue(iterator.hasNext());
@@ -4234,13 +4234,13 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testHeaderlessReadFallsBackToInferenceWhenContextFileSchemaNull() throws IOException {
         // Same input as the previous test but with no bound schema. The reader falls back to
         // per-file inference (INTEGER, INTEGER). This is the negative control proving the new
-        // slot is opt-in: existing call sites that don't set fileSchema get the existing behavior.
+        // slot is opt-in: existing call sites that don't set readSchema get the existing behavior.
         String csv = "10,20\n30,40\n";
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false));
 
         FormatReadContext ctx = FormatReadContext.builder().batchSize(10).build();
-        assertNull("fileSchema must default to null", ctx.fileSchema());
+        assertNull("readSchema must default to null", ctx.readSchema());
 
         try (CloseableIterator<Page> iterator = reader.read(object, ctx)) {
             assertTrue(iterator.hasNext());
@@ -4259,7 +4259,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Cross-file type-drift case: two headerless files whose per-file inference would disagree
         // on col1 (file A has empty col1 → KEYWORD fallback; file B has integer col1 → INTEGER).
         // With a planner-resolved anchor schema [col1:KEYWORD, col2:LONG] passed via
-        // context.fileSchema(), file B emits BytesRefBlock for col1 instead of IntBlock —
+        // context.readSchema(), file B emits BytesRefBlock for col1 instead of IntBlock —
         // the type-mismatch crash that TopN otherwise catches goes away.
         String fileB = "10,20\n30,40\n"; // would infer col1 as INTEGER without an anchor schema
         StorageObject fileBObject = createStorageObject(fileB);
@@ -4269,7 +4269,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD, Nullability.TRUE, null, false),
             new ReferenceAttribute(Source.EMPTY, null, "col2", DataType.LONG, Nullability.TRUE, null, false)
         );
-        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).fileSchema(anchorSchema).build();
+        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).readSchema(anchorSchema).build();
 
         try (CloseableIterator<Page> iterator = reader.read(fileBObject, ctx)) {
             assertTrue(iterator.hasNext());

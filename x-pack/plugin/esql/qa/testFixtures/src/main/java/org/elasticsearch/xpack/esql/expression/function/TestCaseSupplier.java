@@ -1601,6 +1601,35 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     }
 
     /**
+     * Supplier test case data for {@link DataType#FLATTENED} fields.
+     * <p>
+     * For multi-row parameters, see {@link MultiRowTestCaseSupplier#flattenedCases}.
+     * </p>
+     */
+    public static List<TypedDataSupplier> flattenedCases() {
+        return List.of(
+            new TypedDataSupplier("<empty flattened>", FlattenedCases.EMPTY::get, DataType.FLATTENED),
+            new TypedDataSupplier("<single key flattened>", FlattenedCases.SINGLE_KEY::get, DataType.FLATTENED),
+            new TypedDataSupplier("<multi key flattened>", FlattenedCases.MULTI_KEY::get, DataType.FLATTENED),
+            new TypedDataSupplier("<object flattened>", FlattenedCases.OBJECT::get, DataType.FLATTENED),
+            new TypedDataSupplier("<random flattened>", FlattenedCases.RANDOM::get, DataType.FLATTENED)
+        );
+    }
+
+    /**
+     * Generate positive test cases for a unary function operating on a {@link DataType#FLATTENED} field.
+     */
+    public static void forUnaryFlattened(
+        List<TestCaseSupplier> suppliers,
+        String expectedEvaluatorToString,
+        DataType expectedType,
+        Function<BytesRef, Object> expectedValue,
+        List<String> warnings
+    ) {
+        unary(suppliers, expectedEvaluatorToString, flattenedCases(), expectedType, v -> expectedValue.apply((BytesRef) v), warnings);
+    }
+
+    /**
      * Supplier test case data for {@link Version} fields.
      * <p>
      * For multi-row parameters, see {@link MultiRowTestCaseSupplier#versionCases}.

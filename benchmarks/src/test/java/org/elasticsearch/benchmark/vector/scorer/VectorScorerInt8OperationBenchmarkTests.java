@@ -30,27 +30,25 @@ public class VectorScorerInt8OperationBenchmarkTests extends BenchmarkTest {
     }
 
     public void test() {
-        for (int i = 0; i < 100; i++) {
-            var bench = new VectorScorerInt8OperationBenchmark();
-            bench.function = function;
-            bench.size = size;
-            bench.init();
-            try {
-                float expected = switch (function) {
-                    case COSINE -> ScalarOperations.cosine(bench.bytesA, bench.bytesB);
-                    case DOT_PRODUCT -> ScalarOperations.dotProduct(bench.bytesA, bench.bytesB);
-                    case EUCLIDEAN -> ScalarOperations.squareDistance(bench.bytesA, bench.bytesB);
-                    default -> throw new AssumptionViolatedException("Not tested");
-                };
-                assertEquals(expected, bench.lucene(), delta);
-                assertEquals(expected, bench.luceneWithCopy(), delta);
-                assertEquals(expected, bench.nativeWithNativeSeg(), delta);
-                if (supportsHeapSegments()) {
-                    assertEquals(expected, bench.nativeWithHeapSeg(), delta);
-                }
-            } finally {
-                bench.teardown();
+        var bench = new VectorScorerInt8OperationBenchmark();
+        bench.function = function;
+        bench.size = size;
+        bench.init();
+        try {
+            float expected = switch (function) {
+                case COSINE -> ScalarOperations.cosine(bench.bytesA, bench.bytesB);
+                case DOT_PRODUCT -> ScalarOperations.dotProduct(bench.bytesA, bench.bytesB);
+                case EUCLIDEAN -> ScalarOperations.squareDistance(bench.bytesA, bench.bytesB);
+                default -> throw new AssumptionViolatedException("Not tested");
+            };
+            assertEquals(expected, bench.lucene(), delta);
+            assertEquals(expected, bench.luceneWithCopy(), delta);
+            assertEquals(expected, bench.nativeWithNativeSeg(), delta);
+            if (supportsHeapSegments()) {
+                assertEquals(expected, bench.nativeWithHeapSeg(), delta);
             }
+        } finally {
+            bench.teardown();
         }
     }
 

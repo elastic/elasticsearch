@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
@@ -26,6 +27,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ListMatcher;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -589,17 +592,8 @@ public final class CsvAssert {
                 LongRangeBlockBuilder.LongRange.class,
                 x -> EsqlDataTypeConverter.dateRangeToString((LongRangeBlockBuilder.LongRange) x)
             );
-            case FLATTENED -> {
-                // Parse expected JSON string to Map so comparison with actual is order-independent
-                String json = (String) expectedValue;
-                try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-                    yield parser.map();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
             case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, JSON, NULL, BOOLEAN,
-                DENSE_VECTOR, TDIGEST, UNSUPPORTED -> expectedValue;
+                DENSE_VECTOR, TDIGEST, UNSUPPORTED, FLATTENED -> expectedValue;
         };
     }
 
@@ -621,19 +615,20 @@ public final class CsvAssert {
                 x -> DEFAULT_DATE_NANOS_FORMATTER.formatNanos(DEFAULT_DATE_NANOS_FORMATTER.parseNanos((String) x))
             );
             case FLATTENED -> {
-                if (actualValue instanceof Map<?, ?>) {
-                    // REST test: value was deserialized as a Map from the JSON response
-                    yield actualValue;
+                if (actualValue instanceof Map<?, ?> map) {
+                    // REST tests come back as a LinkedHashMap and our assertions are json strings.
+                    // So we convert to json strings. This preserves order *because* of the LinkedHashMap.
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> typedMap = (Map<String, Object>) map;
+                    try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                        builder.map(typedMap);
+                        yield BytesReference.bytes(builder).utf8ToString();
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
                 }
-                // CsvIT: value is a JSON string from the block loader
-                try (
-                    XContentParser parser = XContentType.JSON.xContent()
-                        .createParser(XContentParserConfiguration.EMPTY, (String) actualValue)
-                ) {
-                    yield parser.map();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+                // CsvIT: value is already a JSON string from the block loader — compare directly
+                yield actualValue;
             }
             default -> actualValue;
         };

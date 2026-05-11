@@ -85,9 +85,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     /**
      * Positional file schema resolved at planning time (anchor file in a multi-file glob). Runtime
      * readers may use it as the authoritative positional column layout instead of per-file inference.
-     * Serialized cross-node, gated by {@link #ESQL_EXTERNAL_SOURCE_FILE_SCHEMA}. Empty list = no
-     * anchor (older nodes, or sources that don't compute one).
+     * Serialized cross-node, gated by {@link #ESQL_EXTERNAL_SOURCE_FILE_SCHEMA}. {@code null} = no
+     * anchor (older nodes, sources that don't compute one, or constructions that bypass
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()}).
      */
+    @Nullable
     private final List<Attribute> fileSchema;
 
     public ExternalSourceExec(
@@ -295,7 +297,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.estimatedRowSize = estimatedRowSize;
         this.fileList = fileList;
         this.splits = splits != null ? List.copyOf(splits) : List.of();
-        this.fileSchema = fileSchema != null ? List.copyOf(fileSchema) : List.of();
+        this.fileSchema = fileSchema != null ? List.copyOf(fileSchema) : null;
     }
 
     public ExternalSourceExec(
@@ -362,9 +364,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         List<ExternalSplit> splits = in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_SPLITS)
             ? in.readNamedWriteableCollectionAsList(ExternalSplit.class)
             : List.of();
-        List<Attribute> fileSchema = in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_FILE_SCHEMA)
+        // Older nodes don't write the field; on the wire empty list represents the in-memory null.
+        List<Attribute> wireFileSchema = in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_FILE_SCHEMA)
             ? in.readNamedWriteableCollectionAsList(Attribute.class)
             : List.of();
+        List<Attribute> fileSchema = wireFileSchema.isEmpty() ? null : wireFileSchema;
 
         return new ExternalSourceExec(
             source,
@@ -395,7 +399,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             out.writeNamedWriteableCollection(splits);
         }
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_FILE_SCHEMA)) {
-            out.writeNamedWriteableCollection(fileSchema);
+            // Empty list on the wire represents the in-memory null (no anchor schema).
+            out.writeNamedWriteableCollection(fileSchema != null ? fileSchema : List.of());
         }
     }
 
@@ -450,9 +455,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     /**
-     * Positional file schema resolved at planning time (anchor file in a multi-file glob). Empty
-     * when no anchor was computed — readers fall back to per-file inference.
+     * Positional file schema resolved at planning time (anchor file in a multi-file glob).
+     * {@code null} when no anchor was computed — readers fall back to per-file inference.
      */
+    @Nullable
     public List<Attribute> fileSchema() {
         return fileSchema;
     }

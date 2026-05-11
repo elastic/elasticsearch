@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.List;
@@ -42,6 +43,11 @@ import java.util.List;
  *                         readers fall back to per-file inference. Distinct from
  *                         {@link FormatReader#withSchema}, which carries the projected output
  *                         attributes (a possibly-pruned subset of the file's columns).
+ *                         <p>
+ *                         {@code null} and the empty list are <b>not</b> equivalent: {@code null}
+ *                         means "no planner-bound schema available, infer per file"; an empty
+ *                         list is undefined (no anchor file has zero columns) but would still be
+ *                         interpreted as "use this schema" and skip inference.
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -51,12 +57,8 @@ public record FormatReadContext(
     boolean firstSplit,
     boolean lastSplit,
     boolean recordAligned,
-    List<Attribute> fileSchema
+    @Nullable List<Attribute> fileSchema
 ) {
-
-    public FormatReadContext {
-        fileSchema = fileSchema != null ? fileSchema : List.of();
-    }
 
     /**
      * Creates a minimal context for the common non-split case. Leaves {@code errorPolicy} as
@@ -66,7 +68,7 @@ public record FormatReadContext(
      * to override the policy should use {@link #builder()} or {@link #withErrorPolicy(ErrorPolicy)}.
      */
     public static FormatReadContext of(List<String> projectedColumns, int batchSize) {
-        return new FormatReadContext(projectedColumns, batchSize, FormatReader.NO_LIMIT, null, true, true, false, List.of());
+        return new FormatReadContext(projectedColumns, batchSize, FormatReader.NO_LIMIT, null, true, true, false, null);
     }
 
     /**
@@ -105,7 +107,8 @@ public record FormatReadContext(
         private boolean firstSplit = true;
         private boolean lastSplit = true;
         private boolean recordAligned = false;
-        private List<Attribute> fileSchema = List.of();
+        @Nullable
+        private List<Attribute> fileSchema = null;
 
         private Builder() {}
 
@@ -148,8 +151,8 @@ public record FormatReadContext(
             return this;
         }
 
-        /** See {@link FormatReadContext#fileSchema()}. */
-        public Builder fileSchema(List<Attribute> fileSchema) {
+        /** See {@link FormatReadContext#fileSchema()}; pass {@code null} to fall back to per-file inference. */
+        public Builder fileSchema(@Nullable List<Attribute> fileSchema) {
             this.fileSchema = fileSchema;
             return this;
         }

@@ -31,8 +31,9 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
         Map<String, Object> sourceMetadata = randomBoolean() ? Map.of() : randomSourceMetadataWithStats();
         Integer estimatedRowSize = randomEstimatedRowSize();
         List<ExternalSplit> splits = randomSplits();
-        // Toggle empty vs populated to exercise both wire shapes (TV-gated collection write).
-        List<Attribute> fileSchema = randomBoolean() ? List.of() : randomFieldAttributes(1, 5, false);
+        // Toggle null vs populated to exercise the "no anchor" wire path (empty list on the wire,
+        // null in-memory) alongside the populated path.
+        List<Attribute> fileSchema = randomBoolean() ? null : randomFieldAttributes(1, 5, false);
         return new ExternalSourceExec(
             source,
             sourcePath,
@@ -138,7 +139,7 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
                 AbstractPhysicalPlanSerializationTests::randomEstimatedRowSize
             );
             case 5 -> splits = randomValueOtherThan(splits, ExternalSourceExecSerializationTests::randomSplits);
-            case 6 -> fileSchema = randomValueOtherThan(fileSchema, () -> randomBoolean() ? List.of() : randomFieldAttributes(1, 5, false));
+            case 6 -> fileSchema = randomValueOtherThan(fileSchema, () -> randomBoolean() ? null : randomFieldAttributes(1, 5, false));
             default -> throw new IllegalStateException();
         }
         return new ExternalSourceExec(

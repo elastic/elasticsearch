@@ -201,6 +201,20 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * Resolve the effective schema when the planner has bound the anchor file's schema. When the
+     * coordinator-side projection ({@code resolvedSchema}) is unavailable, the bound schema is used
+     * as-is. Otherwise the bound schema's column order is preserved and projection types/nullability
+     * overlay matching names — same semantics as {@link #mergeInferredWithPreferred}, just with the
+     * planner-supplied schema standing in for the per-file inference result.
+     */
+    private static List<Attribute> mergeBoundWithProjection(List<Attribute> bound, List<Attribute> projection) {
+        if (projection == null || projection.isEmpty()) {
+            return bound;
+        }
+        return mergeInferredWithPreferred(bound, projection);
+    }
+
+    /**
      * Union by column name: inferred file order first, then overlay coordinator types/nullability for matching names.
      */
     private static List<Attribute> mergeInferredWithPreferred(List<Attribute> inferred, List<Attribute> preferred) {
@@ -275,6 +289,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         boolean skipFirstLine = context.firstSplit() == false && context.recordAligned() == false;
         boolean trimLastPartialLine = context.lastSplit() == false && context.recordAligned() == false;
         ErrorPolicy errorPolicy = context.errorPolicy() != null ? context.errorPolicy() : defaultErrorPolicy();
+        // Planner-bound anchor schema wins over per-file inference when present. This prevents
+        // cross-file type drift on multi-file globs (e.g. anchor has y:LONG, a later file's y
+        // contains 1.5 → DOUBLE → block-type mismatch at TopN/agg). Null falls through to the
+        // existing inference path.
+        List<Attribute> effectiveSchema = context.fileSchema() == null
+            ? inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine)
+            : mergeBoundWithProjection(context.fileSchema(), resolvedSchema);
         return new NdJsonPageIterator(
             object,
             context.projectedColumns(),
@@ -283,7 +304,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             blockFactory,
             skipFirstLine,
             trimLastPartialLine,
-            inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine),
+            effectiveSchema,
             errorPolicy
         );
     }

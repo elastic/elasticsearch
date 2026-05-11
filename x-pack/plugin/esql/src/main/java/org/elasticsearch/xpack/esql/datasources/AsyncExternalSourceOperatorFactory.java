@@ -112,9 +112,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final int parallelism;
     /**
      * Anchor file schema threaded into every {@link FormatReadContext} this factory builds. Readers
-     * that honor it (today: {@code CsvFormatReader} for multi-file headerless globs) use it as the
-     * positional column layout; empty means "no anchor — use existing per-file inference".
+     * that honor it (today: {@code CsvFormatReader} for multi-file headerless globs, and
+     * {@code NdJsonFormatReader} for multi-file glob type-drift avoidance) use it as the
+     * positional column layout; {@code null} means "no anchor — use existing per-file inference".
      */
+    @Nullable
     private final List<Attribute> fileSchema;
     /**
      * True when the reader supports multi-file batch reads and there are no partition columns
@@ -143,7 +145,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable FilterPushdownSupport pushdownSupport,
         @Nullable Closeable onClose,
         int parallelism,
-        List<Attribute> fileSchema
+        @Nullable List<Attribute> fileSchema
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -185,7 +187,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.pushdownSupport = pushdownSupport;
         this.onClose = onClose;
         this.parallelism = Math.max(1, parallelism);
-        this.fileSchema = fileSchema != null ? fileSchema : List.of();
+        this.fileSchema = fileSchema;
         this.batchReadCapable = formatReader instanceof RangeAwareFormatReader rr
             && rr.supportsBatchRead()
             && this.partitionColumnNames.isEmpty();
@@ -230,7 +232,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private FilterPushdownSupport pushdownSupport;
         private Closeable onClose;
         private int parallelism = 1;
-        private List<Attribute> fileSchema = List.of();
+        @Nullable
+        private List<Attribute> fileSchema = null;
 
         private Builder(
             StorageProvider storageProvider,
@@ -313,8 +316,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
-        /** See {@link AsyncExternalSourceOperatorFactory#fileSchema}; empty disables the override. */
-        public Builder fileSchema(List<Attribute> fileSchema) {
+        /** See {@link AsyncExternalSourceOperatorFactory#fileSchema}; {@code null} disables the override. */
+        public Builder fileSchema(@Nullable List<Attribute> fileSchema) {
             this.fileSchema = fileSchema;
             return this;
         }

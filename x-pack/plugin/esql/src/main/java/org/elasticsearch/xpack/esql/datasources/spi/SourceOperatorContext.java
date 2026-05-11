@@ -39,7 +39,8 @@ import java.util.concurrent.Executor;
  * immediately by the operator factory in the same JVM.
  *
  * <p>The {@link #fileSchema()} is an optional anchor-file schema slot threaded down to
- * {@link FormatReadContext#fileSchema()}; empty means "no anchor — use existing inference".
+ * {@link FormatReadContext#fileSchema()}; {@code null} means "no anchor available — readers
+ * fall back to per-file inference".
  */
 public record SourceOperatorContext(
     String sourceType,
@@ -61,7 +62,7 @@ public record SourceOperatorContext(
     @Nullable ExternalSliceQueue sliceQueue,
     int parsingParallelism,
     int parallelism,
-    List<Attribute> fileSchema
+    @Nullable List<Attribute> fileSchema
 ) {
     public SourceOperatorContext {
         Check.notNull(path, "path cannot be null");
@@ -74,7 +75,7 @@ public record SourceOperatorContext(
         partitionColumnNames = partitionColumnNames != null && partitionColumnNames.isEmpty() == false
             ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
             : Set.of();
-        fileSchema = fileSchema != null ? List.copyOf(fileSchema) : List.of();
+        fileSchema = fileSchema != null ? List.copyOf(fileSchema) : null;
 
         if (batchSize <= 0) {
             throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -261,7 +262,7 @@ public record SourceOperatorContext(
         private int parsingParallelism = 1;
         private int parallelism = 1;
         @Nullable
-        private List<Attribute> fileSchema = List.of();
+        private List<Attribute> fileSchema = null;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -363,8 +364,8 @@ public record SourceOperatorContext(
             return this;
         }
 
-        /** See {@link SourceOperatorContext#fileSchema()}. */
-        public Builder fileSchema(List<Attribute> fileSchema) {
+        /** See {@link SourceOperatorContext#fileSchema()}; pass {@code null} to fall back to per-file inference. */
+        public Builder fileSchema(@Nullable List<Attribute> fileSchema) {
             this.fileSchema = fileSchema;
             return this;
         }

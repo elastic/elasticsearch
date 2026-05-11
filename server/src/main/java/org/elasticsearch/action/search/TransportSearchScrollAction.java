@@ -100,10 +100,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                 // loop's first iteration failed with HTTP 503 "no nodes to search on"; return an empty 200 response
                 // instead so a client can terminate on hits.length == 0 without special-casing the error.
                 String responseScrollId = request.scroll() != null ? request.scrollId() : null;
-                ActionListener.respondAndRelease(
-                    listener,
-                    SearchResponse.emptyResponseBuilder().scrollId(responseScrollId).build()
-                );
+                ActionListener.respondAndRelease(listener, SearchResponse.emptyResponseBuilder().scrollId(responseScrollId).build());
                 return;
             }
             var action = switch (scrollId.getType()) {

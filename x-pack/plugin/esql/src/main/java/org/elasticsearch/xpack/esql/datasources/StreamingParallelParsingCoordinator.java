@@ -263,9 +263,10 @@ public final class StreamingParallelParsingCoordinator {
                             // {@link #growUntilNewline} only copies from {@code buf}; the original pool buffer
                             // is independent of {@code grown} and must be returned to the pool here so the
                             // pool does not leak one entry per oversized record.
-                            byte[] grown = growUntilRecordBoundary(stream, buf, totalBytes, chunkSize);
+                            GrowResult result = growUntilRecordBoundary(stream, buf, totalBytes, chunkSize);
                             recycleBuffer(buf);
-                            int grownNewline = findLastRecordBoundary(grown, grown.length);
+                            byte[] grown = result.buffer();
+                            int grownNewline = result.boundary();
                             if (grownNewline < 0) {
                                 if (chunkIndex == 0) {
                                     bindSchemaFromFirstChunk(grown, grown.length);
@@ -513,11 +514,13 @@ public final class StreamingParallelParsingCoordinator {
                 try {
                     consumed = r.findNextRecordBoundary(new ByteArrayInputStream(buf, pos, length - pos));
                 } catch (IOException e) {
+                    logger.trace("findNextRecordBoundary failed at pos [{}]; falling back to last known boundary", pos, e);
                     break;
                 }
                 if (consumed < 0) {
                     break;
                 }
+                assert consumed <= Integer.MAX_VALUE : "consumed [" + consumed + "] exceeds int range";
                 pos += (int) consumed;
                 // pos now points to the first byte of the next record; the boundary (the \n) is at pos-1
                 lastBoundary = pos - 1;
@@ -550,23 +553,28 @@ public final class StreamingParallelParsingCoordinator {
             }
         }
 
+        private record GrowResult(byte[] buffer, int boundary) {}
+
         /**
          * Like {@link #growUntilNewline} but keeps growing until the accumulated buffer contains at
          * least one <em>record</em> boundary (as determined by {@link #findLastRecordBoundary}).
          * Multi-line quoted fields may contain {@code \n} bytes that are not record boundaries; this
          * method avoids splitting in the middle of such a field.
+         *
+         * @return a {@link GrowResult} carrying both the grown buffer and the pre-computed boundary
+         *         index, so callers can avoid a redundant {@link #findLastRecordBoundary} rescan
          */
-        private byte[] growUntilRecordBoundary(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
+        private GrowResult growUntilRecordBoundary(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
             byte[] buf = existing;
             int len = existingLen;
             while (true) {
                 byte[] grown = growUntilNewline(stream, buf, len, growBy);
                 if (grown.length == len) {
-                    return grown;
+                    return new GrowResult(grown, -1);
                 }
                 int boundary = findLastRecordBoundary(grown, grown.length);
                 if (boundary >= 0) {
-                    return grown;
+                    return new GrowResult(grown, boundary);
                 }
                 buf = grown;
                 len = grown.length;

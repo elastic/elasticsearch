@@ -772,6 +772,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * starts with {@code "}, the record ends at the closing {@code "} followed by {@code \n}
      * (embedded {@code \n} are literal). {@link #findNextRecordBoundary} mirrors this quoting
      * convention so the streaming coordinator splits chunks at real record boundaries.
+     * <p>
+     * <b>Limitation:</b> escaped quotes ({@code ""}) are not handled; {@code "} is treated as a
+     * simple open/close toggle. This is sufficient for testing the coordinator's chunk-splitting
+     * logic but does not model full RFC 4180 quoting.
      */
     private static class QuoteAwareLineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
 

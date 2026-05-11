@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
@@ -44,10 +45,6 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
     public Fork(Source source, List<LogicalPlan> children, List<Attribute> output) {
         super(source, children);
-        if (exceedsMaxBranches(children.size())) {
-            throw new IllegalArgumentException("FORK supports up to " + MAX_BRANCHES + " branches, got: " + children.size());
-        }
-
         this.output = output;
     }
 
@@ -115,6 +112,40 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
 
     public Fork refreshOutput() {
         return new Fork(source(), children(), refreshedOutput());
+    }
+
+    /**
+     * Drop branches whose root the {@code isEmpty} predicate considers empty. Each
+     * {@link Fork} subclass with structural invariants beyond the positional children list
+     * (notably {@link ViewUnionAll}, which carries a named-subqueries map) overrides this method
+     * to preserve those invariants.
+     * <p>
+     * Behaviour:
+     * <ul>
+     *   <li>nothing pruned → returns {@code this} (cheap no-op);</li>
+     *   <li>at least one branch pruned → returns {@code replaceChildren(survivors)} with the
+     *       remaining children — this includes the all-empty case, which produces a Fork (or
+     *       subclass) with zero children. The caller is expected either to short-circuit the
+     *       all-empty case before calling (e.g. {@code PruneEmptyForkBranches} replaces with
+     *       a {@code LocalRelation} when every branch reduces to empty) or to let the
+     *       analyzer's verifier surface the empty-Fork state via {@link #checkBranchCount}.</li>
+     * </ul>
+     * Single-survivor collapse semantics — a {@link UnionAll}/{@link ViewUnionAll} with one
+     * branch left is equivalent to that branch — are not part of this primitive; callers that
+     * want that collapse do it explicitly (see {@code ViewCompaction.stripViewShadowRelations}).
+     * A {@link Fork} with a single branch is still a {@link Fork} per FORK syntax.
+     */
+    public LogicalPlan pruneEmptyBranches(Predicate<LogicalPlan> isEmpty) {
+        List<LogicalPlan> kept = new ArrayList<>(children().size());
+        for (LogicalPlan child : children()) {
+            if (isEmpty.test(child) == false) {
+                kept.add(child);
+            }
+        }
+        if (kept.size() == children().size()) {
+            return this;
+        }
+        return replaceChildren(kept);
     }
 
     protected List<Attribute> refreshedOutput() {
@@ -201,7 +232,34 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
         return Fork::checkFork;
     }
 
+    /**
+     * Branch-count bounds shared by all {@link Fork} subclasses (Fork, UnionAll, ViewUnionAll).
+     * Lives at post-analysis verification rather than the Fork constructor so that compaction
+     * passes (e.g. ViewCompaction) get a chance to reduce the count first. Called from both
+     * {@code Fork::checkFork} and {@code UnionAll::checkUnionAll} since each subclass dispatches
+     * to its own {@link #postAnalysisPlanVerification()} override.
+     * <p>
+     * The lower bound (≥ 1 branch) catches invalid plans where {@link #pruneEmptyBranches}
+     * removed every branch — e.g. a CCS subquery whose {@code IndexResolution} came back
+     * {@code EMPTY_SUBQUERY} for every sibling. The {@code PruneEmptyForkBranches} optimizer
+     * rule short-circuits this case to a {@code LocalRelation}; rules that don't (the analyzer's
+     * {@code PruneEmptyUnionAllBranch}, {@code ViewCompaction.stripViewShadowRelations}) rely on
+     * this check to surface the bad state with a clear message rather than letting an empty
+     * {@code Fork}/{@code UnionAll} propagate silently.
+     */
+    static void checkBranchCount(LogicalPlan plan, Failures failures) {
+        if (plan instanceof Fork fork) {
+            int size = fork.children().size();
+            if (exceedsMaxBranches(size)) {
+                failures.add(Failure.fail(fork, "FORK supports up to {} branches, got: {}", MAX_BRANCHES, size));
+            } else if (size == 0) {
+                failures.add(Failure.fail(fork, "{} requires at least one branch", fork.getClass().getSimpleName()));
+            }
+        }
+    }
+
     private static void checkFork(LogicalPlan plan, Failures failures) {
+        checkBranchCount(plan, failures);
         if (plan instanceof Fork == false || plan instanceof UnionAll) {
             return;
         }

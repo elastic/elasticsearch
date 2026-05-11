@@ -700,3 +700,24 @@ warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentExcept
 at_least_one:boolean
 true
 ;
+
+viewWithInnerSubqueryComposedWithSibling
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+
+// Regression: view_with_subquery's body is `FROM (FROM employees)` — a UnionAll wrapping a Subquery
+// of a UnresolvedRelation. When composed with an unrelated index in the outer query, the
+// view-compaction pass lifts the inner subquery's UnresolvedRelation up to the outer level and
+// would have merged it with the sibling UnresolvedRelation into a single combined pattern. If that
+// merge runs AFTER pre-analysis (i.e. as an analyzer rule before ResolveTable), the merged pattern
+// string is one PreAnalyzer never sent to field-caps and ResolveTable would silently produce an
+// unresolved relation. This test exercises the exact code path; it would fail with a verification
+// error (Unknown index) under that bad placement. See PR #147611 / #543 / #472.
+FROM view_with_subquery, addresses
+| STATS c = COUNT(*)
+;
+
+c:long
+103
+;

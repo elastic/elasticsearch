@@ -308,11 +308,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
-    public static final FeatureFlag BATCHED_QUERY_PHASE_FEATURE_FLAG = new FeatureFlag("batched_query_phase");
-
     public static final Setting<Boolean> BATCHED_QUERY_PHASE = Setting.boolSetting(
         "search.batched_query_phase",
-        BATCHED_QUERY_PHASE_FEATURE_FLAG.isEnabled(),
+        true,
         Property.OperatorDynamic,
         Property.NodeScope
     );

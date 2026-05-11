@@ -83,7 +83,7 @@ public class SourceToParse {
         @Nullable EirfRowXContentParser.SchemaNode schemaTree,
         @Nullable EirfRowReader row
     ) {
-        // Source must be null if eirfParser is not null. And vise versa.
+        // Source must be null if row is not null. And vice versa.
         assert source == null || row == null;
         this.id = id;
         this.routing = routing;
@@ -177,8 +177,8 @@ public class SourceToParse {
         ) {
             this.schemaTree = schemaTree;
             this.row = row;
-            // we always convert back to byte array, since we store it and Field only supports bytes..
-            // so, we might as well do it here, and improve the performance of working with direct byte arrays
+            // we always convert back to byte array, since we store it and Field only supports bytes.
+            // so, we might as well do it here, and improve the performance of working with direct byte arrays.
             this.originalSourceBytes = originalSourceBytes == null ? null
                 : originalSourceBytes.hasArray() ? originalSourceBytes
                 : new BytesArray(originalSourceBytes.toBytesRef());

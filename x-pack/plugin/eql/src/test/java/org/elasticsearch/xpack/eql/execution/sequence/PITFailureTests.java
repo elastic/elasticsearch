@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -171,8 +170,7 @@ public class PITFailureTests extends ESTestCase {
         QueryClient client = new QueryClient() {
             @Override
             public void query(QueryRequest r, ActionListener<SearchResponse> l) {
-                SearchHits hits = SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0.0f);
-                ActionListener.respondAndRelease(l, SearchResponseUtils.successfulResponse(hits));
+                ActionListener.respondAndRelease(l, SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS));
             }
 
             @Override

@@ -50,12 +50,12 @@ public class ExponentialHistogramBackedHistogramAggregatorTests extends Exponent
             histograms.clear();
             histograms.addAll(createRandomHistograms(randomIntBetween(1, 1000)));
             min = histograms.stream()
-                .filter(histogram -> histogram.valueCount() > 0)
+                .filter(histogram -> histogram.isEmpty() == false)
                 .mapToDouble(ExponentialHistogram::min)
                 .min()
                 .orElse(0.0);
             max = histograms.stream()
-                .filter(histogram -> histogram.valueCount() > 0)
+                .filter(histogram -> histogram.isEmpty() == false)
                 .mapToDouble(ExponentialHistogram::max)
                 .max()
                 .orElse(0.0);
@@ -140,8 +140,8 @@ public class ExponentialHistogramBackedHistogramAggregatorTests extends Exponent
             .map(Map.Entry::getKey)
             .toList();
 
-        double min = filteredHistograms.stream().filter(h -> h.valueCount() > 0).mapToDouble(ExponentialHistogram::min).min().orElse(0.0);
-        double max = filteredHistograms.stream().filter(h -> h.valueCount() > 0).mapToDouble(ExponentialHistogram::max).max().orElse(0.0);
+        double min = filteredHistograms.stream().filter(h -> h.isEmpty() == false).mapToDouble(ExponentialHistogram::min).min().orElse(0.0);
+        double max = filteredHistograms.stream().filter(h -> h.isEmpty() == false).mapToDouble(ExponentialHistogram::max).max().orElse(0.0);
         double interval = Math.max(1.0, (max - min) / 20);
         Map<Double, Long> expectedHistogram = computeExpectedHistogram(filteredHistograms, interval, 0.0);
 
@@ -158,7 +158,7 @@ public class ExponentialHistogramBackedHistogramAggregatorTests extends Exponent
             ),
             histogram -> {
                 assertThat(histogram.getBuckets().size(), equalTo(expectedHistogram.size()));
-                if (filteredHistograms.stream().anyMatch(h -> h.valueCount() > 0)) {
+                if (filteredHistograms.stream().anyMatch(h -> h.isEmpty() == false)) {
                     assertThat(AggregationInspectionHelper.hasValue(histogram), equalTo(true));
                 } else {
                     assertThat(AggregationInspectionHelper.hasValue(histogram), equalTo(false));

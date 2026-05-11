@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -94,6 +95,8 @@ import static org.elasticsearch.search.SearchService.wrapFailureListener;
 import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchServiceTests extends IndexShardTestCase {
 
@@ -360,11 +363,10 @@ public class SearchServiceTests extends IndexShardTestCase {
         var releasableClosed = new AtomicBoolean(false);
         var response = new AtomicReference<String>();
 
-        var wrapped = wrapFailureListener(
-            ActionListener.<String>wrap(response::set, e -> fail("unexpected failure")),
-            () -> releasableClosed.set(true),
-            e -> fail("cleanup must not run on success")
-        );
+        var wrapped = wrapFailureListener(ActionListener.<String>wrap((r) -> {
+            assertTrue("releasable must be closed before listener.onResponse runs", releasableClosed.get());
+            response.set(r);
+        }, e -> fail("unexpected failure")), () -> releasableClosed.set(true), e -> fail("cleanup must not run on success"));
         wrapped.onResponse("ok");
 
         assertTrue("releasable must be closed after onResponse", releasableClosed.get());
@@ -670,13 +672,15 @@ public class SearchServiceTests extends IndexShardTestCase {
             Collections.emptyList(),
             IndexMode.STANDARD
         );
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIdFieldDataEnabled()).thenReturn(() -> false);
         return new SearchExecutionContext(
             0,
             0,
             indexSettings,
             null,
             indexFieldDataLookup,
-            null,
+            mapperService,
             mappingLookup,
             null,
             null,

@@ -88,8 +88,6 @@ public class KnnIndexTester {
     public static final Logger logger;
 
     static {
-        LogConfigurator.loadLog4jPlugins();
-
         // necessary otherwise the es.logger.level system configuration in build.gradle is ignored
         ProcessInfo pinfo = ProcessInfo.fromSystem();
         Map<String, String> sysprops = pinfo.sysprops();
@@ -150,39 +148,15 @@ public class KnnIndexTester {
         }
     }
 
-    private static final Map<String, DirectoryTypeConfig> directoryTypeRegistry = new ConcurrentHashMap<>();
+    private static final Map<String, DirectoryTypeConfig> directoryTypeRegistry = new ConcurrentHashMap<>(3);
 
     static {
         directoryTypeRegistry.put("default", new DirectoryTypeConfig(KnnIndexer::getDirectory, false, false));
         directoryTypeRegistry.put("frozen", new DirectoryTypeConfig(KnnIndexer::openFrozenDirectory, false, true));
-    }
-
-    /**
-     * Registers a custom directory type that can be referenced via {@code "directory_type"}
-     * in the test configuration JSON.
-     *
-     * @param name    the name used in configuration (e.g. "serverless")
-     * @param factory creates a Directory for the given index path
-     * @param shared  if true, a single directory instance is used for both write and read phases
-     * @param preWarm if true, the directory is pre-warmed before search
-     */
-    static void registerDirectoryType(String name, DirectoryFactory factory, boolean shared, boolean preWarm) {
-        directoryTypeRegistry.put(name, new DirectoryTypeConfig(factory, shared, preWarm));
-    }
-
-    /**
-     * Registers a custom directory type with an optional diagnostic logger.
-     *
-     * @param diagnosticLogger called with (directory, label) at key points (before/after prewarm, after search)
-     */
-    static void registerDirectoryType(
-        String name,
-        DirectoryFactory factory,
-        boolean shared,
-        boolean preWarm,
-        BiConsumer<Directory, String> diagnosticLogger
-    ) {
-        directoryTypeRegistry.put(name, new DirectoryTypeConfig(factory, shared, preWarm, diagnosticLogger));
+        directoryTypeRegistry.put(
+            "stateless",
+            new DirectoryTypeConfig(KnnIndexer::openStatelessDirectory, true, true, KnnIndexer::logStatelessCacheStats)
+        );
     }
 
     static DirectoryTypeConfig getDirectoryTypeConfig(String name) {
@@ -246,7 +220,7 @@ public class KnnIndexTester {
                     args.doPrecondition(),
                     args.preconditioningBlockDims(),
                     flatVectorThreshold,
-                    null
+                    args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null
                 );
             }
             case GPU_HNSW -> switch (quantizeBits) {
@@ -542,7 +516,7 @@ public class KnnIndexTester {
             }
             numSegments(indexPath, indexResults, sharedDir);
 
-            boolean hasQueries = testConfiguration.numQueries() > 0 && dataGenerator.hasQueries();
+            boolean hasQueries = testConfiguration.numQueries() > 0 && dataGenerator.numQueries() > 0;
             if (hasQueries) {
                 Directory readDir = sharedDir != null ? sharedDir : dirConfig.factory().create(indexPath);
                 try {

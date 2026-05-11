@@ -75,7 +75,7 @@ public final class ParallelParsingCoordinator {
         int parallelism,
         Executor executor
     ) throws IOException {
-        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null);
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null, false);
     }
 
     /**
@@ -92,26 +92,103 @@ public final class ParallelParsingCoordinator {
         Executor executor,
         ErrorPolicy errorPolicy
     ) throws IOException {
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, errorPolicy, false);
+    }
+
+    /**
+     * Convenience overload that forwards {@code splitIncludesFileLeader=true}. This assumes the
+     * storage object includes the file's leading bytes (header row). For non-leading macro-splits,
+     * use the nine-argument overload with explicit {@code splitIncludesFileLeader=false}.
+     *
+     * @param splitStartsAtRecordBoundary when {@code true}, {@code storageObject} is a byte range that already begins
+     *                                     on a record boundary (e.g. newline-aligned macro {@link FileSplit});
+     *                                     single-threaded fallback reads must set {@link FormatReadContext#recordAligned()}.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary
+    ) throws IOException {
+        return parallelRead(
+            reader,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            splitStartsAtRecordBoundary,
+            true
+        );
+    }
+
+    /**
+     * @param splitStartsAtRecordBoundary when {@code true}, {@code storageObject} is a byte range that already begins
+     *                                     on a record boundary (e.g. newline-aligned macro {@link FileSplit});
+     *                                     single-threaded fallback reads must set {@link FormatReadContext#recordAligned()}.
+     * @param splitIncludesFileLeader     whether this split contains the file-leading bytes (and therefore file header for
+     *                                     header-bearing formats). For whole-file reads this is {@code true}; for
+     *                                     non-leading macro-splits this is {@code false}.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary,
+        boolean splitIncludesFileLeader
+    ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
+
+        // COUNT(*) and similar: projectedColumns is empty while rows still need structural validation
+        // against the file width. When this read includes the file-leading bytes (and therefore any
+        // header), bind the full on-disk schema before segment workers run. For non-leading macro
+        // splits, rebinding via metadata is unsafe because the split-local first row is data, not header.
+        SegmentableFormatReader parallelReader = reader;
+        if (projectedColumns != null && projectedColumns.isEmpty() && splitIncludesFileLeader) {
+            var meta = parallelReader.metadata(storageObject);
+            if (meta != null && meta.schema() != null && meta.schema().isEmpty() == false) {
+                parallelReader = (SegmentableFormatReader) parallelReader.withSchema(meta.schema());
+            }
+        }
 
         ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
         FormatReadContext baseCtx = FormatReadContext.builder()
             .projectedColumns(projectedColumns)
             .batchSize(batchSize)
             .errorPolicy(effectivePolicy)
+            .firstSplit(splitIncludesFileLeader)
+            .recordAligned(splitStartsAtRecordBoundary)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
-            return reader.read(storageObject, baseCtx);
+            return parallelReader.read(storageObject, baseCtx);
         }
 
-        List<long[]> segments = computeSegments(reader, storageObject, fileLength, parallelism, minSegment);
+        List<long[]> segments = computeSegments(parallelReader, storageObject, fileLength, parallelism, minSegment);
 
         if (segments.size() <= 1) {
-            return reader.read(storageObject, baseCtx);
+            return parallelReader.read(storageObject, baseCtx);
         }
 
-        return new OrderedParallelIterator(reader, storageObject, projectedColumns, batchSize, segments, executor, effectivePolicy);
+        return new OrderedParallelIterator(
+            parallelReader,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            segments,
+            executor,
+            effectivePolicy,
+            splitIncludesFileLeader
+        );
     }
 
     /**
@@ -185,6 +262,7 @@ public final class ParallelParsingCoordinator {
         private final List<String> projectedColumns;
         private final int batchSize;
         private final ErrorPolicy errorPolicy;
+        private final boolean splitIncludesFileLeader;
 
         private final List<BlockingQueue<Page>> segmentQueues;
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
@@ -201,13 +279,15 @@ public final class ParallelParsingCoordinator {
             int batchSize,
             List<long[]> segments,
             Executor executor,
-            ErrorPolicy errorPolicy
+            ErrorPolicy errorPolicy,
+            boolean splitIncludesFileLeader
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
             this.projectedColumns = projectedColumns;
             this.batchSize = batchSize;
             this.errorPolicy = errorPolicy;
+            this.splitIncludesFileLeader = splitIncludesFileLeader;
             this.allDone = new CountDownLatch(segments.size());
 
             this.segmentQueues = new ArrayList<>(segments.size());
@@ -219,7 +299,7 @@ public final class ParallelParsingCoordinator {
                 final int segIdx = i;
                 final long[] seg = segments.get(i);
                 try {
-                    executor.execute(() -> parseSegment(segIdx, seg[0], seg[1], segments.size()));
+                    executor.execute(() -> parseSegment(segIdx, seg[0], seg[1]));
                 } catch (RejectedExecutionException e) {
                     firstError.compareAndSet(null, e);
                     enqueuePoison(segmentQueues.get(segIdx));
@@ -228,20 +308,35 @@ public final class ParallelParsingCoordinator {
             }
         }
 
-        private void parseSegment(int segmentIndex, long offset, long length, int totalSegments) {
+        private void parseSegment(int segmentIndex, long offset, long length) {
             BlockingQueue<Page> queue = segmentQueues.get(segmentIndex);
             try {
-                boolean lastSplit = segmentIndex == totalSegments - 1;
+                boolean lastSplit = segmentIndex == segmentQueues.size() - 1;
                 StorageObject segObj = new RangeStorageObject(storageObject, offset, length);
 
-                // All segments start at record boundaries (probed by computeSegments),
-                // so firstSplit is true for every segment: no line needs to be skipped.
+                // Per-flag semantics:
+                // - firstSplit: only segment 0 owns the file's leading bytes (and any header).
+                // computeSegments probes the next record boundary so segments 1..N start on a
+                // complete record, but for header-bearing formats (CSV) "first split" still means
+                // "the segment that contains the header"; otherwise non-first segments would re-run
+                // header inference on data rows.
+                // - lastSplit: only the trailing segment runs to fileLength; non-final segments
+                // end on a record-terminator byte and must NOT be marked lastSplit, so the
+                // codec/reader can correctly handle the segment-boundary tail (see
+                // ParallelParsingCoordinator's segmentation contract).
+                // - recordAligned: every segment is guaranteed to start at a record boundary
+                // (computeSegments probes the next record boundary), so line-oriented readers
+                // can skip the "drop leading partial line" workaround used for byte-range
+                // macro-splits where the leading bytes belong to a previous split. Setting this
+                // also lets readers (e.g. NDJSON) skip the byte-by-byte trailing-partial-line
+                // scan that the format would otherwise apply per chunk.
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(projectedColumns)
                     .batchSize(batchSize)
                     .errorPolicy(errorPolicy)
-                    .firstSplit(true)
+                    .firstSplit(splitIncludesFileLeader && segmentIndex == 0)
                     .lastSplit(lastSplit)
+                    .recordAligned(true)
                     .build();
                 CloseableIterator<Page> pages = reader.read(segObj, ctx);
                 try (pages) {
@@ -250,7 +345,7 @@ public final class ParallelParsingCoordinator {
                             break;
                         }
                         Page page = pages.next();
-                        queue.put(page);
+                        enqueueOrRelease(queue, page);
                     }
                 }
             } catch (Exception e) {
@@ -258,6 +353,20 @@ public final class ParallelParsingCoordinator {
             } finally {
                 enqueuePoison(queue);
                 allDone.countDown();
+            }
+        }
+
+        private void enqueueOrRelease(BlockingQueue<Page> queue, Page page) throws InterruptedException {
+            while (true) {
+                if (closed || firstError.get() != null) {
+                    if (page.getPositionCount() > 0) {
+                        page.releaseBlocks();
+                    }
+                    return;
+                }
+                if (queue.offer(page, 500, TimeUnit.MILLISECONDS)) {
+                    return;
+                }
             }
         }
 

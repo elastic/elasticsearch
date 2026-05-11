@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 148489
+summary: Default PromQL index to metrics-*
+type: bug

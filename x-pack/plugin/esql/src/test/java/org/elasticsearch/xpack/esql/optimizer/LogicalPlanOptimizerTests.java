@@ -145,6 +145,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
+import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -8809,6 +8810,100 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var mvExpand = as(orderBy.child(), MvExpand.class);
         var mvExpand2 = as(mvExpand.child(), MvExpand.class);
         as(mvExpand2.child(), Row.class);
+    }
+
+    public void testPruneRedundantOrderByThroughCompoundOutputEval() {
+        var rule = new PruneRedundantOrderBy();
+
+        var query = """
+            row x = 1
+            | sort x
+            | registered_domain rd = "www.example.com"
+            | stats c = count(*)
+            """;
+        LogicalPlan analyzed = defaultAnalyzer().query(query);
+        LogicalPlan optimized = rule.apply(analyzed);
+
+        var limit = as(optimized, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var registeredDomain = as(aggregate.child(), RegisteredDomain.class);
+        as(registeredDomain.child(), Row.class);
+    }
+
+    public void testPruneRedundantOrderByThroughCompoundOutputEvalAndMvExpand() {
+        var rule = new PruneRedundantOrderBy();
+
+        var query = """
+            row a = 1, name_str = "a b"
+            | rename a as id_int
+            | sort id_int
+            | mv_expand name_str
+            | registered_domain g = "www.example.com"
+            | stats c = count(*) by g.domain
+            """;
+        LogicalPlan analyzed = defaultAnalyzer().query(query);
+        LogicalPlan optimized = rule.apply(analyzed);
+
+        var limit = as(optimized, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var registeredDomain = as(aggregate.child(), RegisteredDomain.class);
+        var mvExpand = as(registeredDomain.child(), MvExpand.class);
+        var project = as(mvExpand.child(), Project.class);
+        as(project.child(), Row.class);
+    }
+
+    public void testPruneRedundantOrderByThroughCompoundOutputEvalWithOuterOrderBy() {
+        var rule = new PruneRedundantOrderBy();
+
+        var query = """
+            row x = 1
+            | sort x
+            | registered_domain rd = "www.example.com"
+            | sort rd.domain
+            """;
+        LogicalPlan analyzed = defaultAnalyzer().query(query);
+        LogicalPlan optimized = rule.apply(analyzed);
+
+        var limit = as(optimized, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var registeredDomain = as(orderBy.child(), RegisteredDomain.class);
+        as(registeredDomain.child(), Row.class);
+    }
+
+    public void testPruneRedundantOrderByThroughUriParts() {
+        var rule = new PruneRedundantOrderBy();
+
+        var query = """
+            row x = 1
+            | sort x
+            | uri_parts p = "https://www.example.com/foo"
+            | stats c = count(*)
+            """;
+        LogicalPlan analyzed = defaultAnalyzer().query(query);
+        LogicalPlan optimized = rule.apply(analyzed);
+
+        var limit = as(optimized, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var uriParts = as(aggregate.child(), UriParts.class);
+        as(uriParts.child(), Row.class);
+    }
+
+    public void testPruneRedundantOrderByThroughUserAgent() {
+        var rule = new PruneRedundantOrderBy();
+
+        var query = """
+            row x = 1
+            | sort x
+            | user_agent ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2)"
+            | stats c = count(*)
+            """;
+        LogicalPlan analyzed = defaultAnalyzer().query(query);
+        LogicalPlan optimized = rule.apply(analyzed);
+
+        var limit = as(optimized, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var userAgent = as(aggregate.child(), UserAgent.class);
+        as(userAgent.child(), Row.class);
     }
 
     /**

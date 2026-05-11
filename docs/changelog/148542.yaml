@@ -1,0 +1,6 @@
+area: Infra/Core
+issues:
+ - 148326
+pr: 148542
+summary: Pin server-launcher native -march to x86-64-v2
+type: bug

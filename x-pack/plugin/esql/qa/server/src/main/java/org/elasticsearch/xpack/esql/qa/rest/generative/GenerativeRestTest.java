@@ -108,7 +108,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
         "long overflow", // https://github.com/elastic/elasticsearch/issues/99575
-        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
+        // "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
         // https://github.com/elastic/elasticsearch/issues/142537 for null arguments in clamp() function
         "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
         "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
@@ -373,7 +373,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isFullTextAfterWhereBugs(ctx.normalizedErrorMessage),
         ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isTsOutputChangedError(ctx.normalizedErrorMessage, ctx.query),
-        ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query), };
+        ctx -> isUnsupportedTypeAfterForkError(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isForkWithSortBranchBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isForkTopNIndexOutOfBoundsBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isForkOptimizedIncorrectlyBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isRenameMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isLimitByMvExpandBug(ctx.normalizedErrorMessage, ctx.query), };
 
     private static boolean isAllowedFailure(FailureContext ctx) {
         if (ctx == null || ctx.errorMessage == null) {
@@ -776,12 +781,134 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return trimmed.startsWith("TS ");
     }
 
+    /**
+     * Matches the FORK pipeline command (a {@code |} followed by the FORK keyword)
+     */
+    private static final Pattern FORK_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*FORK\\b");
+
     // https://github.com/elastic/elasticsearch/issues/147603
     static boolean isUnsupportedTypeAfterForkError(String errorMessage, String query) {
         if (query == null || UNSUPPORTED_TYPE_AFTER_FORK_PATTERN.matcher(errorMessage).matches() == false) {
             return false;
         }
-        return query.toUpperCase(Locale.ROOT).contains("FORK");
+        return FORK_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern OPTIMIZED_INCORRECTLY_ORDERBY_PATTERN = Pattern.compile(
+        ".*Plan \\[OrderBy\\[.*optimized incorrectly due to missing references.*",
+        Pattern.DOTALL
+    );
+
+    private static final Pattern COMPUTE_BLOCK_CLASS_CAST_PATTERN = Pattern.compile(
+        ".*class org\\.elasticsearch\\.compute\\.data\\.\\w+Block cannot be cast"
+            + " to class org\\.elasticsearch\\.compute\\.data\\.\\w+Block.*",
+        Pattern.DOTALL
+    );
+
+    private static final Pattern FORK_WITH_SORT_BRANCH_PATTERN = Pattern.compile(
+        "(?is)\\bFORK\\b.*\\bSORT\\b.*\\|\\s*WHERE\\s+_fork\\s*=="
+    );
+
+    /**
+     * FORK with an in-branch SORT on a field that becomes unused after the FORK currently
+     * triggers two distinct bugs depending on the surrounding pipeline:
+     * <ul>
+     *   <li>{@code Plan [OrderBy[...]] optimized incorrectly due to missing references [...]}
+     *       — see <a href="https://github.com/elastic/elasticsearch/issues/148382">#148382</a></li>
+     *   <li>{@code ClassCastException} between compute {@code Block} subclasses (e.g.
+     *       {@code BytesRefArrayBlock} cast to {@code IntBlock}) downstream of the FORK
+     *       — see <a href="https://github.com/elastic/elasticsearch/issues/148386">#148386</a></li>
+     * </ul>
+     */
+    static boolean isForkWithSortBranchBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_ORDERBY_PATTERN.matcher(errorMessage).matches() == false
+            && COMPUTE_BLOCK_CLASS_CAST_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return FORK_WITH_SORT_BRANCH_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern ARRAY_INDEX_OUT_OF_BOUNDS_PATTERN = Pattern.compile(
+        ".*array_index_out_of_bounds_exception.*Index \\d+ out of bounds for length \\d+.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/148475
+     */
+    static boolean isForkTopNIndexOutOfBoundsBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (ARRAY_INDEX_OUT_OF_BOUNDS_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return FORK_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern OPTIMIZED_INCORRECTLY_PATTERN = Pattern.compile(
+        ".*optimized incorrectly due to missing references.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/138231
+     */
+    static boolean isForkOptimizedIncorrectlyBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return FORK_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern RENAME_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*RENAME\\b");
+    private static final Pattern MV_EXPAND_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*MV_EXPAND\\b");
+    private static final Pattern FUNCTION_GENERATING_COMMAND_PATTERN = Pattern.compile(
+        "(?i)\\|\\s*(?:REGISTERED_DOMAIN|URI_PARTS|USER_AGENT)\\b"
+    );
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/148500
+     */
+    static boolean isRenameMvExpandOrderByBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_ORDERBY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return RENAME_COMMAND_PATTERN.matcher(query).find()
+            && MV_EXPAND_COMMAND_PATTERN.matcher(query).find()
+            && FUNCTION_GENERATING_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern OPTIMIZED_INCORRECTLY_LIMITBY_PATTERN = Pattern.compile(
+        ".*Plan \\[(?:LimitBy|TopNBy)\\[.*optimized incorrectly due to missing references.*",
+        Pattern.DOTALL
+    );
+
+    private static final Pattern LIMIT_BY_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*LIMIT\\s+\\S+\\s+BY\\b");
+
+    /**
+     * See https://github.com/elastic/elasticsearch/issues/148513
+     * <p>
+     * The same root cause manifests as either {@code LimitBy[...]} (no upstream SORT) or {@code TopNBy[...]}
+     * (when an upstream SORT gets combined with the LIMIT BY into a TopNBy).
+     */
+    static boolean isLimitByMvExpandBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        if (OPTIMIZED_INCORRECTLY_LIMITBY_PATTERN.matcher(errorMessage).matches() == false) {
+            return false;
+        }
+        return MV_EXPAND_COMMAND_PATTERN.matcher(query).find() && LIMIT_BY_COMMAND_PATTERN.matcher(query).find();
     }
 
     @Override

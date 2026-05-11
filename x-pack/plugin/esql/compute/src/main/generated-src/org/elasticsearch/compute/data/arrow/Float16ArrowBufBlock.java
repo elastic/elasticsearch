@@ -43,8 +43,46 @@ public final class Float16ArrowBufBlock extends AbstractArrowBufBlock<DoubleVect
         super(arrowVector, blockFactory);
     }
 
-    public static Float16ArrowBufBlock of(ValueVector arrowVector, BlockFactory blockFactory) {
+    public static DoubleBlock of(ValueVector arrowVector, BlockFactory blockFactory) {
+        DoubleBlock constant = tryConstant(arrowVector, blockFactory);
+        if (constant != null) {
+            return constant;
+        }
         return new Float16ArrowBufBlock(arrowVector, blockFactory);
+    }
+
+    /**
+     * Returns a constant block when the vector is fully present and all values are identical,
+     * a constant-null block when all values are null, or {@code null} when the caller should
+     * fall through to the zero-copy {@link Float16ArrowBufBlock} path. Multi-valued (List)
+     * inputs return {@code null}; their constant detection would require comparing whole
+     * sequences and is not worth the added complexity.
+     */
+    private static DoubleBlock tryConstant(ValueVector arrowVector, BlockFactory blockFactory) {
+        if (arrowVector instanceof org.apache.arrow.vector.complex.ListVector) {
+            return null;
+        }
+        // Validate the per-element byte stride before reading the buffer; the constructor
+        // does the same check on the fall-through path, so failing fast here keeps both
+        // paths' error semantics identical.
+        ArrowUtils.checkItemSize((org.apache.arrow.vector.FixedWidthVector) arrowVector, Short.BYTES);
+        int rowCount = arrowVector.getValueCount();
+        if (rowCount == 0) {
+            return null;
+        }
+        if (arrowVector.getNullCount() == rowCount) {
+            return (DoubleBlock) blockFactory.newConstantNullBlock(rowCount);
+        }
+        if (arrowVector.getNullCount() != 0) {
+            return null;
+        }
+        ArrowBuf valueBuffer = arrowVector.getDataBuffer();
+        if (ArrowBufConstantDetection.isUniform(valueBuffer, rowCount, Short.BYTES) == false) {
+            return null;
+        }
+        int valueIndex = 0;
+        double value = Float.float16ToFloat(valueBuffer.getShort((long) valueIndex * Short.BYTES));
+        return blockFactory.newConstantDoubleBlockWith(value, rowCount);
     }
 
     @Override

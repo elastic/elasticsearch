@@ -215,6 +215,10 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
                 inferenceId = DENSE_INFERENCE_ID;
                 serviceSettings = DENSE_INFERENCE_ID_SETTINGS;
                 break;
+            case EMBEDDING:
+                inferenceId = EMBEDDING_INFERENCE_ID;
+                serviceSettings = EMBEDDING_INFERENCE_ID_SETTINGS;
+                break;
             default:
                 throw new AssertionError("Unsupported task type");
         }

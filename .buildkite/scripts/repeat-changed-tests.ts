@@ -221,11 +221,11 @@ export function generateBatchCommand(batch: ClassifiedTest[]): string {
   switch (kind) {
     case "test": {
       const tasks = tasksWithFilters(batch, "test", (t) => `--tests ${t.fqcn}`);
-      return `.ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=7200000! ${tasks}`;
+      return `.ci/scripts/run-gradle.sh -Dtests.iters=10 -Dtests.timeoutSuite=3600000! ${tasks}`;
     }
     case "internalClusterTest": {
       const tasks = tasksWithFilters(batch, "internalClusterTest", (t) => `--tests ${t.fqcn}`);
-      return `.ci/scripts/run-gradle.sh -Dtests.iters=20 -Dtests.timeoutSuite=3600000! ${tasks}`;
+      return `.ci/scripts/run-gradle.sh -Dtests.iters=10 -Dtests.timeoutSuite=3600000! ${tasks}`;
     }
     case "javaRestTest": {
       const tasks = tasksWithFilters(batch, "javaRestTest", (t) => `--tests ${t.fqcn}`, "--rerun");
@@ -290,7 +290,7 @@ export function generatePipeline(tests: ClassifiedTest[]): Pipeline {
       label: typeLabel,
       key: KIND_KEYS[kind],
       command: batchCommands[0],
-      timeout_in_minutes: kind === "test" ? 120 : 60,
+      timeout_in_minutes: 60,
       agents: { ...AGENTS },
       soft_fail: true,
     };

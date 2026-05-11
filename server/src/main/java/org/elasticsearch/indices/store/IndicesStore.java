@@ -421,66 +421,59 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
 
             // make sure shard is really there before register cluster state observer
             if (indexShard == null) {
-                channel.sendResponse(new ShardActiveResponse(false, clusterService.localNode()));
+                sendResult(false, channel, request);
+            } else if (shardActive(indexShard)) {
+                sendResult(true, channel, request);
             } else {
-                // create observer here. we need to register it here because we need to capture the current cluster state
-                // which will then be compared to the one that is applied when we call waitForNextChange(). if we create it
-                // later we might miss an update and wait forever in case no new cluster state comes in.
-                // in general, using a cluster state observer here is a workaround for the fact that we cannot listen on
-                // shard state changes explicitly. instead we wait for the cluster state changes because we know any
-                // shard state change will trigger or be triggered by a cluster state change.
-                ClusterStateObserver observer = new ClusterStateObserver(
-                    clusterService,
-                    request.timeout,
-                    logger,
-                    threadPool.getThreadContext()
-                );
-                // check if shard is active. if so, all is good
-                boolean shardActive = shardActive(indexShard);
-                if (shardActive) {
-                    channel.sendResponse(new ShardActiveResponse(true, clusterService.localNode()));
-                } else {
-                    // shard is not active, might be POST_RECOVERY so check if cluster state changed inbetween or wait for next change
-                    observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                        @Override
-                        public void onNewClusterState(ClusterState state) {
-                            sendResult(shardActive(getShard(request)));
-                        }
+                // shard is not active, might be POST_RECOVERY. Wait for cluster state changes (and the async appliers behind them)
+                // to transition the shard to STARTED, or for the shard to be removed from this node entirely.
+                waitForShardActive(request, channel, request.timeout);
+            }
+        }
 
-                        @Override
-                        public void onClusterServiceClose() {
-                            sendResult(false);
-                        }
-
-                        @Override
-                        public void onTimeout(TimeValue timeout) {
-                            sendResult(shardActive(getShard(request)));
-                        }
-
-                        public void sendResult(boolean shardActive) {
-                            try {
-                                channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
-                            } catch (EsRejectedExecutionException e) {
-                                logger.error(
-                                    () -> format(
-                                        "failed send response for shard active while trying to "
-                                            + "delete shard %s - shard will probably not be removed",
-                                        request.shardId
-                                    ),
-                                    e
-                                );
+        /// Waits for the shard referenced by the request to either reach an active state or be removed from this node, then sends
+        /// the corresponding [ShardActiveResponse] back to the caller.
+        private void waitForShardActive(final ShardActiveRequest request, final TransportChannel channel, TimeValue timeout) {
+            new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext()).waitForNextChange(
+                new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        clusterService.getClusterApplierService().awaitAllAsyncAppliers(ActionListener.running(() -> {
+                            final IndexShard currentShard = getShard(request);
+                            if (currentShard == null) {
+                                sendResult(false, channel, request);
+                            } else if (shardActive(currentShard)) {
+                                sendResult(true, channel, request);
+                            } else {
+                                waitForShardActive(request, channel, timeout);
                             }
-                        }
-                    }, newState -> {
-                        // the shard is not there in which case we want to send back a false (shard is not active),
-                        // so the cluster state listener must be notified or the shard is active in which case we want to
-                        // send back that the shard is active here we could also evaluate the cluster state and get the
-                        // information from there. we don't do it because we would have to write another method for this
-                        // that would have the same effect
-                        IndexShard currentShard = getShard(request);
-                        return currentShard == null || shardActive(currentShard);
-                    });
+                        }));
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        sendResult(false, channel, request);
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue t) {
+                        sendResult(shardActive(getShard(request)), channel, request);
+                    }
                 }
+            );
+        }
+
+        private void sendResult(boolean shardActive, TransportChannel channel, ShardActiveRequest request) {
+            try {
+                channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
+            } catch (EsRejectedExecutionException e) {
+                logger.error(
+                    () -> format(
+                        "failed send response for shard active while trying to delete shard %s - shard will probably not be removed",
+                        request.shardId
+                    ),
+                    e
+                );
             }
         }
 

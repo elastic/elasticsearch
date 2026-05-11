@@ -132,30 +132,55 @@ public class AsyncClusterStateApplier implements ClusterStateApplier {
                 stateToApply.version()
             );
 
-            logger.info("--> waiting before async applying [{}]", source);
             try {
+                logger.info("--> waiting before async applying [{}]", source);
                 Thread.sleep(50);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new AssertionError("do-not-forget-to-remove-this", e);
-            }
-            logger.info("--> async applying [{}]", source);
-            applier.applyClusterState(new ClusterChangedEvent(source, stateToApply, appliedState));
-            logger.info("--> done async applying [{}]", source);
-            appliedState = stateToApply;
+                logger.info("--> async applying [{}]", source);
 
-            assert applyListener.isDone() == false;
-            applyListener.onResponse(null);
+                // TODO: could this actually throw? Outside of test assertions.
+                // If not, we can remove the exception handling below once all tests are fixed
+                applier.applyClusterState(new ClusterChangedEvent(source, stateToApply, appliedState));
+                logger.info("--> done async applying [{}]", source);
+                appliedState = stateToApply;
 
-            synchronized (AsyncClusterStateApplier.this) {
-                if (pendingState == null) {
-                    assert listeners.isSuccess();
-                    isApplying = false;
-                    return;
+                // Complete `applyListener` before the synchronized block so `listeners.isSuccess()` holds when we check it.
+                assert applyListener.isDone() == false;
+                applyListener.onResponse(null);
+
+                synchronized (AsyncClusterStateApplier.this) {
+                    if (pendingState == null) {
+                        assert listeners.isSuccess();
+                        isApplying = false;
+                        return;
+                    }
                 }
-            }
 
-            executor.execute(applierRunnable);
+                executor.execute(applierRunnable);
+            } catch (Throwable t) {
+                logger.error(() -> "failed to apply [" + source + "]", t);
+                if (t instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+
+                // Drain any pending-batch listener.
+                final SubscribableListener<Void> stagedListeners;
+                synchronized (AsyncClusterStateApplier.this) {
+                    stagedListeners = (listeners != applyListener) ? listeners : null;
+                    listeners = SubscribableListener.nullSuccess();
+                    pendingState = null;
+                    isApplying = false;
+                }
+
+                final var asException = t instanceof Exception ex ? ex : new RuntimeException(t);
+                if (applyListener.isDone() == false) {
+                    applyListener.onFailure(asException);
+                }
+                if (stagedListeners != null) {
+                    stagedListeners.onFailure(asException);
+                }
+
+                throw new AssertionError("do-not-forget-to-remove-this", t);
+            }
         }
     };
 }

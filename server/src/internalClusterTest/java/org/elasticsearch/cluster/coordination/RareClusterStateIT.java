@@ -313,7 +313,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             docIndexResponseFuture = prepareIndex("index").setId("1").setSource("field", 42).execute();
 
             // wait for it to be indexed on the primary (it won't be on the replica yet because of the blocked mapping update)
-            assertBusy(() -> assertTrue(client(primaryNode).prepareGet("index", "1").get().isExists()));
+            assertBusy(() -> assertTrue(client().prepareGet("index", "1").get().isExists()));
 
             // index another document, this time using dynamic mappings.
             // The ack timeout of 0 on dynamic mapping updates makes it possible for the document to be indexed on the primary, even
@@ -327,7 +327,10 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 assertNotNull(mapper.mappers().getMapper("field2"));
             });
 
-            assertBusy(() -> assertTrue(client(primaryNode).prepareGet("index", "2").get().isExists()));
+            // Indexing doc 2 triggers a dynamic mapping update. Post-async-applier, the bulk action on the primary
+            // waits for the master's mapping-update response, which in turn waits up to dynamicMappingUpdateTimeout
+            // (30s default) for all data nodes, including the deliberately-blocked replica, to apply the new cluster state.
+            assertBusy(() -> assertTrue(client().prepareGet("index", "2").get().isExists()), 60, TimeUnit.SECONDS);
 
             // The mappings have not been propagated to the replica yet so the document shouldn't be indexed there.
             // We wait on purpose to make sure that the document is not indexed because the shard operation is stalled

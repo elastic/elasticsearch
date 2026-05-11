@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.crypto;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.crypto.EncryptedData;
@@ -74,7 +75,10 @@ public class EncryptionServiceIT extends SecurityIntegTestCase {
         EncryptedData encrypted = serviceBefore.encrypt(plaintext);
 
         internalCluster().stopCurrentMasterNode();
-        ensureGreen();
+        // The .security-7 system index cannot have index.unassigned.node_left.delayed_timeout
+        // overridden, so we must wait out the default 1m delayed reallocation window before the
+        // replica orphaned by the stopped master is reassigned to another node.
+        ensureGreen(TimeValue.timeValueMinutes(2));
 
         EncryptionService serviceAfter = internalCluster().getInstance(EncryptionService.class, nonMasterNode);
         byte[] decrypted = serviceAfter.decrypt(encrypted);

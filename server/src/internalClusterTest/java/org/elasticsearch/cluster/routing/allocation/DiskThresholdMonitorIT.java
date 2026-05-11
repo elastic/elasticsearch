@@ -125,17 +125,19 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         );
 
         // Verify that the block is removed
-        refreshClusterInfo();
-        assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get().isTimedOut());
-        assertNull(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE));
+        assertBusy(() -> {
+            refreshClusterInfo();
+            assertNull(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE));
+        });
 
         // Re-enable and the blocks should be back!
         updateClusterSettings(
             Settings.builder().put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
         );
-        refreshClusterInfo();
-        assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get().isTimedOut());
-        assertThat(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
+        assertBusy(() -> {
+            refreshClusterInfo();
+            assertThat(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
+        });
     }
 
     public void testNodeStatsIncludingDiskThreshold() {

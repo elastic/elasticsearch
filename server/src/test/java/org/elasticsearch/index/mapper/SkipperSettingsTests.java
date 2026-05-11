@@ -77,6 +77,42 @@ public class SkipperSettingsTests extends ESTestCase {
         }
     }
 
+    public void testColumnarSkipperSettingDefaults() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        {
+            IndexSettings indexSettings = settings(
+                IndexVersionUtils.randomVersionBetween(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB, IndexVersion.current()),
+                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            );
+            assertTrue(indexSettings.useDocValuesSkipper());
+        }
+        {
+            IndexSettings indexSettings = settings(
+                IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB),
+                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            );
+            assertFalse(indexSettings.useDocValuesSkipper());
+        }
+    }
+
+    public void testColumnarLogsdbSkipperSettingDefaults() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        {
+            IndexSettings indexSettings = settings(
+                IndexVersionUtils.randomVersionBetween(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB, IndexVersion.current()),
+                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName())
+            );
+            assertTrue(indexSettings.useDocValuesSkipper());
+        }
+        {
+            IndexSettings indexSettings = settings(
+                IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB),
+                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName())
+            );
+            assertFalse(indexSettings.useDocValuesSkipper());
+        }
+    }
+
     private static IndexSettings settings(IndexVersion version, Consumer<Settings.Builder> settingsConsumer) {
         Settings.Builder builder = Settings.builder();
         builder.put(IndexMetadata.SETTING_VERSION_CREATED, version);

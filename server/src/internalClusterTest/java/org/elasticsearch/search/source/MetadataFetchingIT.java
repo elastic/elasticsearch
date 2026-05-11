@@ -200,7 +200,9 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         client().index(indexRequest).actionGet();
         refresh();
 
-        assertResponse(prepareSearch("test").addFetchField("_slice"), response -> {
+        var searchRequestBuilder = prepareSearch("test").addFetchField("_slice");
+        searchRequestBuilder.request().searchSlice(SliceIndexing.SLICE_ALL);
+        assertResponse(searchRequestBuilder, response -> {
             assertEquals(1, response.getHits().getHits().length);
             assertThat(response.getHits().getAt(0).field("_slice"), notNullValue());
             assertEquals("s1", response.getHits().getAt(0).field("_slice").getValue());

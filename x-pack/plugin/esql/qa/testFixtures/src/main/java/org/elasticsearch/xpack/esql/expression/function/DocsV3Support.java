@@ -1123,20 +1123,20 @@ public abstract class DocsV3Support {
         }
 
         void renderDetailedDescription(String detailedDescription, String note) throws IOException {
-            StringBuilder rendered = new StringBuilder();
+            StringBuilder body = new StringBuilder();
             if (Strings.isNullOrEmpty(detailedDescription) == false) {
                 detailedDescription = replaceLinks(detailedDescription.trim());
-                rendered.append(DOCS_WARNING).append(detailedDescription).append("\n");
+                body.append(detailedDescription).append("\n");
             }
 
             if (Strings.isNullOrEmpty(note) == false) {
-                rendered.append("\n::::{note}\n").append(replaceLinks(note)).append("\n::::\n\n");
+                body.append("\n::::{note}\n").append(replaceLinks(note)).append("\n::::\n\n");
             }
-            if (rendered.isEmpty() == false) {
-                rendered.append("\n");
+            if (body.isEmpty() == false) {
+                String rendered = DOCS_WARNING + body + "\n";
                 logger.info("Writing detailed description for [{}]", name);
                 logger.debug("{}", rendered);
-                writeToTempSnippetsDir("detailedDescription", rendered.toString());
+                writeToTempSnippetsDir("detailedDescription", rendered);
             }
         }
 
@@ -1279,6 +1279,7 @@ public abstract class DocsV3Support {
         @Override
         public void renderDocs() throws Exception {
             StringBuilder builder = new StringBuilder();
+            builder.append(SETTINGS_WARNING);
 
             for (QuerySettingDef<?> setting : settings) {
                 if (setting.snapshotOnly()) {

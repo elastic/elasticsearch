@@ -26,7 +26,7 @@ public interface CloudCredentialManager {
     boolean hasCloudManagedCredential(ThreadContext threadContext);
 
     /**
-     * Extracts the caller's UIAM cloud credential from {@code threadContext}.
+     * Extracts the caller's cloud credential from {@code threadContext}.
      * <p>
      * <b>Precondition:</b> {@link #hasCloudManagedCredential(ThreadContext)} must return {@code true};
      * otherwise the call fails with an unchecked exception.

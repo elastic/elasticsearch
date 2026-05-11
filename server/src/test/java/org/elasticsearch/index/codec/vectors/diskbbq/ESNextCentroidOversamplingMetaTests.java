@@ -36,16 +36,12 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class ESNextCentroidOversamplingMetaTests extends BaseKnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 

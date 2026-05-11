@@ -293,7 +293,8 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_rehired"),
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
-        new ViewConfig("employees_extra")
+        new ViewConfig("employees_extra"),
+        new ViewConfig("view_with_subquery")
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**

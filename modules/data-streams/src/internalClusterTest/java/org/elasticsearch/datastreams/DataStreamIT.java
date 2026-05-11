@@ -2183,11 +2183,7 @@ public class DataStreamIT extends ESIntegTestCase {
             .indexPatterns(List.of("my-logs"))
             .template(
                 new Template(
-                    Settings.builder()
-                        .put("index.number_of_shards", "10")
-                        .put("index.number_of_routing_shards", "10")
-                        .put("index.routing_partition_size", "4")
-                        .build(),
+                    Settings.builder().put("index.number_of_shards", "10").put("index.routing_partition_size", "4").build(),
                     new CompressedXContent("""
                         {
                               "_routing": {

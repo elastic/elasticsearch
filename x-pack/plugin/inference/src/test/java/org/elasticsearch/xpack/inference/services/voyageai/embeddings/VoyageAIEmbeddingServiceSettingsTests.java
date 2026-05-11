@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettingsTests;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -227,6 +229,54 @@ public class VoyageAIEmbeddingServiceSettingsTests extends AbstractBWCWireSerial
                 )
             )
         );
+    }
+
+    public void testFromMap_InvalidEmbeddingType_ThrowsError() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> VoyageAIEmbeddingServiceSettings.fromMap(
+                new HashMap<>(Map.of(MODEL_ID, "model", EMBEDDING_TYPE, "invalid_type")),
+                PERSISTENT
+            )
+        );
+
+        MatcherAssert.assertThat(thrownException.getMessage(), org.hamcrest.Matchers.containsString("[embedding_type]"));
+    }
+
+    public void testFromMap_InvalidSimilarity_ThrowsError() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> VoyageAIEmbeddingServiceSettings.fromMap(
+                new HashMap<>(Map.of(MODEL_ID, "model", ServiceFields.SIMILARITY, "by_size")),
+                PERSISTENT
+            )
+        );
+
+        MatcherAssert.assertThat(thrownException.getMessage(), org.hamcrest.Matchers.containsString("[similarity]"));
+    }
+
+    public void testFromMap_NegativeDimensions_ThrowsError() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> VoyageAIEmbeddingServiceSettings.fromMap(
+                new HashMap<>(Map.of(MODEL_ID, "model", DIMENSIONS, -1)),
+                REQUEST
+            )
+        );
+
+        MatcherAssert.assertThat(thrownException.getMessage(), org.hamcrest.Matchers.containsString("[dimensions]"));
+    }
+
+    public void testFromMap_NegativeMaxInputTokens_ThrowsError() {
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> VoyageAIEmbeddingServiceSettings.fromMap(
+                new HashMap<>(Map.of(MODEL_ID, "model", MAX_INPUT_TOKENS, -100)),
+                REQUEST
+            )
+        );
+
+        MatcherAssert.assertThat(thrownException.getMessage(), org.hamcrest.Matchers.containsString("[max_input_tokens]"));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {

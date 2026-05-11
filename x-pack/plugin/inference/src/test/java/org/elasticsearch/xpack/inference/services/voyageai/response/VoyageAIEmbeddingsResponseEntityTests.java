@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
@@ -71,7 +72,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         assertThat(
             ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
-            is(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F })))
+            is(List.of(new EmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F })))
         );
     }
 
@@ -119,8 +120,8 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
             is(
                 List.of(
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F })
+                    new EmbeddingFloatResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
+                    new EmbeddingFloatResults.Embedding(new float[] { 0.0123F, -0.0123F })
                 )
             )
         );
@@ -310,7 +311,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         assertThat(
             ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
-            is(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 1.0F })))
+            is(List.of(new EmbeddingFloatResults.Embedding(new float[] { 1.0F })))
         );
     }
 
@@ -347,7 +348,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         assertThat(
             ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
-            is(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 4.0294965E10F })))
+            is(List.of(new EmbeddingFloatResults.Embedding(new float[] { 4.0294965E10F })))
         );
     }
 
@@ -443,9 +444,9 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             ((DenseEmbeddingFloatResults) parsedResults).embeddings(),
             is(
                 List.of(
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { -0.9F, 0.5F, 0.3F }),
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.1F, 0.5F }),
-                    new DenseEmbeddingFloatResults.Embedding(new float[] { 0.5F, 0.5F })
+                    new EmbeddingFloatResults.Embedding(new float[] { -0.9F, 0.5F, 0.3F }),
+                    new EmbeddingFloatResults.Embedding(new float[] { 0.1F, 0.5F }),
+                    new EmbeddingFloatResults.Embedding(new float[] { 0.5F, 0.5F })
                 )
             )
         );

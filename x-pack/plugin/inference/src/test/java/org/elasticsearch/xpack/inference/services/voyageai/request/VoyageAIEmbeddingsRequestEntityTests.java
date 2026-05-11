@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.voyageai.request;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
@@ -159,7 +158,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
         );
 
         var entity = new VoyageAIEmbeddingsRequestEntity(
-            List.of(new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, "base64data"))),
+            List.of(new InferenceStringGroup(new InferenceString(DataType.IMAGE, "data:image/jpeg;base64,dGVzdA=="))),
             InputType.INGEST,
             model
         );
@@ -169,6 +168,32 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"inputs":[{"content":[{"type":"image_base64","image_base64":"base64data"}]}],"model":"voyage-multimodal-3.5","input_type":"document","output_dimension":2048,"output_dtype":"float"}"""));
+            {"inputs":[{"content":[{"type":"image_base64","image_base64":"data:image/jpeg;base64,dGVzdA=="}]}],"model":"voyage-multimodal-3.5","input_type":"document","output_dimension":2048,"output_dtype":"float"}"""));
+    }
+
+    public void testXContent_WritesMultipleInputGroups_WhenModelIsMultimodal() throws IOException {
+        var model = VoyageAIEmbeddingsModelTests.createMultimodalModel(
+            "https://www.abc.com",
+            "api_key",
+            512,
+            null,
+            "voyage-multimodal-3.5"
+        );
+
+        var entity = new VoyageAIEmbeddingsRequestEntity(
+            List.of(
+                new InferenceStringGroup("some text input"),
+                new InferenceStringGroup(new InferenceString(DataType.IMAGE, "data:image/png;base64,aW1hZ2U="))
+            ),
+            InputType.INGEST,
+            model
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"inputs":[{"content":[{"type":"text","text":"some text input"}]},{"content":[{"type":"image_base64","image_base64":"data:image/png;base64,aW1hZ2U="}]}],"model":"voyage-multimodal-3.5","input_type":"document","output_dtype":"float"}"""));
     }
 }

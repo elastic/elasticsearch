@@ -601,9 +601,7 @@ redirects:
       - to: 'reference/query-languages/esql/functions-operators/search-functions.md'
         anchors: { 'esql-limitations-text-fields' }
 
-  # https://github.com/elastic/docs-content/issues/1171
-  # The "enrich-processor" folder was renamed to "ingest-processor" to avoid
-  # implying that sibling processor pages are subpages of the enrich processor.
+  # Related to https://github.com/elastic/docs-content/issues/1171
   'reference/enrich-processor/index.md': 'reference/ingest-processor/index.md'
   'reference/enrich-processor/append-processor.md': 'reference/ingest-processor/append-processor.md'
   'reference/enrich-processor/attachment.md': 'reference/ingest-processor/attachment.md'

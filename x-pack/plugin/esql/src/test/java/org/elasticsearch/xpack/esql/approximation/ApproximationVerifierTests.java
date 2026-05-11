@@ -284,8 +284,8 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
 
     public void testVerify_incompatibleProcessingCommand() {
         assertError(
-            "FROM (FROM test | WHERE emp_no > 2), (FROM k8s) | STATS COUNT()",
-            equalTo("line 1:6: approximation not supported: query with [(FROM test | WHERE emp_no > 2)] cannot be approximated")
+            "FROM test METADATA _id, _index, _score | FORK (WHERE true) (WHERE true) | LIMIT 100 | FUSE",
+            equalTo("line 1:87: approximation not supported: query with [FUSE] cannot be approximated")
         );
     }
 

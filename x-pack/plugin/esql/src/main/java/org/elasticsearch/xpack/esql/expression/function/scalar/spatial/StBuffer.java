@@ -76,6 +76,8 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
     static final String ENDCAP_OPTION = "endcap";
     static final String JOIN_OPTION = "join";
     static final String MITRE_LIMIT_OPTION = "mitre_limit";
+    private static final String OPTIONS_APPLIES_TO = """
+        {"serverless": "preview", "stack": "preview 9.5.0"}""";
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.of(
         QUAD_SEGS_OPTION,
@@ -129,7 +131,14 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
             + "Points and lines become polygons when buffered, unless a zero distance is provided.",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
-        examples = @Example(file = "spatial-jts", tag = "st_buffer"),
+        examples = {
+            @Example(file = "spatial-jts", tag = "st_buffer"),
+            @Example(
+                description = "The optional `options` argument can configure end caps and join styles. "
+                    + "Combining `endcap=flat` with `join=mitre` produces sharp corners on a buffered L-shape:",
+                file = "spatial-jts",
+                tag = "st_buffer_mitre_flat"
+            ) },
         depthOffset = 1  // So this appears as a subsection of geometry functions
     )
     public StBuffer(
@@ -147,36 +156,36 @@ public class StBuffer extends SpatialDocValuesFunction implements OptionalArgume
         ) Expression distance,
         @MapParam(
             name = "options",
-            description = "(Optional) ST_BUFFER additional options as <<esql-function-named-params,function named parameters>>.",
-            applies_to = "stack: preview 9.5.0",
+            description = "(Optional) ST_BUFFER additional options like `quad_segs`, `endcap`, `join` and `mitre_limit`.",
+            applies_to = OPTIONS_APPLIES_TO,
             params = {
                 @MapParam.MapParamEntry(
                     name = QUAD_SEGS_OPTION,
                     type = "integer",
                     valueHint = { "8" },
                     description = "Number of line segments used to approximate a quarter circle. Defaults to 8.",
-                    applies_to = "stack: preview 9.5.0"
+                    applies_to = OPTIONS_APPLIES_TO
                 ),
                 @MapParam.MapParamEntry(
                     name = ENDCAP_OPTION,
                     type = "keyword",
                     valueHint = { "round", "flat", "square" },
                     description = "End cap style for buffering linear geometries. Defaults to round.",
-                    applies_to = "stack: preview 9.5.0"
+                    applies_to = OPTIONS_APPLIES_TO
                 ),
                 @MapParam.MapParamEntry(
                     name = JOIN_OPTION,
                     type = "keyword",
                     valueHint = { "round", "mitre", "bevel" },
                     description = "Join style for buffering. Defaults to round.",
-                    applies_to = "stack: preview 9.5.0"
+                    applies_to = OPTIONS_APPLIES_TO
                 ),
                 @MapParam.MapParamEntry(
                     name = MITRE_LIMIT_OPTION,
                     type = "double",
                     valueHint = { "5.0" },
                     description = "Mitre ratio limit, only meaningful when join=mitre. Defaults to 5.0.",
-                    applies_to = "stack: preview 9.5.0"
+                    applies_to = OPTIONS_APPLIES_TO
                 ) },
             optional = true
         ) Expression options

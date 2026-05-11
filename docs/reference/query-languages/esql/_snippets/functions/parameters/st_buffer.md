@@ -8,6 +8,6 @@
 `distance`
 :   Buffer distance in the units of the input spatial reference system
 
-`options` {applies_to}`stack: preview 9.5.0`
-:   (Optional) ST_BUFFER additional options as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params).
+`options` {applies_to}`{"serverless": "preview", "stack": "preview 9.5.0"}`
+:   (Optional) ST_BUFFER additional options like `quad_segs`, `endcap`, `join` and `mitre_limit`.
 

@@ -728,6 +728,17 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 indexShard.failShard("reassign", new Exception("test wants to recover hollow shard"));
             }
             ensureRed(clusterInfo.indexName);
+            // Ensure that all the shards have been completely closed
+            try {
+                assertBusy(() -> {
+                    for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
+                        final var indexService = indicesService.indexService(clusterInfo.index);
+                        assertNull(indexService);
+                    }
+                });
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
             updateIndexSettings(
                 Settings.builder().put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1),
                 clusterInfo.indexName

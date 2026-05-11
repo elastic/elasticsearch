@@ -260,7 +260,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     @Override
     protected NextFieldEntry doReadField(
         IndexInput input,
-        int versionMeta,
         String rawVectorFormat,
         boolean useDirectIOReads,
         VectorSimilarityFunction similarityFunction,

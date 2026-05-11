@@ -229,7 +229,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         }
         return doReadField(
             input,
-            versionMeta,
             rawVectorFormat,
             useDirectIOReads,
             similarityFunction,
@@ -246,7 +245,6 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
     protected abstract E doReadField(
         IndexInput input,
-        int versionMeta,
         String rawVectorFormat,
         boolean useDirectIOReads,
         VectorSimilarityFunction similarityFunction,

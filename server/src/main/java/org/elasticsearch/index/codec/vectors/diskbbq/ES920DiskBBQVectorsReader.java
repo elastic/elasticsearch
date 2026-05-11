@@ -125,10 +125,8 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
     }
 
     @Override
-    @SuppressWarnings("unused")
     protected FieldEntry doReadField(
         IndexInput input,
-        int versionMeta,
         String rawVectorFormat,
         boolean useDirectIOReads,
         VectorSimilarityFunction similarityFunction,

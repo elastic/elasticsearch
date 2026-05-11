@@ -3275,18 +3275,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 // when query oversample is null, read per segment persisted oversample
                 // mapping oversample works as fallback for segments without persisted oversample
                 boolean perSegment = rescore && queryOversample == null;
-                int kRequest;
                 if (perSegment) {
-                    kRequest = k;
                     // use max persisted oversample, if available, for (late) rescoring
                     float maxStoredOversample = readStoredRescoreOversample(indexReader, name());
                     if (Float.isFinite(maxStoredOversample)) {
-                        adjustedK = Math.min((int) Math.ceil(kRequest * maxStoredOversample), OVERSAMPLE_LIMIT);
+                        adjustedK = Math.min((int) Math.ceil(k * maxStoredOversample), OVERSAMPLE_LIMIT);
                     }
-                } else {
-                    kRequest = adjustedK;
                 }
-                float oversampleFallback = perSegment ? mappingOversampleDefault : Float.NaN;
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),

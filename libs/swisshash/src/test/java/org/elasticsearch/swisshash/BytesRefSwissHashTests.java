@@ -226,6 +226,11 @@ public class BytesRefSwissHashTests extends ESTestCase {
         }
     }
 
+    public void testConsistentHash() {
+        BytesRef value = new BytesRef(randomByteArrayOfLength(between(1, 1024)));
+        assertEquals(BytesRefSwissHash.hash(value), BytesRefSwissHash.hash(value.bytes, value.offset, value.length));
+    }
+
     private void assertStatus(BytesRefSwissHash hash) {
         SwissHash.Status status = hash.status();
 
@@ -300,7 +305,11 @@ public class BytesRefSwissHashTests extends ESTestCase {
         SINGLE_VALUE {
             @Override
             long add(BytesRefSwissHash hash, BytesRef value) {
-                return hash.add(value);
+                if (randomBoolean()) {
+                    return hash.add(value);
+                } else {
+                    return hash.addWithHash(value, BytesRefSwissHash.hash(value.bytes, value.offset, value.length));
+                }
             }
 
             @Override

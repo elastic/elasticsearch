@@ -854,6 +854,24 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
     }
 
+    /**
+     * Regression test for the case where {@code hard_bounds} excludes every fixed rounding point produced from the data,
+     * which previously caused {@link org.elasticsearch.search.aggregations.bucket.range.RangeAggregator#hasOverlap}
+     * to throw {@code ArrayIndexOutOfBoundsException} on an empty ranges array. The aggregation should fall back to the
+     * regular date-histogram aggregator and produce an empty result.
+     */
+    public void testHardBoundsOutsideDataDoesNotUseFromRange() throws IOException {
+        aggregationImplementationChoiceTestCase(
+            aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
+            List.of("2017", "2018"),
+            List.of(),
+            new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
+                .calendarInterval(DateHistogramInterval.YEAR)
+                .hardBounds(new LongBounds("2030", "2031")),
+            false
+        );
+    }
+
     public void testOneBucketOptimized() throws IOException {
         AggregationBuilder builder = new DateHistogramAggregationBuilder("d").field("f").calendarInterval(DateHistogramInterval.DAY);
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {

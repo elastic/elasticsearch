@@ -155,6 +155,32 @@ setup:
   - match: { aggregations.histo.buckets.12.doc_count: 1 }
 
 ---
+"date_histogram with hard_bounds outside data under a parent agg":
+  - requires:
+      cluster_features: ["search.aggs.date_histogram.hard_bounds_outside_data_fix"]
+      reason: "previously threw ArrayIndexOutOfBoundsException when hard_bounds excluded all rounding points"
+
+  - do:
+      search:
+        index: test_date_hist
+        body:
+          size: 0
+          aggs:
+            outer:
+              filter:
+                match_all: {}
+              aggs:
+                histo:
+                  date_histogram:
+                    field: date
+                    fixed_interval: "1d"
+                    hard_bounds:
+                      "min": "2030-01-01"
+                      "max": "2030-01-02"
+
+  - length: { aggregations.outer.histo.buckets: 0 }
+
+---
 "date_histogram on date_nanos without timezone fixed interval":
   - requires:
       cluster_features: ["gte_v7.6.1"]

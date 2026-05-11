@@ -1481,10 +1481,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertThat(engineConfig.getMapperService(), nullValue());
         assertThat(indexMetadata.getState(), equalTo(IndexMetadata.State.CLOSE));
 
+        var newIndexMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.OPEN).build();
         return indicesService.withTempIndexService(
             // Create a temporary IndexService as if the shard was OPEN
-            IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.OPEN).build(),
+            newIndexMetadata,
             indexService -> {
+                // Need to update mapping here, otherwise MapperService#mapper is null here and it is as if there is no mapping.
+                indexService.mapperService().updateMapping(null, newIndexMetadata);
                 // Create a temporary read-only engine on top of the no-op engine to access documents
                 try (
                     var tempEngine = new ReadOnlyEngine(

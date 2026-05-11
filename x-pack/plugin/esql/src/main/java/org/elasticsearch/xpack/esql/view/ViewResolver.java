@@ -179,43 +179,40 @@ public class ViewResolver {
                 return;
             }
             switch (p) {
-                case ViewUnionAll viewUnion -> {
+                case ViewUnionAll viewUnion ->
                     // ViewUnionAll is the result of view resolution, so we skip it.
                     // Plain UnionAll (from user-written subqueries) matches the Fork case below
                     // and its children are recursed into with proper seen-set scoping.
                     planListener.onResponse(viewUnion);
-                    return;
-                }
-                case Fork fork -> {
-                    replaceViewsFork(fork, parser, seenInner, viewQueries, depth, planListener.delegateFailureAndWrap((l, result) -> {
+                case Fork fork -> replaceViewsFork(
+                    fork,
+                    parser,
+                    seenInner,
+                    viewQueries,
+                    depth,
+                    planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
                         result.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
-                    }));
-                    return;
-                }
-                case UnresolvedRelation ur -> {
-                    replaceViewsUnresolvedRelation(
-                        ur,
-                        parser,
-                        seenInner,
-                        seenWildcards,
-                        viewQueries,
-                        depth,
-                        planListener.delegateFailureAndWrap((l, result) -> {
-                            plan.forEachDown(resolvedPlans::add);
-                            // Also mark the resolved result subtree so transformDown does not
-                            // re-process view-body nodes the UnresolvedRelation was replaced with.
-                            result.forEachDown(resolvedPlans::add);
-                            l.onResponse(result);
-                        })
-                    );
-                    return;
-                }
-                default -> {
-                }
+                    })
+                );
+                case UnresolvedRelation ur -> replaceViewsUnresolvedRelation(
+                    ur,
+                    parser,
+                    seenInner,
+                    seenWildcards,
+                    viewQueries,
+                    depth,
+                    planListener.delegateFailureAndWrap((l, result) -> {
+                        plan.forEachDown(resolvedPlans::add);
+                        // Also mark the resolved result subtree so transformDown does not
+                        // re-process view-body nodes the UnresolvedRelation was replaced with.
+                        result.forEachDown(resolvedPlans::add);
+                        l.onResponse(result);
+                    })
+                );
+                default -> planListener.onResponse(p);
             }
-            planListener.onResponse(p);
         }, listener);
     }
 

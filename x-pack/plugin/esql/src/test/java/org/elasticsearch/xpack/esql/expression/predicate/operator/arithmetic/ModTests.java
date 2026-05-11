@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -146,6 +147,76 @@ public class ModTests extends AbstractScalarFunctionTestCase {
                 false
             )
         );
+
+        // Constant-divisor fast path: when the right-hand side is a foldable scalar,
+        // Mod#toEvaluator dispatches to ModXxxByConstantEvaluator instead of the binary
+        // evaluator. These cases verify the dispatch + Cast hookup for each numeric
+        // common type, including the two widening combinations.
+        suppliers.add(new TestCaseSupplier("Int % literal Int", List.of(DataType.INTEGER, DataType.INTEGER), () -> {
+            int lhs = randomInt();
+            int rhs = randomValueOtherThan(0, ESTestCase::randomInt);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataType.INTEGER, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs").forceLiteral()
+                ),
+                "ModIntsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]",
+                DataType.INTEGER,
+                equalTo(lhs % rhs)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("Long % literal Long", List.of(DataType.LONG, DataType.LONG), () -> {
+            long lhs = randomLong();
+            long rhs = randomValueOtherThan(0L, ESTestCase::randomLong);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataType.LONG, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.LONG, "rhs").forceLiteral()
+                ),
+                "ModLongsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]",
+                DataType.LONG,
+                equalTo(lhs % rhs)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("Long % literal Int", List.of(DataType.LONG, DataType.INTEGER), () -> {
+            long lhs = randomLong();
+            int rhs = randomValueOtherThan(0, ESTestCase::randomInt);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataType.LONG, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs").forceLiteral()
+                ),
+                "ModLongsByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + (long) rhs + "]",
+                DataType.LONG,
+                equalTo(lhs % (long) rhs)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("Int % literal Long", List.of(DataType.INTEGER, DataType.LONG), () -> {
+            int lhs = randomInt();
+            long rhs = randomValueOtherThan(0L, ESTestCase::randomLong);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataType.INTEGER, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.LONG, "rhs").forceLiteral()
+                ),
+                "ModLongsByConstantEvaluator[lhs=CastIntToLongEvaluator[v=Attribute[channel=0]], rhs=" + rhs + "]",
+                DataType.LONG,
+                equalTo((long) lhs % rhs)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier("Double % literal Double", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+            double lhs = randomDoubleBetween(-1e9, 1e9, true);
+            double rhs = randomValueOtherThan(0.0d, () -> randomDoubleBetween(-1e6, 1e6, false));
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataType.DOUBLE, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataType.DOUBLE, "rhs").forceLiteral()
+                ),
+                "ModDoublesByConstantEvaluator[lhs=Attribute[channel=0], rhs=" + rhs + "]",
+                DataType.DOUBLE,
+                equalTo(lhs % rhs)
+            );
+        }));
 
         suppliers = anyNullIsNull(true, suppliers);
 

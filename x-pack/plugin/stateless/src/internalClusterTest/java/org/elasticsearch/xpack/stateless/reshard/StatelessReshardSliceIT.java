@@ -21,6 +21,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.reindex.management.ReindexManagementPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -209,6 +210,7 @@ public class StatelessReshardSliceIT extends AbstractStatelessPluginIntegTestCas
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(ReindexPlugin.class);
+        plugins.add(ReindexManagementPlugin.class);
         return plugins;
     }
 

@@ -107,9 +107,15 @@ public class ReindexValidator {
         SearchSourceBuilder source = request.getSearchRequest().source();
         assert source != null : "The search request source field was null";
         SliceBuilder sliceBuilder = source.slice();
-        // When manual slicing is used without a field, default to _id for consistent behavior with PIT (see paginate-search-results docs)
-        if (sliceBuilder != null && sliceBuilder.getField() == null) {
-            source.slice(new SliceBuilder(IdFieldMapper.NAME, sliceBuilder.getId(), sliceBuilder.getMax()));
+        if (sliceBuilder != null) {
+            // When manual slicing is used without a field, default to _id for consistent behavior with PIT (see paginate-search-results
+            // docs)
+            if (sliceBuilder.getField() == null) {
+                source.slice(new SliceBuilder(IdFieldMapper.NAME, sliceBuilder.getId(), sliceBuilder.getMax()));
+            }
+            // Manual slicing isn't compatible with shard-based slice optimization if the assignment of docs to shards can change between
+            // slices, such as if an index is resharded between slices.
+            source.slice(SliceBuilder.withoutShardOptimization(source.slice()));
         }
     }
 

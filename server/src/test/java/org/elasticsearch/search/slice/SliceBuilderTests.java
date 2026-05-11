@@ -52,6 +52,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.containsString;
@@ -67,7 +68,7 @@ public class SliceBuilderTests extends ESTestCase {
         int max = randomIntBetween(2, MAX_SLICE);
         int id = randomIntBetween(1, max - 1);
         String field = randomBoolean() ? randomAlphaOfLengthBetween(5, 20) : null;
-        return new SliceBuilder(field, id, max);
+        return randomBoolean() ? new SliceBuilder(field, id, max) : SliceBuilder.withoutShardOptimization(new SliceBuilder(field, id, max));
     }
 
     private static SliceBuilder serializedCopy(SliceBuilder original) throws IOException {
@@ -75,7 +76,7 @@ public class SliceBuilderTests extends ESTestCase {
     }
 
     private static SliceBuilder mutate(SliceBuilder original) {
-        switch (randomIntBetween(0, 2)) {
+        switch (randomIntBetween(0, 3)) {
             case 0:
                 String newField;
                 if (original.getField() == null) {
@@ -87,6 +88,12 @@ public class SliceBuilderTests extends ESTestCase {
             case 1:
                 return new SliceBuilder(original.getField(), original.getId() - 1, original.getMax());
             case 2:
+                if (original.optimizeByShard()) {
+                    return SliceBuilder.withoutShardOptimization(original);
+                } else {
+                    return new SliceBuilder(original.getField(), original.getId(), original.getMax());
+                }
+            case 3:
             default:
                 return new SliceBuilder(original.getField(), original.getId(), original.getMax() + 1);
         }
@@ -290,6 +297,49 @@ public class SliceBuilderTests extends ESTestCase {
 
             assertThat(query, instanceOf(TermsSliceQuery.class));
             assertThat(builder.toFilter(createScrollRequest(0, 1), context), equalTo(query));
+        }
+    }
+
+    public void testToFilterWithScrollAndShardOptimizationEnabled() throws IOException {
+        toFilterShardOptimization(true, true);
+    }
+
+    public void testToFilterWithScrollAndShardOptimizationDisabled() throws IOException {
+        toFilterShardOptimization(false, true);
+    }
+
+    public void testToFilterWithPitAndShardOptimizationEnabled() throws IOException {
+        toFilterShardOptimization(true, false);
+    }
+
+    public void testToFilterWithPitAndShardOptimizationDisabled() throws IOException {
+        toFilterShardOptimization(false, false);
+    }
+
+    private void toFilterShardOptimization(boolean shardOptimization, boolean scroll) throws IOException {
+        Directory dir = new ByteBuffersDirectory();
+        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
+            writer.commit();
+        }
+        BiFunction<Integer, Integer, ShardSearchRequest> createRequest = scroll
+            ? this::createScrollRequest
+            : this::createPointInTimeRequest;
+
+        try (IndexReader reader = DirectoryReader.open(dir)) {
+            SearchExecutionContext context = createShardContext(IndexVersion.current(), reader, "_id", null);
+            SliceBuilder builder = new SliceBuilder("_id", 5, 10);
+            if (shardOptimization == false) {
+                builder = SliceBuilder.withoutShardOptimization(builder);
+            }
+            // Force toFilter to take the numShards > 1
+            Query query = builder.toFilter(createRequest.apply(0, 10), context);
+
+            if (shardOptimization) {
+                assertThat(query, instanceOf(MatchNoDocsQuery.class));
+            } else {
+                assertThat(query, instanceOf(TermsSliceQuery.class));
+            }
+            assertThat(builder.toFilter(createRequest.apply(0, 10), context), equalTo(query));
         }
     }
 

@@ -11,6 +11,7 @@ package org.elasticsearch.search.slice;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,17 +46,20 @@ import java.util.Objects;
  */
 public class SliceBuilder implements Writeable, ToXContentObject {
 
+    private static final TransportVersion OPTIMIZE_BY_SHARD_VERSION = TransportVersion.fromName("optimize_by_shard");
     private static final MatchNoDocsQuery NOT_PART_OF_SLICE = new MatchNoDocsQuery("this shard is not part of the slice");
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
     private static final ParseField MAX_FIELD = new ParseField("max");
+    private static final ParseField OPTIMIZE_BY_SHARD_FIELD = new ParseField("optimize_by_shard");
     private static final ObjectParser<SliceBuilder, Void> PARSER = new ObjectParser<>("slice", SliceBuilder::new);
 
     static {
         PARSER.declareString(SliceBuilder::setField, FIELD_FIELD);
         PARSER.declareInt(SliceBuilder::setId, ID_FIELD);
         PARSER.declareInt(SliceBuilder::setMax, MAX_FIELD);
+        PARSER.declareBoolean(SliceBuilder::setOptimizeByShard, OPTIMIZE_BY_SHARD_FIELD);
     }
 
     /** Name of field to slice against. If null, a default slicing strategy is used. */
@@ -97,6 +101,9 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         field = in.readOptionalString();
         id = in.readVInt();
         max = in.readVInt();
+        if (in.getTransportVersion().supports(OPTIMIZE_BY_SHARD_VERSION)) {
+            optimizeByShard = in.readBoolean();
+        }
     }
 
     @Override
@@ -104,6 +111,9 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         out.writeOptionalString(field);
         out.writeVInt(id);
         out.writeVInt(max);
+        if (out.getTransportVersion().supports(OPTIMIZE_BY_SHARD_VERSION)) {
+            out.writeBoolean(optimizeByShard);
+        }
     }
 
     public static SliceBuilder withoutShardOptimization(SliceBuilder sb) {
@@ -160,6 +170,13 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         return max;
     }
 
+    /**
+     * Whether to optimize the slice query by shard.
+     */
+    public boolean optimizeByShard() {
+        return optimizeByShard;
+    }
+
     private void setOptimizeByShard(boolean optimizeByShard) {
         this.optimizeByShard = optimizeByShard;
     }
@@ -178,6 +195,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         }
         builder.field(ID_FIELD.getPreferredName(), id);
         builder.field(MAX_FIELD.getPreferredName(), max);
+        builder.field(OPTIMIZE_BY_SHARD_FIELD.getPreferredName(), optimizeByShard);
     }
 
     public static SliceBuilder fromXContent(XContentParser parser) throws IOException {
@@ -190,12 +208,12 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SliceBuilder that = (SliceBuilder) o;
-        return id == that.id && max == that.max && Objects.equals(field, that.field);
+        return id == that.id && max == that.max && optimizeByShard == that.optimizeByShard && Objects.equals(field, that.field);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.field, this.id, this.max);
+        return Objects.hash(this.field, this.id, this.max, this.optimizeByShard);
     }
 
     /**

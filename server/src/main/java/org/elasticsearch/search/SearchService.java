@@ -2094,9 +2094,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         if (source.slice() != null) {
             context.sliceBuilder(
-                // search with PIT is documented to require a shared PIT for consistency, and reindex currently still uses
-                // scroll for manual slicing (checked in StatelessReshardSliceIT). So we can continue to use shard optimization for PIT
-                // slices.
+                // Slicing with scroll cannot use shard-based slice optimization because resharding may change the
+                // assignment of documents to shards between slices. For PIT, the optimization is safe if the same
+                // PIT is used for each slice, which is already documented as a requirement for consistency:
+                // https://www.elastic.co/docs/reference/elasticsearch/clients/javascript/api-reference#_search
+                // Reindexing with manual slicing does use a separate PIT for each slice, but it takes care of
+                // disabling the shard optimization itself (see ReindexValidator::normalize).
                 context.request().scroll() != null && searchExecutionContext.indexVersionCreated().onOrAfter(SHARD_OBLIVIOUS_SLICING)
                     ? SliceBuilder.withoutShardOptimization(source.slice())
                     : source.slice()

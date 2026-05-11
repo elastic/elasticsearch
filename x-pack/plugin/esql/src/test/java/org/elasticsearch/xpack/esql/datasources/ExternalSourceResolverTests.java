@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -18,20 +17,20 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -43,6 +42,7 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -502,7 +502,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         List<Attribute> originalSchema = List.of(attr("a", DataType.INTEGER), attr("b", DataType.KEYWORD));
         ExternalSourceMetadata metadata = createStubMetadata("s3://bucket/file.parquet", originalSchema);
 
-        java.util.LinkedHashMap<String, DataType> partCols = new java.util.LinkedHashMap<>();
+        LinkedHashMap<String, DataType> partCols = new LinkedHashMap<>();
         partCols.put("year", DataType.INTEGER);
         partCols.put("region", DataType.KEYWORD);
         PartitionMetadata partitions = new PartitionMetadata(partCols, Map.of());
@@ -803,16 +803,12 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolver resolver = createResolver(schemasByPath, listingsByPrefix);
         PlainActionFuture<ExternalSourceResolution> future = new PlainActionFuture<>();
 
-        Map<String, Map<String, Expression>> pathParams = new HashMap<>();
+        Map<String, Map<String, Object>> pathConfigs = new HashMap<>();
         if (config.isEmpty() == false) {
-            Map<String, Expression> exprParams = new HashMap<>();
-            for (Map.Entry<String, Object> e : config.entrySet()) {
-                exprParams.put(e.getKey(), new Literal(Source.EMPTY, new BytesRef(e.getValue().toString()), DataType.KEYWORD));
-            }
-            pathParams.put(globPattern, exprParams);
+            pathConfigs.put(globPattern, new HashMap<>(config));
         }
 
-        resolver.resolve(List.of(globPattern), pathParams, future);
+        resolver.resolve(List.of(globPattern), pathConfigs, future);
         return future.actionGet();
     }
 
@@ -846,7 +842,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-                return Map.of("s3", s -> storageProvider);
+                return Map.of("s3", StorageProviderFactory.noConfigKeys(() -> storageProvider));
             }
 
             @Override
@@ -909,7 +905,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-                return Map.of("s3", s -> storageProvider);
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
             }
 
             @Override
@@ -929,6 +925,29 @@ public class ExternalSourceResolverTests extends ESTestCase {
         );
 
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
+    }
+
+    /**
+     * Builds a {@link StorageProviderFactory} that claims every configuration key as consumed.
+     * Used by tests that don't care about validation but do thread per-query config through;
+     * without this, FileSourceFactory's coordinator validation would reject keys like
+     * {@code access_key} that the stub doesn't actually parse.
+     */
+    private static StorageProviderFactory stubStorageProviderFactory(StorageProvider provider) {
+        return new StorageProviderFactory() {
+            @Override
+            public StorageProvider create(Settings settings) {
+                return provider;
+            }
+
+            @Override
+            public Configured<StorageProvider> createTrackingConsumedKeys(Settings settings, Map<String, Object> config) {
+                if (config == null || config.isEmpty()) {
+                    return Configured.empty(provider);
+                }
+                return new Configured<>(provider, Set.copyOf(config.keySet()));
+            }
+        };
     }
 
     private ExternalSourceResolver createResolverWithCache(
@@ -951,7 +970,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             @Override
             public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-                return Map.of("s3", s -> storageProvider);
+                return Map.of("s3", stubStorageProviderFactory(storageProvider));
             }
 
             @Override
@@ -975,7 +994,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
     // ===== Stub implementations =====
 
-    private static class StubFormatReader implements FormatReader {
+    private static class StubFormatReader implements NoConfigFormatReader {
+
         private final Map<String, List<Attribute>> schemasByPath;
 
         StubFormatReader(Map<String, List<Attribute>> schemasByPath) {
@@ -1040,7 +1060,8 @@ public class ExternalSourceResolverTests extends ESTestCase {
      * A StubFormatReader that also returns per-file row counts as statistics.
      * Used to test the aggregated stats path in multi-file resolution.
      */
-    private static class StubFormatReaderWithStats implements FormatReader {
+    private static class StubFormatReaderWithStats implements NoConfigFormatReader {
+
         private final Map<String, List<Attribute>> schemasByPath;
         private final Map<String, Long> rowCountsByPath;
 

@@ -13,7 +13,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.nvidia.NvidiaService;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -85,7 +84,6 @@ public class NvidiaRerankServiceSettings extends NvidiaServiceSettings {
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            NvidiaService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

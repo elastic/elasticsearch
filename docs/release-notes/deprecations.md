@@ -17,9 +17,6 @@ To give you insight into what deprecated features you’re using, {{es}}:
 % ## Next version [elasticsearch-nextversion-deprecations]
 
 ## 9.4.0 [elasticsearch-9.4.0-deprecations]
-```{applies_to}
-stack: ga 9.4.0
-```
 
 Data streams:
 * Deprecate the 'logs' stream type [#142148](https://github.com/elastic/elasticsearch/pull/142148)

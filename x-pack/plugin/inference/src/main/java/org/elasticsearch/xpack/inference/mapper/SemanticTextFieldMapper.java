@@ -328,7 +328,8 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
                         indexVersionCreated,
                         false,
                         experimentalFeaturesEnabled,
-                        vectorsFormatProviders
+                        vectorsFormatProviders,
+                        false
                     );
                     ExtendedDenseVectorIndexOptions extendedIndexOptions = indexOptions.get() != null
                         ? getExtendedDenseVectorIndexOptions(indexOptions.get())

@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
@@ -31,9 +31,8 @@ import java.util.concurrent.Executor;
  * Abstract transport action for resuming BulkByScrollAction operations asynchronously. Delegates to the corresponding action on the local
  * node, then returns a {@link ResumeBulkByScrollResponse} containing the task id of the delegate action.
  */
-public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>> extends HandledTransportAction<
-    ResumeBulkByScrollRequest,
-    ResumeBulkByScrollResponse> {
+public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractBulkByPaginatedSearchRequest<Request>> extends
+    HandledTransportAction<ResumeBulkByScrollRequest, ResumeBulkByScrollResponse> {
 
     private final ClusterService clusterService;
     private final ActionType<BulkByScrollResponse> delegateAction;

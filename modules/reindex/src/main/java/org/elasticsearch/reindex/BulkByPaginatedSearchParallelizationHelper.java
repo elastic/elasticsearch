@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.LeaderBulkByScrollTaskState;
@@ -40,7 +40,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.AUTO_SLICES;
+import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.AUTO_SLICES;
 
 /**
  * Helps parallelize reindex requests using slices. This is search agnostic, working for both scrolls and PITs (point-in-times)
@@ -63,7 +63,7 @@ class BulkByPaginatedSearchParallelizationHelper {
      *
      * This method is equivalent to calling {@link #initTaskState} followed by {@link #executeSlicedAction}
      */
-    static <Request extends AbstractBulkByScrollRequest<Request>> void startSlicedAction(
+    static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void startSlicedAction(
         Request request,
         BulkByScrollTask task,
         ActionType<BulkByScrollResponse> action,
@@ -95,7 +95,7 @@ class BulkByPaginatedSearchParallelizationHelper {
      * @param remoteVersion the version of the remote cluster when reindexing from remote, or null for local reindex
      * @param workerAction  invoked when this task is a worker, with the remote version (or null)
      */
-    static <Request extends AbstractBulkByScrollRequest<Request>> void executeSlicedAction(
+    static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void executeSlicedAction(
         BulkByScrollTask task,
         Request request,
         ActionType<BulkByScrollResponse> action,
@@ -122,7 +122,7 @@ class BulkByPaginatedSearchParallelizationHelper {
      * unsliced. This method does not execute the action. In order to execute the action see
      * {@link #executeSlicedAction}
      */
-    static <Request extends AbstractBulkByScrollRequest<Request>> void initTaskState(
+    static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void initTaskState(
         BulkByScrollTask task,
         Request request,
         Client client,
@@ -147,7 +147,7 @@ class BulkByPaginatedSearchParallelizationHelper {
         }
     }
 
-    private static <Request extends AbstractBulkByScrollRequest<Request>> void setWorkerCount(
+    private static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void setWorkerCount(
         Request request,
         BulkByScrollTask task,
         int slices
@@ -169,7 +169,7 @@ class BulkByPaginatedSearchParallelizationHelper {
         return Math.min(leastShards, AUTO_SLICE_CEILING);
     }
 
-    private static <Request extends AbstractBulkByScrollRequest<Request>> void sendSubRequests(
+    private static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void sendSubRequests(
         Client client,
         ActionType<BulkByScrollResponse> action,
         String localNodeId,

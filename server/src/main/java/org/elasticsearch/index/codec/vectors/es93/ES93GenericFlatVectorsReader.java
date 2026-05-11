@@ -97,35 +97,8 @@ class ES93GenericFlatVectorsReader extends FlatVectorsReader {
     }
 
     @Override
-    public FlatVectorsScorer getFlatVectorScorer(String field) {
-        // this should not actually be used at all
-        return new FlatVectorsScorer() {
-            @Override
-            public RandomVectorScorerSupplier getRandomVectorScorerSupplier(
-                VectorSimilarityFunction similarityFunction,
-                KnnVectorValues vectorValues
-            ) throws IOException {
-                throw new UnsupportedOperationException("Scorer should not be used");
-            }
-
-            @Override
-            public RandomVectorScorer getRandomVectorScorer(
-                VectorSimilarityFunction similarityFunction,
-                KnnVectorValues vectorValues,
-                float[] target
-            ) throws IOException {
-                throw new UnsupportedOperationException("Scorer should not be used");
-            }
-
-            @Override
-            public RandomVectorScorer getRandomVectorScorer(
-                VectorSimilarityFunction similarityFunction,
-                KnnVectorValues vectorValues,
-                byte[] target
-            ) throws IOException {
-                throw new UnsupportedOperationException("Scorer should not be used");
-            }
-        };
+    public FlatVectorsScorer getFlatVectorScorer(String field) throws IOException {
+        return genericReaders.getReaderForField(findField(field)).getFlatVectorScorer(field);
     }
 
     @Override

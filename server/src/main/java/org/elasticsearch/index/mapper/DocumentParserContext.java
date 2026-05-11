@@ -141,6 +141,11 @@ public abstract class DocumentParserContext {
         public BytesRef getTsid() {
             return in.getTsid();
         }
+
+        @Override
+        public List<LuceneDocument> luceneDocumentsInShardIndexOrder() {
+            return in.luceneDocumentsInShardIndexOrder();
+        }
     }
 
     /**
@@ -861,6 +866,12 @@ public abstract class DocumentParserContext {
      * the iterable will return an empty iterator.
      */
     public abstract Iterable<LuceneDocument> nonRootDocuments();
+
+    /**
+     * Returns all Lucene documents for this parse context in the order they must be passed to
+     * {@link org.apache.lucene.index.IndexWriter#addDocuments}: children before their parent.
+     */
+    public abstract List<LuceneDocument> luceneDocumentsInShardIndexOrder();
 
     /**
      * @return a RootObjectMapper.Builder to be used to construct a dynamic mapping update

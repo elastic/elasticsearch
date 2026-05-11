@@ -212,6 +212,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING,
                 IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING,
                 IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING,
+                IndexSettings.COLUMNAR_SOURCE_SETTING,
                 IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING,
                 IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING,
                 IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE,

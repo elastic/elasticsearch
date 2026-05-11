@@ -431,6 +431,9 @@ public class RootObjectMapper extends ObjectMapper {
     public static RootObjectMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
         throws MapperParsingException {
         Explicit<Subobjects> subobjects = parseSubobjects(node);
+        if (subobjects.value() != Subobjects.DISABLED && parserContext.getIndexSettings().getUseColumnarSource()) {
+            throw new MapperParsingException("columnar source requires [subobjects: false] on root mapping");
+        }
         RootObjectMapper.Builder builder = new Builder(name, subobjects);
         builder.addNamespaceValidator(parserContext.getNamespaceValidator());
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();

@@ -1,0 +1,102 @@
+columnar source requires subobjects false:
+  - do:
+      catch: "/columnar source requires \\[subobjects: false\\] on root mapping/"
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+              mapping.source.columnar: true
+          mappings:
+            properties:
+              kwd:
+                type: keyword
+
+---
+
+keyword synthetic source:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+              mapping.source.columnar: true
+          mappings:
+            subobjects: false
+            properties:
+              kwd:
+                type: keyword
+              field.kwd:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          kwd: foo
+          field:
+            kwd: bar
+
+  - do:
+      get:
+        index: test
+        id: 1
+
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: foo
+        field.kwd: bar
+  - is_false: fields
+
+---
+
+keyword stored source:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: stored
+              mapping.source.columnar: true
+          mappings:
+            subobjects: false
+            properties:
+              kwd:
+                type: keyword
+              field.kwd:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          kwd: foo
+          field:
+            kwd: bar
+
+  - do:
+      get:
+        index: test
+        id: 1
+
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        kwd: foo
+        field.kwd: bar
+  - is_false: fields

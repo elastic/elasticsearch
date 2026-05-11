@@ -12,8 +12,12 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
@@ -29,6 +33,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.SearchBasedChangesSnapshot;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.QueryShardException;
@@ -43,6 +48,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -86,6 +92,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
         false,
+        false,
         false
     );
 
@@ -94,6 +101,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
+        false,
         false,
         false
     );
@@ -104,6 +112,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
         false,
+        false,
         false
     );
 
@@ -112,6 +121,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY,
+        false,
         false,
         false
     );
@@ -168,6 +178,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private final boolean supportsNonDefaultParameterValues;
         private final boolean sourceModeIsNoop;
 
+        private boolean useColumnarSource;
+
         public Builder(
             IndexMode indexMode,
             final Settings settings,
@@ -195,10 +207,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 .setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)
                 // don't emit if `enabled` is configured
                 .setSerializerCheck((includeDefaults, isConfigured, value) -> serializeMode && value != null);
+            this.useColumnarSource = IndexSettings.COLUMNAR_SOURCE_SETTING.get(settings);
         }
 
         public Builder setSynthetic() {
             this.mode.setValue(Mode.SYNTHETIC);
+            return this;
+        }
+
+        public Builder setUseColumnarSource(boolean useColumnarSource) {
+            this.useColumnarSource = useColumnarSource;
             return this;
         }
 
@@ -208,7 +226,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         private boolean isDefault() {
-            return enabled.get().value() && includes.getValue().isEmpty() && excludes.getValue().isEmpty();
+            return enabled.get().value() && includes.getValue().isEmpty() && excludes.getValue().isEmpty() && useColumnarSource == false;
         }
 
         @Override
@@ -268,7 +286,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                     includes.getValue().toArray(Strings.EMPTY_ARRAY),
                     excludes.getValue().toArray(Strings.EMPTY_ARRAY),
                     serializeMode,
-                    sourceModeIsNoop
+                    sourceModeIsNoop,
+                    useColumnarSource
                 );
             }
             if (indexMode != null) {
@@ -372,6 +391,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final String[] includes;
     private final String[] excludes;
     private final SourceFilter sourceFilter;
+    private final boolean useColumnarSource;
 
     private SourceFieldMapper(
         Mode mode,
@@ -379,7 +399,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         String[] includes,
         String[] excludes,
         boolean serializeMode,
-        boolean sourceModeIsNoop
+        boolean sourceModeIsNoop,
+        boolean useColumnarSource
     ) {
         super(new SourceFieldType((enabled.explicit() && enabled.value()) || (enabled.explicit() == false && mode != Mode.DISABLED)));
         this.mode = mode;
@@ -390,6 +411,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.complete = stored() && sourceFilter == null;
         this.serializeMode = serializeMode;
         this.sourceModeIsNoop = sourceModeIsNoop;
+        this.useColumnarSource = useColumnarSource;
     }
 
     private static SourceFilter buildSourceFilter(String[] includes, String[] excludes) {
@@ -429,7 +451,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final var storedSource = stored() ? removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType) : null;
         final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
 
-        if (adaptedStoredSource != null) {
+        if (adaptedStoredSource != null && useColumnarSource == false) {
             final BytesRef ref = adaptedStoredSource.toBytesRef();
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
@@ -453,6 +475,39 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             var recoverySource = removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType).toBytesRef();
             context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, recoverySource.bytes, recoverySource.offset, recoverySource.length));
             context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
+        }
+    }
+
+    @Override
+    public void postParse(DocumentParserContext context) throws IOException {
+        if (useColumnarSource == false || stored() == false) {
+            return;
+        }
+        List<LuceneDocument> docs = context.luceneDocumentsInShardIndexOrder();
+        int docId = docs.size() - 1;
+        try (var directory = new ByteBuffersDirectory()) {
+            try (var writer = new IndexWriter(directory, new IndexWriterConfig())) {
+                writer.addDocuments(docs);
+            }
+            try (var indexReader = DirectoryReader.open(directory)) {
+                var leafCtx = indexReader.leaves().get(0);
+                int[] docIds = new int[] { docId };
+                var sourceLoader = new SourceLoader.Synthetic(
+                    sourceFilter,
+                    () -> context.mappingLookup().getMapping().syntheticFieldLoader(sourceFilter),
+                    SourceFieldMetrics.NOOP,
+                    context.mappingLookup().getMapping().ignoredSourceFormat()
+                );
+                var sourceLeafLoader = sourceLoader.leaf(leafCtx.reader(), docIds);
+                var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields())
+                    .getLoader(leafCtx, docIds);
+                storedFieldLoader.advanceTo(docId);
+                try (var b = new XContentBuilder(context.sourceToParse().getXContentType().xContent(), new ByteArrayOutputStream())) {
+                    sourceLeafLoader.write(storedFieldLoader, docId, b);
+                    final BytesRef ref = BytesReference.bytes(b).toBytesRef();
+                    context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
+                }
+            }
         }
     }
 
@@ -539,7 +594,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        Builder b = new Builder(null, Settings.EMPTY, sourceModeIsNoop, false, serializeMode);
+        Builder b = new Builder(null, Settings.EMPTY, sourceModeIsNoop, false, serializeMode).setUseColumnarSource(useColumnarSource);
         b.fallbackMode = this.mode;
         b.init(this);
         return b;

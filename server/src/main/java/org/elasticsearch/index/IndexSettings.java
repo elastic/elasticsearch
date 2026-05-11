@@ -878,6 +878,14 @@ public final class IndexSettings {
         Setting.Property.ServerlessPublic
     );
 
+    public static final Setting<Boolean> COLUMNAR_SOURCE_SETTING = Setting.boolSetting(
+        "index.mapping.source.columnar",
+        false,
+        Property.Final,
+        Property.IndexScope,
+        Property.ServerlessPublic
+    );
+
     public static final Setting<Boolean> RECOVERY_USE_SYNTHETIC_SOURCE_SETTING = Setting.boolSetting(
         "index.recovery.use_synthetic_source",
         settings -> {
@@ -1263,6 +1271,7 @@ public final class IndexSettings {
     private volatile boolean skipIgnoredSourceWrite;
     private volatile boolean skipIgnoredSourceRead;
     private final SourceFieldMapper.Mode indexMappingSourceMode;
+    private final boolean useColumnarSource;
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
     private final boolean useDocValuesSkipper;
@@ -1478,6 +1487,7 @@ public final class IndexSettings {
         hnswFilterHeuristic = scopedSettings.get(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC);
         earlyTermination = scopedSettings.get(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION);
         indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
+        useColumnarSource = scopedSettings.get(COLUMNAR_SOURCE_SETTING);
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
@@ -2229,6 +2239,10 @@ public final class IndexSettings {
 
     public SourceFieldMapper.Mode getIndexMappingSourceMode() {
         return indexMappingSourceMode;
+    }
+
+    public boolean getUseColumnarSource() {
+        return useColumnarSource;
     }
 
     public IgnoredSourceFieldMapper.IgnoredSourceFormat getIgnoredSourceFormat() {

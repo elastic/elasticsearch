@@ -1,0 +1,260 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes ]
+      reason: "Support for columnar index modes required"
+
+---
+"Create columnar index, index docs, and retrieve them":
+  - do:
+      indices.create:
+        index: test-columnar
+        body:
+          settings:
+            index:
+              mode: columnar
+              number_of_shards: 2
+              number_of_replicas: 0
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - do:
+      bulk:
+        index: test-columnar
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-06-01T10:00:00Z", "agent_id": "agent-1", "process_id": 101, "http_method": "GET", "message": "Hello from columnar" }
+          - { "index": { } }
+          - { "@timestamp": "2024-06-01T10:01:00Z", "agent_id": "agent-2", "process_id": 102, "http_method": "POST", "message": "Second doc in columnar" }
+          - { "index": { } }
+          - { "@timestamp": "2024-06-01T10:02:00Z", "agent_id": "agent-1", "process_id": 103, "http_method": "GET", "message": "Third doc in columnar" }
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test-columnar
+        body:
+          query:
+            match_all: {}
+          sort: "@timestamp"
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._source.agent_id: "agent-1" }
+  - match: { hits.hits.0._source.process_id: 101 }
+  - match: { hits.hits.0._source.http_method: "GET" }
+  - match: { hits.hits.0._source.message: "Hello from columnar" }
+  - match: { hits.hits.1._source.agent_id: "agent-2" }
+  - match: { hits.hits.1._source.process_id: 102 }
+  - match: { hits.hits.1._source.http_method: "POST" }
+  - match: { hits.hits.1._source.message: "Second doc in columnar" }
+  - match: { hits.hits.2._source.agent_id: "agent-1" }
+  - match: { hits.hits.2._source.process_id: 103 }
+  - match: { hits.hits.2._source.http_method: "GET" }
+  - match: { hits.hits.2._source.message: "Third doc in columnar" }
+
+  - do:
+      indices.get_settings:
+        index: test-columnar
+
+  - match: { test-columnar.settings.index.mode: "columnar" }
+
+---
+"Create columnar data stream, index docs, and retrieve them":
+  - do:
+      allowed_warnings:
+        - "index template [columnar-template] has index patterns [columnar-logs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [columnar-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: columnar-template
+        body:
+          index_patterns: [ "columnar-logs*" ]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: columnar
+                number_of_replicas: 0
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                agent_id:
+                  type: keyword
+                process_id:
+                  type: integer
+                message:
+                  type: text
+
+  - do:
+      bulk:
+        index: columnar-logs
+        refresh: true
+        body:
+          - { "create": { } }
+          - { "@timestamp": "2024-06-01T10:00:00Z", "agent_id": "agent-1", "process_id": 101, "message": "First log entry" }
+          - { "create": { } }
+          - { "@timestamp": "2024-06-01T10:01:00Z", "agent_id": "agent-2", "process_id": 102, "message": "Second log entry" }
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: columnar-logs
+        body:
+          query:
+            match_all: {}
+          sort: "@timestamp"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.agent_id: "agent-1" }
+  - match: { hits.hits.0._source.process_id: 101 }
+  - match: { hits.hits.0._source.message: "First log entry" }
+  - match: { hits.hits.1._source.agent_id: "agent-2" }
+  - match: { hits.hits.1._source.process_id: 102 }
+  - match: { hits.hits.1._source.message: "Second log entry" }
+
+---
+"Create columnar_logsdb index, index docs, and retrieve them":
+  - do:
+      indices.create:
+        index: test-columnar-logsdb
+        body:
+          settings:
+            index:
+              mode: columnar_logsdb
+              number_of_shards: 2
+              number_of_replicas: 0
+          mappings:
+            subobjects: false
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - do:
+      bulk:
+        index: test-columnar-logsdb
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-06-01T10:00:00Z", "host.name": "host-a", "agent_id": "agent-1", "process_id": 101, "http_method": "GET", "message": "Hello from columnar_logsdb" }
+          - { "index": { } }
+          - { "@timestamp": "2024-06-01T10:01:00Z", "host.name": "host-b", "agent_id": "agent-2", "process_id": 102, "http_method": "POST", "message": "Second doc in columnar_logsdb" }
+          - { "index": { } }
+          - { "@timestamp": "2024-06-01T10:02:00Z", "host.name": "host-a", "agent_id": "agent-1", "process_id": 103, "http_method": "GET", "message": "Third doc in columnar_logsdb" }
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: test-columnar-logsdb
+        body:
+          query:
+            match_all: {}
+          sort: "@timestamp"
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._source.agent_id: "agent-1" }
+  - match: { hits.hits.0._source.process_id: 101 }
+  - match: { hits.hits.0._source.http_method: "GET" }
+  - match: { hits.hits.0._source.message: "Hello from columnar_logsdb" }
+  - match: { hits.hits.0._source.host\.name: "host-a" }
+  - match: { hits.hits.1._source.agent_id: "agent-2" }
+  - match: { hits.hits.1._source.process_id: 102 }
+  - match: { hits.hits.1._source.http_method: "POST" }
+  - match: { hits.hits.1._source.message: "Second doc in columnar_logsdb" }
+  - match: { hits.hits.1._source.host\.name: "host-b" }
+  - match: { hits.hits.2._source.agent_id: "agent-1" }
+  - match: { hits.hits.2._source.process_id: 103 }
+  - match: { hits.hits.2._source.http_method: "GET" }
+  - match: { hits.hits.2._source.message: "Third doc in columnar_logsdb" }
+  - match: { hits.hits.2._source.host\.name: "host-a" }
+
+  - do:
+      indices.get_settings:
+        index: test-columnar-logsdb
+
+  - match: { test-columnar-logsdb.settings.index.mode: "columnar_logsdb" }
+
+---
+"Create columnar_logsdb data stream, index docs, and retrieve them":
+  - do:
+      allowed_warnings:
+        - "index template [columnar-logsdb-template] has index patterns [columnar-logsdb-logs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [columnar-logsdb-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: columnar-logsdb-template
+        body:
+          index_patterns: [ "columnar-logsdb-logs*" ]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: columnar_logsdb
+                number_of_replicas: 0
+            mappings:
+              subobjects: false
+              properties:
+                "@timestamp":
+                  type: date
+                host.name:
+                  type: keyword
+                agent_id:
+                  type: keyword
+                process_id:
+                  type: integer
+                message:
+                  type: text
+
+  - do:
+      bulk:
+        index: columnar-logsdb-logs
+        refresh: true
+        body:
+          - { "create": { } }
+          - { "@timestamp": "2024-06-01T10:00:00Z", "host.name": "host-a", "agent_id": "agent-1", "process_id": 101, "message": "First log entry" }
+          - { "create": { } }
+          - { "@timestamp": "2024-06-01T10:01:00Z", "host.name": "host-b", "agent_id": "agent-2", "process_id": 102, "message": "Second log entry" }
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: columnar-logsdb-logs
+        body:
+          query:
+            match_all: {}
+          sort: "@timestamp"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.agent_id: "agent-1" }
+  - match: { hits.hits.0._source.process_id: 101 }
+  - match: { hits.hits.0._source.message: "First log entry" }
+  - match: { hits.hits.0._source.host\.name: "host-a" }
+  - match: { hits.hits.1._source.agent_id: "agent-2" }
+  - match: { hits.hits.1._source.process_id: 102 }
+  - match: { hits.hits.1._source.message: "Second log entry" }
+  - match: { hits.hits.1._source.host\.name: "host-b" }

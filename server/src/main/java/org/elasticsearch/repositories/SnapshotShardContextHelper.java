@@ -174,8 +174,14 @@ public class SnapshotShardContextHelper {
             if (isShardRelocated != null && isShardRelocated.getAsBoolean()) {
                 return NOOP_RELEASABLE;
             }
-            assert false : shardId + " commit released earlier with status " + snapshotStatus;
-            throw new IndexShardSnapshotFailedException(shardId, "commit released while starting snapshot " + snapshotId);
+            throw new IndexShardSnapshotFailedException(
+                shardId,
+                Strings.format(
+                    "commit released while shard snapshot [%s] was still initializing (status [%s]); likely shard closure or failover",
+                    snapshotId,
+                    snapshotStatus
+                )
+            );
         }
     }
 

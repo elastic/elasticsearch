@@ -371,7 +371,7 @@ describe("generateBatchCommand", () => {
       },
     ];
     expect(generateBatchCommand(batch)).toBe(
-      ".ci/scripts/run-gradle.sh -Dtests.iters=10 -Dtests.timeoutSuite=3600000! :server:internalClusterTest --tests org.elasticsearch.cluster.ClusterIT"
+      ".ci/scripts/run-gradle.sh -Dtests.iters=1 -Dtests.timeoutSuite=3600000! :server:internalClusterTest --tests org.elasticsearch.cluster.ClusterIT"
     );
   });
 

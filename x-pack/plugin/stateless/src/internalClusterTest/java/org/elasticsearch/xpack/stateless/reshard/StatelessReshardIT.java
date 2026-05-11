@@ -208,7 +208,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     public void testRoutingAfterSplittingMultipleShards() {
-        String indexNode = startMasterAndIndexNode();
+        startMasterAndIndexNode();
         startSearchNode();
 
         ensureStableCluster(2);

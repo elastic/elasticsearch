@@ -142,6 +142,8 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       systemProperty 'tests.path.repo', "${layout.buildDirectory.file("cluster/shared/repo/${baseName}").get().asFile}"
       systemProperty 'tests.bwc_nodes_version', bwcVersion.toString().replace('-SNAPSHOT', '')
       systemProperty 'tests.new_nodes_version', project.version.toString().replace('-SNAPSHOT', '')
+      // Shot in the dark, assuming ICSS delay causes timeouts
+      systemProperty 'tests.client.socket.timeout', '180s'
       def bwcEnabled = project.bwc_tests_enabled
       onlyIf("BWC tests disabled") { bwcEnabled }
     }

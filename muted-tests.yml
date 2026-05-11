@@ -617,3 +617,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
   method: test {csv-spec:external-basic.aggregateSumSalary [GCS]}
   issue: https://github.com/elastic/elasticsearch/issues/148744
+- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
+  method: testDynamicSettingUpdateAffectsSubsequentDocuments
+  issue: https://github.com/elastic/elasticsearch/issues/148745

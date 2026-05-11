@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.WindowFilter;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DeltaOnlyHistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMerge;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
@@ -7736,7 +7737,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
         assertFalse(mergePerSeries.hasFilter());
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
 
@@ -7767,7 +7768,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
         assertTrue(mergePerSeries.hasFilter());
         assertThat(mergePerSeries.filter(), instanceOf(Equals.class));
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
@@ -7800,7 +7801,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var crossSeriesMerge = as(Alias.unwrap(finalAgg.aggregates().get(0)), HistogramMerge.class);
         assertFalse(crossSeriesMerge.hasFilter());
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
         assertFalse(mergePerSeries.hasFilter());
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
 
@@ -7832,7 +7833,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var crossSeriesMerge = as(Alias.unwrap(finalAgg.aggregates().get(0)), HistogramMerge.class);
         assertFalse(crossSeriesMerge.hasFilter());
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
         assertTrue(mergePerSeries.hasFilter());
         assertThat(mergePerSeries.filter(), instanceOf(Equals.class));
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
@@ -7864,7 +7865,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         var sumExtraction = as(Alias.unwrap(sumExtractionEval.expressions().get(0)), ExtractHistogramComponent.class);
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
         assertFalse(mergePerSeries.hasFilter());
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
 
@@ -7896,7 +7897,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var crossSeriesMerge = as(Alias.unwrap(finalAgg.aggregates().get(0)), HistogramMerge.class);
         assertFalse(crossSeriesMerge.hasFilter());
 
-        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), HistogramMerge.class);
+        var mergePerSeries = as(Alias.unwrap(aggsByTsid.aggregates().get(0)), DeltaOnlyHistogramMergeOverTime.class);
         assertFalse(mergePerSeries.hasFilter());
         assertThat(Expressions.attribute(mergePerSeries.field()).name(), equalTo("responseTime"));
 

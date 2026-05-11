@@ -17,7 +17,10 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -26,13 +29,18 @@ import java.util.concurrent.locks.ReentrantLock;
  * each owning its own per-slot state of type {@code W}. The owning {@link Operator}
  * holds an instance via composition and forwards its lifecycle calls (addInput /
  * finish / getOutput / isBlocked / close) to this helper's same-named methods.
- * Subclasses route incoming pages to worker slots via the {@link Dispatcher} callback;
- * this class submits each routed page to {@code executor}, holds a per-slot lock so
- * that {@link #processPage} is only ever invoked single-threaded on a given state,
- * tracks in-flight count for backpressure, and cooperatively yields via
- * {@link #isBlocked()}. Once {@link #finish()} has been called and all in-flight
- * work has drained, {@link #mergeAndBuildResult} is invoked once on the Driver
- * thread to produce the output iterator.
+ * Subclasses route incoming pages to worker slots via the {@link Dispatcher} callback.
+ * Each slot owns a small inbox queue and an at-most-one-task-running invariant: when
+ * the Driver enqueues a page, it CAS-claims the slot's running flag and submits a
+ * single drain task; the drain task processes the inbox until empty before exiting.
+ * This gives "soft affinity" — the same executor thread handles a burst of pages
+ * for the same slot, keeping caches warm — and prevents multiple threads from
+ * parking on a per-slot lock the way a one-task-per-page model would.
+ *
+ * <p>This class tracks an in-flight count for backpressure and cooperatively yields
+ * via {@link #isBlocked()}. Once {@link #finish()} has been called and all in-flight
+ * work has drained, {@link #mergeAndBuildResult} is invoked once on the Driver thread
+ * to produce the output iterator.
  *
  * <p>This class is intentionally <em>not</em> an {@link Operator}: it is only ever
  * used as an internal helper. Its method shapes mirror Operator's lifecycle so the
@@ -47,8 +55,9 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * <p>Threading: {@link #createWorkerState}, {@link #dispatch}, {@link #mergeAndBuildResult},
  * and all forwarded lifecycle methods run on the Driver thread. {@link #processPage}
- * runs on a worker thread under the slot's lock; the state passed to it is therefore
- * touched single-threaded.
+ * runs on a worker thread. The "one drain task per slot" invariant guarantees the slot
+ * state is touched single-threaded — the per-slot lock exists only as a
+ * close-vs-active-drain coordination primitive and is uncontended on the hot path.
  */
 public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
 
@@ -176,57 +185,101 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
         inFlight.incrementAndGet();
         driverContext.addAsyncAction();
         page.allowPassingToDifferentDriver();
-        boolean submitted = false;
+        slot.inbox.add(page);
+        if (slot.running.compareAndSet(false, true)) {
+            scheduleDrain(slot);
+        }
+        // else: an existing drain task will pick this page up.
+    }
+
+    /**
+     * Submit a drain task for {@code slot} to the executor. The caller is the
+     * exclusive owner of {@code slot.running == true} (won the CAS). On rejection,
+     * we have to surface the failure and clear the inbox + flag ourselves since no
+     * drain task will run.
+     */
+    private void scheduleDrain(WorkerSlot<W> slot) {
         try {
             executor.execute(new AbstractRunnable() {
                 @Override
                 protected void doRun() {
-                    if (closed || failureCollector.hasFailure()) {
-                        return;
-                    }
-                    slot.lock.lock();
-                    try {
-                        W state = slot.state;
-                        if (state == null) {
-                            return;   // close() raced ahead
-                        }
-                        processPage(state, page);
-                    } finally {
-                        slot.lock.unlock();
-                    }
+                    drainSlot(slot);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
+                    // doRun internally guards processPage with try/catch, so reaching here means
+                    // something outside the per-page work failed (lock acquisition, executor
+                    // wrapping, etc.). Clear running so a future producer can re-claim.
                     failureCollector.unwrapAndCollect(e);
-                }
-
-                @Override
-                public void onAfter() {
-                    page.releaseBlocks();
-                    inFlight.decrementAndGet();
-                    driverContext.removeAsyncAction();
+                    slot.running.set(false);
                     notifyIfBlocked();
                 }
 
                 @Override
                 public void onRejection(Exception e) {
-                    // onAfter does NOT fire on rejection; unwind manually.
+                    handleRejection(slot, e);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            // Synchronous rejection — onRejection wasn't invoked.
+            handleRejection(slot, e);
+        }
+    }
+
+    /**
+     * Drain {@code slot.inbox} on a worker thread. Holds {@code slot.lock} for the
+     * duration of the drain so {@link #close()} can wait for active processing to
+     * finish before tearing down state. On exit, clears {@code slot.running} and
+     * checks for the producer-added-page race; if a page snuck into the inbox
+     * between the loop ending and the flag clearing, re-claim and resubmit.
+     */
+    private void drainSlot(WorkerSlot<W> slot) {
+        slot.lock.lock();
+        try {
+            Page page;
+            while ((page = slot.inbox.poll()) != null) {
+                try {
+                    W state = slot.state;
+                    if (closed == false && failureCollector.hasFailure() == false && state != null) {
+                        processPage(state, page);
+                    }
+                } catch (Exception e) {
                     failureCollector.unwrapAndCollect(e);
+                } finally {
                     page.releaseBlocks();
                     inFlight.decrementAndGet();
                     driverContext.removeAsyncAction();
                     notifyIfBlocked();
                 }
-            });
-            submitted = true;
+            }
         } finally {
-            if (submitted == false) {
-                // executor.execute itself threw rather than invoking onRejection.
+            slot.lock.unlock();
+        }
+        // Exit protocol: clear running, then re-check for the producer-add race.
+        slot.running.set(false);
+        if (slot.inbox.peek() != null && slot.running.compareAndSet(false, true)) {
+            scheduleDrain(slot);
+        }
+    }
+
+    /**
+     * Synchronously drain {@code slot.inbox} when the executor refused to run our
+     * drain task. We're the claim holder ({@code slot.running == true}); release
+     * every page we promised to process, surface the failure, and clear the flag.
+     */
+    private void handleRejection(WorkerSlot<W> slot, Exception cause) {
+        failureCollector.unwrapAndCollect(cause);
+        try {
+            Page page;
+            while ((page = slot.inbox.poll()) != null) {
                 page.releaseBlocks();
                 inFlight.decrementAndGet();
                 driverContext.removeAsyncAction();
             }
+        } finally {
+            slot.running.set(false);
+            notifyIfBlocked();
         }
     }
 
@@ -325,8 +378,21 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
         Releasables.closeExpectNoException(output);
         output = null;
         for (WorkerSlot<W> slot : workers) {
+            // Acquiring the lock waits for any active drain task to finish before we
+            // release state. Drain tasks already running will observe closed==true on
+            // each iteration and short-circuit, so the wait is bounded by at most one
+            // in-flight page per slot.
             slot.lock.lock();
             try {
+                // Release any inbox stragglers — pages enqueued by the Driver but never
+                // picked up by a drain task (e.g. close() racing with submitTo, or a
+                // drain task exited before observing the latest enqueue).
+                Page page;
+                while ((page = slot.inbox.poll()) != null) {
+                    page.releaseBlocks();
+                    inFlight.decrementAndGet();
+                    driverContext.removeAsyncAction();
+                }
                 Releasables.closeExpectNoException(slot.state);
                 slot.state = null;
             } finally {
@@ -336,7 +402,12 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
     }
 
     private static final class WorkerSlot<W extends Releasable> {
+        /** Held by the active drain task and by {@link #close()}; uncontended on the hot path. */
         final ReentrantLock lock = new ReentrantLock();
+        /** Pages awaiting this slot. Drain task polls; submitters append. */
+        final ConcurrentLinkedDeque<Page> inbox = new ConcurrentLinkedDeque<>();
+        /** True iff a drain task is currently scheduled or running for this slot. */
+        final AtomicBoolean running = new AtomicBoolean(false);
         W state;
 
         WorkerSlot(W state) {

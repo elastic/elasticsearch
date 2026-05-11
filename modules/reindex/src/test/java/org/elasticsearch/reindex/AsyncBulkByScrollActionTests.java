@@ -59,7 +59,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
@@ -138,7 +138,7 @@ import static org.mockito.Mockito.when;
 
 public class AsyncBulkByScrollActionTests extends ESTestCase {
     private MyMockClient client;
-    private DummyAbstractBulkByScrollRequest testRequest;
+    private DummyAbstractBulkByPaginatedSearchRequest testRequest;
     private PlainActionFuture<BulkByScrollResponse> listener;
     private String scrollId;
     private ThreadPool threadPool;
@@ -158,7 +158,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         threadPool = new TestThreadPool(getTestName());
         setupClient(threadPool);
-        testRequest = new DummyAbstractBulkByScrollRequest(new SearchRequest());
+        testRequest = new DummyAbstractBulkByPaginatedSearchRequest(new SearchRequest());
         testRequest.setEligibleForRelocationOnShutdown(true); // for relocation tests
         listener = new PlainActionFuture<>();
         scrollId = null;
@@ -1492,6 +1492,27 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertEquals("timestamp", ((FieldSortBuilder) preparedSearchRequest.source().sorts().getFirst()).getFieldName());
     }
 
+    public void testPrepareSearchRequestEnablesAccurateTrackTotalHitsForPit() {
+        configurePitOrScroll(true);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        assertEquals(Integer.valueOf(Integer.MAX_VALUE), preparedSearchRequest.source().trackTotalHitsUpTo());
+    }
+
+    public void testPrepareSearchRequestDoesNotSetTrackTotalHitsForScroll() {
+        configurePitOrScroll(false);
+        assertNull(testRequest.getSearchRequest().source().trackTotalHitsUpTo());
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        assertNull(preparedSearchRequest.source().trackTotalHitsUpTo());
+    }
+
+    public void testPrepareSearchRequestPreservesExplicitTrackTotalHits() {
+        configurePitOrScroll(randomBoolean());
+        int userTrackTotalHitsUpTo = randomIntBetween(1, 1000);
+        testRequest.getSearchRequest().source().trackTotalHitsUpTo(userTrackTotalHitsUpTo);
+        var preparedSearchRequest = AbstractAsyncBulkByScrollAction.prepareSearchRequest(testRequest, false, false, false, null);
+        assertEquals(Integer.valueOf(userTrackTotalHitsUpTo), preparedSearchRequest.source().trackTotalHitsUpTo());
+    }
+
     /**
      * When using PIT, verifies that the action builds a {@link ClientPitPaginatedHitSource} as its paginated hit source.
      */
@@ -2007,7 +2028,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private class DummyAsyncBulkByScrollAction extends AbstractAsyncBulkByScrollAction<
-        DummyAbstractBulkByScrollRequest,
+        DummyAbstractBulkByPaginatedSearchRequest,
         DummyTransportAsyncBulkByScrollAction> {
 
         DummyAsyncBulkByScrollAction() {
@@ -2060,7 +2081,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private static class DummyTransportAsyncBulkByScrollAction extends TransportAction<
-        DummyAbstractBulkByScrollRequest,
+        DummyAbstractBulkByPaginatedSearchRequest,
         BulkByScrollResponse> {
 
         protected DummyTransportAsyncBulkByScrollAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
@@ -2068,24 +2089,34 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
 
         @Override
-        protected void doExecute(Task task, DummyAbstractBulkByScrollRequest request, ActionListener<BulkByScrollResponse> listener) {
+        protected void doExecute(
+            Task task,
+            DummyAbstractBulkByPaginatedSearchRequest request,
+            ActionListener<BulkByScrollResponse> listener
+        ) {
             // no-op
         }
     }
 
-    private static class DummyAbstractBulkByScrollRequest extends AbstractBulkByScrollRequest<DummyAbstractBulkByScrollRequest> {
+    private static class DummyAbstractBulkByPaginatedSearchRequest extends AbstractBulkByPaginatedSearchRequest<
+        DummyAbstractBulkByPaginatedSearchRequest> {
 
-        DummyAbstractBulkByScrollRequest(SearchRequest searchRequest) {
+        DummyAbstractBulkByPaginatedSearchRequest(SearchRequest searchRequest) {
             super(searchRequest, true);
         }
 
         @Override
-        public DummyAbstractBulkByScrollRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
+        public DummyAbstractBulkByPaginatedSearchRequest forSlice(
+            TaskId slicingTask,
+            SearchRequest slice,
+            int totalSlices,
+            int activeSlices
+        ) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        protected DummyAbstractBulkByScrollRequest self() {
+        protected DummyAbstractBulkByPaginatedSearchRequest self() {
             return this;
         }
     }

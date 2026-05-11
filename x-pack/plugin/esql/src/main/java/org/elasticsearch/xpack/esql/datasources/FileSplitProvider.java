@@ -103,6 +103,14 @@ public class FileSplitProvider implements SplitProvider {
     static final String CONFIG_TARGET_SPLIT_SIZE = "target_split_size";
 
     /**
+     * Configuration keys this splitter consumes from a query-time configuration map. Aggregated by
+     * {@link FileSourceFactory#COORDINATOR_KEYS}. New keys read by this class via {@code config.get(...)}
+     * must be added here so the {@link org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator}
+     * recognises them — pinned by {@code FileSourceFactoryValidationTests}.
+     */
+    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_TARGET_SPLIT_SIZE);
+
+    /**
      * Macro-split starts on a newline-aligned record boundary (see {@link #tryNewlineAlignedMacroSplits}).
      * Downstream readers set {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext#recordAligned()}
      * and pass this flag into {@link ParallelParsingCoordinator#parallelRead}

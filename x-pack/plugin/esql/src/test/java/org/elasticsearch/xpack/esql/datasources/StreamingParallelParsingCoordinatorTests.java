@@ -797,6 +797,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             int first = stream.read();
             if (first == -1) return -1;
             consumed++;
+            if (first == '\n') {
+                return consumed;
+            }
             boolean inQuotes = (first == '"');
             int b;
             while ((b = stream.read()) != -1) {

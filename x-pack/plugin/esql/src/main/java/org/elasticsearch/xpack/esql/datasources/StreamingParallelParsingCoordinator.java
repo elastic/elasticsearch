@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Architecture:
  * <ol>
  *   <li>A segmentator thread reads the decompressed stream into byte buffers from a pool</li>
- *   <li>Each buffer is split at the last record boundary (newline) to form a complete chunk</li>
+ *   <li>Each buffer is split at the last record boundary to form a complete chunk</li>
  *   <li>Chunks are dispatched to parser threads via a bounded queue</li>
  *   <li>Parser threads parse each chunk independently using the format reader</li>
  *   <li>Results are yielded in chunk order via per-slot page queues</li>
@@ -428,15 +428,16 @@ public final class StreamingParallelParsingCoordinator {
                         // first split; otherwise CSV-style readers re-run header inference on data
                         // rows. NDJSON does not have a header, so the readers ignore firstSplit.
                         // - lastSplit: the segmentator only dispatches a chunk after locating its
-                        // trailing \n via findLastNewline (or grows the buffer until one is found),
-                        // so the chunk's final byte is always a record terminator. The original
-                        // chunk.last flag was set only on the EOF chunk, leaving every interior
-                        // chunk wrapped in TrimLastPartialLineInputStream's per-byte tail scan —
-                        // pure overhead on already-aligned data. Setting lastSplit=true everywhere
-                        // lets line-oriented readers (NDJSON) skip that scan.
-                        // - recordAligned: the segmentator slices on \n carry-over so each chunk
-                        // starts exactly on a record boundary; readers can skip the "drop leading
-                        // partial line" workaround used for byte-range macro-splits.
+                        // trailing record boundary via findLastRecordBoundary (or grows the buffer
+                        // until one is found), so the chunk's final byte is always a record
+                        // terminator. The original chunk.last flag was set only on the EOF chunk,
+                        // leaving every interior chunk wrapped in TrimLastPartialLineInputStream's
+                        // per-byte tail scan — pure overhead on already-aligned data. Setting
+                        // lastSplit=true everywhere lets line-oriented readers (NDJSON) skip that
+                        // scan.
+                        // - recordAligned: the segmentator slices on record-boundary carry-over so
+                        // each chunk starts exactly on a record boundary; readers can skip the
+                        // "drop leading partial line" workaround used for byte-range macro-splits.
                         FormatReadContext ctx = FormatReadContext.builder()
                             .projectedColumns(projectedColumns)
                             .batchSize(batchSize)
@@ -510,19 +511,12 @@ public final class StreamingParallelParsingCoordinator {
             int lastBoundary = -1;
             int pos = 0;
             while (pos < length) {
-                long consumed;
-                try {
-                    consumed = r.findNextRecordBoundary(new ByteArrayInputStream(buf, pos, length - pos));
-                } catch (IOException e) {
-                    logger.trace("findNextRecordBoundary failed at pos [{}]; falling back to last known boundary", pos, e);
-                    break;
-                }
+                long consumed = r.findNextRecordBoundary(new ByteArrayInputStream(buf, pos, length - pos));
                 if (consumed < 0) {
                     break;
                 }
                 assert consumed <= Integer.MAX_VALUE : "consumed [" + consumed + "] exceeds int range";
                 pos += (int) consumed;
-                // pos now points to the first byte of the next record; the boundary (the \n) is at pos-1
                 lastBoundary = pos - 1;
             }
             return lastBoundary;
@@ -560,6 +554,13 @@ public final class StreamingParallelParsingCoordinator {
          * least one <em>record</em> boundary (as determined by {@link #findLastRecordBoundary}).
          * Multi-line quoted fields may contain {@code \n} bytes that are not record boundaries; this
          * method avoids splitting in the middle of such a field.
+         * <p>
+         * The inner loop uses {@link #growUntilNewline} (raw {@code \n} scan) intentionally: a
+         * record boundary always coincides with a {@code \n}, so growing to the next raw
+         * {@code \n} is the minimum I/O needed before re-checking with the quote-aware
+         * {@link #findLastRecordBoundary}. For quoted fields with embedded {@code \n}, the
+         * raw scan stops too early and the boundary check returns {@code -1}, causing another
+         * growth iteration — correct, just not single-pass.
          *
          * @return a {@link GrowResult} carrying both the grown buffer and the pre-computed boundary
          *         index, so callers can avoid a redundant {@link #findLastRecordBoundary} rescan

@@ -166,11 +166,7 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
         assertThat(
             verify("FROM test | FORK (MV_EXPAND emp_no | STATS COUNT()) | EVAL x=1"),
             equalTo(
-                new ApproximationVerifier.QueryProperties(
-                    null,
-                    null,
-                    List.of(new ApproximationVerifier.QueryProperties(false, true, null))
-                )
+                new ApproximationVerifier.QueryProperties(null, null, List.of(new ApproximationVerifier.QueryProperties(false, true, null)))
             )
         );
         assertThat(

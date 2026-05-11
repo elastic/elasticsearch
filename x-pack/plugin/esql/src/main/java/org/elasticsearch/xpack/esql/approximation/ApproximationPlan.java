@@ -667,7 +667,8 @@ public class ApproximationPlan {
         List<NamedExpression> projections = null;
 
         for (NamedExpression projection : project.projections()) {
-            if (projection instanceof Alias alias && alias.child() instanceof NamedExpression named
+            if (projection instanceof Alias alias
+                && alias.child() instanceof NamedExpression named
                 && fieldBuckets.containsKey(named.id())) {
                 // This PROJECT is a RENAME, so rename the buckets too and keep them.
                 if (projections == null) {
@@ -897,14 +898,12 @@ public class ApproximationPlan {
             prob -> Literal.fromDouble(Source.EMPTY, sampleProbability)
         );
         if (sampleProbability == 1.0) {
-            // When there's no sampling: execute a normal Aggregate, and replace
-            // the confidence intervals by trivial ones (lower bound and upper
-            // bound of the actual value, and confidence of 1.0), and then prune
-            // all bucket-related fields.
-            logicalPlan = logicalPlan.transformDown(
-                SampledAggregate.class,
-                agg -> new Aggregate(agg.source(), agg.child(), agg.groupings(), agg.originalAggregates())
-            );
+            logicalPlan = logicalPlan.transformDown(SampledAggregate.class, ApproximationPlan::replaceSampledAggregate);
+
+            // When there's no sampling: replace the confidence intervals by
+            // trivial ones (lower bound and upper bound of the actual value,
+            // and confidence of 1.0), and then prune all bucket-related fields.
+            // This is far more efficient than aggregating all buckets.
             logicalPlan = logicalPlan.transformExpressionsDown(ConfidenceInterval.class, ci -> {
                 // For multivalued aggs (that occur in the case of INLINE STATS ... BY mv_field),
                 // set result of the CONFIDENCE_INTERVAL function to NULL. Otherwise, set it to
@@ -945,43 +944,47 @@ public class ApproximationPlan {
                 prob -> Literal.fromDouble(Source.EMPTY, sampleProbability)
             );
             if (sampleProbability == 1.0) {
-                // When there's no sampling: execute a normal Aggregate, and replace
-                // the bucket values by the non-sampled value. It's incorrect to
-                // replace the confidence interval by a trivial one (like in
-                // `substituteSampleProbability`), because at this stage it's unknown
-                // what happens in other fork branches.
-                child = child.transformDown(SampledAggregate.class, sampledAggregate -> {
-                    List<Alias> fields = new ArrayList<>();
-                    int bucketIndex = sampledAggregate.originalAggregates().size();
-                    for (int i = 0; i < sampledAggregate.originalAggregates().size(); i++) {
-                        NamedExpression aggOrKey = sampledAggregate.originalAggregates().get(i);
-                        if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
-                            continue;
-                        }
-                        // Each aggregate is directly followed by its buckets.
-                        for (int j = 0; j < TRIAL_COUNT * BUCKET_COUNT; j++) {
-                            Alias bucket = (Alias) sampledAggregate.aggregates().get(bucketIndex++);
-                            fields.add(bucket.replaceChild(aggOrKey.toAttribute()));
-                        }
-                    }
-                    return new Eval(
-                        Source.EMPTY,
-                        new Aggregate(
-                            sampledAggregate.source(),
-                            sampledAggregate.child(),
-                            sampledAggregate.groupings(),
-                            sampledAggregate.originalAggregates()
-                        ),
-                        fields
-                    );
-                });
-                child = new PruneColumns().apply(child);
+                child = child.transformDown(SampledAggregate.class, ApproximationPlan::replaceSampledAggregate);
             }
 
             children.set(branchIndex, child);
             return fork.replaceSubPlans(children).refreshOutput();
         });
+        logicalPlan = new PruneColumns().apply(logicalPlan);
         logicalPlan.setOptimized();
         return logicalPlan;
+    }
+
+    /**
+     * Replaces the {@link SampledAggregate} by a normal {@link Aggregate},
+     * and adds {@link Eval}s for each bucket, setting it to the exact value.
+     */
+    private static LogicalPlan replaceSampledAggregate(SampledAggregate sampledAggregate) {
+        Map<String, Attribute> originalAggregates = sampledAggregate.originalAggregates()
+            .stream()
+            .collect(Collectors.toMap(ne -> Attribute.rawTemporaryName(ne.name()), NamedExpression::toAttribute));
+
+        List<Alias> fields = new ArrayList<>();
+        for (NamedExpression aggOrKey : sampledAggregate.aggregates()) {
+            if ((aggOrKey instanceof Alias alias && alias.child() instanceof AggregateFunction) == false) {
+                continue;
+            }
+            int bucketIdentifierIndex = aggOrKey.name()
+                .indexOf(Attribute.SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR + BUCKET_NAME_PART + Attribute.SYNTHETIC_ATTRIBUTE_NAME_SEPARATOR);
+            if (bucketIdentifierIndex != -1) {
+                String originalAggregateName = aggOrKey.name().substring(0, bucketIdentifierIndex);
+                Attribute originalAggregate = originalAggregates.get(originalAggregateName);
+                fields.add(((Alias) aggOrKey).replaceChild(originalAggregate != null ? originalAggregate : Literal.NULL));
+            }
+        }
+
+        LogicalPlan result = sampledAggregate.child();
+        if (sampledAggregate.originalAggregates().isEmpty() == false) {
+            result = new Aggregate(sampledAggregate.source(), result, sampledAggregate.groupings(), sampledAggregate.originalAggregates());
+        }
+        if (fields.isEmpty() == false) {
+            result = new Eval(Source.EMPTY, result, fields);
+        }
+        return result;
     }
 }

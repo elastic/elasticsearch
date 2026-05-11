@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
@@ -244,7 +245,7 @@ public final class StreamingParallelParsingCoordinator {
                     int totalBytes = offset + Math.max(bytesRead, 0);
                     boolean isEof = bytesRead < 0 || totalBytes < buf.length;
 
-                    int lastNewline = findLastNewline(buf, totalBytes);
+                    int lastNewline = findLastRecordBoundary(buf, totalBytes);
 
                     if (lastNewline < 0) {
                         if (isEof) {
@@ -262,9 +263,9 @@ public final class StreamingParallelParsingCoordinator {
                             // {@link #growUntilNewline} only copies from {@code buf}; the original pool buffer
                             // is independent of {@code grown} and must be returned to the pool here so the
                             // pool does not leak one entry per oversized record.
-                            byte[] grown = growUntilNewline(stream, buf, totalBytes, chunkSize);
+                            byte[] grown = growUntilRecordBoundary(stream, buf, totalBytes, chunkSize);
                             recycleBuffer(buf);
-                            int grownNewline = findLastNewline(grown, grown.length);
+                            int grownNewline = findLastRecordBoundary(grown, grown.length);
                             if (grownNewline < 0) {
                                 if (chunkIndex == 0) {
                                     bindSchemaFromFirstChunk(grown, grown.length);
@@ -491,6 +492,39 @@ public final class StreamingParallelParsingCoordinator {
             return -1;
         }
 
+        /**
+         * Finds the last <em>record</em> boundary in {@code buf[0..length)}, which for formats
+         * with multi-line quoted fields (CSV) may differ from the last {@code \n}.
+         * <p>
+         * Scans forward through the buffer using {@link SegmentableFormatReader#findNextRecordBoundary}
+         * so that newlines inside quoted fields are correctly skipped. Returns the index of the last
+         * byte that belongs to a complete record (i.e. the position of the terminating {@code \n}),
+         * or {@code -1} if no record boundary exists in the buffer.
+         */
+        private int findLastRecordBoundary(byte[] buf, int length) throws IOException {
+            SegmentableFormatReader r = reader;
+            if (r == null) {
+                return findLastNewline(buf, length);
+            }
+            int lastBoundary = -1;
+            int pos = 0;
+            while (pos < length) {
+                long consumed;
+                try {
+                    consumed = r.findNextRecordBoundary(new ByteArrayInputStream(buf, pos, length - pos));
+                } catch (IOException e) {
+                    break;
+                }
+                if (consumed < 0) {
+                    break;
+                }
+                pos += (int) consumed;
+                // pos now points to the first byte of the next record; the boundary (the \n) is at pos-1
+                lastBoundary = pos - 1;
+            }
+            return lastBoundary;
+        }
+
         private static byte[] growUntilNewline(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
             byte[] grown = new byte[existingLen + growBy];
             System.arraycopy(existing, 0, grown, 0, existingLen);
@@ -504,7 +538,6 @@ public final class StreamingParallelParsingCoordinator {
                     }
                     return Arrays.copyOf(grown, offset);
                 }
-                // Check for newline in the newly read bytes
                 for (int i = offset; i < offset + n; i++) {
                     if (grown[i] == '\n') {
                         return Arrays.copyOf(grown, offset + n);
@@ -514,6 +547,29 @@ public final class StreamingParallelParsingCoordinator {
                 if (offset >= grown.length) {
                     grown = Arrays.copyOf(grown, grown.length + growBy);
                 }
+            }
+        }
+
+        /**
+         * Like {@link #growUntilNewline} but keeps growing until the accumulated buffer contains at
+         * least one <em>record</em> boundary (as determined by {@link #findLastRecordBoundary}).
+         * Multi-line quoted fields may contain {@code \n} bytes that are not record boundaries; this
+         * method avoids splitting in the middle of such a field.
+         */
+        private byte[] growUntilRecordBoundary(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
+            byte[] buf = existing;
+            int len = existingLen;
+            while (true) {
+                byte[] grown = growUntilNewline(stream, buf, len, growBy);
+                if (grown.length == len) {
+                    return grown;
+                }
+                int boundary = findLastRecordBoundary(grown, grown.length);
+                if (boundary >= 0) {
+                    return grown;
+                }
+                buf = grown;
+                len = grown.length;
             }
         }
 

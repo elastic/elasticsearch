@@ -21,6 +21,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -88,7 +89,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
-        assertThat(copy.get(), matcher().created(max).batches(max, 5));
+        assertThat(copy.get(), matcher().created(max).total(max).batches(max, 5));
         assertHitCount(prepareSearch("dest").setSize(0), max);
 
         // Copy some of the docs
@@ -97,8 +98,21 @@ public class ReindexBasicTests extends ReindexTestCase {
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         copy.maxDocs(half);
-        assertThat(copy.get(), matcher().created(half).batches(half, 5));
+        assertThat(copy.get(), matcher().created(half).total(half).batches(half, 5));
         assertHitCount(prepareSearch("dest_half").setSize(0), half);
+    }
+
+    public void testTotalIsAccurateWhenSourceExceedsDefaultTrackTotalHits() {
+        int numDocs = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO + randomIntBetween(1, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
+
+        indexRandom(true, "source", numDocs);
+        // The verification searches must opt into accurate total tracking themselves; otherwise they hit the same default
+        // we are testing reindex's behaviour around.
+        assertHitCount(prepareSearch("source").setTrackTotalHits(true).setSize(0), numDocs);
+
+        BulkByScrollResponse response = reindex().source("source").destination("dest").refresh(true).get();
+        assertThat(response, matcher().created(numDocs).total(numDocs));
+        assertHitCount(prepareSearch("dest").setTrackTotalHits(true).setSize(0), numDocs);
     }
 
     /**

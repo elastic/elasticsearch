@@ -452,9 +452,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.EsqlSecurityIT
   method: testDataSourceCrudForbiddenWithoutClusterManage
   issue: https://github.com/elastic/elasticsearch/issues/148187
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/148190
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsIntegTests
   method: testCreateAndRestoreSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/148217
@@ -476,9 +473,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.esnative.ReservedRealmElasticAutoconfigIntegTests
   method: testAutoconfigFailedPasswordPromotion
   issue: https://github.com/elastic/elasticsearch/issues/122668
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/148339
 - class: org.elasticsearch.xpack.esql.analysis.VerifierTests
   method: testFlattenedSorting
   issue: https://github.com/elastic/elasticsearch/issues/148374
@@ -521,3 +515,32 @@ tests:
 - class: org.elasticsearch.xpack.stateless.engine.SoftDeletesRetentionIT
   method: testRetentionLeasesIgnoredForSoftDeletesPolicy
   issue: https://github.com/elastic/elasticsearch/issues/148557
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148339
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148339
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  issue: https://github.com/elastic/elasticsearch/issues/148598
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148190
+- class: org.elasticsearch.xpack.esql.enrich.LookupFromIndexServiceResponseTests
+  method: testReceiverReleasesAlreadyReadPagesOnBreakerTrip
+  issue: https://github.com/elastic/elasticsearch/issues/148605
+- class: org.elasticsearch.xpack.ml.integration.ForecastIT
+  method: testOverflowToDisk
+  issue: https://github.com/elastic/elasticsearch/issues/148606
+- class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
+  method: testSplitOnSize
+  issue: https://github.com/elastic/elasticsearch/issues/148613
+- class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
+  method: testMonitorClusterHealth
+  issue: https://github.com/elastic/elasticsearch/issues/148615
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148619
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetRsFormatSpecIT
+  method: test {csv-spec:external-basic.evalComputedColumn [S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/148655

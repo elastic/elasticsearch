@@ -84,6 +84,43 @@ public class PushLimitToExternalSourceTests extends ESTestCase {
         assertEquals(ext1.hashCode(), ext2.hashCode());
     }
 
+    /**
+     * Verifies that the planner-resolved anchor file schema survives the push-limit optimizer
+     * transformation. The rule reconstructs a new {@link ExternalSourceExec} via {@code withPushedLimit};
+     * if that with-method (or any tree-rewrite that runs as part of the rule) silently dropped the
+     * field, runtime readers would lose the bound schema and fall back to per-file inference — the
+     * cross-file type-drift bug this whole change exists to fix would re-emerge.
+     */
+    public void testFileSchemaPreservedAcrossPushLimit() {
+        List<Attribute> attrs = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.INTEGER));
+        List<Attribute> anchorSchema = List.of(
+            new ReferenceAttribute(Source.EMPTY, "x", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, "y", DataType.LONG)
+        );
+        ExternalSourceExec ext = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.csv",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(),
+            null,
+            FormatReader.NO_LIMIT,
+            null,
+            null,
+            List.of(),
+            anchorSchema
+        );
+        assertEquals(anchorSchema, ext.fileSchema());
+
+        LimitExec limitExec = new LimitExec(Source.EMPTY, ext, literal(10), null);
+        PhysicalPlan result = applyRule(limitExec);
+
+        ExternalSourceExec resultExt = (ExternalSourceExec) ((LimitExec) result).child();
+        assertEquals("pushed limit must be 10 after the rule fires", 10, resultExt.pushedLimit());
+        assertEquals("fileSchema must survive the optimizer transformation", anchorSchema, resultExt.fileSchema());
+    }
+
     private static ExternalSourceExec externalSource() {
         List<Attribute> attrs = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.INTEGER));
         return new ExternalSourceExec(Source.EMPTY, "file:///test.csv", "file", attrs, Map.of(), Map.of(), null);

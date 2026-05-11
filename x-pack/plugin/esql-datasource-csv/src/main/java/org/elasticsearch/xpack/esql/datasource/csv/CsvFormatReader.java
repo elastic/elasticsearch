@@ -760,7 +760,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
         InputStream stream = object.newStream();
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
         List<Attribute> effectiveSchema;
-        if (context.firstSplit()) {
+        // Planner-bound schema wins over per-file inference when present; empty falls through to the
+        // existing branches with no regression.
+        List<Attribute> plannerFileSchema = context.fileSchema();
+        if (plannerFileSchema.isEmpty() == false) {
+            if (context.firstSplit() && options.headerRow()) {
+                // Header bytes still occupy the stream and must be consumed even when types come
+                // from the planner's schema.
+                skipHeaderLine(reader);
+            }
+            effectiveSchema = plannerFileSchema;
+        } else if (context.firstSplit()) {
             // First split carries the file's leading bytes, including the header (if any).
             // The chunk-0 bound-schema fast path only applies when an upstream coordinator has
             // pre-bound the FULL file schema — signalled by recordAligned=true. The streaming

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -147,6 +148,9 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         Map<String, Object> enrichedMetadata = metadata.statistics()
             .map(stats -> SourceStatisticsSerializer.embedStatistics(metadata.sourceMetadata(), stats))
             .orElse(metadata.sourceMetadata());
+        // Thread the anchor-file schema to the physical node. Empty = no anchor; readers fall back
+        // to per-file inference. See ExternalSourceExec#fileSchema().
+        List<Attribute> anchorFileSchema = metadata.schema() != null ? metadata.schema() : List.of();
         return new ExternalSourceExec(
             source(),
             sourcePath,
@@ -155,8 +159,11 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             metadata.config(),
             enrichedMetadata,
             null,
+            FormatReader.NO_LIMIT,
             null,
-            fileList
+            fileList,
+            List.of(),
+            anchorFileSchema
         );
     }
 

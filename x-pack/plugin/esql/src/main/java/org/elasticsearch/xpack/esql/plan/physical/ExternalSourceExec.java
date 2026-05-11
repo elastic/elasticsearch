@@ -46,6 +46,11 @@ import java.util.Objects;
  *       locally on each data node by the LocalPhysicalPlanOptimizer via FormatReader.filterPushdownSupport()</li>
  *   <li><b>Data node execution</b>: Created on data nodes by LocalMapper from
  *       {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation} inside FragmentExec</li>
+ *   <li><b>Optional anchor file schema</b>: For multi-file sources where the planner has resolved a
+ *       single representative file's positional column schema (e.g. headerless CSV anchor inference),
+ *       that schema travels here via {@link #fileSchema()} so runtime readers can use it as the
+ *       authoritative positional layout instead of re-inferring per file. {@code null} when no
+ *       anchor schema is available — readers fall back to existing per-file inference.</li>
  * </ul>
  */
 public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, DataSourceExec {
@@ -57,6 +62,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     );
 
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_SPLITS = TransportVersion.fromName("esql_external_source_splits");
+    private static final TransportVersion ESQL_EXTERNAL_SOURCE_FILE_SCHEMA = TransportVersion.fromName("esql_external_source_file_schema");
 
     private final String sourcePath;
     private final String sourceType;
@@ -76,6 +82,13 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final Integer estimatedRowSize;
     private final FileList fileList; // NOT serialized - resolved on coordinator, null on data nodes
     private final List<ExternalSplit> splits;
+    /**
+     * Positional file schema resolved at planning time (anchor file in a multi-file glob). Runtime
+     * readers may use it as the authoritative positional column layout instead of per-file inference.
+     * Serialized cross-node, gated by {@link #ESQL_EXTERNAL_SOURCE_FILE_SCHEMA}. Empty list = no
+     * anchor (older nodes, or sources that don't compute one).
+     */
+    private final List<Attribute> fileSchema;
 
     public ExternalSourceExec(
         Source source,
@@ -99,7 +112,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             fileList,
-            List.of()
+            List.of(),
+            null
         );
     }
 
@@ -124,11 +138,48 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             config,
             sourceMetadata,
             pushedFilter,
+            pushedLimit,
+            estimatedRowSize,
+            fileList,
+            splits,
+            null
+        );
+    }
+
+    /**
+     * Public ctor that also accepts the optional anchor file schema. Use this from
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()} when the
+     * planner has resolved an anchor schema; existing call sites that do not populate the schema
+     * can keep using the shorter overload above (it forwards {@code null}).
+     */
+    public ExternalSourceExec(
+        Source source,
+        String sourcePath,
+        String sourceType,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Object pushedFilter,
+        int pushedLimit,
+        Integer estimatedRowSize,
+        FileList fileList,
+        List<ExternalSplit> splits,
+        List<Attribute> fileSchema
+    ) {
+        this(
+            source,
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
             List.of(),
             pushedLimit,
             estimatedRowSize,
             fileList,
-            splits
+            splits,
+            fileSchema
         );
     }
 
@@ -156,17 +207,55 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedFilter,
             pushedExpressions,
             pushedLimit,
+            estimatedRowSize,
+            fileList,
+            splits,
+            null
+        );
+    }
+
+    /**
+     * Public 13-arg ctor (after Source): variant with pushed expressions AND optional anchor file schema.
+     * Mirrors the canonical ctor below but without the transient {@code pushedTopN} hint.
+     * Used by {@link #info()} so tree-rewrite preserves the anchor schema across optimizer transforms.
+     */
+    public ExternalSourceExec(
+        Source source,
+        String sourcePath,
+        String sourceType,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Object pushedFilter,
+        List<Expression> pushedExpressions,
+        int pushedLimit,
+        Integer estimatedRowSize,
+        FileList fileList,
+        List<ExternalSplit> splits,
+        List<Attribute> fileSchema
+    ) {
+        this(
+            source,
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
             null,
             estimatedRowSize,
             fileList,
-            splits
+            splits,
+            fileSchema
         );
     }
 
     /**
      * Primary constructor that also accepts a transient {@link BlockHash.TopNDef} hint for in-hash TopN pruning.
      * Package-private on purpose so the public, longest constructor (used by tooling and tree tests) remains
-     * the twelve-arg one above. Use {@link #withPushedTopN(BlockHash.TopNDef)} from optimizer rules.
+     * the thirteen-arg one above. Use {@link #withPushedTopN(BlockHash.TopNDef)} from optimizer rules.
      */
     ExternalSourceExec(
         Source source,
@@ -181,7 +270,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         @Nullable BlockHash.TopNDef pushedTopN,
         Integer estimatedRowSize,
         FileList fileList,
-        List<ExternalSplit> splits
+        List<ExternalSplit> splits,
+        List<Attribute> fileSchema
     ) {
         super(source);
         if (sourcePath == null) {
@@ -205,6 +295,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.estimatedRowSize = estimatedRowSize;
         this.fileList = fileList;
         this.splits = splits != null ? List.copyOf(splits) : List.of();
+        this.fileSchema = fileSchema != null ? List.copyOf(fileSchema) : List.of();
     }
 
     public ExternalSourceExec(
@@ -228,7 +319,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
-            List.of()
+            List.of(),
+            null
         );
     }
 
@@ -252,7 +344,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
-            List.of()
+            List.of(),
+            null
         );
     }
 
@@ -269,6 +362,9 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         List<ExternalSplit> splits = in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_SPLITS)
             ? in.readNamedWriteableCollectionAsList(ExternalSplit.class)
             : List.of();
+        List<Attribute> fileSchema = in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_FILE_SCHEMA)
+            ? in.readNamedWriteableCollectionAsList(Attribute.class)
+            : List.of();
 
         return new ExternalSourceExec(
             source,
@@ -281,7 +377,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             FormatReader.NO_LIMIT,
             estimatedRowSize,
             null,
-            splits
+            splits,
+            fileSchema
         );
     }
 
@@ -296,6 +393,9 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         out.writeOptionalVInt(estimatedRowSize);
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_SPLITS)) {
             out.writeNamedWriteableCollection(splits);
+        }
+        if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_FILE_SCHEMA)) {
+            out.writeNamedWriteableCollection(fileSchema);
         }
     }
 
@@ -349,6 +449,14 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         return splits;
     }
 
+    /**
+     * Positional file schema resolved at planning time (anchor file in a multi-file glob). Empty
+     * when no anchor was computed — readers fall back to per-file inference.
+     */
+    public List<Attribute> fileSchema() {
+        return fileSchema;
+    }
+
     public ExternalSourceExec withSplits(List<ExternalSplit> newSplits) {
         return new ExternalSourceExec(
             source(),
@@ -363,7 +471,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
-            newSplits
+            newSplits,
+            fileSchema
         );
     }
 
@@ -381,7 +490,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
-            splits
+            splits,
+            fileSchema
         );
     }
 
@@ -399,7 +509,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
-            splits
+            splits,
+            fileSchema
         );
     }
 
@@ -417,7 +528,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
-            splits
+            splits,
+            fileSchema
         );
     }
 
@@ -438,7 +550,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             newPushedTopN,
             estimatedRowSize,
             fileList,
-            splits
+            splits,
+            fileSchema
         );
     }
 
@@ -473,17 +586,21 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             newEstimatedRowSize,
             fileList,
-            splits
+            splits,
+            fileSchema
         );
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
         // pushedTopN is intentionally excluded from info(): it is a transient local-execution hint set after the
-        // plan has been distributed, and including it here would (a) require a public 13-arg ctor that breaks the
-        // node-reflection invariant in EsqlNodeSubclassTests#testInfoParameters and (b) leak the hint into any
-        // generic transform-based plan rewrite. The hint is preserved by the explicit with* methods that need it
-        // and is rendered in nodeString() for debuggability.
+        // plan has been distributed, and including it here would (a) require a public ctor that exposes the hint
+        // and breaks the node-reflection invariant in EsqlNodeSubclassTests#testInfoParameters and (b) leak the
+        // hint into any generic transform-based plan rewrite. The hint is preserved by the explicit with* methods
+        // that need it and is rendered in nodeString() for debuggability.
+        //
+        // fileSchema IS included: it is a structural planning-time field that must survive tree-rewrites by
+        // optimizer rules. Excluding it would silently drop it on every plan-rebuild.
         return NodeInfo.create(
             this,
             ExternalSourceExec::new,
@@ -497,7 +614,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedLimit,
             estimatedRowSize,
             fileList,
-            splits
+            splits,
+            fileSchema
         );
     }
 
@@ -515,7 +633,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             pushedTopN,
             estimatedRowSize,
             fileList,
-            splits
+            splits,
+            fileSchema
         );
     }
 
@@ -541,7 +660,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             && Objects.equals(pushedTopN, other.pushedTopN)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
             && Objects.equals(fileList, other.fileList)
-            && Objects.equals(splits, other.splits);
+            && Objects.equals(splits, other.splits)
+            && Objects.equals(fileSchema, other.fileSchema);
     }
 
     @Override
@@ -566,6 +686,9 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         }
         if (splits.isEmpty() == false) {
             sb.append("[splits=").append(splits.size()).append("]");
+        }
+        if (fileSchema.isEmpty() == false) {
+            sb.append("[fileSchema=").append(fileSchema.size()).append("]");
         }
         NodeUtils.toString(sb, attributes, format);
     }

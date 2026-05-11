@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+
 import java.util.List;
 
 /**
@@ -34,6 +36,12 @@ import java.util.List;
  *                         (e.g. bzip2 / zstd-indexed macro-splits). When {@code true}, the split is known
  *                         to start exactly on a record boundary (e.g. streaming-parallel chunks sliced on
  *                         {@code \n}). Has no effect on the first split.
+ * @param fileSchema       optional positional file schema resolved at planning time (typically the
+ *                         anchor file in a multi-file glob). When non-{@code null}, format readers
+ *                         may use it as the authoritative positional column layout; when {@code null},
+ *                         readers fall back to per-file inference. Distinct from
+ *                         {@link FormatReader#withSchema}, which carries the projected output
+ *                         attributes (a possibly-pruned subset of the file's columns).
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -42,8 +50,13 @@ public record FormatReadContext(
     ErrorPolicy errorPolicy,
     boolean firstSplit,
     boolean lastSplit,
-    boolean recordAligned
+    boolean recordAligned,
+    List<Attribute> fileSchema
 ) {
+
+    public FormatReadContext {
+        fileSchema = fileSchema != null ? fileSchema : List.of();
+    }
 
     /**
      * Creates a minimal context for the common non-split case. Leaves {@code errorPolicy} as
@@ -53,28 +66,28 @@ public record FormatReadContext(
      * to override the policy should use {@link #builder()} or {@link #withErrorPolicy(ErrorPolicy)}.
      */
     public static FormatReadContext of(List<String> projectedColumns, int batchSize) {
-        return new FormatReadContext(projectedColumns, batchSize, FormatReader.NO_LIMIT, null, true, true, false);
+        return new FormatReadContext(projectedColumns, batchSize, FormatReader.NO_LIMIT, null, true, true, false, List.of());
     }
 
     /**
      * Returns a copy with a different row limit.
      */
     public FormatReadContext withRowLimit(int limit) {
-        return new FormatReadContext(projectedColumns, batchSize, limit, errorPolicy, firstSplit, lastSplit, recordAligned);
+        return new FormatReadContext(projectedColumns, batchSize, limit, errorPolicy, firstSplit, lastSplit, recordAligned, fileSchema);
     }
 
     /**
      * Returns a copy with a different error policy.
      */
     public FormatReadContext withErrorPolicy(ErrorPolicy policy) {
-        return new FormatReadContext(projectedColumns, batchSize, rowLimit, policy, firstSplit, lastSplit, recordAligned);
+        return new FormatReadContext(projectedColumns, batchSize, rowLimit, policy, firstSplit, lastSplit, recordAligned, fileSchema);
     }
 
     /**
      * Returns a copy configured for a split-based read.
      */
     public FormatReadContext withSplit(boolean first, boolean last) {
-        return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, first, last, recordAligned);
+        return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, first, last, recordAligned, fileSchema);
     }
 
     public static Builder builder() {
@@ -92,6 +105,7 @@ public record FormatReadContext(
         private boolean firstSplit = true;
         private boolean lastSplit = true;
         private boolean recordAligned = false;
+        private List<Attribute> fileSchema = List.of();
 
         private Builder() {}
 
@@ -134,11 +148,26 @@ public record FormatReadContext(
             return this;
         }
 
+        /** See {@link FormatReadContext#fileSchema()}. */
+        public Builder fileSchema(List<Attribute> fileSchema) {
+            this.fileSchema = fileSchema;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
             }
-            return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, firstSplit, lastSplit, recordAligned);
+            return new FormatReadContext(
+                projectedColumns,
+                batchSize,
+                rowLimit,
+                errorPolicy,
+                firstSplit,
+                lastSplit,
+                recordAligned,
+                fileSchema
+            );
         }
     }
 }

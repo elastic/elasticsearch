@@ -81,7 +81,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     private final IndicesService indicesService;
     private final ExecutorSelector executorSelector;
     private final NodeClient client;
-    private volatile TimeValue statelessGetRealtimeObserverTimeout;
+    private volatile TimeValue statelessGetRealtimeActivePrimaryTimeout;
 
     @Inject
     public TransportGetAction(
@@ -109,12 +109,10 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         this.indicesService = indicesService;
         this.executorSelector = executorSelector;
         this.client = client;
-        this.statelessGetRealtimeObserverTimeout = clusterService.getClusterSettings()
-            .get(STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(
+            .initializeAndWatch(
                 STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING,
-                v -> this.statelessGetRealtimeObserverTimeout = v
+                v -> this.statelessGetRealtimeActivePrimaryTimeout = v
             );
         // register the internal TransportGetFromTranslogAction
         new TransportGetFromTranslogAction(transportService, indicesService, actionFilters);
@@ -253,7 +251,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
             final var observer = new ClusterStateObserver(
                 state,
                 clusterService,
-                statelessGetRealtimeObserverTimeout,
+                statelessGetRealtimeActivePrimaryTimeout,
                 logger,
                 threadPool.getThreadContext()
             );

@@ -405,7 +405,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SniffConnectionStrategySettings.REMOTE_CONNECTIONS_PER_CLUSTER,
         SniffConnectionStrategySettings.REMOTE_NODE_CONNECTIONS,
         TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
-        TransportGetAction.STATELESS_GET_REALTIME_OBSERVER_TIMEOUT_SETTING,
+        TransportGetAction.STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING,
         ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING,
         SnapshotShutdownProgressTracker.SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING,
         NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING,

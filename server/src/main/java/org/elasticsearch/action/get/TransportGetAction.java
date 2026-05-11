@@ -69,8 +69,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
      * Maximum time to wait for cluster state updates while retrying a realtime get or mget on an unpromotable shard after
      * retryable errors (e.g., indexing shard moved).
      */
-    public static final Setting<TimeValue> STATELESS_GET_REALTIME_OBSERVER_TIMEOUT_SETTING = Setting.positiveTimeSetting(
-        "stateless.get.realtime.observer.timeout",
+    public static final Setting<TimeValue> STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "stateless.get.realtime.wait_for_active_primary_timeout",
         TimeValue.timeValueMinutes(2),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -109,9 +109,13 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         this.indicesService = indicesService;
         this.executorSelector = executorSelector;
         this.client = client;
-        this.statelessGetRealtimeObserverTimeout = clusterService.getClusterSettings().get(STATELESS_GET_REALTIME_OBSERVER_TIMEOUT_SETTING);
+        this.statelessGetRealtimeObserverTimeout = clusterService.getClusterSettings()
+            .get(STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(STATELESS_GET_REALTIME_OBSERVER_TIMEOUT_SETTING, v -> this.statelessGetRealtimeObserverTimeout = v);
+            .addSettingsUpdateConsumer(
+                STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING,
+                v -> this.statelessGetRealtimeObserverTimeout = v
+            );
         // register the internal TransportGetFromTranslogAction
         new TransportGetFromTranslogAction(transportService, indicesService, actionFilters);
     }

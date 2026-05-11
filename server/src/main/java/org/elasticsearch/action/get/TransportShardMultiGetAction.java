@@ -96,10 +96,10 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         this.executorSelector = executorSelector;
         this.client = client;
         this.statelessGetRealtimeObserverTimeout = clusterService.getClusterSettings()
-            .get(TransportGetAction.STATELESS_GET_REALTIME_OBSERVER_TIMEOUT_SETTING);
+            .get(TransportGetAction.STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(
-                TransportGetAction.STATELESS_GET_REALTIME_OBSERVER_TIMEOUT_SETTING,
+                TransportGetAction.STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING,
                 v -> this.statelessGetRealtimeObserverTimeout = v
             );
     }

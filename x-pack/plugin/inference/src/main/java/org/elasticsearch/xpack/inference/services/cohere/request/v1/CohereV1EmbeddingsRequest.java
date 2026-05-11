@@ -43,7 +43,7 @@ public class CohereV1EmbeddingsRequest extends CohereRequest implements Outbound
         this.input = Objects.requireNonNull(input);
         this.inputType = inputType;
         taskSettings = embeddingsModel.getTaskSettings();
-        embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
+        embeddingType = embeddingsModel.getServiceSettings().embeddingType();
         taskType = embeddingsModel.getTaskType();
     }
 

@@ -188,7 +188,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         return maxInputTokens;
     }
 
-    public CohereEmbeddingType getEmbeddingType() {
+    public CohereEmbeddingType embeddingType() {
         return embeddingType;
     }
 
@@ -211,7 +211,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     public CohereEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
 
-        var updatedCommon = commonSettings.update(serviceSettings, validationException);
+        var updatedCommonSettings = commonSettings.update(serviceSettings, validationException);
 
         var extractedMaxInputTokens = extractOptionalPositiveInteger(
             serviceSettings,
@@ -223,7 +223,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         validationException.throwIfValidationErrorsExist();
 
         return new CohereEmbeddingsServiceSettings(
-            updatedCommon,
+            updatedCommonSettings,
             this.similarity,
             this.dimensions,
             extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
@@ -244,7 +244,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        commonSettings.toXContentFragment(builder, params);
+        commonSettings.toXContent(builder, params);
         if (similarity != null) {
             builder.field(SIMILARITY, similarity);
         }

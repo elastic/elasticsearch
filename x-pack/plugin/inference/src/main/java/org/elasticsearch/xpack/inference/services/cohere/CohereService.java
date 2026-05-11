@@ -180,14 +180,14 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
         if (model instanceof CohereEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? defaultSimilarity(serviceSettings.getEmbeddingType()) : similarityFromModel;
+            var similarityToUse = similarityFromModel == null ? defaultSimilarity(serviceSettings.embeddingType()) : similarityFromModel;
 
             var updatedServiceSettings = new CohereEmbeddingsServiceSettings(
                 serviceSettings.getCommonSettings(),
                 similarityToUse,
                 embeddingSize,
                 serviceSettings.maxInputTokens(),
-                serviceSettings.getEmbeddingType()
+                serviceSettings.embeddingType()
             );
 
             return new CohereEmbeddingsModel(embeddingsModel, updatedServiceSettings);

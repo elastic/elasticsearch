@@ -69,7 +69,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
         }
     }
 
-    public CohereCommonServiceSettings getCommonSettings() {
+    CohereCommonServiceSettings getCommonSettings() {
         return commonSettings;
     }
 
@@ -104,7 +104,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        commonSettings.toXContentFragment(builder, params);
+        commonSettings.toXContent(builder, params);
         builder.endObject();
         return builder;
     }

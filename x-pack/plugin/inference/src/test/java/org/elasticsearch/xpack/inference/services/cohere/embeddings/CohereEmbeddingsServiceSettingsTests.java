@@ -650,14 +650,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
         var similarity = instance.similarity();
         var dimensions = instance.dimensions();
         var maxInputTokens = instance.maxInputTokens();
-        var embeddingType = instance.getEmbeddingType();
+        var embeddingType = instance.embeddingType();
 
         switch (randomInt(4)) {
             case 0 -> commonSettings = randomValueOtherThan(instance.getCommonSettings(), CohereCommonServiceSettingsTests::createRandom);
             case 1 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(SimilarityMeasure.values()));
             case 2 -> dimensions = randomValueOtherThan(instance.dimensions(), () -> randomIntBetween(1, 4096));
             case 3 -> maxInputTokens = randomValueOtherThan(instance.maxInputTokens(), () -> randomIntBetween(128, 256));
-            case 4 -> embeddingType = randomValueOtherThan(instance.getEmbeddingType(), () -> randomFrom(CohereEmbeddingType.values()));
+            case 4 -> embeddingType = randomValueOtherThan(instance.embeddingType(), () -> randomFrom(CohereEmbeddingType.values()));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
@@ -666,7 +666,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSeriali
 
     @Override
     protected CohereEmbeddingsServiceSettings mutateInstanceForVersion(CohereEmbeddingsServiceSettings instance, TransportVersion version) {
-        var embeddingType = CohereEmbeddingType.translateToVersion(instance.getEmbeddingType(), version);
+        var embeddingType = CohereEmbeddingType.translateToVersion(instance.embeddingType(), version);
         if (version.supports(ML_INFERENCE_COHERE_SERVICE_SETTINGS_REFACTOR) == false) {
             // old format did not write apiVersion if ML_INFERENCE_COHERE_API_VERSION was not supported
             if (version.supports(ML_INFERENCE_COHERE_API_VERSION) == false) {

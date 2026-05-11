@@ -18,7 +18,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -49,7 +49,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 public class CohereCommonServiceSettings extends FilteredXContentObject
     implements
         CohereRateLimitServiceSettings,
-        ToXContentObject,
+        ToXContentFragment,
         Writeable {
 
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
@@ -213,18 +213,12 @@ public class CohereCommonServiceSettings extends FilteredXContentObject
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        toXContentFragment(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    public XContentBuilder toXContentFragment(XContentBuilder builder, ToXContent.Params params) throws IOException {
         toXContentFragmentOfExposedFields(builder, params);
         if (uri != null) {
             builder.field(URL, uri.toString());
         }
-        return builder.field(API_VERSION, apiVersion);
+        builder.field(API_VERSION, apiVersion);
+        return builder;
     }
 
     @Override

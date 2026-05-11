@@ -138,7 +138,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
 
                 var embeddingsModel = (CohereEmbeddingsModel) model;
                 assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
-                assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
+                assertThat(embeddingsModel.getServiceSettings().embeddingType(), is(CohereEmbeddingType.FLOAT));
                 assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(InputType.INGEST, Truncation.START)));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
@@ -164,7 +164,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
 
                 var embeddingsModel = (CohereEmbeddingsModel) model;
                 assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
-                assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
+                assertThat(embeddingsModel.getServiceSettings().embeddingType(), is(CohereEmbeddingType.FLOAT));
                 assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(InputType.INGEST, Truncation.START)));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
@@ -193,7 +193,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
 
                 var embeddingsModel = (CohereEmbeddingsModel) model;
                 assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
-                assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
+                assertThat(embeddingsModel.getServiceSettings().embeddingType(), is(CohereEmbeddingType.FLOAT));
                 assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(InputType.INGEST, Truncation.START)));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
@@ -222,7 +222,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
 
                 var embeddingsModel = (CohereEmbeddingsModel) model;
                 assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
-                assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
+                assertThat(embeddingsModel.getServiceSettings().embeddingType(), is(CohereEmbeddingType.FLOAT));
                 assertThat(embeddingsModel.getTaskSettings(), equalTo(CohereEmbeddingsTaskSettings.EMPTY_SETTINGS));
                 assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
@@ -516,7 +516,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
-            assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.BYTE));
+            assertThat(embeddingsModel.getServiceSettings().embeddingType(), is(CohereEmbeddingType.BYTE));
             assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(InputType.SEARCH, Truncation.NONE)));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
@@ -737,7 +737,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (CohereEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is(MODEL_VALUE));
-            assertThat(embeddingsModel.getServiceSettings().getEmbeddingType(), is(CohereEmbeddingType.FLOAT));
+            assertThat(embeddingsModel.getServiceSettings().embeddingType(), is(CohereEmbeddingType.FLOAT));
             assertThat(embeddingsModel.getTaskSettings(), is(new CohereEmbeddingsTaskSettings(null, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }

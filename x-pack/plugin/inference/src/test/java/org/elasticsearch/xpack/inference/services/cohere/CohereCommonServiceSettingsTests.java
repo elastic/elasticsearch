@@ -118,7 +118,7 @@ public class CohereCommonServiceSettingsTests extends AbstractWireSerializingTes
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject();
-        serviceSettings.toXContentFragment(builder, null);
+        serviceSettings.toXContent(builder, null);
         builder.endObject();
         String xContentResult = Strings.toString(builder);
 

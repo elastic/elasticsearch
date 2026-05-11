@@ -108,7 +108,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        commonSettings.toXContentFragment(builder, params);
+        commonSettings.toXContent(builder, params);
         builder.endObject();
         return builder;
     }

@@ -144,12 +144,20 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     /**
+     * Number of rows received before sequential mode promotes itself to the
+     * parallel final-merge path. Operator-level policy; not threaded through
+     * the planner. Tests can override via the {@link #enableParallelFinalMerge}
+     * argument.
+     */
+    public static final long PROMOTION_THRESHOLD_ROWS = 1_000_000L;
+
+    /**
      * Optional config that, when present, opts the operator into the parallel
      * final-merge path. The factory invokes {@link #enableParallelFinalMerge}
-     * after constructing the operator; the operator itself decides when (and
-     * whether) to actually promote based on the row threshold.
+     * after constructing the operator; the operator decides whether to actually
+     * promote based on {@link #PROMOTION_THRESHOLD_ROWS}.
      */
-    public record ParallelFinalMergeConfig(Executor executor, int workerCount, int maxInFlightPages, long promotionThresholdRows) {}
+    public record ParallelFinalMergeConfig(Executor executor, int workerCount, int maxInFlightPages) {}
 
     public record TopNOperatorFactory(
         int topCount,
@@ -192,7 +200,7 @@ public class TopNOperator implements Operator, Accountable {
                     parallelFinalMerge.executor(),
                     parallelFinalMerge.workerCount(),
                     parallelFinalMerge.maxInFlightPages(),
-                    parallelFinalMerge.promotionThresholdRows()
+                    PROMOTION_THRESHOLD_ROWS
                 );
             }
             return op;

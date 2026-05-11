@@ -636,18 +636,15 @@ public class LocalExecutionPlanner {
     /**
      * Build the parallel-final-merge config passed to {@link TopNOperatorFactory}.
      * Returns {@code null} (sequential-only) when no parallel executor is wired in
-     * (e.g. unit-test contexts). Constants are intentionally hardcoded for the
-     * prototype; cluster settings can be added once we've tuned them.
+     * (e.g. unit-test contexts). Worker count and in-flight bound are hardcoded
+     * for the prototype; cluster settings can be added once we've tuned them.
      */
     @Nullable
     private TopNOperator.ParallelFinalMergeConfig parallelTopNConfig() {
         if (parallelWorkerExecutor == null) {
             return null;
         }
-        int workerCount = 4;
-        int maxInFlightPages = 8;
-        long promotionThresholdRows = 1_000_000L;
-        return new TopNOperator.ParallelFinalMergeConfig(parallelWorkerExecutor, workerCount, maxInFlightPages, promotionThresholdRows);
+        return new TopNOperator.ParallelFinalMergeConfig(parallelWorkerExecutor, 4, 8);
     }
 
     private PhysicalOperation planTopNBy(TopNByExec topNByExec, LocalExecutionPlannerContext context) {

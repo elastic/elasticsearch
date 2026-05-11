@@ -111,6 +111,14 @@ public final class StreamingParallelParsingCoordinator {
         ErrorPolicy errorPolicy,
         @Nullable List<Attribute> readSchema
     ) throws IOException {
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "streaming parallelRead: readSchema={}, parallelism={}, projection={}",
+                readSchema == null ? "null" : "present(" + readSchema.size() + ")",
+                parallelism,
+                projectedColumns == null ? "null" : projectedColumns.size()
+            );
+        }
         ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
 
         if (parallelism <= 1) {

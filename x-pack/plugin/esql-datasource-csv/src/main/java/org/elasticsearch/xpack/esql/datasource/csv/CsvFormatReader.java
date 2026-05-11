@@ -761,6 +761,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
         List<Attribute> effectiveSchema;
         List<Attribute> readSchema = context.readSchema();
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "CSV read [{}]: readSchema={}, firstSplit={}, recordAligned={}, projection={}",
+                object.path(),
+                readSchema == null ? "null" : "present(" + readSchema.size() + ")",
+                context.firstSplit(),
+                context.recordAligned(),
+                context.projectedColumns() == null ? "null" : context.projectedColumns().size()
+            );
+        }
         if (readSchema != null) {
             if (context.firstSplit() && options.headerRow()) {
                 skipHeaderLine(reader);

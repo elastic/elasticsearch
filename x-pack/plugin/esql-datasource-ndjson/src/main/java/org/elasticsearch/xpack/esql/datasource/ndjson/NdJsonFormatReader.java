@@ -12,6 +12,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -37,6 +39,8 @@ import java.util.Set;
  * Implements {@link SegmentableFormatReader} for intra-file parallel parsing.
  */
 public class NdJsonFormatReader implements SegmentableFormatReader {
+
+    private static final Logger logger = LogManager.getLogger(NdJsonFormatReader.class);
 
     public static final String SCHEMA_SAMPLE_SIZE_SETTING = "esql.datasource.ndjson.schema_sample_size";
     public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = 20_000;
@@ -290,6 +294,16 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "NDJSON read [{}]: readSchema={}, firstSplit={}, recordAligned={}, projection={}",
+                object.path(),
+                context.readSchema() == null ? "null" : "present(" + context.readSchema().size() + ")",
+                context.firstSplit(),
+                context.recordAligned(),
+                context.projectedColumns() == null ? "null" : context.projectedColumns().size()
+            );
+        }
         // Mirror {@link org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader}: parallel byte-range
         // splits from {@link org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator} set
         // {@code recordAligned=true}, signalling segment boundaries already fall on {@code \n}. Do not drop the

@@ -260,13 +260,13 @@ public final class DateFieldMapper extends FieldMapper {
     public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
         true,
         DocValuesParameter.Values.Cardinality.LOW,
-        DocValuesParameter.Values.MultiValue.SORTED
+        true
     );
 
     public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index;
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.sorted(
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.of(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParameters()
         );
@@ -1184,7 +1184,7 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue().isSingleValued();
+        return docValuesParameters.multiValue() == false;
     }
 
     @Override
@@ -1288,9 +1288,9 @@ public final class DateFieldMapper extends FieldMapper {
         } else if (indexed && docValuesParameters.enabled()) {
             context.doc()
                 .add(
-                    docValuesParameters.multiValue().isSingleValued()
-                        ? new SingleValuedLongField(fieldType().name(), timestamp)
-                        : new LongField(fieldType().name(), timestamp, Field.Store.NO)
+                    docValuesParameters.multiValue()
+                        ? new LongField(fieldType().name(), timestamp, Field.Store.NO)
+                        : new SingleValuedLongField(fieldType().name(), timestamp)
                 );
         } else if (docValuesParameters.enabled()) {
             dvFactory.addNumericField(context.doc(), fieldType().name(), timestamp);

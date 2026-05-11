@@ -620,3 +620,6 @@ tests:
 - class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
   method: testDynamicSettingUpdateAffectsSubsequentDocuments
   issue: https://github.com/elastic/elasticsearch/issues/148745
+- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
+  method: testBulkPartialFailureOnArrayObjectsLimit
+  issue: https://github.com/elastic/elasticsearch/issues/148746

@@ -11,10 +11,12 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
@@ -49,7 +51,40 @@ public abstract class GenerativeApproximationRestTest extends EsqlSpecTestCase {
         testCase.allowAllWarnings();
 
         // Sample a huge number of rows, so that exact results are computed.
-        doTest("SET approximation={\"rows\":2000000000}; " + testCase.query);
+        executeQuery("""
+            SET approximation={"rows":2000000000};
+            {QUERY}
+            """.replace("{QUERY}", testCase.query)
+        );
+
+        try {
+            GenerativeForkRestTest.shouldSkipForkTest(testCase);
+            executeQuery("""
+                SET approximation={"rows":2000000000};
+                {QUERY}
+                | FORK (WHERE true | LIMIT 300) (WHERE true) | LIMIT 300 | WHERE _fork == "fork1" | DROP _fork
+                """.replace("{QUERY}", testCase.query));
+        } catch (AssumptionViolatedException e) {
+            // do nothing
+        }
+
+        try {
+            GenerativeForkRestTest.shouldSkipForkTest(testCase);
+            assumeTrue("Subquery must start with FROM", testCase.query.toUpperCase(Locale.ROOT).startsWith("FROM "));
+            executeQuery("""
+                SET approximation={"rows":2000000000};
+                FROM ({QUERY} | EVAL _subquery=1), ({QUERY} | EVAL _subquery=2)
+                | WHERE _subquery == 1
+                | DROP _subquery
+                """.replace("{QUERY}", testCase.query));
+        } catch (AssumptionViolatedException e) {
+            // do nothing
+        }
+    }
+
+    private void executeQuery(String query) throws Throwable {
+        logger.info("executing query:\n=========={}\n==========", query);
+        doTest(query);
     }
 
     @Override

@@ -191,7 +191,7 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
      * handling has the same two-valued-mask null bug as LIKE used to, and is left unchanged
      * to keep this PR focused on the LIKE win that motivated the work.
      */
-    private static boolean isFullyEvaluable(Expression expr) {
+    static boolean isFullyEvaluable(Expression expr) {
         if (expr instanceof WildcardLike) {
             return true;
         }

@@ -75,6 +75,7 @@ public class TestAnalyzer {
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
     private final Map<String, IndexResolution> lookupResolution = new HashMap<>();
+    private final Map<IndexPattern, IndexResolution> lenientResolution = new HashMap<>();
     private final EnrichResolution enrichResolution = new EnrichResolution();
     private final InferenceResolution.Builder inferenceResolution = InferenceResolution.builder();
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
@@ -126,6 +127,26 @@ public class TestAnalyzer {
      */
     public TestAnalyzer addIndex(EsIndex index) {
         return addIndex(IndexResolution.valid(index));
+    }
+
+    /**
+     * Add a lenient (CPS shadow) resolution entry. The {@code ResolveViewShadow} analyzer rule
+     * looks up entries in {@link AnalyzerContext#optionalLinkedResolution()} by the shadow's full
+     * {@code IndexPattern} (view name + applicable exclusions), so the same view referenced
+     * with different exclusion lists can be wired to different results.
+     */
+    public TestAnalyzer addLenientShadow(IndexPattern indexPattern, IndexResolution resolution) {
+        this.lenientResolution.put(indexPattern, resolution);
+        return this;
+    }
+
+    /**
+     * Convenience overload of {@link #addLenientShadow(IndexPattern, IndexResolution)} for the
+     * common no-exclusion case: keys the entry by an {@link IndexPattern} built from
+     * {@code esIndex.name()} (which the test should match the local view name).
+     */
+    public TestAnalyzer addLenientShadow(EsIndex esIndex) {
+        return addLenientShadow(new IndexPattern(Source.EMPTY, esIndex.name()), IndexResolution.valid(esIndex));
     }
 
     /**
@@ -767,6 +788,7 @@ public class TestAnalyzer {
             null,
             indexResolutions,
             lookupResolution,
+            lenientResolution,
             enrichResolution,
             inferenceResolution.build(),
             externalSourceResolution,

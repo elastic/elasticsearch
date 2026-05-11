@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,8 +15,6 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -197,12 +194,10 @@ public class FieldExtract extends EsqlScalarFunction {
     }
 
     private static void extractTopLevelKey(BytesRefBlock.Builder builder, BytesRef str, String key) {
-        // Flattened doc values are JSON objects, but _source loaders can deliver SMILE/CBOR/YAML.
-        XContentType type = XContentFactory.xContentType(str.bytes, str.offset, str.length);
-        if (type == null) {
-            type = XContentType.JSON;
-        }
-        try (XContentParser parser = type.xContent().createParser(XContentParserConfiguration.EMPTY, str.bytes, str.offset, str.length)) {
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(XContentParserConfiguration.EMPTY, str.bytes, str.offset, str.length)
+        ) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new IllegalArgumentException("path [" + key + "] does not exist");
             }
@@ -221,13 +216,6 @@ public class FieldExtract extends EsqlScalarFunction {
             throw new IllegalArgumentException("path [" + key + "] does not exist");
         } catch (IOException | XContentParseException e) {
             throw new IllegalArgumentException("invalid JSON input");
-        }
-    }
-
-    private static void copyCurrentStructureFallback(BytesRefBlock.Builder builder, XContentParser parser) throws IOException {
-        try (XContentBuilder jsonBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            jsonBuilder.copyCurrentStructure(parser);
-            builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());
         }
     }
 

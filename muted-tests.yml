@@ -548,5 +548,5 @@ tests:
   method: testLoad
   issue: https://github.com/elastic/elasticsearch/issues/148693
 - class: org.elasticsearch.xpack.esql.datasource.parquet.parquetrs.ParquetRsDiscoverSplitRangesStatsTests
-  method: testDiscoverSplitRangesIncludesColumnMinMax
+  method: testDiscoverSplitRangesIncludesColumnMinMaxKeys
   issue: https://github.com/elastic/elasticsearch/issues/148698

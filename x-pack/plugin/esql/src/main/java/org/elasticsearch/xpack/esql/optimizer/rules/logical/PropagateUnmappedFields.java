@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -44,6 +45,11 @@ public class PropagateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     private static EsRelation mergeMissing(EsRelation er, AttributeSet unmappedFields) {
+        // LOOKUP EsRelations have their own explicit mappings; never inject primary PUK fields into them.
+        // Doing so replaces the lookup's attribute (different NameId) and breaks join rightFields references.
+        if (er.indexMode() == IndexMode.LOOKUP) {
+            return er;
+        }
         Set<String> existingPuks = new HashSet<>();
         for (Attribute attr : er.output()) {
             if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {

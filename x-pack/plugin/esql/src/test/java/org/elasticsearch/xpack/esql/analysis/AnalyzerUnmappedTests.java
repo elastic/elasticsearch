@@ -625,6 +625,37 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     /**
+     * LOAD + LOOKUP JOIN: join key absent from the primary mapping (dynamic: false) but present in the
+     * lookup. A KEEP before the join places an unresolved reference to the key at the Project level,
+     * where the lookup's output is not yet in scope. {@code ResolveUnmapped.load()} fires at that level
+     * and adds the key to the primary EsRelation as a {@link PotentiallyUnmappedKeywordEsField}, which
+     * carries {@code DataType.KEYWORD}. The join proceeds, and the key type in the output is KEYWORD —
+     * the canonical "reading an unmapped field from _source assumes keyword" contract.
+     */
+    public void testLoadLookupJoin_JoinKeyKeptBeforeJoin_LoadedAsKeyword() {
+        assumeTrue(
+            "requires optional_fields_load_with_lookup_join",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN.isEnabled()
+        );
+        // The primary (employees / "test") has no "message" field; the lookup does.
+        // KEEP message forces load() to fire at the Project node, before the join sees the lookup's output.
+        var messageLookup = IndexResolution.valid(
+            new EsIndex(
+                "message_lookup",
+                Map.of("message", keywordField("message"), "type", keywordField("type")),
+                Map.of("message_lookup", IndexMode.LOOKUP),
+                Map.of(),
+                Map.of(),
+                Map.of()
+            )
+        );
+        var plan = test().addLookupIndex("message_lookup", messageLookup)
+            .statement(setUnmappedLoad("FROM test | KEEP message | LOOKUP JOIN message_lookup ON message"));
+        var message = plan.output().stream().filter(a -> "message".equals(a.name())).findFirst().orElseThrow();
+        assertThat("unmapped join key kept before the join is loaded from _source as keyword", message.dataType(), is(DataType.KEYWORD));
+    }
+
+    /**
      * LOAD + LOOKUP JOIN: join key present only in the primary mapping (absent from lookup).
      * The left side resolves normally; the right side cannot be resolved because {@code load()}
      * skips LOOKUP EsRelations — same outcome as DEFAULT mode.

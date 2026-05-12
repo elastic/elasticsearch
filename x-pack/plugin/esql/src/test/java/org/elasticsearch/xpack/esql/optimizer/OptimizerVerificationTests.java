@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -528,6 +529,41 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
         var err = error(testAnalyzer.query("from test | EVAL embedding = EMBEDDING(\"query\", last_name)", EMBEDDING_INFERENCE_ID));
         assertThat(err, is("1:30: second argument for [EMBEDDING(\"query\", last_name)] must be a constant string"));
+    }
+
+    /**
+     * Regression test for https://github.com/elastic/elasticsearch/issues/142026.
+     * When the LOOKUP JOIN key is absent from the primary mapping (dynamic: false) and
+     * {@code unmapped_fields="load"} is active, the full analysis + optimization pipeline must
+     * succeed without crashing.
+     * <p>
+     * Specifically, {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateUnmappedFields}
+     * must skip LOOKUP {@code EsRelation}s. Without the fix it would replace the lookup's join-key
+     * attribute (with its own {@code NameId}) by the primary's {@code PotentiallyUnmappedKeywordEsField}
+     * version, breaking the join's {@code rightFields} reference and causing
+     * "Plan optimized incorrectly due to missing references from right hand side".
+     * <p>
+     * The KEEP before the join is what makes load() fire: it places an unresolved reference to the key
+     * at the Project level where only the primary's output is in scope, so the key is added to the
+     * primary EsRelation as a {@code PotentiallyUnmappedKeywordEsField}.
+     */
+    public void testLoadModeUnmappedJoinKeyDoesNotCrashOptimizer() {
+        assumeTrue(
+            "requires optional_fields_load_with_lookup_join",
+            EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN.isEnabled()
+        );
+        // test (employees) has no "message" field; sample_data_lookup has "message" as keyword.
+        var testAnalyzer = analyzer().addDefaultIndex().addSampleDataLookup();
+        var analyzed = testAnalyzer.statement("""
+            SET unmapped_fields="load";
+            FROM test
+            | KEEP message
+            | LOOKUP JOIN sample_data_lookup ON message
+            """);
+        // Must not throw "Plan optimized incorrectly due to missing references from right hand side".
+        var optimized = optimize(analyzed);
+        var message = optimized.output().stream().filter(a -> "message".equals(a.name())).findFirst().orElseThrow();
+        assertThat("unmapped join key loaded from _source is keyword", message.dataType(), equalTo(DataType.KEYWORD));
     }
 
 }

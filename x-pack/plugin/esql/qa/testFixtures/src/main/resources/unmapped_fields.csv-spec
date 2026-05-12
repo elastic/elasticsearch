@@ -632,3 +632,30 @@ FROM partial_mapping_sample_data
 2024-10-23T12:27:28.948Z | connection           | null
 2024-10-23T12:15:03.360Z | connection           | null
 ;
+
+// When the join key is absent from the primary index mapping (dynamic:false), load mode reads it
+// from _source and treats it as keyword — the PotentiallyUnmappedKeywordEsField assumption.
+// The KEEP before the join is necessary: it places an unresolved reference to message at the
+// Project level, where the lookup's output is not yet in scope, so ResolveUnmapped.load() fires
+// and adds a PotentiallyUnmappedKeywordEsField attribute to the primary EsRelation.
+loadUnmappedJoinKeyFromSourceTreatedAsKeyword
+required_capability: optional_fields_v5
+required_capability: optional_fields_load_with_lookup_join
+required_capability: join_lookup_v12
+
+SET unmapped_fields="load"\;
+FROM sample_data_no_message
+| KEEP message
+| LOOKUP JOIN message_types_lookup ON message
+| SORT message ASC, type ASC
+;
+
+message:keyword        | type:keyword
+Connected to 10.1.0.1 | Success
+Connected to 10.1.0.2 | Success
+Connected to 10.1.0.3 | Success
+Connection error       | Error
+Connection error       | Error
+Connection error       | Error
+Disconnected           | Disconnected
+;

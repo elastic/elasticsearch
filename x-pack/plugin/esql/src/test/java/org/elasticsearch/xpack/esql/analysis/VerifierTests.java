@@ -1465,6 +1465,17 @@ public class VerifierTests extends ESTestCase {
         index.error("FROM flattened_otel_logs | SORT resource.attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
     }
 
+    public void testFieldExtractFirstArgumentMustBeFlattened() {
+        var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
+        index.error(
+            "FROM flattened_otel_logs | EVAL x = field_extract(@timestamp, \"a\")",
+            equalTo(
+                "1:37: first argument of [field_extract(@timestamp, \"a\")] must be [flattened], "
+                    + "found value [@timestamp] type [datetime]"
+            )
+        );
+    }
+
     public void testCountersSorting() {
         Map<DataType, String> counterDataTypes = Map.of(
             COUNTER_DOUBLE,
@@ -4041,6 +4052,14 @@ public class VerifierTests extends ESTestCase {
         fullText().error(
             "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"order\": \"invalid\"})",
             equalTo("1:29: 'order' option must be 'score' or 'none', found [invalid]")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"analyzer\": \"\"})",
+            equalTo("1:29: 'analyzer' option must be a non-empty string")
+        );
+        fullText().error(
+            "from test | EVAL snippets = TOP_SNIPPETS(body, \"query\", {\"analyzer\": \"  \"})",
+            equalTo("1:29: 'analyzer' option must be a non-empty string")
         );
     }
 

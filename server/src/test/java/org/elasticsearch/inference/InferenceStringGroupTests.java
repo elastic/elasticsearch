@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -135,7 +136,7 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     public void testToInferenceStringList_withMoreThanOneElement_throws() {
         var input = List.of(new InferenceStringGroup(List.of(InferenceStringTests.createRandom(), InferenceStringTests.createRandom())));
         var expectedException = expectThrows(AssertionError.class, () -> toInferenceStringList(input));
-        assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup passed to InferenceStringGroup.toStringList"));
+        assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup used in code path expecting a single input."));
     }
 
     public void testToStringList() {
@@ -148,7 +149,17 @@ public class InferenceStringGroupTests extends AbstractBWCSerializationTestCase<
     public void testToStringList_withMoreThanOneElement_throws() {
         var input = List.of(new InferenceStringGroup(List.of(InferenceStringTests.createRandom(), InferenceStringTests.createRandom())));
         var expectedException = expectThrows(AssertionError.class, () -> toStringList(input));
-        assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup passed to InferenceStringGroup.toStringList"));
+        assertThat(expectedException.getMessage(), is("Multiple-input InferenceStringGroup used in code path expecting a single input."));
+    }
+
+    public void testToStringList_WithNonTextValue_Throws() {
+        var input = randomList(1, 5, () -> new InferenceStringGroup(randomAlphaOfLength(5)));
+        var nonTextInput = new InferenceStringGroup(
+            InferenceStringTests.createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(TEXT)))
+        );
+        input.add(randomInt(input.size()), nonTextInput);
+        var expectedException = expectThrows(AssertionError.class, () -> toStringList(input));
+        assertThat(expectedException.getMessage(), is("Non-text input returned from InferenceString.textValue"));
     }
 
     public void testContainsNonTextEntry_withOnlyTextInputs() {

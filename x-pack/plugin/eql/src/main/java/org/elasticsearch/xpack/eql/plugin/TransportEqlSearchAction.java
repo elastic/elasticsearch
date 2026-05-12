@@ -10,9 +10,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -150,8 +153,18 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
     }
 
     @Override
+    protected void handleExecution(
+        Task task,
+        EqlSearchRequest request,
+        ActionListener<EqlSearchResponse> listener,
+        TransportAction.TransportActionHandler<EqlSearchRequest, EqlSearchResponse> handler
+    ) {
+        super.handleExecution(task, request, activityLogger.wrap(listener, new EqlLogContextBuilder(task, request)), handler);
+    }
+
+    @Override
     public void execute(EqlSearchRequest request, EqlSearchTask task, ActionListener<EqlSearchResponse> listener) {
-        loggedOperation(planExecutor, task, request, username(securityContext), transportService, clusterService, activityLogger, listener);
+        operation(planExecutor, task, request, username(securityContext), transportService, clusterService, listener);
     }
 
     @Override
@@ -183,34 +196,8 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 listener
             );
         } else {
-            loggedOperation(
-                planExecutor,
-                (EqlSearchTask) task,
-                request,
-                username(securityContext),
-                transportService,
-                clusterService,
-                activityLogger,
-                listener
-            );
+            operation(planExecutor, (EqlSearchTask) task, request, username(securityContext), transportService, clusterService, listener);
         }
-    }
-
-    public static void loggedOperation(
-        PlanExecutor planExecutor,
-        EqlSearchTask task,
-        EqlSearchRequest request,
-        String username,
-        TransportService transportService,
-        ClusterService clusterService,
-        ActivityLogger<EqlLogContext> activityLogger,
-        ActionListener<EqlSearchResponse> operationListener
-    ) {
-        activityLogger.wrapAndRun(
-            operationListener,
-            new EqlLogContextBuilder(task, request),
-            (l) -> operation(planExecutor, task, request, username, transportService, clusterService, l)
-        );
     }
 
     public static void operation(

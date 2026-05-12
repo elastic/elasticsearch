@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.stats.CCSUsage;
 import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -260,6 +261,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             });
     }
 
+    @Override
+    protected void handleExecution(
+        Task task,
+        EsqlQueryRequest request,
+        ActionListener<EsqlQueryResponse> listener,
+        TransportAction.TransportActionHandler<EsqlQueryRequest, EsqlQueryResponse> handler
+    ) {
+        super.handleExecution(task, request, activityLogger.wrap(listener, new EsqlLogContextBuilder(task, request)), handler);
+    }
+
     /**
      * Returns the executor used for external source coordination (e.g. connector handshakes and registry wiring).
      * File-based async reads and slice-queue drain use {@link ThreadPool.Names#GENERIC} via
@@ -286,7 +297,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (requestIsAsync(request)) {
             asyncTaskManagementService.asyncExecute(request, request.waitForCompletionTimeout(), request.keepOnCompletion(), listener);
         } else {
-            innerExecuteWithLogging(task, request, listener);
+            innerExecute(task, request, listener);
         }
     }
 
@@ -295,7 +306,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // set EsqlExecutionInfo on async-search task so that it is accessible to GET _query/async while the query is still running
         task.setExecutionInfo(createEsqlExecutionInfo(request));
         task.rescheduleCancellationOnExpiry();
-        ActionListener.run(listener, l -> innerExecuteWithLogging(task, request, l));
+        ActionListener.run(listener, l -> innerExecute(task, request, l));
     }
 
     @Override
@@ -306,10 +317,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     @Override
     public void onFailureAfterTimeout(Exception exception) {
         EsqlResponseListener.logOnFailure(exception);
-    }
-
-    private void innerExecuteWithLogging(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        activityLogger.wrapAndRun(listener, new EsqlLogContextBuilder(task, request), (l) -> innerExecute(task, request, l));
     }
 
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {

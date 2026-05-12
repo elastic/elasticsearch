@@ -37,7 +37,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     @Deprecated
     protected Logger logger = LogManager.getLogger(getClass());
 
-    interface TransportActionHandler<Request extends ActionRequest, Response extends ActionResponse> {
+    protected interface TransportActionHandler<Request extends ActionRequest, Response extends ActionResponse> {
         void execute(Task task, Request request, ActionListener<Response> listener);
     }
 
@@ -64,7 +64,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         );
     }
 
-    private void handleExecution(
+    protected void handleExecution(
         Task task,
         Request request,
         ActionListener<Response> listener,

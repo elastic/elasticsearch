@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -129,6 +130,16 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
     }
 
     @Override
+    protected void handleExecution(
+        Task task,
+        SqlQueryRequest request,
+        ActionListener<SqlQueryResponse> listener,
+        TransportAction.TransportActionHandler<SqlQueryRequest, SqlQueryResponse> handler
+    ) {
+        super.handleExecution(task, request, activityLogger.wrap(listener, new SqlLogContextBuilder(task, request)), handler);
+    }
+
+    @Override
     protected void doExecute(Task task, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
         if (request.waitForCompletionTimeout() != null && request.waitForCompletionTimeout().getMillis() >= 0) {
@@ -140,7 +151,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
                 listener
             );
         } else {
-            loggedOperation(
+            operation(
                 planExecutor,
                 (SqlQueryTask) task,
                 request,
@@ -148,28 +159,9 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
                 username(securityContext),
                 transportService,
                 clusterService,
-                crossProjectModeDecider,
-                activityLogger
+                crossProjectModeDecider
             );
         }
-    }
-
-    public static void loggedOperation(
-        PlanExecutor planExecutor,
-        SqlQueryTask task,
-        SqlQueryRequest request,
-        ActionListener<SqlQueryResponse> operationListener,
-        String username,
-        TransportService transportService,
-        ClusterService clusterService,
-        CrossProjectModeDecider crossProjectModeDecider,
-        ActivityLogger<SqlLogContext> activityLogger
-    ) {
-        activityLogger.wrapAndRun(
-            operationListener,
-            new SqlLogContextBuilder(task, request),
-            (l) -> operation(planExecutor, task, request, l, username, transportService, clusterService, crossProjectModeDecider)
-        );
     }
 
     /**
@@ -326,7 +318,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
 
     @Override
     public void execute(SqlQueryRequest request, SqlQueryTask task, ActionListener<SqlQueryResponse> listener) {
-        loggedOperation(
+        operation(
             planExecutor,
             task,
             request,
@@ -334,8 +326,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             username(securityContext),
             transportService,
             clusterService,
-            crossProjectModeDecider,
-            activityLogger
+            crossProjectModeDecider
         );
     }
 

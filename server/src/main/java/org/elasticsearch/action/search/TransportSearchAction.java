@@ -35,6 +35,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -252,6 +253,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
     }
 
+    @Override
+    protected void handleExecution(
+        Task task,
+        SearchRequest request,
+        ActionListener<SearchResponse> listener,
+        TransportAction.TransportActionHandler<SearchRequest, SearchResponse> handler
+    ) {
+        SearchLogContextBuilder searchLogContextBuilder = new SearchLogContextBuilder(task, namedWriteableRegistry, request);
+        super.handleExecution(task, request, activityLogger.wrap(listener, searchLogContextBuilder), handler);
+    }
+
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
         ProjectState projectState,
         Set<ResolvedExpression> indicesAndAliases,
@@ -410,12 +422,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        SearchLogContextBuilder searchLogContextBuilder = new SearchLogContextBuilder(task, namedWriteableRegistry, searchRequest);
-        activityLogger.wrapAndRun(
-            listener,
-            searchLogContextBuilder,
-            l -> executeRequest((SearchTask) task, searchRequest, l, AsyncSearchActionProvider::new, true)
-        );
+        executeRequest((SearchTask) task, searchRequest, listener, AsyncSearchActionProvider::new, true);
     }
 
     void executeOpenPit(

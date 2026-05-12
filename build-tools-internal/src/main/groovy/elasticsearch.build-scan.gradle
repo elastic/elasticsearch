@@ -15,11 +15,22 @@ import java.lang.management.ManagementFactory
 import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
 
+import org.elasticsearch.gradle.internal.ci.GcpPreemptionWatchdog
+import org.elasticsearch.gradle.internal.ci.PreemptionBuildCanceller
+
 import static org.elasticsearch.gradle.internal.util.CiUtils.runBuildkiteAgent
 import static org.elasticsearch.gradle.internal.util.CiUtils.safeName
 
 // Resolving this early to avoid issues with the build scan plugin in combination with the configuration cache usage
 def taskNames = gradle.startParameter.taskNames.join(' ')
+
+// Start the GCP Spot VM preemption watchdog as early as possible so we have the full ~30s
+// window to react before the instance is killed. The watchdog is a no-op unless
+// GCP_PREEMPTION_WATCHDOG=true is set in the environment. The poll thread is a daemon, so
+// it dies with the JVM; CI VMs don't reuse Gradle daemons across jobs, so no explicit stop
+// is needed for the prototype.
+GcpPreemptionWatchdog.start()
+PreemptionBuildCanceller.install(gradle)
 
 develocity {
 

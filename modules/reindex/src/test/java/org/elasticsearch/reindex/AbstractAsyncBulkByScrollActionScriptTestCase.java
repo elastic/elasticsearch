@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
-import org.elasticsearch.index.reindex.AbstractBulkIndexByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkIndexByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.reindex.AbstractAsyncBulkByScrollAction.RequestWrapper;
 import org.elasticsearch.script.ReindexScript;
@@ -34,7 +34,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
-    Request extends AbstractBulkIndexByScrollRequest<Request>,
+    Request extends AbstractBulkIndexByPaginatedSearchRequest<Request>,
     Response extends BulkByScrollResponse> extends AbstractAsyncBulkByScrollActionTestCase<Request, Response> {
 
     protected ScriptService scriptService;

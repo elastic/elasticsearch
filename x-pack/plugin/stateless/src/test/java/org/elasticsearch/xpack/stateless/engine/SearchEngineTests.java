@@ -16,6 +16,7 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -828,7 +829,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             }, e -> { fail("listener should not have failed: " + e.getMessage()); });
 
             // try getting a searcher for commit1
-            searchEngine.acquireSearcherForCommit(segmentsFileName, metadata, wrapper, listener);
+            searchEngine.acquireSearcherForCommit(segmentsFileName, metadata, wrapper, null, SplitShardCountSummary.IRRELEVANT, listener);
             searchTaskQueue.runAllRunnableTasks();
             assertTrue(wrapperCalled.actionGet(TimeValue.timeValueSeconds(1L)));
             assertTrue(searcherClosed.actionGet(TimeValue.timeValueSeconds(1L)));

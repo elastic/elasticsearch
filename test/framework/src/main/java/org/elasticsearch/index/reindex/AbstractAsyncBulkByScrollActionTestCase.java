@@ -20,7 +20,7 @@ import org.junit.Before;
 import java.util.Collections;
 
 public abstract class AbstractAsyncBulkByScrollActionTestCase<
-    Request extends AbstractBulkByScrollRequest<Request>,
+    Request extends AbstractBulkByPaginatedSearchRequest<Request>,
     Response extends BulkByScrollResponse> extends ESTestCase {
     protected ThreadPool threadPool;
     protected BulkByScrollTask task;

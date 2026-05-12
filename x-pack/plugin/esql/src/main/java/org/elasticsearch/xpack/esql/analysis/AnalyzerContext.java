@@ -31,6 +31,8 @@ public class AnalyzerContext {
     private final EsqlFunctionRegistry functionRegistry;
     private final Map<IndexPattern, IndexResolution> indexResolution;
     private final Map<String, IndexResolution> lookupResolution;
+    private final Map<IndexPattern, IndexResolution> optionalLinkedResolution;  // CPS-specific resolution for remote indexes matching local
+                                                                                // views
     private final EnrichResolution enrichResolution;
     private final InferenceResolution inferenceResolution;
     private final ExternalSourceResolution externalSourceResolution;
@@ -46,33 +48,7 @@ public class AnalyzerContext {
         ProjectMetadata projectMetadata,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
-        EnrichResolution enrichResolution,
-        InferenceResolution inferenceResolution,
-        ExternalSourceResolution externalSourceResolution,
-        TransportVersion minimumVersion,
-        UnmappedResolution unmappedResolution
-    ) {
-        this(
-            configuration,
-            functionRegistry,
-            projectMetadata,
-            indexResolution,
-            lookupResolution,
-            enrichResolution,
-            inferenceResolution,
-            externalSourceResolution,
-            minimumVersion,
-            unmappedResolution,
-            null
-        );
-    }
-
-    public AnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        ProjectMetadata projectMetadata,
-        Map<IndexPattern, IndexResolution> indexResolution,
-        Map<String, IndexResolution> lookupResolution,
+        Map<IndexPattern, IndexResolution> optionalLinkedResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         ExternalSourceResolution externalSourceResolution,
@@ -85,6 +61,7 @@ public class AnalyzerContext {
         this.projectMetadata = projectMetadata;
         this.indexResolution = indexResolution;
         this.lookupResolution = lookupResolution;
+        this.optionalLinkedResolution = optionalLinkedResolution;
         this.enrichResolution = enrichResolution;
         this.inferenceResolution = inferenceResolution;
         this.externalSourceResolution = externalSourceResolution;
@@ -114,11 +91,13 @@ public class AnalyzerContext {
             null,
             indexResolution,
             lookupResolution,
+            Map.of(),
             enrichResolution,
             inferenceResolution,
             ExternalSourceResolution.EMPTY,
             minimumVersion,
-            unmappedResolution
+            unmappedResolution,
+            null
         );
     }
 
@@ -136,6 +115,13 @@ public class AnalyzerContext {
 
     public Map<String, IndexResolution> lookupResolution() {
         return lookupResolution;
+    }
+
+    /**
+     * Contains resolution for optional linked patterns. Such patterns include linked indices (if exist) that shadow local views.
+     */
+    public Map<IndexPattern, IndexResolution> optionalLinkedResolution() {
+        return optionalLinkedResolution;
     }
 
     public EnrichResolution enrichResolution() {
@@ -203,16 +189,6 @@ public class AnalyzerContext {
         EsqlFunctionRegistry functionRegistry,
         UnmappedResolution unmappedResolution,
         ProjectMetadata projectMetadata,
-        EsqlSession.PreAnalysisResult result
-    ) {
-        this(configuration, functionRegistry, unmappedResolution, projectMetadata, result, null);
-    }
-
-    public AnalyzerContext(
-        Configuration configuration,
-        EsqlFunctionRegistry functionRegistry,
-        UnmappedResolution unmappedResolution,
-        ProjectMetadata projectMetadata,
         EsqlSession.PreAnalysisResult result,
         @Nullable TimestampBounds timestampBounds
     ) {
@@ -222,6 +198,7 @@ public class AnalyzerContext {
             projectMetadata,
             result.indexResolution(),
             result.lookupIndices(),
+            result.optionalLinkedResolution(),
             result.enrichResolution(),
             result.inferenceResolution(),
             result.externalSourceResolution(),

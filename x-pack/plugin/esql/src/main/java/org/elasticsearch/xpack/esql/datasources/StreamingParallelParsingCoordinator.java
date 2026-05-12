@@ -448,7 +448,7 @@ public final class StreamingParallelParsingCoordinator {
                 // task; the poll returns it immediately. If a concurrent close drained the queue
                 // (drainAllQueues), poll returns null and we exit cleanly via finally.
                 chunk = chunkQueue.poll();
-                if (chunk == null || chunk == Chunk.POISON) {
+                if (chunk == null) {
                     return;
                 }
                 int queueSlot = chunk.index % pageQueueRingSize;
@@ -484,7 +484,7 @@ public final class StreamingParallelParsingCoordinator {
                 firstError.compareAndSet(null, e);
                 signalReady();
             } finally {
-                if (chunk != null && chunk != Chunk.POISON) {
+                if (chunk != null) {
                     recycleBuffer(chunk.buffer);
                     if (queue != null) {
                         putPoisonAndSignal(queue);
@@ -857,9 +857,7 @@ public final class StreamingParallelParsingCoordinator {
             // Drain chunk queue
             Chunk chunk;
             while ((chunk = chunkQueue.poll()) != null) {
-                if (chunk != Chunk.POISON) {
-                    recycleBuffer(chunk.buffer);
-                }
+                recycleBuffer(chunk.buffer);
             }
             // Drain page queues
             for (ArrayBlockingQueue<Page> queue : pageQueues) {
@@ -873,9 +871,7 @@ public final class StreamingParallelParsingCoordinator {
         }
     }
 
-    private record Chunk(int index, byte[] buffer, int length, boolean last) {
-        static final Chunk POISON = new Chunk(-1, new byte[0], 0, true);
-    }
+    private record Chunk(int index, byte[] buffer, int length, boolean last) {}
 
     /**
      * Minimal StorageObject wrapping an InputStream for the parallelism=1 fallback path.

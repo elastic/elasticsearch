@@ -37,6 +37,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -62,7 +64,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
             assertEquals(lineCount, allLines.size());
             for (int i = 0; i < lineCount; i++) {
-                assertEquals("line-" + String.format(java.util.Locale.ROOT, "%04d", i), allLines.get(i));
+                assertEquals("line-" + String.format(Locale.ROOT, "%04d", i), allLines.get(i));
             }
         } finally {
             executor.shutdownNow();
@@ -117,7 +119,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
             assertEquals(lineCount, allLines.size());
             for (int i = 0; i < lineCount; i++) {
-                assertEquals("line-" + String.format(java.util.Locale.ROOT, "%04d", i), allLines.get(i));
+                assertEquals("line-" + String.format(Locale.ROOT, "%04d", i), allLines.get(i));
             }
         } finally {
             executor.shutdownNow();
@@ -321,7 +323,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     public void testWaitForReadyParksUntilFirstChunkOrEof() throws Exception {
         // Synthesize a stream the segmenter cannot yet make progress on by gating it behind a latch
         // wired into a slow read.
-        java.util.concurrent.CountDownLatch unblockRead = new java.util.concurrent.CountDownLatch(1);
+        CountDownLatch unblockRead = new CountDownLatch(1);
         byte[] payload = "line-0\nline-1\n".getBytes(StandardCharsets.UTF_8);
         InputStream gatedStream = new InputStream() {
             int pos = 0;
@@ -397,7 +399,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * the listener so the producer-loop doesn't leak its registered callback past iterator shutdown.
      */
     public void testWaitForReadyResolvesOnClose() throws Exception {
-        java.util.concurrent.CountDownLatch unblockRead = new java.util.concurrent.CountDownLatch(1);
+        CountDownLatch unblockRead = new CountDownLatch(1);
         InputStream gatedStream = new InputStream() {
             @Override
             public int read() throws IOException {
@@ -538,7 +540,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 );
                 assertEquals("iter " + iter, lineCount, got.size());
                 for (int i = 0; i < lineCount; i++) {
-                    assertEquals("iter " + iter + " line " + i, "line-" + String.format(java.util.Locale.ROOT, "%04d", i), got.get(i));
+                    assertEquals("iter " + iter + " line " + i, "line-" + String.format(Locale.ROOT, "%04d", i), got.get(i));
                 }
             }
         } finally {
@@ -549,7 +551,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     private static String buildContent(int lineCount) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lineCount; i++) {
-            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append('\n');
+            sb.append("line-").append(String.format(Locale.ROOT, "%04d", i)).append('\n');
         }
         return sb.toString();
     }
@@ -604,9 +606,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         int recordCount = 0;
         for (int i = 0; i < 50; i++) {
             if (i % 5 == 0) {
-                sb.append("\"multi\nline-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\"\n");
+                sb.append("\"multi\nline-").append(String.format(Locale.ROOT, "%04d", i)).append("\"\n");
             } else {
-                sb.append("simple-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append('\n');
+                sb.append("simple-").append(String.format(Locale.ROOT, "%04d", i)).append('\n');
             }
             recordCount++;
         }
@@ -691,9 +693,9 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < totalRecords; i++) {
             if (i % 7 == 0) {
-                sb.append("\"quoted\nrecord-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\"\n");
+                sb.append("\"quoted\nrecord-").append(String.format(Locale.ROOT, "%04d", i)).append("\"\n");
             } else {
-                sb.append("plain-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append('\n');
+                sb.append("plain-").append(String.format(Locale.ROOT, "%04d", i)).append('\n');
             }
         }
         byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
@@ -716,10 +718,10 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             for (int i = 0; i < totalRecords; i++) {
                 String line = allLines.get(i);
                 if (i % 7 == 0) {
-                    String expected = "quoted\nrecord-" + String.format(java.util.Locale.ROOT, "%04d", i);
+                    String expected = "quoted\nrecord-" + String.format(Locale.ROOT, "%04d", i);
                     assertEquals("record " + i, expected, line);
                 } else {
-                    String expected = "plain-" + String.format(java.util.Locale.ROOT, "%04d", i);
+                    String expected = "plain-" + String.format(Locale.ROOT, "%04d", i);
                     assertEquals("record " + i, expected, line);
                 }
             }
@@ -753,7 +755,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
             assertEquals(lineCount, allLines.size());
             for (int i = 0; i < lineCount; i++) {
-                assertEquals("line-" + String.format(java.util.Locale.ROOT, "%04d", i), allLines.get(i));
+                assertEquals("line-" + String.format(Locale.ROOT, "%04d", i), allLines.get(i));
             }
         } finally {
             executor.shutdownNow();

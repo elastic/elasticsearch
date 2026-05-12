@@ -29,8 +29,13 @@ public final class EirfRowToXContent {
         // Walk the schema tree depth-first so children of the same non-leaf are emitted contiguously, even when
         // heterogeneous documents caused their leaves to be interleaved in schema leaf order.
         EirfRowXContentParser.SchemaNode root = EirfRowXContentParser.buildSchemaTree(schema);
+        writeRowFromSchema(row, root, builder);
+    }
+
+    public static void writeRowFromSchema(EirfRowReader row, EirfRowXContentParser.SchemaNode schemaTree, XContentBuilder builder)
+        throws IOException {
         builder.startObject();
-        writeChildren(root, row, builder);
+        writeChildren(schemaTree, row, builder);
         builder.endObject();
     }
 

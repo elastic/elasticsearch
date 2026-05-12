@@ -114,9 +114,41 @@ setup:
               field: vector
               query_vector: [2, 2, 2, 2, 3]
               k: 2
+              num_candidates: 3
               visit_percentage: 1.0
 
   - gt: { hits.total.value: 0 }
+
+  # Test that visit_percentage is accepted by itself even though it is ignored, since the vector field uses int8_hnsw
+  - do:
+      search:
+        index: index1
+        body:
+          fields: [ "name" ]
+          retriever:
+            knn:
+              field: vector
+              query_vector: [2, 2, 2, 2, 3]
+              k: 2
+              visit_percentage: 1.0
+
+  - gt: { hits.total.value: 0 }
+
+  # Test that missing visit_percentage and num_candidates results in an error
+  - do:
+      catch: bad_request
+      search:
+        index: index1
+        body:
+          fields: [ "name" ]
+          retriever:
+            knn:
+              field: vector
+              query_vector: [2, 2, 2, 2, 3]
+              k: 2
+
+  - match: { error.root_cause.0.type: "x_content_parse_exception" }
+  - match: { error.caused_by.reason: "either [num_candidates] or [visit_percentage] must be provided" }
 
 ---
 "kNN retriever with filter":

@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.UninitializedArrayAllocator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -466,7 +467,7 @@ final class PageColumnReader implements Releasable {
             useFallbackReader = true;
             try {
                 fallbackReader = currentEncoding.getValuesReader(descriptor, ValuesType.VALUES);
-                byte[] bytes = new byte[currentValueBytes.remaining()];
+                byte[] bytes = UninitializedArrayAllocator.newByteArray(currentValueBytes.remaining());
                 currentValueBytes.duplicate().get(bytes);
                 fallbackReader.initFromPage(currentPageValueCount, bytes, 0);
             } catch (IOException e) {
@@ -607,7 +608,7 @@ final class PageColumnReader implements Releasable {
     // --- Boolean ---
 
     private Block readBooleanBatch(int maxRows, BlockFactory blockFactory) {
-        boolean[] values = new boolean[maxRows];
+        boolean[] values = UninitializedArrayAllocator.newBooleanArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = readNonNullBooleans(values, 0, maxRows);
             Block constant = ConstantBlockDetection.tryConstantBoolean(values, produced, blockFactory);
@@ -661,7 +662,7 @@ final class PageColumnReader implements Releasable {
             readBooleansDispatch(values, offset, nonNullCount);
             return;
         }
-        boolean[] packed = new boolean[nonNullCount];
+        boolean[] packed = UninitializedArrayAllocator.newBooleanArray(nonNullCount);
         readBooleansDispatch(packed, 0, nonNullCount);
         scatter(packed, values, nulls, offset, totalRows);
     }
@@ -669,7 +670,7 @@ final class PageColumnReader implements Releasable {
     // --- Int ---
 
     private Block readIntBatch(int maxRows, BlockFactory blockFactory) {
-        int[] values = new int[maxRows];
+        int[] values = UninitializedArrayAllocator.newIntArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = readNonNullInts(values, 0, maxRows);
             Block constant = ConstantBlockDetection.tryConstantInt(values, produced, blockFactory);
@@ -723,7 +724,7 @@ final class PageColumnReader implements Releasable {
             readIntsDispatch(values, offset, nonNullCount);
             return;
         }
-        int[] packed = new int[nonNullCount];
+        int[] packed = UninitializedArrayAllocator.newIntArray(nonNullCount);
         readIntsDispatch(packed, 0, nonNullCount);
         scatter(packed, values, nulls, offset, totalRows);
     }
@@ -731,7 +732,7 @@ final class PageColumnReader implements Releasable {
     // --- Long ---
 
     private Block readLongBatch(int maxRows, BlockFactory blockFactory) {
-        long[] values = new long[maxRows];
+        long[] values = UninitializedArrayAllocator.newLongArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = readNonNullLongs(values, 0, maxRows);
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
@@ -793,7 +794,7 @@ final class PageColumnReader implements Releasable {
             readLongsDispatch(values, offset, nonNullCount);
             return;
         }
-        long[] packed = new long[nonNullCount];
+        long[] packed = UninitializedArrayAllocator.newLongArray(nonNullCount);
         readLongsDispatch(packed, 0, nonNullCount);
         scatter(packed, values, nulls, offset, totalRows);
     }
@@ -801,7 +802,7 @@ final class PageColumnReader implements Releasable {
     // --- Int32 widened to Long ---
 
     private Block readInt32AsLongBatch(int maxRows, BlockFactory blockFactory) {
-        long[] values = new long[maxRows];
+        long[] values = UninitializedArrayAllocator.newLongArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = readNonNullInt32AsLong(values, 0, maxRows);
             Block constant = ConstantBlockDetection.tryConstantLong(values, produced, blockFactory);
@@ -882,7 +883,7 @@ final class PageColumnReader implements Releasable {
             return readFloat16Batch(maxRows, blockFactory);
         }
         boolean isFloat = info.parquetType() == PrimitiveType.PrimitiveTypeName.FLOAT;
-        double[] values = new double[maxRows];
+        double[] values = UninitializedArrayAllocator.newDoubleArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = readNonNullDoubles(values, 0, maxRows, isFloat);
             Block constant = ConstantBlockDetection.tryConstantDouble(values, produced, blockFactory);
@@ -944,7 +945,7 @@ final class PageColumnReader implements Releasable {
             }
             return;
         }
-        double[] packed = new double[nonNullCount];
+        double[] packed = UninitializedArrayAllocator.newDoubleArray(nonNullCount);
         if (isFloat) {
             readFloatsDispatch(packed, 0, nonNullCount);
         } else {
@@ -954,7 +955,7 @@ final class PageColumnReader implements Releasable {
     }
 
     private Block readDecimalAsDoubleBatch(int maxRows, int scale, BlockFactory blockFactory) {
-        double[] values = new double[maxRows];
+        double[] values = UninitializedArrayAllocator.newDoubleArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = 0;
             int remaining = maxRows;
@@ -980,7 +981,7 @@ final class PageColumnReader implements Releasable {
                 if (nonNull == fromPage) {
                     readDecimalValues(values, produced, nonNull, scale);
                 } else {
-                    double[] packed = new double[nonNull];
+                    double[] packed = UninitializedArrayAllocator.newDoubleArray(nonNull);
                     readDecimalValues(packed, 0, nonNull, scale);
                     scatter(packed, values, nulls, produced, fromPage);
                 }
@@ -1028,7 +1029,7 @@ final class PageColumnReader implements Releasable {
     }
 
     private Block readFloat16Batch(int maxRows, BlockFactory blockFactory) {
-        double[] values = new double[maxRows];
+        double[] values = UninitializedArrayAllocator.newDoubleArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = 0;
             int remaining = maxRows;
@@ -1054,7 +1055,7 @@ final class PageColumnReader implements Releasable {
                 if (nonNull == fromPage) {
                     readFloat16Values(values, produced, nonNull);
                 } else {
-                    double[] packed = new double[nonNull];
+                    double[] packed = UninitializedArrayAllocator.newDoubleArray(nonNull);
                     readFloat16Values(packed, 0, nonNull);
                     scatter(packed, values, nulls, produced, fromPage);
                 }
@@ -1174,7 +1175,7 @@ final class PageColumnReader implements Releasable {
     }
 
     private Block readBytesBatchAsOrdinals(int maxRows, BlockFactory blockFactory) {
-        int[] ordinals = new int[maxRows];
+        int[] ordinals = UninitializedArrayAllocator.newIntArray(maxRows);
         WordMask nulls = maxDefLevel > 0 ? buffers.nullsMask(maxRows) : null;
         int produced = 0;
         int remaining = maxRows;
@@ -1192,7 +1193,7 @@ final class PageColumnReader implements Releasable {
                 if (nonNull == fromPage) {
                     dictDecoder.readIndices(ordinals, produced, fromPage);
                 } else if (nonNull > 0) {
-                    int[] packed = new int[nonNull];
+                    int[] packed = UninitializedArrayAllocator.newIntArray(nonNull);
                     dictDecoder.readIndices(packed, 0, nonNull);
                     int pi = 0;
                     for (int i = 0; i < fromPage; i++) {
@@ -1383,7 +1384,7 @@ final class PageColumnReader implements Releasable {
             return readInt96Batch(maxRows, blockFactory);
         }
         boolean isDate = info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32;
-        long[] values = new long[maxRows];
+        long[] values = UninitializedArrayAllocator.newLongArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = 0;
             int remaining = maxRows;
@@ -1409,7 +1410,7 @@ final class PageColumnReader implements Releasable {
                 if (nonNull == fromPage) {
                     readDatetimeValues(values, produced, nonNull, isDate);
                 } else {
-                    long[] packed = new long[nonNull];
+                    long[] packed = UninitializedArrayAllocator.newLongArray(nonNull);
                     readDatetimeValues(packed, 0, nonNull, isDate);
                     scatter(packed, values, nulls, produced, fromPage);
                 }
@@ -1462,7 +1463,7 @@ final class PageColumnReader implements Releasable {
     }
 
     private Block readInt96Batch(int maxRows, BlockFactory blockFactory) {
-        long[] values = new long[maxRows];
+        long[] values = UninitializedArrayAllocator.newLongArray(maxRows);
         if (maxDefLevel == 0) {
             int produced = 0;
             int remaining = maxRows;
@@ -1488,7 +1489,7 @@ final class PageColumnReader implements Releasable {
                 if (nonNull == fromPage) {
                     readInt96Values(values, produced, nonNull);
                 } else {
-                    long[] packed = new long[nonNull];
+                    long[] packed = UninitializedArrayAllocator.newLongArray(nonNull);
                     readInt96Values(packed, 0, nonNull);
                     scatter(packed, values, nulls, produced, fromPage);
                 }

@@ -159,6 +159,11 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
         return transitionExecutor;
     }
 
+    // Visible for testing
+    DataStreamLifecycleErrorStore getErrorStore() {
+        return errorStore;
+    }
+
     // visible for testing
     void checkForFrozenIndices() {
         final DLMFrozenTransitionExecutor executor = transitionExecutor;

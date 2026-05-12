@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -178,6 +179,19 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 "CoalesceFloatEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.DENSE_VECTOR,
                 equalTo(firstVector == null ? secondVector : firstVector)
+            );
+        }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.FLATTENED, DataType.FLATTENED), () -> {
+            BytesRef first = randomBoolean() ? null : FlattenedCases.RANDOM.get();
+            BytesRef second = FlattenedCases.RANDOM.get();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(first, DataType.FLATTENED, "first"),
+                    new TestCaseSupplier.TypedData(second, DataType.FLATTENED, "second")
+                ),
+                "CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.FLATTENED,
+                equalTo(first == null ? second : first)
             );
         }));
         List<TestCaseSupplier> suppliers = new ArrayList<>(noNullsSuppliers);

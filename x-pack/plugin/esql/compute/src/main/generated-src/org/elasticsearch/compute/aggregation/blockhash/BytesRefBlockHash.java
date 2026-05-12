@@ -56,7 +56,7 @@ final class BytesRefBlockHash extends BlockHash {
 
     private static final int PREFETCH_BATCH = 128;
     private final PrefetchBarrier prefetchBarrier = new PrefetchBarrier();
-    private final int[] batchHashes = new int[PREFETCH_BATCH];
+    private final long[] batchHashes = new long[PREFETCH_BATCH];
     private final BytesRef[] batchKeys = new BytesRef[PREFETCH_BATCH];
     {
         for (int i = 0; i < PREFETCH_BATCH; i++) {
@@ -129,7 +129,7 @@ final class BytesRefBlockHash extends BlockHash {
                 int batchSize = Math.min(PREFETCH_BATCH, positions - offset);
                 for (int i = 0; i < batchSize; i++) {
                     vector.getBytesRef(offset + i, batchKeys[i]);
-                    batchHashes[i] = BytesRefSwissHash.hash(batchKeys[i]);
+                    batchHashes[i] = BytesRefSwissHash.hash64(batchKeys[i]);
                     dummy ^= swiss.prefetch(batchHashes[i]);
                 }
                 for (int i = 0; i < batchSize; i++) {

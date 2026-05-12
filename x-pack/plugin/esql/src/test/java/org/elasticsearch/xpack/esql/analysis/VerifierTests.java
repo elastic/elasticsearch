@@ -1465,6 +1465,17 @@ public class VerifierTests extends ESTestCase {
         index.error("FROM flattened_otel_logs | SORT resource.attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
     }
 
+    public void testFieldExtractFirstArgumentMustBeFlattened() {
+        var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
+        index.error(
+            "FROM flattened_otel_logs | EVAL x = field_extract(@timestamp, \"a\")",
+            equalTo(
+                "1:37: first argument of [field_extract(@timestamp, \"a\")] must be [flattened], "
+                    + "found value [@timestamp] type [datetime]"
+            )
+        );
+    }
+
     public void testCountersSorting() {
         Map<DataType, String> counterDataTypes = Map.of(
             COUNTER_DOUBLE,

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SingleSpSamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -124,6 +125,11 @@ public final class Authentication implements ToXContentObject {
     private static final TransportVersion SECURITY_CLOUD_API_KEY_REALM_AND_TYPE = TransportVersion.fromName(
         "security_cloud_api_key_realm_and_type"
     );
+
+    // Realm types under which a UIAM-authenticated cloud-managed user can land. The "multi_project_saml" literal
+    // must stay in sync with co.elastic.elasticsearch.serverless.security.authc.MultiProjectSpSamlRealmSettings#TYPE
+    // (the class lives in the serverless distribution and cannot be referenced from core).
+    private static final Set<String> CLOUD_MANAGED_USER_REALM_TYPES = Set.of(SingleSpSamlRealmSettings.TYPE, "multi_project_saml");
 
     private final AuthenticationType type;
     private final Subject authenticatingSubject;
@@ -562,7 +568,10 @@ public final class Authentication implements ToXContentObject {
             return false;
         }
         final String managedBy = (String) effectiveSubject.getMetadata().get(AuthenticationField.MANAGED_BY_METADATA_KEY);
-        return CredentialManagedBy.CLOUD.getDisplayName().equalsIgnoreCase(managedBy);
+        if (CredentialManagedBy.CLOUD.getDisplayName().equalsIgnoreCase(managedBy) == false) {
+            return false;
+        }
+        return CLOUD_MANAGED_USER_REALM_TYPES.contains(effectiveSubject.getRealm().getType());
     }
 
     public boolean isCrossClusterAccess() {

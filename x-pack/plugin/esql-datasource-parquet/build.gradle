@@ -57,11 +57,6 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-tasks.named("test").configure {
-  // Needed by UninitializedArrayAllocator to reflectively access jdk.internal.misc.Unsafe
-  jvmArgs('--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED')
-}
-
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /parquet-.*/, to: 'parquet'

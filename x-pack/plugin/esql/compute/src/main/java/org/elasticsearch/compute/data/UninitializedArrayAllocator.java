@@ -35,8 +35,7 @@ public final class UninitializedArrayAllocator {
     private static final Logger logger = LogManager.getLogger(UninitializedArrayAllocator.class);
 
     private static final String UNSAFE_DISABLED_MESSAGE = "Could not initialize jdk.internal.misc.Unsafe#allocateUninitializedArray; "
-        + "falling back to zero-initialized array allocation. "
-        + "Pass --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED to enable the fast path.";
+        + "pass --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED to enable the fast path.";
 
     private static final MethodHandle ALLOCATE_UNINITIALIZED_ARRAY = initAllocateHandle();
 
@@ -58,7 +57,7 @@ public final class UninitializedArrayAllocator {
                 .findVirtual(unsafeClass, "allocateUninitializedArray", MethodType.methodType(Object.class, Class.class, int.class));
             return handle.bindTo(unsafe);
         } catch (ReflectiveOperationException | RuntimeException e) {
-            logger.warn(UNSAFE_DISABLED_MESSAGE, e);
+            logger.warn(UNSAFE_DISABLED_MESSAGE + " Falling back to zero-initialized array allocation.", e);
             return null;
         }
     }

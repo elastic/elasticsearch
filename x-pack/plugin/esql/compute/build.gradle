@@ -49,8 +49,6 @@ tasks.named('checkstyleMain').configure {
 tasks.named("test").configure {
   // Needed for Arrow tests
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
-  // Needed by UninitializedArrayAllocator to reflectively access jdk.internal.misc.Unsafe
-  jvmArgs('--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED')
 }
 
 tasks.named("spotlessJava") { dependsOn "stringTemplates" }

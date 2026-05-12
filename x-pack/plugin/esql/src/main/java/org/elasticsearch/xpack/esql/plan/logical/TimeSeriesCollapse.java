@@ -64,7 +64,10 @@ public class TimeSeriesCollapse extends UnaryPlan implements PostAnalysisVerific
     private final Attribute value;
     private final Attribute step;
     private final List<Attribute> dimensions;
-    /** Null until {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse} populates it from the source PromqlCommand. */
+    /**
+     * Null until {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTimeSeriesCollapse} populates it from
+     * the source {@link PromqlCommand}.
+     */
     private final Literal start;
     private final Literal end;
     private final Expression stepBucketSize;

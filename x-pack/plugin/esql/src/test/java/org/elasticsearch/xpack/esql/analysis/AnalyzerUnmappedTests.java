@@ -571,7 +571,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             keywordField("lookup_only")
         );
         return IndexResolution.valid(
-            new EsIndex("custom_lookup", mapping, Map.of("custom_lookup", IndexMode.LOOKUP), Map.of(), Map.of(), Map.of())
+            new EsIndex("custom_lookup", mapping, Map.of("custom_lookup", IndexMode.LOOKUP), Map.of(), Map.of())
         );
     }
 
@@ -644,7 +644,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 "message_lookup",
                 Map.of("message", keywordField("message"), "type", keywordField("type")),
                 Map.of("message_lookup", IndexMode.LOOKUP),
-                Map.of(),
                 Map.of(),
                 Map.of()
             )

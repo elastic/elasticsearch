@@ -335,8 +335,8 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
     }
 
     @Override
-    public void start(Model model, TimeValue timeout, ActionListener<Boolean> listener) {
-        listener.onResponse(true);
+    public void start(Model model, TimeValue timeout, ActionListener<Void> listener) {
+        listener.onResponse(null);
     }
 
     @Override

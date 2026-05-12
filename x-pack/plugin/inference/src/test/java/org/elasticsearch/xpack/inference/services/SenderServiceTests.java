@@ -102,13 +102,13 @@ public class SenderServiceTests extends ESTestCase {
         try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             verify(factory, times(1)).createSender();
 
-            var listener = new TestPlainActionFuture<Boolean>();
+            var listener = new TestPlainActionFuture<Void>();
             service.start(mock(Model.class), null, listener);
-            assertTrue(listener.actionGet(TIMEOUT));
+            assertNull(listener.actionGet(TIMEOUT));
 
-            var listener2 = new TestPlainActionFuture<Boolean>();
+            var listener2 = new TestPlainActionFuture<Void>();
             service.start(mock(Model.class), null, listener2);
-            assertTrue(listener2.actionGet(TIMEOUT));
+            assertNull(listener2.actionGet(TIMEOUT));
         }
 
         verify(sender, times(1)).close();

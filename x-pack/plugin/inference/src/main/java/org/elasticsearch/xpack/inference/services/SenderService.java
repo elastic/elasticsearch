@@ -472,8 +472,8 @@ public abstract class SenderService<M extends Model> implements InferenceService
     }
 
     @Override
-    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Boolean> listener) {
-        listener.onResponse(Boolean.TRUE);
+    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Void> listener) {
+        listener.onResponse(null);
     }
 
     @Override

@@ -187,7 +187,7 @@ public interface InferenceService extends Closeable {
      * @param timeout Start timeout
      * @param listener The listener
      */
-    void start(Model model, TimeValue timeout, ActionListener<Boolean> listener);
+    void start(Model model, TimeValue timeout, ActionListener<Void> listener);
 
     /**
      * Stop the model deployment.

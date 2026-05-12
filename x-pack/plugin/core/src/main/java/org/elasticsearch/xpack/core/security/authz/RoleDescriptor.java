@@ -1117,7 +1117,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     ) {
         if (null == configurableClusterPrivileges) {
             return ConfigurableClusterPrivileges.EMPTY_ARRAY;
-        } else if (configurableClusterPrivileges.length < 2) {
+        }
+        configurableClusterPrivileges = ConfigurableClusterPrivileges.normalizeEmptyDatasourcePrivileges(configurableClusterPrivileges);
+        if (configurableClusterPrivileges.length < 2) {
             return configurableClusterPrivileges;
         } else {
             ConfigurableClusterPrivilege[] configurableClusterPrivilegesCopy = Arrays.copyOf(

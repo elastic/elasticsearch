@@ -80,7 +80,37 @@ public final class ConfigurableClusterPrivileges {
      * Utility method to read an array of {@link ConfigurableClusterPrivilege} objects from a {@link StreamInput}
      */
     public static ConfigurableClusterPrivilege[] readArray(StreamInput in) throws IOException {
-        return in.readArray(READER, ConfigurableClusterPrivilege[]::new);
+        return normalizeEmptyDatasourcePrivileges(in.readArray(READER, ConfigurableClusterPrivilege[]::new));
+    }
+
+    /**
+     * Drops {@link ManageDatasourcePrivileges} instances with no permission groups. Empty groups can appear on the
+     * wire (legacy or mixed-version payloads); they are equivalent to omitting {@code global.datasource} entirely.
+     */
+    public static ConfigurableClusterPrivilege[] normalizeEmptyDatasourcePrivileges(ConfigurableClusterPrivilege[] privileges) {
+        if (privileges == null || privileges.length == 0) {
+            return EMPTY_ARRAY;
+        }
+        int dropCount = 0;
+        for (ConfigurableClusterPrivilege p : privileges) {
+            if (p instanceof ManageDatasourcePrivileges mds && mds.hasPermissionGroups() == false) {
+                dropCount++;
+            }
+        }
+        if (dropCount == 0) {
+            return privileges;
+        }
+        if (dropCount == privileges.length) {
+            return EMPTY_ARRAY;
+        }
+        ArrayList<ConfigurableClusterPrivilege> list = new ArrayList<>(privileges.length - dropCount);
+        for (ConfigurableClusterPrivilege p : privileges) {
+            if (p instanceof ManageDatasourcePrivileges mds && mds.hasPermissionGroups() == false) {
+                continue;
+            }
+            list.add(p);
+        }
+        return list.toArray(ConfigurableClusterPrivilege[]::new);
     }
 
     /**
@@ -102,7 +132,8 @@ public final class ConfigurableClusterPrivileges {
         builder.startObject();
         for (Category category : Category.values()) {
             if (category == Category.DATASOURCE) {
-                boolean hasDatasourcePrivilege = privileges.stream().anyMatch(p -> p.getCategory() == Category.DATASOURCE);
+                boolean hasDatasourcePrivilege = privileges.stream()
+                    .anyMatch(p -> p instanceof ManageDatasourcePrivileges mds && mds.hasPermissionGroups());
                 if (hasDatasourcePrivilege) {
                     builder.startArray(category.field.getPreferredName());
                     for (ConfigurableClusterPrivilege privilege : privileges) {
@@ -426,12 +457,21 @@ public final class ConfigurableClusterPrivileges {
         private final List<DatasourcePermissionGroup> groups;
         private final Predicate<TransportRequest> requestPredicate;
 
+        /**
+         * @param groups permission groups; an empty list is allowed for wire compatibility and is removed when a
+         *               {@link RoleDescriptor} is built (see {@link ConfigurableClusterPrivileges#normalizeEmptyDatasourcePrivileges}).
+         */
         public ManageDatasourcePrivileges(List<DatasourcePermissionGroup> groups) {
-            if (groups == null || groups.isEmpty()) {
-                throw new IllegalArgumentException("datasource privileges must define at least one names/privileges group");
+            if (groups == null) {
+                throw new IllegalArgumentException("datasource privileges require a non-null group list");
             }
             this.groups = List.copyOf(groups);
             this.requestPredicate = buildRequestPredicate();
+        }
+
+        /** {@code true} if this privilege defines at least one names/privileges group (non-empty on the wire). */
+        public boolean hasPermissionGroups() {
+            return groups.isEmpty() == false;
         }
 
         private Predicate<TransportRequest> buildRequestPredicate() {

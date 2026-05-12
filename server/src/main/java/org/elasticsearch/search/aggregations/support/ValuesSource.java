@@ -93,6 +93,14 @@ public abstract class ValuesSource {
     protected abstract Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException;
 
     /**
+     * Like {@link #roundingPreparer(AggregationContext)} but for use under a {@code global} agg,
+     * which ignores the top-level query.
+     */
+    protected Function<Rounding, Rounding.Prepared> roundingPreparerForGlobal(AggregationContext context) throws IOException {
+        return roundingPreparer(context);
+    }
+
+    /**
      * Check if this values source supports using global and segment ordinals.
      * <p>
      * If this returns {@code true} then it is safe to cast it to {@link ValuesSource.Bytes.WithOrdinals}.

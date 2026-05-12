@@ -421,7 +421,6 @@ public abstract class DocsV3Support {
     protected final FunctionDefinition definition;
     protected final Supplier<Set<TypeSignature>> signatures;
     protected final Callbacks callbacks;
-    protected final Class<?> testClass;
     private final LicenseRequirementChecker licenseChecker;
     private final KibanaSignaturePatcher kibanaSignaturePatcher;
 
@@ -449,7 +448,6 @@ public abstract class DocsV3Support {
         this.definition = definition == null ? definition(name) : definition;
         this.signatures = signatures;
         this.callbacks = callbacks;
-        this.testClass = testClass;
         this.licenseChecker = new LicenseRequirementChecker(testClass);
         this.kibanaSignaturePatcher = new KibanaSignaturePatcher(testClass);
     }
@@ -800,7 +798,7 @@ public abstract class DocsV3Support {
             if (diagrams == null || diagrams.isEmpty()) {
                 return false;
             }
-            StringBuilder snippet = new StringBuilder(DOCS_WARNING + """
+            StringBuilder snippet = new StringBuilder(docsWarning() + """
                 ### Diagrams
 
                 """);
@@ -1149,7 +1147,7 @@ public abstract class DocsV3Support {
                 body.append("\n::::{note}\n").append(replaceLinks(note)).append("\n::::\n\n");
             }
             if (body.isEmpty() == false) {
-                String rendered = DOCS_WARNING + body + "\n";
+                String rendered = docsWarning() + body + "\n";
                 logger.info("Writing detailed description for [{}]", name);
                 logger.debug("{}", rendered);
                 writeToTempSnippetsDir("detailedDescription", rendered);
@@ -1295,7 +1293,7 @@ public abstract class DocsV3Support {
         @Override
         public void renderDocs() throws Exception {
             StringBuilder builder = new StringBuilder();
-            builder.append(SETTINGS_WARNING);
+            builder.append(settingsWarning());
 
             for (QuerySettingDef<?> setting : settings) {
                 if (setting.snapshotOnly()) {

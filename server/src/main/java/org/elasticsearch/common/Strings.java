@@ -768,6 +768,21 @@ public class Strings {
     }
 
     /**
+     * Returns a {@link String} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will be truncated
+     * up to 1 mebibyte; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be printed out instead.
+     * <p>
+     * This method is intended to be used for logging/debugging purposes, since it might return an invalid JSON value if the limit happens
+     * to be enforced.
+     *
+     * @param chunkedToXContent A {@link ChunkedToXContent} instance to be serialized to JSON.
+     * @param pretty True if the content should be pretty-printed. Also see {@link XContentBuilder#prettyPrint()}.
+     * @param human True if the values should be printed in a human-readable way. Also see {@link XContentBuilder#humanReadable()}}.
+     */
+    public static String toTruncatedString(ChunkedToXContent chunkedToXContent, boolean pretty, boolean human) {
+        return toTruncatedString(chunkedToXContent, 1024 * 1024 /* 1 MiB */, pretty, human).appendIfTruncated("[...]");
+    }
+
+    /**
      * Returns a {@link TruncatedString} containing the JSON representation of the provided {@link ChunkedToXContent}. The content will
      * be truncated up to {@code maxBytes} bytes; if the limit happens to be in the middle of a UTF-8 character, {@code \uFFFD} will be
      * printed out instead. The returned content is neither pretty-printed (see {@link XContentBuilder#prettyPrint()}), nor are the values
@@ -851,17 +866,6 @@ public class Strings {
     }
 
     /**
-     * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
-     * @deprecated don't add usages of this method, it will be removed eventually. Use {@link #toTruncatedString(ChunkedToXContent, int)}
-     *             instead.
-     * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
-     */
-    @Deprecated
-    public static String toString(ChunkedToXContent chunkedToXContent) {
-        return toString(chunkedToXContent, false, false);
-    }
-
-    /**
      * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
      * Wraps the output into an anonymous object if needed.
      * Allows to configure the params.
@@ -893,18 +897,6 @@ public class Strings {
      */
     public static String toString(ToXContent toXContent, boolean pretty, boolean human) {
         return toString(toXContent, ToXContent.EMPTY_PARAMS, pretty, human);
-    }
-
-    /**
-     * Return a {@link String} that is the json representation of the provided {@link ChunkedToXContent}.
-     * Allows to control whether the outputted json needs to be pretty printed and human readable.
-     * @deprecated don't add usages of this method, it will be removed eventually. Use
-     *             {@link #toTruncatedString(ChunkedToXContent, int, boolean, boolean)} instead.
-     * TODO: remove this method, it makes no sense to turn potentially very large chunked xcontent instances into a string
-     */
-    @Deprecated
-    public static String toString(ChunkedToXContent chunkedToXContent, boolean pretty, boolean human) {
-        return toString(ChunkedToXContent.wrapAsToXContent(chunkedToXContent), pretty, human);
     }
 
     /**

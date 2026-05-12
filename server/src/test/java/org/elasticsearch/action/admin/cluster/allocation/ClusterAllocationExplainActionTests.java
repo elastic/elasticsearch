@@ -141,7 +141,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             )
         );
 
-        logger.info("---> Allocation explain response: " + Strings.toString(allocationExplanation, true, true));
+        logger.info("---> Allocation explain response: {}", Strings.toTruncatedString(allocationExplanation, true, true));
         // canRemain on the current node should be NO.
         assertThat(allocationExplanation.getShardAllocationDecision().getMoveDecision().canRemain(), equalTo(false));
         assertThat(
@@ -200,7 +200,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             )
         );
 
-        logger.info("---> Allocation explain response: " + Strings.toString(allocationExplanation, true, true));
+        logger.info("---> Allocation explain response: {}", Strings.toTruncatedString(allocationExplanation, true, true));
         // canRemain on the current node should be NOT_PREFERRED.
         assertThat(allocationExplanation.getShardAllocationDecision().getMoveDecision().canRemainNotPreferred(), equalTo(true));
         assertThat(
@@ -257,7 +257,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             )
         );
 
-        logger.info("---> Allocation explain response: " + Strings.toString(allocationExplanation, true, true));
+        logger.info("---> Allocation explain response: {}", Strings.toTruncatedString(allocationExplanation, true, true));
         // canRemain on the current node should be NOT_PREFERRED.
         assertThat(allocationExplanation.getShardAllocationDecision().getMoveDecision().canRemainNotPreferred(), equalTo(true));
         assertThat(
@@ -312,7 +312,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             )
         );
 
-        logger.info("---> Allocation explain response: " + Strings.toString(allocationExplanation, true, true));
+        logger.info("---> Allocation explain response: {}", Strings.toTruncatedString(allocationExplanation, true, true));
         // canRemain on the current node should be NOT_PREFERRED.
         assertThat(allocationExplanation.getShardAllocationDecision().getMoveDecision().canRemainNotPreferred(), equalTo(true));
         assertThat(

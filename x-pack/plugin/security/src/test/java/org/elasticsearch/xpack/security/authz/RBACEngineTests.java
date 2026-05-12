@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authz;
 import org.elasticsearch.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
@@ -38,6 +39,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -2111,6 +2113,85 @@ public class RBACEngineTests extends ESTestCase {
             }
         });
     }
+
+    public void testEsqlQueryActionIsGrantedForCloudManagedUserWithoutIndexPrivileges() {
+        final Role role = Role.builder(RESTRICTED_INDICES, "test-role").build();
+        final Authentication cloudAuth = AuthenticationTestHelper.randomCloudApiKeyAuthentication();
+        assertTrue(cloudAuth.isCloudManaged());
+
+        final IndexAuthorizationResult result = authorizeEsqlQueryAction(role, cloudAuth);
+        assertTrue(result.isGranted());
+    }
+
+    public void testEsqlQueryActionIsDeniedForNonCloudUserWithoutIndexPrivileges() {
+        final Role role = Role.builder(RESTRICTED_INDICES, "test-role").build();
+        final Authentication nonCloudAuth = AuthenticationTestHelper.builder().apiKey().build();
+        assertFalse(nonCloudAuth.isCloudManaged());
+
+        final IndexAuthorizationResult result = authorizeEsqlQueryAction(role, nonCloudAuth);
+        assertFalse(result.isGranted());
+    }
+
+    public void testEsqlQueryActionIsGrantedForNonCloudUserWithIndexPrivileges() {
+        final Role role = Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, "*").build();
+        final Authentication nonCloudAuth = AuthenticationTestHelper.builder().apiKey().build();
+        assertFalse(nonCloudAuth.isCloudManaged());
+
+        final IndexAuthorizationResult result = authorizeEsqlQueryAction(role, nonCloudAuth);
+        assertTrue(result.isGranted());
+    }
+
+    public void testEsqlComputeActionIsGrantedForCloudManagedUserWithoutIndexPrivileges() {
+        final Role role = Role.builder(RESTRICTED_INDICES, "test-role").build();
+        final Authentication cloudAuth = AuthenticationTestHelper.randomCloudApiKeyAuthentication();
+        assertTrue(cloudAuth.isCloudManaged());
+
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+        final RequestInfo requestInfo = new RequestInfo(cloudAuth, new MockEsqlRequest(), "indices:data/read/esql/compute", null, null);
+
+        final PlainActionFuture<IndexAuthorizationResult> future = new PlainActionFuture<>();
+        engine.authorizeIndexAction(
+            requestInfo,
+            authzInfo,
+            () -> SubscribableListener.newSucceeded(new ResolvedIndices.Builder().build()),
+            ProjectMetadata.builder(randomProjectIdOrDefault()).build()
+        ).addListener(future);
+        assertTrue(future.actionGet().isGranted());
+    }
+
+    public void testCloudUserGrantDoesNotApplyToOtherCompositeActions() {
+        final Role role = Role.builder(RESTRICTED_INDICES, "test-role").build();
+        final Authentication cloudAuth = AuthenticationTestHelper.randomCloudApiKeyAuthentication();
+        assertTrue(cloudAuth.isCloudManaged());
+
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+        final RequestInfo requestInfo = new RequestInfo(cloudAuth, new MockEsqlRequest(), "indices:data/read/sql", null, null);
+
+        final PlainActionFuture<IndexAuthorizationResult> future = new PlainActionFuture<>();
+        engine.authorizeIndexAction(
+            requestInfo,
+            authzInfo,
+            () -> SubscribableListener.newSucceeded(new ResolvedIndices.Builder().build()),
+            ProjectMetadata.builder(randomProjectIdOrDefault()).build()
+        ).addListener(future);
+        assertFalse(future.actionGet().isGranted());
+    }
+
+    private IndexAuthorizationResult authorizeEsqlQueryAction(Role role, Authentication authentication) {
+        final RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
+        final RequestInfo requestInfo = new RequestInfo(authentication, new MockEsqlRequest(), "indices:data/read/esql", null, null);
+
+        final PlainActionFuture<IndexAuthorizationResult> future = new PlainActionFuture<>();
+        engine.authorizeIndexAction(
+            requestInfo,
+            authzInfo,
+            () -> SubscribableListener.newSucceeded(new ResolvedIndices.Builder().build()),
+            ProjectMetadata.builder(randomProjectIdOrDefault()).build()
+        ).addListener(future);
+        return future.actionGet();
+    }
+
+    private static final class MockEsqlRequest extends AbstractTransportRequest implements CompositeIndicesRequest {}
 
     private void authorizeIndicesAction(
         final String[] indices,

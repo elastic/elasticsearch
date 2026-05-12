@@ -554,6 +554,17 @@ public final class Authentication implements ToXContentObject {
         return effectiveSubject.getType() == Subject.Type.CLOUD_API_KEY;
     }
 
+    public boolean isCloudManaged() {
+        if (isCloudApiKey()) {
+            return true;
+        }
+        if (effectiveSubject.getType() != Subject.Type.USER) {
+            return false;
+        }
+        final String managedBy = (String) effectiveSubject.getMetadata().get(AuthenticationField.MANAGED_BY_METADATA_KEY);
+        return CredentialManagedBy.CLOUD.getDisplayName().equalsIgnoreCase(managedBy);
+    }
+
     public boolean isCrossClusterAccess() {
         return effectiveSubject.getType() == Subject.Type.CROSS_CLUSTER_ACCESS;
     }
@@ -789,18 +800,18 @@ public final class Authentication implements ToXContentObject {
                     tokenName,
                     "type",
                     ServiceAccountSettings.REALM_TYPE + "_" + tokenSource,
-                    "managed_by",
+                    AuthenticationField.MANAGED_BY_METADATA_KEY,
                     CredentialManagedBy.ELASTICSEARCH.getDisplayName()
                 )
             );
         } else if (getAuthenticationType() == AuthenticationType.TOKEN) {
-            String managedBy = (String) metadata.get("managed_by");
+            String managedBy = (String) metadata.get(AuthenticationField.MANAGED_BY_METADATA_KEY);
             if (managedBy != null) {
-                builder.field(User.Fields.TOKEN.getPreferredName(), Map.of("managed_by", managedBy));
+                builder.field(User.Fields.TOKEN.getPreferredName(), Map.of(AuthenticationField.MANAGED_BY_METADATA_KEY, managedBy));
             } else {
                 builder.field(
                     User.Fields.TOKEN.getPreferredName(),
-                    Map.of("managed_by", CredentialManagedBy.ELASTICSEARCH.getDisplayName())
+                    Map.of(AuthenticationField.MANAGED_BY_METADATA_KEY, CredentialManagedBy.ELASTICSEARCH.getDisplayName())
                 );
             }
         }
@@ -841,7 +852,7 @@ public final class Authentication implements ToXContentObject {
             if (apiKeyName != null) {
                 apiKeyField.put("name", apiKeyName);
             }
-            apiKeyField.put("managed_by", CredentialManagedBy.ELASTICSEARCH.getDisplayName());
+            apiKeyField.put(AuthenticationField.MANAGED_BY_METADATA_KEY, CredentialManagedBy.ELASTICSEARCH.getDisplayName());
             builder.field("api_key", Collections.unmodifiableMap(apiKeyField));
 
         } else if (isCloudApiKey()) {
@@ -854,7 +865,7 @@ public final class Authentication implements ToXContentObject {
                 apiKeyField.put("name", apiKeyName);
             }
             apiKeyField.put("internal", internal);
-            apiKeyField.put("managed_by", CredentialManagedBy.CLOUD.getDisplayName());
+            apiKeyField.put(AuthenticationField.MANAGED_BY_METADATA_KEY, CredentialManagedBy.CLOUD.getDisplayName());
             builder.field("api_key", Collections.unmodifiableMap(apiKeyField));
         }
     }

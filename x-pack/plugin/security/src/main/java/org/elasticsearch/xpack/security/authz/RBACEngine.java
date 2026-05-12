@@ -281,6 +281,22 @@ public class RBACEngine implements AuthorizationEngine {
         return false;
     }
 
+    /**
+     * Index actions that are unconditionally granted to cloud-managed identities (cloud API keys or UIAM-issued
+     * cloud access tokens), independent of the user's index privileges. Today this covers the top-level ES|QL
+     * query action and its internal {@code esql/compute} child action which is dispatched on every coordinator
+     * that participates in the query (including for computation-only queries and for the local merge step of
+     * cross-project queries).
+     */
+    private static final Set<String> INDEX_ACTIONS_GRANTED_FOR_CLOUD_USERS = Set.of(
+        "indices:data/read/esql",
+        "indices:data/read/esql/compute"
+    );
+
+    private static boolean checkCloudManagedUserGrant(String action, RequestInfo requestInfo) {
+        return INDEX_ACTIONS_GRANTED_FOR_CLOUD_USERS.contains(action) && requestInfo.getAuthentication().isCloudManaged();
+    }
+
     private static boolean shouldAuthorizeIndexActionNameOnly(String action, TransportRequest request) {
         switch (action) {
             case TransportBulkAction.NAME:
@@ -344,9 +360,8 @@ public class RBACEngine implements AuthorizationEngine {
         if (TransportActionProxy.isProxyAction(action) || shouldAuthorizeIndexActionNameOnly(action, request)) {
             // we've already validated that the request is a proxy request so we can skip that but we still
             // need to validate that the action is allowed and then move on
-            return SubscribableListener.newSucceeded(
-                role.checkIndicesAction(action) ? IndexAuthorizationResult.EMPTY : IndexAuthorizationResult.DENIED
-            );
+            final boolean granted = role.checkIndicesAction(action) || checkCloudManagedUserGrant(action, requestInfo);
+            return SubscribableListener.newSucceeded(granted ? IndexAuthorizationResult.EMPTY : IndexAuthorizationResult.DENIED);
         } else if (request instanceof IndicesRequest == false) {
             if (SCROLL_RELATED_ACTIONS.contains(action)) {
                 // scroll is special

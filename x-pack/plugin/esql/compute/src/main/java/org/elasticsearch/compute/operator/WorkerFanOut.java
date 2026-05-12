@@ -79,7 +79,7 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
         boolean success = false;
         try {
             for (int i = 0; i < workerCount; i++) {
-                slots[i] = new WorkerSlot<>(createWorkerState(i));
+                slots[i] = new WorkerSlot<>(i, createWorkerState(i));
                 if (slots[i].state != null) {
                     slots[i].ramBytesSnapshot = slots[i].state.ramBytesUsed();
                 }
@@ -110,8 +110,11 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
      */
     protected abstract int chooseWorker(Page page);
 
-    /** Per-page work, executed on a worker thread. */
-    protected abstract void processPage(W state, Page page);
+    /**
+     * Per-page work, executed on a worker thread. {@code slotIndex} identifies
+     * which worker slot is processing this page.
+     */
+    protected abstract void processPage(W state, Page page, int slotIndex);
 
     /**
      * Build the final result iterator from the per-worker states. Called once
@@ -202,7 +205,7 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
                 try {
                     W state = slot.state;
                     if (closed == false && failureCollector.hasFailure() == false && state != null) {
-                        processPage(state, page);
+                        processPage(state, page, slot.index);
                     }
                 } catch (Exception e) {
                     failureCollector.unwrapAndCollect(e);
@@ -213,7 +216,7 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
                     notifyIfBlocked();
                 }
             }
-            // Refresh size snapshot for ramBytesUsedByStates() while we still hold the lock.
+            // Refresh RAM snapshot while we still hold the lock.
             if (slot.state != null) {
                 slot.ramBytesSnapshot = slot.state.ramBytesUsed();
             }
@@ -381,6 +384,7 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
         final ConcurrentLinkedDeque<Page> inbox = new ConcurrentLinkedDeque<>();
         /** True iff a drain task is scheduled or running. */
         final AtomicBoolean running = new AtomicBoolean(false);
+        final int index;
         W state;
         /**
          * Snapshot of {@code state}'s size, refreshed by each drain before releasing
@@ -388,7 +392,8 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
          */
         volatile long ramBytesSnapshot;
 
-        WorkerSlot(W state) {
+        WorkerSlot(int index, W state) {
+            this.index = index;
             this.state = state;
         }
     }

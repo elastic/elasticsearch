@@ -26,6 +26,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -292,6 +293,9 @@ public class TopNOperator implements Operator, Accountable {
     private final ParallelWorkerConfig workerConfig;
     @Nullable
     private WorkerFanOut<TopNWorkerState> workers;
+    /** Per-slot queue size cache, updated by worker threads and read by {@link #status()}. */
+    @Nullable
+    private AtomicLong[] occupiedRows;
 
     /** Sequential-only convenience constructor. */
     public TopNOperator(
@@ -572,7 +576,7 @@ public class TopNOperator implements Operator, Accountable {
         return new TopNOperatorStatus(
             receiveNanos.get(),
             emitNanos,
-            sequentialState != null ? sequentialState.queue.size() : 0,
+            sequentialState != null ? sequentialState.queue.size() : occupiedRows != null ? totalOccupancy() : 0,
             ramBytesUsed(),
             pagesReceived,
             pagesEmitted,
@@ -580,6 +584,11 @@ public class TopNOperator implements Operator, Accountable {
             rowsEmitted,
             minCompetitiveUpdates
         );
+    }
+
+    private int totalOccupancy() {
+        assert occupiedRows != null;
+        return Math.toIntExact(Arrays.stream(occupiedRows).mapToLong(AtomicLong::get).sum());
     }
 
     @Override
@@ -605,6 +614,10 @@ public class TopNOperator implements Operator, Accountable {
     private void promoteToParallel() {
         assert workerConfig != null && driverContext != null : "promoteToParallel() called without parallel config";
         final int workerCount = workerConfig.workerCount();
+        occupiedRows = new AtomicLong[workerCount];
+        for (int i = 0; i < workerCount; i++) {
+            occupiedRows[i] = new AtomicLong();
+        }
         workers = new WorkerFanOut<>(driverContext, workerConfig.executor(), workerCount, workerConfig.maxInFlightPages()) {
             int dispatchCursor = 0;
 
@@ -625,12 +638,13 @@ public class TopNOperator implements Operator, Accountable {
             }
 
             @Override
-            protected void processPage(TopNWorkerState state, Page page) {
+            protected void processPage(TopNWorkerState state, Page page, int slotIndex) {
                 long start = System.nanoTime();
                 try {
                     mergePageIntoQueue(page, state);
                 } finally {
                     receiveNanos.addAndGet(System.nanoTime() - start);
+                    occupiedRows[slotIndex].set(state.queue == null ? 0 : state.queue.size());
                 }
             }
 

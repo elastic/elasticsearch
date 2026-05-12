@@ -28,31 +28,38 @@ public interface PostFilterableKnnQuery {
      * the target count, regardless of what the binomial variance formula computes. Active
      * when selectivity is near 1, where the variance term collapses to ≈ 0.
      */
-    float POST_FILTER_OVERSAMPLE_FLOOR = 1.3f;
+    float POST_FILTER_OVERSAMPLE_FLOOR = 1.2f;
 
     /**
-     * Confidence-level Z-score for the binomial variance term in round-1 sizing.
+     * Confidence dial for how aggressively round 1 oversizes its candidate request.
      * <p>
-     * Selectivity {@code p} is computed exactly across the shard. With no information about
-     * correlation between the filter and vector content, the maximum-entropy assumption is
-     * independence: pass count from {@code m} candidates is {@code X ~ Binomial(m, p)}. The
-     * approximation
+     * Round 1 asks the codec for {@code m} candidates and applies the user filter; we want
+     * round 1 to return {@code ≥ k} matches on its own so the retry round stays rare. The
+     * shard-wide selectivity {@code p} tells us the <em>average</em> pass fraction, but the
+     * pass count from any given {@code m} candidates is random. Modeling each candidate as
+     * independently passing with probability {@code p} (i.e. {@code Binomial(m, p)}, mean
+     * {@code m·p}, std-dev {@code √(m·p·(1-p))}), and solving for the smallest {@code m}
+     * that pushes {@code k} a distance of {@code Z} standard deviations below the mean:
      * <pre>
-     *   m ≈ ⌈ (k + Z · √(k · (1 - p) / p)) / p ⌉
+     *   m  ≈  ⌈ ( k     +   Z · √(k · (1 - p) / p) ) / p ⌉
+     *           │             │
+     *           │             └─ Z·σ safety buffer (this constant scales it)
+     *           └─ baseline: enough to hit k on average
      * </pre>
-     * makes {@code P(X ≥ k) ≈ Φ(Z)} (linearised at the boundary {@code m·p ≈ k};
-     * exact at the limit, slightly aggressive for small k). Z=2 → ~97.7%, Z=2.5 → ~99.4%,
-     * Z=3 → ~99.9%.
+     * So {@code Z} is a confidence knob: round 1 succeeds with probability {@code ≈ Φ(Z)}.
+     * Reference points: Z=2 → ~97.7%, Z=2.5 → ~99.4%, Z=3 → ~99.9%. Bigger {@code Z} =
+     * more candidates per round-1 call, but fewer retries.
      * <p>
-     * If the filter does correlate with vector content (which we can't know up front), the
-     * effective variance can exceed binomial; the retry mechanism is the safety net for queries
-     * where round 1 falls short despite this margin.
+     * Caveat: independence is what we assume in the absence of any signal about how the
+     * filter correlates with vector content. Correlated filters can inflate variance beyond
+     * binomial — the retry round is the safety net for those cases.
      */
     float POST_FILTER_OVERSAMPLE_Z_SCORE = 2.5f;
 
     /**
-     * Variance buffer term {@code Z · √(k · (1 - p) / p)} from the binomial-variance round-1
-     * sizing.
+     * The {@code Z · √(k · (1 - p) / p)} safety buffer from the round-1 sizing formula in
+     * {@link #POST_FILTER_OVERSAMPLE_Z_SCORE}. Callers add this on top of the {@code k/p}
+     * baseline before rounding up to get {@code m}.
      */
     static double zMargin(int k, float selectivity) {
         return POST_FILTER_OVERSAMPLE_Z_SCORE * Math.sqrt(k * (1.0f - selectivity) / selectivity);

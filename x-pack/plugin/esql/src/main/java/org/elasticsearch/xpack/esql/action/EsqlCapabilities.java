@@ -420,6 +420,11 @@ public class EsqlCapabilities {
         FLATTENED_DATATYPE(Build.current().isSnapshot()),
 
         /**
+         * Support for the {@code field_extract} function, which reads a sub-key from a {@code flattened} field root.
+         */
+        FIELD_EXTRACT_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,

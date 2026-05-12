@@ -28,15 +28,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * End-to-end check that reindex reserves heap budget against the REQUEST circuit breaker before each batch's
- * bulk request is built, and surfaces a {@link CircuitBreakingException} to the client when the breaker trips
- * — without sending the oversized bulk request that would have pushed the node toward OOM.
+ * End-to-end check that reindex reserves heap against the REQUEST circuit breaker for the {@link
+ * org.elasticsearch.action.bulk.BulkRequest} it is about to send, and surfaces a {@link
+ * CircuitBreakingException} to the client when that reservation can't fit — without sending the oversized
+ * bulk request that would have pushed the node toward OOM.
  *
  * <p>The reservation/release lifecycle of the hooks themselves is covered by unit tests in
  * {@code AsyncBulkByScrollActionTests}; this class verifies the production wiring (CircuitBreakerService →
- * Reindexer → AsyncIndexBySearchAction) actually fires against a real breaker. The breaker limit and document
- * sizes here are chosen so the trip happens on the per-batch ratchet rather than on the upfront seed in
- * {@code start()}; otherwise the test would short-circuit before any scroll response was processed.
+ * Reindexer → AsyncIndexBySearchAction) actually fires against a real breaker.
  */
 public class ReindexCircuitBreakerTests extends ESSingleNodeTestCase {
 
@@ -49,20 +48,19 @@ public class ReindexCircuitBreakerTests extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         return Settings.builder()
             .put(super.nodeSettings())
-            // Sized to fit the upfront seed (batchSize=5 × 1000 × 2 = 10 000 bytes) but trip when the
-            // per-batch ratchet measures the real document sizes from the first scroll response.
-            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "50kb")
+            // Sized below the BulkRequest reservation the reindex will attempt (≈ 40 KiB) so the breaker
+            // trips when the action calls reserveBatchAllocation in prepareBulkRequest. Local search-side
+            // accounting for these 5 small-ish hits stays well under this limit.
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "30kb")
             .build();
     }
 
-    public void testReindexFailsWhenPerBatchRatchetExceedsRequestBreakerLimit() {
+    public void testReindexFailsWhenBulkRequestSizeExceedsRequestBreakerLimit() {
         // Pre-create dest so we can search it after the failure even though no bulk write reaches it.
         assertAcked(indicesAdmin().prepareCreate("dest"));
 
-        // Five docs × ~8 000 bytes of source ⇒ batch estimate ≈ 5 × (8 000 + 50) = 40 250 bytes ⇒ ratchet
-        // target ≈ 80 500 bytes ⇒ exceeds the 50 KiB breaker. The 10 KiB upfront seed at start() fits
-        // comfortably under 50 KiB, so the trip we observe is from the per-batch ratchet in
-        // prepareBulkRequest(), not from start().
+        // Five docs × ~8 000-byte source ⇒ BulkRequest.estimatedSizeInBytes() ≈ 5 × (8 000 + 50) ≈ 40 250
+        // bytes, which exceeds the 30 KiB breaker limit configured above.
         int batchSize = 5;
         int docCount = batchSize;
         int sourceBytes = 8_000;

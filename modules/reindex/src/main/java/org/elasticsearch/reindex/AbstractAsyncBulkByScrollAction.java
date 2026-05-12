@@ -124,43 +124,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
     private final BiFunction<RequestWrapper<?>, PaginatedHitSource.Hit, RequestWrapper<?>> scriptApplier;
     private int lastBatchSize;
     /**
-     * Per-document byte estimate used to seed the breaker reservation at reindex start, before any batch has
-     * been observed. Multiplied by the configured search batch size and by an overhead factor of 2, then
-     * capped at {@link #UPFRONT_RESERVATION_CAP_BYTES}.
-     *
-     * <p>1 000 bytes is intentionally well below the 200 kB documents in the original OOM issue; the upfront
-     * seed is only a smoke-alarm for AUTO_SLICES floods on already-loaded nodes, and the per-batch ratchet
-     * picks up the real size on the first scroll response. A larger seed (e.g. the 10 kB earlier drafts
-     * proposed) caused false-positive trips for workloads that legitimately set a large {@code scroll_size}
-     * for small documents (e.g. enrich, default {@code fetch_size = 10_000} on docs that are usually under a
-     * kilobyte).
-     */
-    private static final long UPFRONT_BYTES_PER_DOC_GUESS = 1_000L;
-    /**
-     * Absolute cap on the upfront reservation so a pathological {@code scroll_size} can't itself trip the
-     * breaker. The per-batch ratchet handles the real measurement once the first batch lands.
-     */
-    private static final long UPFRONT_RESERVATION_CAP_BYTES = 32L * 1024L * 1024L;
-    /**
-     * Conservative multiplier applied to the underlying batch byte estimate before reserving against the breaker.
-     * Accounts for: hits living in memory alongside the bulk request copy; JVM object overhead beyond raw source
-     * bytes; and headroom for batches whose document size grows over the course of the operation.
-     */
-    private static final long RESERVATION_OVERHEAD_MULTIPLIER = 2L;
-    /**
-     * Largest batch byte estimate observed so far (or the upfront-guess seed before any batch has run). The
-     * breaker reservation is always {@code peakBatchEstimateBytes * RESERVATION_OVERHEAD_MULTIPLIER}; the value
-     * only ratchets upward, so once we have established a reservation level for this reindex we never give the
-     * budget back mid-operation and risk a concurrent reindex stealing it.
-     */
-    private long peakBatchEstimateBytes = 0L;
-    /**
-     * Bytes currently held against the breaker. Updated after every successful ratchet; released in full from
-     * {@link #finishHim(Exception, List, List, boolean)} so the action holds a reservation continuously between
-     * batches rather than briefly dropping to zero between bulk completion and the next scroll response.
-     */
-    private long currentReservationBytes = 0L;
-    /**
      * The current scroll response being processed. Set atomically so that either {@link #prepareBulkRequest} or
      * {@link #finishHim(Exception, List, List, boolean)} can claim exclusive ownership of the remaining hits and release them exactly once.
      */
@@ -497,23 +460,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
         try {
-            // Reserve heap upfront based on the configured batch size, so a heavily-overloaded node trips the
-            // breaker before we issue the first scroll/PIT search. Without this, the first slices of an
-            // AUTO_SLICES or heavily-sliced reindex would proceed without any reservation against the breaker
-            // — pulling hits into memory before we ever consult it. The seed is intentionally a guess; once we
-            // have a real batch we ratchet up to the observed peak via {@link #ratchetReservation(long)}. The
-            // upfront is capped at {@link #UPFRONT_RESERVATION_CAP_BYTES} so a pathologically large scroll_size
-            // doesn't itself trip the breaker.
-            final int requestedBatchSize = mainRequest.getSearchRequest().source().size();
-            if (requestedBatchSize > 0) {
-                final long uncapped = (long) requestedBatchSize * UPFRONT_BYTES_PER_DOC_GUESS * RESERVATION_OVERHEAD_MULTIPLIER;
-                final long upfront = Math.min(uncapped, UPFRONT_RESERVATION_CAP_BYTES);
-                // Seed peak from the (post-cap) reservation so the first ratchet doesn't spuriously re-reserve
-                // budget that was capped away — the ratchet takes over from the first real batch onward.
-                peakBatchEstimateBytes = upfront / RESERVATION_OVERHEAD_MULTIPLIER;
-                reserveBatchAllocation(upfront);
-                currentReservationBytes = upfront;
-            }
             if (mainRequest.getResumeInfo().isPresent()) {
                 var resumeInfo = mainRequest.getResumeInfo().get();
                 // At this point only worker task can be started, leader task would have split slices into worker tasks
@@ -641,25 +587,17 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
 
-        // Ratchet the breaker reservation up to {@code peak * 2} where peak is the running max of
-        // observed batch byte estimates. The reservation is held across batches and released in
-        // {@link #finishHim(Exception, List, List, boolean)} so concurrent reindexes can't sneak in
-        // and steal our budget between batches. A {@link CircuitBreakingException} here propagates
-        // to the client as HTTP 429 rather than letting the allocation push the node into OOM.
-        try {
-            ratchetReservation(estimateBulkRequestBytes(hits));
-        } catch (CircuitBreakingException e) {
-            releaseHits(hits);
-            asyncResponse.releaseRemainingHits();
-            finishHim(e);
-            return;
-        }
-
-        // {@code releaseBatchHits} only releases the per-batch hit references — the breaker reservation
-        // is owned by the action lifecycle (set in {@link #start()}, ratcheted here, released in
-        // {@link #finishHim(Exception, List, List, boolean)}).
+        // The hits the search subsystem just delivered are already counted against the REQUEST breaker by
+        // the search code itself (see FetchPhase). Our additional allocation in this action is the
+        // {@link BulkRequest} we are about to build: it copies {@code _source} contents into
+        // {@link IndexRequest}/{@link UpdateRequest} bodies (or accumulates {@link DeleteRequest}
+        // metadata) which will then be serialised for transport to the destination. Reserve heap budget
+        // for that {@link BulkRequest} only, sized from its own {@link BulkRequest#estimatedSizeInBytes()}
+        // once we've built it. The reservation is released when the bulk listener completes, so its
+        // lifetime matches the {@link BulkRequest} object's lifetime.
         final Releasable releaseBatchHits = Releasables.releaseOnce(() -> releaseHits(hits));
-        boolean releaseBatchHitsHandedOff = false;
+        boolean cleanupHandedOff = false;
+        Releasable cleanup = releaseBatchHits;
         try {
             final BulkRequest request = buildBulk(hits);
             if (request.requests().isEmpty()) {
@@ -669,90 +607,49 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 notifyDone(thisBatchStartTimeNS, asyncResponse, 0);
                 return;
             }
+            final long bulkRequestBytes = request.estimatedSizeInBytes();
+            try {
+                reserveBatchAllocation(bulkRequestBytes);
+            } catch (CircuitBreakingException e) {
+                // The reservation never landed, so nothing to release — the {@code finally} below will
+                // close {@code releaseBatchHits} via {@code cleanup}, and {@code finishHim} surfaces
+                // the breaker trip to the client.
+                finishHim(e);
+                return;
+            }
+            // Reservation landed — extend the cleanup so the breaker bytes are released alongside the
+            // hits when the bulk listener completes (or when an exception aborts before send).
+            cleanup = Releasables.wrap(releaseBatchHits, () -> releaseBatchAllocation(bulkRequestBytes));
             request.timeout(mainRequest.getTimeout());
             request.waitForActiveShards(mainRequest.getWaitForActiveShards());
-            sendBulkRequest(request, releaseBatchHits, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
-            releaseBatchHitsHandedOff = true;
+            sendBulkRequest(request, cleanup, () -> notifyDone(thisBatchStartTimeNS, asyncResponse, request.requests().size()));
+            cleanupHandedOff = true;
         } finally {
-            if (releaseBatchHitsHandedOff == false) {
-                releaseBatchHits.close();
+            if (cleanupHandedOff == false) {
+                cleanup.close();
             }
         }
     }
 
     /**
-     * Estimate the heap bytes the bulk request built from {@code hits} will consume. The estimate sums each hit's
-     * {@code _source} bytes plus a fixed per-request overhead matching {@code BulkRequest.REQUEST_OVERHEAD}.
-     * It is intentionally a lower bound on actual allocation — the breaker's job is to give an early signal of
-     * heap pressure, not to be a precise accountant.
-     */
-    static long estimateBulkRequestBytes(List<? extends PaginatedHitSource.Hit> hits) {
-        // Mirror BulkRequest.REQUEST_OVERHEAD, which is private. The constant is small and stable; if it changes
-        // we'll just under- or over-estimate by a few bytes per doc — which the breaker tolerates.
-        final int perRequestOverhead = 50;
-        long total = 0;
-        for (PaginatedHitSource.Hit hit : hits) {
-            BytesReference source = hit.getSource();
-            if (source != null) {
-                total += source.length();
-            }
-            total += perRequestOverhead;
-        }
-        return total;
-    }
-
-    /**
-     * Reserve heap budget against the action's circuit breaker. The default is a no-op; subclasses override
-     * this to call {@link org.elasticsearch.common.breaker.CircuitBreaker#addEstimateBytesAndMaybeBreak} so
-     * the reservation can trip and throw {@link CircuitBreakingException}.
+     * Reserve heap budget against the action's circuit breaker for the {@link BulkRequest} we are about to
+     * send. The default is a no-op; subclasses override this to call
+     * {@link org.elasticsearch.common.breaker.CircuitBreaker#addEstimateBytesAndMaybeBreak} so the
+     * reservation can trip and throw {@link CircuitBreakingException}.
      *
-     * <p>Called from {@link #start()} for the upfront-guess reservation, and from
-     * {@link #ratchetReservation(long)} for subsequent grow-only updates. Always called with a positive
-     * delta — never to release.
+     * <p>Called from {@link #prepareBulkRequest} once per built bulk request, with the number of bytes
+     * returned by {@link BulkRequest#estimatedSizeInBytes()}. We only track our own {@link BulkRequest}
+     * here; the search subsystem already counts hit-source bytes against the same breaker for local
+     * searches.
      */
     protected void reserveBatchAllocation(long bytes) throws CircuitBreakingException {}
 
     /**
-     * Release heap budget previously reserved via {@link #reserveBatchAllocation(long)}. Always called from
-     * {@link #finishHim(Exception, List, List, boolean)} with the full {@link #currentReservationBytes}
-     * total (which may be zero if reservation never landed because of a cancellation or upfront-trip).
+     * Release heap budget previously reserved via {@link #reserveBatchAllocation(long)}. Always called once
+     * per successful reservation, when the bulk listener completes (success or failure) — so the
+     * reservation's lifetime matches the {@link BulkRequest}'s lifetime.
      */
     protected void releaseBatchAllocation(long bytes) {}
-
-    /**
-     * Ratchet the breaker reservation upward to {@code Math.max(peak, currentBatchEstimate) *
-     * RESERVATION_OVERHEAD_MULTIPLIER}, calling {@link #reserveBatchAllocation(long)} only with the positive
-     * delta. The peak only grows over the lifetime of the action, so this never releases — that's
-     * {@link #finishHim(Exception, List, List, boolean)}'s job.
-     *
-     * @throws CircuitBreakingException if the breaker rejects the additional reservation; on throw,
-     *         {@link #currentReservationBytes} is left at its pre-ratchet value so the eventual release in
-     *         {@code finishHim} returns the correct amount.
-     */
-    private void ratchetReservation(long currentBatchEstimate) throws CircuitBreakingException {
-        peakBatchEstimateBytes = Math.max(peakBatchEstimateBytes, currentBatchEstimate);
-        final long target = peakBatchEstimateBytes * RESERVATION_OVERHEAD_MULTIPLIER;
-        final long delta = target - currentReservationBytes;
-        if (delta > 0) {
-            reserveBatchAllocation(delta);
-            currentReservationBytes = target;
-        }
-    }
-
-    /**
-     * Release the action's full breaker reservation, if any. Idempotent: safe to call multiple times. Used
-     * from {@link #finishHim(Exception, List, List, boolean)} and from the relocation path in
-     * {@link #notifyDone(long, ScrollConsumableHitsResponse, int)} — the latter skips {@code finishHim}
-     * intentionally (to preserve pagination state for the relocated task) but the breaker reservation is
-     * per-node memory accounting that must be released here regardless, since the relocated task on the
-     * destination node will make its own reservation when its {@link #start()} runs.
-     */
-    private void releaseAllReservedBytes() {
-        if (currentReservationBytes > 0) {
-            releaseBatchAllocation(currentReservationBytes);
-            currentReservationBytes = 0L;
-        }
-    }
 
     /**
      * Send a bulk request, handling retries. Releases {@code releaseBatchHits} on cancellation, terminal finish, and before the bulk
@@ -917,10 +814,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
                     );
                     // Don't call finishHim — it clears the pagination which the relocated task needs.
                     // Do close local resources (e.g. the remote REST client) that won't be reused.
-                    // Release the breaker reservation held on this (source) node — the relocated task on the
-                    // destination node will make its own reservation when its start() runs. Without this the
-                    // reservation leaks and the source node's REQUEST breaker stays elevated until JVM exit.
-                    releaseAllReservedBytes();
                     paginatedHitSource.cleanupWithoutClosingPagination(
                         threadPool.getThreadContext().preserveContext(() -> listener.onResponse(response))
                     );
@@ -1059,21 +952,15 @@ public abstract class AbstractAsyncBulkByScrollAction<
         );
         final Exception resolvedFailure = maybeWrapCatastrophicFailure(pitPagination, pastKeepaliveDeadline, failure);
         requestFinishing.set(true);
-        // Release unconsumed hits BEFORE releasing the breaker reservation. The reservation is sized to
-        // cover hit memory plus bulk-request construction overhead; if we released the breaker first, the
-        // small window between "breaker reports headroom" and "hit refs are actually decremented" could let
-        // a concurrent request observe budget that isn't physically free yet.
         // Atomically claim the current response. If prepareBulkRequest already claimed it (null), this is a no-op.
         // If we win the CAS, we release any hits that were not yet consumed (i.e. from consumedOffset to end).
         // This covers: prepareBulkRequest hasn't run yet (consumedOffset == 0) and the maxDocs partial-batch case.
+        // Any in-flight bulk reservation is released by the cleanup Releasable that {@code sendBulkRequest}
+        // hands to its listener — its lifetime is the {@link BulkRequest}'s, not this action's.
         ScrollConsumableHitsResponse toRelease = currentScrollResponse.getAndSet(null);
         if (toRelease != null) {
             toRelease.releaseRemainingHits();
         }
-        // Release the breaker reservation held continuously by this action since {@link #start()} (or zero if
-        // the upfront reserve in start() was the call that tripped). Done unconditionally on every termination
-        // path — success, indexing failures, search failures, cancellation, breaker trip.
-        releaseAllReservedBytes();
         paginatedHitSource.close(threadPool.getThreadContext().preserveContext(() -> {
             if (resolvedFailure == null) {
                 BulkByScrollResponse response = buildResponse(

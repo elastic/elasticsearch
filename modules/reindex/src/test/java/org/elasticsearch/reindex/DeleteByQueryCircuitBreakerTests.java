@@ -28,17 +28,19 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * End-to-end check that delete-by-query reserves heap budget against the REQUEST circuit breaker and surfaces
- * a {@link CircuitBreakingException} to the client when the breaker trips. Unlike reindex and update-by-query,
- * DBQ deliberately disables {@code _source} fetching (see {@link DeleteByQueryRequest}) and emits
- * {@code DeleteRequest}s (no body) in the bulk, so the per-batch ratchet's byte estimate is small enough that
- * realistically-sized batches cannot trip the breaker on the ratchet path. This test instead verifies the
- * upfront-reservation path in {@code start()} — the only path that meaningfully trips for DBQ — by setting
- * the breaker limit below the upfront seed.
+ * End-to-end check that delete-by-query reserves heap against the REQUEST circuit breaker for the {@link
+ * org.elasticsearch.action.bulk.BulkRequest} it is about to send, and surfaces a {@link
+ * CircuitBreakingException} to the client when that reservation can't fit.
  *
- * <p>This is the DBQ companion to {@link ReindexCircuitBreakerTests} and {@link UpdateByQueryCircuitBreakerTests};
- * each concrete action has its own breaker wiring with a distinct label so each needs its own end-to-end
- * coverage to guard against wiring drift.
+ * <p>DBQ's bulk request is unusually small — only {@code DeleteRequest}s with no body (DBQ disables
+ * {@code _source} fetching, see {@link DeleteByQueryRequest}), so each request contributes just the per-doc
+ * {@code BulkRequest.REQUEST_OVERHEAD} (~50 bytes). To trip the breaker on a realistic-sized batch we
+ * configure an unusually small breaker limit; in production the small reservation is correct precisely
+ * because DBQ's heap pressure is minimal.
+ *
+ * <p>Companion to {@link ReindexCircuitBreakerTests} and {@link UpdateByQueryCircuitBreakerTests}; each
+ * concrete action has its own breaker wiring with a distinct label so each needs its own end-to-end coverage
+ * to guard against wiring drift.
  */
 public class DeleteByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
 
@@ -51,16 +53,14 @@ public class DeleteByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         return Settings.builder()
             .put(super.nodeSettings())
-            // Sized to trip on the upfront seed at start() rather than the per-batch ratchet, since DBQ's
-            // ratchet estimate is dominated by 50-byte-per-doc REQUEST_OVERHEAD and never reaches a
-            // realistic breaker limit. Default scroll_size = 1000 × 1000 × 2 = 2 MiB upfront ⇒ trips the
-            // 1 KiB limit.
-            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "1kb")
+            // DBQ's BulkRequest for 5 DeleteRequests is ≈ 5 × 50 = 250 bytes (no source bodies). Set the
+            // breaker just under that so the reservation in prepareBulkRequest trips.
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "200b")
             .build();
     }
 
-    public void testDeleteByQueryFailsWhenUpfrontReservationExceedsRequestBreakerLimit() {
-        final int docCount = 5;
+    public void testDeleteByQueryFailsWhenBulkRequestSizeExceedsRequestBreakerLimit() {
+        int docCount = 5;
         for (int i = 0; i < docCount; i++) {
             prepareIndex("source").setId(Integer.toString(i)).setSource("data", "x".repeat(500)).get();
         }

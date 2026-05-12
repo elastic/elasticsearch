@@ -27,14 +27,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * End-to-end check that update-by-query reserves heap budget against the REQUEST circuit breaker before
- * each batch's bulk request is built, and surfaces a {@link CircuitBreakingException} to the client when the
- * breaker trips — without sending the oversized bulk request that would have pushed the node toward OOM.
+ * End-to-end check that update-by-query reserves heap against the REQUEST circuit breaker for the {@link
+ * org.elasticsearch.action.bulk.BulkRequest} it is about to send, and surfaces a {@link
+ * CircuitBreakingException} to the client when that reservation can't fit.
  *
  * <p>This is the UBQ companion to {@link ReindexCircuitBreakerTests}; the two paths share the lifecycle in
  * {@link AbstractAsyncBulkByScrollAction} but each concrete action has its own breaker wiring with a distinct
- * label, so each needs its own end-to-end coverage to guard against wiring drift. The breaker limit and
- * document sizes are chosen so the trip happens on the per-batch ratchet rather than on the upfront seed.
+ * label, so each needs its own end-to-end coverage to guard against wiring drift.
  */
 public class UpdateByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
 
@@ -47,16 +46,15 @@ public class UpdateByQueryCircuitBreakerTests extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         return Settings.builder()
             .put(super.nodeSettings())
-            // Sized to fit the upfront seed (batchSize=5 × 1000 × 2 = 10 000 bytes) but trip when the
-            // per-batch ratchet measures the real document sizes from the first scroll response.
-            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "50kb")
+            // Sized below the BulkRequest reservation UBQ will attempt (≈ 40 KiB) so the breaker trips
+            // when the action calls reserveBatchAllocation in prepareBulkRequest.
+            .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "30kb")
             .build();
     }
 
-    public void testUpdateByQueryFailsWhenPerBatchRatchetExceedsRequestBreakerLimit() {
-        // Five docs × ~8 000 bytes of source ⇒ batch estimate ≈ 5 × (8 000 + 50) = 40 250 bytes ⇒ ratchet
-        // target ≈ 80 500 bytes ⇒ exceeds the 50 KiB breaker. The 10 KiB upfront seed fits comfortably
-        // under 50 KiB, so the trip we observe is from the per-batch ratchet in prepareBulkRequest().
+    public void testUpdateByQueryFailsWhenBulkRequestSizeExceedsRequestBreakerLimit() {
+        // Five docs × ~8 000-byte source ⇒ BulkRequest.estimatedSizeInBytes() ≈ 5 × (8 000 + 50) ≈ 40 250
+        // bytes, which exceeds the 30 KiB breaker limit configured above.
         int batchSize = 5;
         int docCount = batchSize;
         int sourceBytes = 8_000;

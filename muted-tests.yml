@@ -467,18 +467,6 @@ tests:
 - class: org.elasticsearch.index.mapper.DateRangeDocValuesLoaderTests
   method: testEmptyRangesAppendsNull
   issue: https://github.com/elastic/elasticsearch/issues/148378
-- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
-  method: testRestartForConfiguringReservedRolesAndClosingIndex
-  issue: https://github.com/elastic/elasticsearch/issues/148431
-- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
-  method: testDeletingAndCreatingSecurityIndexTriggersSynchronization
-  issue: https://github.com/elastic/elasticsearch/issues/148432
-- class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
-  method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
-  issue: https://github.com/elastic/elasticsearch/issues/147972
-- class: org.elasticsearch.xpack.security.ReindexRelocationWithSecurityIT
-  method: testReindexRelocatesWhenCoordinatorShutsDown
-  issue: https://github.com/elastic/elasticsearch/issues/148373
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionIT
   method: testEndToEndFrozenTransition
   issue: https://github.com/elastic/elasticsearch/issues/148467

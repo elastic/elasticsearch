@@ -17,7 +17,12 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -295,18 +300,35 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         assertThat(countRequestsForIndex(state, index), is(equalTo(numReachableUnpromotables)));
     }
 
-    public void testInvalidNodes() throws Exception {
+    public void testInvalidNodes() {
+        // When multi-project, the index lives in a non-default project alongside an empty default
+        // project, to test that {@code TransportBroadcastUnpromotableAction#failShard} works in an MP setup.
         final String index = "test";
+        final boolean multiProject = randomBoolean();
+        final ProjectId projectId = multiProject ? randomUniqueProjectId() : Metadata.DEFAULT_PROJECT_ID;
         ClusterState state = stateWithAssignedPrimariesAndReplicas(
+            projectId,
             new String[] { index },
             randomIntBetween(1, 3),
             getReplicaRoles(randomInt(2), randomIntBetween(1, 2))
         );
+        if (multiProject) {
+            state = ClusterState.builder(state)
+                .metadata(Metadata.builder(state.metadata()).put(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID)).build())
+                .routingTable(
+                    GlobalRoutingTable.builder(state.globalRoutingTable())
+                        .put(Metadata.DEFAULT_PROJECT_ID, RoutingTable.EMPTY_ROUTING_TABLE)
+                        .build()
+                )
+                .build();
+        }
+
         setState(clusterService, state);
         logger.debug("--> using initial state:\n{}", clusterService.state());
 
-        ShardId shardId = state.routingTable().activePrimaryShardsGrouped(new String[] { index }, true).get(0).shardId();
-        IndexShardRoutingTable routingTable = state.routingTable().shardRoutingTable(shardId);
+        final var projectRoutingTable = state.routingTable(projectId);
+        ShardId shardId = projectRoutingTable.activePrimaryShardsGrouped(new String[] { index }, true).get(0).shardId();
+        IndexShardRoutingTable routingTable = projectRoutingTable.shardRoutingTable(shardId);
         IndexShardRoutingTable.Builder wrongRoutingTableBuilder = new IndexShardRoutingTable.Builder(shardId);
         for (int i = 0; i < routingTable.size(); i++) {
             ShardRouting shardRouting = routingTable.shard(i);
@@ -320,7 +342,6 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         }
         IndexShardRoutingTable wrongRoutingTable = wrongRoutingTableBuilder.build();
 
-        PlainActionFuture<ActionResponse.Empty> response = new PlainActionFuture<>();
         logger.debug("--> executing for wrong shard routing table: {}", wrongRoutingTable);
 
         // The request fails if we don't mark shards as stale
@@ -338,7 +359,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
                 .remoteShardFailed(
                     eq(shardRouting.shardId()),
                     eq(shardRouting.allocationId().getId()),
-                    eq(state.metadata().getProject().index(index).primaryTerm(shardRouting.shardId().getId())),
+                    eq(state.metadata().indexMetadata(shardRouting.index()).primaryTerm(shardRouting.shardId().getId())),
                     eq(true),
                     eq("mark unpromotable copy as stale after refresh failure"),
                     any(Exception.class),

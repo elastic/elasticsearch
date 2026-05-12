@@ -81,6 +81,15 @@ user3:
           }
         }
 
+# Passes global.datasource authorize for shared IT datasource; no create_dataset on security_it_ds_* — for PUT dataset denied on index priv.
+user_dataset_authorize_only:
+  cluster: []
+  indices: []
+  global:
+    datasource:
+      - names: [ "security_it_shared_ds" ]
+        privileges: [ "read" ]
+
 user4:
   cluster:
     - monitor_enrich

@@ -68,6 +68,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user1", "x-pack-test-password", "user1", false)
         .user("user2", "x-pack-test-password", "user2", false)
         .user("user3", "x-pack-test-password", "user3", false)
+        .user("user_dataset_authorize_only", "x-pack-test-password", "user_dataset_authorize_only", false)
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
@@ -2304,7 +2305,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         builder.field("resource", "s3://bucket/path/*.parquet");
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
-        setUser(request, "user3");
+        setUser(request, "user_dataset_authorize_only");
         ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
         assertThat(ex.getMessage(), containsString("create_dataset"));

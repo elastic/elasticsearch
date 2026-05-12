@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -101,13 +102,16 @@ public final class ConfigurableClusterPrivileges {
         builder.startObject();
         for (Category category : Category.values()) {
             if (category == Category.DATASOURCE) {
-                builder.startArray(category.field.getPreferredName());
-                for (ConfigurableClusterPrivilege privilege : privileges) {
-                    if (category == privilege.getCategory()) {
-                        ((ManageDatasourcePrivileges) privilege).toXContentArrayElements(builder, params);
+                boolean hasDatasourcePrivilege = privileges.stream().anyMatch(p -> p.getCategory() == Category.DATASOURCE);
+                if (hasDatasourcePrivilege) {
+                    builder.startArray(category.field.getPreferredName());
+                    for (ConfigurableClusterPrivilege privilege : privileges) {
+                        if (category == privilege.getCategory()) {
+                            ((ManageDatasourcePrivileges) privilege).toXContentArrayElements(builder, params);
+                        }
                     }
+                    builder.endArray();
                 }
-                builder.endArray();
             } else {
                 builder.startObject(category.field.getPreferredName());
                 for (ConfigurableClusterPrivilege privilege : privileges) {
@@ -159,7 +163,10 @@ public final class ConfigurableClusterPrivileges {
                 }
             } else if (Category.DATASOURCE.field.match(parser.currentName(), parser.getDeprecationHandler())) {
                 expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
-                privileges.add(ManageDatasourcePrivileges.parseArray(parser));
+                ManageDatasourcePrivileges datasourcePrivileges = ManageDatasourcePrivileges.parseArray(parser);
+                if (datasourcePrivileges != null) {
+                    privileges.add(datasourcePrivileges);
+                }
             }
         }
         return privileges;
@@ -472,6 +479,7 @@ public final class ConfigurableClusterPrivileges {
             return false;
         }
 
+        @Nullable
         public static ManageDatasourcePrivileges parseArray(XContentParser parser) throws IOException {
             List<DatasourcePermissionGroup> groups = new ArrayList<>();
             XContentParser.Token token;
@@ -505,6 +513,9 @@ public final class ConfigurableClusterPrivileges {
                     }
                 }
                 groups.add(new DatasourcePermissionGroup(names, privileges));
+            }
+            if (groups.isEmpty()) {
+                return null;
             }
             return new ManageDatasourcePrivileges(groups);
         }

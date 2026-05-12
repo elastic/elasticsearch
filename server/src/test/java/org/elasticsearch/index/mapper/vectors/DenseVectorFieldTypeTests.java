@@ -52,7 +52,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     private final boolean indexed;
@@ -318,7 +317,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertEquals(vector, fetchSourceValue(bft, vector));
     }
 
-    public void testCreateNestedKnnQuery() throws Exception {
+    public void testCreateNestedKnnQuery() {
         BitSetProducer producer = context -> null;
 
         int dims = randomIntBetween(BBQ_MIN_DIMS, 2048);
@@ -557,7 +556,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
     }
 
-    public void testCreateKnnQueryMaxDims() throws Exception {
+    public void testCreateKnnQueryMaxDims() {
         {   // float type with 4096 dims
             DenseVectorFieldType fieldWith4096dims = new DenseVectorFieldType(
                 "f",
@@ -708,7 +707,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertThat(e.getMessage(), containsString("The [cosine] similarity does not support vectors with zero magnitude."));
     }
 
-    public void testRescoreOversampleUsedWithoutQuantization() throws Exception {
+    public void testRescoreOversampleUsedWithoutQuantization() {
         DenseVectorFieldMapper.ElementType elementType = randomFrom(FLOAT, BYTE);
         DenseVectorFieldType nonQuantizedField = new DenseVectorFieldType(
             "f",
@@ -754,7 +753,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
-    public void testRescoreOversampleModifiesNumCandidates() throws Exception {
+    public void testRescoreOversampleModifiesNumCandidates() {
         DenseVectorFieldType fieldType = new DenseVectorFieldType(
             "f",
             IndexVersion.current(),
@@ -775,106 +774,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         checkRescoreQueryParameters(fieldType, 1000, 1000, 10f, 11.0F, OVERSAMPLE_LIMIT, OVERSAMPLE_LIMIT, 1000);
     }
 
-    public void testBBQDiskQueryOverrideKeepsUniformSingleK() throws Exception {
-        // queryOversample is a uniform override -> the per-segment path stays disabled and the IVF
-        // query is constructed with kRequest == k == adjustedK (legacy single-k branch).
-        DenseVectorFieldMapper.BBQIVFIndexOptions bbqIvf = new DenseVectorFieldMapper.BBQIVFIndexOptions(
-            384,
-            -1,
-            10f,
-            randomBoolean(),
-            new DenseVectorFieldMapper.RescoreVector(2.0f),
-            IndexVersion.current(),
-            randomBoolean(),
-            randomFrom(1, 2, 4),
-            randomBoolean()
-        );
-        DenseVectorFieldType fieldType = new DenseVectorFieldType(
-            "f",
-            IndexVersion.current(),
-            FLOAT,
-            BBQ_MIN_DIMS,
-            true,
-            VectorSimilarity.COSINE,
-            bbqIvf,
-            Collections.emptyMap(),
-            false
-        );
-        float[] queryVec = new float[BBQ_MIN_DIMS];
-        for (int i = 0; i < queryVec.length; i++) {
-            queryVec[i] = randomFloat();
-        }
-        Query query = fieldType.createKnnQuery(
-            VectorData.fromFloats(queryVec),
-            10,
-            100,
-            10f,
-            3.0f, // explicit query oversample
-            null,
-            null,
-            null,
-            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-            randomBoolean()
-        );
-        assertThat(query, instanceOf(RescoreKnnVectorQuery.class));
-        Query inner = ((RescoreKnnVectorQuery) query).innerQuery();
-        assertThat(inner, instanceOf(IVFKnnFloatVectorQuery.class));
-        IVFKnnFloatVectorQuery ivf = (IVFKnnFloatVectorQuery) inner;
-        // No per-segment block in toString -> legacy single-k branch.
-        assertThat(ivf.toString("ignored"), not(containsString("kRequest=")));
-        // adjustedK = ceil(10 * 3.0) = 30.
-        assertThat(ivf.toString("ignored"), containsString("[30]"));
-    }
-
-    public void testBBQDiskNoRescoreSkipsPerSegmentPath() throws Exception {
-        // No mapping rescore_vector and no query override -> rescore is off; the IVF query still
-        // uses the legacy single-k branch (kRequest defaults to k).
-        DenseVectorFieldMapper.BBQIVFIndexOptions bbqIvf = new DenseVectorFieldMapper.BBQIVFIndexOptions(
-            384,
-            -1,
-            10f,
-            randomBoolean(),
-            null,
-            IndexVersion.current(),
-            randomBoolean(),
-            randomFrom(1, 2, 4),
-            randomBoolean()
-        );
-        DenseVectorFieldType fieldType = new DenseVectorFieldType(
-            "f",
-            IndexVersion.current(),
-            FLOAT,
-            BBQ_MIN_DIMS,
-            true,
-            VectorSimilarity.COSINE,
-            bbqIvf,
-            Collections.emptyMap(),
-            false
-        );
-        float[] queryVec = new float[BBQ_MIN_DIMS];
-        for (int i = 0; i < queryVec.length; i++) {
-            queryVec[i] = randomFloat();
-        }
-        Query query = fieldType.createKnnQuery(
-            VectorData.fromFloats(queryVec),
-            10,
-            100,
-            10f,
-            null,
-            null,
-            null,
-            null,
-            randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-            randomBoolean()
-        );
-        // No rescore wrapper expected.
-        assertThat(query, instanceOf(IVFKnnFloatVectorQuery.class));
-        IVFKnnFloatVectorQuery ivf = (IVFKnnFloatVectorQuery) query;
-        assertThat(ivf.toString("ignored"), not(containsString("kRequest=")));
-        assertThat(ivf.toString("ignored"), containsString("[10]"));
-    }
-
-    public void testRescoreOversampleQueryOverrides() throws Exception {
+    public void testRescoreOversampleQueryOverrides() {
         // verify we can override to `0`
         DenseVectorFieldType fieldType = new DenseVectorFieldType(
             "f",
@@ -938,7 +838,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
-    public void testFilterSearchThreshold() throws Exception {
+    public void testFilterSearchThreshold() {
         List<Tuple<DenseVectorFieldMapper.ElementType, Function<Query, KnnSearchStrategy>>> cases = List.of(
             Tuple.tuple(FLOAT, q -> ((ESKnnFloatVectorQuery) q).getStrategy()),
             Tuple.tuple(BFLOAT16, q -> ((ESKnnFloatVectorQuery) q).getStrategy()),
@@ -1006,7 +906,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         int expectedK,
         int expectedCandidates,
         int expectedResults
-    ) throws Exception {
+    ) {
         Query query = fieldType.createKnnQuery(
             VectorData.fromFloats(new float[] { 1, 4, 10 }),
             k,

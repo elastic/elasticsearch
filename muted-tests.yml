@@ -294,6 +294,9 @@ tests:
 - class: org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationActionTests
   method: testDoExecuteReleasesRegistrationWhenDataNodeFailsAfterChunkStreaming
   issue: https://github.com/elastic/elasticsearch/issues/148913
+- class: org.elasticsearch.search.rescore.QueryRescoreModeTests
+  method: testQueryRescoreMode
+  issue: https://github.com/elastic/elasticsearch/issues/148923
 
 # Examples:
 #

@@ -13,19 +13,13 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 /**
- * Conservative, parameter-driven estimate of the additional bytes a single query clause
- * should reserve from the request circuit breaker, on top of the per-clause constant.
- * Implementations over-estimate rather than under-estimate.
+ * Upper bound on the bytes a query clause should reserve from the request circuit breaker.
  */
 public interface QueryCostEstimator {
 
-    /** Upper bound on the additional bytes to charge. */
     long estimate();
 
-    /**
-     * Charge {@link #estimate()} against the request circuit breaker on {@code ctx}, tagged
-     * with {@code label}. No-op when the context, its breaker, or the estimate is non-positive.
-     */
+    /** Charge {@link #estimate()} to the breaker on {@code ctx}. No-op if unavailable or non-positive. */
     default void charge(@Nullable SearchExecutionContext ctx, String label) {
         if (ctx == null || ctx.getCircuitBreaker() == null) {
             return;

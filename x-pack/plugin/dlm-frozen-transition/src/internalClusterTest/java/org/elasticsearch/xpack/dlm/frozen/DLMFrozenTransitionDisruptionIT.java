@@ -205,6 +205,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
 
     @Before
     public void resetInterceptors() {
+        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
         ActionInterceptorPlugin.clearInterceptors();
     }
 
@@ -282,8 +283,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/2761")
     public void testDeleteBackingIndexDuringMarkReadOnly() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         String candidateIndex = setupClusterAndInfrastructure();
         CountDownLatch latch = registerDeleteIndexInterceptor(TransportAddIndexBlockAction.TYPE.name(), candidateIndex, false);
         triggerRollover();
@@ -303,8 +302,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/2761")
     public void testDeleteBackingIndexDuringClone() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         String candidateIndex = setupClusterAndInfrastructure();
         CountDownLatch latch = registerDeleteIndexInterceptor(TransportResizeAction.TYPE.name(), candidateIndex, false);
         triggerRollover();
@@ -323,8 +320,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * a persistent error.
      */
     public void testDeleteBackingIndexDuringSnapshot() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         String candidateIndex = setupClusterAndInfrastructure();
         CountDownLatch latch = registerDeleteIndexInterceptor(TransportGetSnapshotsAction.TYPE.name(), candidateIndex, false);
         triggerRollover();
@@ -343,8 +338,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * gracefully without recording a persistent error.
      */
     public void testDeleteBackingIndexDuringForceMerge() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         String candidateIndex = setupClusterAndInfrastructure();
         // Force merge runs on the data node thread — must delete asynchronously to avoid deadlock
         CountDownLatch latch = registerDeleteIndexInterceptor("indices:admin/forcemerge", candidateIndex, true);
@@ -364,8 +357,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * without recording a persistent error.
      */
     public void testDeleteBackingIndexDuringMountSnapshot() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         String candidateIndex = setupClusterAndInfrastructure();
         CountDownLatch latch = registerDeleteIndexInterceptor("cluster:admin/snapshot/mount", candidateIndex, false);
         triggerRollover();
@@ -385,8 +376,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      */
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-team/issues/2761")
     public void testDeleteBackingIndexDuringCleanup() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         String candidateIndex = setupClusterAndInfrastructure();
         CountDownLatch latch = registerDeleteIndexInterceptor("indices:admin/data_stream/modify", candidateIndex, false);
         triggerRollover();
@@ -401,8 +390,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * deletes the newly mounted frozen index. The swap then references a non-existent index.
      */
     public void testDeleteMountedFrozenIndexBeforeSwap() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         String candidateIndex = setupClusterAndInfrastructure();
         String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
 
@@ -424,8 +411,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * The transition should still complete for the original backing index.
      */
     public void testConcurrentRolloverDuringTransition() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         String candidateIndex = setupClusterAndInfrastructure();
 
         CountDownLatch latch = registerDisruptionInterceptor(
@@ -459,8 +444,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
      * policy to remove the frozenAfter setting. The service should not crash.
      */
     public void testLifecyclePolicyUpdatedDuringTransition() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         String candidateIndex = setupClusterAndInfrastructure();
 
         CountDownLatch latch = registerDisruptionInterceptor("indices:admin/forcemerge", () -> {

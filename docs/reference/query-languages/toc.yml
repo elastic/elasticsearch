@@ -412,6 +412,10 @@ toc:
           - file: esql/esql-query-log.md
           - file: esql/esql-task-management.md
       - file: esql/limitations.md
+  - file: promql.md
+    children:
+      - file: promql/promql-http-api.md
+      - file: promql/promql-limitations.md
   - file: sql.md
     children:
       - file: sql/sql-getting-started.md

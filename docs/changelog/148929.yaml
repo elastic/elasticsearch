@@ -1,0 +1,5 @@
+area: "Infra/Logging, Search"
+issues: []
+pr: 148929
+summary: Capture exceptions in processing too and log them as failures
+type: enhancement

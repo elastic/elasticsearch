@@ -158,15 +158,16 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
                 scoreDocs.length
             );
             int remaining = k - scoreDocs.length;
+            // add oversampling if we have a parents bitset
+            if (parentsFilter != null) {
+                remaining = (int) Math.ceil(1.2f * k);
+            }
             int[] excludedDocs = sortedDocIds(scoreDocs);
             Query fallback = innerQuery.createFallbackQuery(searcher.getIndexReader(), excludedDocs, remaining);
             TopDocs fallbackDocs = searcher.search(fallback, remaining);
             vectorOps += ((PostFilterableKnnQuery) fallback).totalVectorOps();
             // No applyFilter() — the fallback already pre-filtered with the original filter.
             ScoreDoc[] fallbackScoreDocs = fallbackDocs.scoreDocs;
-            if (parentsFilter != null) {
-                fallbackScoreDocs = deduplicateByParent(fallbackScoreDocs, searcher.getIndexReader(), parentsFilter);
-            }
             scoreDocs = mergeResults(scoreDocs, fallbackScoreDocs);
             if (parentsFilter != null) {
                 scoreDocs = deduplicateByParent(scoreDocs, searcher.getIndexReader(), parentsFilter);
@@ -238,7 +239,7 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     }
 
     Query innerQuery() {
-        assert innerQuery instanceof Query : "[innerQuery] should have generated a Query";
+        assert innerQuery instanceof Query : "[innerQuery] should always be a Query instance";
         return (Query) innerQuery;
     }
 

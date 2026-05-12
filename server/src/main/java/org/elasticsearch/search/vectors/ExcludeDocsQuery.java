@@ -26,12 +26,27 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * A query that excludes specific global doc IDs. Used by HNSW retry to prevent
- * re-visiting documents seen in previous rounds.
+ * A {@link Query} that matches every document <em>except</em> a fixed set of excluded ones.
  * <p>
- * Stores a sorted {@code int[]} of excluded global doc IDs (typically 50-500 across retries).
- * Per-leaf, binary-searches for the leaf's range, then builds a dense accept bitset by
- * filling all bits and clearing only the excluded ones.
+ * This is used on the HNSW kNN retry path: when a search round does not yield enough hits
+ * passing the post-filter, we retry the graph traversal while telling the vector reader to
+ * skip the docs we have already collected. This query produces the "everything except these"
+ * accept-docs bitset that drives that retry.
+ * <p>
+ * The excluded IDs are stored as a sorted {@code int[]} of <em>global</em> doc IDs (IDs in the
+ * top-level {@link IndexReader}'s space, not per-segment). At search time each leaf segment
+ * translates that into its own local space:
+ * <ol>
+ *   <li>Binary-search the excluded array to find the slice that falls inside the leaf's
+ *       {@code [docBase, docBase + maxDoc)} range.</li>
+ *   <li>Allocate a leaf-sized {@link FixedBitSet}, set every bit, then clear only the bits
+ *       for the excluded docs. The excluded set is expected to be much smaller than the
+ *       number of docs in the leaf, so set-all-then-clear is cheaper than building an accept
+ *       list bit by bit.</li>
+ * </ol>
+ * The query is pinned to a specific {@link IndexReader} via its context ID and refuses to run
+ * against any other reader, since global doc IDs are only meaningful within the reader they
+ * were collected from.
  */
 class ExcludeDocsQuery extends Query {
     private final int[] excludedDocs;
@@ -63,6 +78,9 @@ class ExcludeDocsQuery extends Query {
                 int docBase = context.docBase;
                 int end = docBase + leafMaxDoc;
 
+                // Locate the [from, to) slice of excludedDocs that intersects this leaf's
+                // global range [docBase, end). Arrays.binarySearch returns the insertion
+                // point encoded as -(insertion_point) - 1 when no exact match is found.
                 int from = Arrays.binarySearch(excludedDocs, docBase);
                 if (from < 0) {
                     from = -from - 1;
@@ -72,6 +90,8 @@ class ExcludeDocsQuery extends Query {
                     to = -to - 1;
                 }
 
+                // Build the accept bitset by starting from "all accepted" and clearing only
+                // the excluded positions (translated from global to leaf-local).
                 int excludedCount = to - from;
                 FixedBitSet leafBits = new FixedBitSet(leafMaxDoc);
                 leafBits.set(0, leafMaxDoc);

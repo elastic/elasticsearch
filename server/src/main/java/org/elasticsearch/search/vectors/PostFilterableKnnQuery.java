@@ -63,7 +63,7 @@ public interface PostFilterableKnnQuery {
      * <p>
      * For HNSW: {@code excludedDocs} becomes an {@link ExcludeDocsQuery} filter (which Lucene's
      * {@code AbstractKnnVectorQuery#rewrite} converts into {@code AcceptDocs}), and {@code seedDocs}
-     * (filter-passing docs only) feed the {@link SeededRetryCollectorManager} as graph entry points.
+     * (filter-passing docs only) feed the {@code SeededRetryCollectorManager} as graph entry points.
      * <p>
      * For IVF: {@code excludedDocs} are composed into {@code AcceptDocs} so the codec skips them
      * during posting-list iteration; {@code seedDocs} are ignored (IVF has no graph seeding).

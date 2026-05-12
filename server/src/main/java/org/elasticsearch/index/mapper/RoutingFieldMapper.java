@@ -301,7 +301,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     private static final Map<String, NamedAnalyzer> ANALYZERS = Map.of(NAME, Lucene.KEYWORD_ANALYZER);
 
-    private RoutingFieldMapper(boolean required, boolean requiredByDefault, boolean docValuesEnabledByDefault, boolean docValues) {
+    private RoutingFieldMapper(boolean requiredByDefault, boolean required, boolean docValuesEnabledByDefault, boolean docValues) {
         super(docValues ? DOC_VALUES_FIELD_TYPE : FIELD_TYPE);
         this.required = required;
         this.requiredByDefault = requiredByDefault;
@@ -367,7 +367,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                         for (boolean docValuesEnabledByDefault : new boolean[] { true, false }) {
                             INSTANCES.put(
                                 new Key(requiredByDefault, required, docValuesEnabledByDefault, docValuesEnabled),
-                                new RoutingFieldMapper(required, requiredByDefault, docValuesEnabledByDefault, docValuesEnabled)
+                                new RoutingFieldMapper(requiredByDefault, required, docValuesEnabledByDefault, docValuesEnabled)
                             );
                         }
                     }

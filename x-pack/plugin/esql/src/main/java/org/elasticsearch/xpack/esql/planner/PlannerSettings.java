@@ -89,6 +89,18 @@ public class PlannerSettings {
     );
 
     /**
+     * Enables the prototype substrate for coordinator-side remote fetch after a distributed TopN narrowing phase.
+     * This setting is intentionally separate from {@link #REDUCTION_LATE_MATERIALIZATION} so the new cross-node
+     * continuation path can be developed and tested without changing the existing late-materialization behavior.
+     */
+    public static final Setting<Boolean> REMOTE_FETCH_LATE_MATERIALIZATION = Setting.boolSetting(
+        "esql.remote_fetch_late_materialization",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Circuit breaker space reserved for each script {@link BlockLoader.Reader}. The default
      * is pretty poor estimate for the overhead of the script, but it'll do for now. We're
      * estimating 100kb for loading ordinals from doc values and 2kb for loading numbers from
@@ -238,6 +250,7 @@ public class PlannerSettings {
             LUCENE_TOPN_LIMIT,
             INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
             REDUCTION_LATE_MATERIALIZATION,
+            REMOTE_FETCH_LATE_MATERIALIZATION,
             PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD,
             PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD,
             REUSE_COLUMN_LOADERS_THRESHOLD,
@@ -266,6 +279,10 @@ public class PlannerSettings {
             clusterSettings.initializeAndWatch(
                 INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
                 v -> settings.updateAndGet(s -> s.intermediateLocalRelationMaxSize(v))
+            );
+            clusterSettings.initializeAndWatch(
+                REMOTE_FETCH_LATE_MATERIALIZATION,
+                v -> settings.updateAndGet(s -> s.remoteFetchLateMaterialization(v))
             );
             clusterSettings.initializeAndWatch(
                 PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD,
@@ -307,6 +324,7 @@ public class PlannerSettings {
     private final ByteSizeValue valuesLoadingJumboSize;
     private final int luceneTopNLimit;
     private final ByteSizeValue intermediateLocalRelationMaxSize;
+    private final boolean remoteFetchLateMaterialization;
     private final int partialEmitKeysThreshold;
     private final double partialEmitUniquenessThreshold;
     private final int reuseColumnLoadersThreshold;
@@ -327,6 +345,7 @@ public class PlannerSettings {
         VALUES_LOADING_JUMBO_SIZE.get(Settings.EMPTY),
         LUCENE_TOPN_LIMIT.getDefault(Settings.EMPTY),
         INTERMEDIATE_LOCAL_RELATION_MAX_SIZE.getDefault(Settings.EMPTY),
+        REMOTE_FETCH_LATE_MATERIALIZATION.getDefault(Settings.EMPTY),
         PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getDefault(Settings.EMPTY),
         PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getDefault(Settings.EMPTY),
         REUSE_COLUMN_LOADERS_THRESHOLD.getDefault(Settings.EMPTY),
@@ -348,6 +367,7 @@ public class PlannerSettings {
         ByteSizeValue valuesLoadingJumboSize,
         int luceneTopNLimit,
         ByteSizeValue intermediateLocalRelationMaxSize,
+        boolean remoteFetchLateMaterialization,
         int partialEmitKeysThreshold,
         double partialEmitUniquenessThreshold,
         int reuseColumnLoadersThreshold,
@@ -364,6 +384,7 @@ public class PlannerSettings {
         this.valuesLoadingJumboSize = valuesLoadingJumboSize;
         this.luceneTopNLimit = luceneTopNLimit;
         this.intermediateLocalRelationMaxSize = intermediateLocalRelationMaxSize;
+        this.remoteFetchLateMaterialization = remoteFetchLateMaterialization;
         this.partialEmitKeysThreshold = partialEmitKeysThreshold;
         this.partialEmitUniquenessThreshold = partialEmitUniquenessThreshold;
         this.reuseColumnLoadersThreshold = reuseColumnLoadersThreshold;
@@ -383,6 +404,7 @@ public class PlannerSettings {
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
+            remoteFetchLateMaterialization,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
@@ -407,6 +429,7 @@ public class PlannerSettings {
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
+            remoteFetchLateMaterialization,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
@@ -431,6 +454,7 @@ public class PlannerSettings {
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
+            remoteFetchLateMaterialization,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
@@ -469,6 +493,7 @@ public class PlannerSettings {
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
+            remoteFetchLateMaterialization,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
@@ -486,6 +511,31 @@ public class PlannerSettings {
         return intermediateLocalRelationMaxSize;
     }
 
+    public PlannerSettings remoteFetchLateMaterialization(boolean remoteFetchLateMaterialization) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            remoteFetchLateMaterialization,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
+        );
+    }
+
+    public boolean remoteFetchLateMaterialization() {
+        return remoteFetchLateMaterialization;
+    }
+
     public PlannerSettings partialEmitKeysThreshold(int partialEmitKeysThreshold) {
         return new PlannerSettings(
             defaultDataPartitioning,
@@ -493,6 +543,7 @@ public class PlannerSettings {
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
+            remoteFetchLateMaterialization,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
@@ -517,6 +568,7 @@ public class PlannerSettings {
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
+            remoteFetchLateMaterialization,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
@@ -541,6 +593,7 @@ public class PlannerSettings {
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
+            remoteFetchLateMaterialization,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
@@ -572,6 +625,7 @@ public class PlannerSettings {
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
+            remoteFetchLateMaterialization,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
@@ -599,6 +653,7 @@ public class PlannerSettings {
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
+            remoteFetchLateMaterialization,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
@@ -626,6 +681,7 @@ public class PlannerSettings {
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
+            remoteFetchLateMaterialization,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
@@ -650,6 +706,7 @@ public class PlannerSettings {
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
+            remoteFetchLateMaterialization,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
@@ -674,6 +731,7 @@ public class PlannerSettings {
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
+            remoteFetchLateMaterialization,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
@@ -698,6 +756,7 @@ public class PlannerSettings {
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
+            remoteFetchLateMaterialization,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
@@ -722,6 +781,7 @@ public class PlannerSettings {
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
+            remoteFetchLateMaterialization,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,
@@ -746,6 +806,7 @@ public class PlannerSettings {
             valuesLoadingJumboSize,
             luceneTopNLimit,
             intermediateLocalRelationMaxSize,
+            remoteFetchLateMaterialization,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
             reuseColumnLoadersThreshold,

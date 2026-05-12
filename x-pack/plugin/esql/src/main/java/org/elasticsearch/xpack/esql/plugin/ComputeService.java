@@ -102,6 +102,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -812,6 +813,25 @@ public class ComputeService {
             listener.onFailure(new IllegalStateException(error));
             return;
         }
+        RemoteFetchService.TrackedSessions trackedRemoteFetchSessions = null;
+        boolean supportsRemoteFetchRetainedContexts = clusterService.state()
+            .getMinTransportVersion()
+            .supports(DataNodeRequest.ESQL_REMOTE_FETCH_RETAINED_CONTEXTS);
+        if (plannerSettings.get().remoteFetchLateMaterialization()
+            && supportsRemoteFetchRetainedContexts
+            && dataNodePlan instanceof ExchangeSinkExec exchangeSinkExec
+            && clusterToConcreteIndices.size() == 1
+            && clusterToConcreteIndices.containsKey(LOCAL_CLUSTER)) {
+            Optional<PhysicalPlan> remoteFetchCoordinatorPlan = RemoteFetchPlanner.planCoordinatorTopN(
+                stats -> new LocalPhysicalOptimizerContext(plannerSettings.get(), flags, configuration, foldContext, stats),
+                coordinatorPlan,
+                exchangeSinkExec
+            );
+            if (remoteFetchCoordinatorPlan.isPresent()) {
+                coordinatorPlan = remoteFetchCoordinatorPlan.get();
+                trackedRemoteFetchSessions = remoteFetchService.trackedSessions();
+            }
+        }
         Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(resolvedPlan, EsRelation::originalIndices);
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
@@ -825,6 +845,9 @@ public class ComputeService {
             configuration.pragmas().exchangeBufferSize(),
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
         );
+        if (trackedRemoteFetchSessions != null) {
+            listener = ActionListener.runBefore(listener, trackedRemoteFetchSessions::close);
+        }
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (
@@ -902,6 +925,7 @@ public class ComputeService {
                             localOriginalIndices,
                             exchangeSource,
                             cancelQueryOnFailure,
+                            trackedRemoteFetchSessions,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
                                 execInfo.swapCluster(
@@ -1172,10 +1196,12 @@ public class ComputeService {
                 context.exchangeSinkSupplier(),
                 enrichLookupService,
                 lookupFromIndexService,
+                remoteFetchService,
                 inferenceService,
                 userAgentParserRegistry,
                 physicalOperationProviders,
-                operatorFactoryRegistry
+                operatorFactoryRegistry,
+                clusterService.localNode().getId()
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
@@ -1327,10 +1353,39 @@ public class ComputeService {
         boolean reduceNodeLateMaterialization,
         PlanTimeProfile planTimeProfile
     ) {
+        return reductionPlan(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            originalPlan,
+            runNodeLevelReduction,
+            reduceNodeLateMaterialization,
+            false,
+            planTimeProfile
+        );
+    }
+
+    public static ReductionPlan reductionPlan(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        ExchangeSinkExec originalPlan,
+        boolean runNodeLevelReduction,
+        boolean reduceNodeLateMaterialization,
+        boolean remoteFetchLateMaterialization,
+        PlanTimeProfile planTimeProfile
+    ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
-        ReductionPlan passThroughReduction = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
-        if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
+        // Just send out everything through a single exchange as a fallback
+        ReductionPlan passThroughReduction = new ReductionPlan(
+            originalPlan.replaceChild(source),
+            originalPlan,
+            LocalPhysicalOptimization.ENABLED
+        );
+        if (remoteFetchLateMaterialization == false && reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
             return passThroughReduction;
         }
 
@@ -1341,6 +1396,10 @@ public class ComputeService {
 
         // The default plan is just the exchange source piped directly into the exchange sink.
         ReductionPlan reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
+            case PlannerUtils.TopNReduction ignored when remoteFetchLateMaterialization -> RemoteFetchPlanner.planReduceDriverTopN(
+                stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
+                originalPlan
+            ).orElseThrow(() -> new IllegalStateException("remote fetch late materialization was selected but planning failed"));
             case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization ->
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
                 // so essentially we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other

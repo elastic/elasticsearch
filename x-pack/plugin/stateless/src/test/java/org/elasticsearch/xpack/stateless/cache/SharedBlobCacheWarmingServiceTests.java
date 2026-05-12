@@ -1282,9 +1282,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     // when the 16-byte Lucene footer straddles a region boundary).
                     int firstUncachedRegion = lastHeaderRegion + 1;
                     // footer occupies [fileLength - footerLength, fileLength); use its start region as the guard
-                    int footerStartRegion = node.sharedCacheService.getRegion(
-                        loc.offset() + loc.fileLength() - CodecUtil.footerLength()
-                    );
+                    int footerStartRegion = node.sharedCacheService.getRegion(loc.offset() + loc.fileLength() - CodecUtil.footerLength());
                     if (firstUncachedRegion < footerStartRegion) {
                         long uncachedRegionStart = (long) firstUncachedRegion * regionSize;
                         assertFalse(

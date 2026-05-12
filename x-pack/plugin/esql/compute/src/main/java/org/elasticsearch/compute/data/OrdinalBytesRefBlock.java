@@ -108,34 +108,21 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
 
     @Override
     public BytesRefBlock filter(boolean mayContainDuplicates, int... positions) {
-        // Do not build a filtered block using the same dictionary, because dictionary entries that are not referenced
-        // may reappear when hashing the dictionary in BlockHash.
-        // TODO: merge this BytesRefArrayBlock#filter
-        final OrdinalBytesRefVector vector = asVector();
-        if (vector != null) {
-            return vector.filter(mayContainDuplicates, positions).asBlock();
-        }
-        BytesRef scratch = new BytesRef();
-        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(positions.length)) {
-            for (int pos : positions) {
-                if (isNull(pos)) {
-                    builder.appendNull();
-                    continue;
-                }
-                int valueCount = getValueCount(pos);
-                int first = getFirstValueIndex(pos);
-                if (valueCount == 1) {
-                    builder.appendBytesRef(getBytesRef(getFirstValueIndex(pos), scratch));
-                } else {
-                    builder.beginPositionEntry();
-                    for (int c = 0; c < valueCount; c++) {
-                        builder.appendBytesRef(getBytesRef(first + c, scratch));
-                    }
-                    builder.endPositionEntry();
-                }
+        // Share the dictionary with the filtered block. Dictionary entries that are no longer referenced
+        // by any ordinal must be ignored by consumers; the consumer-side fast paths (e.g.
+        // BytesRefBlockHash#addOrdinals*, DistinctByOperator, BytesRefTopNBlockHash) drive their work off
+        // the ordinals and never iterate the dictionary, so phantom entries are never observed.
+        OrdinalBytesRefBlock result = null;
+        IntBlock filteredOrdinals = ordinals.filter(mayContainDuplicates, positions);
+        try {
+            result = new OrdinalBytesRefBlock(filteredOrdinals, bytes);
+            bytes.incRef();
+        } finally {
+            if (result == null) {
+                filteredOrdinals.close();
             }
-            return builder.mvOrdering(mvOrdering()).build();
         }
+        return result;
     }
 
     @Override

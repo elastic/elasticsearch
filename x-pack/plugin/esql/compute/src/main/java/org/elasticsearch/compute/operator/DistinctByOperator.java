@@ -100,31 +100,41 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
     }
 
     /**
-     * Fast path for ordinal vectors (no nulls): hash only the dictionary entries,
-     * then filter positions using cheap integer ordinal lookups.
+     * Fast path for ordinal vectors (no nulls): walk rows once, looking up only the dictionary
+     * entries that are actually referenced. A per-page {@code seenInPage} boolean[] keeps
+     * {@link #seenKeys} from being asked about the same ord twice within the page. Dictionary
+     * entries that no row references are never read, so values left over by a shared dictionary
+     * (after {@code filter}/{@code slice}/{@code keepMask}) do not pollute the cross-page hash.
      */
     private Page processOrdinalsVector(Page page, OrdinalBytesRefVector ordinals) {
-        boolean[] skipOrdinal = hashDictionary(ordinals.getDictionaryVector());
+        BytesRefVector dict = ordinals.getDictionaryVector();
         IntVector ords = ordinals.getOrdinalsVector();
+        boolean[] seenInPage = new boolean[dict.getPositionCount()];
+        BytesRef scratch = new BytesRef();
         int rowCount = 0;
         int[] positions = new int[page.getPositionCount()];
         for (int p = 0; p < ords.getPositionCount(); p++) {
             int ord = ords.getInt(p);
-            if (skipOrdinal[ord] == false) {
+            if (seenInPage[ord]) {
+                continue;
+            }
+            seenInPage[ord] = true;
+            if (seenKeys.add(dict.getBytesRef(ord, scratch)) >= 0) {
                 positions[rowCount++] = p;
-                skipOrdinal[ord] = true;
             }
         }
         return filteredPage(page, positions, rowCount);
     }
 
     /**
-     * Fast path for ordinal blocks (may contain nulls): hash only the dictionary entries,
-     * then filter positions using cheap integer ordinal lookups, skipping null positions.
+     * Fast path for ordinal blocks (may contain nulls): like {@link #processOrdinalsVector}, but
+     * skips null positions. Dictionary entries that no row references are never read.
      */
     private Page processOrdinalsBlock(Page page, OrdinalBytesRefBlock ordinals) {
-        boolean[] skipOrdinal = hashDictionary(ordinals.getDictionaryVector());
+        BytesRefVector dict = ordinals.getDictionaryVector();
         IntBlock ords = ordinals.getOrdinalsBlock();
+        boolean[] seenInPage = new boolean[dict.getPositionCount()];
+        BytesRef scratch = new BytesRef();
         int rowCount = 0;
         int[] positions = new int[page.getPositionCount()];
         for (int p = 0; p < ords.getPositionCount(); p++) {
@@ -132,25 +142,15 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
                 continue;
             }
             int ord = ords.getInt(ords.getFirstValueIndex(p));
-            if (skipOrdinal[ord] == false) {
+            if (seenInPage[ord]) {
+                continue;
+            }
+            seenInPage[ord] = true;
+            if (seenKeys.add(dict.getBytesRef(ord, scratch)) >= 0) {
                 positions[rowCount++] = p;
-                skipOrdinal[ord] = true;
             }
         }
         return filteredPage(page, positions, rowCount);
-    }
-
-    /**
-     * Adds all dictionary entries to {@link #seenKeys} and returns a boolean array
-     * indexed by ordinal: {@code true} means the key was already present (skip it).
-     */
-    private boolean[] hashDictionary(BytesRefVector dictionary) {
-        BytesRef scratch = new BytesRef();
-        boolean[] skip = new boolean[dictionary.getPositionCount()];
-        for (int d = 0; d < dictionary.getPositionCount(); d++) {
-            skip[d] = seenKeys.add(dictionary.getBytesRef(d, scratch)) < 0;
-        }
-        return skip;
     }
 
     private static Page filteredPage(Page page, int[] positions, int rowCount) {

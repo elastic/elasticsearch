@@ -53,7 +53,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -1729,7 +1728,8 @@ public class BasicBlockTests extends ESTestCase {
                     masks[i] = randomIntBetween(0, positionCount - 1);
                 }
                 try (var filtered = block.filter(true, masks)) {
-                    assertThat(filtered, not(instanceOf(OrdinalBytesRefBlock.class)));
+                    assertThat(filtered, instanceOf(OrdinalBytesRefBlock.class));
+                    assertThat(((OrdinalBytesRefBlock) filtered).getDictionaryVector(), sameInstance(block.getDictionaryVector()));
                 }
                 assertSliceFullRange(block);
                 assertSliceOrdinalBytesRefBlock(block, 0, 0);
@@ -1767,7 +1767,8 @@ public class BasicBlockTests extends ESTestCase {
                     masks[i] = randomIntBetween(0, positionCount - 1);
                 }
                 try (var filtered = vector.filter(true, masks)) {
-                    assertThat(filtered, not(instanceOf(OrdinalBytesRefVector.class)));
+                    assertThat(filtered, instanceOf(OrdinalBytesRefVector.class));
+                    assertThat(((OrdinalBytesRefVector) filtered).getDictionaryVector(), sameInstance(vector.getDictionaryVector()));
                 }
                 assertSliceFullRange(vector);
                 assertSliceOrdinalBytesRefVector(vector, 0, 0);

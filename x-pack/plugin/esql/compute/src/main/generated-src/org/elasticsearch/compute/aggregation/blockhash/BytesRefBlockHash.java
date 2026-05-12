@@ -16,12 +16,6 @@ import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
@@ -34,7 +28,7 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.swisshash.BytesRefSwissHash;
-import java.util.BitSet;
+import java.util.Arrays;
 // end generated imports
 
 /**
@@ -179,28 +173,55 @@ final class BytesRefBlockHash extends BlockHash {
         return ReleasableIterator.single(lookup(vector));
     }
 
+    /**
+     * Sentinel for "this dictionary ord has not yet been hashed into the global hash on this page".
+     * Stored in the per-page {@code localToGlobal} array; replaced with the real group id (always
+     * non-negative because of {@link BlockHash#hashOrdToGroupNullReserved}) on first touch.
+     */
+    private static final int UNSEEN = -1;
+
+    /**
+     * Lazily hashes the dictionary entry at {@code ord} into the global hash on first visit and
+     * returns the cached group id thereafter. Dictionary entries that no rows reference are never
+     * looked up, so phantom entries left over by {@code filter()}/{@code slice()}/{@code keepMask()}
+     * (which share the dictionary across the filtered block) are not promoted to groups.
+     */
+    private int groupForOrd(int ord, BytesRefVector dict, int[] localToGlobal, BytesRef scratch) {
+        int g = localToGlobal[ord];
+        if (g == UNSEEN) {
+            g = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(dict.getBytesRef(ord, scratch))));
+            localToGlobal[ord] = g;
+        }
+        return g;
+    }
+
     private IntVector addOrdinalsVector(OrdinalBytesRefVector inputBlock) {
         IntVector inputOrds = inputBlock.getOrdinalsVector();
-        try (var hashOrds = add(inputBlock.getDictionaryVector())) {
-            if (inputOrds.isConstant()) {
-                int ord = hashOrds.getInt(inputOrds.getInt(0));
-                return blockFactory.newConstantIntVector(ord, inputOrds.getPositionCount());
+        BytesRefVector dict = inputBlock.getDictionaryVector();
+        BytesRef scratch = new BytesRef();
+        if (inputOrds.isConstant()) {
+            int ord = inputOrds.getInt(0);
+            int groupId = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(dict.getBytesRef(ord, scratch))));
+            return blockFactory.newConstantIntVector(groupId, inputOrds.getPositionCount());
+        }
+        int[] localToGlobal = new int[dict.getPositionCount()];
+        Arrays.fill(localToGlobal, UNSEEN);
+        try (var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount())) {
+            for (int p = 0; p < inputOrds.getPositionCount(); p++) {
+                builder.appendInt(groupForOrd(inputOrds.getInt(p), dict, localToGlobal, scratch));
             }
-            try (var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount())) {
-                for (int p = 0; p < inputOrds.getPositionCount(); p++) {
-                    int ord = hashOrds.getInt(inputOrds.getInt(p));
-                    builder.appendInt(ord);
-                }
-                return builder.build();
-            }
+            return builder.build();
         }
     }
 
     private IntBlock addOrdinalsBlock(OrdinalBytesRefBlock inputBlock) {
+        BytesRefVector dict = inputBlock.getDictionaryVector();
+        int[] localToGlobal = new int[dict.getPositionCount()];
+        Arrays.fill(localToGlobal, UNSEEN);
+        BytesRef scratch = new BytesRef();
         try (
             IntBlock inputOrds = new MultivalueDedupeInt(inputBlock.getOrdinalsBlock()).dedupeToBlockAdaptive(blockFactory);
-            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount());
-            IntVector hashOrds = add(inputBlock.getDictionaryVector())
+            IntBlock.Builder builder = blockFactory.newIntBlockBuilder(inputOrds.getPositionCount())
         ) {
             for (int p = 0; p < inputOrds.getPositionCount(); p++) {
                 int valueCount = inputOrds.getValueCount(p);
@@ -210,17 +231,12 @@ final class BytesRefBlockHash extends BlockHash {
                         builder.appendInt(0);
                         seenNull = true;
                     }
-                    case 1 -> {
-                        int ord = hashOrds.getInt(inputOrds.getInt(firstIndex));
-                        builder.appendInt(ord);
-                    }
+                    case 1 -> builder.appendInt(groupForOrd(inputOrds.getInt(firstIndex), dict, localToGlobal, scratch));
                     default -> {
-                        int start = firstIndex;
                         int end = firstIndex + valueCount;
                         builder.beginPositionEntry();
-                        for (int i = start; i < end; i++) {
-                            int ord = hashOrds.getInt(inputOrds.getInt(i));
-                            builder.appendInt(ord);
+                        for (int i = firstIndex; i < end; i++) {
+                            builder.appendInt(groupForOrd(inputOrds.getInt(i), dict, localToGlobal, scratch));
                         }
                         builder.endPositionEntry();
                     }

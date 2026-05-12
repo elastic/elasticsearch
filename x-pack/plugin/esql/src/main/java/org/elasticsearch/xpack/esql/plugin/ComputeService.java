@@ -240,6 +240,7 @@ public class ComputeService {
     FilterPushdownRegistry filterPushdownRegistry() {
         return filterPushdownRegistry;
     }
+
     FormatReaderRegistry formatReaderRegistry() {
         return formatReaderRegistry;
     }

@@ -194,7 +194,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
 
     private void startFrozenOnlyNode() {
         Settings nodeSettings = Settings.builder()
-            .putList("node.roles", Arrays.asList("master", "data_frozen", "ingest"))
+            .putList("node.roles", Arrays.asList("data_frozen", "ingest"))
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.of(10, ByteSizeUnit.MB).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), false)
@@ -502,7 +502,7 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
     public void testMasterFailoverDuringMarkReadOnly() throws Exception {
         assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
 
-        String candidateIndex = setupClusterAndInfrastructure(3); // 3 to maintain quorum after killing master
+        String candidateIndex = setupClusterAndInfrastructure(3);
         CountDownLatch latch = registerMasterFailoverInterceptor(TransportAddIndexBlockAction.TYPE.name());
         triggerRollover();
 

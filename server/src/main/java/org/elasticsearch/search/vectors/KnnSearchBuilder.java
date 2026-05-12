@@ -115,7 +115,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     }
 
     private static final TransportVersion VISIT_PERCENTAGE = TransportVersion.fromName("visit_percentage");
-    public static final TransportVersion OPTIONAL_NUM_CANDIDATES = TransportVersion.fromName("knn_search_optional_num_candidates");
 
     final String field;
     final VectorData queryVector;
@@ -325,11 +324,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public KnnSearchBuilder(StreamInput in) throws IOException {
         this.field = in.readString();
         this.k = in.readVInt();
-        if (in.getTransportVersion().supports(OPTIONAL_NUM_CANDIDATES)) {
-            this.numCands = in.readOptionalVInt();
-        } else {
-            this.numCands = in.readVInt();
-        }
+        this.numCands = in.readVInt();
         if (in.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             this.visitPercentage = in.readOptionalFloat();
         } else {
@@ -582,11 +577,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
         out.writeString(field);
         out.writeVInt(k);
-        if (out.getTransportVersion().supports(OPTIONAL_NUM_CANDIDATES)) {
-            out.writeOptionalVInt(numCands);
-        } else {
-            out.writeVInt(numCands != null ? numCands : Math.round(Math.min(NUM_CANDS_LIMIT, NUM_CANDS_MULTIPLICATIVE_FACTOR * k)));
-        }
+        out.writeVInt(numCands);
         if (out.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             out.writeOptionalFloat(visitPercentage);
         }

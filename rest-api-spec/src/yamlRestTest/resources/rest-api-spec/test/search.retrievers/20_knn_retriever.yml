@@ -114,7 +114,6 @@ setup:
               field: vector
               query_vector: [2, 2, 2, 2, 3]
               k: 2
-              num_candidates: 3
               visit_percentage: 1.0
 
   - gt: { hits.total.value: 0 }

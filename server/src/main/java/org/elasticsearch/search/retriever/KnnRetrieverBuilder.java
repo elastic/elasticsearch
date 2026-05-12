@@ -252,16 +252,16 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     @Override
     public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
         assert queryVector != null : "query vector must be materialized at this point.";
-        KnnSearchBuilder knnSearchBuilder = new KnnSearchBuilder(
-            field,
-            queryVector.get(),
-            null,
-            k,
-            numCands,
-            visitPercentage,
-            rescoreVectorBuilder,
-            similarity
-        );
+        KnnSearchBuilder.Builder builder = new KnnSearchBuilder.Builder().field(field)
+            .queryVector(queryVector.get())
+            .k(k)
+            .visitPercentage(visitPercentage)
+            .rescoreVectorBuilder(rescoreVectorBuilder)
+            .similarity(similarity);
+        if (numCands != null) {
+            builder.numCandidates(numCands);
+        }
+        KnnSearchBuilder knnSearchBuilder = builder.build(k);
         if (preFilterQueryBuilders != null) {
             knnSearchBuilder.addFilterQueries(preFilterQueryBuilders);
         }

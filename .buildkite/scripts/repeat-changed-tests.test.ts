@@ -172,6 +172,37 @@ describe("classifyChangedFiles", () => {
     ]);
   });
 
+  test("flags ESQL function tests for lower iter count", () => {
+    const result = classifyChangedFiles([
+      "x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/expression/function/grouping/BucketTests.java",
+      "x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/expression/predicate/operator/arithmetic/AddTests.java",
+      "x-pack/plugin/esql/src/test/java/org/elasticsearch/xpack/esql/SomeOtherTests.java",
+    ]);
+
+    expect(result).toEqual([
+      {
+        gradleProject: ":x-pack:plugin:esql",
+        kind: "test",
+        sourceSet: "test",
+        fqcn: "org.elasticsearch.xpack.esql.expression.function.grouping.BucketTests",
+        extendsFunctionTestCase: true,
+      },
+      {
+        gradleProject: ":x-pack:plugin:esql",
+        kind: "test",
+        sourceSet: "test",
+        fqcn: "org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AddTests",
+        extendsFunctionTestCase: true,
+      },
+      {
+        gradleProject: ":x-pack:plugin:esql",
+        kind: "test",
+        sourceSet: "test",
+        fqcn: "org.elasticsearch.xpack.esql.SomeOtherTests",
+      },
+    ]);
+  });
+
   test("classifies external-modules javaRestTest with test- prefix", () => {
     const result = classifyChangedFiles([
       "test/external-modules/apm-integration/src/javaRestTest/java/org/elasticsearch/test/apmintegration/ApmAgentTracesIT.java",
@@ -364,6 +395,40 @@ describe("generateBatchCommand", () => {
     ];
     expect(generateBatchCommand(batch)).toBe(
       ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.FooTests --tests org.elasticsearch.BarTests"
+    );
+  });
+
+  test("function test batch uses lower iters", () => {
+    // BucketTests etc. extend AbstractConfigurationFunctionTestCase, which extends AbstractScalarFunctionTestCase,
+    // which extends AbstractFunctionTestCase. classifyChangedFiles flags these so generateBatchCommand can lower
+    // the iter count to keep RandomizedRunner candidate collection under the 512MB test heap.
+    const batch: ClassifiedTest[] = [
+      {
+        gradleProject: ":x-pack:plugin:esql",
+        kind: "test",
+        sourceSet: "test",
+        fqcn: "org.elasticsearch.xpack.esql.expression.function.grouping.BucketTests",
+        extendsFunctionTestCase: true,
+      },
+    ];
+    expect(generateBatchCommand(batch)).toBe(
+      ".ci/scripts/run-gradle.sh -Dtests.iters=10 -Dtests.timeoutSuite=3600000! :x-pack:plugin:esql:test --tests org.elasticsearch.xpack.esql.expression.function.grouping.BucketTests"
+    );
+  });
+
+  test("mixed batch with any function test uses lower iters", () => {
+    const batch: ClassifiedTest[] = [
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "org.elasticsearch.RegularTests" },
+      {
+        gradleProject: ":x-pack:plugin:esql",
+        kind: "test",
+        sourceSet: "test",
+        fqcn: "org.elasticsearch.xpack.esql.expression.function.grouping.BucketTests",
+        extendsFunctionTestCase: true,
+      },
+    ];
+    expect(generateBatchCommand(batch)).toBe(
+      ".ci/scripts/run-gradle.sh -Dtests.iters=10 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.RegularTests :x-pack:plugin:esql:test --tests org.elasticsearch.xpack.esql.expression.function.grouping.BucketTests"
     );
   });
 

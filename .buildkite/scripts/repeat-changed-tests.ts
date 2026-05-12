@@ -60,6 +60,29 @@ export interface ClassifiedTest {
    * {@link TestKind} of "yamlRestTestCase".
    */
   yamlTest?: string;
+  /**
+   * True for unit tests whose FQCN lives under {@link #FUNCTION_TEST_PACKAGE_PREFIXES}. These packages house
+   * subclasses of {@code AbstractFunctionTestCase} (and its variants), all of which use parametrized test data
+   * with many parameter combinations. Running them with {@code -Dtests.iters=100} explodes the RandomizedRunner
+   * candidate count past the 512MB test JVM heap during candidate collection. For such tests we lower the
+   * iteration count in {@link generateBatchCommand}.
+   */
+  extendsFunctionTestCase?: boolean;
+}
+
+/**
+ * FQCN prefixes for unit tests that extend a {@code *FunctionTestCase} variant. A path-based approximation —
+ * less accurate than reading the source, but no fs reads at classification time. If new function-test packages
+ * are introduced, add them here.
+ */
+const FUNCTION_TEST_PACKAGE_PREFIXES = [
+  "org.elasticsearch.xpack.esql.expression.function.",
+  "org.elasticsearch.xpack.esql.expression.predicate.operator.",
+  "org.elasticsearch.compute.aggregation.",
+];
+
+export function isFunctionTestFqcn(fqcn: string): boolean {
+  return FUNCTION_TEST_PACKAGE_PREFIXES.some((prefix) => fqcn.startsWith(prefix));
 }
 
 interface PipelineStep {
@@ -298,6 +321,12 @@ export function classifyChangedFiles(files: string[]): ClassifiedTest[] {
           test.fqcn = toFqcn(match[2]);
         }
 
+        if (test.kind === "test" && test.fqcn && isFunctionTestFqcn(test.fqcn)) {
+          // Only set the flag when truthy so existing classifyChangedFiles assertions (which compare object
+          // shapes) keep passing for the common non-function-test case.
+          test.extendsFunctionTestCase = true;
+        }
+
         tests.push(test);
         break;
       }
@@ -416,7 +445,12 @@ export function generateBatchCommand(batch: ClassifiedTest[]): string {
   switch (kind) {
     case "test": {
       const tasks = tasksWithFilters(batch, "test", (t) => `--tests ${t.fqcn}`);
-      return `.ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! ${tasks}`;
+      // ESQL function tests (any AbstractFunctionTestCase subclass) are heavily parametrized — running them with
+      // iters=100 explodes RandomizedRunner's candidate count past the 512MB test heap. Use a lower count if any
+      // test in the batch extends a *FunctionTestCase variant. Mixed batches are conservatively run at the lower
+      // count; that's safer than OOM and far less common than a homogeneous batch in practice.
+      const iters = batch.some((t) => t.extendsFunctionTestCase) ? 10 : 100;
+      return `.ci/scripts/run-gradle.sh -Dtests.iters=${iters} -Dtests.timeoutSuite=3600000! ${tasks}`;
     }
     case "internalClusterTest": {
       const tasks = tasksWithFilters(batch, "internalClusterTest", (t) => `--tests ${t.fqcn}`);

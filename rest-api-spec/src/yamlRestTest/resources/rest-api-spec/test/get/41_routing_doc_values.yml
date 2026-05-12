@@ -17,6 +17,13 @@
              doc_values: true
 
  - do:
+      field_caps:
+        index: test_1
+        fields: _routing
+
+ - match: { fields._routing._routing.aggregatable: true }
+
+ - do:
       index:
           index:   test_1
           id:      "1"
@@ -49,3 +56,61 @@
       get:
           index:   test_1
           id:      "1"
+
+---
+"Routing with doc_values enabled by default":
+  - requires:
+      cluster_features: [ "mapper.routing_as_doc_values_by_default" ]
+      reason: "Requires routing to be stored as doc values"
+
+  - do:
+      indices.create:
+        index:    test_1
+        body:
+          settings:
+            index:
+              mode: "columnar"
+              number_of_shards: 5
+              number_of_routing_shards: 5
+
+  - do:
+      field_caps:
+        index: test_1
+        fields: _routing
+
+  - match: { fields._routing._routing.aggregatable: true }
+
+  - do:
+      index:
+        index:   test_1
+        id:      "1"
+        routing: "5"
+        body:    { foo: bar, "@timestamp": "2025-01-01T00:00:00Z" }
+
+  # routing is not returned in the get response metadata when stored as doc values
+  - do:
+      get:
+        index:   test_1
+        id:      "1"
+        routing: "5"
+
+  - match:   { _id: "1"}
+  - is_false: _routing
+
+  # routing is not returned via stored_fields, because it is stored as doc values
+  - do:
+      get:
+        index:   test_1
+        id:      "1"
+        routing: "5"
+        stored_fields:  [_routing]
+
+  - match:   { _id: "1"}
+  - is_false: fields
+
+  - do:
+      catch: missing
+      get:
+        index:   test_1
+        id:      "1"
+

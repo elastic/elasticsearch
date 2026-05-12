@@ -478,7 +478,9 @@ public class TranslogReplicatorTests extends ESTestCase {
         ArrayList<Translog.Serialized> serialized = new ArrayList<>();
         int bytes = 0;
         int seqNo = 0;
-        while (bytes <= threshold) {
+        // Stop as soon as we're at, or have exceeded the threshold. We don't want to reintroduce
+        // the race from https://github.com/elastic/elasticsearch/issues/148545
+        while (bytes < threshold) {
             Translog.Operation operation = generateOperation(seqNo++);
             operations.add(operation);
             Translog.Serialized s = serializeOperations(new Translog.Operation[] { operation })[0];
@@ -497,7 +499,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.sync(shardId, location, future);
-        future.actionGet();
+        safeGet(future);
 
         assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
         Translog.Operation[] expectedOperations = operations.toArray(new Translog.Operation[0]);

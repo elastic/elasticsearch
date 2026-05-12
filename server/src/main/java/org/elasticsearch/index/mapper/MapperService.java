@@ -138,6 +138,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.Dynamic,
         Property.IndexScope
     );
+
+    public static final Setting<Long> INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING = Setting.longSetting(
+        "index.mapping.array_objects.limit",
+        20000L,
+        1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     public static final Setting<Long> INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.total_fields.limit",
         1000L,
@@ -349,7 +358,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             MetadataFieldMapper.Builder routingBuilder = metadataBuilders.get(RoutingFieldMapper.NAME);
             if (routingBuilder instanceof RoutingFieldMapper.Builder builder) {
                 builder.required.setValue(true);
-                builder.docValues.setValue(true);
             }
         }
         return metadataBuilders;

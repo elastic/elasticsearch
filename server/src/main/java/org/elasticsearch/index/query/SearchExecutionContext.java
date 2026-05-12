@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
@@ -576,7 +577,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 query = Queries.newMatchNoDocsQuery("No query left after rewrite.");
             }
             return new ParsedQuery(query, copyNamedQueries());
-        } catch (QueryShardException | ParsingException e) {
+        } catch (QueryShardException | ParsingException | CircuitBreakingException e) {
             throw e;
         } catch (Exception e) {
             throw new QueryShardException(this, "failed to create query: {}", e, e.getMessage());

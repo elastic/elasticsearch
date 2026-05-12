@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.junit.BeforeClass;
 
 import java.util.LinkedHashMap;
@@ -95,17 +96,17 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
 
     protected static TestAnalyzer multiIndexAnalyzer() {
         var multiIndexMapping = loadMapping("mapping-basic.json");
+        EsField partialTypeKeyword = new EsField("partial_type_keyword", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
         multiIndexMapping.put(
             "partial_type_keyword",
-            new EsField("partial_type_keyword", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+            IndexResolver.wrapPartiallyUnmappedField(partialTypeKeyword, "partial_type_keyword", "partial_type_keyword", Set.of("test1"))
         );
         var multiIndex = new EsIndex(
             "multi_index",
             multiIndexMapping,
             Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
             Map.of(),
-            Map.of(),
-            Map.of("partial_type_keyword", Set.of("test2"))
+            Map.of()
         );
         return analyzerWithEnrichPolicies().addIndex(multiIndex);
     }
@@ -137,8 +138,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
             Map.of("languages", languages, "last_name", lastName, "salary_change", salaryChange, "first_name", firstName, "id", idField),
             Map.of("union_types_index", IndexMode.STANDARD, "union_types_index_incompatible", IndexMode.STANDARD),
             Map.of("", List.of("union_types_index*")),
-            Map.of("", List.of("union_types_index_incompatible", "union_types_index")),
-            Map.of()
+            Map.of("", List.of("union_types_index_incompatible", "union_types_index"))
         );
         return analyzerWithEnrichPolicies().addAnalysisTestsInferenceResolution()
             .addIndex(unionIndex)

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateUnitCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
@@ -104,6 +105,7 @@ public class ScalarFunctionWritables {
         entries.add(DateTrunc.ENTRY);
         entries.add(DateUnitCount.ENTRY);
         entries.add(DayName.ENTRY);
+        entries.add(RangeIntersects.ENTRY);
         entries.add(RangeWithin.ENTRY);
         entries.add(MonthName.ENTRY);
         entries.add(RangeMax.ENTRY);

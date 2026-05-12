@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -42,6 +43,15 @@ import java.util.Map;
 public abstract class DelayableWriteable<T extends Writeable> implements Writeable, Releasable {
 
     private static final TransportVersion COMPRESS_DELAYABLE_WRITEABLE = TransportVersion.fromName("compress_delayable_writeable");
+    private static final TransportVersion DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE = TransportVersion.fromName(
+        "delayable_writeable_uncompressed_size"
+    );
+
+    /**
+     * Sentinel for {@link Serialized#uncompressedSize} indicating that the uncompressed length was not transmitted by the peer
+     * (i.e. {@link #COMPRESS_DELAYABLE_WRITEABLE} was supported but {@link #DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE} was not).
+     */
+    private static final long UNKNOWN_UNCOMPRESSED_SIZE = -1L;
 
     /**
      * Build a {@linkplain DelayableWriteable} that wraps an existing object
@@ -57,23 +67,40 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      * when {@link #expand()} is called.
      */
     public static <T extends Writeable> DelayableWriteable<T> delayed(Writeable.Reader<T> reader, StreamInput in) throws IOException {
-        return new Serialized<>(
-            reader,
-            in.getTransportVersion(),
-            in.namedWriteableRegistry(),
-            in.getTransportVersion().supports(COMPRESS_DELAYABLE_WRITEABLE)
-                ? in.readReleasableBytesReference(in.readInt())
-                : in.readReleasableBytesReference()
-        );
+        final TransportVersion version = in.getTransportVersion();
+        final ReleasableBytesReference serialized;
+        final long uncompressedSize;
+        if (version.supports(DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE)) {
+            int compressedLen = in.readInt();
+            uncompressedSize = in.readInt();
+            serialized = in.readReleasableBytesReference(compressedLen);
+        } else if (version.supports(COMPRESS_DELAYABLE_WRITEABLE)) {
+            int compressedLen = in.readInt();
+            serialized = in.readReleasableBytesReference(compressedLen);
+            uncompressedSize = UNKNOWN_UNCOMPRESSED_SIZE;
+        } else {
+            // legacy format: bytes are uncompressed, so the stored length is the uncompressed size.
+            serialized = in.readReleasableBytesReference();
+            uncompressedSize = serialized.length();
+        }
+        return new Serialized<>(reader, version, in.namedWriteableRegistry(), serialized, uncompressedSize);
     }
 
     public static <T extends Writeable> DelayableWriteable<T> referencing(Writeable.Reader<T> reader, StreamInput in) throws IOException {
-        try (
-            ReleasableBytesReference serialized = in.getTransportVersion().supports(COMPRESS_DELAYABLE_WRITEABLE)
-                ? in.readReleasableBytesReference(in.readInt())
-                : in.readReleasableBytesReference()
-        ) {
-            return new Referencing<>(deserialize(reader, in.getTransportVersion(), in.namedWriteableRegistry(), serialized));
+        final TransportVersion version = in.getTransportVersion();
+        final ReleasableBytesReference serialized;
+        if (version.supports(DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE)) {
+            int compressedLen = in.readInt();
+            // Uncompressed length is discarded: the Referencing wrapper recomputes it on demand from the live object.
+            in.readInt();
+            serialized = in.readReleasableBytesReference(compressedLen);
+        } else if (version.supports(COMPRESS_DELAYABLE_WRITEABLE)) {
+            serialized = in.readReleasableBytesReference(in.readInt());
+        } else {
+            serialized = in.readReleasableBytesReference();
+        }
+        try (serialized) {
+            return new Referencing<>(deserialize(reader, version, in.namedWriteableRegistry(), serialized));
         }
     }
 
@@ -97,9 +124,10 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
     public abstract boolean isSerialized();
 
     /**
-     * Returns the serialized size of the inner {@link Writeable}.
+     * Returns the uncompressed serialized size of the inner {@link Writeable}:
+     * the byte count it would have if written to a plain {@link StreamOutput} without compression.
      */
-    public abstract long getSerializedSize();
+    public abstract long getUncompressedSerializedSize();
 
     private static class Referencing<T extends Writeable> extends DelayableWriteable<T> {
         private final T reference;
@@ -110,7 +138,19 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().supports(COMPRESS_DELAYABLE_WRITEABLE)) {
+            final TransportVersion version = out.getTransportVersion();
+            if (version.supports(DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE)) {
+                final long uncompressedSize = DelayableWriteable.getUncompressedSerializedSize(reference);
+                final BytesStreamOutput tmp = new BytesStreamOutput();
+                try (var compressor = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(tmp)) {
+                    compressor.setTransportVersion(version);
+                    reference.writeTo(compressor);
+                }
+                final var bytes = tmp.bytes();
+                out.writeInt(bytes.length());
+                out.writeInt(Math.toIntExact(uncompressedSize));
+                bytes.writeTo(out);
+            } else if (version.supports(COMPRESS_DELAYABLE_WRITEABLE)) {
                 out.writeWithSizePrefix(reference);
             } else {
                 out.legacyWriteWithSizePrefix(reference);
@@ -125,6 +165,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         @Override
         public Serialized<T> asSerialized(Reader<T> reader, NamedWriteableRegistry registry) {
             // TODO: this path is currently not used in production code, if it ever is this should start using pooled buffers
+            final long uncompressedSize = DelayableWriteable.getUncompressedSerializedSize(reference);
             BytesStreamOutput buffer = new BytesStreamOutput();
             try (var out = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(buffer)) {
                 out.setTransportVersion(TransportVersion.current());
@@ -132,7 +173,13 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
             } catch (IOException e) {
                 throw new RuntimeException("unexpected error writing writeable to buffer", e);
             }
-            return new Serialized<>(reader, TransportVersion.current(), registry, ReleasableBytesReference.wrap(buffer.bytes()));
+            return new Serialized<>(
+                reader,
+                TransportVersion.current(),
+                registry,
+                ReleasableBytesReference.wrap(buffer.bytes()),
+                uncompressedSize
+            );
         }
 
         @Override
@@ -141,8 +188,8 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         }
 
         @Override
-        public long getSerializedSize() {
-            return DelayableWriteable.getSerializedSize(reference);
+        public long getUncompressedSerializedSize() {
+            return DelayableWriteable.getUncompressedSerializedSize(reference);
         }
 
         @Override
@@ -160,17 +207,22 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         private final TransportVersion serializedAtVersion;
         private final NamedWriteableRegistry registry;
         private final ReleasableBytesReference serialized;
+        // Set when known: size the bytes would occupy if written without compression. Negative when the
+        // bytes were received from a peer that did not transmit the uncompressed size on the wire.
+        private long uncompressedSize;
 
         private Serialized(
             Writeable.Reader<T> reader,
             TransportVersion serializedAtVersion,
             NamedWriteableRegistry registry,
-            ReleasableBytesReference serialized
+            ReleasableBytesReference serialized,
+            long uncompressedSize
         ) {
             this.reader = reader;
             this.serializedAtVersion = serializedAtVersion;
             this.registry = registry;
             this.serialized = serialized;
+            this.uncompressedSize = uncompressedSize;
         }
 
         @Override
@@ -181,7 +233,13 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
                  * which is good because this is how shard request caching
                  * works.
                  */
-                if (out.getTransportVersion().supports(COMPRESS_DELAYABLE_WRITEABLE)) {
+                if (out.getTransportVersion().supports(DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE)) {
+                    // serializedAtVersion supports the field, so uncompressedSize must be known here.
+                    assert uncompressedSize >= 0 : "uncompressedSize must be known for transport versions supporting it";
+                    out.writeInt(serialized.length());
+                    out.writeInt(Math.toIntExact(uncompressedSize));
+                    serialized.writeTo(out);
+                } else if (out.getTransportVersion().supports(COMPRESS_DELAYABLE_WRITEABLE)) {
                     out.writeInt(serialized.length());
                     serialized.writeTo(out);
                 } else {
@@ -229,9 +287,35 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         }
 
         @Override
-        public long getSerializedSize() {
-            // We're already serialized
-            return serialized.length();
+        public long getUncompressedSerializedSize() {
+            if (uncompressedSize < 0) {
+                // Peer did not transmit the uncompressed length (mid-era between COMPRESS_DELAYABLE_WRITEABLE
+                // and DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE). Compute it once by streaming through the
+                // decompressor and caching the result.
+                uncompressedSize = computeUncompressedSize();
+            }
+            return uncompressedSize;
+        }
+
+        /**
+         * Used only during cluster upgrades, when the old cluster doesn't send the original size back.
+         */
+        private long computeUncompressedSize() {
+            try (
+                InputStream in = serializedAtVersion.supports(COMPRESS_DELAYABLE_WRITEABLE)
+                    ? CompressorFactory.COMPRESSOR.threadLocalStreamInput(serialized.streamInput())
+                    : serialized.streamInput()
+            ) {
+                long count = 0;
+                final byte[] buffer = new byte[1024];
+                int n;
+                while ((n = in.read(buffer)) != -1) {
+                    count += n;
+                }
+                return count;
+            } catch (IOException e) {
+                throw new UncheckedIOException("failed to compute uncompressed size of serialized DelayableWriteable", e);
+            }
         }
 
         @Override
@@ -242,9 +326,11 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
     }
 
     /**
-     * Returns the serialized size in bytes of the provided {@link Writeable}.
+     * Returns the uncompressed serialized size in bytes of the provided {@link Writeable}, i.e. the byte count it
+     * would have if written to a plain {@link StreamOutput} without compression. Use this for memory accounting
+     * around aggregation reduction; see {@link #getUncompressedSerializedSize()} for the instance-level method.
      */
-    public static long getSerializedSize(Writeable ref) {
+    public static long getUncompressedSerializedSize(Writeable ref) {
         try (CountingStreamOutput out = new CountingStreamOutput()) {
             out.setTransportVersion(TransportVersion.current());
             ref.writeTo(out);

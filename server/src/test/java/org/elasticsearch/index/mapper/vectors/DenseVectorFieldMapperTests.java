@@ -1861,8 +1861,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean(),
-                null
+                randomBoolean()
             )
         );
         assertThat(
@@ -1882,8 +1881,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean(),
-                null
+                randomBoolean()
             )
         );
         assertThat(
@@ -1903,8 +1901,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean(),
-                null
+                randomBoolean()
             )
         );
         assertThat(
@@ -1924,8 +1921,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean(),
-                null
+                randomBoolean()
             )
         );
         assertThat(
@@ -1945,8 +1941,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean(),
-                null
+                randomBoolean()
             )
         );
         assertThat(e.getMessage(), containsString("element_type [byte] vectors do not support NaN values but found [NaN] at dim [0];"));
@@ -1963,8 +1958,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean(),
-                null
+                randomBoolean()
             )
         );
         assertThat(
@@ -1984,8 +1978,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean(),
-                null
+                randomBoolean()
             )
         );
         assertThat(
@@ -2022,8 +2015,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean(),
-                null
+                randomBoolean()
             )
         );
         assertThat(e.getMessage(), containsString("element_type [float] vectors do not support NaN values but found [NaN] at dim [0];"));
@@ -2040,8 +2032,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean(),
-                null
+                randomBoolean()
             )
         );
         assertThat(
@@ -2061,8 +2052,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                 null,
                 null,
                 randomFrom(DenseVectorFieldMapper.FilterHeuristic.values()),
-                randomBoolean(),
-                null
+                randomBoolean()
             )
         );
         assertThat(

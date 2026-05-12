@@ -13,7 +13,6 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -22,16 +21,12 @@ import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentReadState;
-import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -45,7 +40,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
@@ -56,7 +50,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsReader;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
@@ -3017,8 +3010,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float similarityThreshold,
             BitSetProducer parentFilter,
             FilterHeuristic heuristic,
-            boolean hnswEarlyTermination,
-            IndexReader indexReader
+            boolean hnswEarlyTermination
         ) {
             if (indexType.hasVectors() == false) {
                 throw new IllegalArgumentException(
@@ -3052,8 +3044,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarityThreshold,
                     parentFilter,
                     knnSearchStrategy,
-                    hnswEarlyTermination,
-                    indexReader
+                    hnswEarlyTermination
                 );
                 case BIT -> createKnnBitQuery(
                     resolvedQueryVector.asByteVector(),
@@ -3166,63 +3157,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return knnQuery;
         }
 
-        private static final int MAX_PERSISTED_OVERSAMPLE_SEGMENTS = 10;
-
-        /**
-         * Reads max persisted rescore oversample across at most 10 leaves.
-         */
-        private static float readStoredRescoreOversample(IndexReader reader, String fieldName) {
-            return readMax(reader, fieldName, MAX_PERSISTED_OVERSAMPLE_SEGMENTS);
-        }
-
-        /**
-         * Reads the persisted rescore oversample for one leaf/field.
-         * @return the persisted oversample, or {@link Float#NaN} when unavailable.
-         */
-        private static float read(LeafReaderContext context, String field) {
-            LeafReader leaf = context.reader();
-            SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf);
-            if (segmentReader == null) {
-                return Float.NaN;
-            }
-            FieldInfo fieldInfo = segmentReader.getFieldInfos().fieldInfo(field);
-            if (fieldInfo == null) {
-                return Float.NaN;
-            }
-            KnnVectorsReader vectorsReader = segmentReader.getVectorReader();
-            if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
-                vectorsReader = perField.getFieldReader(field);
-            }
-            if (vectorsReader instanceof ESNextDiskBBQVectorsReader diskBBQVectorsReader) {
-                return diskBBQVectorsReader.getRescoreOversample(fieldInfo);
-            }
-            return Float.NaN;
-        }
-
-        /**
-         * Reads the maximum persisted rescore oversample over at most {@code maxSegments} leaves
-         * (to avoid perf problems with large number of segments).
-         * @return the maximum finite persisted oversample, or {@link Float#NaN} when unavailable.
-         */
-        private static float readMax(IndexReader reader, String field, int maxSegments) {
-            if (reader == null) {
-                return Float.NaN;
-            }
-            float best = Float.NaN;
-            int inspected = 0;
-            for (LeafReaderContext context : reader.leaves()) {
-                if (maxSegments > 0 && inspected >= maxSegments) {
-                    break;
-                }
-                float value = read(context, field);
-                if (Float.isFinite(value) && (Float.isNaN(best) || value > best)) {
-                    best = value;
-                }
-                inspected++;
-            }
-            return best;
-        }
-
         private Query createKnnFloatQuery(
             float[] queryVector,
             int k,
@@ -3233,8 +3167,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float similarityThreshold,
             BitSetProducer parentFilter,
             KnnSearchStrategy knnSearchStrategy,
-            boolean hnswEarlyTermination,
-            IndexReader indexReader
+            boolean hnswEarlyTermination
         ) {
             element.checkDimensions(dims, queryVector.length);
             element.checkVectorBounds(queryVector);
@@ -3253,13 +3186,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             int adjustedK = k;
             // By default utilize the quantized oversample is configured
             // allow the user provided at query time overwrite
-            // precedence: query oversample > persisted (per-segment) > mapping rescore_vector
             Float oversample = queryOversample;
-            Float mappingOversampleDefault = indexOptions instanceof QuantizedIndexOptions qio && qio.rescoreVector != null
-                ? qio.rescoreVector.oversample
-                : null;
-            if (oversample == null && mappingOversampleDefault != null) {
-                oversample = mappingOversampleDefault;
+            if (oversample == null
+                && indexOptions instanceof QuantizedIndexOptions quantizedIndexOptions
+                && quantizedIndexOptions.rescoreVector != null) {
+                oversample = quantizedIndexOptions.rescoreVector.oversample;
             }
             boolean rescore = needsRescore(oversample);
             if (rescore) {
@@ -3274,16 +3205,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
-                // when query oversample is null, read per segment persisted oversample
-                // mapping oversample works as fallback for segments without persisted oversample
-                boolean perSegment = rescore && queryOversample == null;
-                if (perSegment) {
-                    // use max persisted oversample, if available, for (late) rescoring
-                    float maxStoredOversample = readStoredRescoreOversample(indexReader, name());
-                    if (Float.isFinite(maxStoredOversample)) {
-                        adjustedK = Math.min((int) Math.ceil(k * maxStoredOversample), OVERSAMPLE_LIMIT);
-                    }
-                }
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),

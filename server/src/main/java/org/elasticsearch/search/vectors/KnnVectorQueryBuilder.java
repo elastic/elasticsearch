@@ -583,8 +583,7 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             vectorSimilarity,
             parentBitSet,
             heuristic,
-            hnswEarlyTermination,
-            context.getIndexReader()
+            hnswEarlyTermination
         );
     }
 

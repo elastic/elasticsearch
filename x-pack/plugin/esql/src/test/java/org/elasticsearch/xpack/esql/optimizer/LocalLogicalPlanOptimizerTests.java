@@ -109,6 +109,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.asLimit;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForExistingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
@@ -123,6 +124,7 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRule
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -1422,8 +1424,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         // Local-side TopN keeps only `id`; `value` was nullified and pruned.
         var topN = findFirstTopN(localPlan);
-        assertThat(topN.order(), hasSize(1));
-        var fa = as(topN.order().getFirst().child(), FieldAttribute.class);
+        var fa = as(singleValue(topN.order()).child(), FieldAttribute.class);
         assertThat(fa.name(), equalTo("id"));
         assertThat(topN.limit().fold(FoldContext.small()), equalTo(20));
     }
@@ -1449,7 +1450,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var localPlan = localPlan(plan, statsForMissingField("value"));
 
         // No TopN should remain — all sort keys were pruned and TopN became a Limit.
-        assertThat(localPlan.collect(p -> p instanceof TopN), hasSize(0));
+        assertThat(localPlan.collect(p -> p instanceof TopN), empty());
         var limit = findFirstLimit(localPlan);
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(20));
     }
@@ -1470,15 +1471,11 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     private static TopN findFirstTopN(LogicalPlan plan) {
-        var found = plan.collectFirstChildren(p -> p instanceof TopN);
-        assertThat("expected at least one TopN in plan", found, hasSize(1));
-        return (TopN) found.getFirst();
+        return as(singleValue(plan.collectFirstChildren(p -> p instanceof TopN)), TopN.class);
     }
 
     private static Limit findFirstLimit(LogicalPlan plan) {
-        var found = plan.collectFirstChildren(p -> p instanceof Limit);
-        assertThat("expected at least one Limit in plan", found, hasSize(1));
-        return (Limit) found.getFirst();
+        return as(singleValue(plan.collectFirstChildren(p -> p instanceof Limit)), Limit.class);
     }
 
     private record SimilarityFunctionTestCase(String esqlFunction, String fieldName, float[] vector, String functionName) {

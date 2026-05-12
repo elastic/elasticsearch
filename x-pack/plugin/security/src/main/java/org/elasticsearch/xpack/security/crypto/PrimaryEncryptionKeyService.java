@@ -39,7 +39,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 import javax.crypto.SecretKey;
 
@@ -398,9 +400,11 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
                 System.currentTimeMillis(),
                 RotationState.STABLE
             );
-            Set<String> retiredIds = existing.getKeys().keySet().stream()
-            .filter(id -> id.equals(existing.getActiveKeyId()) == false)
-            .collect(Collectors.toCollection(TreeSet::new));
+            Set<String> retiredIds = existing.getKeys()
+                .keySet()
+                .stream()
+                .filter(id -> id.equals(existing.getActiveKeyId()) == false)
+                .collect(Collectors.toCollection(TreeSet::new));
             logger.info(
                 "primary encryption key rotation complete: retained active key [{}], retired keys {}",
                 existing.getActiveKeyId(),
@@ -435,7 +439,6 @@ public class PrimaryEncryptionKeyService implements AesGcmEncryptionService.KeyP
         public String describeTasks(List<KeyRotationTask> tasks) {
             Map<String, Long> byType = tasks.stream().collect(Collectors.groupingBy(KeyRotationTask::description, Collectors.counting()));
             return "primary encryption key tasks " + byType + " [" + tasks.size() + " pending]";
-}
         }
     }
 }

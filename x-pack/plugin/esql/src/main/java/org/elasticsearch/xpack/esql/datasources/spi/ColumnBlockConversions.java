@@ -25,9 +25,11 @@ import java.util.BitSet;
  *   <li><b>With nulls</b>: bulk array copy + null bitmap conversion + array block.</li>
  * </ul>
  * <p>
- * All methods copy the input arrays because callers such as ORC reuse their column buffers
- * across batches. When a caller owns the array exclusively, a future overload can wrap
- * without copying.
+ * The {@code longColumn} and {@code doubleColumn} entry points expose a {@code copyValues}
+ * parameter: callers such as ORC that recycle their column buffers across batches pass
+ * {@code true}, while callers that transfer ownership of a freshly allocated array (e.g. the
+ * Parquet reader) pass {@code false} to avoid the extra copy. The remaining entry points
+ * convert between primitive types and always allocate a fresh target array.
  */
 public final class ColumnBlockConversions {
 
@@ -35,6 +37,10 @@ public final class ColumnBlockConversions {
 
     /**
      * Converts a {@code long[]} column to a {@link Block} (LONG data type).
+     * <p>
+     * Pass {@code copyValues = true} when the caller reuses {@code values} across batches
+     * (e.g. ORC's {@code ColumnVector}), and {@code false} when the caller transfers ownership
+     * of a freshly allocated array.
      */
     public static Block longColumn(
         BlockFactory blockFactory,
@@ -42,24 +48,20 @@ public final class ColumnBlockConversions {
         int rowCount,
         boolean noNulls,
         boolean isRepeating,
-        boolean[] isNull
+        BitSet isNull,
+        boolean copyValues
     ) {
         if (isRepeating) {
-            if (noNulls == false && isNull != null && isNull[0]) {
+            if (noNulls == false && isNull != null && isNull.get(0)) {
                 return blockFactory.newConstantNullBlock(rowCount);
             }
             return blockFactory.newConstantLongBlockWith(values[0], rowCount);
         }
+        long[] data = copyValues ? Arrays.copyOf(values, rowCount) : values;
         if (noNulls) {
-            return blockFactory.newLongArrayVector(Arrays.copyOf(values, rowCount), rowCount).asBlock();
+            return blockFactory.newLongArrayVector(data, rowCount).asBlock();
         }
-        return blockFactory.newLongArrayBlock(
-            Arrays.copyOf(values, rowCount),
-            rowCount,
-            null,
-            toBitSet(isNull, rowCount),
-            Block.MvOrdering.UNORDERED
-        );
+        return blockFactory.newLongArrayBlock(data, rowCount, null, isNull, Block.MvOrdering.UNORDERED);
     }
 
     /**
@@ -71,10 +73,10 @@ public final class ColumnBlockConversions {
         int rowCount,
         boolean noNulls,
         boolean isRepeating,
-        boolean[] isNull
+        BitSet isNull
     ) {
         if (isRepeating) {
-            if (noNulls == false && isNull != null && isNull[0]) {
+            if (noNulls == false && isNull != null && isNull.get(0)) {
                 return blockFactory.newConstantNullBlock(rowCount);
             }
             return blockFactory.newConstantIntBlockWith((int) values[0], rowCount);
@@ -86,11 +88,15 @@ public final class ColumnBlockConversions {
         if (noNulls) {
             return blockFactory.newIntArrayVector(ints, rowCount).asBlock();
         }
-        return blockFactory.newIntArrayBlock(ints, rowCount, null, toBitSet(isNull, rowCount), Block.MvOrdering.UNORDERED);
+        return blockFactory.newIntArrayBlock(ints, rowCount, null, isNull, Block.MvOrdering.UNORDERED);
     }
 
     /**
      * Converts a {@code double[]} column to a {@link Block} (DOUBLE data type).
+     * <p>
+     * Pass {@code copyValues = true} when the caller reuses {@code values} across batches
+     * (e.g. ORC's {@code ColumnVector}), and {@code false} when the caller transfers ownership
+     * of a freshly allocated array.
      */
     public static Block doubleColumn(
         BlockFactory blockFactory,
@@ -98,24 +104,20 @@ public final class ColumnBlockConversions {
         int rowCount,
         boolean noNulls,
         boolean isRepeating,
-        boolean[] isNull
+        BitSet isNull,
+        boolean copyValues
     ) {
         if (isRepeating) {
-            if (noNulls == false && isNull != null && isNull[0]) {
+            if (noNulls == false && isNull != null && isNull.get(0)) {
                 return blockFactory.newConstantNullBlock(rowCount);
             }
             return blockFactory.newConstantDoubleBlockWith(values[0], rowCount);
         }
+        double[] data = copyValues ? Arrays.copyOf(values, rowCount) : values;
         if (noNulls) {
-            return blockFactory.newDoubleArrayVector(Arrays.copyOf(values, rowCount), rowCount).asBlock();
+            return blockFactory.newDoubleArrayVector(data, rowCount).asBlock();
         }
-        return blockFactory.newDoubleArrayBlock(
-            Arrays.copyOf(values, rowCount),
-            rowCount,
-            null,
-            toBitSet(isNull, rowCount),
-            Block.MvOrdering.UNORDERED
-        );
+        return blockFactory.newDoubleArrayBlock(data, rowCount, null, isNull, Block.MvOrdering.UNORDERED);
     }
 
     /**
@@ -128,10 +130,10 @@ public final class ColumnBlockConversions {
         int rowCount,
         boolean noNulls,
         boolean isRepeating,
-        boolean[] isNull
+        BitSet isNull
     ) {
         if (isRepeating) {
-            if (noNulls == false && isNull != null && isNull[0]) {
+            if (noNulls == false && isNull != null && isNull.get(0)) {
                 return blockFactory.newConstantNullBlock(rowCount);
             }
             return blockFactory.newConstantBooleanBlockWith(values[0] != 0, rowCount);
@@ -143,7 +145,7 @@ public final class ColumnBlockConversions {
         if (noNulls) {
             return blockFactory.newBooleanArrayVector(bools, rowCount).asBlock();
         }
-        return blockFactory.newBooleanArrayBlock(bools, rowCount, null, toBitSet(isNull, rowCount), Block.MvOrdering.UNORDERED);
+        return blockFactory.newBooleanArrayBlock(bools, rowCount, null, isNull, Block.MvOrdering.UNORDERED);
     }
 
     /**
@@ -156,10 +158,10 @@ public final class ColumnBlockConversions {
         int rowCount,
         boolean noNulls,
         boolean isRepeating,
-        boolean[] isNull
+        BitSet isNull
     ) {
         if (isRepeating) {
-            if (noNulls == false && isNull != null && isNull[0]) {
+            if (noNulls == false && isNull != null && isNull.get(0)) {
                 return blockFactory.newConstantNullBlock(rowCount);
             }
             return blockFactory.newConstantDoubleBlockWith(values[0], rowCount);
@@ -171,10 +173,18 @@ public final class ColumnBlockConversions {
         if (noNulls) {
             return blockFactory.newDoubleArrayVector(doubles, rowCount).asBlock();
         }
-        return blockFactory.newDoubleArrayBlock(doubles, rowCount, null, toBitSet(isNull, rowCount), Block.MvOrdering.UNORDERED);
+        return blockFactory.newDoubleArrayBlock(doubles, rowCount, null, isNull, Block.MvOrdering.UNORDERED);
     }
 
+    /**
+     * Converts a {@code boolean[]} null-flag array to a {@link BitSet}.
+     * Returns {@code null} when the input is {@code null}, so callers can forward an absent
+     * null mask through {@code ColumnBlockConversions} entry points without a separate guard.
+     */
     public static BitSet toBitSet(boolean[] isNull, int length) {
+        if (isNull == null) {
+            return null;
+        }
         BitSet bits = new BitSet(length);
         for (int i = 0; i < length; i++) {
             if (isNull[i]) {

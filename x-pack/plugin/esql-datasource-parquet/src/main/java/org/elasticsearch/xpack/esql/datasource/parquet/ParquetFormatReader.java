@@ -70,6 +70,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1387,11 +1388,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
 
         private Block readBooleanColumn(ColumnReader cr, int maxDef, int rows) {
             boolean[] values = UninitializedArrayAllocator.newBooleanArray(rows);
-            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
                 if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else {
                     values[i] = cr.getBoolean();
@@ -1401,22 +1402,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             if (noNulls) {
                 return blockFactory.newBooleanArrayVector(values, rows).asBlock();
             }
-            return blockFactory.newBooleanArrayBlock(
-                values,
-                rows,
-                null,
-                ParquetColumnDecoding.toBitSet(isNull, rows),
-                Block.MvOrdering.UNORDERED
-            );
+            return blockFactory.newBooleanArrayBlock(values, rows, null, isNull, Block.MvOrdering.UNORDERED);
         }
 
         private Block readIntColumn(ColumnReader cr, int maxDef, int rows) {
             int[] values = UninitializedArrayAllocator.newIntArray(rows);
-            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
                 if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else {
                     values[i] = cr.getInteger();
@@ -1426,13 +1421,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
             if (noNulls) {
                 return blockFactory.newIntArrayVector(values, rows).asBlock();
             }
-            return blockFactory.newIntArrayBlock(
-                values,
-                rows,
-                null,
-                ParquetColumnDecoding.toBitSet(isNull, rows),
-                Block.MvOrdering.UNORDERED
-            );
+            return blockFactory.newIntArrayBlock(values, rows, null, isNull, Block.MvOrdering.UNORDERED);
         }
 
         /**
@@ -1440,34 +1429,34 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
          */
         private Block readInt32WidenedToLongColumn(ColumnReader cr, int maxDef, int rows) {
             long[] values = UninitializedArrayAllocator.newLongArray(rows);
-            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
                 if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else {
                     values[i] = cr.getInteger();
                 }
                 cr.consume();
             }
-            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
         private Block readLongColumn(ColumnReader cr, int maxDef, int rows) {
             long[] values = UninitializedArrayAllocator.newLongArray(rows);
-            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
                 if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else {
                     values[i] = cr.getLong();
                 }
                 cr.consume();
             }
-            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
         private Block readDoubleColumn(ColumnReader cr, ColumnInfo info, int rows) {
@@ -1479,28 +1468,28 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 return readFloat16Column(cr, info.maxDefLevel(), rows);
             }
             double[] values = UninitializedArrayAllocator.newDoubleArray(rows);
-            boolean[] isNull = info.maxDefLevel() > 0 ? new boolean[rows] : null;
+            BitSet isNull = info.maxDefLevel() > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             boolean isFloat = info.parquetType() == PrimitiveType.PrimitiveTypeName.FLOAT;
             for (int i = 0; i < rows; i++) {
                 if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else {
                     values[i] = isFloat ? cr.getFloat() : cr.getDouble();
                 }
                 cr.consume();
             }
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull);
+            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
         private Block readDecimalAsDoubleColumn(ColumnReader cr, ColumnInfo info, int scale, int rows) {
             double[] values = UninitializedArrayAllocator.newDoubleArray(rows);
-            boolean[] isNull = info.maxDefLevel() > 0 ? new boolean[rows] : null;
+            BitSet isNull = info.maxDefLevel() > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
                 if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else {
                     BigInteger unscaled = switch (info.parquetType()) {
@@ -1513,16 +1502,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 }
                 cr.consume();
             }
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull);
+            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
         private Block readFloat16Column(ColumnReader cr, int maxDef, int rows) {
             double[] values = UninitializedArrayAllocator.newDoubleArray(rows);
-            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
                 if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else {
                     byte[] bytes = cr.getBinary().getBytes();
@@ -1531,7 +1520,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 }
                 cr.consume();
             }
-            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull);
+            return ColumnBlockConversions.doubleColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
         private Block readBytesRefColumn(ColumnReader cr, ColumnInfo info, int rows, long byteHint) {
@@ -1560,12 +1549,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 return readInt96TimestampColumn(cr, info.maxDefLevel(), rows);
             }
             long[] values = UninitializedArrayAllocator.newLongArray(rows);
-            boolean[] isNull = info.maxDefLevel() > 0 ? new boolean[rows] : null;
+            BitSet isNull = info.maxDefLevel() > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             boolean isDate = info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32;
             for (int i = 0; i < rows; i++) {
                 if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else if (isDate) {
                     values[i] = cr.getInteger() * MILLIS_PER_DAY;
@@ -1575,7 +1564,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 }
                 cr.consume();
             }
-            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
         /**
@@ -1584,11 +1573,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
          */
         private Block readInt96TimestampColumn(ColumnReader cr, int maxDef, int rows) {
             long[] values = UninitializedArrayAllocator.newLongArray(rows);
-            boolean[] isNull = maxDef > 0 ? new boolean[rows] : null;
+            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
                 if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
-                    isNull[i] = true;
+                    isNull.set(i);
                     noNulls = false;
                 } else {
                     Binary bin = cr.getBinary();
@@ -1600,7 +1589,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader {
                 }
                 cr.consume();
             }
-            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull);
+            return ColumnBlockConversions.longColumn(blockFactory, values, rows, noNulls, false, isNull, false);
         }
 
         @Override

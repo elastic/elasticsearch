@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -39,6 +40,7 @@ public final class UninitializedArrayAllocator {
 
     private static final MethodHandle ALLOCATE_UNINITIALIZED_ARRAY = initAllocateHandle();
 
+    @SuppressForbidden(reason = "need to access jdk.internal.misc.Unsafe")
     private static MethodHandle initAllocateHandle() {
         try {
             // We resolve jdk.internal.misc.Unsafe reflectively rather than via a direct

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -24,10 +25,13 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
+
+import static org.elasticsearch.compute.data.HistogramBlock.Component;
 import java.util.List;
 import java.util.Objects;
 
@@ -39,6 +43,7 @@ import static java.util.Collections.emptyList;
 public class MaxOverTime extends TimeSeriesAggregateFunction
     implements
         OptionalArgument,
+        SurrogateExpression,
         AggregateMetricDoubleNativeSupport,
         ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -136,6 +141,18 @@ public class MaxOverTime extends TimeSeriesAggregateFunction
     @Override
     public AggregatorFunctionSupplier supplier() {
         return perTimeSeriesAggregation().supplier();
+    }
+
+    @Override
+    public Expression surrogate() {
+        if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
+            return ExtractHistogramComponent.create(
+                source(),
+                new DeltaOnlyHistogramMergeOverTime(source(), field(), filter(), window()),
+                Component.MAX
+            );
+        }
+        return null;
     }
 
     @Override

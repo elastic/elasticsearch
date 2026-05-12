@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -41,6 +42,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOG
 public class AvgOverTime extends TimeSeriesAggregateFunction
     implements
         OptionalArgument,
+        SurrogateExpression,
         AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -118,6 +120,19 @@ public class AvgOverTime extends TimeSeriesAggregateFunction
     @Override
     public AvgOverTime withFilter(Expression filter) {
         return new AvgOverTime(source(), field(), filter, window());
+    }
+
+    @Override
+    public Expression surrogate() {
+        if (field().dataType() == EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
+            var mergeOverTime = new DeltaOnlyHistogramMergeOverTime(source(), field(), filter(), window());
+            return new Div(
+                source(),
+                ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.SUM),
+                ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.COUNT)
+            );
+        }
+        return null;
     }
 
     @Override

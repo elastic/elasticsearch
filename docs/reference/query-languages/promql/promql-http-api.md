@@ -11,7 +11,7 @@ products:
 # PromQL HTTP API [promql-http-api]
 
 ::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release.
+This functionality is in technical preview and might be changed or removed in a future release.
 Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
 ::::
 
@@ -30,8 +30,8 @@ See [Limitations](promql-limitations.md) for what is not supported yet and how b
 
 Every path has two forms:
 
-- **Cluster default:** `GET /_prometheus/api/v1/...`
-- **Explicit index expression:** `GET /_prometheus/{index}/api/v1/...`
+- **Cluster default:** `GET /_prometheus/api/v1/<path>`
+- **Explicit index expression:** `GET /_prometheus/{index}/api/v1/<path>`
 
 The `{index}` segment is an {{es}} index expression (for example, `metrics-prod-*`) that restricts which indices participate **before** expression evaluation or metadata collection.
 That pre-filter reduces the input size when many unrelated [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS) exist in the cluster, improving latency and keeping resource consumption at bay.
@@ -39,16 +39,18 @@ When you omit `{index}` in the path, qualifying indices are identified through t
 
 ## `limit` [promql-http-api-limit]
 
-`limit` defaults to **`0`**, which means **no cap from the request** (Prometheus-style unlimited). The server may still truncate very large responses; see [`esql.query.timeseries_result_truncation_max_size `](/reference/query-languages/esql/limitations.md#esql-max-rows).
+`limit` defaults to **`0`**, which means **no cap from the request** (Prometheus-style unlimited). The server might still truncate very large responses. See [`esql.query.timeseries_result_truncation_max_size`](/reference/query-languages/esql/limitations.md#esql-max-rows).
 
 ## Query endpoints [promql-http-api-query-endpoints]
+
+Each route documents the parameters this implementation accepts. Compare with the matching section in the [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/) for a one-to-one view of upstream names and semantics.
 
 ### Range query: `query_range` [promql-http-api-query-range]
 
 `GET /_prometheus/api/v1/query_range`\
 `GET /_prometheus/{index}/api/v1/query_range`
 
-Evaluates a PromQL expression over a time window and returns **matrix** data (`resultType: "matrix"`).
+This mirrors [Prometheus range queries](https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries). It evaluates a PromQL expression over a time window and returns **matrix** data (`resultType: "matrix"`).
 
 | Parameter | Required | Description |
 | --- | --- | --- |
@@ -58,14 +60,14 @@ Evaluates a PromQL expression over a time window and returns **matrix** data (`r
 | `step` | Yes | Resolution / step width |
 | `limit` | No (default: `0`) | Maximum number of series returned |
 
-The `timeout`, `lookback_delta`, and `stats` parameters are not supported yet (see [Limitations](promql-limitations.md)).
+The `timeout`, `lookback_delta`, and `stats` parameters are not supported yet (see [Limitations](promql-limitations.md#promql-limitations-unsupported-query-params)).
 
 ### Instant query: `query` [promql-http-api-query-instant]
 
 `GET /_prometheus/api/v1/query`\
 `GET /_prometheus/{index}/api/v1/query`
 
-Evaluates at a single instant and returns **vector** data (`resultType: "vector"`).
+This mirrors [Prometheus instant queries](https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries). It evaluates at a single instant and returns **vector** data (`resultType: "vector"`).
 
 | Parameter | Required | Description |
 | --- | --- | --- |
@@ -73,7 +75,7 @@ Evaluates at a single instant and returns **vector** data (`resultType: "vector"
 | `time` | No (default: now) | Evaluation instant; the handler still uses an internal **5 minute** range ending at this time (see [Limitations](promql-limitations.md)) |
 | `limit` | No (default: `0`) | Maximum number of series returned |
 
-The `timeout`, `lookback_delta`, and `stats` parameters are not supported yet (see [Limitations](promql-limitations.md)).
+The `timeout`, `lookback_delta`, and `stats` parameters are not supported yet (see [Limitations](promql-limitations.md#promql-limitations-unsupported-query-params)).
 
 ## Metadata and discovery endpoints [promql-http-api-metadata]
 
@@ -101,7 +103,8 @@ The third returns `instance` values seen on matching series.
 `GET /_prometheus/api/v1/metadata`\
 `GET /_prometheus/{index}/api/v1/metadata`
 
-Returns metric-level information such as **type**, **help**, and **unit**, analogous to Prometheus `TYPE`, `HELP`, and `UNIT` lines.
+This mirrors [Prometheus metric metadata](https://prometheus.io/docs/prometheus/latest/querying/api/#querying-metric-metadata). It returns metric-level information such as **type**, **help**, and **unit**, analogous to Prometheus `TYPE`, `HELP`, and `UNIT` lines.
+
 **`help`** is always an empty string for now (see [Limitations](promql-limitations.md#promql-limitations-metadata-help)).
 
 | Parameter | Required | Description |
@@ -120,7 +123,7 @@ For **metadata**, these limits apply only when **both** `limit` and `limit_per_m
 `GET /_prometheus/api/v1/labels`\
 `GET /_prometheus/{index}/api/v1/labels`
 
-Returns sorted **label names** present on matching series.
+This mirrors [Prometheus label-name discovery](https://prometheus.io/docs/prometheus/latest/querying/api/#getting-label-names). It returns sorted **label names** present on matching series.
 
 | Parameter | Required | Description |
 | --- | --- | --- |
@@ -134,8 +137,8 @@ Returns sorted **label names** present on matching series.
 `GET /_prometheus/api/v1/label/{name}/values`\
 `GET /_prometheus/{index}/api/v1/label/{name}/values`
 
-Returns sorted, deduplicated **values** for one label.
-Label names may use **OpenMetrics** `U__` encoding for characters that are not valid in Prometheus label names; the server decodes them before matching [series](https://prometheus.io/docs/prometheus/latest/querying/basics/#time-series).
+This mirrors [Prometheus label-value queries](https://prometheus.io/docs/prometheus/latest/querying/api/#querying-label-values). It returns sorted, deduplicated **values** for one label.
+Label names can use **OpenMetrics** `U__` encoding for characters that are not valid in Prometheus label names. The server decodes them before matching [series](https://prometheus.io/docs/prometheus/latest/querying/basics/#time-series).
 
 Parameters match the `labels` endpoint (`match[]`, `start`, `end`, `limit`), including **Required** defaults; here, **`limit`** caps how many **values** are returned for this label.
 Unknown label names are returned as an **empty** successful result (`data: []`), matching typical Prometheus client expectations.
@@ -145,16 +148,18 @@ Unknown label names are returned as an **empty** successful result (`data: []`),
 `GET /_prometheus/api/v1/series`\
 `GET /_prometheus/{index}/api/v1/series`
 
-Returns the set of series matching the given selectors.
+This mirrors [Prometheus series discovery by matchers](https://prometheus.io/docs/prometheus/latest/querying/api/#finding-series-by-label-matchers). It returns the set of series matching the given selectors.
 
 | Parameter | Required | Description |
 | --- | --- | --- |
 | `match[]` | Yes (at least one) | Repeated selector strings |
 | `start` | No (default: 24h before `end`) | Start of time range |
 | `end` | No (default: now) | End of time range |
-| `limit` | No (default: `0`) | Maximum number of series in the response | [promql-http-api-parameters]
+| `limit` | No (default: `0`) | Maximum number of series in the response |
 
-**Timestamps** on `query` (`time`), `query_range` (`start`, `end`), and on discovery routes (`start`, `end`) use the same parsing as the PromQL layer in {{es}}:
+## Timestamps, step width, and `match[]` encoding [promql-http-api-parameters]
+
+For `query` (`time`), `query_range` (`start`, `end`), and discovery routes (`start`, `end`), timestamps use the same parsing as the PromQL layer in {{es}}:
 
 - **Unix time in seconds** — a numeric string, optionally with a fractional part (sub-second precision).
 - **RFC 3339** / ISO-8601 instants — for example `2015-07-01T20:10:51.781Z` ([RFC 3339](https://www.rfc-editor.org/rfc/rfc3339), parsed with Java `Instant.parse`).
@@ -164,7 +169,7 @@ Returns the set of series matching the given selectors.
 - A decimal integer string: seconds between samples (for example `15` for 15s resolution).
 - Or **Prometheus-style duration literals** such as `30s`, `5m`, or `1h30m`: a non-negative integer and a unit suffix (`ms`, `s`, `m`, `h`, `d`, `w`, or `y`), repeated and concatenated when needed (for example `1h30m`).
 
-**`match[]`** on `labels`, `label/{name}/values`, and `series` is a **repeatable** query parameter (`match[]=` may appear multiple times). Selector strings must be **URL-encoded** (same as the [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/) expectation for `<series_selector>` placeholders).
+**`match[]`** on `labels`, `label/{name}/values`, and `series` is a **repeatable** query parameter (`match[]=` can appear multiple times). Selector strings must be **URL-encoded** (same as the [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/) expectation for `<series_selector>` placeholders).
 
 ## Response format [promql-http-api-response]
 
@@ -179,7 +184,7 @@ Responses use **JSON**. Successful calls return HTTP **200** with:
 
 The `data` object shape depends on the route (for example `resultType` and `result` for `query` / `query_range`).
 
-When a request **`limit`** is reached and the server detects truncation, the response may include a top-level **`warnings`** array (strings). The preview uses a fixed message such as `results truncated due to limit`.
+When a request **`limit`** is reached and the server detects truncation, the response might include a top-level **`warnings`** array (strings). The preview uses a fixed message such as `results truncated due to limit`.
 
 Numeric sample values in query results are JSON **strings** (including `NaN`, `+Inf`, and `-Inf`), matching common Prometheus JSON encoding.
 

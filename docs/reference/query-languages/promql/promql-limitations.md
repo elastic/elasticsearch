@@ -15,7 +15,7 @@ The following constraints apply to execution in {{es}}, including the [Prometheu
 They describe behavioral differences and unsupported areas compared with upstream Prometheus.
 
 ::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release.
+This functionality is in technical preview and might be changed or removed in a future release.
 Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
 ::::
 
@@ -27,7 +27,7 @@ If your Prometheus-compatible client defaults to `POST` for queries, configure i
 
 ## Unsupported Prometheus query parameters (HTTP API) [promql-limitations-unsupported-query-params]
 
-The [PromQL HTTP API](promql-http-api.md) documents only the parameters each route accepts. Extra parameters from the [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/) are **not supported yet** and are rejected with **400 Bad Request**. Configure clients and integrations to omit them (for example there is no per-request `timeout` query parameter; cancellation and runtime limits follow {{esql}} and cluster settings).
+The [PromQL HTTP API](promql-http-api.md) documents only the parameters each route accepts. Extra parameters from the [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/) are **not supported yet**. {{es}} does **not** ignore them: the request fails with **400 Bad Request**. Configure clients and integrations to omit them (for example there is no per-request `timeout` query parameter). Cancellation and runtime limits follow {{esql}} and cluster settings.
 
 ## Instant query is an approximation [promql-limitations-instant-query]
 

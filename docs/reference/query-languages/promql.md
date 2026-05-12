@@ -13,7 +13,7 @@ products:
 **PromQL** in {{es}} lets you query metrics stored in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS) using the same label and series model as [Prometheus](https://prometheus.io/docs/prometheus/latest/querying/basics/).
 
 ::::{warning}
-This functionality is in technical preview and may be changed or removed in a future release.
+This functionality is in technical preview and might be changed or removed in a future release.
 Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
 ::::
 
@@ -37,4 +37,7 @@ Use the {{esql}} `PROMQL` source command when you want PromQL as part of a piped
 
 * [HTTP API](promql/promql-http-api.md): Prometheus-compatible `/_prometheus/` endpoints for queries and discovery.
 * [Limitations](promql/promql-limitations.md): Differences from Prometheus and unsupported areas today.
+
+## Relevant sections
+
 * [`PROMQL` command ({{esql}})](/reference/query-languages/esql/commands/promql.md): PromQL inside piped {{esql}} queries.

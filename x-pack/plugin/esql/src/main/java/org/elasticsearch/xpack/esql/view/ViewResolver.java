@@ -393,56 +393,6 @@ public class ViewResolver {
     }
 
     /**
-     * For each position {@code i} in {@code urPatterns}, computes the list of exclusion patterns at
-     * positions {@code j > i}, preserving original order. Used to attach position-aware exclusions
-     * to each {@link ViewShadowRelation}.
-     */
-    private static List<List<String>> computeExclusionsAfterByPosition(String[] urPatterns) {
-        List<List<String>> exclusionsAfter = new ArrayList<>(urPatterns.length);
-        List<String> later = new ArrayList<>();
-        for (int i = urPatterns.length - 1; i >= 0; i--) {
-            // Snapshot what's accumulated so far before potentially adding the current pattern.
-            exclusionsAfter.add(0, List.copyOf(later));
-            if (patternIsExclusion(urPatterns[i])) {
-                later.add(0, urPatterns[i]);
-            }
-        }
-        return exclusionsAfter;
-    }
-
-    /**
-     * Maps each resolved view name to the earliest position in {@code urPatterns} at which it was
-     * matched. When a view appears at multiple positions (e.g. matched both by a wildcard pattern
-     * earlier in the list and by an explicit name later), earliest wins, giving the broadest set of
-     * later exclusions — the most conservative reading for the lenient lookup.
-     */
-    private static Map<String, Integer> computeViewToEarliestPosition(String[] urPatterns, EsqlResolveViewAction.Response response) {
-        Set<String> resolvedViewNames = new HashSet<>();
-        for (var view : response.views()) {
-            resolvedViewNames.add(view.name());
-        }
-        Map<String, Integer> viewToEarliestPosition = new HashMap<>();
-        for (var expr : response.getResolvedIndexExpressions().expressions()) {
-            int position = -1;
-            for (int i = 0; i < urPatterns.length; i++) {
-                if (urPatterns[i].equals(expr.original())) {
-                    position = i;
-                    break;
-                }
-            }
-            if (position < 0) {
-                continue;
-            }
-            for (String index : expr.localExpressions().indices()) {
-                if (resolvedViewNames.contains(index)) {
-                    viewToEarliestPosition.merge(index, position, Math::min);
-                }
-            }
-        }
-        return viewToEarliestPosition;
-    }
-
-    /**
      * Builds an ordered list of subqueries by iterating the resolved index expressions in order.
      * Each expression is classified as either a view (added as a ViewPlan) or a concrete index
      * (accumulated into a single UnresolvedRelation).

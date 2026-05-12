@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.ShardHeapUsageEstimates;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -474,7 +475,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
 
         // new master use case: no indices exist in internal map
         if (event.nodesDelta().masterNodeChanged() || initialized == false) {
-            for (var projectEntry : event.state().metadata().projects().entrySet()) {
+            for (Map.Entry<ProjectId, ProjectMetadata> projectEntry : event.state().metadata().projects().entrySet()) {
                 final ProjectId projectId = projectEntry.getKey();
                 for (IndexMetadata indexMetadata : projectEntry.getValue()) {
                     for (int id = 0; id < indexMetadata.getNumberOfShards(); id++) {
@@ -504,7 +505,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
                 }
             }
 
-            for (var projectEntry : event.state().metadata().projects().entrySet()) {
+            for (Map.Entry<ProjectId, ProjectMetadata> projectEntry : event.state().metadata().projects().entrySet()) {
                 final ProjectId projectId = projectEntry.getKey();
                 for (IndexMetadata indexMetadata : projectEntry.getValue()) {
                     final Index index = indexMetadata.getIndex();

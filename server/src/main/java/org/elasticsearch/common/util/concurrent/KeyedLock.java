@@ -84,15 +84,6 @@ public final class KeyedLock<T> {
         if (perNodeLock == null) {
             return tryCreateNewLock(key);
         }
-        if (perNodeLock.isHeldByCurrentThread() == false && perNodeLock.tryLock()) {
-            int i;
-            while ((i = perNodeLock.count) > 0) {
-                if (perNodeLock.tryIncCount(i)) {
-                    return new ReleasableLock(key, perNodeLock);
-                }
-            }
-            perNodeLock.unlock();
-        }
         return null;
     }
 

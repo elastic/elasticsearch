@@ -28,7 +28,6 @@ import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
-import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
@@ -114,12 +113,6 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MONITOR_ROLLUP_PATTERN = Set.of("cluster:monitor/xpack/rollup/*");
     private static final Set<String> MONITOR_ENRICH_PATTERN = Set.of("cluster:monitor/xpack/enrich/*", "cluster:admin/xpack/enrich/get");
     private static final Set<String> MONITOR_ESQL_PATTERN = Set.of("cluster:monitor/xpack/esql/*");
-    private static final Set<String> READ_DATASOURCE_PATTERN = Set.of(EsqlDataSourceActionNames.ESQL_GET_DATA_SOURCE_ACTION_NAME);
-    private static final Set<String> MANAGE_DATASOURCE_PATTERN = Set.of(
-        EsqlDataSourceActionNames.ESQL_GET_DATA_SOURCE_ACTION_NAME,
-        EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME,
-        EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME
-    );
     // intentionally cluster:monitor/stats* to match cluster:monitor/stats, cluster:monitor/stats[n] and cluster:monitor/stats/remote
     private static final Set<String> MONITOR_STATS_PATTERN = Set.of("cluster:monitor/stats*");
     private static final Set<String> READ_PROJECT_ROUTING_PATTERN = Set.of(
@@ -270,11 +263,6 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MONITOR_ROLLUP = new ActionClusterPrivilege("monitor_rollup", MONITOR_ROLLUP_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ENRICH = new ActionClusterPrivilege("monitor_enrich", MONITOR_ENRICH_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ESQL = new ActionClusterPrivilege("monitor_esql", MONITOR_ESQL_PATTERN);
-    public static final NamedClusterPrivilege READ_DATASOURCE = new ActionClusterPrivilege("read_datasource", READ_DATASOURCE_PATTERN);
-    public static final NamedClusterPrivilege MANAGE_DATASOURCE = new ActionClusterPrivilege(
-        "manage_datasource",
-        MANAGE_DATASOURCE_PATTERN
-    );
     public static final NamedClusterPrivilege MONITOR_STATS = new ActionClusterPrivilege("monitor_stats", MONITOR_STATS_PATTERN);
     public static final NamedClusterPrivilege MANAGE = new ActionClusterPrivilege("manage", ALL_CLUSTER_PATTERN, ALL_SECURITY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_INFERENCE = new ActionClusterPrivilege("manage_inference", MANAGE_INFERENCE_PATTERN);
@@ -507,8 +495,6 @@ public class ClusterPrivilegeResolver {
             MANAGE_ENRICH,
             MANAGE_LOGSTASH_PIPELINES,
             READ_FLEET_SECRETS,
-            READ_DATASOURCE,
-            MANAGE_DATASOURCE,
             WRITE_FLEET_SECRETS,
             CANCEL_TASK,
             MANAGE_SEARCH_APPLICATION,

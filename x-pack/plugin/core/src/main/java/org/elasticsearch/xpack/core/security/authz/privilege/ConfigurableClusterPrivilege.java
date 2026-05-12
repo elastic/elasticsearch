@@ -42,7 +42,9 @@ public interface ConfigurableClusterPrivilege extends NamedWriteable, ToXContent
     enum Category {
         APPLICATION(new ParseField("application")),
         PROFILE(new ParseField("profile")),
-        ROLE(new ParseField("role"));
+        ROLE(new ParseField("role")),
+        /** ES|QL datasource entries under {@code global} in role definitions. */
+        DATASOURCE(new ParseField("datasource"));
 
         public final ParseField field;
 

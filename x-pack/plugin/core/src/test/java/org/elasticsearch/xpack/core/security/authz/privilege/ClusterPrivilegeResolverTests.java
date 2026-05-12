@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateCrossClusterApiKeyAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -96,39 +95,4 @@ public class ClusterPrivilegeResolverTests extends ESTestCase {
         );
     }
 
-    public void testDatasourceClusterPrivileges() {
-        var authn = AuthenticationTestHelper.builder().build();
-
-        assertThat(
-            ClusterPrivilegeResolver.READ_DATASOURCE.permission()
-                .check(EsqlDataSourceActionNames.ESQL_GET_DATA_SOURCE_ACTION_NAME, mock(TransportRequest.class), authn),
-            is(true)
-        );
-        assertThat(
-            ClusterPrivilegeResolver.READ_DATASOURCE.permission()
-                .check(EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME, mock(TransportRequest.class), authn),
-            is(false)
-        );
-        assertThat(
-            ClusterPrivilegeResolver.READ_DATASOURCE.permission()
-                .check(EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME, mock(TransportRequest.class), authn),
-            is(false)
-        );
-
-        assertThat(
-            ClusterPrivilegeResolver.MANAGE_DATASOURCE.permission()
-                .check(EsqlDataSourceActionNames.ESQL_GET_DATA_SOURCE_ACTION_NAME, mock(TransportRequest.class), authn),
-            is(true)
-        );
-        assertThat(
-            ClusterPrivilegeResolver.MANAGE_DATASOURCE.permission()
-                .check(EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME, mock(TransportRequest.class), authn),
-            is(true)
-        );
-        assertThat(
-            ClusterPrivilegeResolver.MANAGE_DATASOURCE.permission()
-                .check(EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME, mock(TransportRequest.class), authn),
-            is(true)
-        );
-    }
 }

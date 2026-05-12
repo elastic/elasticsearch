@@ -94,6 +94,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("ds_read_datasource", "x-pack-test-password", "ds_read_datasource", false)
         .user("ds_manage_datasource", "x-pack-test-password", "ds_manage_datasource", false)
         .user("ds_dataset_create", "x-pack-test-password", "ds_dataset_create", false)
+        .user("ds_dataset_create_no_datasource", "x-pack-test-password", "ds_dataset_create_no_datasource", false)
         .user("ds_dataset_read_metadata", "x-pack-test-password", "ds_dataset_read_metadata", false)
         .user("ds_dataset_delete", "x-pack-test-password", "ds_dataset_delete", false)
         .build();
@@ -1933,7 +1934,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         setUser(request, "ds_read_datasource");
         ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
-        assertThat(ex.getMessage(), containsString("manage_datasource"));
+        assertThat(ex.getMessage(), containsString("cluster:admin/esql/data_source/put"));
     }
 
     public void testGetDataSourceForbiddenWithoutDatasourcePrivilege() throws IOException {
@@ -1943,7 +1944,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         setUser(request, "user3");
         ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
-        assertThat(ex.getMessage(), containsString("read_datasource"));
+        assertThat(ex.getMessage(), containsString("cluster:admin/esql/data_source/get"));
     }
 
     public void testGetDataSourceAllowedWithReadDatasource() throws IOException {
@@ -1987,6 +1988,26 @@ public class EsqlSecurityIT extends ESRestTestCase {
         ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
         assertThat(ex.getMessage(), containsString("create_dataset"));
+    }
+
+    /**
+     * PUT dataset chains a cluster {@code AuthorizeDatasetDatasourceAction} before {@code PutDatasetAction}.
+     * Index {@code create_dataset} alone must not allow the request if {@code global.datasource} does not cover the datasource.
+     */
+    public void testPutDatasetForbiddenWhenAuthorizeDatasourceClusterActionDenied() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSharedDatasourceForDatasetTests();
+        Request request = new Request("PUT", "/_query/dataset/security_it_ds_denied_authorize_ds");
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("data_source", SECURITY_IT_SHARED_DATASOURCE);
+        builder.field("resource", "s3://bucket/path/*.parquet");
+        builder.endObject();
+        request.setJsonEntity(Strings.toString(builder));
+        setUser(request, "ds_dataset_create_no_datasource");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(ex.getMessage(), containsString("cluster:admin/esql/dataset/authorize_datasource"));
     }
 
     public void testPutDatasetAllowedWithCreateDatasetPrivilege() throws IOException {

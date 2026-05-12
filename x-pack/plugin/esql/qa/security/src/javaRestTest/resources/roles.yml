@@ -294,16 +294,33 @@ view_dls_fls_user:
         grant: [ "value" ]
 
 ds_read_datasource:
-  cluster:
-    - read_datasource
+  cluster: []
   indices: []
+  global:
+    datasource:
+      - names: [ "security_it_shared_ds" ]
+        privileges: [ "read" ]
 
 ds_manage_datasource:
-  cluster:
-    - manage_datasource
+  cluster: []
   indices: []
+  global:
+    datasource:
+      - names: [ "*" ]
+        privileges: [ "manage" ]
 
 ds_dataset_create:
+  cluster: []
+  global:
+    datasource:
+      - names: [ "security_it_shared_ds" ]
+        privileges: [ "read" ]
+  indices:
+    - names: [ 'security_it_ds_*' ]
+      privileges: [ 'create_dataset' ]
+
+# create_dataset on target indices only; no global.datasource — PUT dataset must fail on authorize_datasource before put_dataset.
+ds_dataset_create_no_datasource:
   cluster: []
   indices:
     - names: [ 'security_it_ds_*' ]

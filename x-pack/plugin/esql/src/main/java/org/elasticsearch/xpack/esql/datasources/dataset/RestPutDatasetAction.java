@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasources.dataset;
 
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
@@ -40,13 +42,23 @@ public class RestPutDatasetAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String name = request.param("name");
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            PutDatasetAction.Request req = PutDatasetAction.Request.fromXContent(
+            PutDatasetAction.Request putRequest = PutDatasetAction.Request.fromXContent(
                 parser,
                 RestUtils.getMasterNodeTimeout(request),
                 RestUtils.getAckTimeout(request),
                 name
             );
-            return channel -> client.execute(PutDatasetAction.INSTANCE, req, new RestToXContentListener<>(channel));
+            AuthorizeDatasetDatasourceAction.Request authRequest = AuthorizeDatasetDatasourceAction.Request.forDatasetPut(putRequest);
+            return channel -> client.execute(
+                AuthorizeDatasetDatasourceAction.INSTANCE,
+                authRequest,
+                new RestActionListener<AcknowledgedResponse>(channel) {
+                    @Override
+                    protected void processResponse(AcknowledgedResponse response) {
+                        client.execute(PutDatasetAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
+                    }
+                }
+            );
         }
     }
 

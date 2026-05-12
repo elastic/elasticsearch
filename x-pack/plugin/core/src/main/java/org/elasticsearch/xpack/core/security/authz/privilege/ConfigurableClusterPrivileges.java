@@ -19,6 +19,9 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
+import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
+import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.privilege.ApplicationPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
@@ -46,12 +49,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.DELETE_INDEX;
 
@@ -95,13 +100,23 @@ public final class ConfigurableClusterPrivileges {
     ) throws IOException {
         builder.startObject();
         for (Category category : Category.values()) {
-            builder.startObject(category.field.getPreferredName());
-            for (ConfigurableClusterPrivilege privilege : privileges) {
-                if (category == privilege.getCategory()) {
-                    privilege.toXContent(builder, params);
+            if (category == Category.DATASOURCE) {
+                builder.startArray(category.field.getPreferredName());
+                for (ConfigurableClusterPrivilege privilege : privileges) {
+                    if (category == privilege.getCategory()) {
+                        ((ManageDatasourcePrivileges) privilege).toXContentArrayElements(builder, params);
+                    }
                 }
+                builder.endArray();
+            } else {
+                builder.startObject(category.field.getPreferredName());
+                for (ConfigurableClusterPrivilege privilege : privileges) {
+                    if (category == privilege.getCategory()) {
+                        privilege.toXContent(builder, params);
+                    }
+                }
+                builder.endObject();
             }
-            builder.endObject();
         }
         return builder.endObject();
     }
@@ -117,7 +132,7 @@ public final class ConfigurableClusterPrivileges {
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
 
-            expectFieldName(parser, Category.APPLICATION.field, Category.PROFILE.field, Category.ROLE.field);
+            expectFieldName(parser, Category.APPLICATION.field, Category.PROFILE.field, Category.ROLE.field, Category.DATASOURCE.field);
             if (Category.APPLICATION.field.match(parser.currentName(), parser.getDeprecationHandler())) {
                 expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
                 while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -142,6 +157,9 @@ public final class ConfigurableClusterPrivileges {
                     expectFieldName(parser, ManageRolesPrivilege.Fields.MANAGE);
                     privileges.add(ManageRolesPrivilege.parse(parser));
                 }
+            } else if (Category.DATASOURCE.field.match(parser.currentName(), parser.getDeprecationHandler())) {
+                expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
+                privileges.add(ManageDatasourcePrivileges.parseArray(parser));
             }
         }
         return privileges;
@@ -386,6 +404,211 @@ public final class ConfigurableClusterPrivileges {
         private interface Fields {
             ParseField MANAGE = new ParseField("manage");
             ParseField APPLICATIONS = new ParseField("applications");
+        }
+    }
+
+    /**
+     * Configurable cluster privileges for ES|QL datasource operations under {@code global.datasource} in role definitions.
+     */
+    public static class ManageDatasourcePrivileges implements ConfigurableClusterPrivilege {
+
+        public static final String WRITEABLE_NAME = "manage-datasource-privileges";
+
+        private static final Set<String> ALLOWED_PRIVILEGE_NAMES = Set.of("create", "delete", "read_metadata", "read", "manage");
+
+        private final List<DatasourcePermissionGroup> groups;
+        private final Predicate<TransportRequest> requestPredicate;
+
+        public ManageDatasourcePrivileges(List<DatasourcePermissionGroup> groups) {
+            if (groups == null || groups.isEmpty()) {
+                throw new IllegalArgumentException("datasource privileges must define at least one names/privileges group");
+            }
+            this.groups = List.copyOf(groups);
+            this.requestPredicate = buildRequestPredicate();
+        }
+
+        private Predicate<TransportRequest> buildRequestPredicate() {
+            return request -> {
+                if (!(request instanceof DataSourceRequestInfo dsi)) {
+                    return false;
+                }
+                String action = dsi.dataSourceClusterActionName();
+                String[] requestNames = dsi.dataSourceNames();
+                if (requestNames.length == 0) {
+                    return false;
+                }
+                for (String eachName : requestNames) {
+                    boolean covered = groups.stream()
+                        .anyMatch(g -> namesMatch(g.names(), eachName) && privilegesAllowAction(g.privileges(), action));
+                    if (covered == false) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+        }
+
+        private static boolean namesMatch(String[] patterns, String name) {
+            return StringMatcher.of(patterns).test(name);
+        }
+
+        private static boolean privilegesAllowAction(String[] privilegeStrings, String transportAction) {
+            Set<String> privs = Arrays.stream(privilegeStrings).map(s -> s.toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
+            if (privs.contains("manage")) {
+                return true;
+            }
+            if (EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME.equals(transportAction)) {
+                return privs.contains("create");
+            }
+            if (EsqlDataSourceActionNames.ESQL_GET_DATA_SOURCE_ACTION_NAME.equals(transportAction)) {
+                return privs.contains("read_metadata") || privs.contains("read");
+            }
+            if (EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME.equals(transportAction)) {
+                return privs.contains("delete");
+            }
+            if (EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME.equals(transportAction)) {
+                return privs.contains("read") || privs.contains("manage");
+            }
+            return false;
+        }
+
+        public static ManageDatasourcePrivileges parseArray(XContentParser parser) throws IOException {
+            List<DatasourcePermissionGroup> groups = new ArrayList<>();
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                expectedToken(token, parser, XContentParser.Token.START_OBJECT);
+                String[] names = null;
+                String[] privileges = null;
+                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
+                    String field = parser.currentName();
+                    if (DatasourceFields.NAMES.match(field, parser.getDeprecationHandler())) {
+                        expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
+                        names = XContentUtils.readStringArray(parser, false);
+                    } else if (DatasourceFields.PRIVILEGES.match(field, parser.getDeprecationHandler())) {
+                        expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
+                        privileges = XContentUtils.readStringArray(parser, false);
+                    } else {
+                        throw new XContentParseException(parser.getTokenLocation(), "unknown field [" + field + "]");
+                    }
+                }
+                if (names == null || names.length == 0) {
+                    throw new IllegalArgumentException("datasource privileges must refer to at least one datasource name or pattern");
+                }
+                if (privileges == null || privileges.length == 0) {
+                    throw new IllegalArgumentException("datasource privileges must define at least one privilege");
+                }
+                for (String raw : privileges) {
+                    String p = raw.toLowerCase(Locale.ROOT);
+                    if (ALLOWED_PRIVILEGE_NAMES.contains(p) == false) {
+                        throw new IllegalArgumentException("unsupported datasource privilege [" + raw + "]");
+                    }
+                }
+                groups.add(new DatasourcePermissionGroup(names, privileges));
+            }
+            return new ManageDatasourcePrivileges(groups);
+        }
+
+        public void toXContentArrayElements(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            for (DatasourcePermissionGroup g : groups) {
+                builder.startObject();
+                builder.array(DatasourceFields.NAMES.getPreferredName(), g.names());
+                builder.array(DatasourceFields.PRIVILEGES.getPreferredName(), g.privileges());
+                builder.endObject();
+            }
+        }
+
+        @Override
+        public Category getCategory() {
+            return Category.DATASOURCE;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return WRITEABLE_NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeCollection(groups);
+        }
+
+        public static ManageDatasourcePrivileges createFrom(StreamInput in) throws IOException {
+            return new ManageDatasourcePrivileges(in.readCollectionAsList(DatasourcePermissionGroup::createFrom));
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.startArray();
+            toXContentArrayElements(builder, params);
+            return builder.endArray();
+        }
+
+        @Override
+        public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
+            return builder.add(
+                this,
+                Set.of(
+                    EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME,
+                    EsqlDataSourceActionNames.ESQL_GET_DATA_SOURCE_ACTION_NAME,
+                    EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME,
+                    EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME
+                ),
+                requestPredicate
+            );
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ManageDatasourcePrivileges that = (ManageDatasourcePrivileges) o;
+            return groups.equals(that.groups);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(groups);
+        }
+
+        @Override
+        public String toString() {
+            return "{" + getCategory() + ":[" + Strings.collectionToDelimitedString(groups, ",") + "]}";
+        }
+
+        public record DatasourcePermissionGroup(String[] names, String[] privileges) implements Writeable {
+            public static DatasourcePermissionGroup createFrom(StreamInput in) throws IOException {
+                return new DatasourcePermissionGroup(in.readStringArray(), in.readStringArray());
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeStringArray(names);
+                out.writeStringArray(privileges);
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                DatasourcePermissionGroup that = (DatasourcePermissionGroup) o;
+                return Arrays.equals(names, that.names) && Arrays.equals(privileges, that.privileges);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(Arrays.hashCode(names), Arrays.hashCode(privileges));
+            }
+
+            @Override
+            public String toString() {
+                return "DatasourcePermissionGroup[names=" + Arrays.toString(names) + ", privileges=" + Arrays.toString(privileges) + "]";
+            }
+        }
+
+        private interface DatasourceFields {
+            ParseField NAMES = new ParseField("names");
+            ParseField PRIVILEGES = new ParseField("privileges");
         }
     }
 

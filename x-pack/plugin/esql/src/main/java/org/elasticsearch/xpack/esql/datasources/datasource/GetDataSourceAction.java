@@ -18,6 +18,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ public class GetDataSourceAction extends ActionType<GetDataSourceAction.Response
         super(NAME);
     }
 
-    public static class Request extends LocalClusterStateRequest {
+    public static class Request extends LocalClusterStateRequest implements DataSourceRequestInfo {
         private final String[] names;
 
         public Request(TimeValue masterNodeTimeout, String[] names) {
@@ -46,6 +47,16 @@ public class GetDataSourceAction extends ActionType<GetDataSourceAction.Response
 
         public String[] names() {
             return names;
+        }
+
+        @Override
+        public String[] dataSourceNames() {
+            return names;
+        }
+
+        @Override
+        public String dataSourceClusterActionName() {
+            return NAME;
         }
 
         @Override

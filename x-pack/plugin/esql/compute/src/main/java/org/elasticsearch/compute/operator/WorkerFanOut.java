@@ -58,12 +58,22 @@ public abstract class WorkerFanOut<W extends Releasable & Accountable> implement
     private volatile boolean finished;
     private volatile boolean closed;
 
-    /** Guarded by {@code this}. */
-    private SubscribableListener<Void> blockedFuture;
+    /**
+     * Written under {@code synchronized (this)} by the Driver thread in {@link #isBlocked()}, and cleared
+     * under the same monitor when a worker completes a page. Workers perform an unsynchronized fast-path read
+     * in {@link #notifyIfBlocked()} before entering the monitor to avoid lock contention on every page, so the
+     * field is {@code volatile} to guarantee the worker observes the Driver's write (mirrors the pattern in
+     * {@code AsyncOperator}).
+     */
+    private volatile SubscribableListener<Void> blockedFuture;
 
     /** Built lazily on the Driver thread once {@code finished && inFlight == 0}. */
     private ReleasableIterator<Page> output;
 
+    // "unchecked": generic array creation for WorkerSlot<W>[].
+    // "this-escape": createWorkerState is called before construction completes. Subclasses must override it
+    // to read only fully-initialized fields (typically of the outer Operator that owns this WorkerFanOut), not
+    // any WorkerFanOut state still being initialized below.
     @SuppressWarnings({ "unchecked", "this-escape" })
     protected WorkerFanOut(DriverContext driverContext, Executor executor, int workerCount, int maxInFlightPages) {
         if (workerCount < 1) {

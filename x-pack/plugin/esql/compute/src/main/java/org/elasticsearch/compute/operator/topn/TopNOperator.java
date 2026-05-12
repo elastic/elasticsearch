@@ -293,6 +293,14 @@ public class TopNOperator implements Operator, Accountable {
     private final ParallelWorkerConfig workerConfig;
     @Nullable
     private WorkerFanOut<TopNWorkerState> workers;
+    /**
+     * Latched true the first time {@link #promoteToParallel()} runs (whether construction
+     * of the {@link WorkerFanOut} succeeds or throws). Guards against re-promotion after a
+     * partially-constructed fan-out tore down the seeded {@link #sequentialState}: without
+     * this flag {@link #shouldPromoteToParallel()} would fire again, {@code createWorkerState(0)}
+     * would return {@code null}, and dispatched pages would be silently dropped.
+     */
+    private boolean promotionAttempted;
     /** Per-slot queue size cache, updated by worker threads and read by {@link #status()}. */
     @Nullable
     private AtomicLong[] occupiedRows;
@@ -420,7 +428,11 @@ public class TopNOperator implements Operator, Accountable {
      * bound. That'd let promotion fire under non-null minCompetitive as well.
      */
     private boolean shouldPromoteToParallel() {
-        return workerConfig != null && workers == null && output == null && rowsReceived > workerConfig.promotionThresholdRows();
+        return workerConfig != null
+            && promotionAttempted == false
+            && workers == null
+            && output == null
+            && rowsReceived > workerConfig.promotionThresholdRows();
     }
 
     /**
@@ -613,6 +625,13 @@ public class TopNOperator implements Operator, Accountable {
      */
     private void promoteToParallel() {
         assert workerConfig != null && driverContext != null : "promoteToParallel() called without parallel config";
+        // Latch before construction: createWorkerState(0) nulls sequentialState, and a later slot's
+        // TopNQueue.build (or any allocation in the WorkerFanOut constructor) can throw. The
+        // constructor's failure-path cleanup will close every state it had already created — including
+        // the seeded one taken from sequentialState. Setting this here guarantees shouldPromoteToParallel()
+        // returns false from then on, so we never re-enter with sequentialState == null && workers == null
+        // (which would silently drop rows dispatched to slot 0).
+        promotionAttempted = true;
         final int workerCount = workerConfig.workerCount();
         occupiedRows = new AtomicLong[workerCount];
         for (int i = 0; i < workerCount; i++) {
@@ -634,7 +653,7 @@ public class TopNOperator implements Operator, Accountable {
 
             @Override
             protected int chooseWorker(Page page) {
-                return dispatchCursor++ % workerCount;
+                return Math.floorMod(dispatchCursor++, workerCount);
             }
 
             @Override
@@ -657,6 +676,7 @@ public class TopNOperator implements Operator, Accountable {
                 TopNQueue merged = first.queue;
                 first.queue = null;  // ownership transferred to merged
                 first.close();       // closes spare; queue already null
+                states.set(0, null);
                 boolean success = false;
                 try {
                     for (int i = 1; i < states.size(); i++) {
@@ -666,6 +686,7 @@ public class TopNOperator implements Operator, Accountable {
                         }
                         s.queue.popAllInto(merged);
                         s.close();
+                        states.set(i, null);
                     }
                     if (merged.size() == 0) {
                         merged.close();
@@ -680,7 +701,10 @@ public class TopNOperator implements Operator, Accountable {
                     return TopNOperator.this.new Result(resultRows);
                 } finally {
                     if (success == false) {
-                        Releasables.closeExpectNoException(merged);
+                        // Close the merge target plus any worker states that were not yet consumed by the merge loop.
+                        // TopNWorkerState.close() is idempotent (nulls its fields), so re-closing already-closed
+                        // entries is safe; entries successfully consumed in the loop were nulled out in the list.
+                        Releasables.closeExpectNoException(Releasables.wrap(states), merged);
                     }
                     emitNanos += System.nanoTime() - start;
                 }

@@ -339,6 +339,9 @@ tests:
 - class: org.elasticsearch.xpack.security.support.MetadataFlattenedMigrationIntegTests
   method: testMigrationWithConcurrentUpdates
   issue: https://github.com/elastic/elasticsearch/issues/143674
+- class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
+  method: testMonitorClusterHealth
+  issue: https://github.com/elastic/elasticsearch/issues/148615
 
 # Examples:
 #

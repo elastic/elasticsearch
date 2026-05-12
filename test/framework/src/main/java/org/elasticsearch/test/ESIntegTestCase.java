@@ -119,6 +119,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -2969,9 +2970,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     @Override
-    protected boolean enableBigArraysReleasedCheck() {
+    protected boolean enableArraysReleasedCheck() {
         // checking that all big arrays have been released makes little sense for a still-running cluster, see comments in
         // #ensureAllArraysAreReleased for details
+        return isSuiteScopedTest(getTestClass()) == false;
+    }
+
+    @Override
+    protected boolean enableAllPagesReleasedCheck() {
+        // same reasoning as enableArraysReleasedCheck
         return isSuiteScopedTest(getTestClass()) == false;
     }
 
@@ -2984,6 +2991,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
                 MockBigArrays.ensureAllArraysAreReleased();
+                MockPageCacheRecycler.ensureAllPagesAreReleased();
                 checkStaticState();
             }
         } finally {

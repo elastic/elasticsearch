@@ -15,6 +15,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -26,7 +28,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
-/// Verifies that [MockBigArrays] and [org.elasticsearch.common.util.TrackingBytesRefRecycler] detect
+/// Verifies that [MockBigArrays] and [org.elasticsearch.common.util.MockPageCacheRecycler] detect
 /// unreleased allocations at teardown, using a plugin that simulates allocation without release.
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class CBForMockArraysIT extends ESIntegTestCase {
@@ -49,6 +51,10 @@ public class CBForMockArraysIT extends ESIntegTestCase {
             return bigArrays.newByteArray(size);
         }
 
+        ByteArray leakRecyclerByteArray() {
+            return bigArrays.newByteArray(PageCacheRecycler.BYTE_PAGE_SIZE / 2);
+        }
+
         Recycler.V<BytesRef> leakPage() {
             return bigArrays.bytesRefRecycler().obtain();
         }
@@ -68,7 +74,7 @@ public class CBForMockArraysIT extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean enableBigArraysReleasedCheck() {
+    protected boolean enableArraysReleasedCheck() {
         // These tests verify the detection mechanism themselves.
         return false;
     }
@@ -81,10 +87,20 @@ public class CBForMockArraysIT extends ESIntegTestCase {
         }
     }
 
+    public void testLeakingRecyclerBackedByteArrayIsDetected() {
+        final var faultyService = internalCluster().getInstance(LeakyService.class);
+        try (var leaked = faultyService.leakRecyclerByteArray()) {
+            final var e1 = expectThrows(RuntimeException.class, MockBigArrays::ensureAllArraysAreReleased);
+            assertThat(e1.getMessage(), containsString("arrays have not been released"));
+            final var e2 = expectThrows(RuntimeException.class, MockPageCacheRecycler::ensureAllPagesAreReleased);
+            assertThat(e2.getMessage(), containsString("pages have not been released"));
+        }
+    }
+
     public void testLeakingBytesRefPageIsDetected() {
         final var faultyService = internalCluster().getInstance(LeakyService.class);
         try (var leaked = faultyService.leakPage()) {
-            final var e = expectThrows(RuntimeException.class, MockBigArrays::ensureAllArraysAreReleased);
+            final var e = expectThrows(RuntimeException.class, MockPageCacheRecycler::ensureAllPagesAreReleased);
             assertThat(e.getMessage(), containsString("pages have not been released"));
         }
     }
@@ -93,6 +109,8 @@ public class CBForMockArraysIT extends ESIntegTestCase {
         final var faultyService = internalCluster().getInstance(LeakyService.class);
         try (var leaked = faultyService.leakPage()) {
             expectThrows(AssertionError.class, () -> internalCluster().ensureEstimatedStats());
+            final var e = expectThrows(RuntimeException.class, MockPageCacheRecycler::ensureAllPagesAreReleased);
+            assertThat(e.getMessage(), containsString("pages have not been released"));
         }
     }
 }

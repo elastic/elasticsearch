@@ -48,6 +48,37 @@ import java.util.function.Function;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.junit.Assert.assertTrue;
 
+/// A [BigArrays] implementation for tests that adds leak detection and circuit-breaker accounting.
+///
+/// #### Allocation paths and how each is tracked
+///
+/// `newXxxArray` small (below half a page, or recycler absent)
+/// - No recycler page involved. The backing `byte[]` / `Object[]` is heap-allocated directly.
+/// - The [BigArray] wrapper is recorded in `ACQUIRED_ARRAYS` by the [AbstractArrayWrapper] constructor.
+/// - Breaker: [BigArrays#validate].
+///
+/// `newXxxArray` medium (half a page <= size <= one page)
+/// - [BigArrays] calls `recycler.bytePage()` / `objectPage()` once, records the page in `MockPageCacheRecycler.ACQUIRED_PAGES`.
+/// - The [BigArray] wrapper is recorded in `ACQUIRED_ARRAYS`.
+/// - Breaker: [BigArrays#validate].
+///
+/// `newXxxArray` large (multi-page, backed by `AbstractBigArray`)
+/// - [AbstractBigArray] holds `bigArrays.recycler` directly. Every `bytePage()` / `objectPage()` call is recorded in
+///   `MockPageCacheRecycler.ACQUIRED_PAGES`.
+/// - The single [BigArray] wrapper is recorded in `ACQUIRED_ARRAYS`.
+/// - Breaker: `adjustBreaker` upfront + [BigArrays#validate].
+///
+/// `bytesRefRecycler().obtain()` (direct [BytesRef] page)
+/// - [MockBigArrays#bytesRefRecycler] returns a [MockBytesRefRecycler] that delegates to [org.elasticsearch.transport.BytesRefRecycler],
+///   which in turn calls [MockPageCacheRecycler#bytePage]. Pages are recorded in `MockPageCacheRecycler.ACQUIRED_PAGES`.
+/// - Not a [BigArray], so nothing is recorded in `ACQUIRED_ARRAYS`.
+/// - Breaker: [MockBytesRefRecycler].
+///
+/// `recycler().bytePage()` / `objectPage()` (raw recycler exposure)
+/// - [BigArrays#recycler] returns the [MockPageCacheRecycler] directly. Every page obtained is recorded in
+///   `MockPageCacheRecycler.ACQUIRED_PAGES`.
+/// - No `ACQUIRED_ARRAYS` entry. No breaker accounting.
+///
 public class MockBigArrays extends BigArrays {
     private static final Logger logger = LogManager.getLogger(MockBigArrays.class);
 
@@ -130,13 +161,11 @@ public class MockBigArrays extends BigArrays {
                 }
             }
         }
-        TrackingBytesRefRecycler.ensureAllPagesAreReleased();
     }
 
     private final Random random;
-    private final PageCacheRecycler recycler;
     private final CircuitBreakerService breakerService;
-    private final TrackingBytesRefRecycler bytesRefRecycler;
+    private final Recycler<BytesRef> bytesRefRecycler;
 
     /**
      * Create {@linkplain BigArrays} with a configured limit.
@@ -157,13 +186,13 @@ public class MockBigArrays extends BigArrays {
      * {@code checkBreaker} flag.
      */
     public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
-        super(recycler, breakerService, CircuitBreaker.REQUEST, checkBreaker);
-        this.recycler = recycler;
+        super(MockPageCacheRecycler.wrap(recycler), breakerService, CircuitBreaker.REQUEST, checkBreaker);
         this.breakerService = breakerService;
-        this.bytesRefRecycler = new TrackingBytesRefRecycler(
-            super.bytesRefRecycler(),
-            breakerService == null ? null : breakerService.getBreaker(CircuitBreaker.REQUEST)
-        );
+        // Outstanding pages are tracked at the [MockPageCacheRecycler] level. Here we only layer breaker accounting on
+        // top of `super.bytesRefRecycler()` so that direct page acquisitions (those that do not flow through
+        // [BigArrays#newByteArray] and its `validate` call) are still visible to `ensureEstimatedStats`.
+        final CircuitBreaker breaker = breakerService == null ? null : breakerService.getBreaker(CircuitBreaker.REQUEST);
+        this.bytesRefRecycler = breaker != null ? new MockBytesRefRecycler(super.bytesRefRecycler(), breaker) : super.bytesRefRecycler();
         long seed;
         try {
             seed = SeedUtils.parseSeed(RandomizedContext.current().getRunnerSeedAsString());
@@ -178,14 +207,63 @@ public class MockBigArrays extends BigArrays {
         return bytesRefRecycler;
     }
 
+    /// A [Recycler] for [BytesRef] pages that layers circuit-breaker accounting on top of a delegate recycler. Leak
+    /// tracking for the underlying pages is already handled by [MockPageCacheRecycler]. This class only ensures that
+    /// each [#obtain] call charges [#pageSize] bytes to the breaker so that
+    /// [org.elasticsearch.test.InternalTestCluster#ensureEstimatedStats] can catch unreleased pages acquired directly
+    /// via [BigArrays#bytesRefRecycler], which bypass the [BigArrays#validate] path used by [BigArrays#newByteArray].
+    private static final class MockBytesRefRecycler implements Recycler<BytesRef> {
+
+        private final Recycler<BytesRef> delegate;
+        private final CircuitBreaker breaker;
+
+        MockBytesRefRecycler(Recycler<BytesRef> delegate, CircuitBreaker breaker) {
+            this.delegate = delegate;
+            this.breaker = breaker;
+        }
+
+        @Override
+        public Recycler.V<BytesRef> obtain() {
+            final Recycler.V<BytesRef> page = delegate.obtain();
+            breaker.addWithoutBreaking(pageSize());
+            return new Recycler.V<>() {
+                private final AtomicReference<AssertionError> originalRelease = new AtomicReference<>();
+
+                @Override
+                public BytesRef v() {
+                    return page.v();
+                }
+
+                @Override
+                public boolean isRecycled() {
+                    return page.isRecycled();
+                }
+
+                @Override
+                public void close() {
+                    if (originalRelease.compareAndSet(null, new AssertionError()) == false) {
+                        throw new IllegalStateException("Double release. Original release attached as cause", originalRelease.get());
+                    }
+                    breaker.addWithoutBreaking(-pageSize());
+                    page.close();
+                }
+            };
+        }
+
+        @Override
+        public int pageSize() {
+            return delegate.pageSize();
+        }
+    }
+
     @Override
     public BigArrays withCircuitBreaking() {
-        return new MockBigArrays(this.recycler, this.breakerService, true);
+        return new MockBigArrays(recycler(), this.breakerService, true);
     }
 
     @Override
     public BigArrays withBreakerService(CircuitBreakerService breakerService) {
-        return new MockBigArrays(this.recycler, breakerService, this.shouldCheckBreaker());
+        return new MockBigArrays(recycler(), breakerService, this.shouldCheckBreaker());
     }
 
     @Override

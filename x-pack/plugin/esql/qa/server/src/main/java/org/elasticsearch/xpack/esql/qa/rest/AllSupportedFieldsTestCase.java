@@ -188,17 +188,17 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return clusterHasCapability("GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSION")).orElse(false);
     }
 
-    private static Boolean vectorIndexModeSupported;
+    private static Boolean vectordbDocumentIndexModeSupported;
 
-    private boolean vectorIndexModeSupported() throws IOException {
-        if (vectorIndexModeSupported == null) {
-            vectorIndexModeSupported = fetchVectorIndexModeSupported();
+    private boolean vectordbDocumentIndexModeSupported() throws IOException {
+        if (vectordbDocumentIndexModeSupported == null) {
+            vectordbDocumentIndexModeSupported = fetchVectordbDocumentIndexModeSupported();
         }
-        return vectorIndexModeSupported;
+        return vectordbDocumentIndexModeSupported;
     }
 
-    protected boolean fetchVectorIndexModeSupported() throws IOException {
-        return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vector_index_mode")).orElse(false);
+    protected boolean fetchVectordbDocumentIndexModeSupported() throws IOException {
+        return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vectordb_document_index_mode")).orElse(false);
     }
 
     protected boolean lookupJoinOnAllIndicesSupported() throws IOException {
@@ -269,8 +269,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     @Before
     public void createIndices() throws IOException {
-        if (indexMode == IndexMode.VECTOR) {
-            assumeTrue("Cluster has nodes that do not support index.mode=vector", vectorIndexModeSupported());
+        if (indexMode == IndexMode.VECTORDB_DOCUMENT) {
+            assumeTrue("Cluster has nodes that do not support index.mode=vectordb_document", vectordbDocumentIndexModeSupported());
         }
         if (supportsNodeAssignment()) {
             for (Map.Entry<String, NodeInfo> e : localNodeToInfo().entrySet()) {
@@ -544,7 +544,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             String indexName = e.getKey();
             MapMatcher expectedValues = matchesMap();
             if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minVersion(), false)) {
-                // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in IndexMode.VECTOR).
+                // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in IndexMode.VECTORDB_DOCUMENT).
                 expectedValues = expectedValues.entry(
                     "f_dense_vector",
                     matchesList().item(closeTo(0.5, 0.05)).item(closeTo(10.0, 0.05)).item(closeTo(5.9999995, 0.05))
@@ -1076,7 +1076,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 // See expectedType for an explanation
                 if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, false)
                     && coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV)) {
-                    // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in IndexMode.VECTOR).
+                    // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in IndexMode.VECTORDB_DOCUMENT).
                     yield matchesList().item(closeTo(0.5, 0.05)).item(closeTo(10.0, 0.05)).item(closeTo(5.9999995, 0.05));
                 }
                 if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
@@ -1288,7 +1288,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     private boolean syntheticSourceByDefault() {
         return switch (indexMode) {
             case TIME_SERIES, LOGSDB, COLUMNAR, COLUMNAR_LOGSDB -> true;
-            case STANDARD, LOOKUP, VECTOR -> false;
+            case STANDARD, LOOKUP, VECTORDB_DOCUMENT -> false;
         };
     }
 

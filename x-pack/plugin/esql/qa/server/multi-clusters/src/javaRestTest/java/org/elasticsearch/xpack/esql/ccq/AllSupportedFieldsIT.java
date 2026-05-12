@@ -116,9 +116,9 @@ public class AllSupportedFieldsIT extends AllSupportedFieldsTestCase {
     }
 
     @Override
-    protected boolean fetchVectorIndexModeSupported() throws IOException {
-        return super.fetchVectorIndexModeSupported()
-            && clusterHasCapability(remoteClient(), "PUT", "/{index}", List.of(), List.of("vector_index_mode")).orElse(false);
+    protected boolean fetchVectordbDocumentIndexModeSupported() throws IOException {
+        return super.fetchVectordbDocumentIndexModeSupported()
+            && clusterHasCapability(remoteClient(), "PUT", "/{index}", List.of(), List.of("vectordb_document_index_mode")).orElse(false);
     }
 
     @Override

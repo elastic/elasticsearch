@@ -289,7 +289,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             this.indexMode = indexMode == null ? IndexMode.STANDARD : indexMode;
             this.experimentalFeaturesEnabled = experimentalFeaturesEnabled;
             this.vectorsFormatProviders = vectorsFormatProviders;
-            final ElementType defaultElementType = this.indexMode == IndexMode.VECTOR ? ElementType.BFLOAT16 : ElementType.FLOAT;
+            final ElementType defaultElementType = this.indexMode == IndexMode.VECTORDB_DOCUMENT ? ElementType.BFLOAT16 : ElementType.FLOAT;
             this.elementType = new Parameter<>("element_type", false, () -> defaultElementType, (n, c, o) -> {
                 ElementType elementType = namesToElementType.get((String) o);
                 if (elementType == null) {
@@ -299,7 +299,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 return elementType;
             }, m -> toType(m).fieldType().element.elementType(), XContentBuilder::field, Objects::toString);
-            if (this.indexMode == IndexMode.VECTOR) {
+            if (this.indexMode == IndexMode.VECTORDB_DOCUMENT) {
                 this.elementType.alwaysSerialize();
             }
             // This is defined as updatable because it can be updated once, from [null] to a valid dim size,

@@ -171,10 +171,10 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             "columnar index modes require transport version " + IndexMode.COLUMNAR_INDEX_MODES_ADDED,
             hasColumnarMode == false || version.supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
         );
-        final boolean hasVectorMode = indexResponses.stream().anyMatch(r -> r.getIndexMode() == IndexMode.VECTOR);
+        final boolean hasVectordbDocumentMode = indexResponses.stream().anyMatch(r -> r.getIndexMode() == IndexMode.VECTORDB_DOCUMENT);
         assumeTrue(
-            "vector index mode requires transport version " + IndexMode.VECTOR_INDEX_MODE,
-            hasVectorMode == false || version.supports(IndexMode.VECTOR_INDEX_MODE)
+            "vectordb_document index mode requires transport version " + IndexMode.VECTORDB_DOCUMENT_INDEX_MODE,
+            hasVectordbDocumentMode == false || version.supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
         );
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);
         assertThat(

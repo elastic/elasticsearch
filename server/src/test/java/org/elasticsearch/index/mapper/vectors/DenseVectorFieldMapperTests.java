@@ -1083,15 +1083,15 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         testIndexedVector(VectorSimilarity.COSINE, mapper);
     }
 
-    public void testDefaultElementTypeUnderVectorIndexMode() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vector").build();
+    public void testDefaultElementTypeUnderVectordbDocumentIndexMode() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
         MapperService mapperService = createMapperService(settings, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 8)));
         DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.mappingLookup().getMapper("field");
         assertEquals(ElementType.BFLOAT16, mapper.fieldType().getElementType());
     }
 
-    public void testExplicitElementTypeOverridesVectorModeDefault() throws Exception {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vector").build();
+    public void testExplicitElementTypeOverridesVectordbDocumentModeDefault() throws Exception {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
         MapperService mapperService = createMapperService(
             settings,
             fieldMapping(b -> b.field("type", "dense_vector").field("dims", 8).field("element_type", "float"))

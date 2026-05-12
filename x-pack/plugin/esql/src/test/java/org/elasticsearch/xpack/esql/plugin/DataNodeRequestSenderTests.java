@@ -629,7 +629,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             shard.shardId(),
             new ArrayList<>(Arrays.asList(nodes)),
             null,
-            shard.reshardSplitShardCountSummary()
+            shard.splitShardCountSummary()
         );
     }
 

@@ -486,7 +486,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
                     blocks[b] = builders[b].build();
                 }
             } finally {
-                if (blocks[blocks.length - 1] == null) {
+                if (blocks.length > 0 && blocks[blocks.length - 1] == null) {
                     Releasables.closeExpectNoException(blocks);
                 }
             }

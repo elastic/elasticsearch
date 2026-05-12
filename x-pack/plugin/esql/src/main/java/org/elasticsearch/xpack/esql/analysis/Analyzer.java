@@ -183,7 +183,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -356,10 +355,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(metadata.stream().map(NamedExpression::toAttribute).toList());
 
-            if (context.unmappedResolution() == UnmappedResolution.LOAD) {
-                loadPartiallyUnmappedFields(attributes, esIndex);
-            }
-
             return new EsRelation(
                 plan.source(),
                 esIndex.name(),
@@ -369,34 +364,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 esIndex.indexNameWithModes(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
-        }
-
-        /**
-         * When {@code SET unmapped_fields="load"}, convert partially-mapped fields so they can be used across indices where they
-         * may not exist:
-         * <ul>
-         *   <li>Keyword fields are converted to use {@link PotentiallyUnmappedKeywordEsField} so they are loaded from
-         *       {@code _source} on shards where they are unmapped.</li>
-         *   <li>Non-keyword fields are marked as {@link InvalidMappedField#potentiallyUnmapped potentially unmapped} so that
-         *       explicit casts (e.g. {@code field::long}) can resolve them via the union types / {@code MultiTypeEsField}
-         *       mechanism.</li>
-         * </ul>
-         */
-        private static void loadPartiallyUnmappedFields(List<Attribute> attributes, EsIndex esIndex) {
-            for (int i = 0; i < attributes.size(); i++) {
-                if (attributes.get(i) instanceof FieldAttribute fa && isPartiallyUnmappedRegularField(fa, esIndex)) {
-                    if (fa.dataType() == KEYWORD) {
-                        attributes.set(i, ResolveRefs.insistKeyword(fa));
-                    } else {
-                        attributes.set(i, ResolveRefs.invalidInsistAttribute(fa, esIndex));
-                    }
-                }
-            }
-        }
-
-        private static boolean isPartiallyUnmappedRegularField(FieldAttribute fa, EsIndex esIndex) {
-            // We ignore proper subclasses of FieldAttribute; these represent unsupported or special attributes.
-            return fa.getClass().equals(FieldAttribute.class) && esIndex.isPartiallyUnmappedField(fa.fieldName().string());
         }
 
         private List<NamedExpression> resolveMetadata(List<NamedExpression> metadata, AnalyzerContext context) {
@@ -754,7 +721,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
-                case Insist i -> resolveInsist(i, childrenOutput, context);
+                case Insist i -> resolveInsist(i, childrenOutput);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
@@ -1284,58 +1251,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved;
         }
 
-        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, AnalyzerContext context) {
+        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput) {
             List<Attribute> list = new ArrayList<>();
-            List<IndexResolution> resolutions = collectIndexResolutions(insist, context);
             for (Attribute a : insist.insistedAttributes()) {
-                list.add(resolveInsistAttribute(a, childrenOutput, resolutions));
+                list.add(resolveInsistAttribute(a, childrenOutput));
             }
             return insist.withAttributes(list);
         }
 
-        private static List<IndexResolution> collectIndexResolutions(LogicalPlan plan, AnalyzerContext context) {
-            List<IndexResolution> resolutions = new ArrayList<>();
-            plan.forEachDown(EsRelation.class, e -> {
-                var resolution = context.indexResolution().get(new IndexPattern(e.source(), e.indexPattern()));
-                if (resolution != null) {
-                    resolutions.add(resolution);
-                }
-            });
-            return resolutions;
-        }
-
-        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput, List<IndexResolution> indices) {
+        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput) {
             Attribute resolvedCol = maybeResolveAttribute((UnresolvedAttribute) attribute, childrenOutput);
             // Field isn't mapped anywhere.
             if (resolvedCol instanceof UnresolvedAttribute) {
                 return insistKeyword(attribute);
             }
 
-            // Field is partially unmapped.
-            // TODO: Should the check for partially unmapped fields be done specific to each sub-query in a fork?
-            if (resolvedCol instanceof FieldAttribute fa && indices.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                // NOTE: We use indices.getFirst() here as a temporary solution. INSIST will be removed after load is in GA anyway.
-                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, indices.getFirst().get());
-            }
-
-            // Either the field is mapped everywhere and we can just use the resolved column, or the INSIST clause isn't on top of a FROM
-            // clause—for example, it might be on top of a ROW clause—so the verifier will catch it and fail.
+            // Partially unmapped fields are already wrapped during index resolution:
+            // keyword → PotentiallyUnmappedKeywordEsField, non-keyword → InvalidMappedField.potentiallyUnmapped.
             return resolvedCol;
-        }
-
-        static FieldAttribute invalidInsistAttribute(FieldAttribute fa, EsIndex esIndex) {
-            InvalidMappedField field = InvalidMappedField.potentiallyUnmapped(fa.field().getName(), getTypesToIndices(fa, esIndex));
-            return new FieldAttribute(fa.source(), fa.parentName(), fa.qualifier(), fa.name(), field);
-        }
-
-        private static Map<String, Set<String>> getTypesToIndices(FieldAttribute fa, EsIndex esIndex) {
-            if (fa.field() instanceof InvalidMappedField imf) {
-                return imf.getTypesToIndices();
-            }
-            // Field isn't currently invalid, meaning it's mapped to a single type in all the indices where it's actually mapped.
-            TreeSet<String> indicesWithField = new TreeSet<>(esIndex.concreteQualifiedIndices());
-            indicesWithField.removeAll(esIndex.getUnmappedIndices(fa.name()));
-            return Map.of(fa.dataType().typeName(), indicesWithField);
         }
 
         public static FieldAttribute insistKeyword(Attribute attribute) {

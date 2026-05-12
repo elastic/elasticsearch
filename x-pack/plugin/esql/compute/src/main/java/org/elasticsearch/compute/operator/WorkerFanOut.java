@@ -26,48 +26,25 @@ import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Internal helper that fans page-level work across a fixed pool of worker slots,
- * each owning its own per-slot state of type {@code W}. The owning {@link Operator}
- * holds an instance via composition and forwards its lifecycle calls (addInput /
- * finish / getOutput / isBlocked / close) to this helper's same-named methods.
- * Subclasses route incoming pages to worker slots via the {@link Dispatcher} callback.
- * Each slot owns a small inbox queue and an at-most-one-task-running invariant: when
- * the Driver enqueues a page, it CAS-claims the slot's running flag and submits a
- * single drain task; the drain task processes the inbox until empty before exiting.
- * This gives "soft affinity" — the same executor thread handles a burst of pages
- * for the same slot, keeping caches warm — and prevents multiple threads from
- * parking on a per-slot lock the way a one-task-per-page model would.
+ * each owning its own per-slot state of type {@code W}. Used via composition by
+ * an owning {@link Operator}, which forwards lifecycle calls (addInput / finish /
+ * getOutput / isBlocked / close) to this helper's same-named methods. Not itself
+ * an Operator — no factory, never handed to a Driver directly.
  *
- * <p>This class tracks an in-flight count for backpressure and cooperatively yields
- * via {@link #isBlocked()}. Once {@link #finish()} has been called and all in-flight
- * work has drained, {@link #mergeAndBuildResult} is invoked once on the Driver thread
- * to produce the output iterator.
+ * <p>Per slot: one inbox queue + at-most-one drain task running. Producers enqueue
+ * and CAS-claim the slot's running flag; the winner submits a single drain task
+ * that processes the inbox to empty before exiting. This gives soft thread affinity
+ * (a burst of pages for one slot tends to run on the same executor thread) and
+ * avoids the lock-contention of a one-task-per-page model.
  *
- * <p>This class is intentionally <em>not</em> an {@link Operator}: it is only ever
- * used as an internal helper. Its method shapes mirror Operator's lifecycle so the
- * owning operator can forward calls 1:1, but it carries no factory and is never
- * handed to a Driver directly.
- *
- * <p>Modeled on {@link AsyncOperator}; reuses the same blocked-future pattern,
- * {@link FailureCollector} for cross-thread error propagation, and
- * {@link DriverContext#addAsyncAction} bookkeeping. Unlike AsyncOperator, this
- * class assumes mutable per-worker state (not 1-page-in-1-result-out) and defers
- * all output to a single merge phase after {@code finish()}.
- *
- * <p>Threading: {@link #createWorkerState}, {@link #dispatch}, {@link #mergeAndBuildResult},
- * and all forwarded lifecycle methods run on the Driver thread. {@link #processPage}
- * runs on a worker thread. The "one drain task per slot" invariant guarantees the slot
- * state is touched single-threaded — the per-slot lock exists only as a
- * close-vs-active-drain coordination primitive and is uncontended on the hot path.
+ * <p>Threading: {@link #createWorkerState}, {@link #chooseWorker},
+ * {@link #mergeAndBuildResult}, and all forwarded lifecycle methods run on the
+ * Driver thread. {@link #processPage} runs on a worker thread; the
+ * one-drain-task-per-slot invariant keeps that state single-threaded. The per-slot
+ * lock is uncontended on the hot path — it exists only to let {@link #close()}
+ * wait for an active drain before tearing down state.
  */
 public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
-
-    /**
-     * Callback supplied to {@link #dispatch}. Ownership of {@code page} passes
-     * to the dispatcher; the caller must not touch it after the call returns.
-     */
-    public interface Dispatcher {
-        void submitTo(int workerIndex, Page page);
-    }
 
     private final DriverContext driverContext;
     private final Executor executor;
@@ -75,13 +52,12 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
     private final int maxInFlightPages;
 
     private final WorkerSlot<W>[] workers;
-    private final Dispatcher dispatcher = this::submitTo;
 
     private final AtomicInteger inFlight = new AtomicInteger();
     private volatile boolean finished;
     private volatile boolean closed;
 
-    /** Guarded by {@code this}. Mirrors {@link AsyncOperator}'s pattern. */
+    /** Guarded by {@code this}. */
     private SubscribableListener<Void> blockedFuture;
 
     /** Built lazily on the Driver thread once {@code finished && inFlight == 0}. */
@@ -118,44 +94,25 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
     }
 
     /**
-     * Replace the state at {@code workerIndex} with {@code state}, releasing the
-     * one allocated by {@link #createWorkerState}. Intended for promotion from a
-     * sequential operator: the caller hands its already-accumulated state to
-     * worker 0 so no rows are lost in transition. Must be called before any
-     * {@link #addInput} call.
+     * Allocate the per-slot state. Called once per slot at construction. Subclasses
+     * promoting from a sequential operator can return their pre-existing state for
+     * a chosen index (typically 0) here.
      */
-    public final void seedWorkerState(int workerIndex, W state) {
-        WorkerSlot<W> slot = workers[workerIndex];
-        slot.lock.lock();
-        try {
-            Releasables.closeExpectNoException(slot.state);
-            slot.state = state;
-        } finally {
-            slot.lock.unlock();
-        }
-    }
-
-    /** Allocate the per-slot state. Called once per slot at construction, on the Driver thread. */
     protected abstract W createWorkerState(int workerIndex);
 
     /**
-     * Route an incoming page to one or more workers via {@code dispatcher}. Runs
-     * on the Driver thread. Ownership of {@code page} passes to the implementor:
-     * it must either submit it (handing ownership to a worker) or release it.
-     * For row-level splitting, build sub-pages, submit each, then release the
-     * original.
+     * Choose which worker slot {@code page} should be routed to. The base class
+     * owns the page lifecycle; implementors only inspect.
      */
-    protected abstract void dispatch(Page page, Dispatcher dispatcher);
+    protected abstract int chooseWorker(Page page);
 
-    /** Per-page work, executed on a worker thread under the slot's lock. */
+    /** Per-page work, executed on a worker thread. */
     protected abstract void processPage(W state, Page page);
 
     /**
-     * Build the final result iterator from the per-worker states. Called once on
-     * the Driver thread after {@code finish()} and all in-flight work drained.
-     * Implementations take ownership of every state in the list and are
-     * responsible for releasing them (typically by closing each after extracting
-     * its contents into the returned iterator's backing storage).
+     * Build the final result iterator from the per-worker states. Called once
+     * after {@code finish()} and all in-flight work has drained. Implementations
+     * take ownership of every state in the list and are responsible for releasing them.
      */
     protected abstract ReleasableIterator<Page> mergeAndBuildResult(List<W> states);
 
@@ -168,12 +125,15 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
             page.releaseBlocks();
             return;
         }
+        final int workerIndex;
         try {
-            dispatch(page, dispatcher);
+            workerIndex = chooseWorker(page);
         } catch (Exception e) {
             failureCollector.unwrapAndCollect(e);
             page.releaseBlocks();
+            return;
         }
+        submitTo(workerIndex, page);
     }
 
     private void submitTo(int workerIndex, Page page) {
@@ -193,10 +153,8 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
     }
 
     /**
-     * Submit a drain task for {@code slot} to the executor. The caller is the
-     * exclusive owner of {@code slot.running == true} (won the CAS). On rejection,
-     * we have to surface the failure and clear the inbox + flag ourselves since no
-     * drain task will run.
+     * Submit a drain task. Caller owns {@code slot.running == true}; on rejection
+     * we must drain the inbox and clear the flag ourselves.
      */
     private void scheduleDrain(WorkerSlot<W> slot) {
         try {
@@ -208,9 +166,8 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
 
                 @Override
                 public void onFailure(Exception e) {
-                    // doRun internally guards processPage with try/catch, so reaching here means
-                    // something outside the per-page work failed (lock acquisition, executor
-                    // wrapping, etc.). Clear running so a future producer can re-claim.
+                    // doRun guards processPage with try/catch, so reaching here means something
+                    // outside the per-page work failed. Clear running so a producer can re-claim.
                     failureCollector.unwrapAndCollect(e);
                     slot.running.set(false);
                     notifyIfBlocked();
@@ -222,17 +179,14 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
                 }
             });
         } catch (RejectedExecutionException e) {
-            // Synchronous rejection — onRejection wasn't invoked.
             handleRejection(slot, e);
         }
     }
 
     /**
-     * Drain {@code slot.inbox} on a worker thread. Holds {@code slot.lock} for the
-     * duration of the drain so {@link #close()} can wait for active processing to
-     * finish before tearing down state. On exit, clears {@code slot.running} and
-     * checks for the producer-added-page race; if a page snuck into the inbox
-     * between the loop ending and the flag clearing, re-claim and resubmit.
+     * Drain {@code slot.inbox} on a worker thread. Holds {@code slot.lock} so
+     * {@link #close()} can wait for active processing. On exit, clears running
+     * and resubmits if a producer added a page during the gap.
      */
     private void drainSlot(WorkerSlot<W> slot) {
         slot.lock.lock();
@@ -264,9 +218,8 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
     }
 
     /**
-     * Synchronously drain {@code slot.inbox} when the executor refused to run our
-     * drain task. We're the claim holder ({@code slot.running == true}); release
-     * every page we promised to process, surface the failure, and clear the flag.
+     * Synchronously drain when the executor refused our drain task. We hold the
+     * running claim, so we must release the inbox and clear the flag ourselves.
      */
     private void handleRejection(WorkerSlot<W> slot, Exception cause) {
         failureCollector.unwrapAndCollect(cause);
@@ -378,15 +331,10 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
         Releasables.closeExpectNoException(output);
         output = null;
         for (WorkerSlot<W> slot : workers) {
-            // Acquiring the lock waits for any active drain task to finish before we
-            // release state. Drain tasks already running will observe closed==true on
-            // each iteration and short-circuit, so the wait is bounded by at most one
-            // in-flight page per slot.
+            // Lock acquisition waits for an active drain; drains observe closed and short-circuit.
             slot.lock.lock();
             try {
-                // Release any inbox stragglers — pages enqueued by the Driver but never
-                // picked up by a drain task (e.g. close() racing with submitTo, or a
-                // drain task exited before observing the latest enqueue).
+                // Release inbox stragglers (pages enqueued but not yet picked up by a drainer).
                 Page page;
                 while ((page = slot.inbox.poll()) != null) {
                     page.releaseBlocks();
@@ -402,11 +350,10 @@ public abstract class WorkerFanOut<W extends Releasable> implements Releasable {
     }
 
     private static final class WorkerSlot<W extends Releasable> {
-        /** Held by the active drain task and by {@link #close()}; uncontended on the hot path. */
+        /** Coordinates active drain task with {@link #close()}. */
         final ReentrantLock lock = new ReentrantLock();
-        /** Pages awaiting this slot. Drain task polls; submitters append. */
         final ConcurrentLinkedDeque<Page> inbox = new ConcurrentLinkedDeque<>();
-        /** True iff a drain task is currently scheduled or running for this slot. */
+        /** True iff a drain task is scheduled or running. */
         final AtomicBoolean running = new AtomicBoolean(false);
         W state;
 

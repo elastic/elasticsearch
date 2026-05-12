@@ -225,9 +225,8 @@ public class LocalExecutionPlanner {
     private final PhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     /**
-     * Executor used by operators that fan work out to background tasks (e.g. parallel
-     * final-merge in {@link TopNOperator}). May be {@code null} in test contexts where
-     * no parallel path is needed; operators behave sequentially in that case.
+     * Executor for operators that fan work out to background tasks (e.g. parallel
+     * final-merge in {@link TopNOperator}). Null in tests; operators stay sequential.
      */
     @Nullable
     private final Executor parallelWorkerExecutor;
@@ -634,21 +633,18 @@ public class LocalExecutionPlanner {
     }
 
     /**
-     * Build the parallel-final-merge config passed to {@link TopNOperatorFactory}.
-     * Returns {@code null} (sequential-only) when no parallel executor is wired in
-     * (e.g. unit-test contexts). Worker count is derived from the number of
-     * available processors; in-flight is sized to keep workers fed without
-     * unbounded queueing. Cluster settings can be layered over this default
-     * later if real tuning surfaces require it.
+     * Returns {@code null} when no parallel executor is wired in (sequential-only).
+     * Worker count is auto-derived from available cores; cluster settings can layer
+     * over this default later.
      */
     @Nullable
-    private TopNOperator.ParallelFinalMergeConfig parallelTopNConfig() {
+    private TopNOperator.ParallelWorkerConfig parallelTopNConfig() {
         if (parallelWorkerExecutor == null) {
             return null;
         }
         int workerCount = Math.max(2, Math.min(8, Runtime.getRuntime().availableProcessors() / 4));
         int maxInFlightPages = 2 * workerCount;
-        return new TopNOperator.ParallelFinalMergeConfig(parallelWorkerExecutor, workerCount, maxInFlightPages);
+        return new TopNOperator.ParallelWorkerConfig(parallelWorkerExecutor, workerCount, maxInFlightPages);
     }
 
     private PhysicalOperation planTopNBy(TopNByExec topNByExec, LocalExecutionPlannerContext context) {

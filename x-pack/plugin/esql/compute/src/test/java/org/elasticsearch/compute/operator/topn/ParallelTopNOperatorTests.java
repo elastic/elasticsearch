@@ -25,13 +25,9 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Smoke test for the parallel-final-merge code path in {@link TopNOperator}. Verifies that
- * after the row threshold trips and the operator promotes itself to use a worker pool, the
- * end-to-end output still matches the top-K of the shuffled input.
- *
- * <p>Intentionally minimal: drives the operator directly from the test thread (no Driver
- * loop) and spin-polls until in-flight work has drained. For broader coverage, the existing
- * {@link TopNOperatorTests} continues to exercise the sequential code path.
+ * Smoke test for the parallel-final-merge path in {@link TopNOperator}: pushes enough
+ * rows to trigger promotion, then verifies the top-K output matches what a sequential
+ * sort would produce. Drives the operator directly from the test thread (no Driver).
  */
 public class ParallelTopNOperatorTests extends ComputeTestCase {
 
@@ -51,13 +47,10 @@ public class ParallelTopNOperatorTests extends ComputeTestCase {
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
 
         int topCount = 10;
-        // Push enough rows to clear PROMOTION_THRESHOLD_ROWS so the operator actually
-        // promotes mid-stream. Distinct longs in [0, totalRows) — the expected top-10
-        // ascending is [0..9] regardless of shuffle.
+        // Push past PROMOTION_THRESHOLD_ROWS so the operator actually promotes.
         int totalRows = (int) (TopNOperator.PROMOTION_THRESHOLD_ROWS + 10_000);
         int rowsPerPage = 1_000;
 
-        // Build a shuffled list of distinct longs [0, totalRows).
         List<Long> values = new ArrayList<>(totalRows);
         for (long v = 0; v < totalRows; v++) {
             values.add(v);
@@ -78,10 +71,9 @@ public class ParallelTopNOperatorTests extends ComputeTestCase {
                 TopNOperator.InputOrdering.NOT_SORTED,
                 null,
                 driverContext,
-                new TopNOperator.ParallelFinalMergeConfig(executor, 4, 8)
+                new TopNOperator.ParallelWorkerConfig(executor, 4, 8)
             )
         ) {
-            // Push pages.
             for (int start = 0; start < totalRows; start += rowsPerPage) {
                 int end = Math.min(start + rowsPerPage, totalRows);
                 try (LongBlock.Builder b = blockFactory.newLongBlockBuilder(end - start)) {
@@ -89,15 +81,14 @@ public class ParallelTopNOperatorTests extends ComputeTestCase {
                         b.appendLong(values.get(i));
                     }
                     while (op.needsInput() == false) {
-                        Thread.sleep(1);   // wait for backpressure to clear
+                        Thread.sleep(1);
                     }
                     op.addInput(new Page(b.build()));
                 }
             }
             op.finish();
 
-            // Drain output. After finish(), getOutput() returns null until all workers
-            // drain and the merge produces its first page.
+            // getOutput() returns null until all workers drain and the merge produces a page.
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
             while (op.isFinished() == false) {
                 Page out = op.getOutput();
@@ -119,7 +110,6 @@ public class ParallelTopNOperatorTests extends ComputeTestCase {
             }
         }
 
-        // Expected = top-K (ascending) of the shuffled input = [0, 1, 2, ..., K-1].
         List<Long> expected = new ArrayList<>(topCount);
         for (long v = 0; v < topCount; v++) {
             expected.add(v);

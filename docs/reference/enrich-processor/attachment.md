@@ -89,9 +89,9 @@ The document’s `attachment` object contains extracted properties for the file:
 
 In certain cases, the sizes of the attachments may incur a significant memory overhead, including any further processing that might be required (e.g., by Tika). Either the node setting `ingest.attachment.max_field_size`, and/or the processor parameter `max_field_bytes`, can be used to restrict the raw size of the attachment source field. Limits are enforced early (e.g., before Base64 decoding) to avoid allocating or decoding oversized payloads. If a document exceeds the limit, the resulting ingest failure can be handled with an `on_failure` handler.
 
-The node setting has a default of `-1`, which means no node-wide cap. You can set either an absolute size using byte-size syntax (e.g., `10mb`, `1gb`), or a relative value as a percentage or ratio of the JVM's heap for the node (e.g., `5%` or `0.05`). If there is a node-wide cap, it takes precedence over any processor-specific limits.
+The node setting has a default of `-1`, which means no node-wide cap. You can set either an absolute size using byte-size syntax (e.g., `10mb`, `1gb`), or a relative value as a percentage or ratio of the JVM's heap for the node (e.g., `5%` or `0.05`).
 
-In contrast to the node setting, the `max_field_bytes` is a per attachment processor parameter which receives only integer values. The default is `-1`, meaning no per-processor cap (but note that the node setting, if set, can still apply).
+In contrast to the node setting, the `max_field_bytes` is a per attachment processor parameter which receives only integer values. The default is `-1`, meaning no per-processor cap (but note that the node setting, if set, can still apply). Note that the node setting is checked in addition to the per-processor setting.
 
 
 ## Exported fields [attachment-fields]

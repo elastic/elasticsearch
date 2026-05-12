@@ -42,15 +42,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class GcpPreemptionWatchdog {
 
-    private static final String METADATA_BASE_URL =
-        "http://metadata.google.internal/computeMetadata/v1/instance/preempted";
+    private static final String METADATA_BASE_URL = "http://metadata.google.internal/computeMetadata/v1/instance/preempted";
 
     // Long-poll: ask the metadata server to hold the connection until the value changes or
     // the timeout elapses. This gives sub-second detection latency with a single open socket
     // rather than a 1-second polling loop.
     private static final int LONG_POLL_TIMEOUT_SECONDS = 60;
-    private static final String METADATA_LONG_POLL_URL =
-        METADATA_BASE_URL + "?wait_for_change=true&timeout_sec=" + LONG_POLL_TIMEOUT_SECONDS;
+    private static final String METADATA_LONG_POLL_URL = METADATA_BASE_URL
+        + "?wait_for_change=true&timeout_sec="
+        + LONG_POLL_TIMEOUT_SECONDS;
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(LONG_POLL_TIMEOUT_SECONDS + 15);
 

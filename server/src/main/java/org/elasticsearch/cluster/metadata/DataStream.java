@@ -870,15 +870,15 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamAutoShardingEvent autoShardingEvent
     ) {
         IndexMode dsIndexMode = this.indexMode;
+        if (dsIndexMode == IndexMode.LOOKUP || indexModeFromTemplate == IndexMode.LOOKUP) {
+            throw new IllegalArgumentException(
+                "[" + name + "] is a data stream, unsafe rollover is not allowed for [" + IndexMode.LOOKUP + "] index mode"
+            );
+        }
         if (dsIndexMode != indexModeFromTemplate) {
             if (indexModeFromTemplate == IndexMode.TIME_SERIES
                 && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.COLUMNAR_LOGSDB)) {
                 LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
-            }
-            if (dsIndexMode == IndexMode.LOOKUP && indexModeFromTemplate != IndexMode.STANDARD) {
-                throw new IllegalArgumentException(
-                    "Changing [" + name + "] index mode from [" + indexModeFromTemplate + "] to [" + dsIndexMode + "] is not allowed"
-                );
             }
             dsIndexMode = (indexModeFromTemplate == IndexMode.STANDARD) ? null : indexModeFromTemplate;
         }

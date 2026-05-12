@@ -528,50 +528,32 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.LOGSDB));
     }
 
-    public void testUnsafeRolloverToLookup() {
+    public void testUnsafeRolloverToLookupThrows() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setIndexMode(randomBoolean() ? IndexMode.STANDARD : null).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.unsafeNextWriteIndexAndGeneration(project, ds.getDataComponent());
 
-        var rolledDs = ds.unsafeRollover(
-            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
-            newCoordinates.v2(),
-            IndexMode.LOOKUP,
-            null
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ds.unsafeRollover(
+                new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
+                newCoordinates.v2(),
+                IndexMode.LOOKUP,
+                null
+            )
         );
-        assertThat(rolledDs.getName(), equalTo(ds.getName()));
-        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
-        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
-        assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
-        assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
-        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.LOOKUP));
+        assertThat(e.getMessage(), containsString("is not allowed"));
     }
 
-    public void testUnsafeRolloverFromLookupStaysLookup() {
+    public void testUnsafeRolloverFromLookupThrows() {
         DataStream ds = DataStreamTestHelper.randomInstance().copy().setIndexMode(IndexMode.LOOKUP).build();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         var newCoordinates = ds.unsafeNextWriteIndexAndGeneration(project, ds.getDataComponent());
-
-        var rolledDs = ds.unsafeRollover(
-            new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()),
-            newCoordinates.v2(),
-            IndexMode.LOOKUP,
-            null
-        );
-        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
-        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
-        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.LOOKUP));
-    }
-
-    public void testUnsafeRolloverFromLookupToNonStandardIndexModeThrows() {
-        DataStream ds = DataStreamTestHelper.randomInstance().copy().setIndexMode(IndexMode.LOOKUP).build();
-        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
-        var newCoordinates = ds.unsafeNextWriteIndexAndGeneration(project, ds.getDataComponent());
-        IndexMode nonStandardMode = randomFrom(IndexMode.TIME_SERIES, IndexMode.LOGSDB, IndexMode.COLUMNAR, IndexMode.COLUMNAR_LOGSDB);
+        IndexMode templateMode = randomFrom(IndexMode.values());
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ds.unsafeRollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), nonStandardMode, null)
+            () -> ds.unsafeRollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), templateMode, null)
         );
         assertThat(e.getMessage(), containsString("is not allowed"));
     }

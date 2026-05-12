@@ -1469,7 +1469,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             ),
             List.of()
         );
-        return mergedResolution("a,b", caps, true);
+        return mergedResolution("a,b", caps);
     }
 
     private static TopN findFirstTopN(LogicalPlan plan) {

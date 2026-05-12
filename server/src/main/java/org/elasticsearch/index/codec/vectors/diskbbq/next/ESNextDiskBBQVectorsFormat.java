@@ -293,6 +293,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final int preconditioningBlockDimension;
     private final int flatVectorThreshold;
     private final String sliceField;
+    private final IvfFlushConfigSource ivfFlushConfigSource;
+    private final IvfMergeConfigResolver ivfMergeConfigResolver;
 
     public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
         this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster, sliceField);
@@ -354,6 +356,42 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         int flatVectorThreshold,
         String sliceField
     ) {
+        this(
+            quantEncoding,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            elementType,
+            useDirectIO,
+            mergingExecutorService,
+            maxMergingWorkers,
+            doPrecondition,
+            preconditioningBlockDimension,
+            flatVectorThreshold,
+            sliceField,
+            null,
+            null
+        );
+    }
+
+    /**
+     * @param ivfFlushConfigSource optional per-field config on flush ({@code null} uses writer default)
+     * @param ivfMergeConfigResolver optional merged config on merge ({@code null} uses writer default)
+     */
+    public ESNextDiskBBQVectorsFormat(
+        QuantEncoding quantEncoding,
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        ExecutorService mergingExecutorService,
+        int maxMergingWorkers,
+        boolean doPrecondition,
+        int preconditioningBlockDimension,
+        int flatVectorThreshold,
+        String sliceField,
+        IvfFlushConfigSource ivfFlushConfigSource,
+        IvfMergeConfigResolver ivfMergeConfigResolver
+    ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
             throw new IllegalArgumentException(
@@ -407,6 +445,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         this.doPrecondition = doPrecondition;
         this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
         this.sliceField = sliceField;
+        this.ivfFlushConfigSource = ivfFlushConfigSource;
+        this.ivfMergeConfigResolver = ivfMergeConfigResolver;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
@@ -429,7 +469,9 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             preconditioningBlockDimension,
             doPrecondition,
             flatVectorThreshold,
-            sliceField
+            sliceField,
+            ivfFlushConfigSource,
+            ivfMergeConfigResolver
         );
     }
 

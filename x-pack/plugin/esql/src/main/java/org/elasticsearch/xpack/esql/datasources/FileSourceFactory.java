@@ -11,6 +11,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
@@ -24,9 +26,11 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 
@@ -40,6 +44,27 @@ import java.util.concurrent.ExecutorService;
  * fallback entry (key {@code "file"}) in the sourceFactories map.
  */
 final class FileSourceFactory implements ExternalSourceFactory {
+
+    static final String CONFIG_FORMAT = "format";
+
+    /**
+     * Aggregated set of keys the coordinator-side path claims from a per-query configuration map.
+     * Built from each component's own {@code CONFIG_KEYS} set so adding a new coordinator-level
+     * configuration consumer requires updating only the consumer's own constant — the union here
+     * picks it up automatically. Components contributing today: {@link ErrorPolicy},
+     * {@link FileSplitProvider}, the {@link #CONFIG_FORMAT} override read by this class, and the
+     * {@link FormatNameResolver#CONFIG_READER} override read by the format-name resolver.
+     */
+    static final Set<String> COORDINATOR_KEYS;
+
+    static {
+        Set<String> keys = new HashSet<>();
+        keys.add(CONFIG_FORMAT);
+        keys.add(FormatNameResolver.CONFIG_READER);
+        keys.addAll(ErrorPolicy.CONFIG_KEYS);
+        keys.addAll(FileSplitProvider.CONFIG_KEYS);
+        COORDINATOR_KEYS = Set.copyOf(keys);
+    }
 
     private final StorageProviderRegistry storageRegistry;
     private final FormatReaderRegistry formatRegistry;
@@ -111,23 +136,46 @@ final class FileSourceFactory implements ExternalSourceFactory {
     }
 
     @Override
+    public void validateConfig(String location, Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return;
+        }
+        StoragePath storagePath = StoragePath.of(location);
+        Configured<StorageProvider> resolvedStorage = storageRegistry.createProviderTrackingConsumedKeys(
+            storagePath.scheme(),
+            settings,
+            config
+        );
+        Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(
+            config
+        );
+        ConfigKeyValidator.check(config, List.of(resolvedStorage.consumedKeys(), resolvedReader.consumedKeys(), COORDINATOR_KEYS));
+    }
+
+    @Override
     public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
         try {
+            // Reject unknown configuration keys via the SPI hook before any provider/reader work.
+            // The provider/reader resolutions below hit the same cache keys validateConfig populates,
+            // so this is a single source of truth for validation without extra cloud-client construction.
+            validateConfig(location, config);
             StoragePath storagePath = StoragePath.of(location);
             String scheme = storagePath.scheme();
 
             StorageProvider provider;
+            FormatReader reader;
             if (config != null && config.isEmpty() == false) {
-                provider = storageRegistry.createProvider(scheme, settings, config);
+                provider = storageRegistry.createProviderTrackingConsumedKeys(scheme, settings, config).value();
+                reader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(config).value();
             } else {
                 provider = storageRegistry.provider(storagePath);
+                reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
             }
 
             StorageObject storageObject = provider.newObject(storagePath);
             if (storageObject.exists() == false) {
                 throw new IOException("File does not exist: " + location);
             }
-            FormatReader reader = resolveFormatReader(storagePath.objectName(), config).withConfig(config);
             return reader.metadata(storageObject);
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);

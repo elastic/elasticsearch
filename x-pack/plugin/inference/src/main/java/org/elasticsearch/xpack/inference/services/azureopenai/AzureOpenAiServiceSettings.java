@@ -91,7 +91,7 @@ public abstract class AzureOpenAiServiceSettings extends FilteredXContentObject 
         var resourceName = extractRequiredString(map, RESOURCE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var deploymentId = extractRequiredString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var rateLimitSettings = RateLimitSettings.of(map, defaultRateLimitSettings, validationException, AzureOpenAiService.NAME, context);
+        var rateLimitSettings = RateLimitSettings.of(map, defaultRateLimitSettings, validationException, context);
         var oAuth2Settings = AzureOpenAiOAuth2Settings.fromMap(map, validationException);
         return new CommonSettings(resourceName, deploymentId, apiVersion, rateLimitSettings, oAuth2Settings);
     }
@@ -130,7 +130,6 @@ public abstract class AzureOpenAiServiceSettings extends FilteredXContentObject 
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            AzureOpenAiService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

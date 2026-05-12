@@ -87,6 +87,21 @@ csvToParquetFixtures.each { baseName ->
   generateParquetTasks.add(tasks.named(taskName))
 }
 
+// Generate multifile fixtures by splitting employees.csv into 3 parts.
+def multifileDir = file("${parquetFixtureOutputDir}/multifile")
+def multifileEmployeesCsv = new File(testFixturesDataDir, "employees.csv")
+tasks.register('generateMultifileParquet_employees', JavaExec) {
+  dependsOn serverProject.tasks.named('compileParquetFixtureGeneratorJava')
+  dependsOn testFixturesProject.tasks.named('processResources')
+  classpath = serverProject.configurations.parquetFixtureGenerator + serverProject.sourceSets.parquetFixtureGenerator.output
+  mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+  args = [multifileEmployeesCsv.path, multifileDir.path, '3']
+  inputs.file(multifileEmployeesCsv)
+  outputs.dir(multifileDir)
+  systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+}
+generateParquetTasks.add(tasks.named('generateMultifileParquet_employees'))
+
 tasks.register('generateParquetFixtures') {
   dependsOn generateParquetTasks
 }

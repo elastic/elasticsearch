@@ -538,11 +538,15 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         }
     }
 
-    public void testLateMaterializationHeuristicThreshold() throws Exception {
-        // Scenario A: Predicate column is a narrow int; projection columns are wide strings.
-        // The predicate byte ratio should be well below 0.5, so late materialization is active.
-        // We verify this by applying a selective filter and confirming rows are eliminated.
-        MessageType schemaA = Types.buildMessage()
+    /**
+     * Late materialization filters rows when the predicate column is a small fraction of the
+     * projected bytes (the easy case where the file-level byte-ratio gate, when it still existed,
+     * was always permissive).
+     */
+    public void testLateMaterializationFiltersWhenPredicateColumnIsNarrow() throws Exception {
+        // Predicate column is a narrow int; projection columns are wide strings. The projection-only
+        // bytes dominate, so deferring their decode for non-matching rows is clearly profitable.
+        MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT32)
             .named("pred_col")
             .required(PrimitiveType.PrimitiveTypeName.BINARY)
@@ -555,7 +559,7 @@ public class OptimizedParquetReaderTests extends ESTestCase {
 
         int totalRows = 100;
         String padding = "x".repeat(200);
-        byte[] parquetDataA = createParquetFile(schemaA, factory -> {
+        byte[] parquetData = createParquetFile(schema, factory -> {
             List<Group> groups = new ArrayList<>();
             for (int i = 0; i < totalRows; i++) {
                 Group g = factory.newGroup();
@@ -567,34 +571,40 @@ public class OptimizedParquetReaderTests extends ESTestCase {
             return groups;
         });
 
-        // Filter: pred_col > 89 => 10 matching rows
-        ReferenceAttribute predAttrA = new ReferenceAttribute(Source.EMPTY, "pred_col", DataType.INTEGER);
-        Expression filterA = new GreaterThan(Source.EMPTY, predAttrA, new Literal(Source.EMPTY, 89, DataType.INTEGER), null);
-        ParquetPushedExpressions pushedA = new ParquetPushedExpressions(List.of(filterA));
-        ParquetFormatReader readerA = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushedA);
+        ReferenceAttribute predAttr = new ReferenceAttribute(Source.EMPTY, "pred_col", DataType.INTEGER);
+        Expression filter = new GreaterThan(Source.EMPTY, predAttr, new Literal(Source.EMPTY, 89, DataType.INTEGER), null);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
 
-        StorageObject storageObjectA = createStorageObject(parquetDataA);
-        List<Page> pagesA = readAllPages(readerA, storageObjectA);
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Page> pages = readAllPages(reader, storageObject);
 
-        int totalRowsA = pagesA.stream().mapToInt(Page::getPositionCount).sum();
-        assertThat("scenario A: late-mat active, should have 10 surviving rows", totalRowsA, equalTo(10));
+        int totalRowsOut = pages.stream().mapToInt(Page::getPositionCount).sum();
+        assertThat("late-mat active should retain only matching rows", totalRowsOut, equalTo(10));
 
-        // Verify data correctness
-        for (Page page : pagesA) {
+        for (Page page : pages) {
             IntBlock predBlock = page.getBlock(0);
             for (int pos = 0; pos < page.getPositionCount(); pos++) {
                 int val = predBlock.getInt(pos);
                 assertTrue("pred_col " + val + " should be > 89", val > 89);
             }
         }
+    }
 
-        // Scenario B: Predicate column is a wide string (~200+ bytes/row) that dominates the
-        // byte footprint; the projection-only column is a narrow int (4 bytes/row). The
-        // predicate byte ratio exceeds 0.5, so the heuristic should disable late materialization.
-        // When late-mat is disabled, no row-level filtering occurs in the optimized path (only
-        // row-group/page-level statistics filtering, which cannot eliminate individual rows
-        // within a single row group). This means ALL rows are returned.
-        MessageType schemaB = Types.buildMessage()
+    /**
+     * Late materialization is no longer file-gated by predicate-byte ratio. Even when the predicate
+     * column dominates the projected bytes — the regression shape that motivated removing the gate
+     * — late-mat still fires and filters rows. Under the current {@code Pushability.YES} rule for
+     * fully-evaluable conjuncts, the upstream {@code FilterExec} is dropped from the plan, so any
+     * file-level suppression of late-mat would leak unfiltered rows past the source. The expensive
+     * two-phase prefetch path stays gated by its own threshold inside the iterator, which is the
+     * correct scope for that decision (verified separately by {@code TwoPhaseReaderTests}).
+     */
+    public void testLateMaterializationStillFiresWhenPredicateColumnDominates() throws Exception {
+        // Predicate column is a wide string (~200+ bytes/row); projection-only column is a narrow
+        // int. The byte ratio is well above the old 0.5 file-level threshold; the test pins that
+        // late-mat is no longer gated off in this shape.
+        MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.BINARY)
             .as(LogicalTypeAnnotation.stringType())
             .named("wide_pred")
@@ -602,7 +612,9 @@ public class OptimizedParquetReaderTests extends ESTestCase {
             .named("narrow_proj")
             .named("test_schema");
 
-        byte[] parquetDataB = createParquetFile(schemaB, factory -> {
+        int totalRows = 100;
+        String padding = "x".repeat(200);
+        byte[] parquetData = createParquetFile(schema, factory -> {
             List<Group> groups = new ArrayList<>();
             for (int i = 0; i < totalRows; i++) {
                 Group g = factory.newGroup();
@@ -613,46 +625,44 @@ public class OptimizedParquetReaderTests extends ESTestCase {
             return groups;
         });
 
-        // Push a filter on the wide predicate column
-        ReferenceAttribute predAttrB = new ReferenceAttribute(Source.EMPTY, "wide_pred", DataType.KEYWORD);
-        Expression filterB = new GreaterThan(
+        // Lexicographic > "padding_pred_94" matches values ending in _95, _96, _97, _98, _99 = 5 rows.
+        // (e.g. "_pred_8" < "_pred_94" because '8' < '9' at the first differing position.)
+        ReferenceAttribute predAttr = new ReferenceAttribute(Source.EMPTY, "wide_pred", DataType.KEYWORD);
+        Expression filter = new GreaterThan(
             Source.EMPTY,
-            predAttrB,
+            predAttr,
             new Literal(Source.EMPTY, new org.apache.lucene.util.BytesRef(padding + "_pred_94"), DataType.KEYWORD),
             null
         );
-        ParquetPushedExpressions pushedB = new ParquetPushedExpressions(List.of(filterB));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
 
-        // Read with late-mat enabled (default) - the heuristic should disable it internally
-        // because the wide predicate column dominates the byte footprint
-        ParquetFormatReader readerBLateMat = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushedB);
-        StorageObject storageObjectB = createStorageObject(parquetDataB);
-        List<Page> pagesBLateMat = readAllPages(readerBLateMat, storageObjectB);
-        int totalRowsBLateMat = pagesBLateMat.stream().mapToInt(Page::getPositionCount).sum();
+        // With late-mat enabled (default), the file-level byte-ratio gate has been removed, so the
+        // reader filters rows even though the predicate column dominates the byte footprint.
+        ParquetFormatReader readerLateMat = new ParquetFormatReader(blockFactory, true).withPushedFilter(pushed);
+        StorageObject storageObject = createStorageObject(parquetData);
+        List<Page> pagesLateMat = readAllPages(readerLateMat, storageObject);
+        int rowsLateMat = pagesLateMat.stream().mapToInt(Page::getPositionCount).sum();
+        assertThat("late-mat must filter rows even at high predicate-byte ratio", rowsLateMat, equalTo(5));
 
-        // Read with late-mat explicitly disabled via config - should behave identically
-        ParquetFormatReader readerBNoLateMat = ((ParquetFormatReader) new ParquetFormatReader(blockFactory, true).withConfig(
+        // Sanity-check the surviving values.
+        for (Page page : pagesLateMat) {
+            BytesRefBlock predBlock = page.getBlock(0);
+            for (int pos = 0; pos < page.getPositionCount(); pos++) {
+                String val = predBlock.getBytesRef(pos, new org.apache.lucene.util.BytesRef()).utf8ToString();
+                assertTrue("wide_pred [" + val + "] should be > padding_pred_94", val.compareTo(padding + "_pred_94") > 0);
+            }
+        }
+
+        // Contrast: with late-mat explicitly disabled via config, the optimized path does no
+        // row-level filtering (only row-group/page statistics, which cannot prune within a single
+        // row group), so all 100 rows come back. This is the existing kill-switch contract; the
+        // file-level byte-ratio heuristic is gone but the explicit config knob is unchanged.
+        ParquetFormatReader readerNoLateMat = ((ParquetFormatReader) new ParquetFormatReader(blockFactory, true).withConfig(
             Map.of(ParquetFormatReader.CONFIG_LATE_MATERIALIZATION, false)
-        )).withPushedFilter(pushedB);
-        List<Page> pagesBNoLateMat = readAllPages(readerBNoLateMat, storageObjectB);
-        int totalRowsBNoLateMat = pagesBNoLateMat.stream().mapToInt(Page::getPositionCount).sum();
-
-        // Both paths (heuristic-disabled and explicitly-disabled) should produce the same row count.
-        // Since the optimized path without late-mat does not do row-level filtering (only
-        // statistics-level filtering which cannot prune individual rows in a single row group),
-        // both should return all 100 rows.
-        assertThat(
-            "scenario B: heuristic-disabled late-mat and explicit no-late-mat should produce same row count",
-            totalRowsBLateMat,
-            equalTo(totalRowsBNoLateMat)
-        );
-        assertThat("scenario B: without row-level filtering, all rows should be returned", totalRowsBLateMat, equalTo(totalRows));
-
-        // Contrast with scenario A: late-mat was active there and eliminated rows
-        assertTrue(
-            "scenario A (late-mat active) should return fewer rows than scenario B (late-mat disabled)",
-            totalRowsA < totalRowsBLateMat
-        );
+        )).withPushedFilter(pushed);
+        List<Page> pagesNoLateMat = readAllPages(readerNoLateMat, storageObject);
+        int rowsNoLateMat = pagesNoLateMat.stream().mapToInt(Page::getPositionCount).sum();
+        assertThat("explicit no-late-mat returns all rows (no row-level filtering)", rowsNoLateMat, equalTo(totalRows));
     }
 
     // --- Helpers ---

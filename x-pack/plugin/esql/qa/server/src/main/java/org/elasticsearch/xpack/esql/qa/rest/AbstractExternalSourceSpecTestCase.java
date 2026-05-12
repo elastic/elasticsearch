@@ -163,8 +163,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     private static Path localFixturesPath;
 
     /**
-     * Load fixtures from src/test/resources/iceberg-fixtures/ into the S3 and GCS fixtures.
-     * Compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv and .ndjson files are generated
+     * Load fixtures from src/test/resources/iceberg-fixtures/ into the S3, GCS, and Azure fixtures.
+     * Compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv, .ndjson, and .tsv files are generated
      * on the fly rather than checked in.
      */
     @BeforeClass
@@ -177,7 +177,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
-     * Generate compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv and .ndjson fixtures
+     * Generate compressed variants (.gz, .zst, .zstd, .bz2, .bz) of .csv, .ndjson, and .tsv fixtures
      * on the fly and add them to the S3, GCS, and Azure fixtures. This avoids checking in binary
      * compressed files.
      */
@@ -188,7 +188,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 AbstractExternalSourceSpecTestCase.class.getClassLoader(),
                 (relativePath, content) -> {
                     String fileName = relativePath.contains("/") ? relativePath.substring(relativePath.lastIndexOf('/') + 1) : relativePath;
-                    if (fileName.endsWith(".csv") == false && fileName.endsWith(".ndjson") == false) {
+                    if (fileName.endsWith(".csv") == false && fileName.endsWith(".ndjson") == false && fileName.endsWith(".tsv") == false) {
                         return;
                     }
                     String relativeDir = relativePath.contains("/") ? relativePath.substring(0, relativePath.lastIndexOf('/')) : "";
@@ -315,10 +315,83 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 case StorageBackend.AZURE -> azureFixture.injectParams(query);
                 default -> query;
             };
+            query = injectReaderParam(query);
         }
 
         logger.debug("Transformed query for {} backend: {}", storageBackend, query);
         doTest(query);
+    }
+
+    /**
+     * Override to specify a reader implementation for the EXTERNAL query.
+     * When non-null, a {@code "reader": "<name>"} parameter is injected into the WITH clause.
+     *
+     * @return the reader name (e.g. "java", "parquet-rs"), or null for the default reader
+     */
+    protected String readerName() {
+        return null;
+    }
+
+    /**
+     * Inject the reader parameter into the query's WITH clause.
+     * If a WITH clause already exists, the reader param is appended; otherwise a new WITH clause is added.
+     */
+    private String injectReaderParam(String query) {
+        String reader = readerName();
+        if (reader == null) {
+            return query;
+        }
+        String readerEntry = "\"reader\": \"" + reader + "\"";
+        int pipeIndex = FixtureUtils.findFirstPipeAfterExternal(query);
+        // Only look for WITH { in the EXTERNAL part (before the first pipe),
+        // so we don't accidentally match a RERANK/COMPLETION WITH clause.
+        String externalPart = pipeIndex == -1 ? query : query.substring(0, pipeIndex);
+        int withIndex = externalPart.indexOf("WITH {");
+        if (withIndex >= 0) {
+            int closingBrace = findClosingBrace(query, query.indexOf('{', withIndex));
+            assert closingBrace >= 0 : "Malformed WITH clause in query: " + query;
+            return query.substring(0, closingBrace) + ", " + readerEntry + query.substring(closingBrace);
+        }
+        if (pipeIndex == -1) {
+            return query + " WITH { " + readerEntry + " }";
+        }
+        return query.substring(0, pipeIndex).trim() + " WITH { " + readerEntry + " } " + query.substring(pipeIndex);
+    }
+
+    /**
+     * Finds the closing brace matching the opening brace at {@code openIndex},
+     * skipping over quoted strings so braces inside string values are ignored.
+     * <p>
+     * Assumes ES|QL string-literal syntax: only {@code "..."} (with backslash escapes) is recognised.
+     * Single-quoted strings are not part of the ES|QL grammar so they are not handled here. Triple-quoted
+     * strings ({@code """..."""}) are not specifically parsed either; they happen to work in the current
+     * state machine because consecutive quotes toggle the {@code inQuotes} flag, but adding
+     * {@code """}-aware handling would be required if a spec ever embeds {@code }} inside a triple-quoted
+     * value. No EXTERNAL csv-spec uses that form today.
+     */
+    private static int findClosingBrace(String query, int openIndex) {
+        int depth = 0;
+        boolean inQuotes = false;
+        for (int i = openIndex; i < query.length(); i++) {
+            char c = query.charAt(i);
+            if (inQuotes) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == '"') {
+                    inQuotes = false;
+                }
+            } else if (c == '"') {
+                inQuotes = true;
+            } else if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return i;
+                }
+            }
+        }
+        return -1;
     }
 
     /**

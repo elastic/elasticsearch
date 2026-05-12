@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
@@ -2315,7 +2316,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
         CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new StubSplittableCodec());
         byte[] payload = "{\"a\":1}\n".repeat(20).getBytes(StandardCharsets.UTF_8);
-        assertNull(factory.openWithParallelism(cdr, bytesStorageObject(payload), List.of("a"), ErrorPolicy.STRICT));
+        assertNull(factory.openWithParallelism(cdr, bytesStorageObject(payload), List.of("a"), ErrorPolicy.STRICT, false, true));
     }
 
     public void testOpenWithParallelismGzipCompressedReturnsIterator() throws IOException {
@@ -2334,7 +2335,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 cdr,
                 bytesStorageObject(gzipped),
                 List.of("a"),
-                ErrorPolicy.STRICT
+                ErrorPolicy.STRICT,
+                false,
+                true
             );
             assertNotNull(iterator);
             iterator.close();
@@ -2357,7 +2360,9 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 inner,
                 bytesStorageObject(plain),
                 List.of("a"),
-                ErrorPolicy.STRICT
+                ErrorPolicy.STRICT,
+                false,
+                true
             );
             assertNotNull(iterator);
             iterator.close();
@@ -2404,6 +2409,18 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         when(inner.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
         when(inner.metadata(any())).thenReturn(null);
         when(inner.read(any(), any())).thenReturn(emptyPageIterator());
+        when(inner.findNextRecordBoundary(any())).thenAnswer(invocation -> {
+            InputStream in = invocation.getArgument(0);
+            long consumed = 0;
+            int b;
+            while ((b = in.read()) != -1) {
+                consumed++;
+                if (b == '\n') {
+                    return consumed;
+                }
+            }
+            return -1L;
+        });
         return inner;
     }
 
@@ -2514,7 +2531,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * that increments {@code closeCalls} on {@link CloseableIterator#close()}, so the test can
      * assert that every opened iterator is closed exactly once.
      */
-    private static class TrackingReader implements FormatReader {
+    private static class TrackingReader implements NoConfigFormatReader {
+
         private final AtomicInteger readCount;
         private final AtomicInteger closeCount;
 
@@ -2594,7 +2612,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         return new Page(block);
     }
 
-    private static class PageCountingFormatReader implements FormatReader {
+    private static class PageCountingFormatReader implements NoConfigFormatReader {
+
         private final AtomicInteger readCount;
 
         PageCountingFormatReader(AtomicInteger readCount) {
@@ -2646,7 +2665,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class FailOnSecondFileFormatReader implements FormatReader {
+    private static class FailOnSecondFileFormatReader implements NoConfigFormatReader {
+
         private final AtomicInteger callCount = new AtomicInteger(0);
 
         @Override
@@ -2773,7 +2793,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     /**
      * Test sync format reader that returns empty pages.
      */
-    private static class TestSyncFormatReader implements FormatReader {
+    private static class TestSyncFormatReader implements NoConfigFormatReader {
+
         @Override
         public SourceMetadata metadata(StorageObject object) {
             return null;
@@ -2807,7 +2828,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Format reader that captures the StorageObject and skipFirstLine flag passed to readSplit.
      * Used to verify that RangeStorageObject wrapping and skipFirstLine logic are correct.
      */
-    private static class SplitCapturingFormatReader implements FormatReader {
+    private static class SplitCapturingFormatReader implements NoConfigFormatReader {
+
         private final List<StorageObject> capturedObjects;
         private final List<Boolean> capturedSkipFirstLine;
 
@@ -2867,9 +2889,10 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     }
 
     /**
-     * Format reader that implements SegmentableFormatReader and tracks which methods are called.
+     * Format reader that implements SegmentableFormatReader, NoConfigFormatReader and tracks which methods are called.
      */
-    private static class TrackingSegmentableFormatReader implements SegmentableFormatReader {
+    private static class TrackingSegmentableFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+
         final AtomicInteger readCount = new AtomicInteger(0);
         final AtomicInteger readWithFirstSplitFalseCount = new AtomicInteger(0);
 
@@ -3044,7 +3067,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     /**
      * Format reader that always throws on read, for testing error handling.
      */
-    private static class AlwaysFailFormatReader implements FormatReader {
+    private static class AlwaysFailFormatReader implements NoConfigFormatReader {
+
         @Override
         public SourceMetadata metadata(StorageObject object) {
             return null;
@@ -3072,7 +3096,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
     /**
      * Format reader that returns multiple pages per read, for testing backpressure.
      */
-    private static class MultiPageFormatReader implements FormatReader {
+    private static class MultiPageFormatReader implements NoConfigFormatReader {
+
         private final AtomicInteger readCount;
         private final int pagesPerRead;
 
@@ -3132,7 +3157,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
      * Format reader that succeeds for the first N reads (returning multiple pages each),
      * then throws an IOException on the (N+1)th read. Used to test error-path cleanup.
      */
-    private static class FailAfterNReadsFormatReader implements FormatReader {
+    private static class FailAfterNReadsFormatReader implements NoConfigFormatReader {
+
         private final AtomicInteger readCount;
         private final int failAfter;
         private final int pagesPerRead;
@@ -3188,7 +3214,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class TestAsyncFormatReader implements FormatReader {
+    private static class TestAsyncFormatReader implements NoConfigFormatReader {
+
         @Override
         public SourceMetadata metadata(StorageObject object) {
             return null;

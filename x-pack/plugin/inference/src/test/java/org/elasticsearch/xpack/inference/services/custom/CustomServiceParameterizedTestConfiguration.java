@@ -56,21 +56,21 @@ import static org.junit.Assert.fail;
 
 public class CustomServiceParameterizedTestConfiguration {
 
-    public static final String URL_VALUE = "http://www.abc.com";
-    public static final String REQUEST_VALUE = "request body";
-    public static final String SECRET_SETTINGS_KEY = "secret_settings_key";
-    public static final String SECRET_SETTINGS_VALUE = "secret_settings_value";
-    public static final String TASK_SETTINGS_KEY = "task_settings_key";
-    public static final String TASK_SETTINGS_VALUE = "task_settings_value";
-    public static final String SIMILARITY_VALUE = SimilarityMeasure.DOT_PRODUCT.toString();
-    public static final int DIMENSIONS_VALUE = 1536;
-    public static final int MAX_INPUT_TOKENS_VALUE = 512;
-    public static final int REQUESTS_PER_MINUTE_VALUE = 123;
-    public static final int BATCH_SIZE_VALUE = 987;
-    public static final String TRANSLATION_DEFAULT_VALUE = "translation_default_value";
-    public static final String QUERY_KEY = "query_key";
-    public static final String QUERY_VALUE = "query_value";
-    public static final Map<String, String> HEADERS_VALUE = Map.of("header_key", "header_value");
+    private static final String REQUEST_VALUE = "request body";
+    private static final String SECRET_SETTINGS_KEY = "secret_settings_key";
+    private static final String SECRET_SETTINGS_VALUE = "secret_settings_value";
+    private static final String TASK_SETTINGS_KEY = "task_settings_key";
+    private static final String TASK_SETTINGS_VALUE = "task_settings_value";
+    private static final String SIMILARITY_VALUE = SimilarityMeasure.DOT_PRODUCT.toString();
+    private static final int DIMENSIONS_VALUE = 1536;
+    private static final int MAX_INPUT_TOKENS_VALUE = 512;
+    private static final int REQUESTS_PER_MINUTE_VALUE = 123;
+    private static final int BATCH_SIZE_VALUE = 987;
+    private static final String TRANSLATION_DEFAULT_VALUE = "translation_default_value";
+    private static final String QUERY_KEY = "query_key";
+    private static final String QUERY_VALUE = "query_value";
+    private static final Map<String, String> HEADERS_VALUE = Map.of("header_key", "header_value");
+    static final String URL_VALUE = "http://www.abc.com";
 
     public static AbstractInferenceServiceParameterizedTests.TestConfiguration createTestConfiguration() {
         return new AbstractInferenceServiceParameterizedTests.TestConfiguration(

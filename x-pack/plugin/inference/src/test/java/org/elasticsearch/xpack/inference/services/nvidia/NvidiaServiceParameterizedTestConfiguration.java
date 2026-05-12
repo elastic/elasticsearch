@@ -58,24 +58,18 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class NvidiaServiceParameterizedTestConfiguration {
     private static final String API_KEY_FIELD_NAME = "api_key";
+    private static final SimilarityMeasure SIMILARITY_MEASURE_VALUE = SimilarityMeasure.COSINE;
+    private static final int MAX_INPUT_TOKENS_VALUE = 512;
+    private static final InputType INPUT_TYPE_VALUE = InputType.INGEST;
+    private static final Truncation TRUNCATION_VALUE = Truncation.END;
+    private static final int REQUESTS_PER_MINUTE = 123;
+    private static final String DEFAULT_COMPLETION_URL_VALUE = "https://integrate.api.nvidia.com/v1/chat/completions";
+    private static final String DEFAULT_EMBEDDINGS_URL_VALUE = "https://integrate.api.nvidia.com/v1/embeddings";
+    private static final String DEFAULT_RERANK_URL_VALUE = "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking";
     static final String URL_VALUE = "http://www.abc.com";
-    static final String DEFAULT_COMPLETION_URL_VALUE = "https://integrate.api.nvidia.com/v1/chat/completions";
-    static final String DEFAULT_EMBEDDINGS_URL_VALUE = "https://integrate.api.nvidia.com/v1/embeddings";
-    static final String DEFAULT_RERANK_URL_VALUE = "https://ai.api.nvidia.com/v1/retrieval/nvidia/reranking";
     static final String MODEL_VALUE = "some_model";
-    static final String ROLE_VALUE = "user";
     static final String API_KEY_VALUE = "test_api_key";
-    static final String INFERENCE_ID_VALUE = "id";
     static final int DIMENSIONS_VALUE = 1536;
-    static final SimilarityMeasure SIMILARITY_MEASURE_VALUE = SimilarityMeasure.COSINE;
-    static final int MAX_INPUT_TOKENS_VALUE = 512;
-    static final String FIRST_PART_OF_INPUT_VALUE = "abc";
-    static final String SECOND_PART_OF_INPUT_VALUE = "def";
-    static final String CONTENT_VALUE = "hello";
-    static final String INPUT_TYPE_NVIDIA_DEFAULT_VALUE = "query";
-    public static final InputType INPUT_TYPE_VALUE = InputType.INGEST;
-    public static final Truncation TRUNCATION_VALUE = Truncation.END;
-    public static final int REQUESTS_PER_MINUTE = 123;
 
     public static AbstractInferenceServiceParameterizedTests.TestConfiguration createTestConfiguration() {
         return new AbstractInferenceServiceParameterizedTests.TestConfiguration(

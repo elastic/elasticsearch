@@ -70,14 +70,8 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceParameterizedTestConfiguration.API_KEY_VALUE;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceParameterizedTestConfiguration.CONTENT_VALUE;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceParameterizedTestConfiguration.DIMENSIONS_VALUE;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceParameterizedTestConfiguration.FIRST_PART_OF_INPUT_VALUE;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceParameterizedTestConfiguration.INFERENCE_ID_VALUE;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceParameterizedTestConfiguration.INPUT_TYPE_NVIDIA_DEFAULT_VALUE;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceParameterizedTestConfiguration.MODEL_VALUE;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceParameterizedTestConfiguration.ROLE_VALUE;
-import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceParameterizedTestConfiguration.SECOND_PART_OF_INPUT_VALUE;
 import static org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceParameterizedTestConfiguration.URL_VALUE;
 import static org.elasticsearch.xpack.inference.services.nvidia.completion.NvidiaChatCompletionModelTests.createChatCompletionModel;
 import static org.elasticsearch.xpack.inference.services.nvidia.request.NvidiaRequestFields.INPUT_FIELD_NAME;
@@ -91,6 +85,13 @@ import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.nullValue;
 
 public class NvidiaServiceTests extends InferenceServiceTestCase {
+
+    private static final String INPUT_TYPE_NVIDIA_DEFAULT_VALUE = "query";
+    private static final String CONTENT_VALUE = "hello";
+    private static final String SECOND_PART_OF_INPUT_VALUE = "def";
+    private static final String FIRST_PART_OF_INPUT_VALUE = "abc";
+    private static final String ROLE_VALUE = "user";
+    private static final String INFERENCE_ID_VALUE = "id";
 
     public void testParseRequestConfig_NoModelId_ThrowsException() throws IOException {
         try (var service = createInferenceService()) {

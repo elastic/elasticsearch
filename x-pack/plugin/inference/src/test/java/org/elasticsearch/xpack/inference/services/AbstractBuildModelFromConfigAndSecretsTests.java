@@ -33,7 +33,6 @@ import static org.mockito.Mockito.when;
  */
 public abstract class AbstractBuildModelFromConfigAndSecretsTests extends AbstractInferenceServiceParameterizedTests {
 
-    public static final String INFERENCE_ENTITY_ID = "inference_entity_id";
     private final TestCase testCase;
 
     public AbstractBuildModelFromConfigAndSecretsTests(TestConfiguration testConfiguration, TestCase testCase) {

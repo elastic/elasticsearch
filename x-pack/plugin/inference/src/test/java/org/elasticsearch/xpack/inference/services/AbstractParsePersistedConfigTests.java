@@ -39,7 +39,6 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public abstract class AbstractParsePersistedConfigTests extends AbstractInferenceServiceParameterizedTests {
 
-    public static final String INFERENCE_ENTITY_ID = "inference_id";
     private final AbstractParsePersistedConfigTests.TestCase testCase;
 
     public AbstractParsePersistedConfigTests(TestConfiguration testConfig, TestCase testCase) {

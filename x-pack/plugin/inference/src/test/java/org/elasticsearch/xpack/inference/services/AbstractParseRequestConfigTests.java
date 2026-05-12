@@ -43,9 +43,9 @@ import static org.hamcrest.Matchers.is;
  */
 public abstract class AbstractParseRequestConfigTests extends AbstractInferenceServiceParameterizedTests {
 
-    public static final String EXTRA_KEY = "extra_key";
-    public static final String EXTRA_VALUE = "value";
-    public static final String INFERENCE_ENTITY_ID = "inference_id";
+    private static final String EXTRA_KEY = "extra_key";
+    private static final String EXTRA_VALUE = "value";
+
     private final AbstractParseRequestConfigTests.TestCase testCase;
 
     public AbstractParseRequestConfigTests(TestConfiguration testConfiguration, TestCase testCase) {

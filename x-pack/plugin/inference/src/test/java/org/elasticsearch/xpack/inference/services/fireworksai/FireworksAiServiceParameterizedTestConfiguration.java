@@ -58,11 +58,11 @@ public class FireworksAiServiceParameterizedTestConfiguration {
     private static final String INFERENCE_ID = "id";
     private static final String DEFAULT_EMBEDDING_URL = "https://api.fireworks.ai/inference/v1/embeddings";
     private static final String DEFAULT_COMPLETION_URL = "https://api.fireworks.ai/inference/v1/chat/completions";
-    public static final String URL_VALUE = "https://www.abc.com";
-    public static final int REQUESTS_PER_MINUTE = 123;
-    public static final int MAX_INPUT_TOKENS_VALUE = 200;
-    public static final String USER_VALUE = "some_user";
-    public static final HashMap<String, String> HEADERS_MAP = new HashMap<>(Map.of("header_key", "header_value"));
+    private static final String URL_VALUE = "https://www.abc.com";
+    private static final int REQUESTS_PER_MINUTE = 123;
+    private static final int MAX_INPUT_TOKENS_VALUE = 200;
+    private static final String USER_VALUE = "some_user";
+    private static final HashMap<String, String> HEADERS_MAP = new HashMap<>(Map.of("header_key", "header_value"));
 
     public static AbstractInferenceServiceParameterizedTests.TestConfiguration createTestConfiguration() {
         return new AbstractInferenceServiceParameterizedTests.TestConfiguration(

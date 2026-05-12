@@ -39,9 +39,9 @@ import static org.junit.Assert.fail;
 
 public class Ai21ServiceParameterizedTestConfiguration {
 
-    public static final String MODEL_ID_VALUE = "model_id";
-    public static final int REQUESTS_PER_MINUTE_VALUE = 123;
-    public static final String API_KEY_VALUE = "secret";
+    private static final String MODEL_ID_VALUE = "model_id";
+    private static final int REQUESTS_PER_MINUTE_VALUE = 123;
+    private static final String API_KEY_VALUE = "secret";
 
     public static AbstractInferenceServiceParameterizedTests.TestConfiguration createTestConfiguration() {
         return new AbstractInferenceServiceParameterizedTests.TestConfiguration(

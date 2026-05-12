@@ -56,8 +56,8 @@ public class OpenAiServiceParameterizedTestConfiguration {
     private static final Map<String, String> HEADERS_VALUE = Map.of("header_key", "header_value");
     private static final String API_KEY_VALUE = "secret";
     private static final int REQUESTS_PER_MINUTE = 123;
-    public static final String DEFAULT_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings";
-    public static final String DEFAULT_COMPLETION_URL = "https://api.openai.com/v1/chat/completions";
+    private static final String DEFAULT_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings";
+    private static final String DEFAULT_COMPLETION_URL = "https://api.openai.com/v1/chat/completions";
 
     public static AbstractInferenceServiceParameterizedTests.TestConfiguration createTestConfiguration() {
         return new AbstractInferenceServiceParameterizedTests.TestConfiguration(

@@ -33,6 +33,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.mockito.Mockito.mock;
 
 public abstract class AbstractInferenceServiceParameterizedTests extends ESTestCase {
+    static final String INFERENCE_ENTITY_ID = "inference_entity_id";
     protected final TestConfiguration testConfiguration;
 
     protected final MockWebServer webServer = new MockWebServer();

@@ -47,13 +47,13 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class LlamaServiceParameterizedTestConfiguration {
 
-    public static final String URL_VALUE = "http://www.abc.com";
-    public static final String MODEL_ID_VALUE = "model_id";
-    public static final SimilarityMeasure SIMILARITY_MEASURE_VALUE = SimilarityMeasure.COSINE;
-    public static final int DIMENSIONS_VALUE = 1536;
-    public static final int MAX_INPUT_TOKENS_VALUE = 512;
-    public static final int REQUESTS_PER_MINUTE = 123;
-    public static final String API_KEY_VALUE = "secret";
+    private static final String URL_VALUE = "http://www.abc.com";
+    private static final String MODEL_ID_VALUE = "model_id";
+    private static final SimilarityMeasure SIMILARITY_MEASURE_VALUE = SimilarityMeasure.COSINE;
+    private static final int DIMENSIONS_VALUE = 1536;
+    private static final int MAX_INPUT_TOKENS_VALUE = 512;
+    private static final int REQUESTS_PER_MINUTE = 123;
+    private static final String API_KEY_VALUE = "secret";
 
     public static AbstractInferenceServiceParameterizedTests.TestConfiguration createTestConfiguration() {
         return new AbstractInferenceServiceParameterizedTests.TestConfiguration(

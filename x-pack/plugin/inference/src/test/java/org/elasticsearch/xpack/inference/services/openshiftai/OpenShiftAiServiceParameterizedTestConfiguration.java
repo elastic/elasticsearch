@@ -58,15 +58,15 @@ public class OpenShiftAiServiceParameterizedTestConfiguration {
 
     private static final String API_KEY_FIELD_NAME = "api_key";
     private static final String URL_VALUE = "http://www.abc.com";
-    static final String MODEL_VALUE = "some_model";
-    static final String API_KEY_VALUE = "test_api_key";
-    static final int DIMENSIONS_VALUE = 1536;
     private static final int MAX_INPUT_TOKENS_VALUE = 512;
     private static final boolean DIMENSIONS_SET_BY_USER_VALUE = true;
     private static final SimilarityMeasure SIMILARITY_VALUE = SimilarityMeasure.COSINE;
     private static final int REQUESTS_PER_MINUTE = 123;
     private static final int TOP_N_VALUE = 987;
     private static final boolean RETURN_DOCUMENTS_VALUE = true;
+    static final String MODEL_VALUE = "some_model";
+    static final String API_KEY_VALUE = "test_api_key";
+    static final int DIMENSIONS_VALUE = 1536;
 
     public static AbstractInferenceServiceParameterizedTests.TestConfiguration createTestConfiguration() {
         return new AbstractInferenceServiceParameterizedTests.TestConfiguration(

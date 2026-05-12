@@ -8,15 +8,15 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.score;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -33,31 +33,34 @@ public class DecayErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Stream<List<DataType>> testCandidates(List<TestCaseSupplier> cases, Set<List<DataType>> valid) {
-        Set<List<DataType>> validWithAcceptedTypes = new HashSet<>(valid);
-        // The valid origin and scale types depend on the value type, so expand beyond the examples in DecayTests.
-        for (DataType valueDataType : DataType.types()) {
-            if (validValueType(valueDataType) == false) {
+        return Stream.concat(super.testCandidates(cases, valid), threeArgCandidates());
+    }
+
+    private static Stream<List<DataType>> threeArgCandidates() {
+        List<DataType> universe = AbstractFunctionTestCase.validFunctionParameters().toList();
+        List<List<DataType>> result = new ArrayList<>();
+        for (DataType value : universe) {
+            if (validValueType(value) == false) {
+                // Invalid value types are already covered by the 4-arity sweep.
                 continue;
             }
-            for (DataType originDataType : DataType.types()) {
-                if (validOriginType(valueDataType, originDataType) == false) {
-                    continue;
-                }
-                for (DataType scaleDataType : DataType.types()) {
-                    if (validScaleType(valueDataType, scaleDataType)) {
-                        validWithAcceptedTypes.add(List.of(valueDataType, originDataType, scaleDataType, DataType.SOURCE));
+            for (DataType origin : universe) {
+                for (DataType scale : universe) {
+                    // Only emit combinations that produce an origin- or scale-related error.
+                    if (validOriginType(value, origin) && validScaleType(value, scale)) {
+                        continue;
                     }
+                    result.add(List.of(value, origin, scale));
                 }
             }
         }
-        return super.testCandidates(cases, validWithAcceptedTypes);
+        // Mirror the framework's NULL de-duplication: at most one NULL per signature.
+        return result.stream().filter(sig -> sig.stream().filter(t -> t == DataType.NULL).count() <= 1);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        // DecayTests marks options as SOURCE, but Decay's resolver expects an actual MapExpression.
-        Expression options = args.get(3).dataType() == DataType.SOURCE ? new MapExpression(source, List.of()) : args.get(3);
-        return new Decay(source, args.get(0), args.get(1), args.get(2), options);
+        return new Decay(source, args.get(0), args.get(1), args.get(2), args.size() > 3 ? args.get(3) : null);
     }
 
     @Override
@@ -69,7 +72,7 @@ public class DecayErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         DataType valueDataType = signature.get(0);
         DataType originDataType = signature.get(1);
         DataType scaleDataType = signature.get(2);
-        DataType optionsDataType = signature.get(3);
+        DataType optionsDataType = signature.size() > 3 ? signature.get(3) : null;
 
         if (valueDataType == DataType.NULL) {
             return nullTypeError(signature, 0);
@@ -79,10 +82,12 @@ public class DecayErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         }
 
         // Options are resolved before origin/scale compatibility, so mirror that order here.
-        if (optionsDataType == DataType.NULL) {
-            return nullTypeError(signature, 3);
-        }
-        if (optionsDataType != DataType.SOURCE) {
+        if (optionsDataType != null) {
+            if (optionsDataType == DataType.NULL) {
+                return nullTypeError(signature, 3);
+            }
+            // No 4-arity candidate ever has DataType.SOURCE at position 3 (validFunctionParameters
+            // excludes it), so the only error reachable here is "must be a map expression".
             return "fourth argument of [" + sourceForSignature(signature) + "] must be a map expression, received []";
         }
 

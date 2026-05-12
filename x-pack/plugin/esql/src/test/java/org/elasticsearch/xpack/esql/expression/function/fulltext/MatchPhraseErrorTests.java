@@ -53,7 +53,7 @@ public class MatchPhraseErrorTests extends ErrorsForCasesWithoutExamplesTestCase
     protected Expression build(Source source, List<Expression> args) {
         MatchPhrase matchPhrase = new MatchPhrase(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
         // We need to add the QueryBuilder to the match_phrase expression, as it is used to implement equals() and hashCode() and
-        // thus test the serialization methods. But we can only do this if the parameters make sense .
+        // thus test the serialization methods. But we can only do this if the parameters make sense.
         if (args.get(0) instanceof FieldAttribute && args.get(1).foldable()) {
             QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, matchPhrase).toQueryBuilder();
             matchPhrase = (MatchPhrase) matchPhrase.replaceQueryBuilder(queryBuilder);
@@ -86,7 +86,7 @@ public class MatchPhraseErrorTests extends ErrorsForCasesWithoutExamplesTestCase
                     + "] cannot be null, received []";
             }
             if (validDataTypeAtPosition(signature.get(i), i) == false) {
-                // Map expressions have different error messages
+                // Map expressions have different error messages.
                 if (i == 2) {
                     return format(null, "third argument of [{}] must be a map expression, received []", sourceForSignature(signature));
                 }

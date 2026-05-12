@@ -36,6 +36,49 @@ import org.elasticsearch.lucene.util.MatchAllBitSet;
 import java.io.IOException;
 
 public class ReshardSearchFilters {
+    public static DirectoryReader maybeWrapDirectoryReaderForPitRelocation(
+        DirectoryReader reader,
+        ShardId shardId,
+        IndexMetadata currentIndexMetadata,
+        MapperService mapperService,
+        IndexReshardingMetadata relocatedReshardingMetadata,
+        SplitShardCountSummary relocatedSplitShardCountSummary
+    ) throws IOException {
+        if (relocatedReshardingMetadata == null) {
+            // This is a common case.
+            // There was no resharding in progress when this PIT was opened and no additional logic is necessary.
+            return reader;
+        }
+
+        // This is a hack.
+        // Things like ShardSplittingQuery currently specifically depend on IndexMetadata class (and even our code below does).
+        // So to adhere to that contract we will adjust the current metadata
+        // that has possibly diverged by now to be similar to its state when the PIT was opened.
+        // Specifically the number of shards could change due to another resharding operation
+        // and resharding metadata will very likely not exist or differ for the same reason.
+        IndexMetadata adjustedMetadata = adjustMetadataForPitRelocation(currentIndexMetadata, relocatedReshardingMetadata);
+
+        return maybeWrapDirectoryReader(reader, shardId, relocatedSplitShardCountSummary, adjustedMetadata, mapperService);
+    }
+
+    // visible for testing
+    static IndexMetadata adjustMetadataForPitRelocation(
+        IndexMetadata currentIndexMetadata,
+        IndexReshardingMetadata relocatedReshardingMetadata
+    ) {
+        var builder = IndexMetadata.builder(currentIndexMetadata);
+
+        // This assumes that resharding-shrink doesn't exist and so number of shards can only increase.
+        assert currentIndexMetadata.getNumberOfShards() >= relocatedReshardingMetadata.shardCountAfter();
+        if (currentIndexMetadata.getNumberOfShards() > relocatedReshardingMetadata.shardCountAfter()) {
+            builder = builder.reshardRemoveShards(relocatedReshardingMetadata.shardCountAfter());
+        } else if (currentIndexMetadata.getNumberOfShards() < relocatedReshardingMetadata.shardCountAfter()) {
+            throw new IllegalStateException("Number of shards decreased over time");
+        }
+
+        return builder.reshardingMetadata(relocatedReshardingMetadata).build();
+    }
+
     /**
      * Wraps the provided {@link DirectoryReader} to filter out documents that do not belong to a shard,
      * if the shard has been split but not yet cleaned up, and the coordinating node's summary indicates

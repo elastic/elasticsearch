@@ -12,12 +12,19 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+## 9.4.1 [elasticsearch-9.4.1-breaking-changes]
+```{applies_to}
+stack: ga 9.4.1
+```
+
+There are no breaking changes associated with this release.
+
 ## 9.4.0 [elasticsearch-9.4.0-breaking-changes]
 
 ILM:
 * 
-In earlier versions of {es} the downsampling API was force merging the downsampled index. In {es} `9.3.0` and later we moved this behaviour from the downsampling API to the ILM downsampling action and we enabled by default. This allowed users to disabled it if they wished.
-Seeing that the force merge is not inherently needed by the downsampling operation, in {es} `9.4.0`, we choose to disable it by default. This change only affects the downsampling ILM actions; other actions that force merge an index by default, such as the searchable snapshot action, will remain unchanged.
+In earlier versions of Elasticsearch the downsampling API was force merging the downsampled index. In Elasticsearch `9.3.0` and later we moved this behaviour from the downsampling API to the ILM downsampling action and we enabled by default. This allowed users to disabled it if they wished.
+Seeing that the force merge is not inherently needed by the downsampling operation, in Elasticsearch `9.4.0`, we choose to disable it by default. This change only affects the downsampling ILM actions; other actions that force merge an index by default, such as the searchable snapshot action, will remain unchanged.
 If a user was relying on this behaviour they will need to update their ILM policy, either by adding a force merge action in the same or a subsequent phase of the policy or by setting the `force_merge_index` parameter of the downsample action to `true`. [#145400](https://github.com/elastic/elasticsearch/pull/145400) (issue: [#140811](https://github.com/elastic/elasticsearch/issues/140811))
 
 Mapping:

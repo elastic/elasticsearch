@@ -193,19 +193,16 @@ develocity {
               if (GcpPreemptionWatchdog.isPreempted()) {
                 def exitCode = System.getenv('GCP_PREEMPTION_EXIT_CODE')?.toInteger() ?: 42
                 // In Gradle 9 the daemon and client are always separate JVMs (even with
-                // --no-daemon). Calling halt() in the daemon would kill it without
-                // propagating exit code 42 to the client, and could interrupt the
-                // daemon's protocol handshake, preventing the scan URL from appearing in
-                // the console. Instead, write the desired exit code to a well-known file
-                // and let the wrapper scripts (run-gradle.sh, post-command hook) re-exit
-                // with it after the client returns normally.
-                def jobId = System.getenv('BUILDKITE_JOB_ID') ?: 'local'
-                try {
-                  new File("/tmp/gradle-preemption-exit-${jobId}").text = exitCode.toString()
-                  logger.lifecycle("[gcp-preemption-watchdog] scan published; wrote preemption exit code {} to file for wrapper scripts", exitCode)
-                } catch (Throwable t) {
-                  logger.warn("[gcp-preemption-watchdog] failed to write preemption exit code file: {}", t.toString())
-                }
+                // --no-daemon). halt() in the daemon does not propagate the exit code to
+                // the client. Write it to a file instead; the wrapper scripts
+                // (run-gradle.sh, post-command hook) re-exit with it after the client
+                // returns normally.
+                // jobId is captured from the enclosing background{} scope (line ~150).
+                java.nio.file.Files.write(
+                  java.nio.file.Paths.get('/tmp', 'gradle-preemption-exit-' + (jobId ?: 'local')),
+                  exitCode.toString().getBytes()
+                )
+                logger.lifecycle("[gcp-preemption-watchdog] scan published; preemption exit code {} written for wrapper scripts", exitCode)
               }
             }
           }

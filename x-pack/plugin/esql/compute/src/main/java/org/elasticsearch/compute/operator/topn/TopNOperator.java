@@ -11,6 +11,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -142,6 +143,14 @@ public class TopNOperator implements Operator, Accountable {
             return nullsFirst ? BIG_NULL : SMALL_NULL;
         }
     }
+
+    /**
+     * Gates the parallel final-merge path. Auto-enabled in snapshot builds; release
+     * builds require {@code -Des.parallel_topn_feature_flag_enabled=true}. When disabled,
+     * the planner refuses to attach a {@link ParallelWorkerConfig}, and the operator
+     * stays sequential regardless of input size.
+     */
+    public static final FeatureFlag PARALLEL_TOPN_FEATURE_FLAG = new FeatureFlag("parallel_topn");
 
     /** Default row count at which sequential mode promotes itself to parallel final-merge. */
     public static final long DEFAULT_PROMOTION_THRESHOLD_ROWS = 1_000_000L;

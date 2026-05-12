@@ -639,7 +639,7 @@ public class LocalExecutionPlanner {
      */
     @Nullable
     private TopNOperator.ParallelWorkerConfig parallelTopNConfig() {
-        if (parallelWorkerExecutor == null) {
+        if (parallelWorkerExecutor == null || TopNOperator.PARALLEL_TOPN_FEATURE_FLAG.isEnabled() == false) {
             return null;
         }
         int workerCount = Math.max(2, Math.min(8, Runtime.getRuntime().availableProcessors() / 4));

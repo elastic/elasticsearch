@@ -795,7 +795,8 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
 
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(DEFAULT_SCROLL_TIMEOUT))
-                    .slice(new SliceBuilder(IdFieldMapper.NAME, sliceId, numSlices))
+                    // manually sliced reindex does not optimize by shard, so search needs to be consistent
+                    .slice(SliceBuilder.withoutShardOptimization(new SliceBuilder(IdFieldMapper.NAME, sliceId, numSlices)))
                     .sort(SortBuilders.pitTiebreaker())
                     .size(batchSize)
             );

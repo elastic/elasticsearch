@@ -36,6 +36,7 @@ import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.slice.SliceBuilder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Arrays;
@@ -115,7 +116,9 @@ public class ReindexValidator {
             }
             // Manual slicing isn't compatible with shard-based slice optimization if the assignment of docs to shards can change between
             // slices, such as if an index is resharded between slices.
-            source.slice(SliceBuilder.withoutShardOptimization(source.slice()));
+            if (request.getParentTask().equals(TaskId.EMPTY_TASK_ID)) {
+                source.slice(SliceBuilder.withoutShardOptimization(source.slice()));
+            }
         }
     }
 

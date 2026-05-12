@@ -408,7 +408,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 final Optional<IndexMetadata> indexMetadata = state.metadata().findIndex(routing.index());
                 if (indexMetadata.isEmpty() || indexMetadata.get().primaryTerm(routing.id()) > cachedTerm) {
                     // Index was deleted, or the master already processed the failure and bumped the primary term.
-                    // Either way, the cache entry is stale and can be discarded.
+                    // Either way, the cache entry is stale and can be discarded. If `createIndicesAndUpdateShards`
+                    // subsequently finds a still-INITIALIZING local IndexShard at the old term, IndexShard.updateShardState
+                    // will throw IllegalIndexShardStateException for the term-bump-on-INITIALIZING case, which the caller
+                    // catches and turns into a clean failAndRemoveShard.
                     iterator.remove();
                 } else if (masterNode != null) { // TODO: remove this? Is resending shard failures the responsibility of shardStateAction?
                     String message = "master " + masterNode + " has not removed previously failed shard. resending shard failure";

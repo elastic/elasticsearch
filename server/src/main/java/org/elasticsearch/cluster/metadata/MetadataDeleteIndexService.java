@@ -125,6 +125,7 @@ public class MetadataDeleteIndexService {
             // Step 2: wait for IndicesClusterStateService async work
             .<AcknowledgedResponse>andThen((l, response) -> {
                 // TODO re-use code between here, MetadataMappingService, and MetadataUpdateSettingsService
+                // TODO: skip nodes whose publish failed for the target cluster state version.
                 final var clusterState = clusterService.state();
                 final var nodes = clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
                 final var remainingTime = TimeValue.timeValueNanos(Math.max(0, ackTimeout.nanos() - (System.nanoTime() - startNanos)));

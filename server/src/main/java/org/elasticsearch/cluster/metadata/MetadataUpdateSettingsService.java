@@ -442,6 +442,7 @@ public class MetadataUpdateSettingsService {
                 // TODO group (by timeout) the requests in the batch and only await once. Otherwise every batch task
                 // will fan out to all nodes whereas there is a single cluster state update that result from it.
                 // TODO re-use code between here and MetadataMappingService
+                // TODO: skip nodes whose publish failed for the target cluster state version.
                 final var clusterState = clusterService.state();
                 final var nodes = clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
                 final var remainingTime = TimeValue.timeValueNanos(

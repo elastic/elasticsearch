@@ -301,6 +301,7 @@ public class MetadataMappingService {
             .<AcknowledgedResponse>andThen((l, response) -> {
                 // TODO group (by timeout) the requests in the batch and only await once
                 // TODO re-use code between here and MetadataUpdateSettingsService
+                // TODO: skip nodes whose publish failed for the target cluster state version.
                 final var clusterState = clusterService.state();
                 final var nodes = clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
                 logger.info(

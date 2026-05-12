@@ -129,10 +129,10 @@ public class AzureAiStudioService extends SenderService<AzureAiStudioModel> impl
 
     @Override
     protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        if (model instanceof AzureAiStudioRerankModel alibabaCloudSearchModel) {
+        if (model instanceof AzureAiStudioRerankModel azureAiStudioRerankModel) {
             var actionCreator = new AzureAiStudioActionCreator(getSender(), getServiceComponents());
 
-            var action = alibabaCloudSearchModel.accept(actionCreator, request.taskSettings());
+            var action = azureAiStudioRerankModel.accept(actionCreator, request.taskSettings());
             action.execute(fromRerankRequest(request), timeout, listener);
         } else {
             listener.onFailure(createInvalidModelException(model));

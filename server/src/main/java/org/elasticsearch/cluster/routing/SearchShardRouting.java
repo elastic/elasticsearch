@@ -18,18 +18,18 @@ import java.util.List;
  * execute searches on these shards.
  */
 public final class SearchShardRouting extends ShardIterator {
-    private final SplitShardCountSummary reshardSplitShardCountSummary;
+    private final SplitShardCountSummary splitShardCountSummary;
 
-    public SearchShardRouting(ShardId shardId, List<ShardRouting> shards, SplitShardCountSummary reshardSplitShardCountSummary) {
+    public SearchShardRouting(ShardId shardId, List<ShardRouting> shards, SplitShardCountSummary splitShardCountSummary) {
         super(shardId, shards);
-        this.reshardSplitShardCountSummary = reshardSplitShardCountSummary;
+        this.splitShardCountSummary = splitShardCountSummary;
     }
 
-    public SplitShardCountSummary reshardSplitShardCountSummary() {
-        return reshardSplitShardCountSummary;
+    public SplitShardCountSummary splitShardCountSummary() {
+        return splitShardCountSummary;
     }
 
-    public static SearchShardRouting fromShardIterator(ShardIterator shardIterator, SplitShardCountSummary reshardSplitShardCountSummary) {
-        return new SearchShardRouting(shardIterator.shardId(), shardIterator.getShardRoutings(), reshardSplitShardCountSummary);
+    public static SearchShardRouting fromShardIterator(ShardIterator shardIterator, SplitShardCountSummary splitShardCountSummary) {
+        return new SearchShardRouting(shardIterator.shardId(), shardIterator.getShardRoutings(), splitShardCountSummary);
     }
 }

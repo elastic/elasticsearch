@@ -142,6 +142,7 @@ import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForReco
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
+import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
@@ -495,7 +496,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         testStatelessPlugin.statelessCommitService,
                         mock(IndexShardCacheWarmer.class),
                         testStatelessPlugin.hollowShardsService,
-                        HollowShardsMetrics.NOOP
+                        HollowShardsMetrics.NOOP,
+                        RecoveryMetricsCollector.NOOP
                     ),
                     StatelessUnpromotableRelocationAction.TYPE,
                     new TransportStatelessUnpromotableRelocationAction(

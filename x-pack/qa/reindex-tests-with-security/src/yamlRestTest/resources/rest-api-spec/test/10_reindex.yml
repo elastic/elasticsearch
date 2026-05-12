@@ -324,7 +324,7 @@ setup:
       indices.refresh: {}
 
   - do:
-      headers: {es-security-runas-user: minimal_with_task_user}
+      headers: {es-security-runas-user: minimal_user}
       reindex:
         refresh: true
         wait_for_completion: false
@@ -378,7 +378,7 @@ setup:
       indices.refresh: {}
 
   - do:
-      headers: {es-security-runas-user: minimal_with_reindex_get_user}
+      headers: {es-security-runas-user: minimal_user}
       reindex:
         refresh: true
         wait_for_completion: false
@@ -390,7 +390,7 @@ setup:
   - set: {task: task}
 
   - do:
-      headers: {es-security-runas-user: minimal_with_reindex_get_user}
+      headers: {es-security-runas-user: reindex_get_only_user}
       reindex_get:
         task_id: $task
         wait_for_completion: true
@@ -455,7 +455,7 @@ setup:
           - '{ "text": "test" }'
 
   - do:
-      headers: {es-security-runas-user: minimal_with_reindex_list_user}
+      headers: {es-security-runas-user: minimal_user}
       reindex:
         wait_for_completion: false
         requests_per_second: 0.000001
@@ -468,7 +468,7 @@ setup:
   - set: {task: task}
 
   - do:
-      headers: {es-security-runas-user: minimal_with_reindex_list_user}
+      headers: {es-security-runas-user: reindex_list_only_user}
       reindex_list:
         human: true
         detailed: true
@@ -544,7 +544,7 @@ setup:
           - '{ "text": "test" }'
 
   - do:
-      headers: {es-security-runas-user: minimal_with_reindex_rethrottle_user}
+      headers: {es-security-runas-user: minimal_user}
       reindex:
         wait_for_completion: false
         requests_per_second: 0.000001
@@ -557,7 +557,7 @@ setup:
   - set: {task: task}
 
   - do:
-      headers: {es-security-runas-user: minimal_with_reindex_rethrottle_user}
+      headers: {es-security-runas-user: reindex_rethrottle_only_user}
       reindex_rethrottle:
         task_id: $task
         requests_per_second: -1
@@ -686,7 +686,7 @@ setup:
           - '{ "text": "test" }'
 
   - do:
-      headers: {es-security-runas-user: minimal_with_reindex_cancel_user}
+      headers: {es-security-runas-user: minimal_user}
       reindex:
         wait_for_completion: false
         # throttle so the reindex stays running long enough for us to cancel it
@@ -700,7 +700,7 @@ setup:
   - set: {task: task}
 
   - do:
-      headers: {es-security-runas-user: minimal_with_reindex_cancel_user}
+      headers: {es-security-runas-user: reindex_cancel_only_user}
       reindex_cancel:
         task_id: $task
   - match: { completed: true }

@@ -49,6 +49,9 @@ import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResol
 
 final class DataNodeRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
     private static final TransportVersion REDUCE_LATE_MATERIALIZATION = TransportVersion.fromName("esql_reduce_late_materialization");
+    public static final TransportVersion ESQL_REMOTE_FETCH_RETAINED_CONTEXTS = TransportVersion.fromName(
+        "esql_remote_fetch_retained_contexts"
+    );
     private static final TransportVersion EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST = TransportVersion.fromName(
         "esql_external_splits_in_data_node_request"
     );
@@ -65,6 +68,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     private final IndicesOptions indicesOptions;
     private final boolean runNodeLevelReduction;
     private final boolean reductionLateMaterialization;
+    private final boolean retainSearchContexts;
     private final List<ExternalSplit> externalSplits;
 
     /**
@@ -81,6 +85,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         IndicesOptions indicesOptions,
         boolean runNodeLevelReduction,
         boolean reductionLateMaterialization,
+        boolean retainSearchContexts,
         List<ExternalSplit> externalSplits
     ) {
         this.sessionId = sessionId;
@@ -93,6 +98,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.indicesOptions = indicesOptions;
         this.runNodeLevelReduction = runNodeLevelReduction;
         this.reductionLateMaterialization = reductionLateMaterialization;
+        this.retainSearchContexts = retainSearchContexts;
         this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
     }
 
@@ -109,7 +115,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         String[] indices,
         IndicesOptions indicesOptions,
         boolean runNodeLevelReduction,
-        boolean reductionLateMaterialization
+        boolean reductionLateMaterialization,
+        boolean retainSearchContexts
     ) {
         this(
             sessionId,
@@ -122,6 +129,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             indicesOptions,
             runNodeLevelReduction,
             reductionLateMaterialization,
+            retainSearchContexts,
             List.of()
         );
     }
@@ -161,6 +169,11 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         } else {
             this.reductionLateMaterialization = false;
         }
+        if (in.getTransportVersion().supports(ESQL_REMOTE_FETCH_RETAINED_CONTEXTS)) {
+            this.retainSearchContexts = in.readBoolean();
+        } else {
+            this.retainSearchContexts = false;
+        }
         if (in.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {
             this.externalSplits = in.readNamedWriteableCollectionAsList(ExternalSplit.class);
         } else {
@@ -186,6 +199,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         out.writeBoolean(runNodeLevelReduction);
         if (out.getTransportVersion().supports(REDUCE_LATE_MATERIALIZATION)) {
             out.writeBoolean(reductionLateMaterialization);
+        }
+        if (out.getTransportVersion().supports(ESQL_REMOTE_FETCH_RETAINED_CONTEXTS)) {
+            out.writeBoolean(retainSearchContexts);
         }
         if (out.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {
             out.writeNamedWriteableCollection(externalSplits);
@@ -270,6 +286,10 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return reductionLateMaterialization;
     }
 
+    boolean retainSearchContexts() {
+        return retainSearchContexts;
+    }
+
     List<ExternalSplit> externalSplits() {
         return externalSplits;
     }
@@ -279,6 +299,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         String desc = "shards=" + shards + " plan=" + plan;
         if (externalSplits.isEmpty() == false) {
             desc += " externalSplits=" + externalSplits.size();
+        }
+        if (retainSearchContexts) {
+            desc += " retainSearchContexts=true";
         }
         return desc;
     }
@@ -304,6 +327,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             && indicesOptions.equals(request.indicesOptions)
             && runNodeLevelReduction == request.runNodeLevelReduction
             && reductionLateMaterialization == request.reductionLateMaterialization
+            && retainSearchContexts == request.retainSearchContexts
             && externalSplits.equals(request.externalSplits);
     }
 
@@ -320,6 +344,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             indicesOptions,
             runNodeLevelReduction,
             reductionLateMaterialization,
+            retainSearchContexts,
             externalSplits
         );
     }
@@ -336,6 +361,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             indicesOptions,
             runNodeLevelReduction,
             reductionLateMaterialization,
+            retainSearchContexts,
             externalSplits
         );
     }

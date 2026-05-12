@@ -1663,7 +1663,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         for (Thread indexer : indexers) {
             indexer.join();
         }
-        ensureGreen(indexName);
+        // Peer recovery waits for async ICSS application at multiple points; allow extra time.
+        ensureGreen(TimeValue.timeValueMinutes(2), indexName);
     }
 
     public void testCancelRecoveryWithAutoExpandReplicas() throws Exception {

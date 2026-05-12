@@ -161,7 +161,6 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -262,7 +261,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             tempDir,
             deterministicTaskQueue,
             transportInterceptorFactory,
-            expectedWarnings -> assertWarnings(expectedWarnings)
+            this::ensureNoWarnings
         );
         startCluster();
     }
@@ -297,9 +296,9 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             Path tempDir,
             DeterministicTaskQueue deterministicTaskQueue,
             TransportInterceptorFactory transportInterceptorFactory,
-            Consumer<String[]> warningConsumer
+            Runnable assertNoWarnings
         ) {
-            super(masterNodes, dataNodes, tempDir, deterministicTaskQueue, transportInterceptorFactory, warningConsumer);
+            super(masterNodes, dataNodes, tempDir, deterministicTaskQueue, transportInterceptorFactory, assertNoWarnings);
             if (dataNodes > 0) {
                 // Always start one search node if there is any index node
                 nodes.computeIfAbsent("search-node-0", nodeName -> {

@@ -512,11 +512,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var alias = as(aggregates.get(0), Alias.class);
         var max = as(alias.child(), Max.class);
         assertThat(Expressions.name(max.arguments().get(0)), equalTo("emp_no"));
-        assertWarnings(
-            "No limit defined, adding default limit of [1000]",
-            "Line 2:28: Field 'x' shadowed by field at line 2:45",
-            "Line 2:9: Field 'x' shadowed by field at line 2:45"
-        );
+        assertWarnings("Line 2:28: Field 'x' shadowed by field at line 2:45", "Line 2:9: Field 'x' shadowed by field at line 2:45");
     }
 
     // expected stats b by b (grouping overrides the rest of the aggs)
@@ -541,11 +537,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var aggregates = agg.aggregates();
         assertThat(aggregates, hasSize(1));
         assertThat(Expressions.names(aggregates), contains("b"));
-        assertWarnings(
-            "No limit defined, adding default limit of [1000]",
-            "Line 2:28: Field 'b' shadowed by field at line 2:47",
-            "Line 2:9: Field 'b' shadowed by field at line 2:47"
-        );
+        assertWarnings("Line 2:28: Field 'b' shadowed by field at line 2:47", "Line 2:9: Field 'b' shadowed by field at line 2:47");
     }
 
     /**
@@ -2382,7 +2374,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var topN = as(join.left(), TopN.class);
         var row = as(topN.child(), LocalRelation.class);
         assertWarnings(
-            "No limit defined, adding default limit of [1000]",
             "Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
                 + "add another SORT after the LOOKUP JOIN if order is required"
         );
@@ -8736,7 +8727,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
         assertThat(e.getMessage(), containsString("line 2:5: Unbounded SORT not supported yet [SORT y] please add a LIMIT"));
         assertWarnings(
-            "No limit defined, adding default limit of [1000]",
             "Line 2:5: SORT is followed by a LOOKUP JOIN which does not preserve order; "
                 + "add another SORT after the LOOKUP JOIN if order is required"
         );
@@ -8771,7 +8761,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
         assertThat(e.getMessage(), containsString("line 5:3: Unbounded SORT not supported yet [SORT foo] please add a LIMIT"));
         assertWarnings(
-            "No limit defined, adding default limit of [1000]",
             "Line 5:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
                 + "add another SORT after the LOOKUP JOIN if order is required"
         );
@@ -10753,7 +10742,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         as(plan, Limit.class);
         assertWarnings(
-            "No limit defined, adding default limit of [1000]",
             "Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; "
                 + "add another SORT after the LOOKUP JOIN if order is required"
         );
@@ -10774,7 +10762,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         as(plan, TopN.class);
         // Only the default limit warning, no sort order warning
-        assertWarnings("No limit defined, adding default limit of [1000]");
+        assertWarnings();
     }
 
     /**
@@ -10788,8 +10776,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             """);
 
         as(plan, Limit.class);
-        // Only the default limit warning, no sort order warning
-        assertWarnings("No limit defined, adding default limit of [1000]");
+        assertWarnings();
     }
 
     /**

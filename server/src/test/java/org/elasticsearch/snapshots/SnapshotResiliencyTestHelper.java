@@ -178,7 +178,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -228,7 +227,7 @@ public class SnapshotResiliencyTestHelper {
 
         protected final DeterministicTaskQueue deterministicTaskQueue;
 
-        protected final Consumer<String[]> warningConsumer;
+        protected final Runnable assertNoWarnings;
 
         // LinkedHashMap so we have deterministic ordering when iterating over the map in tests
         protected final Map<String, TestClusterNode> nodes = new LinkedHashMap<>();
@@ -245,11 +244,11 @@ public class SnapshotResiliencyTestHelper {
             Path tempDir,
             DeterministicTaskQueue deterministicTaskQueue,
             TransportInterceptorFactory transportInterceptorFactory,
-            Consumer<String[]> warningConsumer
+            Runnable assertNoWarnings
         ) {
             this.tempDir = tempDir;
             this.deterministicTaskQueue = deterministicTaskQueue;
-            this.warningConsumer = warningConsumer;
+            this.assertNoWarnings = assertNoWarnings;
             for (int i = 0; i < masterNodes; ++i) {
                 nodes.computeIfAbsent("node" + i, nodeName -> {
                     try {
@@ -1125,13 +1124,7 @@ public class SnapshotResiliencyTestHelper {
                     transportService.getRemoteClusterService()
                 );
 
-                warningConsumer.accept(getWarningHeaders());
-            }
-
-            protected String[] getWarningHeaders() {
-                return new String[] {
-                    "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
-                        + "See the breaking changes documentation for the next major version." };
+                assertNoWarnings.run();
             }
 
             protected void doInit(Map<ActionType<?>, TransportAction<?, ?>> actions, ActionFilters actionFilters) {}

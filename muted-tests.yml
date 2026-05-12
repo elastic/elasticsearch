@@ -575,3 +575,5 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplit
   issue: https://github.com/elastic/elasticsearch/issues/148809
+- class: org.elasticsearch.xpack.esql.datasources.DatasetRewriterTests
+  issue: https://github.com/elastic/elasticsearch/issues/148666

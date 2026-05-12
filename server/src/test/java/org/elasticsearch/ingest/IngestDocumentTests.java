@@ -1982,11 +1982,11 @@ public class IngestDocumentTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         assertThat(
             ingestDocument.getFieldValueRawBytesLength("bytes_field", ingestDocument.getFieldValue("bytes_field", Object.class)),
-            equalTo(3L)
+            equalTo(3)
         );
         assertThat(
             ingestDocument.getFieldValueRawBytesLength("ascii_field", ingestDocument.getFieldValue("ascii_field", Object.class)),
-            equalTo(4L)
+            equalTo(4)
         );
     }
 

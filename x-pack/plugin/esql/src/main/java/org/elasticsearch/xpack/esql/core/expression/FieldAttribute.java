@@ -243,7 +243,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
     }
 
     public boolean hasTypeConflicts() {
-        return field instanceof InvalidMappedField;
+        return field instanceof TypeConflictField;
     }
 
     /**

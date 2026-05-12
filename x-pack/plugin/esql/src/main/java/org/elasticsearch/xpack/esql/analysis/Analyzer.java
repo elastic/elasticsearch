@@ -2463,7 +2463,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static boolean skipMultiTypeForPotentiallyUnmappedKeyword(
             boolean loadUnmappedFields,
-            InvalidMappedField imf,
+            TypeConflictField imf,
             Set<DataType> supportedTypes
         ) {
             return loadUnmappedFields && imf.isPotentiallyUnmapped() && supportedTypes.contains(KEYWORD) == false;

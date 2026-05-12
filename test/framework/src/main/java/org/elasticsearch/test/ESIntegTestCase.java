@@ -2978,8 +2978,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     @Override
     protected boolean enableAllPagesReleasedCheck() {
-        // same reasoning as enableArraysReleasedCheck
-        return isSuiteScopedTest(getTestClass()) == false;
+        // Some classes hold pages in internal caches during operation (e.g. JoinValidationService caches a serialized
+        // cluster state) and release them asynchronously after `stop`, so this check would fire while the cluster
+        // is alive. afterClass() method calls ensureAllPagesAreReleased() after the cluster is fully shut down, which
+        // would catch subsequent leaks.
+        return false;
     }
 
     @AfterClass

@@ -301,7 +301,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         configuration,
                         configuration.newFoldContext(),
                         exchangeSource::createExchangeSource,
-                        () -> exchangeSink.createExchangeSink(() -> {})
+                        () -> exchangeSink.createExchangeSink(() -> {}),
+                        false
                     ),
                     coordinatorPlan,
                     computeService.plannerSettings().get(),
@@ -322,6 +323,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     originalIndices,
                     exchangeSource,
                     cancelQueryOnFailure,
+                    null,
                     computeListener.acquireCompute().map(r -> {
                         finalResponse.set(r);
                         return r.getCompletionInfo();

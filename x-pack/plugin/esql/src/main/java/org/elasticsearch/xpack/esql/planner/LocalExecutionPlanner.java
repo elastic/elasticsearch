@@ -134,6 +134,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.CompoundOutputEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
+import org.elasticsearch.xpack.esql.plan.physical.EmitRemoteFetchHandleExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
@@ -159,6 +160,7 @@ import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
+import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
@@ -172,12 +174,16 @@ import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.plugin.RemoteFetchHandleOperator;
+import org.elasticsearch.xpack.esql.plugin.RemoteFetchOperator;
+import org.elasticsearch.xpack.esql.plugin.RemoteFetchService;
 import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -218,10 +224,12 @@ public class LocalExecutionPlanner {
     private final Supplier<ExchangeSink> exchangeSinkSupplier;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
+    private final RemoteFetchService remoteFetchService;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final PhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
+    private final String localNodeId;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -240,6 +248,46 @@ public class LocalExecutionPlanner {
         PhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry
     ) {
+        this(
+            sessionId,
+            clusterAlias,
+            parentTask,
+            bigArrays,
+            blockFactory,
+            settings,
+            configuration,
+            exchangeSourceSupplier,
+            exchangeSinkSupplier,
+            enrichLookupService,
+            lookupFromIndexService,
+            null,
+            inferenceService,
+            userAgentParserRegistry,
+            physicalOperationProviders,
+            operatorFactoryRegistry,
+            null
+        );
+    }
+
+    public LocalExecutionPlanner(
+        String sessionId,
+        String clusterAlias,
+        CancellableTask parentTask,
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        Settings settings,
+        Configuration configuration,
+        Supplier<ExchangeSource> exchangeSourceSupplier,
+        Supplier<ExchangeSink> exchangeSinkSupplier,
+        EnrichLookupService enrichLookupService,
+        LookupFromIndexService lookupFromIndexService,
+        RemoteFetchService remoteFetchService,
+        InferenceService inferenceService,
+        UserAgentParserRegistry userAgentParserRegistry,
+        PhysicalOperationProviders physicalOperationProviders,
+        OperatorFactoryRegistry operatorFactoryRegistry,
+        String localNodeId
+    ) {
 
         this.sessionId = sessionId;
         this.clusterAlias = clusterAlias;
@@ -252,10 +300,12 @@ public class LocalExecutionPlanner {
         this.exchangeSinkSupplier = exchangeSinkSupplier;
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
+        this.remoteFetchService = remoteFetchService;
         this.inferenceService = inferenceService;
         this.userAgentParserRegistry = userAgentParserRegistry;
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
+        this.localNodeId = localNodeId;
     }
 
     /**
@@ -316,6 +366,10 @@ public class LocalExecutionPlanner {
             return planAggregation(aggregate, context);
         } else if (node instanceof FieldExtractExec fieldExtractExec) {
             return planFieldExtractNode(fieldExtractExec, context);
+        } else if (node instanceof EmitRemoteFetchHandleExec emitRemoteFetchHandleExec) {
+            return planRemoteFetchHandleNode(emitRemoteFetchHandleExec, context);
+        } else if (node instanceof RemoteFetchExec remoteFetchExec) {
+            return planRemoteFetchNode(remoteFetchExec, context);
         } else if (node instanceof ExchangeExec exchangeExec) {
             return planExchange(exchangeExec, context);
         } else if (node instanceof TopNExec topNExec) {
@@ -534,6 +588,54 @@ public class LocalExecutionPlanner {
         return physicalOperationProviders.fieldExtractPhysicalOperation(fieldExtractExec, plan(fieldExtractExec.child(), context), context);
     }
 
+    private PhysicalOperation planRemoteFetchHandleNode(
+        EmitRemoteFetchHandleExec emitRemoteFetchHandleExec,
+        LocalExecutionPlannerContext context
+    ) {
+        if (localNodeId == null) {
+            throw new IllegalStateException("remote fetch handle emission requires the local node id");
+        }
+        PhysicalOperation source = plan(emitRemoteFetchHandleExec.child(), context);
+        int docChannel = source.layout.get(emitRemoteFetchHandleExec.sourceAttribute().id()).channel();
+        Layout outputLayout = replaceLayoutAttribute(
+            source.layout,
+            emitRemoteFetchHandleExec.sourceAttribute(),
+            emitRemoteFetchHandleExec.handleAttribute()
+        );
+        return source.with(new RemoteFetchHandleOperator.Factory(localNodeId, sessionId, docChannel), outputLayout);
+    }
+
+    private PhysicalOperation planRemoteFetchNode(RemoteFetchExec remoteFetchExec, LocalExecutionPlannerContext context) {
+        if (remoteFetchService == null) {
+            throw new IllegalStateException("remote fetch planning requires a remote fetch service");
+        }
+        if (parentTask == null) {
+            throw new IllegalStateException("remote fetch planning requires a cancellable parent task");
+        }
+        PhysicalOperation source = plan(remoteFetchExec.child(), context);
+        int handleChannel = source.layout.get(remoteFetchExec.handleAttribute().id()).channel();
+        List<RemoteFetchService.FetchField> requestFields = remoteFetchExec.attributesToFetch().stream().map(attribute -> {
+            String fieldName = attribute instanceof FieldAttribute fieldAttribute ? fieldAttribute.fieldName().string() : attribute.name();
+            return new RemoteFetchService.FetchField(fieldName, attribute.dataType());
+        }).toList();
+        Layout.Builder outputLayoutBuilder = source.layout.builder();
+        outputLayoutBuilder.append(remoteFetchExec.fetchedOutputAttributes());
+        Layout outputLayout = outputLayoutBuilder.build();
+        return source.with(
+            new RemoteFetchOperator.Factory(
+                handleChannel,
+                requestFields,
+                remoteFetchExec.fetchedOutputAttributes(),
+                remoteFetchExec.pushdownPlan(),
+                configuration,
+                Math.max(1, context.queryPragmas().concurrentExchangeClients()),
+                remoteFetchService.threadContext(),
+                () -> remoteFetchService.newBatchExchangeClient(parentTask)
+            ),
+            outputLayout
+        );
+    }
+
     private PhysicalOperation planOutput(OutputExec outputExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(outputExec.child(), context);
         var output = outputExec.output();
@@ -570,6 +672,20 @@ public class LocalExecutionPlanner {
         } : Function.identity();
 
         return transformer;
+    }
+
+    private static Layout replaceLayoutAttribute(Layout inputLayout, Attribute oldAttribute, Attribute newAttribute) {
+        Layout.Builder builder = new Layout.Builder();
+        for (Layout.ChannelSet channel : inputLayout.inverse()) {
+            var ids = new HashSet<>(channel.nameIds());
+            if (ids.remove(oldAttribute.id())) {
+                ids.add(newAttribute.id());
+                builder.append(new Layout.ChannelSet(ids, newAttribute.dataType()));
+            } else {
+                builder.append(new Layout.ChannelSet(ids, channel.type()));
+            }
+        }
+        return builder.build();
     }
 
     private PhysicalOperation planExchange(ExchangeExec exchangeExec, LocalExecutionPlannerContext context) {

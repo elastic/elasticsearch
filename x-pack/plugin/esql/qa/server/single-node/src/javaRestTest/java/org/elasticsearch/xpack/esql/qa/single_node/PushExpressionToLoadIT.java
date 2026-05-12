@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.hamcrest.Matcher;
@@ -85,10 +86,9 @@ public class PushExpressionToLoadIT extends ESRestTestCase {
      * the rewrite reached the data node and the keyed loader was actually used to read values.
      */
     public void testFieldExtractFusesToKeyedFlattenedLoader() throws IOException {
-        assumeTrue("field_extract is a snapshot-only feature", Build.current().isSnapshot());
         assumeTrue(
-            "field_extract pushdown is a snapshot-only feature",
-            EsqlCapabilities.Cap.FIELD_EXTRACT_PUSHDOWN.isEnabled()
+            "fn_field_extract must be enabled (field_extract registered for this build)",
+            FieldExtract.isFnFieldExtractCapabilityMet()
         );
         String hostName = "host-" + randomAlphaOfLength(8);
         test(

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,18 +17,17 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -37,10 +37,12 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -262,14 +264,48 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
         return path;
     }
 
+    /**
+     * Whether {@code field_extract} is part of the active function set for this build, matching
+     * the {@code fn_field_extract} entry emitted by {@link EsqlFunctionRegistry#addCapabilities}.
+     * Block-loader fusion and Lucene query pushdown use the same gate so they stay aligned with
+     * function registration (snapshot-only until the function is promoted to the main registry).
+     */
+    public static boolean isFnFieldExtractCapabilityMet() {
+        return EsqlFunctionRegistry.isSnapshotOnly("field_extract") == false || Build.current().isSnapshot();
+    }
+
     @Override
     public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
-        if (EsqlCapabilities.Cap.FIELD_EXTRACT_PUSHDOWN.isEnabled() == false) {
-            return null;
-        }
         // Pushdown requires a real flattened field reference and a constant literal key. The
         // path argument is already the flat storage key (verifier rejects brackets and indices),
         // so we hand it to the keyed sub-field loader as is.
+        return foldedKeyForFlattenedRoot().map(
+            keyForRoot -> new PushedBlockLoaderExpression(
+                keyForRoot.root(),
+                new BlockLoaderFunctionConfig.ExtractFlattenedSubfield(keyForRoot.key())
+            )
+        ).orElse(null);
+    }
+
+    /**
+     * If this {@code field_extract} can be pushed to a Lucene query against the keyed sub-field,
+     * returns the synthetic data-node field name (e.g. {@code "resource.attributes.host.name"}).
+     * The data node's {@code FieldTypeLookup} resolves this name to a
+     * {@code KeyedFlattenedFieldType} which handles the key-prefix encoding in
+     * {@code indexedValueForSearch}. The caller is responsible for wrapping the produced query
+     * in a {@code SingleValueQuery} to preserve ES|QL's single-value comparison semantics.
+     */
+    public Optional<String> tryAsKeyedSubfieldName(LucenePushdownPredicates pushdownPredicates) {
+        return foldedKeyForFlattenedRoot().filter(k -> pushdownPredicates.isIndexedAndHasDocValues(k.root()))
+            .map(k -> k.root().name() + "." + k.key());
+    }
+
+    /**
+     * Common precondition check for both block-loader and query pushdown: the field must be a real
+     * {@link FieldAttribute} of {@link DataType#FLATTENED} type, and the path must fold to a literal
+     * flat key that passes {@link #validateFieldExtractPath}.
+     */
+    private Optional<RootAndKey> foldedKeyForFlattenedRoot() {
         if (field instanceof FieldAttribute fa
             && fa.dataType() == DataType.FLATTENED
             && path.foldable()
@@ -278,10 +314,12 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
             try {
                 validateFieldExtractPath(key);
             } catch (IllegalArgumentException e) {
-                return null;
+                return Optional.empty();
             }
-            return new PushedBlockLoaderExpression(fa, new BlockLoaderFunctionConfig.ExtractFlattenedSubfield(key));
+            return Optional.of(new RootAndKey(fa, key));
         }
-        return null;
+        return Optional.empty();
     }
+
+    private record RootAndKey(FieldAttribute root, String key) {}
 }

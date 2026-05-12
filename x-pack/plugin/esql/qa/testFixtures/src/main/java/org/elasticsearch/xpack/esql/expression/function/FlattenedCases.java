@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -52,7 +53,7 @@ class FlattenedCases {
             try {
                 XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
                 body.accept(builder);
-                return new BytesRef(builder.endObject().toString());
+                return new BytesRef(Strings.toString(builder.endObject()));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

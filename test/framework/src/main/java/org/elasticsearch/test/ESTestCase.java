@@ -818,7 +818,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    private Set<String> getActualWarningStrings(boolean stripXContentPosition) {
+    private List<String> getActualWarningStrings(boolean stripXContentPosition) {
         try {
             var filteredWarnings = filteredWarnings();
             return threadContext.getResponseHeaders()
@@ -826,7 +826,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 .stream()
                 .map(warningString -> HeaderWarning.extractWarningValueFromWarningHeader(warningString, stripXContentPosition))
                 .filter(message -> filteredWarnings.stream().noneMatch(message::contains))
-                .collect(Collectors.toSet());
+                .toList();
         } finally {
             // Reset the deprecation logger: clear the current thread context by stashing current values and dropping the returned
             // StoredContext

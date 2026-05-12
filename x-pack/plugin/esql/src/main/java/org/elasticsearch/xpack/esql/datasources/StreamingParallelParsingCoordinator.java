@@ -131,7 +131,6 @@ public final class StreamingParallelParsingCoordinator {
         private volatile SegmentableFormatReader reader;
         private final List<String> projectedColumns;
         private final int batchSize;
-        private final int parallelism;
         private final ErrorPolicy errorPolicy;
 
         private final ArrayBlockingQueue<byte[]> bufferPool;
@@ -190,7 +189,6 @@ public final class StreamingParallelParsingCoordinator {
             this.reader = reader;
             this.projectedColumns = projectedColumns;
             this.batchSize = batchSize;
-            this.parallelism = parallelism;
             this.errorPolicy = errorPolicy;
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;

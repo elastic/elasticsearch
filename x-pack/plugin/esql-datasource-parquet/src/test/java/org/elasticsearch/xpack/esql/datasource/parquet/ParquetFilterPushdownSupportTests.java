@@ -750,6 +750,49 @@ public class ParquetFilterPushdownSupportTests extends ESTestCase {
         assertEquals(1, result.remainder().size());
     }
 
+    /**
+     * Regression test for the trivially-passes shortcut leak (companion of
+     * {@code OptimizedFilteredReaderTests.testPushedExpressionsLikeWithStatsTrivialEqDoesNotLeak}).
+     *
+     * <p>The realistic input that {@code PushFiltersToSource} produces from a query like
+     * {@code WHERE url LIKE "*google*" AND status = 200} is the decomposed
+     * {@code [LIKE, status = 200]} list, NOT a single AND-wrapped expression (see
+     * {@link #testWildcardLikeCombinedWithEqualsKeepsEqualsInRemainder} for the AND-wrapped
+     * shape, which behaves differently because mixed-AND pushability falls back to RECHECK).
+     *
+     * <p>This shape is the one that triggered the trivially-passes shortcut leak: LIKE pushes
+     * as YES (no FilterExec safety net) and is silently absent from the parquet
+     * {@link org.apache.parquet.filter2.predicate.FilterPredicate} translation; status = 200
+     * pushes as RECHECK and IS in the FilterPredicate; for any row group whose stats prove
+     * status = 200 the shortcut would bypass late-mat entirely, leaking rows that don't match
+     * the LIKE. This test asserts the planner-side classification that the integration test
+     * relies on (LIKE → YES → not in remainder; status = 200 → RECHECK → in remainder).
+     *
+     * <p>DO NOT change this assertion without auditing every path that consumes
+     * {@code ParquetPushedExpressions} — the trivially-passes shortcut in
+     * {@code OptimizedParquetColumnIterator} relies on {@code hasYesConjunctOutsideFilterPredicate}
+     * being able to detect this exact split.
+     */
+    public void testWildcardLikeAsSeparateConjunctWithEqualsRecheckedOnly() {
+        Attribute url = attr("url", DataType.KEYWORD);
+        Attribute status = attr("status", DataType.LONG);
+        Expression like = new WildcardLike(Source.EMPTY, url, new WildcardPattern("*google*"));
+        Expression statusEq = new Equals(Source.EMPTY, status, longLit(200L), null);
+
+        // splitAnd in PushFiltersToSource hands us the decomposed conjuncts independently.
+        FilterPushdownSupport.PushdownResult result = support.pushFilters(List.of(like, statusEq));
+
+        assertTrue(result.hasPushedFilter());
+        assertEquals(FilterPushdownSupport.Pushability.YES, support.canPush(like));
+        assertEquals(FilterPushdownSupport.Pushability.RECHECK, support.canPush(statusEq));
+        // The remainder must contain ONLY status = 200 — the LIKE has been dropped from
+        // FilterExec because it pushes as YES. The trivially-passes guard in the reader has to
+        // keep that promise: late-mat MUST run for the LIKE because nothing else will.
+        assertEquals("LIKE must be dropped from remainder; only status = 200 RECHECK remains", 1, result.remainder().size());
+        assertTrue("remainder must be the status = 200 conjunct", result.remainder().contains(statusEq));
+        assertFalse("remainder must not contain the LIKE conjunct", result.remainder().contains(like));
+    }
+
     public void testWildcardLikeAndWildcardLikePushedAsYes() {
         // Two LIKE conjuncts in a single AND — both arms YES-eligible, so the combined
         // expression is YES and the conjunct is dropped from the remainder.

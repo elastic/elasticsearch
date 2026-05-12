@@ -196,6 +196,7 @@ import org.elasticsearch.painless.symbol.Decorations.Write;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCCaptureBox;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
@@ -265,6 +266,18 @@ import java.util.regex.Pattern;
 public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope> {
 
     protected ClassNode irClassNode;
+
+    /**
+     * Attaches per-loop safety mechanisms. Opted-in contexts get both {@link IRCCancellationCheck}
+     * (cancellation path) and {@link IRDMaxLoopCounter} (legacy fallback when no runnable is
+     * bound at runtime). Non-opted-in contexts get only the legacy counter (unchanged).
+     */
+    protected static void attachLoopProtection(FunctionNode irFunctionNode, ScriptScope scriptScope) {
+        if (scriptScope.getScriptClassInfo().supportsCancellation()) {
+            irFunctionNode.attachCondition(IRCCancellationCheck.class);
+        }
+        irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
+    }
 
     /**
      * This injects additional ir nodes required for resolving the def type at runtime.
@@ -645,7 +658,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irFunctionNode.attachCondition(IRCSynthetic.class);
         }
 
-        irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
+        attachLoopProtection(irFunctionNode, scriptScope);
 
         scriptScope.putDecoration(userFunctionNode, new IRNodeDecoration(irFunctionNode));
     }
@@ -1406,7 +1419,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irFunctionNode.attachCondition(IRCStatic.class);
         }
         irFunctionNode.attachCondition(IRCSynthetic.class);
-        irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
+        attachLoopProtection(irFunctionNode, scriptScope);
         irClassNode.addFunctionNode(irFunctionNode);
 
         irExpressionNode.attachDecoration(new IRDExpressionType(scriptScope.getDecoration(userLambdaNode, ValueType.class).valueType()));

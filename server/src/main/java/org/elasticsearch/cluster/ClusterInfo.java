@@ -508,14 +508,26 @@ public class ClusterInfo implements ChunkedToXContent, Writeable, ExpectedShardS
 
     public double nodeMaxShardWriteLoadProportion(String nodeId, DoubleSupplier computeIfMissing) {
         if (nodeMaxShardWriteLoadProportion.containsKey(nodeId)) {
-            assert nodeMaxShardWriteLoadProportion.get(nodeId) == computeIfMissing.getAsDouble()
-                : "We cached a different value that we calculated, this shouldn't happen";
+            assert cachedValueIsConsistent(nodeId, computeIfMissing);
             return nodeMaxShardWriteLoadProportion.get(nodeId);
         } else {
             double shardWriteLoadProportion = computeIfMissing.getAsDouble();
             nodeMaxShardWriteLoadProportion.put(nodeId, shardWriteLoadProportion);
             return shardWriteLoadProportion;
         }
+    }
+
+    private boolean cachedValueIsConsistent(String nodeId, DoubleSupplier computeIfMissing) {
+        final double computed = computeIfMissing.getAsDouble();
+        final double cached = nodeMaxShardWriteLoadProportion.get(nodeId);
+        assert cached == computed
+            : "We cached a different value than we calculated for "
+                + nodeId
+                + ", this shouldn't happen. cached != computed: "
+                + cached
+                + " != "
+                + computed;
+        return true;
     }
 
     public void invalidateNodeMaxShardWriteLoadProportion(String nodeId) {

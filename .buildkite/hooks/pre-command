@@ -151,6 +151,10 @@ fi
 if [[ "${BUILDKITE_AGENT_META_DATA_PROVIDER:-}" != *"k8s"* ]]; then
   # Run in the background, while the job continues
   nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
+
+  export GCP_PREEMPTION_WATCHDOG=true
+  export GCP_PREEMPTION_SIMULATE_AFTER_SECONDS=180
+  export GCP_PREEMPTION_EXIT_CODE=42
 fi
 
 # Initialize the build scan and gobld annotations with empty/open <details> tags

@@ -1011,9 +1011,9 @@ class NodeConstruction {
             .orElseGet(() -> new ClusterSettingsLinkedProjectConfigService(settings, clusterService.getClusterSettings(), projectResolver));
 
         final var projectRoutingResolver = pluginsService.loadSingletonServiceProvider(
-            ProjectRoutingResolver.class,
-            () -> ProjectRoutingResolver.NOOP
-        );
+            ProjectRoutingResolver.Provider.class,
+            () -> ProjectRoutingResolver.Provider.NOOP_PROVIDER
+        ).create(threadPool);
         AtomicReference<TransportService> transportServiceRef = new AtomicReference<>();
         var remoteTransportClient = new RemoteTransportClient() {
             @Override

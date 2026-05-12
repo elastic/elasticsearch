@@ -16,7 +16,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequestBuilder;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequestBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -71,7 +71,7 @@ public class RethrottleTests extends ReindexTestCase {
         testCase(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).setSlices(randomSlices()), DeleteByQueryAction.NAME);
     }
 
-    private void testCase(AbstractBulkByScrollRequestBuilder<?, ?> request, String actionName) throws Exception {
+    private void testCase(AbstractBulkByPaginatedSearchRequestBuilder<?, ?> request, String actionName) throws Exception {
         logger.info("Starting test for [{}] with [{}] slices", actionName, request.request().getSlices());
         /* Add ten documents per slice so most slices will have many documents to process, having to go to multiple batches.
          * We can't rely on the slices being evenly sized but 10 means we have some pretty big slices.

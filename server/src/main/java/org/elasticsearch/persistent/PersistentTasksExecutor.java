@@ -138,10 +138,8 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
         Iterator<Tuple<ProjectId, PersistentTasks>> iterator = PersistentTasks.getAllTasks(clusterState).iterator();
         while (iterator.hasNext()) {
             Collection<PersistentTask<?>> tasks = iterator.next().v2().findTasks(taskName, PersistentTask::isAssigned);
-            if (tasks.isEmpty() == false) {
-                for (var task : tasks) {
-                    numberOfTasksPerNode.computeIfPresent(task.getExecutorNode(), (ignored, count) -> count + 1);
-                }
+            for (var task : tasks) {
+                numberOfTasksPerNode.computeIfPresent(task.getExecutorNode(), (ignored, count) -> count + 1);
             }
         }
         return numberOfTasksPerNode;

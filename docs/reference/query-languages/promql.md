@@ -10,7 +10,7 @@ products:
 
 # PromQL reference [promql-language]
 
-PromQL in {{es}} lets you query metrics stored in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS) using the same label and series model as [Prometheus](https://prometheus.io/docs/prometheus/latest/querying/basics/).
+PromQL in {{es}} queries metrics in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS) using the same label and series model as [Prometheus](https://prometheus.io/docs/prometheus/latest/querying/basics/).
 
 ::::{warning}
 This functionality is in technical preview and might be changed or removed in a future release.
@@ -19,11 +19,11 @@ Elastic will work to fix any issues, but features in technical preview are not s
 
 ## What is PromQL in {{es}}? [promql-what]
 
-PromQL is the Prometheus query language. In {{es}}, PromQL expressions are planned and executed by the {{esql}} compute engine against indices that use [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS). PromQL reads any metrics you store in a TSDS: labels map to TSDS dimensions and metric names map into the index mapping. Common ways to ingest metrics into a TSDS include [Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md), [OpenTelemetry Protocol (OTLP)](docs-content://manage-data/data-store/data-streams/tsds-ingest-otlp.md) ingestion, and the [bulk API]({{es-apis}}operation/operation-bulk).
+PromQL is the Prometheus query language. In {{es}}, the {{esql}} compute engine plans and executes expressions against TSDS-backed indices. Labels map to dimensions and metric names to the index mapping. Common ways to ingest metrics into a TSDS include [Prometheus remote write](docs-content://manage-data/data-store/data-streams/tsds-ingest-prometheus-remote-write.md), [OpenTelemetry Protocol (OTLP)](docs-content://manage-data/data-store/data-streams/tsds-ingest-otlp.md) ingestion, and the [bulk API]({{es-apis}}operation/operation-bulk).
 
 ## How does it work? [promql-how]
 
-When you use the Prometheus-compatible HTTP API or embed PromQL in an {{esql}} query through the `PROMQL` source command, {{es}} parses PromQL into {{esql}} logical plans, evaluates those plans against metrics in [time series data streams](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md) (TSDS), and returns tabular or Prometheus-shaped results.
+When you use the Prometheus-compatible HTTP API or embed PromQL in an {{esql}} query through the `PROMQL` source command, {{es}} parses PromQL into {{esql}} logical plans, evaluates those plans against TSDS metrics, and returns tabular or Prometheus-shaped results.
 
 Execution relies on the same {{esql}} compute engine {{es}} uses when you invoke the `TS` source command.
 

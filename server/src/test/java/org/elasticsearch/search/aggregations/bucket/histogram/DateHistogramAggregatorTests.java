@@ -35,6 +35,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.DateHistogramAggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -44,6 +46,8 @@ import org.elasticsearch.test.InternalAggregationTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1132,6 +1136,67 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             },
             aggregableDateFieldType(false, true)
         );
+    }
+
+    public void testGlobalAggInsideQueryWithRangeFilter() throws IOException {
+        runGlobalDateHistogramTest(LongPoint.newRangeQuery(AGGREGABLE_DATE, asUtcMillis(2018, 1, 1), Long.MAX_VALUE));
+    }
+
+    public void testGlobalAggInsideRangeFilterWithBothBounds() throws IOException {
+        runGlobalDateHistogramTest(LongPoint.newRangeQuery(AGGREGABLE_DATE, asUtcMillis(2018, 1, 1), asUtcMillis(2019, 1, 1) - 1));
+    }
+
+    public void testGlobalAggInsideBoolMustQuery() throws IOException {
+        BooleanQuery bool = new BooleanQuery.Builder().add(
+            LongPoint.newRangeQuery(AGGREGABLE_DATE, asUtcMillis(2018, 1, 1), Long.MAX_VALUE),
+            BooleanClause.Occur.MUST
+        ).build();
+        runGlobalDateHistogramTest(bool);
+    }
+
+    private static long asUtcMillis(int year, int month, int day) {
+        return ZonedDateTime.of(year, month, day, 0, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
+    }
+
+    /**
+     * Indexes one doc per month from 2010-01 through 2020-12 and runs a {@code global > date_histogram} aggregation,
+     * then asserts that there is one bucket per indexed month, with the expected key, each containing exactly one document.
+     *
+     * @param query The query to run the test with. It's expected to not affect the sub-aggregation, as the parent is a "global" agg
+     */
+    private void runGlobalDateHistogramTest(Query query) throws IOException {
+        final DateFieldMapper.DateFieldType fieldType = aggregableDateFieldType(false, true);
+
+        final List<Long> dataset = new ArrayList<>();
+        for (int year = 2010; year <= 2020; year++) {
+            for (int month = 1; month <= 12; month++) {
+                dataset.add(asUtcMillis(year, month, 1));
+            }
+        }
+
+        final GlobalAggregationBuilder builder = new GlobalAggregationBuilder("global").subAggregation(
+            new DateHistogramAggregationBuilder("dh").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.MONTH)
+        );
+
+        testCase(iw -> {
+            for (long instant : dataset) {
+                final Document document = new Document();
+                document.add(new SortedNumericDocValuesField(AGGREGABLE_DATE, instant));
+                document.add(new LongPoint(AGGREGABLE_DATE, instant));
+                iw.addDocument(document);
+            }
+        }, (Consumer<InternalGlobal>) global -> {
+            assertEquals(dataset.size(), global.getDocCount());
+            InternalDateHistogram dh = global.getAggregations().get("dh");
+            assertEquals("histogram has wrong number of buckets", dataset.size(), dh.getBuckets().size());
+            for (int i = 0; i < dataset.size(); i++) {
+                InternalDateHistogram.Bucket bucket = dh.getBuckets().get(i);
+                long expectedKey = dataset.get(i);
+                long actualKey = ((ZonedDateTime) bucket.getKey()).toInstant().toEpochMilli();
+                assertEquals("bucket at index " + i + " has wrong key", expectedKey, actualKey);
+                assertEquals("bucket " + bucket.getKeyAsString() + " has wrong doc count", 1L, bucket.getDocCount());
+            }
+        }, new AggTestConfig(builder, fieldType).withQuery(query));
     }
 
     private void testSearchCase(

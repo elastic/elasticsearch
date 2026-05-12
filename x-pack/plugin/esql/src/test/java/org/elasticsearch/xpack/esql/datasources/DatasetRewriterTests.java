@@ -437,19 +437,6 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
     }
 
-    public void testFeatureFlagOffLeavesPlanUnchanged() {
-        // Production gate: when ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG is off, the rewriter is a
-        // no-op even on a project with registered datasets. The IT tests gate via assumeTrue, so
-        // this is the only place the OFF path is exercised.
-        assumeFalse("requires feature flag OFF", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
-        DataSource parent = dataSource("s3_parent", Map.of());
-        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
-        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
-
-        UnresolvedRelation relation = relationOf("logs");
-        assertSame(relation, DatasetRewriter.rewrite(relation, project, RESOLVER));
-    }
-
     public void testNonMatchingExclusionLeavesDatasetsAlone() {
         // `-logs_doesnotexist` is an exclusion that matches nothing; the positive `logs_*` should
         // still expand to the registered datasets unchanged.

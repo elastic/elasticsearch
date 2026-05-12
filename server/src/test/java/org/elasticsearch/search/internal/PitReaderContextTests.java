@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -37,7 +38,15 @@ public class PitReaderContextTests extends ESTestCase {
 
         try (threadPool) {
             // lastAccessTime here is 0 with our time setup above.
-            var context = new PitReaderContext(new ShardSearchContextId("session", 0), null, shard, null, 100);
+            var context = new PitReaderContext(
+                new ShardSearchContextId("session", 0),
+                null,
+                shard,
+                null,
+                100,
+                null,
+                SplitShardCountSummary.IRRELEVANT
+            );
 
             // Calling isExpired() ticks a timer and time is now 1000
             // which is larger than keepAlive so the context is expired.

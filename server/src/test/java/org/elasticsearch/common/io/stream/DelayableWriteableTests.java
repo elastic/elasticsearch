@@ -18,7 +18,6 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
 
 public class DelayableWriteableTests extends ESTestCase {
     // NOTE: we don't use AbstractWireSerializingTestCase because we don't implement equals and hashCode.

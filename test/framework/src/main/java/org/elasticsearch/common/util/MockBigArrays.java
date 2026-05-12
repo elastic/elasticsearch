@@ -188,9 +188,6 @@ public class MockBigArrays extends BigArrays {
     public MockBigArrays(PageCacheRecycler recycler, CircuitBreakerService breakerService, boolean checkBreaker) {
         super(MockPageCacheRecycler.wrap(recycler), breakerService, CircuitBreaker.REQUEST, checkBreaker);
         this.breakerService = breakerService;
-        // Outstanding pages are tracked at the [MockPageCacheRecycler] level. Here we only layer breaker accounting on
-        // top of `super.bytesRefRecycler()` so that direct page acquisitions (those that do not flow through
-        // [BigArrays#newByteArray] and its `validate` call) are still visible to `ensureEstimatedStats`.
         final CircuitBreaker breaker = breakerService == null ? null : breakerService.getBreaker(CircuitBreaker.REQUEST);
         this.bytesRefRecycler = breaker != null ? new MockBytesRefRecycler(super.bytesRefRecycler(), breaker) : super.bytesRefRecycler();
         long seed;
@@ -258,12 +255,12 @@ public class MockBigArrays extends BigArrays {
 
     @Override
     public BigArrays withCircuitBreaking() {
-        return new MockBigArrays(recycler(), this.breakerService, true);
+        return new MockBigArrays(this.recycler, this.breakerService, true);
     }
 
     @Override
     public BigArrays withBreakerService(CircuitBreakerService breakerService) {
-        return new MockBigArrays(recycler(), breakerService, this.shouldCheckBreaker());
+        return new MockBigArrays(this.recycler, breakerService, this.shouldCheckBreaker());
     }
 
     @Override

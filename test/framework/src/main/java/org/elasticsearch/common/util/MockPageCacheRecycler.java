@@ -66,7 +66,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     }
 
     private MockPageCacheRecycler(PageCacheRecycler delegate) {
-        // Initialize the superclass with a zero-capacity recycler; all page operations are
+        // Initialize the superclass with a zero-capacity recycler. All page operations are
         // forwarded to `delegate` via the overridden bytePage / objectPage methods.
         // TODO: extract PageCacheRecycler in its own interface
         super(Settings.builder().put(PageCacheRecycler.LIMIT_HEAP_SETTING.getKey(), "0%").build());

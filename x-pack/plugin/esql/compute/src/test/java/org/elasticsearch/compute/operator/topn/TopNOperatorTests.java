@@ -40,6 +40,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.compute.test.AbstractTypedBlockSourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.junit.After;
 import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -61,6 +62,9 @@ import java.lang.reflect.Field;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -113,6 +117,34 @@ import static org.hamcrest.number.OrderingComparison.lessThanOrEqualTo;
 
 public class TopNOperatorTests extends OperatorTestCase {
     protected final int pageSize = randomPageSize();
+
+    @Nullable
+    private ExecutorService workerPool;
+
+    @After
+    public void shutdownWorkerPool() throws InterruptedException {
+        if (workerPool != null) {
+            workerPool.shutdown();
+            assertTrue("worker pool did not terminate in time", workerPool.awaitTermination(30, TimeUnit.SECONDS));
+            workerPool = null;
+        }
+    }
+
+    /**
+     * Returns a random {@link TopNOperator.ParallelWorkerConfig}, or {@code null} to keep
+     * sequential mode. Promotion threshold is 0 so tests with even small inputs exercise
+     * the parallel path. The pool is created lazily and shared across calls within a test.
+     */
+    @Nullable
+    protected TopNOperator.ParallelWorkerConfig randomWorkerConfig() {
+        if (randomBoolean()) {
+            return null;
+        }
+        if (workerPool == null) {
+            workerPool = Executors.newFixedThreadPool(4);
+        }
+        return new TopNOperator.ParallelWorkerConfig(workerPool, 4, 8, 0);
+    }
 
     /**
      * Accumulator for {@link RamUsageTester} that excludes shared objects not owned by the operator.
@@ -263,7 +295,8 @@ public class TopNOperatorTests extends OperatorTestCase {
         int maxPageSize,
         long jumboPageBytes,
         TopNOperator.InputOrdering inputOrdering,
-        @Nullable SharedMinCompetitive.Supplier minCompetitive
+        @Nullable SharedMinCompetitive.Supplier minCompetitive,
+        @Nullable TopNOperator.ParallelWorkerConfig workerConfig
     ) {
         if (groupKeys.length > 0) {
             return new GroupedTopNOperator.GroupedTopNOperatorFactory(
@@ -285,7 +318,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             jumboPageBytes,
             inputOrdering,
             minCompetitive,
-            null
+            workerConfig
         );
     }
 
@@ -377,6 +410,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         randomPageSize(),
                         randomJumboPageBytes(),
                         InputOrdering.SORTED,
+                        null,
                         null
                     ).get(driverContext)
                 ),
@@ -442,6 +476,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                         randomPageSize(),
                         randomJumboPageBytes(),
                         InputOrdering.SORTED,
+                        null,
                         null
                     ).get(driverContext)
                 ),
@@ -464,6 +499,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             pageSize,
             randomJumboPageBytes(),
             InputOrdering.SORTED,
+            null,
             null
         );
         if (groupKeys().length > 0) {
@@ -1024,7 +1060,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         randomPageSize(),
                         randomJumboPageBytes(),
                         InputOrdering.NOT_SORTED,
-                        null
+                        null,
+                        randomWorkerConfig()
                     ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> readInto(actualTop, page))
@@ -1157,7 +1194,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         randomPageSize(),
                         randomJumboPageBytes(),
                         InputOrdering.NOT_SORTED,
-                        null
+                        null,
+                        randomWorkerConfig()
                     ).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> readInto(actualTop, page))
@@ -1226,7 +1264,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                             randomPageSize(),
                             randomJumboPageBytes(),
                             InputOrdering.NOT_SORTED,
-                            null
+                            null,
+                            randomWorkerConfig()
                         ).get(driverContext)
                     ),
                     new PageConsumerOperator(pages::add)
@@ -1278,6 +1317,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             randomPageSize(),
             randomJumboPageBytes(),
             InputOrdering.NOT_SORTED,
+            null,
             null
         );
         String sorts = List.of("SortOrder[channel=0, asc=false, nullsFirst=false]", "SortOrder[channel=1, asc=false, nullsFirst=true]")
@@ -1639,6 +1679,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 rowsPerPage,
                 Long.MAX_VALUE,
                 InputOrdering.NOT_SORTED,
+                null,
                 null
             ).get(driverContext)
         ) {
@@ -2185,6 +2226,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 Integer.MAX_VALUE,
                 jumboPageBytes,
                 InputOrdering.NOT_SORTED,
+                null,
                 null
             ).get(driverContext())
         ) {
@@ -2575,6 +2617,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 pageSize,
                 Long.MAX_VALUE,
                 TopNOperator.InputOrdering.NOT_SORTED,
+                null,
                 null
             ).get(context)
         ) {

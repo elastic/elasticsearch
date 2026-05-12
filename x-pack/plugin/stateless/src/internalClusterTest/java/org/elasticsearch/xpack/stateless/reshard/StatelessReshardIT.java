@@ -4691,19 +4691,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
     }
 
-    private static void checkNumberOfShardsSetting(String indexNode, String indexName, int expected_shards) {
-        assertThat(
-            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
-                client(indexNode).admin()
-                    .indices()
-                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
-                    .execute()
-                    .actionGet()
-                    .getIndexToSettings()
-                    .get(indexName)
-            ),
-            equalTo(expected_shards)
-        );
+    private static void checkNumberOfShardsSetting(String indexNode, String indexName, int expectedShards) {
+        ReshardingTestHelpers.checkNumberOfShardsSetting(client(indexNode), indexName, expectedShards);
     }
 
     public PlainActionFuture<ClusterState> waitForClusterState(Predicate<ClusterState> predicate) {

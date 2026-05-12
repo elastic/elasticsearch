@@ -2,5 +2,5 @@
 
 ## Description
 
-Generates dense vector embeddings from multimodal input using a specified [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) with the {@code embedding} task type. Use this function to generate query vectors for KNN searches from multimodal inputs against your vectorized data or other dense vector based operations.
+Generates dense vector embeddings from multimodal input using a specified [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) with the `embedding` task type. Use this function to generate query vectors for KNN searches from multimodal inputs against your vectorized data or other dense vector based operations.
 

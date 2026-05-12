@@ -398,9 +398,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.metrics.LargeTopHitsIT
   method: test500Queries
   issue: https://github.com/elastic/elasticsearch/issues/148056
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
-  issue: https://github.com/elastic/elasticsearch/issues/148096
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationFailures
   issue: https://github.com/elastic/elasticsearch/issues/148129
@@ -515,9 +512,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
   method: testGenerationalFileBlobReferenceIsRetainedCorrectly
   issue: https://github.com/elastic/elasticsearch/issues/148723
-- class: org.elasticsearch.xpack.spatial.index.query.GeoShapeWithDocValuesQueryTests
-  method: testQueryRandomGeoCollection
-  issue: https://github.com/elastic/elasticsearch/issues/148727
 - class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
   method: testDynamicSettingUpdateAffectsSubsequentDocuments
   issue: https://github.com/elastic/elasticsearch/issues/148745
@@ -566,6 +560,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:exponential_histogram.max for exponential histogram docs}
   issue: https://github.com/elastic/elasticsearch/issues/148890
+- class: org.elasticsearch.reindex.management.ReindexRethrottleRelocationIT
+  method: testRethrottleByOriginalTaskIdAfterRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/148893
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:exponential_histogram.sum for exponential histogram docs}
+  issue: https://github.com/elastic/elasticsearch/issues/148896
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:exponential_histogram.percentile for exponential histogram docs}
+  issue: https://github.com/elastic/elasticsearch/issues/148897
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:exponential_histogram.timeseriesAllAggsNoBucket}
+  issue: https://github.com/elastic/elasticsearch/issues/148898
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:exponential_histogram.min for exponential histogram docs}
+  issue: https://github.com/elastic/elasticsearch/issues/148899
   # TODO: exclude replicas that have not acked cluster state from async await
 - class: org.elasticsearch.cluster.coordination.RareClusterStateIT
   issue: https://github.com/elastic/elasticsearch/pull/145363

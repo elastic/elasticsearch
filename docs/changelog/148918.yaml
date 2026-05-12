@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148918
+summary: "Parquet: dictionary filter fast paths and per-row-group memo"
+type: enhancement

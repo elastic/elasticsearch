@@ -17,7 +17,7 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
-          machineType: n4-custom-32-98304
+          machineType: n4-standard-16
           diskType: hyperdisk-balanced
           diskSizeGb: 350
         env:

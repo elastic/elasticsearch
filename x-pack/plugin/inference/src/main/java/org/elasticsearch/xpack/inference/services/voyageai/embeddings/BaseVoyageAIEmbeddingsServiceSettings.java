@@ -232,7 +232,7 @@ public abstract class BaseVoyageAIEmbeddingsServiceSettings extends FilteredXCon
     }
 
     @Override
-    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         commonSettings.toXContentFragmentOfExposedFields(builder, params);
 
         if (similarity != null) {

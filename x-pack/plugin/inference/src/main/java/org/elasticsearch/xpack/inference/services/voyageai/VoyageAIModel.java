@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionVisitor;
 
@@ -78,6 +79,24 @@ public abstract class VoyageAIModel extends RateLimitGroupingModel {
         this.uri = Objects.requireNonNull(uri);
     }
 
+    /**
+     * Convenience constructor that extracts the API key from the model secrets
+     * and uses the rerank service settings for rate limiting.
+     */
+    public VoyageAIModel(ModelConfigurations configurations, ModelSecrets secrets, URI uri) {
+        super(configurations, secrets);
+
+        var secretSettings = (DefaultSecretSettings) secrets.getSecretSettings();
+        this.apiKey = ServiceUtils.apiKey(secretSettings);
+        var serviceSettings = configurations.getServiceSettings();
+        if (serviceSettings instanceof VoyageAIRateLimitServiceSettings rateLimitSettings) {
+            this.rateLimitServiceSettings = rateLimitSettings;
+        } else {
+            this.rateLimitServiceSettings = () -> VoyageAIServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS;
+        }
+        this.uri = Objects.requireNonNull(uri);
+    }
+
     protected VoyageAIModel(VoyageAIModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
 
@@ -98,6 +117,7 @@ public abstract class VoyageAIModel extends RateLimitGroupingModel {
         return apiKey;
     }
 
+    @Override
     public int rateLimitGroupingHash() {
         String modelId = getServiceSettings().modelId();
         String modelFamily = MODEL_TO_MODEL_FAMILY.getOrDefault(modelId, DEFAULT_MODEL_FAMILY);
@@ -105,6 +125,7 @@ public abstract class VoyageAIModel extends RateLimitGroupingModel {
         return Objects.hash(modelFamily, apiKey);
     }
 
+    @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitServiceSettings.rateLimitSettings();
     }

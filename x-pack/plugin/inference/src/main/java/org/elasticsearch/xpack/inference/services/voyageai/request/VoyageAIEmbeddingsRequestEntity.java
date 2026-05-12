@@ -28,13 +28,13 @@ public record VoyageAIEmbeddingsRequestEntity(
 
     private static final String DOCUMENT = "document";
     private static final String QUERY = "query";
-    private static final String INPUT_FIELD = "input";
+    public static final String INPUT_FIELD = "input";
     private static final String INPUTS_FIELD = "inputs";
-    private static final String MODEL_FIELD = "model";
+    public static final String MODEL_FIELD = "model";
     public static final String INPUT_TYPE_FIELD = "input_type";
     public static final String TRUNCATION_FIELD = "truncation";
-    public static final String OUTPUT_DIMENSION = "output_dimension";
-    static final String OUTPUT_DTYPE_FIELD = "output_dtype";
+    public static final String OUTPUT_DIMENSION_FIELD = "output_dimension";
+    public static final String OUTPUT_DTYPE_FIELD = "output_dtype";
     private static final String CONTENT_FIELD = "content";
     private static final String TYPE_FIELD = "type";
     private static final String TEXT_TYPE = "text";
@@ -59,17 +59,17 @@ public record VoyageAIEmbeddingsRequestEntity(
 
         // prefer the root level inputType over task settings input type
         if (InputType.isSpecified(inputType)) {
-            builder.field(INPUT_TYPE_FIELD, convertToString(inputType));
-        } else if (InputType.isSpecified(taskSettings.getInputType())) {
-            builder.field(INPUT_TYPE_FIELD, convertToString(taskSettings.getInputType()));
+            builder.field(INPUT_TYPE_FIELD, convertInputTypeToString(inputType));
+        } else if (InputType.isSpecified(taskSettings.inputType())) {
+            builder.field(INPUT_TYPE_FIELD, convertInputTypeToString(taskSettings.inputType()));
         }
 
-        if (taskSettings.getTruncation() != null) {
-            builder.field(TRUNCATION_FIELD, taskSettings.getTruncation());
+        if (taskSettings.truncation() != null) {
+            builder.field(TRUNCATION_FIELD, taskSettings.truncation());
         }
 
         if (serviceSettings.dimensions() != null) {
-            builder.field(OUTPUT_DIMENSION, serviceSettings.dimensions());
+            builder.field(OUTPUT_DIMENSION_FIELD, serviceSettings.dimensions());
         }
 
         builder.field(OUTPUT_DTYPE_FIELD, serviceSettings.getEmbeddingType().toRequestString());
@@ -103,7 +103,7 @@ public record VoyageAIEmbeddingsRequestEntity(
         }
     }
 
-    public static String convertToString(InputType inputType) {
+    public static String convertInputTypeToString(InputType inputType) {
         return switch (inputType) {
             case null -> null;
             case INGEST, INTERNAL_INGEST -> DOCUMENT;

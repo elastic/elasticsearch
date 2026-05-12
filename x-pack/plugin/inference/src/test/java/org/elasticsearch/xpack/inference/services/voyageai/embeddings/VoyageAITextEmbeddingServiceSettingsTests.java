@@ -398,6 +398,14 @@ public class VoyageAITextEmbeddingServiceSettingsTests extends AbstractBWCWireSe
         assertThat(newSettings, is(expectedSettings));
     }
 
+    @Override
+    protected VoyageAITextEmbeddingServiceSettings mutateInstanceForVersion(
+        VoyageAITextEmbeddingServiceSettings instance,
+        org.elasticsearch.TransportVersion version
+    ) {
+        return instance;
+    }
+
     public static Map<String, Object> getServiceSettingsMap(String model) {
         return new HashMap<>(VoyageAIServiceSettingsTests.getServiceSettingsMap(model));
     }

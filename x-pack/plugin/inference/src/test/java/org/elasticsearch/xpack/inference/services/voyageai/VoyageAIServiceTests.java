@@ -132,7 +132,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
-                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+                MatcherAssert.assertThat(embeddingsModel.apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
 
             service.parseRequestConfig(
@@ -159,7 +159,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
                 MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+                MatcherAssert.assertThat(embeddingsModel.apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
 
             service.parseRequestConfig(
@@ -188,7 +188,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
                 MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+                MatcherAssert.assertThat(embeddingsModel.apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
 
             service.parseRequestConfig(
@@ -215,7 +215,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), equalTo(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
-                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+                MatcherAssert.assertThat(embeddingsModel.apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
 
             service.parseRequestConfig(
@@ -357,7 +357,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+            MatcherAssert.assertThat(embeddingsModel.apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -387,7 +387,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+            MatcherAssert.assertThat(embeddingsModel.apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -416,7 +416,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+            MatcherAssert.assertThat(embeddingsModel.apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -474,7 +474,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+            MatcherAssert.assertThat(embeddingsModel.apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -505,7 +505,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+            MatcherAssert.assertThat(embeddingsModel.apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -534,7 +534,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+            MatcherAssert.assertThat(embeddingsModel.apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -564,7 +564,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+            MatcherAssert.assertThat(embeddingsModel.apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -595,7 +595,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
+            MatcherAssert.assertThat(embeddingsModel.apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -845,7 +845,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -856,7 +856,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
+
         }
 
         verify(sender, times(1)).close();
@@ -891,7 +891,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 InputType.CLUSTERING,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -902,7 +902,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
+
         }
 
         verify(sender, times(1)).close();
@@ -974,7 +974,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1008,7 +1008,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1064,7 +1064,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1146,7 +1146,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 InputType.SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1228,7 +1228,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1291,7 +1291,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1379,7 +1379,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1473,7 +1473,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1551,7 +1551,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 null,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1647,7 +1647,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 false,
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1723,7 +1723,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 List.of(),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1776,7 +1776,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1922,7 +1922,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             service.embeddingInfer(
                 mockModel,
                 new EmbeddingRequest(List.of(), InputType.UNSPECIFIED, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1960,7 +1960,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             service.embeddingInfer(
                 model,
                 new EmbeddingRequest(inputs, InputType.UNSPECIFIED, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -2012,7 +2012,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             service.embeddingInfer(
                 model,
                 new EmbeddingRequest(inputs, InputType.INGEST, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 

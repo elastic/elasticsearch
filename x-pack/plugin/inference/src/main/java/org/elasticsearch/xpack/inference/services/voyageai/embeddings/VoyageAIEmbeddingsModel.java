@@ -53,7 +53,7 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
             createServiceSettings(serviceSettings, taskType, context),
             VoyageAIEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets),
+            DefaultSecretSettings.fromMap(secrets, context),
             null,
             taskType
         );

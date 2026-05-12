@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingBitRe
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIEmbeddingsRequest;
 
@@ -163,7 +163,7 @@ public class VoyageAIEmbeddingsResponseEntity {
      * </code>
      * </pre>
      */
-    public static InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException {
+    public static InferenceServiceResults fromResponse(OutboundRequest request, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         VoyageAIEmbeddingsRequest embeddingsRequest = (VoyageAIEmbeddingsRequest) request;
         VoyageAIEmbeddingType embeddingType = embeddingsRequest.getEmbeddingType();

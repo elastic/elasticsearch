@@ -257,7 +257,7 @@ public class TestRestrictedIndices {
 
     private static SystemIndexDescriptor getEvaluationDescriptor() {
         return SystemIndexDescriptor.builder()
-            .setIndexPattern(".evaluation*")
+            .setIndexPattern(".evaluation-*")
             .setDescription("Evaluations system indices")
             .setType(SystemIndexDescriptor.Type.EXTERNAL_UNMANAGED)
             .setAllowedElasticProductOrigins(List.of("kibana"))

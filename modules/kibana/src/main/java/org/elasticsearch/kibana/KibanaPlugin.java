@@ -122,7 +122,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         .build();
 
     public static final SystemIndexDescriptor EVALUATION_INDEX_DESCRIPTOR = SystemIndexDescriptor.builder()
-        .setIndexPattern(".evaluation*")
+        .setIndexPattern(".evaluation-*")
         .setDescription("Evaluations system indices")
         .setType(Type.EXTERNAL_UNMANAGED)
         .setAllowedElasticProductOrigins(KIBANA_PRODUCT_ORIGIN)

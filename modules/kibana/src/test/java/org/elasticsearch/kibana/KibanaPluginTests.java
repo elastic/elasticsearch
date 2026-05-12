@@ -31,7 +31,7 @@ public class KibanaPluginTests extends ESTestCase {
                 KibanaPlugin.WORKFLOWS_SYSTEM_INDEX_PATTERN,
                 ".apm-agent-configuration*",
                 ".apm-custom-link*",
-                ".evaluation*"
+                ".evaluation-*"
             )
         );
     }

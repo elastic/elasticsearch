@@ -191,10 +191,8 @@ public class ViewResolver {
                     viewQueries,
                     depth,
                     planListener.delegateFailureAndWrap((l, result) -> {
-                        // plan.forEachDown(resolvedPlans::add);
-                        if (result.equals(fork) == false) {
-                            result.forEachDown(resolvedPlans::add);
-                        }
+                        plan.forEachDown(resolvedPlans::add);
+                        result.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
                     })
                 );
@@ -206,12 +204,10 @@ public class ViewResolver {
                     viewQueries,
                     depth,
                     planListener.delegateFailureAndWrap((l, result) -> {
-                        // plan.forEachDown(resolvedPlans::add);
+                        plan.forEachDown(resolvedPlans::add);
                         // Also mark the resolved result subtree so transformDown does not
                         // re-process view-body nodes the UnresolvedRelation was replaced with.
-                        if (result.equals(ur) == false) {
-                            result.forEachDown(resolvedPlans::add);
-                        }
+                        result.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
                     })
                 );

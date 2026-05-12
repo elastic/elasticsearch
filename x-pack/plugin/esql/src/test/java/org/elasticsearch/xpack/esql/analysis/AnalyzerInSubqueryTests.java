@@ -2625,7 +2625,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             Map.of("id", idField, "name", nameField),
             Map.of("union_index_1", IndexMode.STANDARD, "union_index_2", IndexMode.STANDARD),
             Map.of(),
-            Map.of(),
             Map.of()
         );
         return IndexResolution.valid(index);

@@ -262,7 +262,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             tempDir,
             deterministicTaskQueue,
             transportInterceptorFactory,
-            this::assertCriticalWarnings
+            expectedWarnings -> assertWarnings(expectedWarnings)
         );
         startCluster();
     }

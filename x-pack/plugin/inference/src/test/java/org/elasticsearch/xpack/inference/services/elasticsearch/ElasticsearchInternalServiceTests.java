@@ -9,7 +9,6 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
@@ -21,7 +20,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -464,7 +462,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                 config,
                 getElserModelVerificationActionListener(elserServiceSettings, criticalWarning, warnWarning, false)
             );
-            assertWarnings(true, new DeprecationWarning(DeprecationLogger.CRITICAL, criticalWarning));
+            assertWarnings(criticalWarning);
         }
 
         // Invalid service settings
@@ -744,11 +742,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         boolean expectChunkingSettings
     ) {
         return ActionListener.wrap(model -> {
-            assertWarnings(
-                true,
-                new DeprecationWarning(DeprecationLogger.CRITICAL, criticalWarning),
-                new DeprecationWarning(Level.WARN, warnWarning)
-            );
+            assertWarnings(criticalWarning, warnWarning);
 
             assertThat(model, instanceOf(ElserInternalModel.class));
             ElserInternalModel elserInternalModel = (ElserInternalModel) model;

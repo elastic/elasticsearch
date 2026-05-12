@@ -326,7 +326,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         return null;
     }
 
-//<<<<<<< reduce-diskbbq-merge-cost-tiered-strategy
     @Override
     public CentroidData readCentroidData(FieldInfo fieldInfo) throws IOException {
         NextFieldEntry entry = fields.get(fieldInfo.number);
@@ -379,10 +378,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         return offsets;
     }
 
-    static class NextFieldEntry extends FieldEntry {
-//=======
     public static class NextFieldEntry extends FieldEntry {
-//>>>>>>> main
         private final ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding;
         protected final long preconditionerOffset;
         protected final long preconditionerLength;

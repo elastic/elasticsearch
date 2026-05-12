@@ -72,7 +72,6 @@ import static org.hamcrest.Matchers.hasToString;
 public class ES93BinaryQuantizedVectorsFormatTests extends BaseFlatQuantizedKnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

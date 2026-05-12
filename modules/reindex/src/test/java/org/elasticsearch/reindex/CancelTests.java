@@ -20,8 +20,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequestBuilder;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequestBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -79,14 +79,14 @@ public class CancelTests extends ReindexTestCase {
      */
     private void testCancel(
         ActionType<BulkByScrollResponse> action,
-        AbstractBulkByScrollRequestBuilder<?, ?> builder,
+        AbstractBulkByPaginatedSearchRequestBuilder<?, ?> builder,
         CancelAssertion assertion,
         Matcher<String> taskDescriptionMatcher
     ) throws Exception {
         createIndex(INDEX);
         // Scroll by 1 so that cancellation is easier to control
         builder.source().setSize(1);
-        AbstractBulkByScrollRequest<?> request = builder.request();
+        AbstractBulkByPaginatedSearchRequest<?> request = builder.request();
         // Total number of documents created for this test (~10 per primary shard per slice)
         int numDocs = getNumShards(INDEX).numPrimaries * 10 * request.getSlices();
         ALLOWED_OPERATIONS.release(numDocs);

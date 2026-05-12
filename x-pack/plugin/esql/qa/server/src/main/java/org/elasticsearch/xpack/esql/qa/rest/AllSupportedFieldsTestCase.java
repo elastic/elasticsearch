@@ -187,6 +187,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return clusterHasCapability("GET", "/_query", List.of(), List.of("DENSE_VECTOR_AGG_METRIC_DOUBLE_IF_VERSION")).orElse(false);
     }
 
+    private static Boolean vectorIndexModeSupported;
+
+    private boolean vectorIndexModeSupported() throws IOException {
+        if (vectorIndexModeSupported == null) {
+            vectorIndexModeSupported = clusterHasCapability("PUT", "/{index}", List.of(), List.of("vector_index_mode")).orElse(false);
+        }
+        return vectorIndexModeSupported;
+    }
+
     protected boolean lookupJoinOnAllIndicesSupported() throws IOException {
         return true;
     }
@@ -255,6 +264,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     @Before
     public void createIndices() throws IOException {
+        if (indexMode == IndexMode.VECTOR) {
+            assumeTrue("Cluster has nodes that do not support index.mode=vector", vectorIndexModeSupported());
+        }
         if (supportsNodeAssignment()) {
             for (Map.Entry<String, NodeInfo> e : localNodeToInfo().entrySet()) {
                 createIndexForNode(client(), minVersion(), e.getKey(), e.getValue().id(), indexMode);

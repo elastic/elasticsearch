@@ -88,8 +88,8 @@ public class DiskBBQDenseVectorFieldMapperTests extends MapperServiceTestCase {
         assertEquals(DenseVectorFieldMapper.VectorIndexType.BBQ_DISK, mapper.fieldType().getIndexOptions().getType());
     }
 
-    public void testDefaultsToBBQDiskInVectorIndexMode() throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vector").build();
+    public void testDefaultsToBBQDiskInVectordbDocumentIndexMode() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
         MapperService mapperService = createMapperService(
             getVersion(),
             settings,

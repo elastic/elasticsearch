@@ -56,8 +56,8 @@ public class DiskBBQDenseVectorFieldMapperLicensedStatefulDefaultsTests extends 
         assertEquals(DenseVectorFieldMapper.VectorIndexType.INT8_HNSW, mapper.fieldType().getIndexOptions().getType());
     }
 
-    public void testDefaultsToBBQHnswInVectorIndexModeWhenLicensedOnStatefulNodeAndDimensionsAreHigh() throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vector").build();
+    public void testDefaultsToBBQHnswInVectordbDocumentIndexModeWhenLicensedOnStatefulNodeAndDimensionsAreHigh() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
         MapperService mapperService = createMapperService(
             getVersion(),
             settings,
@@ -83,8 +83,8 @@ public class DiskBBQDenseVectorFieldMapperLicensedStatefulDefaultsTests extends 
         assertEquals(DenseVectorFieldMapper.VectorIndexType.BBQ_HNSW, mapper.fieldType().getIndexOptions().getType());
     }
 
-    public void testDefaultsToInt8HnswInVectorIndexModeWhenLicensedOnStatefulNodeAndDimensionsAreLow() throws IOException {
-        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vector").build();
+    public void testDefaultsToInt8HnswInVectordbDocumentIndexModeWhenLicensedOnStatefulNodeAndDimensionsAreLow() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "vectordb_document").build();
         MapperService mapperService = createMapperService(
             getVersion(),
             settings,

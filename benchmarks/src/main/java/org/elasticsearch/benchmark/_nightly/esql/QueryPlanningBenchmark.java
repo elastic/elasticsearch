@@ -107,7 +107,7 @@ public class QueryPlanningBenchmark {
             mapping.put("field" + i, new EsField("field-" + i, TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
 
-        var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Map.of());
+        var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of());
 
         var functionRegistry = new EsqlFunctionRegistry();
         parser = new EsqlParser(new EsqlConfig(functionRegistry));

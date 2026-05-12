@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -53,7 +54,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
@@ -343,15 +343,6 @@ public class IndexResolver {
         String[] names = fieldsCaps.keySet().toArray(new String[0]);
         Arrays.sort(names);
         Map<String, EsField> rootFields = new HashMap<>();
-        Map<String, Set<String>> fieldToUnmappedIndices;
-        Set<String> allIndexNames;
-        if (trackUnmappedFieldIndices) {
-            fieldToUnmappedIndices = new HashMap<>();
-            allIndexNames = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).collect(Collectors.toSet());
-        } else {
-            fieldToUnmappedIndices = Map.of();
-            allIndexNames = null;
-        }
         for (String name : names) {
             Map<String, EsField> fields = rootFields;
             String fullName = name;
@@ -387,14 +378,11 @@ public class IndexResolver {
                     firstUnsupportedParent.getName(),
                     new HashMap<>()
                 );
-            fields.put(name, field);
             if (trackUnmappedFieldIndices) {
-                Set<String> unmappedIndices = new TreeSet<>(allIndexNames);
-                unmappedIndices.removeAll(collectedFieldCaps.fieldToMappedIndices.getOrDefault(fullName, Set.of()));
-                if (unmappedIndices.isEmpty() == false) {
-                    fieldToUnmappedIndices.put(fullName, unmappedIndices);
-                }
+                Set<String> mappedIndices = collectedFieldCaps.fieldToMappedIndices.getOrDefault(fullName, Set.of());
+                field = wrapIfPartiallyUnmapped(field, name, fullName, mappedIndices, numberOfIndices);
             }
+            fields.put(name, field);
         }
 
         boolean allEmpty = true;
@@ -422,8 +410,7 @@ public class IndexResolver {
             // FieldCapabilitiesResponse#resolvedLocally and FieldCapabilitiesResponse#resolvedRemotely
             // once all remotes support it (v9.3+)
             originalIndexExtractor.apply(indexPattern, fieldsInfo.caps),
-            concreteIndices,
-            fieldToUnmappedIndices
+            concreteIndices
         );
         var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
         return IndexResolution.valid(index, indexNameWithModes.keySet(), failures);
@@ -539,6 +526,36 @@ public class IndexResolver {
         }
 
         return new EsField(name, type, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType);
+    }
+
+    // Visible for testing.
+    public static EsField wrapIfPartiallyUnmapped(
+        EsField field,
+        String name,
+        String fullName,
+        Set<String> mappedIndices,
+        int numberOfIndices
+    ) {
+        return field instanceof UnsupportedEsField == false && mappedIndices.size() < numberOfIndices
+            ? wrapPartiallyUnmappedField(field, name, fullName, mappedIndices)
+            : field;
+    }
+
+    // Visible for testing
+    public static EsField wrapPartiallyUnmappedField(EsField field, String name, String fullName, Set<String> mappedIndices) {
+        return switch (field.getDataType()) {
+            // OBJECT fields are containers for subfields, not leaf fields that get queried directly.
+            // Wrapping them would break downstream code that doesn't expect OBJECT as a data type in InvalidMappedField.
+            case OBJECT -> field;
+            // PotentiallyUnmappedKeywordEsField needs the full dotted path for DefaultShardContextForUnmappedField.fieldType().
+            case KEYWORD -> new PotentiallyUnmappedKeywordEsField(fullName);
+            default -> InvalidMappedField.potentiallyUnmapped(
+                name,
+                field instanceof InvalidMappedField imf
+                    ? imf.getTypesToIndices()
+                    : Map.of(field.getDataType().widenSmallNumeric().typeName(), mappedIndices)
+            );
+        };
     }
 
     private static UnsupportedEsField unsupported(String name, IndexFieldCapabilities fc) {

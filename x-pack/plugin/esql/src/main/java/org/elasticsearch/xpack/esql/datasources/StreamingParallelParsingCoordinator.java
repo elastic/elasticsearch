@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Architecture:
  * <ol>
  *   <li>A segmentator thread reads the decompressed stream into byte buffers from a pool</li>
- *   <li>Each buffer is split at the last record boundary (newline) to form a complete chunk</li>
+ *   <li>Each buffer is split at the last record boundary to form a complete chunk</li>
  *   <li>Chunks are dispatched to parser threads via a bounded queue</li>
  *   <li>Parser threads parse each chunk independently using the format reader</li>
  *   <li>Results are yielded in chunk order via per-slot page queues</li>
@@ -244,7 +244,7 @@ public final class StreamingParallelParsingCoordinator {
                     int totalBytes = offset + Math.max(bytesRead, 0);
                     boolean isEof = bytesRead < 0 || totalBytes < buf.length;
 
-                    int lastNewline = findLastNewline(buf, totalBytes);
+                    int lastNewline = reader.findLastRecordBoundary(buf, totalBytes);
 
                     if (lastNewline < 0) {
                         if (isEof) {
@@ -262,9 +262,10 @@ public final class StreamingParallelParsingCoordinator {
                             // {@link #growUntilNewline} only copies from {@code buf}; the original pool buffer
                             // is independent of {@code grown} and must be returned to the pool here so the
                             // pool does not leak one entry per oversized record.
-                            byte[] grown = growUntilNewline(stream, buf, totalBytes, chunkSize);
+                            GrowResult result = growUntilRecordBoundary(stream, buf, totalBytes, chunkSize);
                             recycleBuffer(buf);
-                            int grownNewline = findLastNewline(grown, grown.length);
+                            byte[] grown = result.buffer();
+                            int grownNewline = result.boundary();
                             if (grownNewline < 0) {
                                 if (chunkIndex == 0) {
                                     bindSchemaFromFirstChunk(grown, grown.length);
@@ -426,15 +427,16 @@ public final class StreamingParallelParsingCoordinator {
                         // first split; otherwise CSV-style readers re-run header inference on data
                         // rows. NDJSON does not have a header, so the readers ignore firstSplit.
                         // - lastSplit: the segmentator only dispatches a chunk after locating its
-                        // trailing \n via findLastNewline (or grows the buffer until one is found),
-                        // so the chunk's final byte is always a record terminator. The original
-                        // chunk.last flag was set only on the EOF chunk, leaving every interior
-                        // chunk wrapped in TrimLastPartialLineInputStream's per-byte tail scan —
-                        // pure overhead on already-aligned data. Setting lastSplit=true everywhere
-                        // lets line-oriented readers (NDJSON) skip that scan.
-                        // - recordAligned: the segmentator slices on \n carry-over so each chunk
-                        // starts exactly on a record boundary; readers can skip the "drop leading
-                        // partial line" workaround used for byte-range macro-splits.
+                        // trailing record boundary via findLastRecordBoundary (or grows the buffer
+                        // until one is found), so the chunk's final byte is always a record
+                        // terminator. The original chunk.last flag was set only on the EOF chunk,
+                        // leaving every interior chunk wrapped in TrimLastPartialLineInputStream's
+                        // per-byte tail scan — pure overhead on already-aligned data. Setting
+                        // lastSplit=true everywhere lets line-oriented readers (NDJSON) skip that
+                        // scan.
+                        // - recordAligned: the segmentator slices on record-boundary carry-over so
+                        // each chunk starts exactly on a record boundary; readers can skip the
+                        // "drop leading partial line" workaround used for byte-range macro-splits.
                         FormatReadContext ctx = FormatReadContext.builder()
                             .projectedColumns(projectedColumns)
                             .batchSize(batchSize)
@@ -482,15 +484,6 @@ public final class StreamingParallelParsingCoordinator {
             return totalRead;
         }
 
-        private static int findLastNewline(byte[] buf, int length) {
-            for (int i = length - 1; i >= 0; i--) {
-                if (buf[i] == '\n') {
-                    return i;
-                }
-            }
-            return -1;
-        }
-
         private static byte[] growUntilNewline(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
             byte[] grown = new byte[existingLen + growBy];
             System.arraycopy(existing, 0, grown, 0, existingLen);
@@ -504,7 +497,6 @@ public final class StreamingParallelParsingCoordinator {
                     }
                     return Arrays.copyOf(grown, offset);
                 }
-                // Check for newline in the newly read bytes
                 for (int i = offset; i < offset + n; i++) {
                     if (grown[i] == '\n') {
                         return Arrays.copyOf(grown, offset + n);
@@ -514,6 +506,41 @@ public final class StreamingParallelParsingCoordinator {
                 if (offset >= grown.length) {
                     grown = Arrays.copyOf(grown, grown.length + growBy);
                 }
+            }
+        }
+
+        private record GrowResult(byte[] buffer, int boundary) {}
+
+        /**
+         * Like {@link #growUntilNewline} but keeps growing until the accumulated buffer contains at
+         * least one record boundary (as determined by {@link SegmentableFormatReader#findLastRecordBoundary}).
+         * Multi-line quoted fields may contain {@code \n} bytes that are not record boundaries; this
+         * method avoids splitting in the middle of such a field.
+         * <p>
+         * The inner loop uses {@link #growUntilNewline} (raw {@code \n} scan) intentionally: a
+         * record boundary always coincides with a {@code \n}, so growing to the next raw
+         * {@code \n} is the minimum I/O needed before re-checking with the quote-aware SPI method.
+         * For quoted fields with embedded {@code \n}, the raw scan stops too early and the
+         * boundary check returns {@code -1}, causing another growth iteration — correct, just
+         * not single-pass.
+         *
+         * @return a {@link GrowResult} carrying both the grown buffer and the pre-computed boundary
+         *         index, so callers can avoid a redundant boundary rescan
+         */
+        private GrowResult growUntilRecordBoundary(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
+            byte[] buf = existing;
+            int len = existingLen;
+            while (true) {
+                byte[] grown = growUntilNewline(stream, buf, len, growBy);
+                if (grown.length == len) {
+                    return new GrowResult(grown, -1);
+                }
+                int boundary = reader.findLastRecordBoundary(grown, grown.length);
+                if (boundary >= 0) {
+                    return new GrowResult(grown, boundary);
+                }
+                buf = grown;
+                len = grown.length;
             }
         }
 

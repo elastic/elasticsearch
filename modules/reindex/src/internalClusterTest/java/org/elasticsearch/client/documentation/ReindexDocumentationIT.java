@@ -17,7 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequestBuilder;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequestBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
@@ -261,7 +261,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
 
     /**
      * Similar to what CancelTests does: blocks some operations to be able to catch some tasks in running state
-     * @see CancelTests#testCancel(ActionType, AbstractBulkByScrollRequestBuilder, CancelTests.CancelAssertion, Matcher)
+     * @see CancelTests#testCancel(ActionType, AbstractBulkByPaginatedSearchRequestBuilder, CancelTests.CancelAssertion, Matcher)
      */
     private ReindexRequestBuilder reindexAndPartiallyBlock() throws Exception {
         final Client client = client();

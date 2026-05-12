@@ -652,7 +652,7 @@ public class BlockFactory {
         return new LongRangeBlockBuilder(estimatedSize, this);
     }
 
-    public LongRangeBlock newConstantLongRangeBlock(LongRangeBlockBuilder.LongRange value, int positions) {
+    public LongRangeBlock newConstantLongRangeBlockWith(LongRangeBlockBuilder.LongRange value, int positions) {
         try (var builder = newLongRangeBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 builder.appendLongRange(value);

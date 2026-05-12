@@ -214,6 +214,8 @@ toc:
                   - hidden: esql/functions-operators/date-time-functions/range_max.md
                   - hidden: esql/functions-operators/date-time-functions/range_min.md
                   - hidden: esql/functions-operators/date-time-functions/range_within.md
+                  - hidden: esql/functions-operators/date-time-functions/range_contains.md
+                  - hidden: esql/functions-operators/date-time-functions/range_intersects.md
                   - file: esql/functions-operators/date-time-functions/trange.md
               - file: esql/functions-operators/ip-functions.md
                 children:

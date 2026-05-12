@@ -85,4 +85,50 @@ public final class BBQTestUtils {
         assert dimensions % 8 == 0 : "dimensions must be a multiple of 8: " + dimensions;
         return dimensions / (8 / bits);
     }
+
+    /**
+     * Packs unpacked 2-bit values (one value per byte, range 0..3) into the packed-quad
+     * layout: each output byte holds four 2-bit values
+     * {@code [v0:7..6 | v1:5..4 | v2:3..2 | v3:1..0]}, where the four values pulled into
+     * a single byte are sourced {@code packedLen = unpacked.length / 4} apart in the input.
+     *
+     * <p>Example with {@code unpacked.length = 8}, {@code packedLen = 2}:
+     * <pre>
+     *   packed[0] = (v0 &lt;&lt; 6) | (v2 &lt;&lt; 4) | (v4 &lt;&lt; 2) | v6
+     *   packed[1] = (v1 &lt;&lt; 6) | (v3 &lt;&lt; 4) | (v5 &lt;&lt; 2) | v7
+     * </pre>
+     */
+    public static byte[] packQuads(byte[] unpacked) {
+        assert unpacked.length % 4 == 0 : "unpacked length must be a multiple of 4: " + unpacked.length;
+        int packedLen = unpacked.length / 4;
+        byte[] packed = new byte[packedLen];
+        for (int i = 0; i < packedLen; i++) {
+            int s0 = unpacked[i] & 0x03;
+            int s1 = unpacked[i + packedLen] & 0x03;
+            int s2 = unpacked[i + 2 * packedLen] & 0x03;
+            int s3 = unpacked[i + 3 * packedLen] & 0x03;
+            packed[i] = (byte) ((s0 << 6) | (s1 << 4) | (s2 << 2) | s3);
+        }
+        return packed;
+    }
+
+    /**
+     * Inverse of {@link #packQuads}.
+     *
+     * @param packed packed-quad buffer (each byte holds four 2-bit values)
+     * @param dims total number of 2-bit elements ({@code 4 * packed.length})
+     */
+    public static byte[] unpackQuads(byte[] packed, int dims) {
+        assert dims == 4 * packed.length : "dims " + dims + " != 4 * packed.length " + packed.length;
+        byte[] unpacked = new byte[dims];
+        int packedLen = packed.length;
+        for (int i = 0; i < packedLen; i++) {
+            int b = packed[i] & 0xFF;
+            unpacked[i] = (byte) ((b >>> 6) & 0x03);
+            unpacked[i + packedLen] = (byte) ((b >>> 4) & 0x03);
+            unpacked[i + 2 * packedLen] = (byte) ((b >>> 2) & 0x03);
+            unpacked[i + 3 * packedLen] = (byte) (b & 0x03);
+        }
+        return unpacked;
+    }
 }

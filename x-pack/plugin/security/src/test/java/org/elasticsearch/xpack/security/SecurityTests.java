@@ -109,6 +109,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
@@ -164,7 +165,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
@@ -249,6 +249,7 @@ public class SecurityTests extends ESTestCase {
         settings = Security.additionalSettings(settings, true);
         Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(null, new CrossClusterAccessSecurityExtension.Provider()));
         allowedSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        allowedSettings.add(XPackSettings.AUDIT_ENABLED);
         ClusterSettings clusterSettings = new ClusterSettings(settings, allowedSettings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(threadPool.relativeTimeInMillis()).thenReturn(1L);
@@ -396,7 +397,7 @@ public class SecurityTests extends ESTestCase {
     public void testDisabledByDefault() throws Exception {
         Collection<Object> components = createComponents(Settings.EMPTY);
         AuditTrailService auditTrailService = findComponent(AuditTrailService.class, components);
-        assertThat(auditTrailService.getAuditTrail(), nullValue());
+        assertThat(auditTrailService.get(), instanceOf(AuditTrail.class));
     }
 
     public void testHttpSettingDefaults() throws Exception {

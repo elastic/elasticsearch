@@ -21,7 +21,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -354,7 +354,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
     public void testMissingSources() {
         BulkByScrollResponse response = updateByQuery().source("missing-index-*")
             .refresh(true)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
             .get();
         assertThat(response, matcher().deleted(0).slices(hasSize(0)));
     }

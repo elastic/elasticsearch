@@ -354,11 +354,11 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         return new Builder(requiredByDefault, docValuesEnabledByDefault).init(this);
     }
 
-    static class InstancesLookup {
+    static final class InstancesLookup {
 
         private record Key(boolean requiredByDefault, boolean required, boolean docValuesEnabledByDefault, boolean docValues) {}
 
-        final static Map<Key, RoutingFieldMapper> INSTANCES = new HashMap<>(16);
+        static final Map<Key, RoutingFieldMapper> INSTANCES = new HashMap<>(16);
 
         static {
             for (boolean required : new boolean[] { true, false }) {

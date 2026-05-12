@@ -573,3 +573,175 @@ ROW geom = TO_GEOSHAPE("LINESTRING(0 0, 1 0)")
 geom_type:keyword | npoints:integer
 ST_Polygon        | 35
 ;
+
+stBufferFlatEndCap
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+
+// tag::st_buffer_flat_endcap[]
+ROW geom = TO_CARTESIANSHAPE("LINESTRING(0 0, 10 0)")
+| EVAL buffered = ST_BUFFER(geom, 2, {"endcap": "flat"})
+| KEEP buffered
+// end::st_buffer_flat_endcap[]
+;
+
+// tag::st_buffer_flat_endcap-result[]
+buffered:cartesian_shape
+POLYGON ((10.0 2.0, 10.0 -2.0, 0.0 -2.0, 0.0 2.0, 10.0 2.0))
+// end::st_buffer_flat_endcap-result[]
+;
+
+stBufferSquareEndCap
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+
+ROW geom = TO_CARTESIANSHAPE("LINESTRING(0 0, 10 0)")
+| EVAL buffered = ST_BUFFER(geom, 2, {"endcap": "square"})
+| KEEP buffered
+;
+
+buffered:cartesian_shape
+POLYGON ((10.0 2.0, 12.0 2.0, 12.0 -2.0, 0.0 -2.0, -2.0 -2.0, -2.0 2.0, 10.0 2.0))
+;
+
+stBufferQuadSegsDiamond
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+
+// quad_segs=1 produces a diamond around a point (one segment per quadrant)
+ROW geom = TO_CARTESIANSHAPE("POINT(0 0)")
+| EVAL buffered = ST_BUFFER(geom, 1, {"quad_segs": 1})
+| KEEP buffered
+;
+
+buffered:cartesian_shape
+POLYGON ((1.0 0.0, 0.0 -1.0, -1.0 0.0, 0.0 1.0, 1.0 0.0))
+;
+
+stBufferMitreJoin
+required_capability: fn_st_buffer
+required_capability: fn_st_geometrytype
+required_capability: fn_st_npoints
+required_capability: st_buffer_options
+
+ROW geom = TO_CARTESIANSHAPE("LINESTRING(0 0, 10 0, 10 10)")
+| EVAL buffered = ST_BUFFER(geom, 2, {"endcap": "flat", "join": "mitre"})
+| EVAL geom_type = ST_GEOMETRYTYPE(buffered), npoints = ST_NPOINTS(buffered)
+| KEEP geom_type, npoints
+;
+
+geom_type:keyword | npoints:integer
+ST_Polygon        | 7
+;
+
+stBufferMitreFlatJoin
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+
+// tag::st_buffer_mitre_flat[]
+ROW geom = TO_CARTESIANSHAPE("LINESTRING(0 0, 10 0, 10 10)")
+| EVAL buffered = ST_BUFFER(geom, 2, {"endcap": "flat", "join": "mitre"})
+| KEEP buffered
+// end::st_buffer_mitre_flat[]
+;
+
+// tag::st_buffer_mitre_flat-result[]
+buffered:cartesian_shape
+POLYGON ((8.0 2.0, 8.0 10.0, 12.0 10.0, 12.0 -2.0, 0.0 -2.0, 0.0 2.0, 8.0 2.0))
+// end::st_buffer_mitre_flat-result[]
+;
+
+stBufferAllOptions
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+
+// All four buffer options at once: expanding a square produces a square because mitre joins keep corners sharp
+ROW geom = TO_CARTESIANSHAPE("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))")
+| EVAL buffered = ST_BUFFER(geom, 2, {"quad_segs": 2, "endcap": "flat", "join": "mitre", "mitre_limit": 5.0})
+| KEEP buffered
+;
+
+buffered:cartesian_shape
+POLYGON ((-2.0 -2.0, -2.0 12.0, 12.0 12.0, 12.0 -2.0, -2.0 -2.0))
+;
+
+stBufferJoinMitreLimit
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+
+ROW geom = TO_CARTESIANSHAPE("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))")
+| EVAL buffered = ST_BUFFER(geom, 2, {"quad_segs": 2, "endcap": "flat", "join": "mitre", "mitre_limit": 1.0})
+| KEEP buffered
+;
+
+buffered:cartesian_shape
+POLYGON ((-2.0 -0.82842712474619, -2.0 10.828427124746192, -0.8284271247461914 12.0, 10.828427124746192 12.0, 12.0 10.828427124746192, 12.0 -0.8284271247461914, 10.828427124746192 -2.0, -0.8284271247461904 -2.0, -2.0 -0.82842712474619))
+;
+
+stBufferJoinBevel
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+
+ROW geom = TO_CARTESIANSHAPE("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))")
+| EVAL buffered = ST_BUFFER(geom, 2, {"quad_segs": 2, "endcap": "flat", "join": "bevel"})
+| KEEP buffered
+;
+
+buffered:cartesian_shape
+POLYGON ((-2.0 0.0, -2.0 10.0, 0.0 12.0, 10.0 12.0, 12.0 10.0, 12.0 0.0, 10.0 -2.0, 0.0 -2.0, -2.0 0.0))
+;
+
+stBufferOptionsPreserveDefaults
+required_capability: fn_st_buffer
+required_capability: fn_st_geometrytype
+required_capability: fn_st_npoints
+required_capability: st_buffer_options
+
+// An empty options map should behave the same as no options at all
+ROW geom = TO_CARTESIANSHAPE("POINT(0 0)")
+| EVAL with_empty = ST_BUFFER(geom, 1, {})
+| EVAL without = ST_BUFFER(geom, 1)
+| EVAL t1 = ST_GEOMETRYTYPE(with_empty), t2 = ST_GEOMETRYTYPE(without), n1 = ST_NPOINTS(with_empty), n2 = ST_NPOINTS(without)
+| KEEP t1, t2, n1, n2
+;
+
+t1:keyword | t2:keyword | n1:integer | n2:integer
+ST_Polygon | ST_Polygon | 33         | 33
+;
+
+// Buffer a real airport's geo_point location pulled from an index. quad_segs=2 gives a
+// deterministic 8-segment polygon (2 segments per quadrant + closing point = 9 points).
+stBufferFromAirports
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+required_capability: fn_st_geometrytype
+required_capability: fn_st_npoints
+
+FROM airports
+| WHERE abbrev == "CPH"
+| EVAL buffered = ST_BUFFER(location, 0.1, {"quad_segs": 2})
+| EVAL gtype = ST_GEOMETRYTYPE(buffered), pts = ST_NPOINTS(buffered)
+| KEEP abbrev, gtype, pts
+;
+
+abbrev:keyword | gtype:keyword | pts:integer
+CPH            | ST_Polygon    | 9
+;
+
+// Buffer a real geo_shape pulled from an index with mitre joins. We assert only the geometry
+// type since the exact vertex count depends on the shape of the city boundary.
+stBufferFromAirportCityBoundaries
+required_capability: fn_st_buffer
+required_capability: st_buffer_options
+required_capability: fn_st_geometrytype
+
+FROM airport_city_boundaries
+| WHERE city == "Copenhagen"
+| EVAL buffered = ST_BUFFER(city_boundary, 0.001, {"join": "mitre", "mitre_limit": 2.0})
+| EVAL gtype = ST_GEOMETRYTYPE(buffered), original_pts = ST_NPOINTS(city_boundary), buffered_pts = ST_NPOINTS(buffered)
+| KEEP city, gtype, original_pts, buffered_pts
+;
+
+city:keyword | gtype:keyword | original_pts:integer | buffered_pts:integer
+Copenhagen   | ST_Polygon    | 15                   | 16
+;

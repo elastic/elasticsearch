@@ -150,6 +150,13 @@ public class EsqlCapabilities {
         ST_SIMPLIFY,
 
         /**
+         * Support for named options ({@code quad_segs}, {@code endcap}, {@code join}, {@code mitre_limit})
+         * on {@code ST_BUFFER}. Requires a wire-protocol bump, so gates new csv-spec tests away from
+         * mixed-version clusters that pre-date the change.
+         */
+        ST_BUFFER_OPTIONS,
+
+        /**
          * The introduction of the {@code VALUES} agg.
          */
         AGG_VALUES,
@@ -411,6 +418,11 @@ public class EsqlCapabilities {
          * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.
          */
         FLATTENED_DATATYPE(Build.current().isSnapshot()),
+
+        /**
+         * Support for the {@code field_extract} function, which reads a sub-key from a {@code flattened} field root.
+         */
+        FIELD_EXTRACT_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713

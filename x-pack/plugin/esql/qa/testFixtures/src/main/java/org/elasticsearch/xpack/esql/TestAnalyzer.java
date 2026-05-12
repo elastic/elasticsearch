@@ -175,8 +175,7 @@ public class TestAnalyzer {
             Map.of(),
             Map.of(noFieldsIndexName, IndexMode.STANDARD),
             Map.of("", List.of(noFieldsIndexName)),
-            Map.of("", List.of(noFieldsIndexName)),
-            Map.of()
+            Map.of("", List.of(noFieldsIndexName))
         );
         addIndex(noFieldsIndexName, IndexResolution.valid(noFieldsIndex));
         return this;
@@ -803,7 +802,7 @@ public class TestAnalyzer {
      */
     public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
         return IndexResolution.valid(
-            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of(), Map.of())
+            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of())
         );
     }
 

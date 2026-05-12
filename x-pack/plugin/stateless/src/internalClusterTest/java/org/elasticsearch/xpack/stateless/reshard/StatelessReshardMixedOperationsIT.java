@@ -112,9 +112,9 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
         // We need to keep a ledger of all field value updates since untracked refreshes can occur, such as during handoff
         // The last entry is the most recent value
         List<String> pendingFieldValues;
-        // The field value on the segment after refreshing
+        // The field value on the segment after successfully refreshing
         @Nullable
-        String segmentFieldValue;
+        String lastRefreshedValue;
         @Nullable
         String routing;
         // Don't clear the pending field values ledger upon a refresh if this flag is set
@@ -124,18 +124,18 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
         IndexedDocument(String id, String fieldValue, @Nullable String routing, boolean keepFullHistory) {
             this.id = id;
             this.pendingFieldValues = new ArrayList<>(List.of(fieldValue));
-            this.segmentFieldValue = null;
+            this.lastRefreshedValue = null;
             this.routing = routing;
             this.keepFullHistory = keepFullHistory;
         }
 
         boolean wasRefreshed() {
-            return segmentFieldValue != null;
+            return lastRefreshedValue != null;
         }
 
         // Assert the fieldValue was a certain value
         // Used in search and non-real-time gets when an untracked refresh could have occurred
-        void assertWasFieldValue(String fieldValue) {
+        void assertHadFieldValue(String fieldValue) {
             assertTrue(
                 "Failed to find field value ["
                     + fieldValue
@@ -144,14 +144,14 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                     + "] with pendingFieldValues="
                     + pendingFieldValues
                     + " segmentFieldValue=["
-                    + segmentFieldValue
+                    + lastRefreshedValue
                     + "]",
-                fieldValue.equals(segmentFieldValue) || pendingFieldValues.contains(fieldValue)
+                fieldValue.equals(lastRefreshedValue) || pendingFieldValues.contains(fieldValue)
             );
         }
 
         String latestFieldValue() {
-            return pendingFieldValues.isEmpty() ? segmentFieldValue : pendingFieldValues.getLast();
+            return pendingFieldValues.isEmpty() ? lastRefreshedValue : pendingFieldValues.getLast();
         }
 
         void updateFieldValue(String fieldValue) {
@@ -160,7 +160,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
 
         void refresh() {
             if (pendingFieldValues.isEmpty() == false) {
-                segmentFieldValue = pendingFieldValues.getLast();
+                lastRefreshedValue = pendingFieldValues.getLast();
                 if (keepFullHistory == false) {
                     pendingFieldValues.clear();
                 }
@@ -206,7 +206,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                             if (document.wasRefreshed()) {
                                 var fieldValue = fieldValueInHits.get(documentId);
                                 assertNotNull(fieldValue);
-                                document.assertWasFieldValue(fieldValue);
+                                document.assertHadFieldValue(fieldValue);
                             }
                         });
                     });
@@ -271,7 +271,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                         if (realTime) {
                             assertEquals(document.latestFieldValue(), fieldValue);
                         } else {
-                            document.assertWasFieldValue(fieldValue);
+                            document.assertHadFieldValue(fieldValue);
                         }
                     }
                 }
@@ -308,7 +308,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                                 if (realTime) {
                                     assertEquals(document.latestFieldValue(), fieldValue);
                                 } else {
-                                    document.assertWasFieldValue(fieldValue);
+                                    document.assertHadFieldValue(fieldValue);
                                 }
                             }
                         }
@@ -413,7 +413,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                             fieldValueInHits.forEach((documentId, fieldValue) -> {
                                 var document = indexed.get(documentId);
                                 assertNotNull(document);
-                                document.assertWasFieldValue(fieldValue);
+                                document.assertHadFieldValue(fieldValue);
                             });
                         } finally {
                             searchResponse.decRef();
@@ -493,7 +493,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                         if (response.isExists()) {
                             String fieldValue = (String) response.getSourceAsMap().get("field");
                             // Check full history of updates since we record all updates even if they fail
-                            document.assertWasFieldValue(fieldValue);
+                            document.assertHadFieldValue(fieldValue);
                         }
                     } catch (ElasticsearchException e) {
                         // Shard unavailable during disruption
@@ -526,7 +526,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                             IndexedDocument document = documents.get(i);
                             String fieldValue = (String) getResponse.getSourceAsMap().get("field");
                             // Check full history of updates since we record all updates even if they fail
-                            document.assertWasFieldValue(fieldValue);
+                            document.assertHadFieldValue(fieldValue);
                         }
                     }
                 }

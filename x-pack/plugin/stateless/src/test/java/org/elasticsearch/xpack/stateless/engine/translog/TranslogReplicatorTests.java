@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -459,9 +460,10 @@ public class TranslogReplicatorTests extends ESTestCase {
         ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
         StatelessClusterConsistencyService consistencyService = mockConsistencyService();
 
+        final var taskQueue = new DeterministicTaskQueue(random());
         int threshold = randomIntBetween(128, 512);
         TranslogReplicator translogReplicator = new TranslogReplicator(
-            threadPool,
+            taskQueue.getThreadPool(),
             Settings.builder()
                 .put(TranslogReplicator.FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(1))
                 .put(TranslogReplicator.FLUSH_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(threshold))
@@ -486,18 +488,16 @@ public class TranslogReplicatorTests extends ESTestCase {
             bytes += s.length();
         }
 
-        Translog.Location location = new Translog.Location(0, 0, 0);
         long currentLocation = 0;
         seqNo = 0;
         for (Translog.Serialized s : serialized) {
-            location = new Translog.Location(0, currentLocation, s.length());
+            Translog.Location location = new Translog.Location(0, currentLocation, s.length());
             translogReplicator.add(shardId, s, seqNo++, location);
             currentLocation += s.length();
         }
 
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        translogReplicator.sync(shardId, location, future);
-        future.actionGet();
+        // There should be a flush in the queue now, run it
+        taskQueue.runAllTasks();
 
         assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
         Translog.Operation[] expectedOperations = operations.toArray(new Translog.Operation[0]);

@@ -2723,6 +2723,34 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testStBufferInvalidOptions() {
+        assumeTrue("st_buffer options must be enabled", EsqlCapabilities.Cap.ST_BUFFER_OPTIONS.isEnabled());
+
+        // Unknown option name is rejected at analysis time and lists the accepted keys.
+        defaultAnalyzer().error(
+            "ROW geom = TO_GEOSHAPE(\"POINT(0 0)\") | EVAL b = ST_BUFFER(geom, 1, { \"foo\": 42 })",
+            equalTo(
+                "1:49: Invalid option [foo] in [ST_BUFFER(geom, 1, { \"foo\": 42 })], "
+                    + "expected one of [endcap, join, mitre_limit, quad_segs]"
+            )
+        );
+        // Wrong value type for a known option is rejected at analysis time.
+        defaultAnalyzer().error(
+            "ROW geom = TO_GEOSHAPE(\"POINT(0 0)\") | EVAL b = ST_BUFFER(geom, 1, { \"quad_segs\": \"eight\" })",
+            equalTo(
+                "1:49: Invalid option [quad_segs] in [ST_BUFFER(geom, 1, { \"quad_segs\": \"eight\" })], "
+                    + "cannot cast [eight] to [integer]"
+            )
+        );
+        defaultAnalyzer().error(
+            "ROW geom = TO_GEOSHAPE(\"POINT(0 0)\") | EVAL b = ST_BUFFER(geom, 1, { \"mitre_limit\": \"big\" })",
+            equalTo(
+                "1:49: Invalid option [mitre_limit] in [ST_BUFFER(geom, 1, { \"mitre_limit\": \"big\" })], "
+                    + "cannot cast [big] to [double]"
+            )
+        );
+    }
+
     public void testCategorizeWithInlineStats() {
         assumeTrue("CATEGORIZE must be enabled", EsqlCapabilities.Cap.CATEGORIZE_V6.isEnabled());
         assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
